@@ -548,6 +548,7 @@ export const requestErasure = mutation({
             : {}),
         },
         subjectUserId: args.userId,
+        link: { kind: 'dsar' },
       });
     } else {
       // Default cooling-off path: row stays `pending` until
@@ -587,6 +588,7 @@ export const requestErasure = mutation({
             : {}),
         },
         subjectUserId: args.userId,
+        link: { kind: 'dsar' },
       });
     }
 
@@ -2482,6 +2484,7 @@ export const cancelErasureRequest = mutation({
           : {}),
       },
       subjectUserId: row.targetUserId,
+      link: { kind: 'dsar' },
     });
 
     await createAuditLog(ctx, {
@@ -2571,6 +2574,7 @@ export const confirmAndScheduleErasure = internalMutation({
           : {}),
       },
       subjectUserId: row.targetUserId,
+      link: { kind: 'dsar' },
     });
 
     return null;
@@ -2738,6 +2742,7 @@ export const retryErasureRequest = mutation({
           : {}),
       },
       subjectUserId: row.targetUserId,
+      link: { kind: 'dsar' },
     });
 
     await createAuditLog(ctx, {

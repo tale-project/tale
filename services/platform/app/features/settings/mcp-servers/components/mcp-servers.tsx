@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
 import { Server, X } from 'lucide-react';
@@ -167,7 +167,12 @@ export function McpServers({
             onSubmit={handleCreate}
           />
         </div>
-        <div className="border-border flex shrink-0 justify-end gap-3 border-t p-4 sm:px-6 sm:py-4">
+        <Row
+          gap={3}
+          align="stretch"
+          justify="end"
+          className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4"
+        >
           <Button
             type="button"
             variant="secondary"
@@ -179,7 +184,7 @@ export function McpServers({
           <Button type="submit" form="add-mcp-server" disabled={isCreating}>
             {isCreating ? t('form.saving') : t('form.save')}
           </Button>
-        </div>
+        </Row>
       </Sheet>
 
       {selectedServer && (

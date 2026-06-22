@@ -16,7 +16,7 @@ La surface Membre est volontairement étroite. Les quatre seaux sont :
 - **Conversations** — lire les threads d'inbox qui te sont assignés. Les Membres répondent quand un agent rend une conversation ; ils ne peuvent pas réassigner ou fermer des threads que d'autres possèdent.
 - **Approbations** — lire les cartes d'approbation routées vers toi. Clique sur Approuver, Rejeter, ou Demander des changements ; laisse un commentaire si la règle le demande.
 
-Les réglages de configuration de l'org — Fournisseurs, Intégrations, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l'essentiel de ce qui reste. L'exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Environnement et secrets](/fr/platform/member/environment), les clés et variables injectées dans les sandboxes que tu fais tourner.
+Les réglages de configuration de l'org — Fournisseurs, Intégrations, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l'essentiel de ce qui reste. L'exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d'environnement et secrets](/fr/platform/member/environment), les clés et variables injectées dans les sandboxes que tu fais tourner.
 
 ## Pages dans cette section
 

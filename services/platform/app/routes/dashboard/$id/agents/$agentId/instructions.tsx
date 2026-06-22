@@ -1,7 +1,7 @@
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
@@ -421,8 +421,8 @@ function InstructionsTab() {
         title={t('agents.form.sectionInstructions')}
         description={t('agents.form.sectionInstructionsDescription')}
       />
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3">
+      <Stack>
+        <Stack gap={3}>
           <HStack justify="between" align="center">
             <label htmlFor="systemInstructions" className="text-sm font-medium">
               {t('agents.form.systemInstructions')}
@@ -430,7 +430,6 @@ function InstructionsTab() {
             <Tooltip content={t('agents.form.browsePrompts')} side="top">
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => setPromptLibraryOpen(true)}
                 aria-label={t('agents.form.browsePrompts')}
               >
@@ -465,7 +464,7 @@ function InstructionsTab() {
             rows={8}
             className="font-mono text-sm"
           />
-        </div>
+        </Stack>
         <CollapsibleDetails
           variant="compact"
           summary={t('agents.form.templateVariablesLabel')}
@@ -482,7 +481,7 @@ function InstructionsTab() {
             ))}
           </ul>
         </CollapsibleDetails>
-      </div>
+      </Stack>
 
       {isExternalAgent && (
         <PageSection

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { BookOpen, History, Plus, Search } from 'lucide-react';
@@ -321,7 +321,7 @@ function PromptLibraryDialogContent({
         description={t('library.description')}
         className="w-[95vw] max-w-[680px]"
       >
-        <div className="flex flex-col gap-4">
+        <Stack>
           <Tabs
             items={tabItems}
             value={activeTab}
@@ -387,7 +387,7 @@ function PromptLibraryDialogContent({
             aria-busy={isLoading || undefined}
           >
             {isLoading && prompts.length === 0 ? (
-              <div className="flex flex-col gap-2 py-2">
+              <Stack gap={2} className="py-2">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
@@ -396,13 +396,17 @@ function PromptLibraryDialogContent({
                   />
                 ))}
                 <span className="sr-only">{t('library.loading')}</span>
-              </div>
+              </Stack>
             ) : visiblePrompts.length === 0 ? (
-              <div className="flex h-[300px] flex-col items-center justify-center gap-4">
-                <div className="bg-muted flex size-12 items-center justify-center rounded-full">
+              <Stack align="center" justify="center" className="h-[300px]">
+                <Row
+                  gap={0}
+                  justify="center"
+                  className="bg-muted size-12 rounded-full"
+                >
                   <BookOpen className="text-muted-foreground size-6" />
-                </div>
-                <div className="flex flex-col items-center gap-2 text-center">
+                </Row>
+                <Stack gap={2} align="center" className="text-center">
                   <Text as="h3" variant="label" className="font-medium">
                     {filtersActive
                       ? t('emptyState.filteredTitle')
@@ -421,7 +425,6 @@ function PromptLibraryDialogContent({
                         <Button
                           type="button"
                           variant="secondary"
-                          size="sm"
                           onClick={loadMore}
                           disabled={isLoadingMore}
                         >
@@ -433,17 +436,16 @@ function PromptLibraryDialogContent({
                       <Button
                         type="button"
                         variant="secondary"
-                        size="sm"
                         onClick={clearFilters}
                       >
                         {t('emptyState.clearFilters')}
                       </Button>
                     </HStack>
                   )}
-                </div>
-              </div>
+                </Stack>
+              </Stack>
             ) : (
-              <div className="flex flex-col" role="list">
+              <Stack gap={0} role="list">
                 {visiblePrompts.map((prompt, index) => {
                   const canModify = canModifyPrompt(prompt);
                   return (
@@ -468,10 +470,14 @@ function PromptLibraryDialogContent({
                   );
                 })}
                 {canLoadMore && (
-                  <div className="flex justify-center py-3">
+                  <Row
+                    gap={0}
+                    align="stretch"
+                    justify="center"
+                    className="py-3"
+                  >
                     <Button
                       variant="ghost"
-                      size="sm"
                       onClick={loadMore}
                       disabled={isLoadingMore}
                     >
@@ -479,12 +485,12 @@ function PromptLibraryDialogContent({
                         ? t('library.loadingMore')
                         : t('library.loadMore')}
                     </Button>
-                  </div>
+                  </Row>
                 )}
-              </div>
+              </Stack>
             )}
           </div>
-        </div>
+        </Stack>
       </Dialog>
 
       <PromptFormDialog
@@ -506,7 +512,6 @@ function PromptLibraryDialogContent({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => setHistoryPrompt(editingPrompt)}
             >
               <History className="mr-1 size-3" />

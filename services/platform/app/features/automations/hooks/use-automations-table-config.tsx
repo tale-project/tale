@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Folder, Package, Workflow } from 'lucide-react';
@@ -48,7 +49,7 @@ export function useAutomationsTableConfig(
           if (row.original.type === 'folder') {
             const isApp = row.original.appSlug !== undefined;
             return (
-              <div className="flex min-h-8 items-center gap-3">
+              <Row gap={3} className="min-h-8">
                 {isApp ? (
                   <Package className="text-muted-foreground size-4 shrink-0" />
                 ) : (
@@ -61,11 +62,11 @@ export function useAutomationsTableConfig(
                   <Badge variant="slate">{tAutomations('appBadge')}</Badge>
                 )}
                 <Badge variant="outline">{row.original.workflowCount}</Badge>
-              </div>
+              </Row>
             );
           }
           return (
-            <div className="flex min-h-8 items-center gap-3">
+            <Row gap={3} className="min-h-8">
               <Workflow className="text-muted-foreground size-4 shrink-0" />
               <Text as="span" variant="label" truncate>
                 {showFolderPath && row.original.folderPath ? (
@@ -79,7 +80,7 @@ export function useAutomationsTableConfig(
                   row.original.name
                 )}
               </Text>
-            </div>
+            </Row>
           );
         },
       },
@@ -118,8 +119,10 @@ export function useAutomationsTableConfig(
         cell: ({ row }) => {
           if (row.original.type === 'folder') return null;
           return (
-            <div
-              className="flex justify-end"
+            <Row
+              gap={0}
+              align="stretch"
+              justify="end"
               role="presentation"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -132,7 +135,7 @@ export function useAutomationsTableConfig(
                 }}
                 isAppOwned={row.original.appSlug !== undefined}
               />
-            </div>
+            </Row>
           );
         },
       },

@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -10,7 +11,6 @@ import * as z from 'zod';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Banner } from '@/app/components/ui/feedback/banner';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -247,10 +247,9 @@ export function EditMemberDialog({
           isMemberRole(member?.role) &&
           member.role === 'admin' &&
           watch('role') !== 'admin' && (
-            <Banner
+            <Alert
               variant="warning"
-              message={t('organization.adminWarning')}
-              dismissible={false}
+              description={t('organization.adminWarning')}
               className="mt-2"
             />
           )}
@@ -436,7 +435,6 @@ function PasskeyAdminControl({ memberId }: { memberId: string }) {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => setConfirmTarget({ id: pk.id, name })}
               >
                 {t('passkeys.revokeButton')}

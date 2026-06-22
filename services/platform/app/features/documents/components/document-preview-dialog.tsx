@@ -5,7 +5,7 @@ import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -115,8 +115,10 @@ function DetailsSidebar({
       label={t('preview.sidebar.document')}
       className="contents"
     >
-      <aside
-        className="flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto"
+      <Stack
+        as="aside"
+        gap={3}
+        className="w-[220px] shrink-0 overflow-y-auto"
         aria-label={t('preview.sidebar.document')}
       >
         <SidebarRow label={t('preview.sidebar.document')}>
@@ -195,7 +197,7 @@ function DetailsSidebar({
             </SidebarRow>
           </>
         )}
-      </aside>
+      </Stack>
     </Skeletonize>
   );
 }
@@ -279,7 +281,7 @@ export function DocumentPreviewDialog({
       hideClose
       className="flex h-[85vh] flex-col overflow-hidden p-0 sm:p-0"
       customHeader={
-        <div className="flex max-h-[4.5rem] flex-row items-center justify-between p-5">
+        <Row gap={0} justify="between" className="max-h-[4.5rem] p-5">
           <Heading level={2} tracking="tight" className="leading-none">
             {t('preview.title')}
           </Heading>
@@ -288,7 +290,6 @@ export function DocumentPreviewDialog({
             {resolvedUrl && (
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={handleDownload}
                 disabled={isDownloading}
                 aria-label={t('preview.downloadFile')}
@@ -307,7 +308,7 @@ export function DocumentPreviewDialog({
               onClick={() => onOpenChange(false)}
             />
           </ActionRow>
-        </div>
+        </Row>
       }
     >
       {!isLoading && !resolvedUrl && open ? (
@@ -322,8 +323,8 @@ export function DocumentPreviewDialog({
         // layout jumping. The preview pane keeps the lazy/inflight
         // `PreviewPaneSkeleton` fallback until a URL resolves; the sidebar
         // renders its real structure with masked leaves while loading.
-        <div className="flex h-full min-h-0 gap-5 px-5 pb-5">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Row gap={5} align="stretch" className="h-full min-h-0 px-5 pb-5">
+          <Stack gap={0} className="min-h-0 min-w-0 flex-1">
             {resolvedUrl ? (
               <DocumentPreview
                 url={resolvedUrl}
@@ -333,12 +334,12 @@ export function DocumentPreviewDialog({
             ) : (
               <PreviewPaneSkeleton />
             )}
-          </div>
+          </Stack>
           {/* The metadata sidebar only renders when a `documentId` is in play;
               gate it the same way so the citation-card (fileId-only) path isn't
               given a column it never fills. */}
           {documentId && <DetailsSidebar doc={doc} loading={isLoading} />}
-        </div>
+        </Row>
       )}
     </Dialog>
   );

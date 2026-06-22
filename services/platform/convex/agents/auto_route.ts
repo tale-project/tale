@@ -57,11 +57,12 @@ import {
   parseRouterDecision,
   pickDefault,
   type RouterDecision,
+  type RouterReasoningSeed,
   type RouterTuningAdvice,
 } from './auto_route_helpers';
 import type { AgentReadResult } from './file_utils';
 import { listInstalledAgentsForOrg } from './internal_actions';
-import { routeTuningValidator } from './schema';
+import { routeSeedValidator, routeTuningValidator } from './schema';
 
 /** Hard ceiling on the classifier call — beyond this we use the default. Kept
  *  in step with the `router` agent's declared `timeoutMs` so a fast classifier
@@ -80,8 +81,10 @@ interface AutoRouteResult {
   reason: AutoRouteReason;
   /** Advisory reply-language hint (BCP-47 or language name); fallback only. */
   language?: string;
-  /** Advisory qualitative response shaping (merged onto the agent's tuning). */
+  /** Advisory qualitative response shaping (drives the prose style suffix). */
   tuning?: RouterTuningAdvice;
+  /** Advisory reasoning seed (governor prior for effort/creativity). */
+  seed?: RouterReasoningSeed;
   /** Capability slugs the router suggests enabling (allowlist-gated by caller). */
   capabilities?: string[];
 }
@@ -89,7 +92,7 @@ interface AutoRouteResult {
 /** The advisory fields shared by a cached entry and a fresh decision. */
 type RouteAdvice = Pick<
   AutoRouteResult,
-  'language' | 'tuning' | 'capabilities'
+  'language' | 'tuning' | 'seed' | 'capabilities'
 >;
 
 /**
@@ -100,6 +103,7 @@ function advisoryFields(advice: RouteAdvice): RouteAdvice {
   return {
     ...(advice.language ? { language: advice.language } : {}),
     ...(advice.tuning ? { tuning: advice.tuning } : {}),
+    ...(advice.seed ? { seed: advice.seed } : {}),
     ...(advice.capabilities ? { capabilities: advice.capabilities } : {}),
   };
 }
@@ -114,11 +118,11 @@ function createRouter(
     instructions,
     // Cap output so a chatty model can't ramble, but leave room for the full
     // single-line decision object — slug PLUS the advisory fields (language,
-    // style, verbosity, capabilities). Too tight and the JSON gets truncated
-    // mid-object, the parser finds no closing brace, and the route silently
-    // falls back to the default agent (notably for any reply that carries a
-    // `language` hint, e.g. "translate this to German").
-    callSettings: { maxOutputTokens: 128 },
+    // style, verbosity, effort, creativity, capabilities). Too tight and the
+    // JSON gets truncated mid-object, the parser finds no closing brace, and
+    // the route silently falls back to the default agent (notably for any reply
+    // that carries a `language` hint, e.g. "translate this to German").
+    callSettings: { maxOutputTokens: 160 },
   });
 }
 
@@ -203,6 +207,7 @@ export const resolveAutoRoute = internalAction({
     reason: autoRouteReasonValidator,
     language: v.optional(v.string()),
     tuning: v.optional(routeTuningValidator),
+    seed: v.optional(routeSeedValidator),
     capabilities: v.optional(v.array(v.string())),
   }),
   handler: async (ctx: ActionCtx, args): Promise<AutoRouteResult> => {

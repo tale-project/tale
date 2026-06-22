@@ -64,12 +64,20 @@ test.describe.serial('automation editor', () => {
     );
 
     // The bottom-center canvas toolbar carries the add-step and test controls —
-    // a stable signal the flow editor (not a skeleton) mounted.
+    // a stable signal the flow editor (not a skeleton) mounted. The shared
+    // Button suppresses the native `title` attribute (it routes `title` into
+    // aria-label + a tooltip), so locate by role + accessible name, not title.
     await expect(
-      page.getByTitle(t('automations.steps.toolbar.addStep')),
+      page.getByRole('button', {
+        name: t('automations.steps.toolbar.addStep'),
+        exact: true,
+      }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await expect(
-      page.getByTitle(t('automations.steps.toolbar.testAutomation')),
+      page.getByRole('button', {
+        name: t('automations.steps.toolbar.testAutomation'),
+        exact: true,
+      }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 
@@ -129,9 +137,10 @@ test.describe.serial('automation editor', () => {
       `/dashboard/${organizationId}/automations/${automationSlug}`,
     );
 
-    const openTester = page.getByTitle(
-      t('automations.steps.toolbar.testAutomation'),
-    );
+    const openTester = page.getByRole('button', {
+      name: t('automations.steps.toolbar.testAutomation'),
+      exact: true,
+    });
     await expect(openTester).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
     await openTester.click();
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { TextQuote, X } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -19,7 +20,11 @@ export function QuotedReferenceChip() {
   if (!quotedText) return null;
 
   return (
-    <div className="border-border bg-muted/60 mb-2 flex items-start gap-2 rounded-lg border px-3 py-2">
+    <Row
+      gap={2}
+      align="start"
+      className="border-border bg-muted/60 mb-2 rounded-lg border px-3 py-2"
+    >
       <TextQuote
         className="text-muted-foreground mt-0.5 size-4 shrink-0"
         aria-hidden="true"
@@ -40,6 +45,6 @@ export function QuotedReferenceChip() {
       >
         <X className="size-3.5" />
       </button>
-    </div>
+    </Row>
   );
 }

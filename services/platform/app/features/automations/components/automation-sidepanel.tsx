@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
-import { HStack, VStack } from '@tale/ui/layout';
+import { HStack, Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   TestTubeDiagonal,
@@ -195,7 +195,6 @@ const StepEditorContent = memo(function StepEditorContent({
         <Button
           onClick={onSave}
           disabled={isSaving || !isValid || !isDirty}
-          size="sm"
           className="flex-1"
         >
           <Save className="mr-1 size-4" />
@@ -292,7 +291,7 @@ export function AutomationSidePanel({
   if (!isOpen) return null;
 
   return (
-    <aside
+    <Stack
       ref={panelRef}
       role="complementary"
       aria-label={
@@ -301,7 +300,9 @@ export function AutomationSidePanel({
           : (step?.name ?? t('sidePanel.stepEditor'))
       }
       style={{ '--panel-width': `${width}px` }}
-      className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
+      as="aside"
+      gap={0}
+      className="bg-background border-border relative min-h-0 w-(--panel-width) flex-[0_0_auto] overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
     >
       {/* Resize handle */}
       <div
@@ -366,7 +367,7 @@ export function AutomationSidePanel({
             size="icon"
             className="size-8"
             onClick={onClose}
-            aria-label={t('sidePanel.close')}
+            title={t('sidePanel.close')}
           >
             <X className="size-4" />
           </Button>
@@ -395,6 +396,6 @@ export function AutomationSidePanel({
           workflowSlug={automationId ? urlParamToSlug(automationId) : undefined}
         />
       ) : null}
-    </aside>
+    </Stack>
   );
 }

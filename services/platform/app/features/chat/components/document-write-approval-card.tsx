@@ -3,7 +3,7 @@
 import { ActionRow } from '@tale/ui/action-row';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   CheckCircle,
@@ -26,6 +26,8 @@ import { normalizeDocumentWriteMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
+
+import { ApprovalCard } from './approval-card';
 
 interface DocumentWriteApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -113,12 +115,7 @@ function DocumentWriteApprovalCardComponent({
   const failedCount = files.filter((f) => f.executionError).length;
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="center" className="mb-2">
         <FileText className="text-primary size-4 shrink-0" />
@@ -135,7 +132,7 @@ function DocumentWriteApprovalCardComponent({
         className={cn('mb-3 pl-6', isBatch && 'max-h-48 overflow-y-auto')}
       >
         {files.map((file) => (
-          <div key={file.fileId} className="flex min-w-0 items-start gap-2">
+          <Row key={file.fileId} gap={2} align="start" className="min-w-0">
             {/* Per-file status icon (only after execution) */}
             {(status === 'executing' || status === 'completed') &&
               executedAt && (
@@ -176,7 +173,7 @@ function DocumentWriteApprovalCardComponent({
                 </Text>
               )}
             </div>
-          </div>
+          </Row>
         ))}
       </Stack>
 
@@ -281,7 +278,6 @@ function DocumentWriteApprovalCardComponent({
             content={isBatch ? t('approveTooltipBatch') : t('approveTooltip')}
           >
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -296,7 +292,6 @@ function DocumentWriteApprovalCardComponent({
             content={isBatch ? t('rejectTooltipBatch') : t('rejectTooltip')}
           >
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
@@ -337,7 +332,7 @@ function DocumentWriteApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

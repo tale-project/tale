@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { ApprovalCard } from './approval-card';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 // Beyond this many rendered lines the tail collapses behind "show more". The
@@ -125,12 +126,7 @@ function PlanApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'bg-card w-full max-w-2xl overflow-hidden rounded-xl border border-border p-4',
-        className,
-      )}
-    >
+    <ApprovalCard maxWidth="2xl" className={className}>
       <HStack gap={2} align="center" className="mb-2">
         <ClipboardList className="text-primary size-4 shrink-0" />
         <Text as="div" variant="label">
@@ -144,7 +140,6 @@ function PlanApprovalCardComponent({
       </div>
       {collapsible && (
         <Button
-          size="sm"
           variant="ghost"
           className="mb-2 px-2 text-xs"
           onClick={() => setExpanded((v) => !v)}
@@ -175,7 +170,6 @@ function PlanApprovalCardComponent({
               }
             >
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleApprove}
                 disabled={isProcessing || isGenerating}
@@ -189,7 +183,6 @@ function PlanApprovalCardComponent({
             </Tooltip>
             <Tooltip content={t('rejectTooltip')}>
               <Button
-                size="sm"
                 variant="secondary"
                 onClick={handleReject}
                 disabled={isProcessing || isGenerating}
@@ -225,7 +218,7 @@ function PlanApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

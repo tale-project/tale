@@ -176,7 +176,6 @@ export function ExternalList({
 
   const refresh = (
     <Button
-      size="sm"
       variant="ghost"
       disabled={query.isFetching}
       onClick={() => query.refetch()}
@@ -216,7 +215,6 @@ export function ExternalList({
           {paginated && (
             <HStack gap={3} className="items-center justify-end">
               <Button
-                size="sm"
                 variant="ghost"
                 disabled={query.isFetching || page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -227,7 +225,6 @@ export function ExternalList({
                 {t('list.page', { page })}
               </Text>
               <Button
-                size="sm"
                 variant="ghost"
                 disabled={query.isFetching || !hasNext}
                 onClick={() => setPage((p) => p + 1)}

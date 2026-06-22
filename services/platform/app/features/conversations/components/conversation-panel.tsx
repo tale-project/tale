@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Center, Stack, VStack } from '@tale/ui/layout';
+import { Center, Row, Stack, VStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -302,7 +302,6 @@ export function ConversationPanel({
         </div>
         <Button
           variant="secondary"
-          size="sm"
           onClick={() => void refetch()}
           className="mt-1"
         >
@@ -360,10 +359,11 @@ export function ConversationPanel({
     <Skeletonize loading={isLoading}>
       {/* The composer/banner footer is a flex SIBLING of the scroller — never
           inside the scroll container — so it cannot move with content. */}
-      <div className="relative flex min-h-0 flex-[1_1_0] flex-col">
-        <div
+      <Stack gap={0} className="relative min-h-0 flex-[1_1_0]">
+        <Stack
           ref={containerRef}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          gap={0}
+          className="min-h-0 flex-1 overflow-y-auto"
         >
           <div className="bg-background sticky top-0 z-20">
             {conversation ? (
@@ -381,15 +381,18 @@ export function ConversationPanel({
                 }}
               />
             ) : (
-              <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
-                <div className="flex items-center justify-between gap-4">
+              <Stack
+                gap={3}
+                className="border-border border-b p-4 sm:px-6 sm:py-4"
+              >
+                <Row justify="between">
                   <SkeletonBox>
                     <div className="h-5 w-64 max-w-full" />
                   </SkeletonBox>
                   <SkeletonBox>
                     <div className="size-7 shrink-0 rounded-md" />
                   </SkeletonBox>
-                </div>
+                </Row>
                 <div className="flex items-center gap-2.5">
                   <SkeletonBox>
                     <div className="size-8 shrink-0 rounded-full" />
@@ -403,18 +406,18 @@ export function ConversationPanel({
                     </SkeletonBox>
                   </VStack>
                 </div>
-              </div>
+              </Stack>
             )}
           </div>
           <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
             {!conversation ? (
               <>
                 <div className="mb-4 py-2">
-                  <div className="flex justify-center">
+                  <Row gap={0} align="stretch" justify="center">
                     <SkeletonBox>
                       <div className="h-5 w-24 rounded-full" />
                     </SkeletonBox>
-                  </div>
+                  </Row>
                 </div>
                 <VStack gap={4} className="mb-8">
                   {PLACEHOLDER_MESSAGE_BUBBLES.map((row, i) => (
@@ -453,7 +456,12 @@ export function ConversationPanel({
             ) : (
               <>
                 {showCollapse && (
-                  <div className="flex justify-center py-3">
+                  <Row
+                    gap={0}
+                    align="stretch"
+                    justify="center"
+                    className="py-3"
+                  >
                     <button
                       type="button"
                       className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
@@ -463,7 +471,7 @@ export function ConversationPanel({
                         count: collapsedHiddenCount,
                       })}
                     </button>
-                  </div>
+                  </Row>
                 )}
                 {messageGroups.map((group, groupIndex) => {
                   const isLastGroup = groupIndex === messageGroups.length - 1;
@@ -480,7 +488,7 @@ export function ConversationPanel({
                     <div key={group.date} className="relative">
                       {/* Sticky Date Header */}
                       <div className="z-10 mb-4 py-2">
-                        <div className="flex justify-center">
+                        <Row gap={0} align="stretch" justify="center">
                           <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
                             <Text
                               as="span"
@@ -490,7 +498,7 @@ export function ConversationPanel({
                               {formatDateHeader(group.date)}
                             </Text>
                           </div>
-                        </div>
+                        </Row>
                       </div>
 
                       {/* Messages for this date */}
@@ -530,18 +538,18 @@ export function ConversationPanel({
               </>
             )}
           </div>
-        </div>
+        </Stack>
         {!conversation ? (
           isInactiveTab ? (
             <PanelFooter className="px-0 pt-3 pb-0">
-              <div className="flex items-center justify-center gap-2 border-t px-3 pt-3 pb-4">
+              <Row gap={2} justify="center" className="border-t px-3 pt-3 pb-4">
                 <SkeletonBox>
                   <div className="h-4 w-48" />
                 </SkeletonBox>
                 <SkeletonBox>
                   <div className="h-7 w-32 rounded-md" />
                 </SkeletonBox>
-              </div>
+              </Row>
             </PanelFooter>
           ) : (
             <PanelFooter className="px-4 py-3">
@@ -580,8 +588,10 @@ export function ConversationPanel({
                 />
               </div>
             ) : conversation.status === 'closed' ? (
-              <div
-                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+              <Row
+                gap={2}
+                justify="center"
+                className="border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
                 role="status"
               >
                 <CircleCheckIcon
@@ -597,7 +607,6 @@ export function ConversationPanel({
                 </span>
                 <Button
                   variant="secondary"
-                  size="sm"
                   disabled={isReopening}
                   className="h-auto px-3 py-1 text-[13px]"
                   onClick={() => {
@@ -628,10 +637,12 @@ export function ConversationPanel({
                     ? tConversations('header.reopening')
                     : tConversations('header.reopenConversation')}
                 </Button>
-              </div>
+              </Row>
             ) : conversation.status === 'archived' ? (
-              <div
-                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+              <Row
+                gap={2}
+                justify="center"
+                className="border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
                 role="status"
               >
                 <ArchiveIcon
@@ -643,7 +654,6 @@ export function ConversationPanel({
                 </span>
                 <Button
                   variant="secondary"
-                  size="sm"
                   disabled={isReopening}
                   className="h-auto px-3 py-1 text-[13px]"
                   onClick={() => {
@@ -674,10 +684,12 @@ export function ConversationPanel({
                     ? tConversations('header.reopening')
                     : tConversations('panel.unarchive')}
                 </Button>
-              </div>
+              </Row>
             ) : conversation.status === 'spam' ? (
-              <div
-                className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+              <Row
+                gap={2}
+                justify="center"
+                className="border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
                 role="status"
               >
                 <ShieldAlertIcon
@@ -687,10 +699,9 @@ export function ConversationPanel({
                 <span className="text-[13px] text-gray-500 dark:text-gray-400">
                   {tConversations('panel.spamBanner')}
                 </span>
-                <div className="flex items-center gap-2">
+                <Row gap={2}>
                   <Button
                     variant="secondary"
-                    size="sm"
                     disabled={isReopening || isDeleting}
                     className="h-auto px-3 py-1 text-[13px]"
                     onClick={() => {
@@ -728,7 +739,6 @@ export function ConversationPanel({
                   </Button>
                   <Button
                     variant="destructive"
-                    size="sm"
                     disabled={isDeleting || isReopening}
                     className="h-auto px-3 py-1 text-[13px]"
                     onClick={() => {
@@ -764,12 +774,12 @@ export function ConversationPanel({
                       ? tConversations('panel.deleting')
                       : tConversations('panel.delete')}
                   </Button>
-                </div>
-              </div>
+                </Row>
+              </Row>
             ) : null}
           </PanelFooter>
         )}
-      </div>
+      </Stack>
     </Skeletonize>
   );
 }

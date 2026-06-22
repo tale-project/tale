@@ -48,7 +48,6 @@ test('lists the seeded agent and opens its editor tab navigation', async ({
     'settings.agents.navigation.skills',
     'settings.agents.navigation.knowledge',
     'settings.agents.navigation.delegation',
-    'settings.agents.navigation.responseTuning',
     'settings.agents.navigation.conversationStarters',
     'settings.agents.navigation.webhook',
   ]) {

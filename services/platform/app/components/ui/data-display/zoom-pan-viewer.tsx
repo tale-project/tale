@@ -1,7 +1,8 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
-import { RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize, Minus, Plus, X } from 'lucide-react';
 import { memo, useCallback } from 'react';
 
 import { useZoomPan } from '@/app/hooks/use-zoom-pan';
@@ -85,95 +86,75 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
     [isDragging, toggleZoom],
   );
 
-  const isBottom = toolbarPosition === 'bottom';
-
-  const buttonClass = isBottom
-    ? 'grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35'
-    : 'text-foreground size-8 disabled:cursor-not-allowed disabled:opacity-50';
-
-  const toolbar = (
-    <div
-      className={cn(
-        isBottom
-          ? 'bg-background text-foreground flex items-center gap-2 rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10'
-          : 'bg-muted flex items-center gap-1 rounded-lg p-1',
-        toolbarClassName,
-      )}
-    >
-      <button
-        type="button"
+  // Zoom cluster modelled on the automation editor's corner controls
+  // (`flow-canvas.tsx`): shared `Button` primitives, `Minus` / `Plus` to step
+  // zoom and `Maximize` to fit, with a zoom-percentage readout between them.
+  const controls = (
+    <div className={cn('flex items-center gap-1.5', toolbarClassName)}>
+      <Button
+        variant="secondary"
+        size="icon"
+        title={t('flow.zoomOut')}
+        tooltipSide="top"
         onClick={zoomOut}
         disabled={!canZoomOut}
-        className={buttonClass}
-        aria-label={t('imagePreview.zoomOut')}
       >
-        <ZoomOut className="size-4" />
-      </button>
+        <Minus className="size-4" />
+      </Button>
       <Text
         as="span"
         align="center"
-        className="min-w-[3rem] text-sm tabular-nums"
+        className="bg-background ring-border text-foreground min-w-[3.25rem] rounded-md px-2 py-1.5 text-sm tabular-nums shadow-sm ring-1"
       >
         {Math.round(zoom * 100)}%
       </Text>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="icon"
+        title={t('flow.zoomIn')}
+        tooltipSide="top"
         onClick={zoomIn}
         disabled={!canZoomIn}
-        className={buttonClass}
-        aria-label={t('imagePreview.zoomIn')}
       >
-        <ZoomIn className="size-4" />
-      </button>
-      <button
-        type="button"
+        <Plus className="size-4" />
+      </Button>
+      {/* Fit-to-screen — always enabled (re-fits even at 100%). */}
+      <Button
+        variant="secondary"
+        size="icon"
+        title={t('flow.resetView')}
+        tooltipSide="top"
         onClick={reset}
-        disabled={!isZoomed}
-        className={buttonClass}
-        aria-label={t('imagePreview.resetZoom')}
       >
-        <RotateCcw className="size-4" />
-      </button>
+        <Maximize className="size-4" />
+      </Button>
     </div>
   );
 
-  const renderToolbar = () => {
-    switch (toolbarPosition) {
-      case 'overlay':
-        return (
-          <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between gap-2">
-            {headerContent ?? <span />}
-            <div className="flex items-center gap-2">
-              {toolbar}
-              {onClose && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="bg-muted text-foreground hover:bg-muted/80 grid size-8 place-items-center rounded-lg transition"
-                  // `common.imagePreview.*` is a missing group — the sibling
-                  // zoom buttons fall through to literal keys (pre-existing
-                  // bug). Use the canonical `common.aria.close` until the
-                  // group is filled in.
-                  aria-label={t('aria.close')}
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      case 'bottom':
-        return null;
-      case 'inline':
-        return <div className="mb-2 flex justify-end">{toolbar}</div>;
-      default:
-        return undefined;
-    }
-  };
-
   return (
-    <div className={cn('relative flex flex-1 flex-col min-h-0', className)}>
-      {renderToolbar()}
+    <div className={cn('relative flex min-h-0 flex-1 flex-col', className)}>
+      {toolbarPosition === 'overlay' && (
+        <div className="absolute top-4 right-4 left-4 z-20 flex items-start justify-between gap-2">
+          {headerContent ?? <span />}
+          {onClose && (
+            <Button
+              variant="secondary"
+              size="icon"
+              onClick={onClose}
+              // `common.imagePreview.*` was never added; the canonical close
+              // label lives at `common.aria.close`.
+              title={t('aria.close')}
+              tooltipSide="bottom"
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
+      )}
+
+      {toolbarPosition === 'inline' && (
+        <div className="mb-2 flex justify-end">{controls}</div>
+      )}
 
       <div
         ref={containerRef}
@@ -204,9 +185,12 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
         />
       </div>
 
-      {isBottom && (
-        <div className="sticky bottom-4 z-50 flex w-full justify-center">
-          {toolbar}
+      {/* Floating bottom-center cluster for the dialog (`overlay`) and document
+          preview (`bottom`) layouts. `pointer-events-none` on the wrapper keeps
+          drag-to-pan working everywhere except on the controls themselves. */}
+      {(toolbarPosition === 'overlay' || toolbarPosition === 'bottom') && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center">
+          <div className="pointer-events-auto">{controls}</div>
         </div>
       )}
     </div>

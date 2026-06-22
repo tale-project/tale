@@ -1,120 +1,36 @@
-type ErrorCategory =
-  | 'missingApiKey'
-  | 'creditExhausted'
-  | 'authError'
-  | 'modelNotFound'
-  | 'unsupportedParameter'
-  | 'outputCapTooHigh'
-  | 'tokenLimit'
-  | 'rateLimited'
-  | 'contentFilter'
-  | 'contextLength'
-  | 'toolFailure'
-  | 'providerError'
-  | 'generic';
+import {
+  CHAT_ERROR_I18N_KEY,
+  CHAT_ERROR_I18N_KEY_NAMED,
+  type ChatErrorCode,
+  classifyChatErrorCode,
+  decodeChatError,
+} from '@/lib/shared/chat-errors';
 
-interface SanitizedError {
-  category: ErrorCategory;
+export interface SanitizedChatError {
+  /** Canonical error code (authoritative when the backend stamped it). */
+  code: ChatErrorCode;
+  /** Resolved chat i18n key — the named variant when a provider/model is known. */
   i18nKey: string;
+  /** Interpolation params for {@link i18nKey} (only the named variants use them). */
+  params?: { provider?: string; model?: string };
+  /** How many models were attempted before giving up (when known, > 1). */
+  triedCount?: number;
+  /**
+   * The verbatim provider/SDK error for the "Technical details" disclosure.
+   * Stack frames and file paths are stripped so they never reach the UI.
+   */
   rawMessage?: string;
 }
 
-const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
-  // Match our typed error first — it's user-actionable and should override
-  // the generic auth/providerError matchers below (which the raw ENOENT
-  // stack trace would otherwise trip).
-  {
-    pattern:
-      /NoProviderAvailableError|No API key is configured for this organization/i,
-    category: 'missingApiKey',
-  },
-  {
-    pattern:
-      /more credits|can only afford|credit.*insufficient|insufficient.*credit|never purchased credits|credit.*limit|credit.*reached|\b402\b/i,
-    category: 'creditExhausted',
-  },
-  {
-    pattern:
-      /\b401\b|\b403\b|invalid.*key|expired.*key|api.?key.*invalid|unauthorized|forbidden|authentication.*fail|user not found|missing.*authentication/i,
-    category: 'authError',
-  },
-  {
-    pattern: /model.*not found|model.*not available|invalid model|\b404\b/i,
-    category: 'modelNotFound',
-  },
-  // A provider/model rejecting a request PARAMETER (e.g. Azure reasoning
-  // deployments returning "Unsupported parameter: 'max_tokens' ... Use
-  // 'max_completion_tokens' instead") is an operator-config mismatch, not an
-  // end-user token-limit problem. This must precede `tokenLimit` below, whose
-  // broad `max_tokens` match would otherwise mislabel it as "output token
-  // limit exceeded".
-  {
-    pattern:
-      /unsupported parameter|is not supported with this model|unsupported_parameter|unknown parameter|unrecognized request argument/i,
-    category: 'unsupportedParameter',
-  },
-  // The CONFIGURED output cap exceeds the model's real ceiling, e.g. Azure/
-  // OpenAI "max_tokens is too large: 32768 ... supports at most 16384 completion
-  // tokens". This is an operator-config problem (lower the model's
-  // `maxOutputTokens`), NOT an end-user "shorten your request" token-limit. Must
-  // precede `tokenLimit`, whose bare `max_tokens` alternative would otherwise
-  // mislabel it as "output token limit exceeded".
-  {
-    pattern:
-      /max_tokens.*too large|too large.*max_tokens|supports at most.*completion tokens|reduce.*max_tokens/i,
-    category: 'outputCapTooHigh',
-  },
-  {
-    pattern: /fewer max_tokens|token.*limit|max_tokens/i,
-    category: 'tokenLimit',
-  },
-  {
-    pattern: /context.?length|context.?window|maximum context/i,
-    category: 'contextLength',
-  },
-  {
-    pattern: /rate.?limit|too many requests|429/i,
-    category: 'rateLimited',
-  },
-  {
-    pattern: /content.?filter|content.?policy|moderation/i,
-    category: 'contentFilter',
-  },
-  {
-    pattern: /tool.*error|tool.*fail|unable to complete/i,
-    category: 'toolFailure',
-  },
-  {
-    pattern:
-      /\b5\d{2}\b|server error|overloaded|capacity|service.*unavailable|internal.*error/i,
-    category: 'providerError',
-  },
-];
-
-const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
-  missingApiKey: 'errorHintMissingApiKey',
-  creditExhausted: 'errorHintCreditExhausted',
-  authError: 'errorHintAuthError',
-  modelNotFound: 'errorHintModelNotFound',
-  unsupportedParameter: 'errorHintUnsupportedParameter',
-  outputCapTooHigh: 'errorHintOutputCapTooHigh',
-  tokenLimit: 'errorHintTokenLimit',
-  rateLimited: 'errorHintRateLimited',
-  contentFilter: 'errorHintContentFilter',
-  contextLength: 'errorHintContextLength',
-  toolFailure: 'errorHintToolFailure',
-  providerError: 'errorHintProviderError',
-  generic: 'errorGeneratingDescription',
-};
-
 /**
- * Reduce a raw provider/SDK error to a single, path-free line safe to show the
- * user. Stack frames and file paths (e.g.
+ * Reduce a raw provider/SDK error to a single path-free line safe to show in
+ * the "Technical details" disclosure. Stack frames and file paths (e.g.
  * `node_modules/ai/src/ui/process-ui-message-stream.ts:776:14`) must NEVER reach
  * the UI — take only the first line, strip the `Uncaught`/`Error:` noise, and
  * drop the message entirely if a stack-frame or path token survives.
  */
-function cleanRawMessage(raw: string): string | undefined {
+function cleanRawMessage(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
   const firstLine = raw
     .split('\n')[0]
     .replace(/^\s*uncaught\s+/i, '')
@@ -122,7 +38,7 @@ function cleanRawMessage(raw: string): string | undefined {
     .trim();
   if (
     firstLine.length === 0 ||
-    firstLine.length > 200 ||
+    firstLine.length > 300 ||
     /\bat\s|node_modules|\.[cm]?[jt]sx?:\d+|https?:\/\/|(^|\s)\/\S/.test(
       firstLine,
     )
@@ -133,30 +49,30 @@ function cleanRawMessage(raw: string): string | undefined {
 }
 
 /**
- * Classify a raw error string from the AI provider into a user-friendly
- * i18n key. For known error types, only the i18n message is shown. For unknown
- * errors a short, sanitized first line is preserved for context — but never a
- * stack trace or file path (see `cleanRawMessage`).
+ * Resolve a failed chat turn's stored error into the localized, provider-aware
+ * pieces the UI renders.
+ *
+ * Prefers the structured code the backend stamped onto the error
+ * ({@link decodeChatError}); falls back to classifying the raw string when the
+ * error predates the envelope or came from a non-chat path. The classification
+ * logic itself is shared with the backend (see `lib/shared/chat-errors`).
  */
 export function sanitizeChatError(
   rawError: string | undefined,
-): SanitizedError {
-  if (!rawError) {
-    return { category: 'generic', i18nKey: CATEGORY_I18N_KEY.generic };
-  }
+): SanitizedChatError {
+  const decoded = decodeChatError(rawError);
+  const code = decoded.code ?? classifyChatErrorCode(decoded.raw ?? '');
+  const { provider, model, triedCount } = decoded;
 
-  for (const { pattern, category } of ERROR_PATTERNS) {
-    if (pattern.test(rawError)) {
-      return {
-        category,
-        i18nKey: CATEGORY_I18N_KEY[category],
-      };
-    }
-  }
+  // Use the richer "named" message only when there's a name to fill in.
+  const namedKey = CHAT_ERROR_I18N_KEY_NAMED[code];
+  const useNamed = !!namedKey && (!!provider || !!model);
 
   return {
-    category: 'generic',
-    i18nKey: CATEGORY_I18N_KEY.generic,
-    rawMessage: cleanRawMessage(rawError),
+    code,
+    i18nKey: useNamed && namedKey ? namedKey : CHAT_ERROR_I18N_KEY[code],
+    params: useNamed ? { provider, model } : undefined,
+    triedCount: triedCount != null && triedCount > 1 ? triedCount : undefined,
+    rawMessage: cleanRawMessage(decoded.raw),
   };
 }

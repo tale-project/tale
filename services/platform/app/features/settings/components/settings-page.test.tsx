@@ -21,11 +21,6 @@ describe('SettingsPage', () => {
       expect(container.firstChild).toHaveClass('custom-class');
     });
 
-    it('centers content when narrow', () => {
-      const { container } = render(<SettingsPage narrow />);
-      expect(container.firstChild).toHaveClass('mx-auto');
-    });
-
     it('claims remaining height when fitToContainer', () => {
       const { container } = render(<SettingsPage fitToContainer />);
       expect(container.firstChild).toHaveClass('min-h-0', 'flex-1');

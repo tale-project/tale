@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 /**
  * The card frame every connected block renders inside — a titled section (icon +
  * title + optional description + a right-aligned action slot) over a card
@@ -33,12 +34,16 @@ export function Section({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3 p-5 pb-3">
+      <Row gap={3} align="start" justify="between" className="p-5 pb-3">
         <div className="flex min-w-0 items-center gap-2.5">
           {Icon && (
-            <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md">
+            <Row
+              gap={0}
+              justify="center"
+              className="bg-muted text-muted-foreground size-8 shrink-0 rounded-md"
+            >
               <Icon className="size-4" />
-            </div>
+            </Row>
           )}
           <div className="min-w-0">
             {title && (
@@ -54,7 +59,7 @@ export function Section({
           </div>
         </div>
         {action && <div className="shrink-0">{action}</div>}
-      </div>
+      </Row>
       <div className="px-5 pb-5">{children}</div>
     </section>
   );

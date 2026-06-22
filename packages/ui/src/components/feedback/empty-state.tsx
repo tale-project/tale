@@ -9,7 +9,8 @@ import { cn } from '../../lib/cn';
 interface EmptyStateProps {
   icon?: ComponentType<{ className?: string }>;
   title: string;
-  description?: string;
+  /** Plain text or rich content (links, doc CTAs). Rendered in a `<div>`. */
+  description?: ReactNode;
   action?: ReactNode;
   className?: string;
 }
@@ -35,7 +36,9 @@ export function EmptyState({
         {title}
       </Heading>
       {description && (
-        <Text variant="muted" className="mt-1 max-w-[20rem]">
+        // `as="div"` (not the default `<p>`): descriptions may carry rich block
+        // content (links, doc CTAs), and a `<div>` inside a `<p>` is invalid.
+        <Text as="div" variant="muted" className="mt-1 max-w-80">
           {description}
         </Text>
       )}

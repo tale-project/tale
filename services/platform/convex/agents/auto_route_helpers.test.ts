@@ -6,7 +6,6 @@ import {
   filterRoutingCandidates,
   matchSlug,
   hashCandidates,
-  mergeRouterTuning,
   normalizeMessageKey,
   parseRouterDecision,
   pickDefault,
@@ -224,28 +223,25 @@ describe('parseRouterDecision', () => {
       )?.capabilities,
     ).toEqual(['web']);
   });
-});
 
-describe('mergeRouterTuning', () => {
-  it('fills only unset / adaptive fields; author values win', () => {
+  it('extracts only valid effort/creativity enum values into seed', () => {
     expect(
-      mergeRouterTuning(
-        { style: 'formal', verbosity: 'adaptive' },
-        { style: 'concise', verbosity: 'terse' },
-      ),
-    ).toEqual({ style: 'formal', verbosity: 'terse' });
-  });
-
-  it('returns the author config untouched when there is no advice', () => {
-    const author = { style: 'concise' as const };
-    expect(mergeRouterTuning(author, undefined)).toBe(author);
-    expect(mergeRouterTuning(author, {})).toBe(author);
-  });
-
-  it('applies advice when the author config is absent', () => {
-    expect(mergeRouterTuning(undefined, { style: 'detailed' })).toEqual({
-      style: 'detailed',
-    });
+      parseRouterDecision(
+        '{"slug":"assistant","effort":"high","creativity":"precise"}',
+        cands,
+      )?.seed,
+    ).toEqual({ effort: 'high', creativity: 'precise' });
+    // Unknown / out-of-enum values are dropped; with none valid, seed is omitted.
+    expect(
+      parseRouterDecision(
+        '{"slug":"assistant","effort":"turbo","creativity":"wild"}',
+        cands,
+      )?.seed,
+    ).toBeUndefined();
+    // A partial seed keeps only the valid field.
+    expect(
+      parseRouterDecision('{"slug":"assistant","effort":"low"}', cands)?.seed,
+    ).toEqual({ effort: 'low' });
   });
 });
 

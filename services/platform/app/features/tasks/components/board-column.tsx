@@ -3,6 +3,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -35,13 +36,17 @@ export function BoardColumn({
   });
 
   return (
-    <section className="bg-muted/40 flex w-[80vw] max-w-72 shrink-0 snap-start flex-col rounded-lg sm:w-72">
-      <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+    <Stack
+      as="section"
+      gap={0}
+      className="bg-muted/40 w-[80vw] max-w-72 shrink-0 snap-start rounded-lg sm:w-72"
+    >
+      <Row gap={2} justify="between" className="px-2.5 py-2">
         <TaskStatusBadge status={status} />
         <Text as="span" variant="caption" className="pr-1 tabular-nums">
           {tasks.length}
         </Text>
-      </div>
+      </Row>
       <div
         ref={setNodeRef}
         className={cn(
@@ -64,11 +69,15 @@ export function BoardColumn({
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="border-border text-muted-foreground m-1 flex flex-1 items-center justify-center rounded-lg border border-dashed px-3 py-6 text-center text-xs">
+          <Row
+            gap={0}
+            justify="center"
+            className="border-border text-muted-foreground m-1 flex-1 rounded-lg border border-dashed px-3 py-6 text-center text-xs"
+          >
             {t('board.noTasks')}
-          </div>
+          </Row>
         )}
       </div>
-    </section>
+    </Stack>
   );
 }

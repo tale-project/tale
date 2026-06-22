@@ -1,5 +1,5 @@
 import { getProjectId } from '../../../utils/load-env';
-import type { ComposeService, ServiceConfig } from '../types';
+import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 /**
@@ -29,10 +29,17 @@ import { DEFAULT_LOGGING } from '../types';
  */
 export function createSandboxEgressService(
   config: ServiceConfig,
+  color?: DeploymentColor,
 ): ComposeService {
+  // Per-colour egress: each colour's runtime containers reach their own egress
+  // sidecar via its colour-suffixed service-key alias (`sandbox-egress-<color>`)
+  // on the shared sandbox network. The container-local iptables SSRF fence
+  // (IMDS/RFC1918) runs independently in each colour. Single-colour mode keeps
+  // the bare `sandbox-egress` name.
+  const suffix = color ? `-${color}` : '';
   return {
     image: `${config.registry}/tale-sandbox-egress:${config.version}`,
-    container_name: `${getProjectId()}-sandbox-egress`,
+    container_name: `${getProjectId()}-sandbox-egress${suffix}`,
     env_file: ['.env'],
     restart: 'unless-stopped',
     // Least privilege: drop the full default cap set, add back only what the

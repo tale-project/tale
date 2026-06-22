@@ -46,7 +46,9 @@ export interface ModelFacts {
 /**
  * Curated frontier vendors (the `vendor` prefix before `/` in a model id).
  * Only models under these prefixes are auto-added; everything else is left to
- * operators. Open- and closed-weight both included.
+ * operators. Open- and closed-weight both included. Kept in sync with the
+ * vendors curated in `builtin-configs/providers/openrouter.json` so the weekly
+ * sync version-bumps every shipped preset family.
  */
 const FRONTIER_VENDORS: readonly string[] = [
   'anthropic',
@@ -61,6 +63,14 @@ const FRONTIER_VENDORS: readonly string[] = [
   'z-ai',
   'meta-llama',
   'nvidia',
+  'xiaomi',
+  'cohere',
+  'microsoft',
+  'amazon',
+  'perplexity',
+  'ai21',
+  'rekaai',
+  'liquid',
 ];
 
 /**

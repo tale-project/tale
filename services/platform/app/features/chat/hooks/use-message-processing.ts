@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
+import type {
+  SystemMessageDisplay,
+  SystemMsgTag,
+} from '@/lib/shared/constants/system-message-tags';
 import {
   getSystemMessageDisplay,
   parseSystemMessageTag,
@@ -85,6 +88,7 @@ export interface ChatMessage {
   error?: string;
   systemMessageDisplay?: SystemMessageDisplay;
   systemMessageBody?: string;
+  systemMessageTag?: SystemMsgTag;
   /** Raw UIMessage parts (reasoning + tool calls) for the thought-process
    *  timeline. Present on assistant messages; undefined elsewhere. */
   parts?: UIMessage['parts'];
@@ -126,6 +130,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.error === b.error &&
     a.systemMessageDisplay === b.systemMessageDisplay &&
     a.systemMessageBody === b.systemMessageBody &&
+    a.systemMessageTag === b.systemMessageTag &&
     sameParts(a.parts, b.parts) &&
     sameAttachments(a.attachments, b.attachments) &&
     sameFileParts(a.fileParts, b.fileParts)
@@ -401,10 +406,12 @@ export function useMessageProcessing(
 
         let systemMessageDisplay: SystemMessageDisplay | undefined;
         let systemMessageBody: string | undefined;
+        let systemMessageTag: SystemMsgTag | undefined;
         if (m.role === 'system' && m.text) {
           const parsed = parseSystemMessageTag(m.text);
           systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
           systemMessageBody = parsed.body;
+          systemMessageTag = parsed.tag ?? undefined;
         }
 
         currentKeys.add(m.key);
@@ -503,6 +510,7 @@ export function useMessageProcessing(
               : undefined),
           systemMessageDisplay,
           systemMessageBody,
+          systemMessageTag,
         };
       });
 

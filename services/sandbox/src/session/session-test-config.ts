@@ -10,6 +10,7 @@ export const TEST_SESSION_CONFIG: SessionConfig = {
   maxSessionsPerOrg: 2,
   maxLifetimeMs: 86_400_000,
   maxIdleMs: 1_800_000,
+  maxLingerMs: 1_800_000,
   execDefaultTimeoutMs: 600_000,
   execMaxTimeoutMs: 7_200_000,
   createHealthTimeoutMs: 180_000,

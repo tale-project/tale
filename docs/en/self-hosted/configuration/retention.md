@@ -37,6 +37,8 @@ Under the org-first layout, retention bounds are **per-org**: edit `retention.js
 
 The platform container watches the file; changes propose a bounds update for every existing org. Admins see the proposal in their **Retention policy** screen and apply it themselves. The propose-then-apply step is deliberate: tightening a floor shortens history, which is a destructive action no operator should land silently on every tenant.
 
+The admin-chosen retention windows live in a separate file, `retention-policy.json`, alongside the bounds in the same `governance/` folder. It holds flat `<category>Enabled` / `<category>RetentionDays` fields (e.g. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), not the `min`/`max` bounds. That file is written by **Settings > Governance > Retention policy** in the app, so admins normally never edit it by hand — keep it distinct from the operator-owned bounds file.
+
 ## The retention sweep
 
 A scheduled cron inside `tale-convex` runs the actual deletion. Each category is swept independently — a slow run on one does not block the others. Deletions are audited (every category has its own `*.retention_deleted` event), and restoring an entity inside its grace window is possible from **Trash** before the final sweep.

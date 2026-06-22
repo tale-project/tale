@@ -41,7 +41,7 @@ Pour une marche plus profonde sur ce qui fait un bon agent, voir [Créer un agen
 
 ## Étape 5 — Ouvrir le chat
 
-Ouvre **Chat** dans la sidebar et clique **Nouveau chat**. Choisis l'agent dans le sélecteur, tape une question que le domaine de l'agent couvre, envoie. La réponse arrive en streaming ; si elle atterrit comme tu l'as écrite dans les instructions, l'organisation a fini son onboarding.
+Clique sur **Nouveau chat** dans la sidebar. Choisis l'agent dans le sélecteur, tape une question que le domaine de l'agent couvre, envoie. La réponse arrive en streaming ; si elle atterrit comme tu l'as écrite dans les instructions, l'organisation a fini son onboarding.
 
 Trois suites utiles à faire maintenant pendant que tout est frais :
 

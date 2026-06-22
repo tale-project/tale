@@ -417,7 +417,7 @@
       "en": "Chat with AI",
       "de": "Chat mit KI",
       "fr": "Discuter avec l'IA",
-      "_note": "Matches UI label `navigation.chatWithAI`."
+      "_note": "Chat-module feature phrasing (e.g. the chat page meta description). The side-nav entry is the action label `navigation.newChat`."
     },
     {
       "key": "feature_conversations",

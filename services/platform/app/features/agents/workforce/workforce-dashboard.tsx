@@ -1,10 +1,15 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { EmptyState } from '@tale/ui/empty-state';
-import { SkeletonBox } from '@tale/ui/skeleton';
+import { ChartCard } from '@tale/ui/chart-card';
+import { ChartLegend } from '@tale/ui/chart-legend';
+import { CHART_COLORS } from '@tale/ui/chart-theme';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
@@ -15,17 +20,13 @@ import {
   PauseCircle,
   Power,
 } from 'lucide-react';
-import { useCallback, useMemo, type ReactNode } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { useCallback, useMemo } from 'react';
 
+import {
+  seriesToLegend,
+  TrendBarChart,
+  type ChartSeries,
+} from '@/app/components/metrics/charts';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -51,59 +52,8 @@ function formatCents(cents: number): string {
   });
 }
 
-function formatHours(ms: number): string {
-  return (ms / (60 * 60 * 1000)).toFixed(1);
-}
-
 function shortDay(dateKey: string): string {
   return dateKey.slice(5);
-}
-
-/**
- * One bordered chart card — same chrome as the project metrics page: the
- * title always renders; the chart slot masks itself while loading and falls
- * back to an `EmptyState` when the period has no data.
- */
-function ChartCard({
-  title,
-  heightClassName,
-  isLoading,
-  isEmpty,
-  emptyTitle,
-  emptyDescription,
-  children,
-}: {
-  title: string;
-  heightClassName: string;
-  isLoading: boolean;
-  isEmpty: boolean;
-  emptyTitle: string;
-  emptyDescription: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-border bg-card rounded-lg border p-4">
-      <Text as="h3" variant="label">
-        {title}
-      </Text>
-      <div className={`mt-3 ${heightClassName}`}>
-        {isLoading ? (
-          <SkeletonBox fullWidth>
-            <div className={`w-full ${heightClassName}`} />
-          </SkeletonBox>
-        ) : isEmpty ? (
-          <EmptyState
-            icon={BarChart3}
-            title={emptyTitle}
-            description={emptyDescription}
-            className="h-full py-0"
-          />
-        ) : (
-          children
-        )}
-      </div>
-    </section>
-  );
 }
 
 /**
@@ -134,12 +84,20 @@ export function WorkforceDashboard({
   const setAutomation = useSetTaskAutomation();
 
   const totals = metrics?.totals;
+  const prevTotals = metrics?.previousTotals;
+
   const interventionEvents =
     (totals?.reviewsChangesRequested ?? 0) + (totals?.escalations ?? 0);
   const interventionRate =
     totals && totals.agentRunsStarted > 0
       ? Math.round((interventionEvents / totals.agentRunsStarted) * 100)
       : 0;
+  const prevInterventionEvents =
+    (prevTotals?.reviewsChangesRequested ?? 0) + (prevTotals?.escalations ?? 0);
+  const prevInterventionRate =
+    prevTotals && prevTotals.agentRunsStarted > 0
+      ? Math.round((prevInterventionEvents / prevTotals.agentRunsStarted) * 100)
+      : undefined;
   const reviewPassRate =
     totals && totals.reviewsPassed + totals.reviewsChangesRequested > 0
       ? Math.round(
@@ -150,51 +108,34 @@ export function WorkforceDashboard({
       : undefined;
   const avgCycleHours =
     totals && totals.cycleTimeCount > 0
-      ? formatHours(totals.cycleTimeSumMs / totals.cycleTimeCount)
+      ? totals.cycleTimeSumMs / totals.cycleTimeCount / 3_600_000
+      : undefined;
+  const prevAvgCycleHours =
+    prevTotals && prevTotals.cycleTimeCount > 0
+      ? prevTotals.cycleTimeSumMs / prevTotals.cycleTimeCount / 3_600_000
       : undefined;
 
-  const stats = [
-    {
-      label: t('kpi.completed', { days: periodDays }),
-      value: String(totals?.tasksCompleted ?? 0),
-      detail: t('kpi.completedDetail', {
-        agent: totals?.agentCompleted ?? 0,
-        human: totals?.humanCompleted ?? 0,
-      }),
-    },
-    {
-      label: t('kpi.intervention'),
-      value: `${interventionRate}%`,
-      detail:
-        reviewPassRate !== undefined
-          ? t('kpi.reviewPassRate', { pct: reviewPassRate })
-          : t('kpi.noReviews'),
-    },
-    {
-      label: t('kpi.cycleTime'),
-      value: avgCycleHours !== undefined ? `${avgCycleHours}h` : '—',
-      detail: t('kpi.runs', {
-        started: totals?.agentRunsStarted ?? 0,
-        failed: totals?.agentRunsFailed ?? 0,
-      }),
-    },
-    {
-      label: t('kpi.cost', { days: periodDays }),
-      value: formatCents(totals?.totalCostCents ?? 0),
-      detail: t('kpi.costDetail', {
-        perTask:
-          totals && totals.tasksCompleted > 0
-            ? formatCents(totals.totalCostCents / totals.tasksCompleted)
-            : '0.00',
-      }),
-    },
-  ];
-
   const trendData = (metrics?.trend ?? []).map((point) => ({
-    label: shortDay(point.dateKey),
+    dateKey: point.dateKey,
     tasksCompleted: point.tasksCompleted,
     agentRunsFailed: point.agentRunsFailed,
   }));
+  const trendSeries: ChartSeries[] = [
+    {
+      key: 'tasksCompleted',
+      label: t('trend.completed'),
+      color: CHART_COLORS.success,
+    },
+    {
+      key: 'agentRunsFailed',
+      label: t('trend.failedRuns'),
+      color: CHART_COLORS.failure,
+    },
+  ];
+  // `every` is true for an empty array, so this also covers "no data at all".
+  const noTrend = trendData.every(
+    (d) => d.tasksCompleted + d.agentRunsFailed === 0,
+  );
 
   const leaderboardRows = useMemo(
     () => (metrics?.leaderboard ?? []).slice(0, 10),
@@ -301,9 +242,13 @@ export function WorkforceDashboard({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <Stack>
       {/* Master toggle + health strip */}
-      <section className="border-border bg-card flex flex-col gap-3 rounded-lg border p-4">
+      <Stack
+        as="section"
+        gap={3}
+        className="border-border bg-card rounded-lg border p-4"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Power
@@ -362,73 +307,126 @@ export function WorkforceDashboard({
             )}
           </div>
         )}
-      </section>
+      </Stack>
 
       {!isLoading && totals?.capped ? (
-        <div className="border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
-          {t('cappedNotice')}
-        </div>
+        <Alert
+          variant="warning"
+          icon={AlertTriangle}
+          title={t('cappedNotice')}
+        />
       ) : null}
 
       <Skeletonize loading={isLoading} className="flex flex-col gap-4">
-        {/* Paired KPI stat cards */}
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="border-border bg-card flex flex-col gap-1 rounded-lg border p-3"
-            >
+        {/* Paired KPI stat cards — same StatCardGrid + delta treatment as the
+            other metrics surfaces. Outcome + intervention + cost always travel
+            together (cost is never shown alone). */}
+        <StatCardGrid cols={4}>
+          <StatCard
+            label={t('kpi.completed', { days: periodDays })}
+            value={String(totals?.tasksCompleted ?? 0)}
+          >
+            <div className="mt-0.5 flex flex-col gap-1">
+              <TrendIndicator
+                value={totals?.tasksCompleted ?? 0}
+                previous={prevTotals?.tasksCompleted}
+              />
               <Text as="p" variant="muted" className="text-xs">
-                {stat.label}
+                {t('kpi.completedDetail', {
+                  agent: totals?.agentCompleted ?? 0,
+                  human: totals?.humanCompleted ?? 0,
+                })}
               </Text>
-              <SkeletonBox>
-                <Text as="p" className="text-xl font-semibold tabular-nums">
-                  {stat.value}
-                </Text>
-              </SkeletonBox>
-              <SkeletonBox>
-                <Text as="p" variant="muted" className="text-xs">
-                  {stat.detail}
-                </Text>
-              </SkeletonBox>
             </div>
-          ))}
-        </section>
+          </StatCard>
 
-        {/* Trend */}
+          <StatCard
+            label={t('kpi.intervention')}
+            value={`${interventionRate}%`}
+          >
+            <div className="mt-0.5 flex flex-col gap-1">
+              <TrendIndicator
+                value={interventionRate}
+                previous={prevInterventionRate}
+                inverted
+              />
+              <Text as="p" variant="muted" className="text-xs">
+                {reviewPassRate !== undefined
+                  ? t('kpi.reviewPassRate', { pct: reviewPassRate })
+                  : t('kpi.noReviews')}
+              </Text>
+            </div>
+          </StatCard>
+
+          <StatCard
+            label={t('kpi.cycleTime')}
+            value={
+              avgCycleHours !== undefined ? `${avgCycleHours.toFixed(1)}h` : '—'
+            }
+          >
+            <div className="mt-0.5 flex flex-col gap-1">
+              {avgCycleHours !== undefined ? (
+                <TrendIndicator
+                  value={avgCycleHours}
+                  previous={prevAvgCycleHours}
+                  inverted
+                />
+              ) : null}
+              <Text as="p" variant="muted" className="text-xs">
+                {t('kpi.runs', {
+                  started: totals?.agentRunsStarted ?? 0,
+                  failed: totals?.agentRunsFailed ?? 0,
+                })}
+              </Text>
+            </div>
+          </StatCard>
+
+          <StatCard
+            label={t('kpi.cost', { days: periodDays })}
+            value={formatCents(totals?.totalCostCents ?? 0)}
+          >
+            <div className="mt-0.5 flex flex-col gap-1">
+              <TrendIndicator
+                value={totals?.totalCostCents ?? 0}
+                previous={prevTotals?.totalCostCents}
+                inverted
+              />
+              <Text as="p" variant="muted" className="text-xs">
+                {t('kpi.costDetail', {
+                  perTask:
+                    totals && totals.tasksCompleted > 0
+                      ? formatCents(
+                          totals.totalCostCents / totals.tasksCompleted,
+                        )
+                      : '0.00',
+                })}
+              </Text>
+            </div>
+          </StatCard>
+        </StatCardGrid>
+
+        {/* Activity trend */}
         <ChartCard
           title={t('trend.title')}
-          heightClassName="h-52"
-          isLoading={isLoading}
-          isEmpty={trendData.length === 0}
+          bodyClassName="h-52"
+          loading={isLoading}
+          isEmpty={noTrend}
+          emptyIcon={BarChart3}
           emptyTitle={t('noData')}
           emptyDescription={t('noDataDescription')}
+          legend={<ChartLegend items={seriesToLegend(trendSeries)} />}
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-              <XAxis dataKey="label" fontSize={11} />
-              <YAxis allowDecimals={false} fontSize={11} width={28} />
-              <Tooltip />
-              <Bar
-                dataKey="tasksCompleted"
-                name={t('trend.completed')}
-                fill="var(--color-chart-success, #10b981)"
-                radius={[2, 2, 0, 0]}
-              />
-              <Bar
-                dataKey="agentRunsFailed"
-                name={t('trend.failedRuns')}
-                fill="var(--color-chart-failure, #ef4444)"
-                radius={[2, 2, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <TrendBarChart
+            data={trendData}
+            series={trendSeries}
+            xKey="dateKey"
+            xTickFormatter={shortDay}
+          />
         </ChartCard>
       </Skeletonize>
 
       {/* Leaderboard */}
-      <div className="flex flex-col gap-3">
+      <Stack gap={3}>
         <h2 className="text-base font-semibold">{t('leaderboard.title')}</h2>
         <DataTable
           caption={t('leaderboard.title')}
@@ -444,7 +442,7 @@ export function WorkforceDashboard({
             description: t('noDataDescription'),
           }}
         />
-      </div>
+      </Stack>
 
       {/* Needs attention */}
       {attention && (
@@ -501,7 +499,7 @@ export function WorkforceDashboard({
           />
         </section>
       )}
-    </div>
+    </Stack>
   );
 }
 
@@ -540,7 +538,7 @@ function AttentionList({
           {emptyLabel}
         </Text>
       ) : (
-        <ul className="mt-2 flex flex-col gap-1">
+        <Stack as="ul" gap={1} className="mt-2">
           {items.slice(0, 8).map((item) => (
             <li
               key={item.key}
@@ -568,7 +566,7 @@ function AttentionList({
               )}
             </li>
           ))}
-        </ul>
+        </Stack>
       )}
     </div>
   );

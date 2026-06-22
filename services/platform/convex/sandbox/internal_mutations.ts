@@ -303,6 +303,27 @@ export const heartbeat = internalMutation({
 });
 
 /**
+ * Persist the blue-green spawner colour the execution landed on (self-reported
+ * by the spawner via X-Sandbox-Color at execute start). Lets the user-Stop /
+ * cancel path route to the SAME colour after a deploy flip. No-op for a null
+ * colour (single-colour mode) or a vanished row.
+ */
+export const setSpawnerColor = internalMutation({
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    spawnerColor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.spawnerColor === null) return null;
+    const row = await ctx.db.get(args.executionId);
+    if (!row) return null;
+    await ctx.db.patch(args.executionId, { spawnerColor: args.spawnerColor });
+    return null;
+  },
+});
+
+/**
  * Settles an audit row into a terminal state. Idempotent w.r.t. duplicate
  * Convex retries AND races with the watchdog: if the row is already in a
  * terminal state we leave it alone (no-op + warn). The watchdog reaping a
@@ -489,6 +510,8 @@ export const listNonTerminalByThread = internalQuery({
   returns: v.array(
     v.object({
       _id: v.id('sandboxExecutions'),
+      // Blue-green colour for cancel-routing (undefined in single-colour mode).
+      spawnerColor: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -498,10 +521,11 @@ export const listNonTerminalByThread = internalQuery({
       .collect();
     const out: Array<{
       _id: Id<'sandboxExecutions'>;
+      spawnerColor?: string;
     }> = [];
     for (const row of rows) {
       if (sandboxTerminalStatuses.has(row.status)) continue;
-      out.push({ _id: row._id });
+      out.push({ _id: row._id, spawnerColor: row.spawnerColor });
     }
     return out;
   },

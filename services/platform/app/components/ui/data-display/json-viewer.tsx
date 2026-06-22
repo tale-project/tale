@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -36,6 +37,7 @@ export function JsonViewer({
   indentWidth?: number;
   className?: string;
 }) {
+  const { t } = useT('common');
   const [copied, setCopied] = useState(false);
   const json = useMemo(() => {
     try {
@@ -78,6 +80,7 @@ export function JsonViewer({
           <Button
             variant="ghost"
             size="icon"
+            title={t('actions.copy')}
             className="p-1"
             onClick={handleCopy}
           >

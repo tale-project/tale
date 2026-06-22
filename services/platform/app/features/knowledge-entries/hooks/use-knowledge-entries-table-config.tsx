@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
@@ -40,9 +40,13 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         size: 240,
         cell: ({ row }) => (
           <HStack gap={2}>
-            <div className="bg-muted flex size-5 shrink-0 items-center justify-center rounded">
+            <Row
+              gap={0}
+              justify="center"
+              className="bg-muted size-5 shrink-0 rounded"
+            >
               <BookOpen className="text-muted-foreground size-3" />
-            </div>
+            </Row>
             <Text as="span" variant="label" truncate>
               {row.original.topic}
             </Text>

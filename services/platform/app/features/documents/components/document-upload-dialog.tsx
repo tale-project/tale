@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { CircleCheck, RotateCw, Upload } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
@@ -272,7 +273,7 @@ export function DocumentUploadDialog({
       title={tDocuments('upload.importDocuments')}
       size="md"
     >
-      <div className="flex min-w-0 flex-col gap-4 pt-2">
+      <Stack className="min-w-0 pt-2">
         {/* Drop zone */}
         <FileUpload.Root>
           <FileUpload.DropZone
@@ -302,14 +303,14 @@ export function DocumentUploadDialog({
         </FileUpload.Root>
 
         {/* Team selection */}
-        <div className="flex flex-col gap-2">
+        <Stack gap={2}>
           <span className="text-muted-foreground text-sm font-medium">
             {tDocuments('upload.selectTeams')}
           </span>
           {isLoadingTeams ? (
-            <div className="flex items-center justify-center py-3">
+            <Row gap={0} justify="center" className="py-3">
               <Spinner size="sm" label={tCommon('actions.loading')} />
-            </div>
+            </Row>
           ) : (
             <TeamMultiSelect
               teams={teams ?? []}
@@ -324,7 +325,7 @@ export function DocumentUploadDialog({
               {tDocuments('upload.teamLockedToFolder')}
             </span>
           )}
-        </div>
+        </Stack>
 
         {/* Upload progress summary */}
         {hasFiles && totalCount > 1 && (
@@ -344,7 +345,10 @@ export function DocumentUploadDialog({
 
         {/* Success banner */}
         {allCompleted && (
-          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+          <Row
+            gap={2}
+            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2"
+          >
             <CircleCheck className="size-4 shrink-0 text-green-700" />
             <span className="flex-1 text-[13px] font-medium text-green-700">
               {tDocuments('upload.documentsUploadedSuccessfully', {
@@ -354,12 +358,12 @@ export function DocumentUploadDialog({
             <span className="shrink-0 text-xs text-green-600">
               {formatBytes(totalSize)}
             </span>
-          </div>
+          </Row>
         )}
 
         {/* File list */}
         {hasFiles && (
-          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+          <Stack gap={1} className="max-h-52 overflow-y-auto">
             {trackedFiles.map((tracked) => (
               <UploadFileRow
                 key={tracked.id}
@@ -377,42 +381,31 @@ export function DocumentUploadDialog({
                 }
               />
             ))}
-          </div>
+          </Stack>
         )}
 
         {/* Footer actions */}
-        <div className="flex items-center justify-end gap-2">
+        <Row gap={2} justify="end">
           {hasFailures && !isUploading && !hasPendingFiles && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleRetryAll}
-              className="gap-1.5"
-            >
+            <Button type="button" onClick={handleRetryAll} className="gap-1.5">
               <RotateCw className="size-3.5" />
               {tDocuments('upload.retryUpload')}
             </Button>
           )}
           {isUploading && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleCancel}
-            >
+            <Button type="button" variant="secondary" onClick={handleCancel}>
               {tDocuments('upload.cancelUpload')}
             </Button>
           )}
           <Button
             type="button"
-            size="sm"
             onClick={handleUpload}
             disabled={!hasPendingFiles || isUploading || allCompleted}
           >
             {tDocuments('upload.uploadDocuments')}
           </Button>
-        </div>
-      </div>
+        </Row>
+      </Stack>
     </Dialog>
   );
 }

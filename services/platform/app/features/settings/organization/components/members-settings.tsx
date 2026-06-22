@@ -2,6 +2,7 @@
 
 import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -66,7 +67,7 @@ export function MembersSettings({
   }, [allMembers, debouncedSearch, sortOrder]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <Stack gap={4}>
       <ActionRow justify="between">
         <SearchInput
           placeholder={tSettings('organization.searchMember')}
@@ -119,6 +120,6 @@ export function MembersSettings({
         open={isAddMemberDialogOpen}
         onOpenChange={setIsAddMemberDialogOpen}
       />
-    </div>
+    </Stack>
   );
 }

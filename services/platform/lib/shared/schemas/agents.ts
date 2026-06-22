@@ -40,71 +40,6 @@ const composerModeSchema = z.object({
 });
 
 /**
- * Per-agent "response tuning" — the agent-author home for what was previously
- * the per-message composer menu. Every field is optional; absence (or
- * `adaptive`) leaves the Adaptive Reasoning Governor fully in charge, so an
- * agent without this block behaves exactly as before.
- *
- *  - `effort` (fixed tier) BYPASSES the adaptive controller for that turn.
- *  - `effortFloor`/`effortCeiling` keep adaptivity but BOUND it.
- *  - `verbosity`/`style` append a system-prompt fragment.
- *  - `qualityProfile` selects the quality-feedback thresholds + controller
- *    deadband preset (`lenient`/`balanced`/`strict`).
- *
- * The settings UI surfaces the common knobs above. `budgetCaps` (per-class
- * hard cap on the thinking-token budget) and `temperatureRange` (override the
- * governor's temperature band) are advanced, JSON-only knobs — kept in the
- * schema for power users editing the agent config directly, but deliberately
- * left out of the UI to keep it simple.
- */
-const EFFORT_TIER_RANK: Record<'off' | 'low' | 'medium' | 'high', number> = {
-  off: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-};
-const effortTierEnum = z.enum(['off', 'low', 'medium', 'high']);
-export const responseTuningSchema = z
-  .object({
-    effort: z.enum(['adaptive', 'low', 'medium', 'high']).optional(),
-    creativity: z
-      .enum(['adaptive', 'precise', 'balanced', 'creative'])
-      .optional(),
-    style: z
-      .enum(['adaptive', 'concise', 'detailed', 'formal', 'friendly'])
-      .optional(),
-    effortFloor: effortTierEnum.optional(),
-    effortCeiling: effortTierEnum.optional(),
-    budgetCaps: z
-      .object({
-        easy: z.number().int().min(256).max(32768).optional(),
-        medium: z.number().int().min(256).max(32768).optional(),
-        hard: z.number().int().min(256).max(32768).optional(),
-      })
-      .optional(),
-    temperatureRange: z
-      .object({
-        min: z.number().min(0).max(2).optional(),
-        max: z.number().min(0).max(2).optional(),
-      })
-      .refine((r) => r.min == null || r.max == null || r.min <= r.max, {
-        message: 'temperatureRange.min must be ≤ temperatureRange.max',
-      })
-      .optional(),
-    verbosity: z.enum(['adaptive', 'terse', 'normal', 'verbose']).optional(),
-    qualityProfile: z.enum(['lenient', 'balanced', 'strict']).optional(),
-  })
-  .refine(
-    (t) =>
-      t.effortFloor == null ||
-      t.effortCeiling == null ||
-      EFFORT_TIER_RANK[t.effortFloor] <= EFFORT_TIER_RANK[t.effortCeiling],
-    { message: 'effortFloor must be ≤ effortCeiling', path: ['effortFloor'] },
-  );
-
-export type ResponseTuningConfig = z.infer<typeof responseTuningSchema>;
-
-/**
  * Per-agent routing/cascade behaviour (opt-in; defaults preserve today's
  * config-order model selection with no cascade).
  *
@@ -301,8 +236,6 @@ export const agentJsonSchema = z
      */
     maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
     composerMode: composerModeSchema.optional(),
-    /** Per-agent response tuning; see `responseTuningSchema`. */
-    responseTuning: responseTuningSchema.optional(),
     /** Per-agent routing / cascade behaviour; see `agentRoutingSchema`. */
     routing: agentRoutingSchema.optional(),
     roleRestriction: z.literal('admin_developer').optional(),

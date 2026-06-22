@@ -338,6 +338,18 @@ export interface SpawnerConfig {
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
   maxConcurrent: number;
+  /**
+   * Blue-green colour of this spawner instance (`SANDBOX_COLOR`), or `null` in
+   * single-colour mode (dev / unset). When set it (a) scopes `hostSessionRoot`
+   * to a per-colour sub-directory so two colours don't share the `.spawner.lock`
+   * or the host-dir sweep, and (b) stamps a `tale.color=<color>` label on
+   * spawned containers so each colour's boot/orphan sweep only reaps its OWN
+   * containers — a green boot must never `docker rm` blue's in-flight work.
+   * Set from the spawner's own env (never request input), so it is not
+   * attacker-controllable. Optional only for test fixtures; `loadConfig`
+   * always sets it (to a colour string or `null`).
+   */
+  color?: string | null;
   hostSessionRoot: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
@@ -366,6 +378,11 @@ export interface SessionConfig {
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
   maxIdleMs: number;
+  /** Max time this colour will LINGER (keep serving its sessions) after a deploy
+   * flip put it into drain mode before the spawner reclaims that compute itself
+   * (CLI-independent safety net). Workspaces are preserved for resume on the
+   * active colour. See server.ts's linger self-reap. */
+  maxLingerMs: number;
   /** Default + ceiling for per-exec timeoutMs inside a session. */
   execDefaultTimeoutMs: number;
   execMaxTimeoutMs: number;

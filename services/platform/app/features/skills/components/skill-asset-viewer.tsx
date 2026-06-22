@@ -158,7 +158,7 @@ export function SkillAssetViewer({
       className="flex h-full min-h-0 flex-col"
       label={assetPath}
     >
-      <div key={assetPath} className="flex h-full min-h-0 flex-col">
+      <Stack key={assetPath} gap={0} className="h-full min-h-0">
         <HStack
           gap={2}
           align="center"
@@ -277,7 +277,7 @@ export function SkillAssetViewer({
             </>
           )}
         </div>
-      </div>
+      </Stack>
     </Skeletonize>
   );
 }

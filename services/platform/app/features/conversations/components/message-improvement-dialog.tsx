@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import ReactMarkdown from 'react-markdown';
 
@@ -34,7 +35,7 @@ export function MessageImprovementDialog({
       onConfirm={onAccept}
       className="max-h-[80vh] max-w-4xl"
     >
-      <div className="flex grow flex-col gap-4">
+      <Stack className="grow">
         <PageSection
           as="h3"
           titleSize="sm"
@@ -62,7 +63,7 @@ export function MessageImprovementDialog({
             </div>
           </div>
         </PageSection>
-      </div>
+      </Stack>
     </ConfirmDialog>
   );
 }

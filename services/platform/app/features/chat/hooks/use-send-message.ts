@@ -104,6 +104,47 @@ function isKbRefInvalidError(error: unknown): boolean {
   return data.code === 'KB_REF_INVALID';
 }
 
+/**
+ * `chatWithAgentTurn` throws `BACKEND_DRAINING` while a `tale deploy` is
+ * draining the convex backend before recreating it (the new-turn gate). It's
+ * transient — the backend accepts turns again within seconds once the restart
+ * settles — so the send auto-retries rather than surfacing an error.
+ */
+function isBackendDrainingError(error: unknown): boolean {
+  if (!(error instanceof ConvexError)) return false;
+  const data: unknown = error.data;
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'code' in data &&
+    data.code === 'BACKEND_DRAINING'
+  );
+}
+
+const DRAIN_RETRY_MAX = 8;
+const DRAIN_RETRY_DELAY_MS = 2_000;
+
+/**
+ * Retry `fn` while it throws `BACKEND_DRAINING` (a deploy drain window),
+ * bounded so a long drain doesn't hang the composer indefinitely — on exhaust
+ * the error propagates to the normal send-failure handling (friendly toast).
+ */
+async function withBackendDrainRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt < DRAIN_RETRY_MAX && isBackendDrainingError(error)) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, DRAIN_RETRY_DELAY_MS),
+        );
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 /** Derive a thread title from the first message, truncating long input. */
 function buildThreadTitle(message: string): string {
   return message.length > 50 ? message.slice(0, 50) + '...' : message;
@@ -758,22 +799,25 @@ export function useSendMessage({
           markPending(tIdA);
           markPending(tIdB);
 
-          // Start both models generating (split view shows "Thinking")
-          await arenaChatRef.current({
-            // Guarded above: arena requires a pinned agent, so this is never
-            // the Auto sentinel here.
-            agentSlug: agentSlugToSend,
-            threadIdA: tIdA,
-            threadIdB: tIdB,
-            organizationId,
-            message: messageToSend,
-            modelIdA: modelA,
-            modelIdB: modelB,
-            attachments: mutationAttachments,
-            userContext: userContextPayload,
-            // History is copied when Thread B is created (arena enable),
-            // not at send time — no need to copy again.
-          });
+          // Start both models generating (split view shows "Thinking").
+          // Retry through a deploy drain window (transient BACKEND_DRAINING).
+          await withBackendDrainRetry(() =>
+            arenaChatRef.current({
+              // Guarded above: arena requires a pinned agent, so this is never
+              // the Auto sentinel here.
+              agentSlug: agentSlugToSend,
+              threadIdA: tIdA,
+              threadIdB: tIdB,
+              organizationId,
+              message: messageToSend,
+              modelIdA: modelA,
+              modelIdB: modelB,
+              attachments: mutationAttachments,
+              userContext: userContextPayload,
+              // History is copied when Thread B is created (arena enable),
+              // not at send time — no need to copy again.
+            }),
+          );
         } else {
           // --- Standard mode: send to one model ---
           let currentThreadId = threadId;
@@ -904,26 +948,34 @@ export function useSendMessage({
           // isThreadGenerating takes over once it arrives.
           markPending(currentThreadId);
 
-          await chatWithAgent({
-            agentSlug: agentSlugToSend,
-            threadId: currentThreadId,
-            organizationId,
-            message: messageToSend,
-            modelId: modelId || undefined,
-            capabilityBindings:
-              enabledCapabilities.length > 0 ? enabledCapabilities : undefined,
-            attachments: mutationAttachments,
-            // `@`-mention KB pins. Server-resolved (access + RAG status), so
-            // only the document ids travel — never client-supplied fileIds.
-            referencedDocumentIds,
-            userContext: userContextPayload,
-            // projectId from URL query is a string; chatWithAgent expects
-            // an Id<'projects'>. The branding is structural-only TS; server
-            // validates it via assertProjectAccessForChat. We use the
-            // dedicated `asProjectId` helper to keep the lint-disable in
-            // one place (see features/projects/hooks/use-project-id-param.ts).
-            projectId: projectId ? asProjectId(projectId) : undefined,
-          });
+          // Capture into a const so the narrowed `string` type survives inside
+          // the retry closure (a `let` widens back to `string | undefined`).
+          const threadIdForSend = currentThreadId;
+          // Retry through a deploy drain window (transient BACKEND_DRAINING).
+          await withBackendDrainRetry(() =>
+            chatWithAgent({
+              agentSlug: agentSlugToSend,
+              threadId: threadIdForSend,
+              organizationId,
+              message: messageToSend,
+              modelId: modelId || undefined,
+              capabilityBindings:
+                enabledCapabilities.length > 0
+                  ? enabledCapabilities
+                  : undefined,
+              attachments: mutationAttachments,
+              // `@`-mention KB pins. Server-resolved (access + RAG status), so
+              // only the document ids travel — never client-supplied fileIds.
+              referencedDocumentIds,
+              userContext: userContextPayload,
+              // projectId from URL query is a string; chatWithAgent expects
+              // an Id<'projects'>. The branding is structural-only TS; server
+              // validates it via assertProjectAccessForChat. We use the
+              // dedicated `asProjectId` helper to keep the lint-disable in
+              // one place (see features/projects/hooks/use-project-id-param.ts).
+              projectId: projectId ? asProjectId(projectId) : undefined,
+            }),
+          );
         }
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -979,7 +1031,13 @@ export function useSendMessage({
 
         let title = t('toast.sendFailed');
         let description = errorMessage;
-        if (
+        if (isBackendDrainingError(error)) {
+          // Drain outlasted the retry budget — the backend is mid-restart
+          // (deploy). Tell the user to resend in a moment rather than show a
+          // raw error; their in-flight turn (if any) is recovered server-side.
+          title = t('toast.backendRestarting');
+          description = t('toast.backendRestartingDescription');
+        } else if (
           blockedCode === 'pii.blocked' ||
           errorMessage.includes('Message blocked: PII')
         ) {

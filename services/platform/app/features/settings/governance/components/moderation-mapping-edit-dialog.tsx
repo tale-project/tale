@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -104,7 +105,7 @@ export function MappingEditDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <Stack>
         <FormSection
           label={t('moderationProvider.providerCategoryLabel')}
           description={t('moderationProvider.providerCategoryDescription')}
@@ -166,7 +167,7 @@ export function MappingEditDialog({
         <FormSection label={t('moderationProvider.enabled')}>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </FormSection>
-      </div>
+      </Stack>
     </Dialog>
   );
 }

@@ -36,6 +36,14 @@ interface EditorActionsProps {
   onEvent?: (event: EditorTelemetryEvent) => void;
   /** Tag for telemetry (e.g. `'agent'`, `'org_settings'`). */
   entityKind?: string;
+  /**
+   * Opt out of the generic server-error toast when the controller's own
+   * `save()` already surfaces a (typically localized) failure message itself —
+   * otherwise the user sees two destructive toasts for one failure. Validation
+   * failures are still toasted here, since callers don't handle those. Default
+   * `false` (EditorActions owns all error toasting).
+   */
+  suppressServerErrorToast?: boolean;
   className?: string;
 }
 
@@ -48,6 +56,7 @@ export function EditorActions({
   formId,
   onEvent,
   entityKind = 'unknown',
+  suppressServerErrorToast = false,
   className,
 }: EditorActionsProps) {
   const { t } = useT('common');
@@ -89,7 +98,7 @@ export function EditorActions({
           description: t('editor.fixHighlightedFields'),
           variant: 'destructive',
         });
-      } else {
+      } else if (!suppressServerErrorToast) {
         toast({
           title: t('actions.save'),
           description: err instanceof Error ? err.message : String(err),
@@ -97,7 +106,7 @@ export function EditorActions({
         });
       }
     }
-  }, [controller, entityKind, onEvent, t]);
+  }, [controller, entityKind, onEvent, suppressServerErrorToast, t]);
 
   const handleDiscard = useCallback(() => {
     if (!controller.isDirty || controller.isSaving) return;
@@ -152,9 +161,9 @@ export function EditorActions({
       {history}
       <Button
         type="button"
+        size="sm"
         onClick={handleDiscard}
         variant="secondary"
-        size="sm"
         icon={Undo2}
         iconClassName="size-3.5"
         collapseLabel
@@ -165,10 +174,10 @@ export function EditorActions({
       </Button>
       <Button
         type={formId ? 'submit' : 'button'}
+        size="sm"
         form={formId}
         onClick={formId ? undefined : () => void runSave()}
         disabled={saveDisabled}
-        size="sm"
         aria-busy={controller.isSaving ? 'true' : undefined}
       >
         {controller.isSaving ? (

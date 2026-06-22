@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import {
@@ -1146,10 +1147,11 @@ export function ChatInterface({
   const showWelcome = !showMessages && !showArena && !showExitingSkeleton;
 
   return (
-    <div
+    <Stack
       role="region"
       aria-labelledby={chatRegionLabelId}
-      className="flex h-full min-h-0 flex-1 flex-col"
+      gap={0}
+      className="h-full min-h-0 flex-1"
     >
       <h2 id={chatRegionLabelId} className="sr-only">
         {t('aria.chatRegion')}
@@ -1166,9 +1168,10 @@ export function ChatInterface({
         // instant scrolls (see useChatScroll). A CSS smooth-behavior would make
         // every pin animate against the still-settling response slack and land
         // short. The scroll-to-bottom button opts into smooth explicitly.
-        <div
+        <Stack
           ref={containerRef}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
+          gap={0}
+          className="min-h-0 flex-1 overflow-y-auto will-change-transform"
         >
           <div
             ref={contentRef}
@@ -1283,7 +1286,7 @@ export function ChatInterface({
               </ChatMessagesErrorBoundary>
             )}
           </div>
-        </div>
+        </Stack>
       )}
 
       {/* Floating "Quote" affordance on text selection inside messages.
@@ -1427,6 +1430,6 @@ export function ChatInterface({
           setInsertedPrompt(content);
         }}
       />
-    </div>
+    </Stack>
   );
 }

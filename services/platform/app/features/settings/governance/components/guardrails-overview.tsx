@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import {
@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
@@ -82,7 +83,7 @@ function StatusCard({
   const loading = useSkeleton();
   return (
     <div className="border-border rounded-lg border p-4">
-      <div className="mb-2 flex items-center gap-2">
+      <Row gap={2} className="mb-2">
         <Icon
           className={
             enabled && !loading
@@ -92,7 +93,7 @@ function StatusCard({
           aria-hidden
         />
         <div className="font-medium">{title}</div>
-      </div>
+      </Row>
       <div className="text-muted-foreground mb-3 text-xs">{description}</div>
       {loading ? (
         <div className="text-xs">
@@ -211,11 +212,11 @@ export function GuardrailsOverview({
 
   return (
     <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
-      <PageSection
+      <SettingsSection
         title={t('guardrailsOverview.title')}
         description={t('guardrailsOverview.description')}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Grid md={3}>
           <StatusCard
             title={t('guardrailsOverview.statusCards.contentSafety.title')}
             description={t(
@@ -248,13 +249,13 @@ export function GuardrailsOverview({
             )}
             icon={ShieldAlert}
           />
-        </div>
+        </Grid>
 
         <RecentEvents
           organizationId={organizationId}
           chatFilterLabels={chatFilterLabels}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }
@@ -299,19 +300,18 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
   );
 
   return (
-    <section className="mt-8 flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+    <Stack as="section" className="mt-8">
+      <Row gap={3} align="start" justify="between" wrap>
+        <Stack gap={1} className="min-w-0">
           <h2 className="text-foreground text-base leading-tight font-semibold">
             {t('guardrailsOverview.recentEvents.title')}
           </h2>
           <p className="text-muted-foreground text-sm">
             {t('guardrailsOverview.recentEvents.description')}
           </p>
-        </div>
-        <div className="flex gap-2">
+        </Stack>
+        <Row gap={2} align="stretch">
           <Select
-            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnFilter')}
             value={filterName}
             onValueChange={(v) => {
@@ -344,7 +344,6 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
             ]}
           />
           <Select
-            size="sm"
             aria-label={t('guardrailsOverview.recentEvents.columnKind')}
             value={kind}
             onValueChange={(v) => {
@@ -381,8 +380,8 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
               },
             ]}
           />
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       {!isLoading && (!events || events.length === 0) ? (
         // Real empty-state only once the read has settled with zero rows.
@@ -510,7 +509,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
         chatFilterLabels={chatFilterLabels}
         onClose={() => setSelectedEvent(null)}
       />
-    </section>
+    </Stack>
   );
 }
 
@@ -560,7 +559,7 @@ function EventDetailSheet({
       description={t('guardrailsOverview.eventDetails.description')}
       className="sm:!max-w-xl"
     >
-      <div className="flex h-full flex-col">
+      <Stack gap={0} className="h-full">
         <div className="shrink-0 pr-10">
           <h2 className="text-lg font-semibold tracking-tight">
             {t('guardrailsOverview.eventDetails.title')}
@@ -590,7 +589,7 @@ function EventDetailSheet({
                 {event.categoryIds.length === 0 ? (
                   <span className="text-muted-foreground">—</span>
                 ) : (
-                  <ul className="flex flex-col gap-1">
+                  <Stack as="ul" gap={1}>
                     {event.categoryIds.map((id) => {
                       const label =
                         event.filterName === 'chat_filter'
@@ -617,7 +616,7 @@ function EventDetailSheet({
                         </li>
                       );
                     })}
-                  </ul>
+                  </Stack>
                 )}
               </DetailRow>
               <DetailRow label={t('guardrailsOverview.eventDetails.matches')}>
@@ -732,12 +731,17 @@ function EventDetailSheet({
           )}
         </div>
 
-        <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
+        <Row
+          gap={2}
+          align="stretch"
+          justify="end"
+          className="shrink-0 border-t pt-4"
+        >
           <Button variant="ghost" onClick={onClose}>
             {t('guardrailsOverview.eventDetails.close')}
           </Button>
-        </div>
-      </div>
+        </Row>
+      </Stack>
     </Sheet>
   );
 }

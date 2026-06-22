@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Settings, Users } from 'lucide-react';
@@ -165,11 +166,11 @@ function DocumentTeamDialogContent({
       }
     >
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
+        <Row gap={0} justify="center" className="py-8">
           <Text as="span" variant="muted">
             {tCommon('actions.loading')}
           </Text>
-        </div>
+        </Row>
       ) : !hasTeams ? (
         <EmptyState
           icon={Users}
@@ -179,7 +180,6 @@ function DocumentTeamDialogContent({
             <Button
               type="button"
               variant="secondary"
-              size="sm"
               onClick={handleGoToSettings}
             >
               <Settings className="size-3.5" aria-hidden="true" />

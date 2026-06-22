@@ -1,15 +1,17 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Alert } from '@tale/ui/alert';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import type { FunctionReturnType } from 'convex/server';
-import { X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
+import { MetricSelect } from '@/app/components/metrics/metric-select';
+import {
+  MetricsFilterChips,
+  type MetricsFilterChip,
+} from '@/app/components/metrics/metrics-filter-chips';
+import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -114,98 +116,76 @@ export function UsageMetricsPageView({
   const topVoiceModels = data?.topVoiceModels ?? [];
   const users = data?.users ?? [];
 
-  const hasFilters =
-    agentSlug !== undefined || model !== undefined || provider !== undefined;
+  const filterChips: MetricsFilterChip[] = [];
+  if (agentSlug !== undefined)
+    filterChips.push({
+      key: 'agent',
+      label: t('usage.filterChips.agent', { value: agentSlug }),
+      onClear: () => onSelectAgent(undefined),
+    });
+  if (model !== undefined)
+    filterChips.push({
+      key: 'model',
+      label: t('usage.filterChips.model', { value: model }),
+      onClear: () => onSelectModel(undefined),
+    });
+  if (provider !== undefined)
+    filterChips.push({
+      key: 'provider',
+      label: t('usage.filterChips.provider', { value: provider }),
+      onClear: () => onSelectProvider(undefined),
+    });
 
   return (
-    <Stack gap={6}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex flex-col gap-1">
-          <Text as="h3" className="text-foreground text-base font-semibold">
-            {t('usage.title')}
-          </Text>
-          <Text variant="caption">{t('usage.description')}</Text>
-        </div>
-        <HStack gap={2} className="flex-wrap">
-          <div className="w-36">
-            <Select
-              options={periodOptions}
-              value={String(periodDays)}
-              onValueChange={onPeriod}
-              size="sm"
-              aria-label={t('usage.period.label')}
-            />
-          </div>
-          <div className="w-36">
-            <Select
-              options={granularityOptions}
-              value={granularity}
-              onValueChange={onGranularity}
-              size="sm"
-              aria-label={t('usage.granularity.label')}
-            />
-          </div>
-          <div className="w-36">
-            <Select
-              options={metricOptions}
-              value={metric}
-              onValueChange={onMetric}
-              size="sm"
-              aria-label={t('usage.metric.label')}
-            />
-          </div>
-        </HStack>
-      </div>
-
-      {hasFilters ? (
-        <HStack gap={2} className="flex-wrap items-center">
-          {agentSlug ? (
-            <Badge
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => onSelectAgent(undefined)}
-            >
-              {t('usage.filterChips.agent', { value: agentSlug })}
-              <X className="ml-1 size-3" />
-            </Badge>
-          ) : null}
-          {model ? (
-            <Badge
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => onSelectModel(undefined)}
-            >
-              {t('usage.filterChips.model', { value: model })}
-              <X className="ml-1 size-3" />
-            </Badge>
-          ) : null}
-          {provider ? (
-            <Badge
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => onSelectProvider(undefined)}
-            >
-              {t('usage.filterChips.provider', { value: provider })}
-              <X className="ml-1 size-3" />
-            </Badge>
-          ) : null}
-          <Button variant="ghost" size="sm" onClick={onClearAll}>
-            {t('usage.filterChips.clear')}
-          </Button>
-        </HStack>
-      ) : null}
-
-      {summary?.capped ? (
-        <div className="border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
-          {t('usage.cappedNotice')}
-        </div>
-      ) : null}
-
+    <MetricsLayout
+      as="h3"
+      title={t('usage.title')}
+      description={t('usage.description')}
+      toolbar={
+        <>
+          <MetricSelect
+            aria-label={t('usage.period.label')}
+            options={periodOptions}
+            value={String(periodDays)}
+            onValueChange={onPeriod}
+          />
+          <MetricSelect
+            aria-label={t('usage.granularity.label')}
+            options={granularityOptions}
+            value={granularity}
+            onValueChange={onGranularity}
+          />
+          <MetricSelect
+            aria-label={t('usage.metric.label')}
+            options={metricOptions}
+            value={metric}
+            onValueChange={onMetric}
+          />
+        </>
+      }
+      filters={
+        <MetricsFilterChips
+          chips={filterChips}
+          onClearAll={onClearAll}
+          clearAllLabel={t('usage.filterChips.clear')}
+        />
+      }
+      notice={
+        summary?.capped ? (
+          <Alert
+            variant="warning"
+            icon={AlertTriangle}
+            title={t('usage.cappedNotice')}
+          />
+        ) : undefined
+      }
+    >
       <UsageSummaryCards
         totalRequests={summary?.totalRequests ?? 0}
         totalTokens={summary?.totalTokens ?? 0}
         totalCostCents={summary?.totalCostCents ?? 0}
         activeUsers={summary?.activeUsers ?? 0}
+        previous={data?.previousSummary}
       />
 
       <UsageTrendChart
@@ -234,7 +214,7 @@ export function UsageMetricsPageView({
       />
 
       <UsersTable rows={users} isLoading={isLoading} />
-    </Stack>
+    </MetricsLayout>
   );
 }
 

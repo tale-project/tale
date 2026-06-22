@@ -1,5 +1,7 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
+
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
 
@@ -27,26 +29,26 @@ export function TeamMemberChecklist({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-4">
+      <Row gap={0} justify="center" className="py-4">
         <p className="text-muted-foreground text-sm">
           {tSettings('teams.loadingMembers')}
         </p>
-      </div>
+      </Row>
     );
   }
 
   if (!orgMembers || orgMembers.length === 0) {
     return (
-      <div className="flex items-center justify-center py-4">
+      <Row gap={0} justify="center" className="py-4">
         <p className="text-muted-foreground text-sm">
           {tSettings('teams.noMembersToAdd')}
         </p>
-      </div>
+      </Row>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <Stack gap={2}>
       <p className="text-foreground/80 text-sm font-medium">
         {tSettings('teams.manageMembers')}
       </p>
@@ -87,6 +89,6 @@ export function TeamMemberChecklist({
           );
         })}
       </div>
-    </div>
+    </Stack>
   );
 }

@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Row } from '@tale/ui/layout';
 import { ChevronDown, Cpu } from 'lucide-react';
 import {
   type ReactNode,
@@ -206,7 +207,7 @@ export function ArenaModelSelector({
   if (filteredModels.length < 2) return null;
 
   return (
-    <div className="flex items-center gap-3 px-2">
+    <Row gap={3} className="px-2">
       <div className="flex items-center gap-1.5">
         <span className="text-muted-foreground text-xs font-medium">A</span>
         <SearchableSelect
@@ -274,6 +275,6 @@ export function ArenaModelSelector({
           }
         />
       </div>
-    </div>
+    </Row>
   );
 }

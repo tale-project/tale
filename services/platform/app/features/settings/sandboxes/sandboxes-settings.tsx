@@ -1,5 +1,5 @@
 import { Badge } from '@tale/ui/badge';
-import { PageSection } from '@tale/ui/page-section';
+import { Row, Stack } from '@tale/ui/layout';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
 import { Pin, PinOff, Square, Trash2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
@@ -101,7 +102,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           // deleted user). Constrained width + truncate so a long id/email can't
           // bleed into the Agent column.
           return (
-            <div className="flex max-w-[220px] min-w-0 flex-col">
+            <Stack gap={0} className="max-w-[220px] min-w-0">
               <span className="truncate font-medium">
                 {s.ownerName ?? s.ownerEmail ?? s.createdBy}
               </span>
@@ -110,7 +111,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   {s.ownerEmail}
                 </span>
               )}
-            </div>
+            </Stack>
           );
         },
       },
@@ -130,7 +131,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           // would mislabel as "Idle" (which means a live, non-busy container).
           const stopped = s.status === 'stopped';
           return (
-            <div className="flex flex-wrap gap-1">
+            <Row gap={1} align="stretch" wrap>
               {paused ? (
                 <Badge variant="destructive">{t('status.pausedBudget')}</Badge>
               ) : stopped ? (
@@ -141,7 +142,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                 <Badge variant="outline">{t('status.idle')}</Badge>
               )}
               {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
-            </div>
+            </Row>
           );
         },
       },
@@ -157,7 +158,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           }
           const count = op.continuationCount ?? 0;
           return (
-            <div className="flex flex-col">
+            <Stack gap={0}>
               {op.threadId && (
                 <span className="text-xs">
                   {t('task.thread')}{' '}
@@ -169,7 +170,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   {count} {t('task.continuations')}
                 </span>
               )}
-            </div>
+            </Stack>
           );
         },
       },
@@ -193,7 +194,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           const s = row.original;
           const busy = pendingId === s.sessionId;
           return (
-            <div className="flex justify-end">
+            <Row gap={0} align="stretch" justify="end">
               <EntityRowActions
                 actions={[
                   {
@@ -243,7 +244,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   },
                 ]}
               />
-            </div>
+            </Row>
           );
         },
       },
@@ -254,14 +255,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   // Non-privileged member (or unauthenticated) → query returns null.
   if (data === null) {
     return (
-      <PageSection title={t('title')}>
+      <SettingsSection title={t('title')}>
         <p className="text-muted-foreground text-sm">{t('accessDenied')}</p>
-      </PageSection>
+      </SettingsSection>
     );
   }
 
   return (
-    <PageSection title={t('title')} description={t('description')}>
+    <SettingsSection title={t('title')} description={t('description')}>
       <DataTable<SandboxRow>
         columns={columns}
         data={data ?? []}
@@ -292,6 +293,6 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           ).finally(() => setConfirmDestroy(null));
         }}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

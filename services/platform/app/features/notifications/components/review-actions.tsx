@@ -73,7 +73,6 @@ export function ReviewActions({
       />
       <div className="flex items-center gap-2">
         <Button
-          size="sm"
           variant="secondary"
           disabled={respond.isPending || feedback.trim().length === 0}
           onClick={(e) => {
@@ -84,7 +83,6 @@ export function ReviewActions({
           {t('review.sendFeedback')}
         </Button>
         <Button
-          size="sm"
           variant="ghost"
           disabled={respond.isPending}
           onClick={(e) => {
@@ -99,7 +97,6 @@ export function ReviewActions({
   ) : (
     <div className="mt-2 flex items-center gap-2">
       <Button
-        size="sm"
         icon={CheckCircle2}
         disabled={respond.isPending}
         onClick={(e) => {
@@ -110,7 +107,6 @@ export function ReviewActions({
         {t('review.approve')}
       </Button>
       <Button
-        size="sm"
         variant="secondary"
         disabled={respond.isPending}
         onClick={(e) => {

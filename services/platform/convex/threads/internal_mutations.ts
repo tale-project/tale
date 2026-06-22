@@ -87,6 +87,14 @@ const reasoningOutcomeArgs = {
   finishReason: v.optional(v.string()),
   retried: v.optional(v.boolean()),
   qualityScore: v.optional(v.number()),
+  chosenTier: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
 } as const;
 
 function toReasoningOutcome(args: {
@@ -99,6 +107,7 @@ function toReasoningOutcome(args: {
   finishReason?: string;
   retried?: boolean;
   qualityScore?: number;
+  chosenTier?: ReasoningOutcome['chosenTier'];
 }): ReasoningOutcome {
   return {
     difficultyClass: args.difficultyClass,
@@ -110,6 +119,7 @@ function toReasoningOutcome(args: {
     finishReason: args.finishReason,
     retried: args.retried,
     qualityScore: args.qualityScore,
+    chosenTier: args.chosenTier,
   };
 }
 

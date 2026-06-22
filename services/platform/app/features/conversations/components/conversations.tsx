@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import {
@@ -252,7 +253,7 @@ export function Conversations({
               <span className="shrink-0 text-sm font-semibold">
                 {tConversations('bulk.selectedCount', { count: selectedCount })}
               </span>
-              <div className="ml-auto flex items-center gap-1">
+              <Row gap={1} className="ml-auto">
                 {status === 'open' && (
                   <Tooltip content={tConversations('bulk.sendMessages')}>
                     <Button
@@ -351,7 +352,7 @@ export function Conversations({
                     </Button>
                   </Tooltip>
                 )}
-              </div>
+              </Row>
             </>
           ) : (
             <SearchInput

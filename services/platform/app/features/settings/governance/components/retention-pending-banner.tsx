@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
 import { Clock } from 'lucide-react';
@@ -42,9 +43,13 @@ export function RetentionPendingBanner({ organizationId }: Props) {
   );
 
   return (
-    <div className="border-warning bg-warning/10 flex items-start gap-3 rounded border p-3">
+    <Row
+      gap={3}
+      align="start"
+      className="border-warning bg-warning/10 rounded border p-3"
+    >
       <Clock className="text-warning mt-0.5 h-4 w-4 shrink-0" />
-      <div className="flex flex-1 flex-col gap-2">
+      <Stack gap={2} className="flex-1">
         <Text className="text-sm font-medium">
           {t(
             'retentionPolicy.pendingChange.title',
@@ -59,10 +64,9 @@ export function RetentionPendingBanner({ organizationId }: Props) {
             { days: daysRemaining },
           )}
         </Text>
-      </div>
+      </Stack>
       <Button
         variant="ghost"
-        size="sm"
         onClick={async () => {
           try {
             await cancel({
@@ -84,6 +88,6 @@ export function RetentionPendingBanner({ organizationId }: Props) {
       >
         {t('retentionPolicy.pendingChange.cancel', 'Cancel')}
       </Button>
-    </div>
+    </Row>
   );
 }

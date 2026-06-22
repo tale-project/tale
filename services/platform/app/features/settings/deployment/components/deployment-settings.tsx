@@ -8,7 +8,7 @@
  * stores panel.
  * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
  *
- * Built on the shared settings UI (`PageSection`, app `Input`/`Select`/
+ * Built on the shared settings UI (`SettingsSection`, app `Input`/`Select`/
  * `Switch`, `Alert`, `Stack`/`HStack`) so it matches every other settings page
  * instead of carrying bespoke banner / label / card chrome.
  *
@@ -19,8 +19,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
@@ -32,6 +31,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -225,7 +225,7 @@ function PgSection({
 }) {
   const { t } = useT('settings');
   return (
-    <PageSection
+    <SettingsSection
       className={className}
       title={title}
       description={description}
@@ -243,7 +243,7 @@ function PgSection({
     >
       {state.enabled ? (
         <Stack gap={4}>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Grid sm={2}>
             <Input
               label={t('dataResidency.field.host')}
               value={state.host}
@@ -294,11 +294,10 @@ function PgSection({
                     : t('dataResidency.password.writeOnlyHint')
               }
             />
-          </div>
+          </Grid>
           <HStack gap={3} align="center" className="flex-wrap">
             <Button
               variant="secondary"
-              size="sm"
               onClick={onTest}
               disabled={disabled || testing}
             >
@@ -318,7 +317,7 @@ function PgSection({
           {t('dataResidency.usingSharedDatabase')}
         </p>
       )}
-    </PageSection>
+    </SettingsSection>
   );
 }
 
@@ -621,8 +620,8 @@ function DeploymentSettingsView({
           Save / Apply & restart bar stays pinned to the bottom of the viewport
           regardless of how short the content is (plain `position: sticky` only
           pins once the content is tall enough to scroll). */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pb-8">
+      <Stack gap={0} className="min-h-0 flex-1">
+        <Stack gap={8} className="min-h-0 flex-1 overflow-y-auto pb-8">
           {readOnly ||
           data?.secretsError === 'encrypted_no_key' ||
           data?.secretsError === 'unreadable' ? (
@@ -684,8 +683,7 @@ function DeploymentSettingsView({
             }
           />
 
-          <PageSection
-            className="border-border border-t pt-8"
+          <SettingsSection
             title={t('dataResidency.storage.title')}
             description={t('dataResidency.storage.description')}
             action={
@@ -702,7 +700,7 @@ function DeploymentSettingsView({
           >
             {storage.s3 ? (
               <Stack gap={5}>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Grid sm={2}>
                   <Input
                     label={t('dataResidency.storage.region')}
                     value={storage.region}
@@ -719,7 +717,7 @@ function DeploymentSettingsView({
                       setStorage({ ...storage, endpoint: e.target.value })
                     }
                   />
-                </div>
+                </Grid>
                 <Switch
                   label={t('dataResidency.storage.forcePathStyle')}
                   checked={storage.forcePathStyle}
@@ -729,7 +727,7 @@ function DeploymentSettingsView({
                   }
                 />
                 <FormSection label={t('dataResidency.storage.bucketsLabel')}>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Grid sm={2}>
                     <Input
                       label={t('dataResidency.storage.bucket.files')}
                       value={storage.files}
@@ -773,12 +771,12 @@ function DeploymentSettingsView({
                         setStorage({ ...storage, search: e.target.value })
                       }
                     />
-                  </div>
+                  </Grid>
                 </FormSection>
                 <FormSection
                   label={t('dataResidency.storage.credentialsLabel')}
                 >
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Grid sm={2}>
                     <Input
                       label={t('dataResidency.storage.accessKeyId')}
                       value={storage.accessKeyId}
@@ -811,12 +809,11 @@ function DeploymentSettingsView({
                       }
                       description={t('dataResidency.storage.writeOnly')}
                     />
-                  </div>
+                  </Grid>
                 </FormSection>
                 <HStack gap={3} align="center" className="flex-wrap">
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={() => void runTest('convexStorage')}
                     disabled={readOnly || testing === 'convexStorage'}
                   >
@@ -839,14 +836,13 @@ function DeploymentSettingsView({
                 {t('dataResidency.storage.localStorageNote')}
               </p>
             )}
-          </PageSection>
+          </SettingsSection>
 
           {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
           own header switch toggles `enabled`. Titled "(advanced)" rather than
           hidden behind a disclosure so it shares the rhythm of the sections
           above. */}
           <PgSection
-            className="border-border border-t pt-8"
             title={t('dataResidency.appDb.summary')}
             description={t('dataResidency.appDb.description')}
             state={appPg}
@@ -869,7 +865,7 @@ function DeploymentSettingsView({
               </p>
             }
           />
-        </div>
+        </Stack>
 
         {/* Footer docked to the bottom of the page (outside the scroll body)
             so Save / Apply & restart stay reachable regardless of content
@@ -928,7 +924,7 @@ function DeploymentSettingsView({
             </HStack>
           </Stack>
         </div>
-      </div>
+      </Stack>
 
       <ConfirmDialog
         open={restartConfirmOpen}

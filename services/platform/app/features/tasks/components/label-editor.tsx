@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { ArrowLeft, Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
@@ -173,7 +174,7 @@ export function LabelEditor({
             />
           ) : (
             <>
-              <div className="border-border flex items-center gap-2 border-b p-2.5">
+              <Row gap={2} className="border-border border-b p-2.5">
                 <Search
                   className="text-muted-foreground size-3.5 shrink-0"
                   aria-hidden="true"
@@ -192,7 +193,7 @@ export function LabelEditor({
                   onKeyDown={onSearchKeyDown}
                   className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
                 />
-              </div>
+              </Row>
               <div
                 role="listbox"
                 aria-multiselectable="true"
@@ -292,7 +293,7 @@ function ColorSwatchView({
 }) {
   const { t } = useT('tasks');
   return (
-    <div className="flex flex-col gap-1 p-1">
+    <Stack gap={1} className="p-1">
       <div className="flex items-center gap-1.5 p-1">
         <button
           type="button"
@@ -306,7 +307,7 @@ function ColorSwatchView({
           {label}
         </span>
       </div>
-      <div className="grid grid-cols-5 gap-1 p-1">
+      <Grid cols={5} gap={1} className="p-1">
         {TASK_LABEL_COLORS.map((color) => (
           <button
             key={color}
@@ -325,7 +326,7 @@ function ColorSwatchView({
             />
           </button>
         ))}
-      </div>
-    </div>
+      </Grid>
+    </Stack>
   );
 }

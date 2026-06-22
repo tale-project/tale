@@ -7,14 +7,7 @@ import {
   type DropdownMenuItem,
 } from '@tale/ui/dropdown-menu';
 import { useNavigate } from '@tanstack/react-router';
-import {
-  Camera,
-  FolderOpen,
-  MonitorPlay,
-  Paperclip,
-  Plus,
-  Swords,
-} from 'lucide-react';
+import { FolderOpen, MonitorPlay, Paperclip, Plus, Swords } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { useLiveBrowserOptional } from '@/app/features/workspace/components/live-browser-context';
@@ -40,8 +33,6 @@ interface ComposerModeMenuProps {
   /** Current thread (gates the mobile sandbox-view entries). */
   threadId?: string;
   onAttachFile?: () => void;
-  /** Capture a screenshot and attach it. Omitted when unsupported/disabled. */
-  onTakeScreenshot?: () => void;
   fileUploadDisabled?: boolean;
   disabled?: boolean;
 }
@@ -50,7 +41,6 @@ export function ComposerModeMenu({
   organizationId,
   threadId,
   onAttachFile,
-  onTakeScreenshot,
   fileUploadDisabled = false,
   disabled = false,
 }: ComposerModeMenuProps) {
@@ -122,25 +112,15 @@ export function ComposerModeMenu({
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [];
 
-    if ((!fileUploadDisabled && onAttachFile) || onTakeScreenshot) {
-      const attachGroup: DropdownMenuGroup = [];
-      if (!fileUploadDisabled && onAttachFile) {
-        attachGroup.push({
+    if (!fileUploadDisabled && onAttachFile) {
+      groups.push([
+        {
           type: 'item',
           label: t('addFiles'),
           icon: Paperclip,
           onClick: onAttachFile,
-        });
-      }
-      if (onTakeScreenshot) {
-        attachGroup.push({
-          type: 'item',
-          label: t('takeScreenshot'),
-          icon: Camera,
-          onClick: onTakeScreenshot,
-        });
-      }
-      groups.push(attachGroup);
+        },
+      ]);
     }
 
     const hasArena = arenaContext != null;
@@ -261,7 +241,6 @@ export function ComposerModeMenu({
     live,
     fileUploadDisabled,
     onAttachFile,
-    onTakeScreenshot,
     modeAgents,
     chatAgent,
     effectiveAgent?.name,

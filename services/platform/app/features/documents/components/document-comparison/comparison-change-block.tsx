@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
 import type { ChangeBlock } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
@@ -43,7 +44,7 @@ export function ComparisonChangeBlock({
               item.type === 'context' && 'bg-muted/30',
             )}
           >
-            <div className="flex items-start gap-2">
+            <Row gap={2} align="start">
               <span
                 className={cn(
                   'mt-0.5 shrink-0 select-none font-mono text-xs font-semibold',
@@ -92,7 +93,7 @@ export function ComparisonChangeBlock({
                   </span>
                 )}
               </div>
-            </div>
+            </Row>
           </div>
         ))}
       </div>
@@ -142,7 +143,7 @@ function ModifiedContent({
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <Stack gap={1}>
       {baseContent && (
         <div className="text-red-700 line-through dark:text-red-400">
           <span className="sr-only">{t('comparison.removedText')}</span>
@@ -155,7 +156,7 @@ function ModifiedContent({
           {comparisonContent}
         </div>
       )}
-    </div>
+    </Stack>
   );
 }
 

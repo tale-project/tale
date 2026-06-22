@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo } from 'react';
@@ -89,21 +90,21 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
         alt={currentAlt}
         toolbarPosition="overlay"
         headerContent={
-          <div className="flex min-w-0 items-center gap-2">
-            <Text as="span" truncate className="text-foreground/80 max-w-[60%]">
+          <Row gap={2} className="min-w-0 flex-1">
+            <Text as="span" truncate className="text-foreground/80 min-w-0">
               {currentAlt}
             </Text>
             {isGallery && (
-              <Text as="span" className="text-foreground/50 text-xs">
+              <Text as="span" className="text-foreground/50 shrink-0 text-xs">
                 {t('imageCounter', {
                   current: safeIndex + 1,
                   total: images?.length ?? 0,
                 })}
               </Text>
             )}
-          </div>
+          </Row>
         }
-        className="flex-1 p-8 pt-16"
+        className="flex-1 p-3"
         resetTrigger={currentSrc}
         // The Dialog renders with `hideClose` + empty customHeader, so the
         // only existing dismiss paths were Esc / backdrop click. Wiring
@@ -115,18 +116,20 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
           <Button
             variant="ghost"
             size="icon"
+            title={t('previousImage')}
+            tooltipSide="right"
             className="bg-background/80 hover:bg-background absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full shadow-md"
             onClick={goToPrevious}
-            aria-label={t('previousImage')}
           >
             <ChevronLeft className="size-5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
+            title={t('nextImage')}
+            tooltipSide="left"
             className="bg-background/80 hover:bg-background absolute top-1/2 right-4 z-10 -translate-y-1/2 rounded-full shadow-md"
             onClick={goToNext}
-            aria-label={t('nextImage')}
           >
             <ChevronRight className="size-5" />
           </Button>

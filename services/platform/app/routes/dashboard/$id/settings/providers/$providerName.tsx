@@ -23,7 +23,7 @@ function ProviderDetailRoute() {
   // identical on both routes (no shift when navigating between them, and
   // none when the layout-route skeleton hands off to this view).
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={tNav('providers')}
         description={tSettings('menu.providers.description')}

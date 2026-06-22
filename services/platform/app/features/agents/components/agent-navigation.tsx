@@ -84,7 +84,6 @@ const AGENT_TAB_DIRTY_KEYS = {
     'knowledgeTopK',
   ],
   delegation: [],
-  responseTuning: ['responseTuning'],
   conversationStarters: ['conversationStarters'],
   webhook: [],
   // Env/secrets live in the `agentEnv` side-table, not the agent file — so this
@@ -218,16 +217,6 @@ export function AgentNavigation({
       matchMode: 'exact',
       dirtyKeys: AGENT_TAB_DIRTY_KEYS.delegation,
     },
-    ...(isChat
-      ? [
-          {
-            label: t('agents.navigation.responseTuning'),
-            href: `${basePath}/response-tuning`,
-            matchMode: 'exact' as const,
-            dirtyKeys: AGENT_TAB_DIRTY_KEYS.responseTuning,
-          },
-        ]
-      : []),
     {
       label: t('agents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,
@@ -452,7 +441,6 @@ export function AgentNavigation({
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="h-8 text-sm"
                   icon={History}
                   iconClassName="size-3.5"
                   collapseLabel

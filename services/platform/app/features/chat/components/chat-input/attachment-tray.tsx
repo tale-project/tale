@@ -1,6 +1,6 @@
 'use client';
 
-import { HStack, VStack } from '@tale/ui/layout';
+import { HStack, Row, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Eye, Loader, RotateCcw, X } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import {
   type IndexingStatusInfo,
   type TranscriptionStatusInfo,
 } from './attachment-status-label';
+import { pastedImageIdFromName } from './paste-image-tokens';
 
 interface TranscriptPreview {
   fileName: string;
@@ -66,9 +67,10 @@ export function AttachmentTray({
     <HStack gap={1} wrap className="mb-2">
       {kbMentionsEnabled &&
         kbMentions?.map((mention) => (
-          <div
+          <Row
             key={mention.documentId}
-            className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+            gap={3}
+            className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
           >
             <DocumentIcon
               fileName={
@@ -100,49 +102,78 @@ export function AttachmentTray({
             >
               <X className="text-muted-foreground size-3" />
             </button>
-          </div>
+          </Row>
         ))}
-      {imageAttachments.map((attachment) => (
-        <div
-          key={attachment.fileId}
-          className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
-        >
-          <button
-            type="button"
-            aria-label={tChat('viewImage')}
-            onClick={() =>
-              attachment.previewUrl &&
-              onPreviewImage({
-                src: attachment.previewUrl,
-                alt: attachment.fileName,
-              })
+      {imageAttachments.map((attachment) => {
+        // Pasted images carry an inline `[N]` marker in the message; show the
+        // same index here so the tray thumbnail and the marker correlate.
+        const pasteIndex = pastedImageIdFromName(attachment.fileName);
+        return (
+          <div
+            key={attachment.fileId}
+            // Drag an image into the composer to drop its `[N]` marker (the
+            // composer reads this id on drop). Only images with a marker id are
+            // draggable.
+            draggable={pasteIndex !== null}
+            onDragStart={
+              pasteIndex !== null
+                ? (e) => {
+                    e.dataTransfer.setData(
+                      'application/x-tale-marker-id',
+                      String(pasteIndex),
+                    );
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }
+                : undefined
             }
-            className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+            className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
           >
-            {attachment.previewUrl ? (
-              <img
-                src={attachment.previewUrl}
-                alt={attachment.fileName}
-                className="size-full object-cover"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
-                <span className="text-xs text-blue-600">
-                  {tChat('fileTypes.image')}
-                </span>
-              </div>
+            <button
+              type="button"
+              aria-label={tChat('viewImage')}
+              onClick={() =>
+                attachment.previewUrl &&
+                onPreviewImage({
+                  src: attachment.previewUrl,
+                  alt: attachment.fileName,
+                })
+              }
+              className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+            >
+              {attachment.previewUrl ? (
+                <img
+                  src={attachment.previewUrl}
+                  alt={attachment.fileName}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <Row
+                  gap={0}
+                  justify="center"
+                  className="size-full bg-linear-to-br from-blue-100 to-blue-200"
+                >
+                  <span className="text-xs text-blue-600">
+                    {tChat('fileTypes.image')}
+                  </span>
+                </Row>
+              )}
+            </button>
+            {pasteIndex !== null && (
+              <span className="pointer-events-none absolute right-0 bottom-0 rounded-tl-[4px] bg-black/70 px-1 text-[10px] leading-[1.4] font-semibold text-white tabular-nums">
+                {pasteIndex}.
+              </span>
             )}
-          </button>
-          <button
-            type="button"
-            aria-label={tChat('removeAttachment')}
-            onClick={() => removeAttachment(attachment.fileId)}
-            className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <X className="text-muted-foreground size-3" />
-          </button>
-        </div>
-      ))}
+            <button
+              type="button"
+              aria-label={tChat('removeAttachment')}
+              onClick={() => removeAttachment(attachment.fileId)}
+              className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <X className="text-muted-foreground size-3" />
+            </button>
+          </div>
+        );
+      })}
 
       {fileAttachments.map((attachment) => {
         const audioInfo = isAudioOrVideo(attachment.fileType)
@@ -152,9 +183,10 @@ export function AttachmentTray({
           audioInfo?.status === 'completed' && !!audioInfo.transcript;
 
         return (
-          <div
+          <Row
             key={attachment.fileId}
-            className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+            gap={3}
+            className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
           >
             <DocumentIcon fileName={attachment.fileName} />
             <VStack className="min-w-0 flex-1 gap-1">
@@ -209,19 +241,21 @@ export function AttachmentTray({
                 <RotateCcw className="size-3" />
               </button>
             )}
-          </div>
+          </Row>
         );
       })}
 
       {uploadingFiles.map((fileId) => (
-        <div
+        <Row
           key={fileId}
           role="status"
           aria-label={tChat('uploadingFile')}
-          className="border-border bg-muted flex size-9 items-center justify-center overflow-hidden rounded-lg border"
+          gap={0}
+          justify="center"
+          className="border-border bg-muted size-9 overflow-hidden rounded-lg border"
         >
           <Loader className="text-muted-foreground size-4 animate-spin" />
-        </div>
+        </Row>
       ))}
     </HStack>
   );

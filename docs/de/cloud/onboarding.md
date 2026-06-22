@@ -41,7 +41,7 @@ Für einen tieferen Spaziergang dazu, was einen Agent gut macht, siehe [Einen Ag
 
 ## Schritt 5 — Chat öffnen
 
-Öffne **Chat** in der Sidebar und klick **Neuer Chat**. Wähl den Agent im Picker, tipp eine Frage, die die Domäne des Agents abdeckt, sende. Die Antwort streamt zurück; landet sie so, wie du die Instructions geschrieben hast, ist die Org mit dem Onboarding fertig.
+Klick in der Sidebar auf **Neuer Chat**. Wähl den Agent im Picker, tipp eine Frage, die die Domäne des Agents abdeckt, sende. Die Antwort streamt zurück; landet sie so, wie du die Instructions geschrieben hast, ist die Org mit dem Onboarding fertig.
 
 Drei Folgeaufgaben, die sich jetzt lohnen, solange alles frisch ist:
 

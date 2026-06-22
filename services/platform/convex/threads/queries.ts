@@ -7,6 +7,7 @@ import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { autoRouteReasonValidator } from '../streaming/validators';
+import { isGenerationFresh } from './generation_liveness';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
@@ -64,40 +65,6 @@ export const listArchivedThreads = query({
     });
   },
 });
-
-/**
- * Maximum time (ms) a generation is considered active before it's treated as
- * stale. If the server-side action crashed without resetting generationStatus,
- * this prevents the client from being permanently blocked.
- *
- * Sized to cover the longest legitimate run: self-hosted Convex actions have a
- * 30-minute Docker ceiling, and the researcher agent runs up to ~25 min. A
- * 5-minute buffer above the hard ceiling avoids killing the UI on slow tails.
- *
- * Staleness is judged against the latest sign of life — `generationStartTime`
- * OR `generationHeartbeatAt` (bumped ~20s by the sandbox runner) — so
- * external-agent turns that legitimately outlive this window via cross-action
- * continuation stay "generating" as long as they keep heartbeating.
- */
-const GENERATION_STALE_THRESHOLD_MS = 30 * 60 * 1000 + 5 * 60 * 1000;
-
-/**
- * Shared stale-guard: a 'generating' thread counts as live when it has no
- * liveness timestamps at all (legacy rows — preserve the historical "no
- * startTime → not stale" semantics) or its most recent sign of life is within
- * the threshold.
- */
-function isGenerationFresh(metadata: {
-  generationStartTime?: number;
-  generationHeartbeatAt?: number;
-}): boolean {
-  const lastAliveAt = Math.max(
-    metadata.generationStartTime ?? 0,
-    metadata.generationHeartbeatAt ?? 0,
-  );
-  if (lastAliveAt === 0) return true;
-  return Date.now() - lastAliveAt <= GENERATION_STALE_THRESHOLD_MS;
-}
 
 export const isThreadGenerating = query({
   args: { threadId: v.string() },

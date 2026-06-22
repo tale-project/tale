@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -82,7 +83,7 @@ export function CustomJsonPathSection({
       label={t('moderationProvider.parseResponseLabel')}
       description={t('moderationProvider.parseResponseDescription')}
     >
-      <div className="flex flex-col gap-4">
+      <Stack>
         <div>
           <p className="text-sm font-medium">
             {t('moderationProvider.shapeStepTitle')}
@@ -178,7 +179,7 @@ export function CustomJsonPathSection({
             />
           </div>
         )}
-      </div>
+      </Stack>
     </FormSection>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useAction } from 'convex/react';
 import { useCallback } from 'react';
 
@@ -127,7 +128,7 @@ export function IntegrationUploadDialog({
       footer={footer}
       className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"
     >
-      <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+      <Stack className="min-h-0 min-w-0 overflow-hidden">
         {state.step === 'upload' && (
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
             <UploadStep onPackageParsed={state.setParsedPackage} />
@@ -143,7 +144,7 @@ export function IntegrationUploadDialog({
             />
           </div>
         )}
-      </div>
+      </Stack>
     </Dialog>
   );
 }

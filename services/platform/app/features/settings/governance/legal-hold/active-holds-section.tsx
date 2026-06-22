@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Lock } from 'lucide-react';
@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -91,7 +92,7 @@ export function ActiveHoldsSection({
         accessorKey: 'targetLabel',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col">
+          <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetLabel}>
               {row.original.targetLabel}
             </Text>
@@ -104,7 +105,7 @@ export function ActiveHoldsSection({
             >
               {row.original.targetId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 180,
@@ -155,11 +156,10 @@ export function ActiveHoldsSection({
         header: t('legalHold.columns.actions'),
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <Row gap={0} align="stretch" justify="end">
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 setReleaseHoldId(row.original._id);
@@ -167,7 +167,7 @@ export function ActiveHoldsSection({
             >
               {t('legalHold.actions.requestRelease')}
             </Button>
-          </div>
+          </Row>
         ),
         size: 140,
       },
@@ -177,14 +177,13 @@ export function ActiveHoldsSection({
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
         action={
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setPlaceOpen(true)}
           >
             <Lock className="mr-1.5 size-4" aria-hidden />
@@ -192,10 +191,9 @@ export function ActiveHoldsSection({
           </Button>
         }
       >
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Select
             id="active-holds-targettype-filter"
-            size="sm"
             value={targetTypeFilter}
             onValueChange={(v) =>
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to FilterTargetType | 'all'
@@ -204,7 +202,7 @@ export function ActiveHoldsSection({
             options={targetTypeOptions}
             aria-label={t('legalHold.filters.allTargets')}
           />
-        </div>
+        </Row>
         <DataTable<LegalHoldRow>
           columns={columns}
           data={rows ?? []}
@@ -217,7 +215,7 @@ export function ActiveHoldsSection({
           }}
           caption={t('legalHold.sections.activeHolds.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <PlaceHoldDialog
         open={placeOpen}

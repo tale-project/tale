@@ -78,6 +78,7 @@ export const EditorActionBar = memo(function EditorActionBar({
             disabled={disabled || isSending}
             variant="ghost"
             size="icon"
+            title={tConversations('editor.attachFile')}
           >
             <PaperclipIcon className="size-4" />
           </Button>
@@ -89,6 +90,7 @@ export const EditorActionBar = memo(function EditorActionBar({
               }
               variant="ghost"
               size="icon"
+              aria-label={tConversations('editor.improveWithAi')}
             >
               {isImproving ? (
                 <LoaderCircleIcon className="text-muted-foreground size-4 animate-spin" />
@@ -105,6 +107,7 @@ export const EditorActionBar = memo(function EditorActionBar({
         <Button
           onClick={onSend}
           size="icon"
+          title={tConversations('editor.send')}
           disabled={
             disabled ||
             isLoading ||
@@ -132,6 +135,11 @@ export const EditorActionBar = memo(function EditorActionBar({
           <Button
             onClick={onImproveSubmit}
             size="icon"
+            aria-label={
+              isImproving
+                ? tConversations('editor.improving')
+                : tConversations('editor.generateImprovement')
+            }
             disabled={isImproving}
             className="rounded-full"
           >

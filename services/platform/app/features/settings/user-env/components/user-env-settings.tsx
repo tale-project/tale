@@ -1,15 +1,17 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
-import { Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -19,6 +21,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 
 import { useDeleteMyEnvVar, useUpsertMyEnvVar } from '../hooks/mutations';
 import { useMyEnv } from '../hooks/queries';
@@ -62,38 +65,45 @@ function UserEnvSettingsView({
   vars: EnvVar[];
 }) {
   const { t } = useT('userEnv');
+  const [addOpen, setAddOpen] = useState(false);
 
   return (
     <SettingsPage>
       <SettingsSection
         title={t('page.title')}
         description={t('page.description')}
+        action={
+          <Button icon={Plus} onClick={() => setAddOpen(true)}>
+            {t('add.button')}
+          </Button>
+        }
       >
-        <Text className="text-muted-foreground text-sm">{t('page.note')}</Text>
-        <AddEnvVarForm organizationId={organizationId} />
+        <Alert
+          variant="warning"
+          icon={ShieldAlert}
+          title={t('page.agentAccessTitle')}
+          description={t('page.note')}
+        />
         <EnvVarList organizationId={organizationId} vars={vars} />
       </SettingsSection>
+      <AddEnvVarDialog
+        organizationId={organizationId}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+      />
     </SettingsPage>
   );
 }
 
-/** Pull `{ code, message }` off a thrown `ConvexError`, else the fallback. */
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ConvexError) {
-    const data: unknown = err.data;
-    if (
-      data !== null &&
-      typeof data === 'object' &&
-      'message' in data &&
-      typeof data.message === 'string'
-    ) {
-      return data.message;
-    }
-  }
-  return fallback;
-}
-
-function AddEnvVarForm({ organizationId }: { organizationId: string }) {
+function AddEnvVarDialog({
+  organizationId,
+  open,
+  onOpenChange,
+}: {
+  organizationId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { t } = useT('userEnv');
   const { toast } = useToast();
   const { mutateAsync: upsert, isPending } = useUpsertMyEnvVar();
@@ -108,12 +118,12 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
     trimmedKey.length > 0 &&
     (!KEY_RE.test(trimmedKey) || trimmedKey.length > KEY_MAX);
   // A secret's value must be non-empty (the backend rejects an empty secret).
-  const canSubmit =
+  const isValid =
     trimmedKey.length > 0 &&
     !keyInvalid &&
     value.length <= VALUE_MAX &&
-    (!isSecret || value.length > 0) &&
-    !isPending;
+    (!isSecret || value.length > 0);
+  const isDirty = trimmedKey.length > 0 || value.length > 0;
   // Interior whitespace (space/tab/newline after trimming the ends) almost
   // always means a token wrapped across terminal lines was pasted — a silent,
   // painful-to-debug corruption. Warn loudly but don't block: legitimately
@@ -128,67 +138,82 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
     setError(null);
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
-    setError(null);
-    try {
-      await upsert({
-        organizationId,
-        key: trimmedKey,
-        value,
-        isSecret,
-      });
-      toast({ title: t('toasts.saved'), variant: 'success' });
-      reset();
-    } catch (err) {
-      console.error('[user-env upsert]', err);
-      setError(errorMessage(err, t('errors.saveFailed')));
-    }
-  }, [
-    canSubmit,
-    upsert,
-    organizationId,
-    trimmedKey,
-    value,
-    isSecret,
-    toast,
-    t,
-    reset,
-  ]);
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) reset();
+      onOpenChange(next);
+    },
+    [reset, onOpenChange],
+  );
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!isValid || isPending) return;
+      setError(null);
+      try {
+        await upsert({
+          organizationId,
+          key: trimmedKey,
+          value,
+          isSecret,
+        });
+        toast({ title: t('toasts.saved'), variant: 'success' });
+        reset();
+        onOpenChange(false);
+      } catch (err) {
+        console.error('[user-env upsert]', err);
+        setError(convexErrorMessage(err, t('errors.saveFailed')));
+      }
+    },
+    [
+      isValid,
+      isPending,
+      upsert,
+      organizationId,
+      trimmedKey,
+      value,
+      isSecret,
+      toast,
+      t,
+      reset,
+      onOpenChange,
+    ],
+  );
 
   return (
-    <form
-      className="border-border flex flex-col gap-4 rounded-lg border p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void handleSubmit();
-      }}
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={t('add.title')}
+      isSubmitting={isPending}
+      isDirty={isDirty}
+      isValid={isValid}
+      confirmDiscardOnDirty
+      submitText={t('add.submit')}
+      onSubmit={handleSubmit}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <Input
-          label={t('add.keyLabel')}
-          placeholder={t('add.keyPlaceholder')}
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          maxLength={KEY_MAX}
-          errorMessage={keyInvalid ? t('add.keyInvalid') : undefined}
-          wrapperClassName="flex-1"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <Input
-          label={t('add.valueLabel')}
-          placeholder={t('add.valuePlaceholder')}
-          // Secret values render masked while typing and never round-trip back.
-          sensitive={isSecret}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          maxLength={VALUE_MAX}
-          wrapperClassName="flex-1"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </div>
+      <Input
+        label={t('add.keyLabel')}
+        placeholder={t('add.keyPlaceholder')}
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
+        maxLength={KEY_MAX}
+        errorMessage={keyInvalid ? t('add.keyInvalid') : undefined}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <Input
+        label={t('add.valueLabel')}
+        placeholder={t('add.valuePlaceholder')}
+        // Secret values render masked while typing and never round-trip back.
+        sensitive={isSecret}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        maxLength={VALUE_MAX}
+        autoComplete="off"
+        spellCheck={false}
+      />
       {showWhitespaceWarning && (
         <Text
           role="alert"
@@ -198,8 +223,7 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
         </Text>
       )}
       {/* Secret as a full-width settings row (label + help left, toggle pinned
-          right) so the toggle stays anchored to the right edge instead of
-          floating mid-row at full width. Add gets its own right-aligned row. */}
+          right) so the toggle stays anchored to the right edge. */}
       <SettingsRow
         label={t('add.secretLabel')}
         description={t('add.secretHelp')}
@@ -210,17 +234,12 @@ function AddEnvVarForm({ organizationId }: { organizationId: string }) {
           aria-label={t('add.secretLabel')}
         />
       </SettingsRow>
-      <div className="flex justify-end">
-        <Button type="submit" variant="primary" disabled={!canSubmit}>
-          {t('add.submit')}
-        </Button>
-      </div>
       {error && (
         <Text role="alert" className="text-destructive text-sm">
           {error}
         </Text>
       )}
-    </form>
+    </FormDialog>
   );
 }
 
@@ -236,15 +255,17 @@ function EnvVarList({
 
   if (loading) {
     return (
-      <ul className="divide-border divide-y" aria-hidden="true">
+      <Stack as="ul" gap={2} aria-hidden="true">
         {Array.from({ length: 3 }).map((_, i) => (
-          <li key={i} className="flex items-start gap-3 py-2">
-            <div className="flex-1" style={{ width: `${70 - i * 10}%` }}>
-              <SkeletonText />
-            </div>
+          <li
+            key={i}
+            className="border-border flex flex-col gap-0.5 rounded-lg border p-3"
+            style={{ width: `${90 - i * 8}%` }}
+          >
+            <SkeletonText />
           </li>
         ))}
-      </ul>
+      </Stack>
     );
   }
 
@@ -255,7 +276,7 @@ function EnvVarList({
   }
 
   return (
-    <ul className="divide-border divide-y">
+    <Stack as="ul" gap={2}>
       {vars.map((envVar) => (
         <EnvVarRow
           key={envVar.key}
@@ -263,7 +284,7 @@ function EnvVarList({
           envVar={envVar}
         />
       ))}
-    </ul>
+    </Stack>
   );
 }
 
@@ -300,9 +321,9 @@ function EnvVarRow({
   }, [deleteVar, organizationId, envVar.key, toast, t]);
 
   return (
-    <li className="flex items-start justify-between gap-3 py-3">
+    <li className="border-border flex items-start justify-between gap-3 rounded-lg border p-3">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex items-baseline gap-2">
+        <Row gap={2} align="baseline">
           <code className="text-foreground truncate text-sm font-medium">
             {envVar.key}
           </code>
@@ -311,7 +332,7 @@ function EnvVarRow({
               {t('list.secretBadge')}
             </span>
           )}
-        </div>
+        </Row>
         <code className="text-muted-foreground truncate font-mono text-xs">
           {displayValue}
         </code>

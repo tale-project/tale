@@ -107,7 +107,7 @@ export function PasskeySection() {
                   {pk.name?.trim() || t('passkeys.unnamed')}
                 </Text>
               </VStack>
-              <Button variant="ghost" size="sm" onClick={() => revoke(pk.id)}>
+              <Button variant="ghost" onClick={() => revoke(pk.id)}>
                 {t('passkeys.revokeButton')}
               </Button>
             </HStack>

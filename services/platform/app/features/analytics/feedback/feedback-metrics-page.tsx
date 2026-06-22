@@ -2,13 +2,26 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { ChartCard } from '@tale/ui/chart-card';
+import { ChartLegend } from '@tale/ui/chart-legend';
+import { CHART_COLORS } from '@tale/ui/chart-theme';
+import { HStack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import {
+  seriesToLegend,
+  TrendBarChart,
+  type ChartSeries,
+} from '@/app/components/metrics/charts';
+import { MetricSelect } from '@/app/components/metrics/metric-select';
+import {
+  MetricsFilterChips,
+  type MetricsFilterChip,
+} from '@/app/components/metrics/metrics-filter-chips';
+import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -19,7 +32,6 @@ import { useT } from '@/lib/i18n/client';
 import { ArenaSummary } from './arena-summary';
 import { periodToDays, type FeedbackPeriod } from './feedback-period';
 import { FeedbackSummaryCards } from './feedback-summary-cards';
-import { FilterChips } from './filter-chips';
 import { RecentFeedbackTable } from './recent-feedback-table';
 import { TopAgentsFeedbackTable } from './top-agents-feedback-table';
 import { TopMatchupsFeedbackTable } from './top-matchups-feedback-table';
@@ -139,84 +151,108 @@ export function FeedbackMetricsPageView({
   // structure so nothing pops in when the real numbers arrive.
   const showMatchups = loading || (stats?.topMatchups.length ?? 0) > 0;
 
+  const sentimentSeries: ChartSeries[] = [
+    {
+      key: 'positive',
+      label: t('feedback.cards.helpful'),
+      color: CHART_COLORS.success,
+      stackId: 'sentiment',
+    },
+    {
+      key: 'negative',
+      label: t('feedback.cards.notHelpful'),
+      color: CHART_COLORS.failure,
+      stackId: 'sentiment',
+    },
+  ];
+  const showSentimentTrend = loading || (stats?.series?.length ?? 0) > 0;
+
+  const filterChips: MetricsFilterChip[] = [];
+  if (agentSlug)
+    filterChips.push({
+      key: 'agent',
+      label: t('feedback.filterChips.agent', { value: agentSlug }),
+      onClear: () => onSelectAgent(null),
+    });
+  if (model)
+    filterChips.push({
+      key: 'model',
+      label: t('feedback.filterChips.model', { value: model }),
+      onClear: () => onSelectModel(null, null),
+    });
+  else if (provider)
+    filterChips.push({
+      key: 'provider',
+      label: t('feedback.filterChips.provider', { value: provider }),
+      onClear: () => onSelectModel(null, null),
+    });
+
   return (
-    <Stack gap={6}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <Header
-          title={t('feedback.title')}
-          description={t('feedback.description')}
+    <MetricsLayout
+      as="h3"
+      title={t('feedback.title')}
+      description={t('feedback.description')}
+      toolbar={
+        <MetricSelect
+          aria-label={t('feedback.period.label')}
+          options={periodOptions}
+          value={period}
+          onValueChange={onChangePeriod}
         />
-        <HStack gap={2} className="flex-wrap">
-          <div className="w-36">
-            <Select
-              options={periodOptions}
-              value={period}
-              onValueChange={onChangePeriod}
-              size="sm"
-              aria-label={t('feedback.period.label')}
+      }
+      filters={
+        <MetricsFilterChips
+          chips={filterChips}
+          onClearAll={onClearFilters}
+          clearAllLabel={t('feedback.filterChips.clear')}
+        />
+      }
+      notice={
+        // These notices describe a LOADED result (capped sample, empty
+        // period/filter) — they render only once stats arrive.
+        <>
+          {stats?.capped ? (
+            <Alert
+              variant="warning"
+              icon={AlertTriangle}
+              title={t('feedback.cappedNotice.title')}
+              description={t('feedback.cappedNotice.description')}
             />
-          </div>
-        </HStack>
-      </div>
-
-      <FilterChips
-        agentSlug={agentSlug}
-        model={model}
-        provider={provider}
-        onClearAgent={() => onSelectAgent(null)}
-        onClearModel={() => onSelectModel(null, null)}
-        onClearAll={onClearFilters}
-      />
-
-      {/* These notices describe a LOADED result (capped sample, empty
-          period/filter). They render only once stats arrive — never during
-          the skeleton — so they slot in at their natural position without
-          masking. */}
-      {stats?.capped ? (
-        <Alert
-          variant="warning"
-          icon={AlertTriangle}
-          title={t('feedback.cappedNotice.title')}
-          description={t('feedback.cappedNotice.description')}
-        />
-      ) : null}
-
-      {isPeriodEmpty ? (
-        <Alert
-          title={t('feedback.periodEmpty.title')}
-          description={
-            <span>
-              {t('feedback.periodEmpty.description')}{' '}
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => onChangePeriod('all')}
-              >
-                {t('feedback.periodEmpty.expand')}
-              </Button>
-            </span>
-          }
-        />
-      ) : null}
-
-      {isFilteredZero ? (
-        <Alert
-          title={t('feedback.filterEmpty.title')}
-          description={
-            <span>
-              {t('feedback.filterEmpty.description')}{' '}
-              <Button variant="link" size="sm" onClick={onClearFilters}>
-                {t('feedback.filterEmpty.clear')}
-              </Button>
-            </span>
-          }
-        />
-      ) : null}
-
+          ) : null}
+          {isPeriodEmpty ? (
+            <Alert
+              title={t('feedback.periodEmpty.title')}
+              description={
+                <span>
+                  {t('feedback.periodEmpty.description')}{' '}
+                  <Button variant="link" onClick={() => onChangePeriod('all')}>
+                    {t('feedback.periodEmpty.expand')}
+                  </Button>
+                </span>
+              }
+            />
+          ) : null}
+          {isFilteredZero ? (
+            <Alert
+              title={t('feedback.filterEmpty.title')}
+              description={
+                <span>
+                  {t('feedback.filterEmpty.description')}{' '}
+                  <Button variant="link" onClick={onClearFilters}>
+                    {t('feedback.filterEmpty.clear')}
+                  </Button>
+                </span>
+              }
+            />
+          ) : null}
+        </>
+      }
+    >
       <FeedbackSummaryCards
         helpful={stats?.message.byRating.positive ?? 0}
         notHelpful={stats?.message.byRating.negative ?? 0}
         capped={stats?.capped ?? false}
+        previous={stats?.previous}
       />
 
       <ArenaSummary
@@ -230,6 +266,22 @@ export function FeedbackMetricsPageView({
         }
         total={stats?.arena.total ?? 0}
       />
+
+      {showSentimentTrend ? (
+        <ChartCard
+          title={t('feedback.sentimentTrend')}
+          loading={loading}
+          bodyClassName="h-52"
+          legend={<ChartLegend items={seriesToLegend(sentimentSeries)} />}
+        >
+          <TrendBarChart
+            data={stats?.series ?? []}
+            series={sentimentSeries}
+            xKey="dateKey"
+            xTickFormatter={(key) => key.slice(5)}
+          />
+        </ChartCard>
+      ) : null}
 
       {showMatchups ? (
         <TopMatchupsFeedbackTable
@@ -264,7 +316,6 @@ export function FeedbackMetricsPageView({
                 options={kindOptions}
                 value={kind}
                 onValueChange={onChangeKind}
-                size="sm"
                 aria-label={t('feedback.kind.label')}
               />
             </div>
@@ -279,7 +330,7 @@ export function FeedbackMetricsPageView({
           </HStack>
         }
       />
-    </Stack>
+    </MetricsLayout>
   );
 }
 
@@ -372,16 +423,16 @@ export function FeedbackMetricsPage({
   // Only knowable once stats resolve (during load we render the skeleton).
   if (!statsLoading && stats && !stats.hasAnyFeedback) {
     return (
-      <Stack gap={6}>
-        <Header
-          title={t('feedback.title')}
-          description={t('feedback.description')}
-        />
+      <MetricsLayout
+        as="h3"
+        title={t('feedback.title')}
+        description={t('feedback.description')}
+      >
         <Alert
           title={t('feedback.empty.title')}
           description={t('feedback.empty.description')}
         />
-      </Stack>
+      </MetricsLayout>
     );
   }
 
@@ -429,22 +480,5 @@ export function FeedbackMetricsPage({
         onClearFilters={onClearFilters}
       />
     </Skeletonize>
-  );
-}
-
-function Header({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Text as="h3" className="text-foreground text-base font-semibold">
-        {title}
-      </Text>
-      <Text variant="caption">{description}</Text>
-    </div>
   );
 }

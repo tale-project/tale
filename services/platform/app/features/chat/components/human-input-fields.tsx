@@ -356,7 +356,7 @@ function TodoListFieldInput({
             size="icon"
             onClick={() => removeRow(todo.id)}
             disabled={disabled || items.length <= Math.max(1, minItems)}
-            aria-label={`Remove item ${index + 1}`}
+            title={`Remove item ${index + 1}`}
           >
             <Trash2 className="size-4" />
           </Button>
@@ -365,7 +365,6 @@ function TodoListFieldInput({
       <Button
         type="button"
         variant="secondary"
-        size="sm"
         onClick={addRow}
         disabled={disabled || items.length >= maxItems}
         className="gap-1 self-start"

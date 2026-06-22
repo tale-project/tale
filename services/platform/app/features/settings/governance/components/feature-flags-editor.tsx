@@ -1,8 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -24,6 +23,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -163,7 +163,7 @@ function RuleDialog({
       isDirty={isDirty}
     >
       <Stack gap={4}>
-        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
           <Select
             label={t('featureFlags.scope')}
             options={scopeOptions}
@@ -174,7 +174,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
 
           {draft.scope === 'role' && (
@@ -184,7 +183,6 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
-              size="sm"
             />
           )}
 
@@ -193,7 +191,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('featureFlags.scopeLabels.user')}
                 placeholder={t('featureFlags.selectUser')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -210,7 +207,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('featureFlags.scopeLabels.team')}
                 placeholder={t('featureFlags.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -221,7 +217,7 @@ function RuleDialog({
               />
             </div>
           )}
-        </div>
+        </Row>
 
         <Stack gap={3}>
           <Switch
@@ -258,7 +254,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 50000"
               min={0}
             />
@@ -301,7 +296,7 @@ const COLUMN_COUNT = 7;
 
 // =============================================================================
 // Single editor — owns data fetching, rules state, dialog state, and save/toast
-// wiring. Renders the REAL `PageSection` once, always, wrapped in
+// wiring. Renders the REAL `SettingsSection` once, always, wrapped in
 // `<Skeletonize>`. The table renders fixed PLACEHOLDER rows while loading so an
 // empty `<tbody>` never reads as "no rules" during load; the real empty-state
 // only shows once loaded with zero rules.
@@ -465,16 +460,11 @@ export function FeatureFlagsEditor({
 
   return (
     <Skeletonize loading={loading} label={t('featureFlags.title')}>
-      <PageSection
+      <SettingsSection
         title={t('featureFlags.title')}
         description={t('featureFlags.description')}
         action={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onAddRule}
-            disabled={cannotManage}
-          >
+          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
             <Plus className="mr-1.5 size-4" />
             {t('featureFlags.addRule')}
           </Button>
@@ -578,7 +568,7 @@ export function FeatureFlagsEditor({
                           size="icon"
                           onClick={() => onEditRule(index)}
                           disabled={cannotManage}
-                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                          title={`${t('featureFlags.editRule')} ${index + 1}`}
                         >
                           <Pencil className="size-4" />
                         </Button>
@@ -587,7 +577,7 @@ export function FeatureFlagsEditor({
                           size="icon"
                           onClick={() => onRemoveRule(index)}
                           disabled={cannotManage}
-                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                          title={`${t('featureFlags.deleteRule')} ${index + 1}`}
                         >
                           <Trash2 className="size-4" />
                         </Button>
@@ -632,7 +622,7 @@ export function FeatureFlagsEditor({
           variant="destructive"
           onConfirm={onConfirmRemove}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

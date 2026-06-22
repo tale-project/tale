@@ -1,3 +1,4 @@
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import React from 'react';
 
@@ -9,7 +10,7 @@ interface AutomationGroupNodeProps {
 
 export function AutomationGroupNode({ data }: AutomationGroupNodeProps) {
   return (
-    <div className="flex h-full w-full items-start justify-start p-2">
+    <Row gap={0} align="start" className="h-full w-full p-2">
       <Text
         as="span"
         variant="caption"
@@ -17,6 +18,6 @@ export function AutomationGroupNode({ data }: AutomationGroupNodeProps) {
       >
         {data.label}
       </Text>
-    </div>
+    </Row>
   );
 }

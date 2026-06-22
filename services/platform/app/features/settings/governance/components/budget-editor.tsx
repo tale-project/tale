@@ -1,8 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -23,6 +22,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -140,7 +140,7 @@ function RuleDialog({
       submitText={t('budgets.confirm')}
     >
       <Stack gap={4}>
-        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
           <Select
             label={t('budgets.scope')}
             options={SCOPE_OPTIONS}
@@ -151,7 +151,6 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
 
           {draft.scope === 'role' && (
@@ -161,7 +160,6 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
-              size="sm"
             />
           )}
 
@@ -170,7 +168,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('budgets.user')}
                 placeholder={t('budgets.selectUser')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -187,7 +184,6 @@ function RuleDialog({
               <SearchableSelect
                 label={t('budgets.team')}
                 placeholder={t('budgets.selectTeam')}
-                size="sm"
                 disabled={cannotManage}
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -209,9 +205,8 @@ function RuleDialog({
               }
             }}
             disabled={cannotManage}
-            size="sm"
           />
-        </div>
+        </Row>
 
         <Stack gap={3}>
           <div>
@@ -227,7 +222,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 1000000"
               min={0}
             />
@@ -249,7 +243,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 50.00"
               min={0}
               step={0.01}
@@ -272,7 +265,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 500"
               min={0}
             />
@@ -294,7 +286,6 @@ function RuleDialog({
                 })
               }
               disabled={cannotManage}
-              size="sm"
               placeholder="e.g. 80"
               min={0}
               max={100}
@@ -321,7 +312,7 @@ const COLUMN_COUNT = 7;
 
 // =============================================================================
 // Single editor — owns data fetching, rules state, dialog state, and
-// save/toast wiring. Renders the REAL `PageSection` once, always, wrapped in
+// save/toast wiring. Renders the REAL `SettingsSection` once, always, wrapped in
 // `<Skeletonize>`; the table renders fixed PLACEHOLDER rows while loading so an
 // empty `<tbody>` never reads as "no rules" during load.
 // =============================================================================
@@ -489,16 +480,11 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   return (
     <Skeletonize loading={loading} label={t('budgets.title')}>
-      <PageSection
+      <SettingsSection
         title={t('budgets.title')}
         description={t('budgets.description')}
         action={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onAddRule}
-            disabled={cannotManage}
-          >
+          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
             <Plus className="mr-1.5 size-4" />
             {t('budgets.addRule')}
           </Button>
@@ -609,7 +595,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => onEditRule(index)}
                             disabled={cannotManage}
-                            aria-label={t('budgets.editRuleAriaLabel', {
+                            title={t('budgets.editRuleAriaLabel', {
                               index: index + 1,
                             })}
                           >
@@ -620,7 +606,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => onRemoveRule(index)}
                             disabled={cannotManage}
-                            aria-label={t('budgets.removeRuleAriaLabel', {
+                            title={t('budgets.removeRuleAriaLabel', {
                               index: index + 1,
                             })}
                           >
@@ -668,7 +654,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           variant="destructive"
           onConfirm={onConfirmRemove}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

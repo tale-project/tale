@@ -84,7 +84,6 @@ export function SecretRevealDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => handleCopy(secret.value, index)}
                 className="absolute top-1/2 right-2 -translate-y-1/2"
                 aria-label={`Copy ${secret.label}`}

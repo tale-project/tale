@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 
@@ -218,17 +219,18 @@ function ArenaColumn({
   }, []);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <Stack gap={0} className="min-h-0 min-w-0 flex-1">
       <div className="border-border bg-muted/50 border-b px-4 py-2">
         <span className="text-muted-foreground text-xs font-medium">
           {label}
         </span>
       </div>
-      <div
+      <Stack
         ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        gap={0}
+        className="min-h-0 flex-1 overflow-y-auto"
       >
-        <div ref={contentRef} className="flex flex-col p-4 sm:p-6">
+        <Stack ref={contentRef} gap={0} className="p-4 sm:p-6">
           <ChatMessages
             items={mergedMessages}
             threadId={threadId}
@@ -249,24 +251,24 @@ function ArenaColumn({
             forkedFromShare={forkInfo?.forkedFromShare}
             hideBranchNavigator
           />
-        </div>
-      </div>
-    </div>
+        </Stack>
+      </Stack>
+    </Stack>
   );
 }
 
 function ArenaColumnSkeleton({ label }: { label: string }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <Stack gap={0} className="min-h-0 min-w-0 flex-1">
       <div className="border-border bg-muted/50 border-b px-4 py-2">
         <span className="text-muted-foreground text-xs font-medium">
           {label}
         </span>
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <Row gap={0} justify="center" className="min-h-0 flex-1">
         <Loader2 className="text-muted-foreground size-5 animate-spin" />
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 
@@ -279,8 +281,8 @@ export function ArenaSplitView({ organizationId }: ArenaSplitViewProps) {
   const labelB = modelB ? `B - ${modelB}` : t('arena.modelBLabel');
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+    <Stack gap={0} className="min-h-0 flex-1">
+      <Row gap={0} align="stretch" className="min-h-0 flex-1 overflow-hidden">
         {arenaThreadIdA ? (
           <ArenaColumn
             label={labelA}
@@ -306,7 +308,7 @@ export function ArenaSplitView({ organizationId }: ArenaSplitViewProps) {
         ) : (
           <ArenaColumnSkeleton label={labelB} />
         )}
-      </div>
+      </Row>
       {arenaThreadIdA && arenaThreadIdB && (
         <ArenaVerdictBar
           threadIdA={arenaThreadIdA}
@@ -314,6 +316,6 @@ export function ArenaSplitView({ organizationId }: ArenaSplitViewProps) {
           organizationId={organizationId}
         />
       )}
-    </div>
+    </Stack>
   );
 }

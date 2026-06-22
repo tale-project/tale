@@ -11,11 +11,11 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { LocationRequestMetadata } from '@/lib/shared/schemas/approvals';
-import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useSubmitLocationResponse } from '../hooks/mutations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { ApprovalCard } from './approval-card';
 
 // No reverse-geocoding: resolving coords to an address would require a
 // third-party service (previously nominatim.openstreetmap.org), which breaks
@@ -149,12 +149,7 @@ function LocationRequestCardComponent({
   const isDisabled = isAcquiring || isSubmitting;
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-5 bg-card w-full max-w-xl',
-        className,
-      )}
-    >
+    <ApprovalCard maxWidth="xl" padding="lg" className={className}>
       {/* Header */}
       <HStack gap={3} align="center" className="mb-4">
         <MapPin className="text-primary size-5 shrink-0" />
@@ -253,7 +248,7 @@ function LocationRequestCardComponent({
           </HStack>
         </Stack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

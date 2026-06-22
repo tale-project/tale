@@ -106,6 +106,18 @@ function stripFences(text: string): string {
 }
 
 /**
+ * Strip every HTML comment (`<!-- … -->`, single- or multi-line) from `text`,
+ * replacing each non-newline character with a space so line numbers and line
+ * count stay stable. HTML comments are invisible structural markers (e.g. the
+ * `<!-- MODELS_TABLE:START -->` fences a generator writes between), never prose,
+ * so prose mechanics must not scan them — the `<!--` opener alone would trip the
+ * no-exclamation rule.
+ */
+function stripHtmlComments(text: string): string {
+  return text.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+}
+
+/**
  * Mask every inline-code span (` `…` `) in a single line, replacing the entire
  * span (including the backticks) with spaces of equal length. Keeps the line
  * length identical so a regex match's index can still be reported as a column.
@@ -143,7 +155,7 @@ function maskUrls(line: string): string {
 export function* iterProseLines(
   body: string,
 ): Iterable<{ line: number; text: string }> {
-  const stripped = stripFences(body);
+  const stripped = stripHtmlComments(stripFences(body));
   const lines = stripped.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const masked = maskUrls(maskInlineCode(lines[i]));

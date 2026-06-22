@@ -228,7 +228,6 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                       </HStack>
                       <HStack gap={2}>
                         <Button
-                          size="sm"
                           variant="secondary"
                           onClick={() =>
                             setEditing({
@@ -240,7 +239,6 @@ export function AgentList({ title, agents, roles }: AgentListProps) {
                           {t('agents.editInstructions')}
                         </Button>
                         <Button
-                          size="sm"
                           variant="ghost"
                           onClick={() =>
                             setEditingEnv({

@@ -168,7 +168,7 @@ export function DocumentPreview({
         title={t('preview.notAvailable')}
         description={t('preview.notAvailableDescription')}
         action={
-          <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
+          <Button onClick={handleDownload} disabled={isDownloading}>
             {isDownloading ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />{' '}

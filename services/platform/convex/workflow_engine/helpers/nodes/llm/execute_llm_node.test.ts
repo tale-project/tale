@@ -55,13 +55,17 @@ const baseConfig: LLMNodeConfig = {
   systemPrompt: 'sys',
 };
 
-const stubResolved = (modelId: string, providerName = 'openrouter') => ({
+const stubResolved = (
+  modelId: string,
+  providerName = 'openrouter',
+  apiKey = 'key',
+) => ({
   languageModel: { provider: 'mock' } as never,
   modelData: {
     providerName,
     modelId,
     baseUrl: 'http://example',
-    apiKey: 'key',
+    apiKey,
     apiFormat: 'openai' as const,
     tags: ['chat'],
     supportsStructuredOutputs: false,
@@ -197,6 +201,80 @@ describe('executeLLMNode chain mode', () => {
         'org1',
       ),
     ).rejects.toThrow('second 503');
+    expect(executeAgentWithTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('retires the credential on a deterministic error and skips same-key siblings', async () => {
+    // Two models on the same provider sharing the same key; the first hits 402.
+    vi.mocked(resolveLanguageModelById)
+      .mockResolvedValueOnce(stubResolved('a', 'openrouter', 'shared-key'))
+      .mockResolvedValueOnce(stubResolved('b', 'openrouter', 'shared-key'));
+    vi.mocked(executeAgentWithTools).mockRejectedValueOnce(
+      Object.assign(new Error('requires more credits'), { status: 402 }),
+    );
+
+    await expect(
+      executeLLMNode(
+        ctx,
+        { ...baseConfig, models: ['openrouter:a', 'openrouter:b'] },
+        {},
+        'exec1',
+        'org1',
+      ),
+    ).rejects.toThrow('requires more credits');
+    // b shares a's credential → skipped (resolved only to check scope, never run).
+    expect(executeAgentWithTools).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT skip a same-provider sibling that has its own key', async () => {
+    // a and b are both on openrouter but with DIFFERENT keys. a's 401 must not
+    // retire b — b uses an independent credential and is still tried.
+    vi.mocked(resolveLanguageModelById)
+      .mockResolvedValueOnce(stubResolved('a', 'openrouter', 'key-A'))
+      .mockResolvedValueOnce(stubResolved('b', 'openrouter', 'key-B'));
+    vi.mocked(executeAgentWithTools)
+      .mockRejectedValueOnce(
+        Object.assign(new Error('unauthorized'), { status: 401 }),
+      )
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      .mockResolvedValueOnce(stubLLMResult('result-b') as never);
+
+    const result = await executeLLMNode(
+      ctx,
+      { ...baseConfig, models: ['openrouter:a', 'openrouter:b'] },
+      {},
+      'exec1',
+      'org1',
+    );
+
+    expect(result.output).toBe('result-b');
+    expect(executeAgentWithTools).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips the dead credential but still tries a model on a live one', async () => {
+    // a (openrouter) hits 402 → its credential retired → b (openrouter, same
+    // key) skipped → c (openai) attempted.
+    vi.mocked(resolveLanguageModelById)
+      .mockResolvedValueOnce(stubResolved('a', 'openrouter', 'shared-key'))
+      .mockResolvedValueOnce(stubResolved('b', 'openrouter', 'shared-key'))
+      .mockResolvedValueOnce(stubResolved('c', 'openai', 'openai-key'));
+    vi.mocked(executeAgentWithTools)
+      .mockRejectedValueOnce(
+        Object.assign(new Error('insufficient credit'), { status: 402 }),
+      )
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      .mockResolvedValueOnce(stubLLMResult('result-c') as never);
+
+    const result = await executeLLMNode(
+      ctx,
+      { ...baseConfig, models: ['openrouter:a', 'openrouter:b', 'openai:c'] },
+      {},
+      'exec1',
+      'org1',
+    );
+
+    expect(result.output).toBe('result-c');
+    // b (dead credential) is skipped; a runs (fails) and c runs (succeeds).
     expect(executeAgentWithTools).toHaveBeenCalledTimes(2);
   });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
@@ -22,12 +23,12 @@ interface InfoRowProps {
 
 function InfoRow({ label, children }: InfoRowProps) {
   return (
-    <div className="flex items-center justify-between">
+    <Row gap={0} justify="between">
       <Text variant="muted" className="text-[13px]">
         {label}
       </Text>
       <div className="text-[13px]">{children}</div>
-    </div>
+    </Row>
   );
 }
 
@@ -49,14 +50,14 @@ export function CustomerInfoCard({ customer }: { customer: CustomerData }) {
   return (
     <>
       <div className="border-border space-y-0.5 border-b px-5 py-4">
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Text className="text-sm font-semibold tracking-tight">
             {customer.name || t('labels.notAvailable')}
           </Text>
           {isValidStatus(customer.status) && (
             <CustomerStatusBadge status={customer.status} />
           )}
-        </div>
+        </Row>
         <Text variant="muted" className="text-xs tracking-tight break-all">
           {customer.email || t('labels.notAvailable')}
         </Text>

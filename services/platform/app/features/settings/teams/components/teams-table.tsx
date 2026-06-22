@@ -1,7 +1,7 @@
 'use client';
 
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Plus, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -91,7 +91,9 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   return (
     // No section header here — the Teams settings page already renders the
     // "Teams" title + description, so the table is just the bare content.
-    <div className="flex flex-col gap-3">
+    // No wrapper gap: the preloader renders null and the dialog portals, so the
+    // DataTable is the only visible child of the enclosing SettingsSection.
+    <>
       {teamIds.length > 0 && <TeamMembersPreloader teamIds={teamIds} />}
 
       <DataTable
@@ -111,11 +113,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           icon: Users,
           title: tEmpty('teams.title'),
           description: tEmpty('teams.description'),
-          action: {
-            label: tSettings('teams.createTeam'),
-            icon: Plus,
-            onClick: () => setCreateOpen(true),
-          },
         }}
         onRowClick={(row) => setSelectedTeam(row.original)}
         clickableRows
@@ -140,6 +137,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

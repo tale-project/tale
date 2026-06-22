@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import { useCallback, useState } from 'react';
@@ -300,7 +300,7 @@ function DetailRow({
   isError?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-4">
+    <Grid sm={3} gap={1} className="sm:gap-4">
       <Text as="span" variant="muted" className="font-medium">
         {label}
       </Text>
@@ -311,7 +311,7 @@ function DetailRow({
       >
         {value}
       </Text>
-    </div>
+    </Grid>
   );
 }
 

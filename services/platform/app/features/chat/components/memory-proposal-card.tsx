@@ -1,7 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { ConvexError } from 'convex/values';
+import { Card } from '@tale/ui/card';
+import { Row } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -12,6 +13,7 @@ import {
 import { useToast } from '@/app/hooks/use-toast';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 
 const CARD_TEXTAREA_MAX = 800;
 
@@ -36,7 +38,7 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       toast({ title: t('toasts.saved') });
     } catch (err) {
       toast({
-        title: errorMessage(err, t('errors.saveFailed')),
+        title: convexErrorMessage(err, t('errors.saveFailed')),
         variant: 'destructive',
       });
     }
@@ -48,15 +50,15 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       toast({ title: t('toasts.discarded') });
     } catch (err) {
       toast({
-        title: errorMessage(err, t('errors.saveFailed')),
+        title: convexErrorMessage(err, t('errors.saveFailed')),
         variant: 'destructive',
       });
     }
   };
 
   return (
-    <div className="bg-card rounded-md border p-3">
-      <div className="text-muted-foreground mb-1 text-xs font-medium">
+    <Card padding="sm">
+      <div className="text-fg-muted mb-1 text-xs font-medium">
         💡 {t('card.label')}
       </div>
       {editing ? (
@@ -70,11 +72,10 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       ) : (
         <p className="mb-2 text-sm">{memory.content}</p>
       )}
-      <div className="flex justify-end gap-2">
+      <Row gap={2} align="stretch" justify="end">
         {editing ? (
           <>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setEditing(false);
@@ -84,7 +85,6 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
               {t('card.discard')}
             </Button>
             <Button
-              size="sm"
               variant="primary"
               disabled={!draft.trim() || draft === memory.content}
               onClick={() => handleApprove(draft)}
@@ -94,37 +94,18 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
           </>
         ) : (
           <>
-            <Button size="sm" variant="ghost" onClick={handleDismiss}>
+            <Button variant="ghost" onClick={handleDismiss}>
               {t('card.discard')}
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setEditing(true)}
-            >
+            <Button variant="secondary" onClick={() => setEditing(true)}>
               {t('card.edit')}
             </Button>
-            <Button size="sm" variant="primary" onClick={() => handleApprove()}>
+            <Button variant="primary" onClick={() => handleApprove()}>
               {t('card.save')}
             </Button>
           </>
         )}
-      </div>
-    </div>
+      </Row>
+    </Card>
   );
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ConvexError) {
-    const data: unknown = err.data;
-    if (
-      data !== null &&
-      typeof data === 'object' &&
-      'message' in data &&
-      typeof data.message === 'string'
-    ) {
-      return data.message;
-    }
-  }
-  return fallback;
 }

@@ -51,7 +51,6 @@ export const NextStepsSection = memo(
             <Button
               key={item}
               variant="secondary"
-              size="sm"
               className={cn(
                 'h-auto whitespace-normal py-1.5 text-left text-xs',
                 'hover:bg-muted/50',

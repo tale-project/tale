@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Row } from '@tale/ui/layout';
 import { ThemeSwitcher } from '@tale/ui/theme-switcher';
 import { useRef, type KeyboardEvent } from 'react';
 
@@ -77,10 +78,12 @@ export function PreferencesStep() {
         <legend className="text-fg-base mb-1 text-sm font-medium">
           {t('preferences.languageLabel')}
         </legend>
-        <div
+        <Row
           role="radiogroup"
           aria-label={t('preferences.languageLabel')}
-          className="flex flex-wrap gap-2"
+          gap={2}
+          align="stretch"
+          wrap
           onKeyDown={onLanguageKeyDown}
         >
           {LOCALES.map(({ code, label }, index) => {
@@ -107,7 +110,7 @@ export function PreferencesStep() {
               </button>
             );
           })}
-        </div>
+        </Row>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">

@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
@@ -124,7 +125,7 @@ export function ProjectInstructionsEditor({
                 />
               );
             })()}
-            <div className="flex items-center justify-between">
+            <Row gap={0} justify="between">
               <Text
                 variant="caption"
                 className={cn(
@@ -146,7 +147,7 @@ export function ProjectInstructionsEditor({
                       })
                     : ''}
               </Text>
-            </div>
+            </Row>
           </FormSection>
         </fieldset>
       </form>

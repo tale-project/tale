@@ -258,7 +258,7 @@
   },
   "analytics": {
     "usage": {
-      "title": "Nutzungsanalyse",
+      "title": "Nutzungs-Metriken",
       "description": "Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.",
       "cappedNotice": "Ergebnisse sind begrenzt, weil der Zeitraum zu viele Datensätze enthält. Verringere den Zeitraum für vollständige Daten.",
       "activeUsersTooltip": "Benutzer, die in diesem Zeitraum KI-Anfragen gestellt haben.",
@@ -291,7 +291,6 @@
         "activeUsers": "Aktive Benutzer"
       },
       "chart": {
-        "ariaLabel": "{metric} im Zeitverlauf",
         "inputTokens": "Eingabe",
         "outputTokens": "Ausgabe"
       },
@@ -347,7 +346,7 @@
       }
     },
     "feedback": {
-      "title": "Feedback-Analyse",
+      "title": "Feedback-Metriken",
       "description": "Daumen-Bewertungen und Arena-Urteile zu Assistenten-Antworten.",
       "commentsOnly": "Nur Kommentare",
       "errors": {
@@ -466,7 +465,8 @@
           "arena": "Arena-Paarung",
           "attribution": "Zuordnung"
         }
-      }
+      },
+      "sentimentTrend": "Stimmung im Zeitverlauf"
     }
   },
   "approvalCommon": {
@@ -616,7 +616,8 @@
       "period": {
         "last7Days": "Letzte 7 Tage",
         "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage"
+        "last90Days": "Letzte 90 Tage",
+        "label": "Zeitraum"
       },
       "cards": {
         "totalRuns": "Ausführungen gesamt",
@@ -1090,7 +1091,9 @@
       "policyViolation": "Nachricht durch Inhaltsrichtlinie blockiert",
       "modelAccessDenied": "Modell nicht verfügbar",
       "budgetExceeded": "Nutzungslimit erreicht",
-      "kbRefInvalid": "Ein referenziertes Dokument ist nicht mehr verfügbar. Entferne es und versuche es erneut."
+      "kbRefInvalid": "Ein referenziertes Dokument ist nicht mehr verfügbar. Entferne es und versuche es erneut.",
+      "backendRestarting": "Server wird neu gestartet",
+      "backendRestartingDescription": "Der Server wird kurz für ein Update neu gestartet. Bitte sende deine Nachricht gleich erneut."
     },
     "blockedNotice": {
       "body": "Diese Antwort wurde durch die Inhaltsrichtlinie deiner Organisation blockiert."
@@ -1700,6 +1703,16 @@
     "errorHintTokenLimit": "Das Token-Limit des Modells wurde überschritten. Versuche eine kürzere Anfrage oder bitte deinen Administrator, die Modelleinstellungen anzupassen.",
     "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern.",
     "errorHintUnsupportedParameter": "Das Modell hat einen der Anfrageparameter abgelehnt. Das deutet meist auf eine falsch konfigurierte Anbieter- oder Modelleinstellung hin – prüfe die Modelleinstellungen oder öffne die Details unten.",
+    "errorHintProviderUnreachable": "Der KI-Anbieter konnte nicht erreicht werden. Er ist möglicherweise offline oder falsch konfiguriert. Versuche es erneut oder kontaktiere deinen Administrator.",
+    "errorHintCreditExhaustedNamed": "{provider} hat kein Guthaben mehr. Kontaktiere deinen Administrator, um Guthaben aufzuladen oder den Anbieter zu wechseln.",
+    "errorHintAuthErrorNamed": "Der API-Schlüssel für {provider} ist ungültig oder abgelaufen. Kontaktiere deinen Administrator, um ihn zu aktualisieren.",
+    "errorHintProviderUnreachableNamed": "{provider} konnte nicht erreicht werden. Der Anbieter ist möglicherweise offline oder falsch konfiguriert. Versuche es erneut oder kontaktiere deinen Administrator.",
+    "errorHintModelNotFoundNamed": "Das ausgewählte Modell wurde bei {provider} nicht gefunden. Es wurde möglicherweise umbenannt oder entfernt.",
+    "errorHintRateLimitedNamed": "Ratenlimit bei {provider} erreicht. Bitte warte einen Moment und versuche es erneut.",
+    "errorTriedModels": "{count} Modelle wurden vor dem Abbruch versucht.",
+    "modelFallbackNotice": "{from} war nicht verfügbar – zu {to} gewechselt.",
+    "modelFallbackDefaultModel": "das Standardmodell",
+    "modelFallbackUnknown": "das vorherige Modell",
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",
@@ -1921,7 +1934,6 @@
       "validationStatus": "{message}: {status}",
       "skipToContent": "Zum Hauptinhalt springen",
       "mainNavigation": "Hauptnavigation",
-      "pageNavigation": "Seitennavigation",
       "projectsNavigation": "Projektnavigation"
     },
     "pagination": {
@@ -1995,8 +2007,6 @@
     "capabilityHeader": "Fähigkeiten",
     "capabilityDisable": "{name} deaktivieren",
     "requiresIntegration": "Benötigt {name}",
-    "takeScreenshot": "Screenshot aufnehmen",
-    "screenshotFailed": "Screenshot konnte nicht aufgenommen werden",
     "kbMention": {
       "title": "Wissensdatenbank",
       "loading": "Dokumente werden durchsucht …",
@@ -2096,7 +2106,9 @@
       "improving": "Wird verbessert...",
       "improveWithAi": "Mit KI verbessern",
       "generateImprovement": "Verbesserung generieren",
-      "replyImproved": "Antwort verbessert"
+      "replyImproved": "Antwort verbessert",
+      "attachFile": "Datei anhängen",
+      "send": "Nachricht senden"
     },
     "attachment": {
       "download": "Herunterladen",
@@ -2178,7 +2190,6 @@
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",
-    "addButton": "Kunde hinzufügen",
     "importMenu": {
       "importCustomers": "Kunden importieren",
       "fromDevice": "Von deinem Gerät",
@@ -4119,7 +4130,7 @@
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken."
     },
     "environment": {
-      "title": "Umgebung & Geheimnisse",
+      "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes eingespeist werden."
     },
     "organization": {
@@ -4222,10 +4233,6 @@
       "title": "Agent-Delegation",
       "description": "Agent-Delegation an andere Agents konfigurieren."
     },
-    "agentResponseTuning": {
-      "title": "Antwort-Feinabstimmung",
-      "description": "Stelle ein, wie dieser Agent denkt und schreibt."
-    },
     "automationTriggers": {
       "title": "Trigger",
       "description": "Automatisierungstrigger, Zeitpläne und Webhooks verwalten."
@@ -4252,7 +4259,8 @@
     }
   },
   "navigation": {
-    "chatWithAI": "Chat",
+    "newChat": "Neuer Chat",
+    "chat": "Chat",
     "apps": "Apps",
     "conversations": "Konversationen",
     "knowledge": "Wissen",
@@ -4388,11 +4396,14 @@
   },
   "userEnv": {
     "page": {
-      "title": "Umgebung & Geheimnisse",
+      "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Variablen und Geheimnisse, die in alle deine Agent-Sandboxes eingespeist werden.",
+      "agentAccessTitle": "In deine Sandboxes eingespeist",
       "note": "Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle deine Sandboxes eingespeist."
     },
     "add": {
+      "button": "Variable hinzufügen",
+      "title": "Variable hinzufügen",
       "keyLabel": "Name",
       "keyPlaceholder": "z. B. MY_API_KEY",
       "keyInvalid": "Muss mit einem Buchstaben oder Unterstrich beginnen und darf nur Buchstaben, Zahlen und Unterstriche enthalten.",
@@ -5048,7 +5059,6 @@
         "knowledge": "Wissen",
         "webhook": "Webhook",
         "delegation": "Delegation",
-        "responseTuning": "Antwort-Feinabstimmung",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf",
         "metrics": "Leistung",
@@ -5241,46 +5251,6 @@
         "uploadStarted": "Datei wird hochgeladen...",
         "fileTooLarge": "Datei zu groß",
         "removeFailed": "Datei konnte nicht entfernt werden"
-      },
-      "responseTuning": {
-        "title": "Antwort-Feinabstimmung",
-        "description": "Steuere, wie dieser Agent denkt und schreibt. Jede Option steht standardmäßig auf Automatisch — die Plattform wählt dann pro Nachricht die beste Einstellung. Wähle einen festen Wert, um sie zu überschreiben.",
-        "autoNote": "Der Auto-Router und der adaptive Reasoning-Governor stimmen jede Antwort automatisch ab — Sprache, Stil, Länge und Aufwand. Normalerweise musst du hier nichts ändern. Öffne die Überschreibungen unten nur, um für jede Nachricht dieses Agenten eine feste Einstellung zu erzwingen.",
-        "overridesSummary": "Manuelle Überschreibungen",
-        "adaptive": "Automatisch",
-        "effort": "Denkaufwand",
-        "effortHelp": "Wie gründlich das Modell nachdenkt. Automatisch skaliert den Aufwand pro Nachricht — mehr bei schweren, weniger bei einfachen Fragen. Ein fester Wert nutzt immer denselben Aufwand.",
-        "effortLow": "Niedrig",
-        "effortMedium": "Mittel",
-        "effortHigh": "Hoch",
-        "creativity": "Kreativität",
-        "creativityHelp": "Wie abwechslungsreich die Formulierung ist. Präzise liefert fokussierte, wiederholbare Antworten; Kreativ liefert vielfältigere. Automatisch entscheidet pro Nachricht.",
-        "creativityPrecise": "Präzise",
-        "creativityBalanced": "Ausgewogen",
-        "creativityCreative": "Kreativ",
-        "style": "Stil",
-        "styleHelp": "Gibt Antworten einen festen Ton. Automatisch fügt keinen hinzu.",
-        "styleConcise": "Prägnant",
-        "styleDetailed": "Ausführlich",
-        "styleFormal": "Formell",
-        "styleFriendly": "Freundlich",
-        "verbosity": "Antwortlänge",
-        "verbosityHelp": "Wie lang Antworten tendenziell sind, unabhängig vom Ton. Automatisch entscheidet pro Nachricht.",
-        "verbosityTerse": "Kurz",
-        "verbosityNormal": "Mittel",
-        "verbosityVerbose": "Lang",
-        "advancedTitle": "Erweitert",
-        "advancedHelp": "Diese überschreiben Automatisch nicht — sie setzen Grenzen, in denen es bleibt, und gelten nur für oben auf Automatisch belassene Einstellungen.",
-        "qualityProfile": "Qualität vs. Tempo",
-        "qualityProfileHelp": "Wie bereitwillig der Agent zusätzliches Nachdenken einsetzt, wenn eine Antwort schwach wirkt. Streng bevorzugt Qualität; Nachsichtig bevorzugt Tempo und Kosten.",
-        "qualityLenient": "Nachsichtig",
-        "qualityBalanced": "Ausgewogen",
-        "qualityStrict": "Streng",
-        "effortFloor": "Mindestaufwand",
-        "effortFloorHelp": "Niemals weniger nachdenken als dies, auch bei einfachen Nachrichten.",
-        "effortCeiling": "Maximalaufwand",
-        "effortCeilingHelp": "Niemals mehr nachdenken als dies — begrenzt die Kosten bei schweren Nachrichten.",
-        "boundNone": "Kein Limit"
       },
       "tools": {
         "webSearchMode": "Websuche",
@@ -6711,7 +6681,8 @@
       "period": {
         "last7Days": "Letzte 7 Tage",
         "last30Days": "Letzte 30 Tage",
-        "last90Days": "Letzte 90 Tage"
+        "last90Days": "Letzte 90 Tage",
+        "label": "Zeitraum"
       },
       "cappedNotice": "Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen in diesem Zeitraum können zu niedrig ausfallen.",
       "noData": "Keine Daten",
@@ -6944,7 +6915,6 @@
     },
     "editVendor": "Lieferant bearbeiten",
     "deleteVendor": "Lieferant löschen",
-    "addButton": "Lieferant hinzufügen",
     "importMenu": {
       "importVendors": "Lieferanten importieren",
       "fromDevice": "Von deinem Gerät",
@@ -7618,7 +7588,7 @@
       "none": "Nichts vorhanden."
     },
     "scorecard": {
-      "title": "Leistung",
+      "title": "Agent-Metriken",
       "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
       "tasksCompleted": "Abgeschlossene Aufgaben",
       "reviewOutcome": "Direkt-Freigabequote",
@@ -7626,7 +7596,9 @@
       "avgRun": "Ø Laufzeit",
       "spend": "Ausgaben",
       "recentRuns": "Letzte Läufe",
-      "noRuns": "Noch keine Läufe."
+      "noRuns": "Noch keine Läufe.",
+      "runsCompleted": "Abgeschlossen",
+      "runsFailed": "Fehlgeschlagen"
     }
   },
   "runtimes": {

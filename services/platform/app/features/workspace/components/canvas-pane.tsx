@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { useMatch } from '@tanstack/react-router';
 import { parsePartialJson } from 'ai';
 import { Download, PanelRightOpen, X } from 'lucide-react';
@@ -255,8 +256,9 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   const filename = resolvedPath?.split('/').pop() ?? '';
 
   return (
-    <div
-      className="border-border bg-background relative flex h-full shrink-0 flex-col border-l"
+    <Stack
+      gap={0}
+      className="border-border bg-background relative h-full shrink-0 border-l"
       style={{ width }}
       role="complementary"
       aria-label={t('canvas.ariaLabel', { defaultValue: 'Canvas panel' })}
@@ -272,8 +274,8 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
         })}
       />
 
-      <div className="border-border flex items-center justify-between gap-2 border-b p-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <Row gap={2} justify="between" className="border-border border-b p-3">
+        <Row gap={2} className="min-w-0">
           {isActiveStreaming && (
             <span
               className="bg-primary inline-block size-1.5 shrink-0 animate-pulse rounded-full"
@@ -296,8 +298,8 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
               {t('canvas.writing', { defaultValue: 'Writing…' })}
             </span>
           )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
+        </Row>
+        <Row gap={1} className="shrink-0">
           <Tooltip
             content={t('canvas.download', { defaultValue: 'Download' })}
             side="bottom"
@@ -329,10 +331,10 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
               <X className="size-3.5" />
             </Button>
           </Tooltip>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
-      <div className="flex min-h-0 flex-1">
+      <Row gap={0} align="stretch" className="min-h-0 flex-1">
         <WorkspaceFileSidebar
           files={mergedFiles}
           activePath={resolvedPath}
@@ -350,8 +352,8 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
             liveEncoding={activeLive?.encoding}
           />
         </div>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 

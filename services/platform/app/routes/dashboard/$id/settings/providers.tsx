@@ -30,7 +30,7 @@ function ProvidersLayout() {
     // (driven by `useListPage`'s `isLoading`), so no bespoke skeleton is
     // needed — the table swaps in under a stable header.
     return (
-      <SettingsPage narrow>
+      <SettingsPage>
         <SettingsSection
           title={tNav('providers')}
           description={tSettings('menu.providers.description')}

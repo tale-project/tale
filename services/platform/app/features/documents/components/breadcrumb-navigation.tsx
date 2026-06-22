@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
@@ -42,7 +43,7 @@ export function BreadcrumbNavigation({
       className="bg-background sticky top-14 z-10 mb-4"
       aria-label={t('breadcrumb.navigation')}
     >
-      <ol className="flex items-center gap-1">
+      <Row as="ol" gap={1}>
         <li className="flex items-center gap-1">
           <button
             onClick={() => onNavigate(undefined)}
@@ -95,7 +96,7 @@ export function BreadcrumbNavigation({
             </li>
           );
         })}
-      </ol>
+      </Row>
     </nav>
   );
 }

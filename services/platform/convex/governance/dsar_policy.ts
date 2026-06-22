@@ -351,6 +351,7 @@ export const recordDsarTighten = internalMutation({
       titleKey: 'dsarPolicyTightened',
       bodyKey: 'dsarPolicyTightenedBody',
       params: { proposedBy: args.actorId },
+      link: { kind: 'dsar' },
     });
     return null;
   },
@@ -399,6 +400,7 @@ export const stageDsarLoosen = internalMutation({
       titleKey: 'dsarPolicyLoosenProposed',
       bodyKey: 'dsarPolicyLoosenProposedBody',
       params: { proposedBy: args.proposedBy, effectiveAt: args.effectiveAt },
+      link: { kind: 'dsar' },
     });
     return null;
   },
@@ -476,6 +478,7 @@ export const cancelPendingDsarPolicyChange = mutation({
       titleKey: 'dsarPolicyLoosenCancelled',
       bodyKey: 'dsarPolicyLoosenCancelledBody',
       params: { cancelledBy: callerId },
+      link: { kind: 'dsar' },
     });
     return null;
   },
@@ -552,6 +555,7 @@ export const finalizeDsarApply = internalMutation({
       titleKey: 'dsarPolicyLoosenApplied',
       bodyKey: 'dsarPolicyLoosenAppliedBody',
       params: { proposedBy },
+      link: { kind: 'dsar' },
     });
     return null;
   },

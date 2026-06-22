@@ -171,7 +171,7 @@ describe('restore', () => {
     // Prints the redeploy-the-matching-version runbook.
     const infoLines = loggerInfoMock.mock.calls.map((call) => String(call[0]));
     expect(
-      infoLines.some((line) => line.includes('tale upgrade --version 0.9.6')),
+      infoLines.some((line) => line.includes('tale update --version 0.9.6')),
     ).toBe(true);
   });
 

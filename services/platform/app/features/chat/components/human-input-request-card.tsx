@@ -53,6 +53,7 @@ import {
 } from '../hooks/mutations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
+import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
@@ -457,7 +458,7 @@ function HumanInputRequestCardComponent({
                     setViewedVersionIdx(Math.max(0, displayedVersionIdx - 1))
                   }
                   disabled={displayedVersionIdx <= 0}
-                  aria-label={t('versionPrevious')}
+                  title={t('versionPrevious')}
                 >
                   <ChevronLeft className="size-3.5" />
                 </Button>
@@ -476,7 +477,7 @@ function HumanInputRequestCardComponent({
                     )
                   }
                   disabled={isViewingLatestVersion}
-                  aria-label={t('versionNext')}
+                  title={t('versionNext')}
                 >
                   <ChevronRight className="size-3.5" />
                 </Button>
@@ -489,12 +490,7 @@ function HumanInputRequestCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-5 bg-card w-full max-w-xl',
-        className,
-      )}
-    >
+    <ApprovalCard maxWidth="xl" padding="lg" className={className}>
       {/* Header */}
       <HStack gap={3} align="center" justify="between" className="mb-4">
         <HStack gap={3}>
@@ -700,7 +696,7 @@ function HumanInputRequestCardComponent({
           )}
         </HStack>
       ) : null}
-    </div>
+    </ApprovalCard>
   );
 }
 

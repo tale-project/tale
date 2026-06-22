@@ -58,6 +58,16 @@ export const sandboxSessionsTable = defineTable({
    * sandbox-management page, so the warm-container cost is bounded. */
   pinned: v.optional(v.boolean()),
   pinnedAt: v.optional(v.number()),
+  /**
+   * Blue-green spawner colour this session was created on (self-reported via
+   * `X-Sandbox-Color` at create). Session ops route to `sandbox-<spawnerColor>`
+   * so a long agent turn survives a deploy flip that LINGERS the old colour:
+   * after the alias moves to the new colour, the recovery/continuation path
+   * still reaches the lingering spawner. `undefined` ⇒ single-colour (dev) or a
+   * pre-blue-green row → ops fall back to the bare `sandbox` alias. Re-stamped
+   * on resume (a resume may land on a different colour). Additive + optional →
+   * no migration. */
+  spawnerColor: v.optional(v.string()),
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_owner', ['ownerType', 'ownerId'])

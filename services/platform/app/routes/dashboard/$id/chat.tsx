@@ -1,4 +1,5 @@
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
@@ -174,9 +175,12 @@ function ThreadGate({
     return (
       <SuspenseBoundary
         fallback={
-          <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6">
+          <Stack
+            gap={0}
+            className="h-full min-h-0 flex-1 overflow-y-auto px-4 sm:px-6"
+          >
             <ChatMessagesSkeleton />
-          </div>
+          </Stack>
         }
       >
         <ChatInterface
@@ -207,7 +211,7 @@ function ThreadGate({
   // Loaded but thread not found / not authorized
   if (threadStatus === null) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+      <Stack align="center" justify="center" className="h-full p-8">
         <p className="text-muted-foreground text-sm">{tChat('notFound')}</p>
         <Button
           variant="secondary"
@@ -220,7 +224,7 @@ function ThreadGate({
         >
           {tChat('newChat')}
         </Button>
-      </div>
+      </Stack>
     );
   }
 
@@ -310,9 +314,9 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         <LayoutErrorBoundary organizationId={organizationId}>
           <SuspenseBoundary
             fallback={
-              <div className="flex h-full flex-col overflow-y-auto px-4 sm:px-6">
+              <Stack gap={0} className="h-full overflow-y-auto px-4 sm:px-6">
                 <ChatMessagesSkeleton />
-              </div>
+              </Stack>
             }
           >
             <SharedChatView
@@ -331,7 +335,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         <ChatHeader organizationId={organizationId} threadId={threadId} />
       </LayoutErrorBoundary>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <Row gap={0} align="stretch" className="min-h-0 flex-1 overflow-hidden">
         <AnimatePresence initial={false}>
           {isHistoryOpen && (
             <m.div
@@ -341,11 +345,14 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
               className="relative hidden w-[18rem] shrink-0 md:block"
             >
-              <div className="border-border bg-background flex h-full flex-col overflow-hidden border-r">
+              <Stack
+                gap={0}
+                className="border-border bg-background h-full overflow-hidden border-r"
+              >
                 <LayoutErrorBoundary organizationId={organizationId}>
                   <ChatHistorySidebar organizationId={organizationId} />
                 </LayoutErrorBoundary>
-              </div>
+              </Stack>
             </m.div>
           )}
         </AnimatePresence>
@@ -355,7 +362,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             message list uses. Without this, the canvas reads files from the raw
             route threadId and branch-tip files vanish after streaming. */}
         <BranchProvider threadId={threadId} organizationId={organizationId}>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <Stack gap={0} className="min-h-0 flex-1 overflow-hidden">
             <BudgetBanner organizationId={organizationId} />
             <LayoutErrorBoundary organizationId={organizationId}>
               <ThreadGate
@@ -364,7 +371,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
                 newChatCount={newChatCount}
               />
             </LayoutErrorBoundary>
-          </div>
+          </Stack>
 
           <PlanPane />
           <CanvasPane organizationId={organizationId} />
@@ -386,7 +393,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             </LayoutErrorBoundary>
           )}
         </BranchProvider>
-      </div>
+      </Row>
 
       {/* Mobile: present the workspace-files pane in a right Sheet like the
           mobile history sidebar, so the desktop split-pane never breaks the

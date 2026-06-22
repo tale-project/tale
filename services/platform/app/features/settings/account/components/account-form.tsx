@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useState } from 'react';
@@ -206,9 +207,12 @@ function EmailField({ email }: { email: string }) {
   const loading = useSkeleton();
 
   return (
-    <div className="bg-muted/40 ring-border text-muted-foreground flex w-full items-center rounded-lg border px-3 py-2.25 text-sm">
+    <Row
+      gap={0}
+      className="bg-muted/40 ring-border text-muted-foreground w-full rounded-lg border px-3 py-2.25 text-sm"
+    >
       {loading ? <SkeletonText /> : email}
-    </div>
+    </Row>
   );
 }
 

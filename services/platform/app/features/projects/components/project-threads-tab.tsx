@@ -81,9 +81,7 @@ export function ProjectThreadsTab({
         title={t('threads.yourChats')}
         description={t('threads.shareToggleDisclosure')}
         action={
-          <Button onClick={handleNewChat} size="sm">
-            {t('overview.newChatCta')}
-          </Button>
+          <Button onClick={handleNewChat}>{t('overview.newChatCta')}</Button>
         }
       />
 

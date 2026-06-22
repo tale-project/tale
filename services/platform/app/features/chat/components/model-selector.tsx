@@ -357,7 +357,7 @@ export const ModelSelector = memo(function ModelSelector({
       <Button
         type="button"
         className="gap-1.5"
-        size="icon"
+        size="sm"
         variant="ghost"
         aria-label={t('modelSelector.label')}
         disabled
@@ -553,8 +553,8 @@ export const ModelSelector = memo(function ModelSelector({
         <Button
           type="button"
           className="gap-1.5"
-          size="icon"
           variant="ghost"
+          size="sm"
           aria-label={t('modelSelector.label')}
         >
           <Cpu className="size-3.5" aria-hidden="true" />

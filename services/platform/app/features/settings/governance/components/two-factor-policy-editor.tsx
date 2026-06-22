@@ -1,13 +1,13 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -17,8 +17,8 @@ import {
   type TwoFactorPolicyConfig,
 } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
@@ -26,12 +26,9 @@ interface TwoFactorPolicyEditorProps {
   organizationId: string;
 }
 
-function parseConfig(raw: unknown): TwoFactorPolicyConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = twoFactorPolicyConfigSchema.safeParse(obj);
-  if (result.success) return result.data;
-  return { ...DEFAULT_TWO_FACTOR_POLICY };
-}
+const parseConfig = createConfigParser(twoFactorPolicyConfigSchema, () => ({
+  ...DEFAULT_TWO_FACTOR_POLICY,
+}));
 
 // =============================================================================
 // Single editor — owns data fetching, the local state mirrors, instant-save
@@ -159,7 +156,7 @@ export function TwoFactorPolicyEditor({
 
   return (
     <Skeletonize loading={loading} label={t('twoFactorPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('twoFactorPolicy.title')}
         description={t('twoFactorPolicy.description')}
         action={
@@ -196,7 +193,6 @@ export function TwoFactorPolicyEditor({
                   if (e.key === 'Enter') e.currentTarget.blur();
                 }}
                 disabled={!canEdit || !enforced || isSaving}
-                size="sm"
                 min={0}
                 max={30}
                 step={1}
@@ -215,7 +211,7 @@ export function TwoFactorPolicyEditor({
             </Stack>
           </div>
         </Stack>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

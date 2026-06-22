@@ -10,9 +10,20 @@ import {
   query,
   type MutationCtx,
 } from '../_generated/server';
+import { isDrainingNow } from '../control/drain';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { persistentStreaming } from '../streaming/helpers';
+
+/**
+ * While a deploy drain is active, queued messages must NOT start a new
+ * `runChatTurnGeneration` — the imminent convex recreate would kill it. Instead
+ * the drain points defer to `drainQueuedMessages` after this delay; that
+ * mutation self-reschedules while draining and fires for real once the flag
+ * clears (`endDrain`, or `drainExpiresAt` if a deploy died). Rows stay queued
+ * meanwhile (their user bubbles are already saved), so nothing is lost.
+ */
+const DRAIN_REQUEUE_DELAY_MS = 5_000;
 
 /**
  * Queue for messages sent while a turn is already running ("keep typing while
@@ -168,6 +179,18 @@ export async function settleQueueOnTurnEnd(
   const queued = await listByStatus(ctx, meta.threadId, 'queued');
   if (queued.length === 0) return { drained: false };
 
+  // Deploy drain: don't start the drain turn now (the convex recreate would
+  // kill it). Let the ending turn finalize to idle (drained:false) and hand off
+  // to the deferred drainQueuedMessages, which resumes once the backend is back.
+  if (await isDrainingNow(ctx)) {
+    await ctx.scheduler.runAfter(
+      DRAIN_REQUEUE_DELAY_MS,
+      internal.threads.message_queue.drainQueuedMessages,
+      { threadId: meta.threadId },
+    );
+    return { drained: false };
+  }
+
   await startQueuedTurn(ctx, meta, queued);
   return { drained: true };
 }
@@ -191,6 +214,18 @@ export const drainQueuedMessages = internalMutation({
 
     const queued = await listByStatus(ctx, args.threadId, 'queued');
     if (queued.length === 0) return null;
+
+    // Still draining → re-defer rather than start a turn the recreate would
+    // kill. Self-rescheduling resolves once isDrainingNow clears (endDrain or
+    // drainExpiresAt backstop).
+    if (await isDrainingNow(ctx)) {
+      await ctx.scheduler.runAfter(
+        DRAIN_REQUEUE_DELAY_MS,
+        internal.threads.message_queue.drainQueuedMessages,
+        { threadId: args.threadId },
+      );
+      return null;
+    }
 
     await startQueuedTurn(ctx, meta, queued);
     return null;
@@ -267,7 +302,17 @@ export const enqueueMessage = mutation({
     }
 
     // Idle (or this enqueue raced past the finalize): start the turn directly
-    // in the same transaction so the send is self-sufficient.
+    // in the same transaction so the send is self-sufficient — unless a deploy
+    // drain is active, in which case keep it queued and defer the drain so the
+    // recreate doesn't kill a turn started here.
+    if (await isDrainingNow(ctx)) {
+      await ctx.scheduler.runAfter(
+        DRAIN_REQUEUE_DELAY_MS,
+        internal.threads.message_queue.drainQueuedMessages,
+        { threadId: args.threadId },
+      );
+      return { queued: true, messageId };
+    }
     const inserted = await ctx.db.get(rowId);
     if (inserted) {
       await startQueuedTurn(ctx, meta, [...queuedRows, inserted]);

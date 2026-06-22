@@ -35,6 +35,8 @@ import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { ApprovalCard } from './approval-card';
+
 interface WorkflowUpdateApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
@@ -172,12 +174,7 @@ function WorkflowUpdateApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-2">
         <HStack gap={2}>
@@ -393,7 +390,6 @@ function WorkflowUpdateApprovalCardComponent({
         <ActionRow gap={2}>
           <Tooltip content={t('approveTooltip')}>
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -406,7 +402,6 @@ function WorkflowUpdateApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
@@ -445,7 +440,7 @@ function WorkflowUpdateApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

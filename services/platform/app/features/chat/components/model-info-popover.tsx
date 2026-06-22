@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
@@ -26,12 +27,12 @@ interface InfoRowProps {
 
 function InfoRow({ label, children }: InfoRowProps) {
   return (
-    <div className="flex items-start justify-between gap-3">
+    <Row gap={3} align="start" justify="between">
       <Text variant="muted" className="shrink-0 text-xs">
         {label}
       </Text>
       <div className="text-right text-xs">{children}</div>
-    </div>
+    </Row>
   );
 }
 

@@ -1,12 +1,12 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Pencil } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -37,7 +37,7 @@ function parseRetentionConfig(policy: unknown): RetentionPolicyConfig {
 
 // =============================================================================
 // Single editor — owns data fetching (policy + bounds), the drawer open state,
-// and the loading state. Renders the REAL `PageSection` once, always, wrapped
+// and the loading state. Renders the REAL `SettingsSection` once, always, wrapped
 // in `<Skeletonize>` while the policy loads.
 //
 // The conditional banners (`RetentionBoundsProposalBanner`,
@@ -73,7 +73,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
       loading={isLoading}
       label={t('retentionPolicy.title', 'Retention policy')}
     >
-      <PageSection
+      <SettingsSection
         title={t('retentionPolicy.title', 'Retention policy')}
         description={t(
           'retentionPolicy.description',
@@ -82,7 +82,6 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         action={
           <Button
             variant="secondary"
-            size="sm"
             icon={Pencil}
             disabled={cannotManage}
             onClick={() => setDrawerOpen(true)}
@@ -115,7 +114,7 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           organizationId={organizationId}
           cannotManage={cannotManage}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

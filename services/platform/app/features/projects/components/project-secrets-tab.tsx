@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { KeyRound, ShieldAlert, Trash2 } from 'lucide-react';
@@ -156,7 +157,7 @@ export function ProjectSecretsTab({
         title={t('title')}
         description={t('description')}
         action={
-          <Button size="sm" icon={KeyRound} onClick={() => setDialogOpen(true)}>
+          <Button icon={KeyRound} onClick={() => setDialogOpen(true)}>
             {t('addButton')}
           </Button>
         }
@@ -172,7 +173,7 @@ export function ProjectSecretsTab({
       {secrets.length === 0 ? (
         <Text variant="muted">{t('empty')}</Text>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <Stack as="ul" gap={2}>
           {secrets.map((secret) => (
             <li
               key={secret.name}
@@ -188,7 +189,7 @@ export function ProjectSecretsTab({
                   </Text>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <Row gap={2}>
                 <Text as="span" variant="muted" className="font-mono text-xs">
                   ••••••••
                 </Text>
@@ -196,13 +197,13 @@ export function ProjectSecretsTab({
                   size="icon"
                   variant="ghost"
                   icon={Trash2}
-                  aria-label={tCommon('actions.delete')}
+                  title={tCommon('actions.delete')}
                   onClick={() => void handleDelete(secret.name)}
                 />
-              </div>
+              </Row>
             </li>
           ))}
-        </ul>
+        </Stack>
       )}
 
       <FormDialog

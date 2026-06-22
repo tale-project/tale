@@ -62,6 +62,23 @@ export const routeTuningValidator = v.object({
 });
 
 /**
+ * Coarse per-message reasoning SEED the router may advise — distinct from the
+ * prose-level {@link routeTuningValidator}. Mirrors `RouterReasoningSeed` in
+ * `auto_route_helpers.ts`. Fed to the adaptive reasoning governor as a PRIOR
+ * (blended into the difficulty score), never a hard override: the online
+ * controller still refines effort/temperature from observed usage, so a wrong
+ * hint self-corrects within a few turns.
+ */
+export const routeSeedValidator = v.object({
+  effort: v.optional(
+    v.union(v.literal('low'), v.literal('medium'), v.literal('high')),
+  ),
+  creativity: v.optional(
+    v.union(v.literal('precise'), v.literal('balanced'), v.literal('creative')),
+  ),
+});
+
+/**
  * "Auto" routing decision cache. Skips the router classifier when the exact
  * same normalized message has already been routed for the same candidate set.
  * `candidatesHash` folds in the roster (slug + description), so adding/removing
@@ -82,6 +99,8 @@ export const autoRouteCacheTable = defineTable({
   language: v.optional(v.string()),
   /** Advisory qualitative response shaping. */
   tuning: v.optional(routeTuningValidator),
+  /** Advisory reasoning seed (governor prior). */
+  seed: v.optional(routeSeedValidator),
   /** Capability slugs the router suggested enabling. */
   capabilities: v.optional(v.array(v.string())),
   hits: v.number(),

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -22,6 +22,7 @@ import {
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -70,7 +71,7 @@ interface TrashCursor {
 
 // =============================================================================
 // Single page — owns data fetching, pagination/filter state, the access check,
-// the restore mutation, and the loading state. Renders the REAL `PageSection` +
+// the restore mutation, and the loading state. Renders the REAL `SettingsSection` +
 // trash table once, always, wrapped in `<Skeletonize>` (no horizontal/vertical
 // shift on load). While loading, the table renders fixed PLACEHOLDER rows (same
 // cell count/height) so an empty body never reads as "nothing trashed"; the
@@ -212,7 +213,7 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('trash.title', 'Trash')}
         description={t(
           'trash.description',
@@ -339,7 +340,6 @@ export function TrashPage({ organizationId }: Props) {
                           <TableCell className="text-right">
                             <Button
                               variant="secondary"
-                              size="sm"
                               icon={Undo2}
                               onClick={() =>
                                 onRequestRestore({
@@ -366,7 +366,12 @@ export function TrashPage({ organizationId }: Props) {
               while the first page loads), so revealing it never pushes the
               page. It only shows the real button once more pages exist. */}
               {(loading || hasMore) && (
-                <div className="border-border flex justify-center border-t p-2">
+                <Row
+                  gap={0}
+                  align="stretch"
+                  justify="center"
+                  className="border-border border-t p-2"
+                >
                   {loading ? (
                     <SkeletonBox>
                       <div className="h-8 w-24 rounded-md" />
@@ -374,7 +379,6 @@ export function TrashPage({ organizationId }: Props) {
                   ) : (
                     <Button
                       variant="ghost"
-                      size="sm"
                       disabled={isLoadingMore}
                       onClick={onLoadMore}
                     >
@@ -383,12 +387,12 @@ export function TrashPage({ organizationId }: Props) {
                         : t('trash.loadMore', 'Load more')}
                     </Button>
                   )}
-                </div>
+                </Row>
               )}
             </div>
           )}
         </Skeletonize>
-      </PageSection>
+      </SettingsSection>
 
       <ConfirmDialog
         open={restoreTarget !== null}

@@ -1,3 +1,4 @@
+import { Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { createFileRoute } from '@tanstack/react-router';
 
@@ -22,9 +23,9 @@ function SharedChatLayout() {
       <LayoutErrorBoundary organizationId={organizationId}>
         <SuspenseBoundary
           fallback={
-            <div className="flex h-full flex-col p-4 sm:p-6">
+            <Stack gap={0} className="h-full p-4 sm:p-6">
               <SkeletonText lines={3} />
-            </div>
+            </Stack>
           }
         >
           <SharedChatView

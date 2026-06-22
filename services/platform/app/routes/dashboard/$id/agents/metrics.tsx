@@ -90,7 +90,6 @@ function AgentsMetricsPage() {
                 if (next === 7 || next === 30 || next === 90)
                   handleChangePeriod(next);
               }}
-              size="sm"
             />
           </div>
         }

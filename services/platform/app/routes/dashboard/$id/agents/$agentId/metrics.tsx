@@ -1,9 +1,20 @@
 import { Badge } from '@tale/ui/badge';
-import { SectionHeader } from '@tale/ui/section-header';
+import { ChartCard } from '@tale/ui/chart-card';
+import { ChartLegend } from '@tale/ui/chart-legend';
+import { CHART_COLORS } from '@tale/ui/chart-theme';
+import { Stack } from '@tale/ui/layout';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import {
+  seriesToLegend,
+  TrendBarChart,
+  type ChartSeries,
+} from '@/app/components/metrics/charts';
+import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { api } from '@/convex/_generated/api';
@@ -48,7 +59,62 @@ interface ScorecardRun {
 
 interface ScorecardPayload {
   daily: ScorecardDay[];
+  /** Same shape as `daily` for the immediately-preceding window (deltas). */
+  previousDaily: ScorecardDay[];
   recentRuns: ScorecardRun[];
+}
+
+interface ScorecardTotals {
+  runsStarted: number;
+  runsFailed: number;
+  durationSum: number;
+  durationCount: number;
+  costCents: number;
+  tasksCompleted: number;
+  reviewsPassed: number;
+  reviewsChangesRequested: number;
+  escalations: number;
+}
+
+function reduceDaily(days: ScorecardDay[]): ScorecardTotals {
+  return days.reduce(
+    (acc, day) => ({
+      runsStarted: acc.runsStarted + day.runsStarted,
+      runsFailed: acc.runsFailed + day.runsFailed,
+      durationSum: acc.durationSum + day.runDurationSumMs,
+      durationCount: acc.durationCount + day.runDurationCount,
+      costCents: acc.costCents + day.costCents,
+      tasksCompleted: acc.tasksCompleted + day.tasksCompleted,
+      reviewsPassed: acc.reviewsPassed + day.reviewsPassed,
+      reviewsChangesRequested:
+        acc.reviewsChangesRequested + day.reviewsChangesRequested,
+      escalations: acc.escalations + day.escalations,
+    }),
+    {
+      runsStarted: 0,
+      runsFailed: 0,
+      durationSum: 0,
+      durationCount: 0,
+      costCents: 0,
+      tasksCompleted: 0,
+      reviewsPassed: 0,
+      reviewsChangesRequested: 0,
+      escalations: 0,
+    },
+  );
+}
+
+function passRateOf(t: ScorecardTotals): number | undefined {
+  const reviews = t.reviewsPassed + t.reviewsChangesRequested;
+  return reviews > 0
+    ? Math.round((t.reviewsPassed / reviews) * 100)
+    : undefined;
+}
+
+function avgRunSecondsOf(t: ScorecardTotals): number | undefined {
+  return t.durationCount > 0
+    ? Math.round(t.durationSum / t.durationCount / 1000)
+    : undefined;
 }
 
 function formatCents(cents: number): string {
@@ -83,140 +149,175 @@ function AgentMetricsTab() {
   // The query returns v.any(); the payload shape is owned by getAgentScorecard.
   const scorecard: ScorecardPayload | undefined = data ?? undefined;
 
-  const totals = (scorecard?.daily ?? []).reduce(
-    (acc, day) => ({
-      runsStarted: acc.runsStarted + day.runsStarted,
-      runsFailed: acc.runsFailed + day.runsFailed,
-      durationSum: acc.durationSum + day.runDurationSumMs,
-      durationCount: acc.durationCount + day.runDurationCount,
-      costCents: acc.costCents + day.costCents,
-      tasksCompleted: acc.tasksCompleted + day.tasksCompleted,
-      reviewsPassed: acc.reviewsPassed + day.reviewsPassed,
-      reviewsChangesRequested:
-        acc.reviewsChangesRequested + day.reviewsChangesRequested,
-      escalations: acc.escalations + day.escalations,
-    }),
-    {
-      runsStarted: 0,
-      runsFailed: 0,
-      durationSum: 0,
-      durationCount: 0,
-      costCents: 0,
-      tasksCompleted: 0,
-      reviewsPassed: 0,
-      reviewsChangesRequested: 0,
-      escalations: 0,
-    },
-  );
-  const reviews = totals.reviewsPassed + totals.reviewsChangesRequested;
-  const passRate =
-    reviews > 0
-      ? Math.round((totals.reviewsPassed / reviews) * 100)
-      : undefined;
-  const avgRunSeconds =
-    totals.durationCount > 0
-      ? Math.round(totals.durationSum / totals.durationCount / 1000)
-      : undefined;
+  const totals = reduceDaily(scorecard?.daily ?? []);
+  const prev = reduceDaily(scorecard?.previousDaily ?? []);
 
-  const stats: Array<{ label: string; value: string; detail?: string }> = [
+  const passRate = passRateOf(totals);
+  const prevPassRate = passRateOf(prev);
+  const avgRunSeconds = avgRunSecondsOf(totals);
+  const prevAvgRunSeconds = avgRunSecondsOf(prev);
+
+  const activityData = (scorecard?.daily ?? []).map((day) => ({
+    dateKey: day.dateKey,
+    completed: day.runsCompleted,
+    failed: day.runsFailed,
+  }));
+  const activitySeries: ChartSeries[] = [
     {
-      label: t('scorecard.tasksCompleted'),
-      value: String(totals.tasksCompleted),
-      detail: t('kpi.runs', {
-        started: totals.runsStarted,
-        failed: totals.runsFailed,
-      }),
+      key: 'completed',
+      label: t('scorecard.runsCompleted'),
+      color: CHART_COLORS.success,
+      stackId: 'runs',
     },
     {
-      label: t('scorecard.reviewOutcome'),
-      value: passRate !== undefined ? `${passRate}%` : '—',
-      detail: t('scorecard.reviewDetail', {
-        passed: totals.reviewsPassed,
-        changes: totals.reviewsChangesRequested,
-        escalations: totals.escalations,
-      }),
-    },
-    {
-      label: t('scorecard.avgRun'),
-      value: avgRunSeconds !== undefined ? `${avgRunSeconds}s` : '—',
-    },
-    {
-      label: t('scorecard.spend'),
-      value: formatCents(totals.costCents),
-      detail: t('kpi.costDetail', {
-        perTask:
-          totals.tasksCompleted > 0
-            ? formatCents(totals.costCents / totals.tasksCompleted)
-            : '0.00',
-      }),
+      key: 'failed',
+      label: t('scorecard.runsFailed'),
+      color: CHART_COLORS.failure,
+      stackId: 'runs',
     },
   ];
+  const noActivity = !(scorecard?.daily ?? []).some(
+    (day) => day.runsCompleted + day.runsFailed > 0,
+  );
 
   return (
     <ContentArea variant="narrow" gap={6}>
-      <SectionHeader
+      <MetricsLayout
         title={t('scorecard.title')}
         description={t('scorecard.subtitle')}
-      />
-
-      <section className="grid grid-cols-2 gap-3">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="border-border bg-card flex flex-col gap-1 rounded-lg border p-4"
+      >
+        <StatCardGrid cols={2}>
+          <StatCard
+            label={t('scorecard.tasksCompleted')}
+            value={String(totals.tasksCompleted)}
           >
-            <Text as="p" variant="muted" className="text-xs">
-              {stat.label}
-            </Text>
-            <Text as="p" className="text-2xl font-semibold tabular-nums">
-              {stat.value}
-            </Text>
-            {stat.detail && (
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.tasksCompleted}
+                previous={prev.tasksCompleted}
+              />
               <Text as="p" variant="muted" className="text-xs">
-                {stat.detail}
+                {t('kpi.runs', {
+                  started: totals.runsStarted,
+                  failed: totals.runsFailed,
+                })}
               </Text>
-            )}
-          </div>
-        ))}
-      </section>
+            </Stack>
+          </StatCard>
 
-      <section className="flex flex-col gap-2">
-        <Text as="h3" variant="label">
-          {t('scorecard.recentRuns')}
-        </Text>
-        {(scorecard?.recentRuns.length ?? 0) === 0 ? (
-          <Text as="p" variant="muted" className="text-sm italic">
-            {t('scorecard.noRuns')}
-          </Text>
-        ) : (
-          <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-            {scorecard?.recentRuns.map((run) => (
-              <li
-                key={run.runId}
-                className="flex items-center gap-2 px-2.5 py-2 text-sm"
-              >
-                <Badge
-                  variant="outline"
-                  className={cn('text-[10px]', STATUS_COLOR[run.status])}
-                >
-                  {tTasks(`agentRuns.status.${run.status}`)}
-                </Badge>
-                <span className="text-muted-foreground min-w-0 flex-1 truncate">
-                  {tTasks(`agentRuns.trigger.${run.trigger}`)}
-                  {run.error ? ` · ${run.error}` : ''}
-                </span>
-                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                  {run.durationMs !== undefined
-                    ? `${Math.round(run.durationMs / 1000)}s · `
-                    : ''}
-                  {run.costCents > 0 ? `${formatCents(run.costCents)} · ` : ''}
-                  {formatRelative(new Date(run.startedAt))}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <StatCard
+            label={t('scorecard.reviewOutcome')}
+            value={passRate !== undefined ? `${passRate}%` : '—'}
+          >
+            <Stack gap={1} className="mt-0.5">
+              {passRate !== undefined ? (
+                <TrendIndicator value={passRate} previous={prevPassRate} />
+              ) : null}
+              <Text as="p" variant="muted" className="text-xs">
+                {t('scorecard.reviewDetail', {
+                  passed: totals.reviewsPassed,
+                  changes: totals.reviewsChangesRequested,
+                  escalations: totals.escalations,
+                })}
+              </Text>
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('scorecard.avgRun')}
+            value={avgRunSeconds !== undefined ? `${avgRunSeconds}s` : '—'}
+          >
+            {avgRunSeconds !== undefined ? (
+              <div className="mt-0.5">
+                <TrendIndicator
+                  value={avgRunSeconds}
+                  previous={prevAvgRunSeconds}
+                  inverted
+                />
+              </div>
+            ) : null}
+          </StatCard>
+
+          <StatCard
+            label={t('scorecard.spend')}
+            value={formatCents(totals.costCents)}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.costCents}
+                previous={prev.costCents}
+                inverted
+              />
+              <Text as="p" variant="muted" className="text-xs">
+                {t('kpi.costDetail', {
+                  perTask:
+                    totals.tasksCompleted > 0
+                      ? formatCents(totals.costCents / totals.tasksCompleted)
+                      : '0.00',
+                })}
+              </Text>
+            </Stack>
+          </StatCard>
+        </StatCardGrid>
+
+        {/* Only render the activity chart when there's activity — a zero-run
+            agent is communicated by the "no runs" recent-runs empty state, so an
+            empty chart placeholder would just duplicate that message. */}
+        {noActivity ? null : (
+          <ChartCard
+            title={t('trend.title')}
+            bodyClassName="h-44"
+            legend={<ChartLegend items={seriesToLegend(activitySeries)} />}
+          >
+            <TrendBarChart
+              data={activityData}
+              series={activitySeries}
+              xKey="dateKey"
+              xTickFormatter={(key) => key.slice(5)}
+            />
+          </ChartCard>
         )}
-      </section>
+
+        <Stack as="section" gap={2}>
+          <Text as="h3" variant="label">
+            {t('scorecard.recentRuns')}
+          </Text>
+          {(scorecard?.recentRuns.length ?? 0) === 0 ? (
+            <Text as="p" variant="muted" className="text-sm italic">
+              {t('scorecard.noRuns')}
+            </Text>
+          ) : (
+            <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+              {scorecard?.recentRuns.map((run) => (
+                <li
+                  key={run.runId}
+                  className="flex items-center gap-2 px-2.5 py-2 text-sm"
+                >
+                  <Badge
+                    variant="outline"
+                    className={cn('text-[10px]', STATUS_COLOR[run.status])}
+                  >
+                    {tTasks(`agentRuns.status.${run.status}`)}
+                  </Badge>
+                  <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                    {tTasks(`agentRuns.trigger.${run.trigger}`)}
+                    {run.error ? ` · ${run.error}` : ''}
+                  </span>
+                  <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                    {run.durationMs !== undefined
+                      ? `${Math.round(run.durationMs / 1000)}s · `
+                      : ''}
+                    {run.costCents > 0
+                      ? `${formatCents(run.costCents)} · `
+                      : ''}
+                    {formatRelative(new Date(run.startedAt))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Stack>
+      </MetricsLayout>
     </ContentArea>
   );
 }

@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { Row } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
@@ -45,7 +46,7 @@ interface DocumentEntry {
 
 function DocumentRow({ doc }: { doc: DocumentEntry }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <Row gap={3} className="px-4 py-3">
       <FileText
         className="text-muted-foreground size-4 shrink-0"
         aria-hidden="true"
@@ -64,7 +65,7 @@ function DocumentRow({ doc }: { doc: DocumentEntry }) {
         error={doc.ragError}
         documentId={doc.id}
       />
-    </div>
+    </Row>
   );
 }
 
@@ -81,7 +82,7 @@ function AgentFileRow({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <Row gap={3} className="px-4 py-3">
       <FileText
         className="text-muted-foreground size-4 shrink-0"
         aria-hidden="true"
@@ -106,7 +107,7 @@ function AgentFileRow({
             variant="ghost"
             size="icon"
             onClick={() => setConfirmOpen(true)}
-            aria-label={t('agents.knowledge.removeFile')}
+            title={t('agents.knowledge.removeFile')}
           >
             <Trash2 className="text-muted-foreground size-4" />
           </Button>
@@ -123,7 +124,7 @@ function AgentFileRow({
           />
         </>
       )}
-    </div>
+    </Row>
   );
 }
 

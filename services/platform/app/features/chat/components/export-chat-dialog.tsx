@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Download, FileText } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -245,10 +246,9 @@ function ExportChatDialogContent({
       icon={<Download className="text-muted-foreground size-5" />}
       size="lg"
       footer={
-        <div className="flex gap-2">
+        <Row gap={2} align="stretch">
           <Button
             variant="secondary"
-            size="sm"
             onClick={handleExportMarkdown}
             disabled={noneSelected}
             className="gap-1.5"
@@ -258,7 +258,6 @@ function ExportChatDialogContent({
           </Button>
           <Button
             variant="primary"
-            size="sm"
             onClick={handleExportPdf}
             disabled={noneSelected}
             className="gap-1.5"
@@ -266,26 +265,21 @@ function ExportChatDialogContent({
             <FileText className="size-3.5" />
             {t('export.downloadPdf')}
           </Button>
-        </div>
+        </Row>
       }
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+      <Stack gap={3}>
+        <Row gap={0} justify="between">
           <Text variant="label" className="text-sm">
             {t('export.messagesCount', {
               count: effectiveSelected.size,
               total: messages.length,
             })}
           </Text>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleAll}
-            className="text-xs"
-          >
+          <Button variant="ghost" onClick={handleToggleAll} className="text-xs">
             {allSelected ? t('export.deselectAll') : t('export.selectAll')}
           </Button>
-        </div>
+        </Row>
 
         <div className="border-border max-h-80 overflow-y-auto rounded-lg border">
           {messages.map((msg) => (
@@ -324,7 +318,7 @@ function ExportChatDialogContent({
             </div>
           )}
         </div>
-      </div>
+      </Stack>
     </Dialog>
   );
 }

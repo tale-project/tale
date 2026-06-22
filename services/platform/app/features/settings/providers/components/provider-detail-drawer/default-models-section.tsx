@@ -52,7 +52,6 @@ export function DefaultModelsSection({
           </Stack>
           <Button
             variant="ghost"
-            size="sm"
             className="ml-auto"
             onClick={() => setPanelOpen(true)}
           >
@@ -60,7 +59,7 @@ export function DefaultModelsSection({
             {t('providers.editDefaults')}
           </Button>
         </HStack>
-        <Card contentClassName="p-0">
+        <Card padding="none">
           <InfoRow label={t('providers.tagChat')}>
             <SkeletonBox>{modelDisplayName(config.defaults?.chat)}</SkeletonBox>
           </InfoRow>

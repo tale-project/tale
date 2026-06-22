@@ -33,6 +33,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -308,7 +309,7 @@ function CustomInstructionsToggleSection({
           toast({ title: t('toasts.preferencesUpdated') });
         } catch (err) {
           toast({
-            title: errorMessage(err, t('errors.saveFailed')),
+            title: convexErrorMessage(err, t('errors.saveFailed')),
             variant: 'destructive',
           });
         }
@@ -347,7 +348,7 @@ function MemoriesToggleSection({
           toast({ title: t('toasts.preferencesUpdated') });
         } catch (err) {
           toast({
-            title: errorMessage(err, t('errors.saveFailed')),
+            title: convexErrorMessage(err, t('errors.saveFailed')),
             variant: 'destructive',
           });
         }
@@ -397,7 +398,7 @@ function CustomInstructionsSection({
         toast({ title: t('toasts.saved') });
       } catch (err) {
         toast({
-          title: errorMessage(err, t('errors.saveFailed')),
+          title: convexErrorMessage(err, t('errors.saveFailed')),
           variant: 'destructive',
         });
         throw err;
@@ -554,7 +555,7 @@ function VoiceOutputSection({
           }
         } catch (err) {
           toast({
-            title: errorMessage(err, t('errors.saveFailed')),
+            title: convexErrorMessage(err, t('errors.saveFailed')),
             variant: 'destructive',
           });
         }
@@ -622,7 +623,7 @@ function SavedMemoriesSection({
                     toast({ title: t('toasts.deleted') });
                   } catch (err) {
                     toast({
-                      title: errorMessage(err, t('errors.saveFailed')),
+                      title: convexErrorMessage(err, t('errors.saveFailed')),
                       variant: 'destructive',
                     });
                   }
@@ -664,7 +665,6 @@ function PendingMemoriesSection({
             <li key={m._id} className="flex items-start gap-3 py-2">
               <Text className="flex-1">{m.content}</Text>
               <Button
-                size="sm"
                 variant="primary"
                 onClick={async () => {
                   try {
@@ -672,7 +672,7 @@ function PendingMemoriesSection({
                     toast({ title: t('toasts.saved') });
                   } catch (err) {
                     toast({
-                      title: errorMessage(err, t('errors.saveFailed')),
+                      title: convexErrorMessage(err, t('errors.saveFailed')),
                       variant: 'destructive',
                     });
                   }
@@ -681,7 +681,6 @@ function PendingMemoriesSection({
                 {t('card.save')}
               </Button>
               <Button
-                size="sm"
                 variant="ghost"
                 onClick={async () => {
                   try {
@@ -689,7 +688,7 @@ function PendingMemoriesSection({
                     toast({ title: t('toasts.discarded') });
                   } catch (err) {
                     toast({
-                      title: errorMessage(err, t('errors.saveFailed')),
+                      title: convexErrorMessage(err, t('errors.saveFailed')),
                       variant: 'destructive',
                     });
                   }
@@ -703,19 +702,4 @@ function PendingMemoriesSection({
       )}
     </SettingsSection>
   );
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ConvexError) {
-    const data: unknown = err.data;
-    if (
-      data !== null &&
-      typeof data === 'object' &&
-      'message' in data &&
-      typeof data.message === 'string'
-    ) {
-      return data.message;
-    }
-  }
-  return fallback;
 }

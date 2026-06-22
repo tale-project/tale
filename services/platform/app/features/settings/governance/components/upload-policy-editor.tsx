@@ -1,7 +1,6 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -9,6 +8,7 @@ import { z } from 'zod';
 import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -16,8 +16,8 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import {
@@ -39,12 +39,9 @@ interface UploadPolicyForm {
 
 const FORM_ID = 'governance-upload-policy-form';
 
-function parseConfig(raw: unknown): UploadPolicyConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = uploadPolicyConfigSchema.safeParse(obj);
-  if (result.success) return result.data;
-  return { enabled: false };
-}
+const parseConfig = createConfigParser(uploadPolicyConfigSchema, () => ({
+  enabled: false,
+}));
 
 function extensionsToString(exts?: string[]): string {
   return exts?.join(', ') ?? '';
@@ -84,7 +81,7 @@ function buildConfig(
 // =============================================================================
 // Single editor — owns data fetching, the form controller, the enable toggle
 // state, save/toast wiring, and the loading state. Renders the REAL
-// `PageSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
+// `SettingsSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
 // `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
 // loaded layouts are the SAME tree.
 // =============================================================================
@@ -236,7 +233,7 @@ export function UploadPolicyEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('uploadPolicy.title')}
         description={t('uploadPolicy.description')}
         action={
@@ -257,36 +254,32 @@ export function UploadPolicyEditor({
             >
               <Stack gap={6} className="max-w-2xl">
                 <Stack gap={4}>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Grid md={2}>
                     <Input
                       label={t('uploadPolicy.allowedExtensions')}
                       placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      size="sm"
                       errorMessage={errors.allowedExtensions?.message}
                       {...register('allowedExtensions')}
                     />
                     <Input
                       label={t('uploadPolicy.blockedExtensions')}
                       placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      size="sm"
                       errorMessage={errors.blockedExtensions?.message}
                       {...register('blockedExtensions')}
                     />
-                  </div>
+                  </Grid>
 
                   <Input
                     label={t('uploadPolicy.allowedMimeTypes')}
                     placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-                    size="sm"
                     errorMessage={errors.allowedMimeTypes?.message}
                     {...register('allowedMimeTypes')}
                   />
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Grid md={2}>
                     <Input
                       label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
                       type="number"
-                      size="sm"
                       min={0}
                       step={1}
                       errorMessage={errors.maxFileSizeMB?.message}
@@ -295,13 +288,12 @@ export function UploadPolicyEditor({
                     <Input
                       label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
                       type="number"
-                      size="sm"
                       min={0}
                       step={0.1}
                       errorMessage={errors.maxVolumeGB?.message}
                       {...register('maxVolumeGB')}
                     />
-                  </div>
+                  </Grid>
                 </Stack>
 
                 <HStack justify="end">
@@ -310,13 +302,14 @@ export function UploadPolicyEditor({
                     formId={FORM_ID}
                     canEdit={canManage}
                     entityKind="governance_upload_policy"
+                    suppressServerErrorToast
                   />
                 </HStack>
               </Stack>
             </fieldset>
           </form>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

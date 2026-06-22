@@ -1,7 +1,7 @@
 'use client';
 
 import { EmptyState } from '@tale/ui/empty-state';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -36,9 +36,13 @@ export function SharePointSitesTable({
           const site = row.original;
           return (
             <HStack gap={3}>
-              <div className="flex size-8 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-900/30">
+              <Row
+                gap={0}
+                justify="center"
+                className="size-8 rounded-md bg-teal-100 dark:bg-teal-900/30"
+              >
                 <SharePointIcon className="size-5" />
-              </div>
+              </Row>
               <div className="min-w-0 flex-1">
                 <div className="text-foreground cursor-pointer truncate font-medium hover:text-blue-600">
                   {site.displayName}

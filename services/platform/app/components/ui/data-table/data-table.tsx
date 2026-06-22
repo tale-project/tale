@@ -28,7 +28,7 @@ import {
   type RowSelectionState,
   type OnChangeFn,
 } from '@tanstack/react-table';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
 import {
   Fragment,
   useState,
@@ -53,6 +53,10 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import {
+  DataTableActionMenu,
+  type DataTableActionMenuItem,
+} from './data-table-action-menu';
 import {
   DataTableEmptyState,
   type DataTableEmptyStateProps,
@@ -102,6 +106,29 @@ interface ColumnMeta {
    * to drop low-priority columns on small screens.
    */
   className?: string;
+}
+
+/**
+ * The single primary "create" affordance for a collection. Rendered in the
+ * header at a fixed size + placement AND synthesized into the empty-state CTA,
+ * so the add-item button is declared once and never drifts between the toolbar
+ * and the empty state. Prefer this over the raw `actionMenu` slot.
+ */
+export interface DataTableAddAction {
+  /** Button label, e.g. "New customer". */
+  label: string;
+  /** Optional leading icon. */
+  icon?: LucideIcon;
+  /** Click handler (e.g. open a create dialog). Required for the empty-state CTA. */
+  onClick?: () => void;
+  /** Navigate instead of handling a click (renders a link). */
+  href?: string;
+  /** Render a dropdown of create options instead of a single button. */
+  menuItems?: DataTableActionMenuItem[];
+  /** Disable the action (e.g. lacking write permission). */
+  disabled?: boolean;
+  /** Button variant (default `primary`). */
+  variant?: 'primary' | 'secondary' | 'ghost';
 }
 
 export interface DataTableProps<TData, TValue = unknown> {
@@ -197,7 +224,16 @@ export interface DataTableProps<TData, TValue = unknown> {
   isFiltersLoading?: boolean;
   /** Callback to clear all filters */
   onClearFilters?: () => void;
-  /** Header action menu element (use DataTableActionMenu component) */
+  /**
+   * The primary create affordance. DataTable renders it in the header at a
+   * fixed size + placement and reuses it as the empty-state CTA. Preferred over
+   * the raw `actionMenu` slot, which exists only for bespoke header content.
+   */
+  addAction?: DataTableAddAction;
+  /**
+   * Escape hatch for bespoke header content. For the standard "Add X" button,
+   * use `addAction` instead so size/placement stay consistent across lists.
+   */
   actionMenu?: ReactNode;
   /**
    * Extra content rendered inside the filter bar (left side, alongside the
@@ -254,6 +290,7 @@ export function DataTable<TData, TValue = unknown>({
   dateRange,
   isFiltersLoading = false,
   onClearFilters,
+  addAction,
   actionMenu,
   filtersContent,
   footer,
@@ -457,12 +494,33 @@ export function DataTable<TData, TValue = unknown>({
     );
   }
 
+  // The primary "Add X" affordance. The explicit `actionMenu` slot wins (bespoke
+  // header content); otherwise `addAction` renders at the default (h-9) size and
+  // the standard right-aligned placement so every list's add button looks the
+  // same — and lines up with the h-9 search/filter controls in the same toolbar.
+  const primaryAction =
+    actionMenu ??
+    (addAction ? (
+      <DataTableActionMenu
+        label={addAction.label}
+        icon={addAction.icon}
+        onClick={addAction.onClick}
+        href={addAction.href}
+        menuItems={addAction.menuItems}
+        disabled={addAction.disabled}
+        variant={addAction.variant ?? 'primary'}
+      />
+    ) : null);
+
+  // Empty states are intentionally button-less (icon + title + description only):
+  // the create affordance lives in the table header, not the empty body.
+
   // Determine if we should render header
   const hasHeader =
     search ||
     (filters && filters.length > 0) ||
     dateRange ||
-    actionMenu ||
+    primaryAction ||
     filtersContent;
 
   // Build the header content
@@ -480,7 +538,7 @@ export function DataTable<TData, TValue = unknown>({
       >
         {filtersContent}
       </DataTableFilters>
-      {actionMenu}
+      {primaryAction}
     </div>
   ) : null;
 
@@ -847,7 +905,6 @@ export function DataTable<TData, TValue = unknown>({
                     icon={emptyState?.icon}
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
-                    action={emptyState?.action}
                   />
                 </div>
               </TableCell>

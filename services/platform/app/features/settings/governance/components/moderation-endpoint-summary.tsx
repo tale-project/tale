@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Pencil } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,9 +24,13 @@ export function EndpointSummary({
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   return (
-    <div className="border-border flex items-start justify-between gap-4 rounded-lg border p-4">
+    <Row
+      align="start"
+      justify="between"
+      className="border-border rounded-lg border p-4"
+    >
       <dl className="min-w-0 flex-1 space-y-1 text-sm">
-        <div className="flex gap-2">
+        <Row gap={2} align="stretch">
           <dt className="text-muted-foreground w-36 shrink-0">
             {t('moderationProvider.endpointUrlLabel')}
           </dt>
@@ -36,31 +41,30 @@ export function EndpointSummary({
               </span>
             )}
           </dd>
-        </div>
-        <div className="flex gap-2">
+        </Row>
+        <Row gap={2} align="stretch">
           <dt className="text-muted-foreground w-36 shrink-0">
             {t('moderationProvider.endpointHeadersLabel')}
           </dt>
           <dd>{headersCount}</dd>
-        </div>
-        <div className="flex gap-2">
+        </Row>
+        <Row gap={2} align="stretch">
           <dt className="text-muted-foreground w-36 shrink-0">
             {t('moderationProvider.endpointTimeoutLabel')}
           </dt>
           <dd>
             {t('moderationProvider.endpointTimeoutValue', { ms: timeoutMs })}
           </dd>
-        </div>
+        </Row>
       </dl>
       <Button
         variant="secondary"
-        size="sm"
         icon={Pencil}
         disabled={disabled}
         onClick={onEdit}
       >
         {tCommon('actions.edit')}
       </Button>
-    </div>
+    </Row>
   );
 }

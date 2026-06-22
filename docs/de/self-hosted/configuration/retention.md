@@ -37,6 +37,8 @@ Unter dem Org-first-Layout sind Retention-Grenzen **pro Org**: editiere `retenti
 
 Der Plattform-Container beobachtet die Datei; Änderungen schlagen ein Grenzen-Update für jede bestehende Org vor. Admins sehen den Vorschlag in ihrem **Retention-Policy**-Bildschirm und wenden ihn selbst an. Der Vorschlagen-dann-anwenden-Schritt ist Absicht: Eine Untergrenze anzuziehen kürzt Historie, was eine destruktive Aktion ist, die kein Operator stillschweigend bei jeder Mandantin landen sollte.
 
+Die vom Admin gewählten Aufbewahrungsfenster liegen in einer separaten Datei, `retention-policy.json`, neben den Grenzen im selben `governance/`-Ordner. Sie enthält flache Felder `<Kategorie>Enabled` / `<Kategorie>RetentionDays` (z. B. `"auditLogEnabled": true, "auditLogRetentionDays": 730`), nicht die `min`/`max`-Grenzen. Diese Datei schreibt **Einstellungen > Governance > Retention-Policy** in der App, Admins bearbeiten sie also normalerweise nie von Hand — halte sie getrennt von der vom Operator verwalteten Grenzen-Datei.
+
 ## Der Retention-Sweep
 
 Ein geplanter Cron in `tale-convex` läuft die tatsächliche Löschung. Jede Kategorie wird unabhängig gesweept — ein langsamer Lauf einer blockiert die anderen nicht. Löschungen sind audited (jede Kategorie hat ihr eigenes `*.retention_deleted`-Event), und eine Entität in ihrem Gnaden-Fenster wiederherzustellen ist von **Papierkorb** möglich, bevor der finale Sweep läuft.

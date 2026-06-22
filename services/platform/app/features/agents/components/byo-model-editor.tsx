@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -99,7 +100,7 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
           </code>
         )}
       />
-      <div className="flex items-start gap-2">
+      <Row gap={2} align="start">
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -124,7 +125,7 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
         >
           {t('agents.form.addModel')}
         </Button>
-      </div>
+      </Row>
     </div>
   );
 }

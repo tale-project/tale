@@ -1,6 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { FullPageCenter } from '@tale/ui/full-page-center';
-import { VStack } from '@tale/ui/layout';
+import { Row, Stack, VStack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
@@ -293,12 +293,12 @@ function DashboardLayout() {
                     vertically centers the title and profile button so neither
                     sits high/low in the bar on notch devices. */}
                 <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
-                  <div className="flex min-h-12 items-center gap-2">
+                  <Row gap={2} className="min-h-12">
                     <div className="min-w-0 flex-1">
                       <AdaptiveHeaderSlot />
                     </div>
                     <UserButton align="end" />
-                  </div>
+                  </Row>
                 </header>
 
                 <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
@@ -309,9 +309,11 @@ function DashboardLayout() {
                   )}
                 </div>
 
-                <main
+                <Stack
                   id="main-content"
-                  className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l"
+                  as="main"
+                  gap={0}
+                  className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
                 >
                   {hasRole && (
                     <TwoFactorGraceBanner organizationId={organizationId} />
@@ -339,7 +341,7 @@ function DashboardLayout() {
                       <Outlet />
                     )
                   ) : null}
-                </main>
+                </Stack>
                 {hasRole && <MobileBottomNav organizationId={organizationId} />}
               </div>
             </AdaptiveHeaderProvider>
@@ -355,11 +357,11 @@ function DashboardLayout() {
 // list and the pinned footer buttons so the rail reads as a populated nav.
 function NavIconSkeleton() {
   return (
-    <div className="flex items-center justify-center rounded-lg p-2">
+    <Row gap={0} justify="center" className="rounded-lg p-2">
       <SkeletonBox>
         <div className="size-5" />
       </SkeletonBox>
-    </div>
+    </Row>
   );
 }
 
@@ -378,14 +380,14 @@ const PLACEHOLDER_NAV_ITEMS = 7;
 function NavRailPlaceholder() {
   return (
     <Skeletonize loading>
-      <div className="border-border flex h-full flex-col">
-        <div className="flex flex-shrink-0 items-center justify-center py-3">
-          <div className="flex size-8 items-center justify-center">
+      <Stack gap={0} className="border-border h-full">
+        <Row gap={0} justify="center" className="flex-shrink-0 py-3">
+          <Row gap={0} justify="center" className="size-8">
             <SkeletonBox>
               <div className="size-5" />
             </SkeletonBox>
-          </div>
-        </div>
+          </Row>
+        </Row>
         <div className="mx-1 min-h-0 flex-1 overflow-y-auto py-4">
           <div className="space-y-2">
             {Array.from({ length: PLACEHOLDER_NAV_ITEMS }, (_, i) => (
@@ -394,17 +396,17 @@ function NavRailPlaceholder() {
             ))}
           </div>
         </div>
-        <div className="flex flex-shrink-0 flex-col items-center gap-2 py-3">
+        <Stack gap={2} align="center" className="flex-shrink-0 py-3">
           {/* Notification bell */}
           <NavIconSkeleton />
           {/* UserButton avatar */}
-          <div className="flex items-center justify-center rounded-lg p-2">
+          <Row gap={0} justify="center" className="rounded-lg p-2">
             <SkeletonCircle>
               <div className="size-5" />
             </SkeletonCircle>
-          </div>
-        </div>
-      </div>
+          </Row>
+        </Stack>
+      </Stack>
     </Skeletonize>
   );
 }
@@ -423,25 +425,25 @@ export function DashboardShellFrame() {
           DashboardLayout header geometry above (px-4, min-h-12). */}
       <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
         <Skeletonize loading>
-          <div className="flex min-h-12 items-center gap-2">
+          <Row gap={2} className="min-h-12">
             {/* Leading action icons (chat history / search / new chat). */}
-            <div className="flex flex-1 justify-start">
+            <Row gap={0} align="stretch" className="flex-1">
               {Array.from({ length: 3 }, (_, i) => (
                 // eslint-disable-next-line react/no-array-index-key
-                <div key={i} className="flex items-center justify-center p-2">
+                <Row key={i} gap={0} justify="center" className="p-2">
                   <SkeletonBox>
                     <div className="size-5" />
                   </SkeletonBox>
-                </div>
+                </Row>
               ))}
-            </div>
+            </Row>
             {/* Trailing account avatar (UserButton). */}
-            <div className="flex items-center justify-center p-2">
+            <Row gap={0} justify="center" className="p-2">
               <SkeletonCircle>
                 <div className="size-5" />
               </SkeletonCircle>
-            </div>
-          </div>
+            </Row>
+          </Row>
         </Skeletonize>
       </div>
 
@@ -450,10 +452,18 @@ export function DashboardShellFrame() {
         <NavRailPlaceholder />
       </div>
 
-      <main className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l" />
+      <Stack
+        as="main"
+        gap={0}
+        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+      />
 
       {/* Mobile bottom-nav placeholder */}
-      <div className="bg-background border-border flex min-h-12 border-t pb-(--safe-bottom) md:hidden" />
+      <Row
+        gap={0}
+        align="stretch"
+        className="bg-background border-border min-h-12 border-t pb-(--safe-bottom) md:hidden"
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
-import { Center, HStack } from '@tale/ui/layout';
+import { Center, HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -206,7 +206,7 @@ const ConversationRow = memo(function ConversationRow({
         className="absolute inset-0 z-0"
       />
       <div className="pointer-events-none relative z-10 flex items-start gap-2.5">
-        <div className="pointer-events-auto mt-0.5 flex items-center">
+        <Row gap={0} className="pointer-events-auto mt-0.5">
           <SkeletonBox>
             <Checkbox
               checked={isChecked}
@@ -214,10 +214,10 @@ const ConversationRow = memo(function ConversationRow({
               aria-label={tDialogs ? tDialogs('selectConversation') : ''}
             />
           </SkeletonBox>
-        </div>
+        </Row>
 
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center justify-between gap-2">
+          <Row gap={2} justify="between" className="mb-1">
             <div className="flex min-w-0 items-center gap-1.5">
               <Heading
                 level={3}
@@ -254,7 +254,7 @@ const ConversationRow = memo(function ConversationRow({
                   : '5m ago'}
               </SkeletonBox>
             </Text>
-          </div>
+          </Row>
 
           <Text variant="muted" truncate className="mb-1.5 tracking-tight">
             {conversation ? (
@@ -406,10 +406,15 @@ export function ConversationsList({
       {isEmpty ? (
         // Centered in the available space, no row dividers/border — it's a
         // message, not a row, so it shouldn't read as a boxed-off list item.
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
+        <Stack
+          gap={0}
+          align="center"
+          justify="center"
+          className="flex-1 px-4 py-16 text-center"
+        >
           <Inbox className="text-muted-foreground/60 mb-3 size-6" />
           <Text variant="muted">{t('list.empty')}</Text>
-        </div>
+        </Stack>
       ) : (
         <div className="divide-border divide-y border-b">
           <>

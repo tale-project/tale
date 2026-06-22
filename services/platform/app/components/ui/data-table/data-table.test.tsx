@@ -308,3 +308,58 @@ describe('DataTable loading states', () => {
     });
   });
 });
+
+describe('DataTable addAction contract', () => {
+  it('renders the add button in the header at the default (h-9) size', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        addAction={{ label: 'New customer', onClick: vi.fn() }}
+      />,
+    );
+
+    const btn = screen.getByRole('button', { name: 'New customer' });
+    expect(btn).toBeInTheDocument();
+    // Default (h-9) size: the create action aligns with the h-9 search/filter
+    // controls in the toolbar and matches the empty-state CTA — never `sm`.
+    expect(btn).toHaveClass('h-9');
+    expect(btn).not.toHaveClass('text-xs');
+  });
+
+  it('keeps the empty state button-less — only the header create button renders', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={0}
+        emptyState={{ title: 'No customers' }}
+        addAction={{ label: 'New customer', onClick: vi.fn() }}
+      />,
+    );
+
+    // The create affordance lives ONLY in the header; the empty body has no CTA.
+    expect(
+      screen.getAllByRole('button', { name: 'New customer' }),
+    ).toHaveLength(1);
+    expect(screen.getByText('No customers')).toBeInTheDocument();
+  });
+
+  it('prefers an explicit actionMenu over addAction', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        actionMenu={<button>Bespoke</button>}
+        addAction={{ label: 'New customer', onClick: vi.fn() }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Bespoke' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'New customer' }),
+    ).not.toBeInTheDocument();
+  });
+});

@@ -27,14 +27,14 @@ Die Direktive zählt, weil jeder Editor unter Last Schema-Reads überspringt, so
 
 ## Was wo liegt
 
-| Pfad                               | Was es ist                                                                           |
-| ---------------------------------- | ------------------------------------------------------------------------------------ |
-| `agents/`                          | Eine JSON-Datei pro Agent — Anweisungen, Wissen, Tools, Modell.                      |
-| `workflows/`                       | Workflow-JSON-Configs, gruppiert nach Kategorie-Unterverzeichnis.                    |
-| `integrations/<slug>/config.json`  | Integration-Manifest — Operations, Auth-Methode, erlaubte Hosts.                     |
-| `integrations/<slug>/connector.ts` | Optionaler TypeScript-Connector für REST-Formen, die das Manifest nicht abdeckt.     |
-| `branding/branding.json`           | Org-Branding — Farben, Logos, E-Mail-Absender.                                       |
-| `.tale/reference/`                 | Schreibgeschützter Schema-Spiegel; neu erzeugt durch `tale init` und `tale upgrade`. |
+| Pfad                               | Was es ist                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| `agents/`                          | Eine JSON-Datei pro Agent — Anweisungen, Wissen, Tools, Modell.                     |
+| `workflows/`                       | Workflow-JSON-Configs, gruppiert nach Kategorie-Unterverzeichnis.                   |
+| `integrations/<slug>/config.json`  | Integration-Manifest — Operations, Auth-Methode, erlaubte Hosts.                    |
+| `integrations/<slug>/connector.ts` | Optionaler TypeScript-Connector für REST-Formen, die das Manifest nicht abdeckt.    |
+| `branding/branding.json`           | Org-Branding — Farben, Logos, E-Mail-Absender.                                      |
+| `.tale/reference/`                 | Schreibgeschützter Schema-Spiegel; neu erzeugt durch `tale init` und `tale update`. |
 
 Der Reference-Baum ist byte-identisch zu den Schemas, gegen die die Plattform beim Deploy validiert. Behandle ihn als kanonisch: wenn ein Feldname in einer handgeschriebenen Config dem Reference widerspricht, gewinnt das Reference.
 
@@ -46,7 +46,7 @@ Die Rules-Datei nennt drei Regeln, die jeder Editor beim Bearbeiten durchsetzt:
 - **Workflows nutzen Integration-Operations.** Ein Workflow-Schritt referenziert Integration-Operations, die in `integrations/<slug>/config.json` deklariert sind. Ein Schritt gegen eine nicht-existente Operation zu bearbeiten, lässt die Validierung scheitern.
 - **Benennung ist erzwungen.** Agent-Dateinamen matchen `[a-z0-9][a-z0-9_-]*\.json`. Workflow-Step-Slugs matchen `[a-z0-9][a-z0-9_-]*`. Integration-Verzeichnisse sind kleingeschrieben alphanumerisch mit Bindestrichen oder Unterstrichen.
 
-Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/reference/` er zugrunde gelegt hat. Wenn er das nicht kann, erzeug den Spiegel mit `tale upgrade` neu und versuch es nochmal.
+Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/reference/` er zugrunde gelegt hat. Wenn er das nicht kann, erzeug den Spiegel mit `tale update` neu und versuch es nochmal.
 
 ## Wo das hingehört
 

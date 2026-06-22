@@ -1,7 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { ArrowUpRight, Boxes, Plug } from 'lucide-react';
 
-import { Card } from './card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardGrid,
+  CardHeader,
+  CardMedia,
+  CardTitle,
+} from './card';
 
 const meta: Meta<typeof Card> = {
   title: 'Layout/Card',
@@ -12,14 +23,19 @@ const meta: Meta<typeof Card> = {
     docs: {
       description: {
         component: `
-A single-piece card component for grouping related content.
+The one bordered surface primitive. Compose it with the \`Card*\` subcomponents and
+drive its look with \`padding\` / \`radius\` / \`shadow\` / \`interactive\`. Use \`asChild\`
+to turn the card into a \`<button>\`, \`<a>\`, or router \`<Link>\`.
 
-## Usage
 \`\`\`tsx
-import { Card } from '@/app/components/ui/layout/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@tale/ui/card';
 
-<Card title="Card Title" description="Card description">
-  Content goes here
+<Card>
+  <CardHeader>
+    <CardTitle>Title</CardTitle>
+    <CardDescription>Description</CardDescription>
+  </CardHeader>
+  <CardContent>Body</CardContent>
 </Card>
 \`\`\`
         `,
@@ -38,84 +54,152 @@ import { Card } from '@/app/components/ui/layout/card';
 export default meta;
 type Story = StoryObj<typeof Card>;
 
-export const Default: Story = {
-  args: {
-    title: 'Card title',
-    description: 'This is a description of the card content.',
-    children: <p>Card content goes here. This can be any content you want.</p>,
-  },
-};
-
-export const WithFooter: Story = {
-  args: {
-    title: 'Create project',
-    description: 'Deploy your new project in one-click.',
-    footer: (
-      <div className="flex gap-2">
+/** The classic composed card: header (title + description), content, footer. */
+export const Basic: Story = {
+  render: () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create project</CardTitle>
+        <CardDescription>Deploy your new project in one click.</CardDescription>
+      </CardHeader>
+      <CardContent className="text-fg-muted mt-4 text-sm">
+        Your project will be deployed to our cloud infrastructure.
+      </CardContent>
+      <CardFooter className="mt-6 justify-end">
         <Button variant="secondary">Cancel</Button>
         <Button>Deploy</Button>
-      </div>
-    ),
-    children: (
-      <p className="text-muted-foreground text-sm">
-        Your project will be deployed to our cloud infrastructure.
-      </p>
-    ),
-  },
+      </CardFooter>
+    </Card>
+  ),
 };
 
-export const SimpleCard: Story = {
-  args: {
-    children: <p>A simple card with only content.</p>,
-  },
-};
-
-export const TitleOnly: Story = {
-  args: {
-    title: 'Notifications',
-    children: (
-      <p className="text-muted-foreground text-sm">
-        You have 3 unread messages.
-      </p>
-    ),
-  },
-};
-
-export const Interactive: Story = {
-  args: {
-    title: 'Clickable Card',
-    description: 'Hover to see the effect',
-    className: 'cursor-pointer transition-shadow hover:shadow-md',
-    children: <p className="text-sm">Click this card to navigate somewhere.</p>,
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Cards can be styled to appear interactive.',
-      },
-    },
-  },
-};
-
-export const CardGrid: Story = {
+/** Every padding step crossed with both radii. */
+export const PaddingAndRadius: Story = {
+  decorators: [],
   render: () => (
-    <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card title="Revenue" headerClassName="pb-2">
-        <p className="text-2xl font-bold">$45,231.89</p>
-        <p className="text-muted-foreground text-xs">+20.1% from last month</p>
-      </Card>
-      <Card title="Users" headerClassName="pb-2">
-        <p className="text-2xl font-bold">+2,350</p>
-        <p className="text-muted-foreground text-xs">+180.1% from last month</p>
-      </Card>
+    <div className="grid w-full max-w-3xl grid-cols-2 gap-4">
+      {(['sm', 'md', 'lg', 'xl'] as const).map((padding) =>
+        (['lg', 'xl'] as const).map((radius) => (
+          <Card key={`${padding}-${radius}`} padding={padding} radius={radius}>
+            <span className="text-fg-muted text-sm">
+              padding=&quot;{padding}&quot; radius=&quot;{radius}&quot;
+            </span>
+          </Card>
+        )),
+      )}
     </div>
   ),
+};
+
+/** `asChild` + `interactive` turns the whole card into a focusable button. */
+export const Interactive: Story = {
+  render: () => (
+    <Card asChild interactive padding="md">
+      <button type="button" className="w-full text-left">
+        <CardHeader>
+          <CardTitle>Clickable card</CardTitle>
+          <CardDescription>The whole surface is the button.</CardDescription>
+        </CardHeader>
+      </button>
+    </Card>
+  ),
+};
+
+/** `asChild` around an anchor — a card that navigates. */
+export const AsLink: Story = {
+  render: () => (
+    <Card asChild interactive padding="md" className="group">
+      <a href="https://example.com" target="_blank" rel="noopener noreferrer">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Documentation</CardTitle>
+            <ArrowUpRight className="text-fg-muted size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </div>
+          <CardDescription>Opens in a new tab.</CardDescription>
+        </CardHeader>
+      </a>
+    </Card>
+  ),
+};
+
+/** A leading 40px `CardMedia` tile + title + description. */
+export const WithMedia: Story = {
+  render: () => (
+    <Card padding="md">
+      <div className="flex items-start gap-3">
+        <CardMedia>
+          <Boxes className="text-fg-base size-5" />
+        </CardMedia>
+        <CardHeader>
+          <CardTitle>Inventory</CardTitle>
+          <CardDescription>Track products and stock levels.</CardDescription>
+        </CardHeader>
+      </div>
+    </Card>
+  ),
+};
+
+/** The browse-and-act catalog layout (media + title + badge + description + meta + actions). */
+export const Catalog: Story = {
+  render: () => (
+    <Card padding="md" className="flex h-full flex-col">
+      <div className="flex items-start gap-3">
+        <CardMedia>
+          <Plug className="text-fg-base size-5" />
+        </CardMedia>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="line-clamp-1 text-sm">Slack</CardTitle>
+            <Badge variant="green" dot className="shrink-0">
+              Connected
+            </Badge>
+          </div>
+          <CardDescription className="line-clamp-2 leading-snug">
+            Send and receive messages from your workspace.
+          </CardDescription>
+        </div>
+      </div>
+      <CardFooter className="mt-auto pt-4">
+        <Button variant="secondary" size="sm">
+          Manage
+        </Button>
+      </CardFooter>
+    </Card>
+  ),
+};
+
+/** The chat approval frame: `padding="md"` + `radius="xl"`. */
+export const ApprovalFrame: Story = {
+  render: () => (
+    <Card padding="md" radius="xl" className="overflow-hidden">
+      <CardHeader>
+        <CardTitle className="text-sm">Save 2 documents?</CardTitle>
+        <CardDescription>report.md, summary.md</CardDescription>
+      </CardHeader>
+      <CardFooter className="mt-4 justify-end">
+        <Button variant="secondary" size="sm">
+          Reject
+        </Button>
+        <Button size="sm">Approve</Button>
+      </CardFooter>
+    </Card>
+  ),
+};
+
+/** `CardGrid` lays out cards 1 → 2 → 3 columns responsively. */
+export const CardGridStory: Story = {
+  name: 'Card grid',
   decorators: [],
-  parameters: {
-    docs: {
-      description: {
-        story: 'Cards in a grid layout for dashboards.',
-      },
-    },
-  },
+  render: () => (
+    <CardGrid className="w-full max-w-4xl">
+      {['Agents', 'Workflows', 'Integrations'].map((label) => (
+        <Card key={label} padding="md">
+          <CardTitle className="text-sm">{label}</CardTitle>
+          <CardDescription className="mt-1">
+            Browse and install from the catalog.
+          </CardDescription>
+        </Card>
+      ))}
+    </CardGrid>
+  ),
 };

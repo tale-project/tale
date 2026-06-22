@@ -5,7 +5,7 @@ description: Die Form, der Tales Release-Notes folgen — das semver-Versprechen
 
 Tale liefert ein Release pro Minor-Version und Patches als Bugfix-Tags dazwischen aus. Die Release-Notes für jeden Tag folgen derselben Form, damit du eine in einer Minute scannen kannst und weißt, ob das Upgrade ein Fünf-Minuten-Bump oder ein Wartungsfenster ist. Diese Seite deckt das Format ab: das semver-Versprechen, was jeder Abschnitt garantiert, und wo du tiefer liest, wenn eine Zeile auf eine Migration zeigt.
 
-Die Notes selbst leben auf der GitHub-Release-Seite zu jedem Tag. Das CLI bringt sie ebenfalls hoch — `tale upgrade --notes` druckt die Notes für die Version, die es gerade installieren will.
+Die Notes selbst leben auf der GitHub-Release-Seite zu jedem Tag. Das CLI bringt sie ebenfalls hoch — `tale update --notes` druckt die Notes für die Version, die es gerade installieren will.
 
 ## Das semver-Versprechen
 
@@ -30,7 +30,7 @@ Jede Release-Seite ist dieselbe geordnete Abschnitts-Liste. Leere Abschnitte wer
 
 ## Wie du ein Release scannst
 
-Lies die Versionszeile, die Highlights und den Breaking-Changes-Abschnitt. Ist Breaking Changes leer und nennt der Security-Abschnitt keinen Fix, der dein Install berührt, ist das Upgrade die Zwei-Kommando-Sequenz aus [Upgrades](/de/self-hosted/operate/upgrades). Hat einer der beiden Abschnitte Zeilen, gehst du sie durch, bevor du `tale deploy` läufst.
+Lies die Versionszeile, die Highlights und den Breaking-Changes-Abschnitt. Ist Breaking Changes leer und nennt der Security-Abschnitt keinen Fix, der dein Install berührt, ist das Upgrade die `tale update` + `tale deploy`-Sequenz aus [Upgrades](/de/self-hosted/operate/upgrades). Hat einer der beiden Abschnitte Zeilen, gehst du sie durch, bevor du `tale deploy` läufst.
 
 ```text
 0.12.0 (minor) — 14.05.2026
@@ -49,7 +49,7 @@ Security
   Siehe: Advisory TAL-2026-007.
 ```
 
-Die Form oben ist das, was `tale upgrade --notes` druckt. Die Web-Version desselben Releases fügt auf jeder Advisory- und Migrations-Zeile Links hinzu.
+Die Form oben ist das, was `tale update --notes` druckt. Die Web-Version desselben Releases fügt auf jeder Advisory- und Migrations-Zeile Links hinzu.
 
 ## Wo das hingehört
 

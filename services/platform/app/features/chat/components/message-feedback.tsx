@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { ReactNode, useState, useCallback } from 'react';
 
@@ -110,8 +111,8 @@ export function MessageFeedback({
   );
 
   return (
-    <div className="flex flex-col pt-2">
-      <div className="flex items-center gap-1">
+    <Stack gap={0} className="pt-2">
+      <Row gap={1}>
         {before}
         <Tooltip content={t('feedback.thumbsUp')} side="bottom">
           <Button
@@ -152,10 +153,10 @@ export function MessageFeedback({
           </Button>
         </Tooltip>
         {after}
-      </div>
+      </Row>
 
       {showCommentBox && currentRating === 'negative' && (
-        <div className="mt-2 flex max-w-sm flex-col gap-2">
+        <Stack gap={2} className="mt-2 max-w-sm">
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -164,10 +165,9 @@ export function MessageFeedback({
             className="border-border bg-muted text-foreground placeholder:text-muted-foreground min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-offset-0 focus:outline-none"
             aria-label={t('feedback.commentPlaceholder')}
           />
-          <div className="flex gap-2">
+          <Row gap={2} align="stretch">
             <Button
               variant="secondary"
-              size="sm"
               onClick={handleSubmitComment}
               disabled={isSubmitting || !comment.trim()}
             >
@@ -175,7 +175,6 @@ export function MessageFeedback({
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => {
                 setShowCommentBox(false);
                 setComment('');
@@ -183,9 +182,9 @@ export function MessageFeedback({
             >
               {t('feedback.cancel')}
             </Button>
-          </div>
-        </div>
+          </Row>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }

@@ -125,6 +125,10 @@ export function buildDockerRunArgs(
   }
 
   const containerName = `tale-sbx-${inp.executionId}`;
+  // Blue-green: stamp the spawner's own colour so each colour's boot/orphan
+  // sweep reaps only its OWN containers (cleanup.ts filters on this label).
+  // Omitted in single-colour mode so today's behaviour is unchanged.
+  const colorLabel = cfg.color ? ['--label', `tale.color=${cfg.color}`] : [];
   // No `--rm` because spawn.ts removes the container explicitly after
   // harvesting outputs from the host bind-mounted workspace dir.
   return [
@@ -134,6 +138,7 @@ export function buildDockerRunArgs(
     containerName,
     '--label',
     'tale.sandbox=1',
+    ...colorLabel,
     `--label`,
     `tale.session=${inp.executionId}`,
     `--label`,

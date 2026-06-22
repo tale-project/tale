@@ -9,9 +9,13 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        'imagePreview.zoomIn': 'Zoom in',
-        'imagePreview.zoomOut': 'Zoom out',
-        'imagePreview.resetZoom': 'Reset zoom',
+        // Controls reuse the automation editor's `common.flow.*` labels (and
+        // `common.aria.close`), which fixed the old missing-`imagePreview.*`
+        // fallthrough.
+        'flow.zoomIn': 'Zoom in',
+        'flow.zoomOut': 'Zoom out',
+        'flow.resetView': 'Reset view',
+        'aria.close': 'Close',
       };
       return translations[key] ?? key;
     },
@@ -43,7 +47,7 @@ describe('ZoomPanViewer', () => {
         screen.getByRole('button', { name: 'Zoom out' }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: 'Reset zoom' }),
+        screen.getByRole('button', { name: 'Reset view' }),
       ).toBeInTheDocument();
     });
 
@@ -131,22 +135,25 @@ describe('ZoomPanViewer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
       expect(screen.getByText('150%')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reset view' }));
       expect(screen.getByText('100%')).toBeInTheDocument();
     });
 
-    it('disables reset button when not zoomed', () => {
+    it('keeps the fit/reset button enabled even when not zoomed', () => {
       render(<ZoomPanViewer {...defaultProps} />);
 
-      expect(screen.getByRole('button', { name: 'Reset zoom' })).toBeDisabled();
+      // The fit-to-screen control is always actionable (re-fits at any zoom).
+      expect(
+        screen.getByRole('button', { name: 'Reset view' }),
+      ).not.toBeDisabled();
     });
 
-    it('enables reset button when zoomed', () => {
+    it('keeps the reset button enabled when zoomed', () => {
       render(<ZoomPanViewer {...defaultProps} />);
 
       fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
       expect(
-        screen.getByRole('button', { name: 'Reset zoom' }),
+        screen.getByRole('button', { name: 'Reset view' }),
       ).not.toBeDisabled();
     });
   });

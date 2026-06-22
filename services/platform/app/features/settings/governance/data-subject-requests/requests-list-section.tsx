@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -15,6 +15,7 @@ import {
   DataTableFilters,
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   ERASURE_STATUSES,
@@ -114,7 +115,7 @@ export function RequestsListSection({
         accessorKey: 'targetUserName',
         header: t('dataSubjectRequests.columns.target'),
         cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col">
+          <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetUserName}>
               {row.original.targetUserName}
             </Text>
@@ -129,7 +130,7 @@ export function RequestsListSection({
                 {row.original.targetUserId}
               </Text>
             )}
-          </div>
+          </Stack>
         ),
         size: 220,
       },
@@ -179,14 +180,13 @@ export function RequestsListSection({
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('dataSubjectRequests.title')}
         description={t('dataSubjectRequests.description')}
         action={
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setFileOpen(true)}
           >
             {/* H9-5: FileText conveys "file an erasure request" — the
@@ -233,7 +233,7 @@ export function RequestsListSection({
           }}
           caption={t('dataSubjectRequests.sections.requestsList.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <FileRequestDialog
         open={fileOpen}

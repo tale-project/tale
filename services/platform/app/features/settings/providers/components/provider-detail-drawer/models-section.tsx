@@ -776,7 +776,6 @@ export function ModelsSection({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => void handleFetchFromProvider()}
               disabled={isFetchingFromProvider}
             >
@@ -791,7 +790,6 @@ export function ModelsSection({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => void syncAllFromCatalog()}
                 disabled={syncingAll || isSaving}
               >
@@ -803,12 +801,7 @@ export function ModelsSection({
                 {t('providers.modelCapabilities.syncAll')}
               </Button>
             )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={openAddDialog}
-            >
+            <Button type="button" variant="ghost" onClick={openAddDialog}>
               <Plus className="mr-1 size-3.5" />
               {t('providers.addModelShort')}
             </Button>
@@ -850,7 +843,12 @@ export function ModelsSection({
             </div>
             <Stack gap={0}>
               {filteredRows.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-1 px-4 py-8">
+                <Stack
+                  gap={1}
+                  align="center"
+                  justify="center"
+                  className="px-4 py-8"
+                >
                   <Text className="text-sm font-medium">
                     {t('providers.modelsEmpty.searchTitle')}
                   </Text>
@@ -860,7 +858,7 @@ export function ModelsSection({
                   >
                     {t('providers.modelsEmpty.searchDescription')}
                   </Text>
-                </div>
+                </Stack>
               )}
               {visibleRows.map((row, rowIdx) => {
                 const model =
@@ -1308,7 +1306,6 @@ export function ModelsSection({
                     <Button
                       type="button"
                       variant="secondary"
-                      size="sm"
                       onClick={fillFromCatalog}
                       disabled={!capsByModelId.has(form.id.trim())}
                     >

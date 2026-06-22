@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   useLayoutEffect,
@@ -119,8 +120,9 @@ export function VirtualizedChatMessageList({
     // the user scrolls, and a polite live region here would announce that churn.
     // The stable footer (streaming response / thinking indicator) carries the
     // live region instead, so only genuinely-new content is announced.
-    <div
-      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col [overflow-anchor:none]"
+    <Stack
+      gap={0}
+      className="mx-auto w-full max-w-(--chat-max-width) [overflow-anchor:none]"
       role="log"
       aria-labelledby={labelId}
     >
@@ -154,6 +156,6 @@ export function VirtualizedChatMessageList({
           thinking affordance (see ChatMessages). We must NOT wrap it again here
           or the approval card's internal live region would nest inside ours. */}
       {footer}
-    </div>
+    </Stack>
   );
 }

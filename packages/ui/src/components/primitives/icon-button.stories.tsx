@@ -116,6 +116,23 @@ export const AllSizes: Story = {
   ),
 };
 
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex items-center gap-4">
+      <IconButton icon={Edit} aria-label="Default height" size="default" />
+      <IconButton icon={Edit} aria-label="Small height" size="sm" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The button height axis: `default` is the standard h-9 square; `sm` is the h-8 square for dense bars and toolbars. (This is the button box size — use `iconSize` to change the glyph size within it.)',
+      },
+    },
+  },
+};
+
 export const CommonActions: Story = {
   render: () => (
     <div className="flex items-center gap-2 rounded-lg border p-4">

@@ -1,9 +1,9 @@
 'use client';
 
 import { buttonVariants } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { BookOpen, Key, Plus } from 'lucide-react';
+import { BookOpen, Key } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -25,7 +25,7 @@ function ApiDocsLink() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <div className="flex justify-center py-4">
+    <Row gap={0} align="stretch" justify="center" className="py-4">
       <a
         href="/docs"
         target="_blank"
@@ -35,7 +35,7 @@ function ApiDocsLink() {
         <BookOpen className="mr-2 size-4" />
         {tSettings('apiDocs.openDocs')}
       </a>
-    </div>
+    </Row>
   );
 }
 
@@ -98,11 +98,6 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
               <ApiDocsLink />
             </>
           ),
-          action: {
-            label: tSettings('apiKeys.createKey'),
-            icon: Plus,
-            onClick: () => setCreateOpen(true),
-          },
         }}
         footer={
           <BulkDeleteBar

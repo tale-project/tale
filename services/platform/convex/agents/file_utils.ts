@@ -15,7 +15,6 @@ import {
   agentJsonSchema,
   type AgentMetadata,
   type AgentRoutingConfig,
-  type ResponseTuningConfig,
 } from '../../lib/shared/schemas/agents';
 import { canonicalizeAgentConfig } from '../../lib/shared/utils/canonicalize-config';
 import { resolveAppDir } from '../apps/file_utils';
@@ -119,9 +118,6 @@ export interface AgentJsonConfig {
     tooltip?: string;
     order?: number;
   };
-  /** Per-agent response tuning (effort/creativity/style + bounds). Mirrors
-   *  `responseTuningSchema` in `lib/shared/schemas/agents.ts`. */
-  responseTuning?: ResponseTuningConfig;
   /** Per-agent routing / cascade behaviour. Mirrors `agentRoutingSchema`. */
   routing?: AgentRoutingConfig;
   roleRestriction?: 'admin_developer';

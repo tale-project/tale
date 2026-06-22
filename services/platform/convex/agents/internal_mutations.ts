@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import {
   knowledgeFileRagStatusValidator,
+  routeSeedValidator,
   routeTuningValidator,
 } from './schema';
 
@@ -21,6 +22,7 @@ export const upsertAutoRouteCache = internalMutation({
     nowMs: v.number(),
     language: v.optional(v.string()),
     tuning: v.optional(routeTuningValidator),
+    seed: v.optional(routeSeedValidator),
     capabilities: v.optional(v.array(v.string())),
   },
   returns: v.null(),
@@ -42,6 +44,7 @@ export const upsertAutoRouteCache = internalMutation({
         // also CLEAR a hint it no longer emits — `undefined` overwrites.
         language: args.language,
         tuning: args.tuning,
+        seed: args.seed,
         capabilities: args.capabilities,
         hits: existing.hits + 1,
         lastUsedAt: args.nowMs,
@@ -55,6 +58,7 @@ export const upsertAutoRouteCache = internalMutation({
         source: args.source,
         language: args.language,
         tuning: args.tuning,
+        seed: args.seed,
         capabilities: args.capabilities,
         hits: 1,
         createdAt: args.nowMs,
@@ -114,6 +118,7 @@ export const recordRouteOverride = internalMutation({
         // manual switch to a different agent invalidates them.
         language: undefined,
         tuning: undefined,
+        seed: undefined,
         capabilities: undefined,
         lastUsedAt: args.nowMs,
       });

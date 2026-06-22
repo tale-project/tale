@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyFailureScope,
   isTransientProviderError,
   MissingApiKeyError,
   NoProviderAvailableError,
@@ -290,6 +291,44 @@ describe('shouldFailoverToNextModel', () => {
 
   it('returns true for plain objects with no recognisable pattern', () => {
     expect(shouldFailoverToNextModel({ foo: 'bar' })).toBe(true);
+  });
+});
+
+describe('classifyFailureScope', () => {
+  it('marks deterministic provider-level failures as provider-scoped', () => {
+    expect(classifyFailureScope({ status: 402 })).toBe('provider');
+    expect(classifyFailureScope({ message: 'requires more credits' })).toBe(
+      'provider',
+    );
+    expect(classifyFailureScope({ status: 401 })).toBe('provider');
+    expect(classifyFailureScope({ status: 403 })).toBe('provider');
+    expect(classifyFailureScope({ code: 'ECONNREFUSED' })).toBe('provider');
+    expect(classifyFailureScope({ message: 'fetch failed' })).toBe('provider');
+  });
+
+  it('keeps transient and model-specific failures model-scoped', () => {
+    expect(classifyFailureScope({ status: 429 })).toBe('model');
+    expect(classifyFailureScope({ status: 503 })).toBe('model');
+    expect(classifyFailureScope({ code: 'ECONNRESET' })).toBe('model');
+    expect(classifyFailureScope({ message: 'Request timed out' })).toBe(
+      'model',
+    );
+    expect(classifyFailureScope({ status: 404 })).toBe('model');
+    expect(classifyFailureScope(new MissingApiKeyError('p', 'm'))).toBe(
+      'model',
+    );
+  });
+
+  it('marks universal failures as terminal (no failover)', () => {
+    expect(classifyFailureScope({ message: 'content policy violation' })).toBe(
+      'terminal',
+    );
+    expect(classifyFailureScope({ message: 'context_length exceeded' })).toBe(
+      'terminal',
+    );
+    expect(
+      classifyFailureScope(new NoProviderAvailableError('x', 'no_providers')),
+    ).toBe('terminal');
   });
 });
 

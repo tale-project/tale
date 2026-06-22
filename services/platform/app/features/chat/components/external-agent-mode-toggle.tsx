@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { useMutation } from 'convex/react';
 import { ClipboardList, Zap } from 'lucide-react';
 import { useCallback } from 'react';
@@ -75,10 +76,11 @@ export function ExternalAgentModeToggle({
   }
 
   return (
-    <div
+    <Row
       role="radiogroup"
       aria-label={t('planMode.label')}
-      className="border-border bg-muted/40 flex h-8 items-center rounded-full border p-0.5"
+      gap={0}
+      className="border-border bg-muted/40 h-8 rounded-full border p-0.5"
     >
       <Tooltip content={t('planMode.planTooltip')} side="top">
         <button
@@ -116,6 +118,6 @@ export function ExternalAgentModeToggle({
           {t('planMode.act')}
         </button>
       </Tooltip>
-    </div>
+    </Row>
   );
 }

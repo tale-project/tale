@@ -1,0 +1,101 @@
+import { isRecord } from '@/lib/utils/type-utils';
+
+/**
+ * A typed TanStack-Router navigate descriptor for a notification's in-app deep
+ * link. `to` is constrained to the routes we actually emit, so each member is
+ * validated against the real router wherever the value is spread into `<Link>`
+ * or passed to `navigate()`. Returning `null` means "no destination" — the row
+ * body is not a navigation link.
+ */
+export type NotificationTarget =
+  | {
+      to: '/dashboard/$id/projects/$projectId/tasks';
+      params: { id: string; projectId: string };
+      search: { task: string };
+    }
+  | {
+      to: '/dashboard/$id/agents/$agentId';
+      params: { id: string; agentId: string };
+    }
+  | {
+      to: '/dashboard/$id/settings/governance/logs';
+      params: { id: string };
+    }
+  | {
+      to: '/dashboard/$id/settings/governance/data-subject-requests';
+      params: { id: string };
+    }
+  | {
+      to: '/dashboard/$id/settings/governance/security-monitoring';
+      params: { id: string };
+    };
+
+/**
+ * The org-alert `link` shape. Mirrors `notificationLinkValidator` in
+ * `convex/notifications/schema.ts` — keep the two in sync (closed union).
+ */
+export type OrgNotificationLink =
+  | { kind: 'agent'; agentSlug: string }
+  | { kind: 'audit-logs' }
+  | { kind: 'dsar' }
+  | { kind: 'security-monitoring' };
+
+/**
+ * Deep-link target for a PERSONAL notification (`userNotifications`). Every
+ * task-bound type (assignment / status / comment / mention / review) routes to
+ * the task inside its project. Returns `null` when the row lacks the context to
+ * build a link — legacy rows written before `projectId` was stored in `params`,
+ * or non-task resources we don't deep-link yet.
+ */
+export function personalNotificationTarget(args: {
+  organizationId: string;
+  taskId: string | undefined;
+  params: unknown;
+}): NotificationTarget | null {
+  const params = isRecord(args.params) ? args.params : undefined;
+  const projectId = params?.projectId;
+  if (args.taskId && typeof projectId === 'string') {
+    return {
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id: args.organizationId, projectId },
+      search: { task: args.taskId },
+    };
+  }
+  return null;
+}
+
+/**
+ * Deep-link target for an ORG notification's stored `link`. Returns `null` when
+ * the notification carries no link (legacy rows, or generic workflow alerts).
+ */
+export function orgNotificationTarget(
+  organizationId: string,
+  link: OrgNotificationLink | undefined,
+): NotificationTarget | null {
+  if (!link) return null;
+  const id = organizationId;
+  switch (link.kind) {
+    case 'agent':
+      return {
+        to: '/dashboard/$id/agents/$agentId',
+        params: { id, agentId: link.agentSlug },
+      };
+    case 'audit-logs':
+      return { to: '/dashboard/$id/settings/governance/logs', params: { id } };
+    case 'dsar':
+      return {
+        to: '/dashboard/$id/settings/governance/data-subject-requests',
+        params: { id },
+      };
+    case 'security-monitoring':
+      return {
+        to: '/dashboard/$id/settings/governance/security-monitoring',
+        params: { id },
+      };
+    default: {
+      // Exhaustiveness guard — a new `kind` must extend this switch.
+      const _exhaustive: never = link;
+      return _exhaustive;
+    }
+  }
+}

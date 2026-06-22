@@ -172,7 +172,6 @@ export function AssigneePicker({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 className="w-full justify-start"
                 icon={UserX}
                 onClick={() => {

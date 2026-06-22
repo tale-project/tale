@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { ApprovalCard } from './approval-card';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowCreationApprovalCardProps {
@@ -322,12 +323,7 @@ function WorkflowCreationApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
@@ -531,7 +527,6 @@ function WorkflowCreationApprovalCardComponent({
         <ActionRow gap={2}>
           <Tooltip content={t('approveTooltip')}>
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -544,7 +539,6 @@ function WorkflowCreationApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
@@ -583,7 +577,7 @@ function WorkflowCreationApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Grid } from '@tale/ui/layout';
+import { Grid, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
@@ -50,12 +50,12 @@ interface ProductCreateDialogProps {
 function ReviewRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
-    <div className="flex justify-between gap-4 py-1">
+    <Row align="stretch" justify="between" className="py-1">
       <Text variant="muted" className="shrink-0">
         {label}
       </Text>
       <Text className="min-w-0 truncate text-right">{value}</Text>
-    </div>
+    </Row>
   );
 }
 

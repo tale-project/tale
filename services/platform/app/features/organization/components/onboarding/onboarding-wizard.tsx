@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
@@ -145,16 +146,20 @@ export function OnboardingWizard({
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <Stack gap={0} className="min-h-screen">
       {/* Three zones, two distinct affordances: step Back (left) navigates
           within the flow; the close (right) leaves it. A back-chevron vs an
           ✕-close, on opposite sides — so they never read as duplicate "Back"s. */}
-      <header className="grid w-full grid-cols-3 items-center px-4 py-3">
+      <Grid
+        as="header"
+        cols={3}
+        gap={0}
+        className="w-full items-center px-4 py-3"
+      >
         <div className="justify-self-start">
           {stepIndex > 0 && (
             <Button
               variant="ghost"
-              size="sm"
               icon={ChevronLeft}
               onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
               className="-ml-2"
@@ -166,7 +171,7 @@ export function OnboardingWizard({
         <div className="justify-self-center">
           <TaleLogo />
         </div>
-        <div className="flex items-center gap-2 justify-self-end">
+        <Row gap={2} className="justify-self-end">
           {/* No session yet on first-run until the account step completes. */}
           {user ? <UserButton align="end" /> : null}
           {/* add-org mode only: a close affordance to leave setup and return to
@@ -182,8 +187,8 @@ export function OnboardingWizard({
               <X className="size-4" aria-hidden />
             </Link>
           ) : null}
-        </div>
-      </header>
+        </Row>
+      </Grid>
       <main className="mx-auto w-full max-w-md flex-1 px-4 pt-20 pb-12">
         <Wizard
           steps={steps}
@@ -194,10 +199,10 @@ export function OnboardingWizard({
             t('progress', { current, total, label })
           }
         >
-          <div className="flex flex-col gap-8">
+          <Stack gap={8}>
             <WizardProgress segmented ariaLabel={t('stepsAriaLabel')} />
             <StepHero />
-          </div>
+          </Stack>
 
           {isFirstRun && <PreferencesStep />}
           {isFirstRun && <AccountStep />}
@@ -221,7 +226,7 @@ export function OnboardingWizard({
           />
         </Wizard>
       </main>
-    </div>
+    </Stack>
   );
 }
 

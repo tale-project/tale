@@ -258,7 +258,7 @@
   },
   "analytics": {
     "usage": {
-      "title": "Usage Analytics",
+      "title": "Usage Metrics",
       "description": "Token consumption, requests, and active users over time.",
       "cappedNotice": "Results are capped because the time range contains too many records. Narrow the range for complete data.",
       "activeUsersTooltip": "Users who made AI requests during this period.",
@@ -291,7 +291,6 @@
         "activeUsers": "Active Users"
       },
       "chart": {
-        "ariaLabel": "{metric} over time",
         "inputTokens": "Input",
         "outputTokens": "Output"
       },
@@ -347,7 +346,7 @@
       }
     },
     "feedback": {
-      "title": "Feedback Analytics",
+      "title": "Feedback Metrics",
       "description": "User-submitted thumbs up/down and arena verdicts on assistant responses.",
       "commentsOnly": "Comments only",
       "errors": {
@@ -466,7 +465,8 @@
           "arena": "Arena pairing",
           "attribution": "Attribution"
         }
-      }
+      },
+      "sentimentTrend": "Sentiment over time"
     }
   },
   "approvalCommon": {
@@ -610,13 +610,14 @@
     },
     "metrics": {
       "link": "Metrics",
-      "title": "Automation metrics",
+      "title": "Automation Metrics",
       "description": "Usage and performance KPIs across your automations.",
       "cappedNotice": "Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals.",
       "period": {
         "last7Days": "Last 7 days",
         "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days"
+        "last90Days": "Last 90 days",
+        "label": "Period"
       },
       "cards": {
         "totalRuns": "Total runs",
@@ -1090,7 +1091,9 @@
       "policyViolation": "Message blocked by content policy",
       "modelAccessDenied": "Model not available",
       "budgetExceeded": "Usage limit reached",
-      "kbRefInvalid": "A referenced document is no longer available. Remove it and try again."
+      "kbRefInvalid": "A referenced document is no longer available. Remove it and try again.",
+      "backendRestarting": "Server is restarting",
+      "backendRestartingDescription": "The server is briefly restarting for an update. Please send your message again in a moment."
     },
     "blockedNotice": {
       "body": "This response was blocked by your organization's content policy."
@@ -1720,6 +1723,16 @@
     "errorHintTokenLimit": "The model's output token limit was exceeded. Try a shorter request or ask your administrator to adjust the model settings.",
     "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data.",
     "errorHintUnsupportedParameter": "The model rejected one of the request parameters. This usually means a provider or model configuration mismatch — check the model settings, or expand the details below.",
+    "errorHintProviderUnreachable": "The AI provider could not be reached. It may be offline or misconfigured. Try again, or contact your administrator.",
+    "errorHintCreditExhaustedNamed": "{provider} is out of credits. Contact your administrator to add credits or switch providers.",
+    "errorHintAuthErrorNamed": "The API key for {provider} is invalid or expired. Contact your administrator to update it.",
+    "errorHintProviderUnreachableNamed": "{provider} could not be reached. It may be offline or misconfigured. Try again, or contact your administrator.",
+    "errorHintModelNotFoundNamed": "The selected model was not found on {provider}. It may have been renamed or removed.",
+    "errorHintRateLimitedNamed": "Rate limit reached on {provider}. Please wait a moment and try again.",
+    "errorTriedModels": "Tried {count} models before giving up.",
+    "modelFallbackNotice": "{from} was unavailable — switched to {to}.",
+    "modelFallbackDefaultModel": "the default model",
+    "modelFallbackUnknown": "the previous model",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
@@ -1921,7 +1934,6 @@
       "validationStatus": "{message}: {status}",
       "skipToContent": "Skip to main content",
       "mainNavigation": "Main navigation",
-      "pageNavigation": "Page navigation",
       "projectsNavigation": "Projects navigation"
     },
     "pagination": {
@@ -1991,8 +2003,6 @@
   "composer": {
     "openMenu": "Open composer menu",
     "addFiles": "Add photos & files",
-    "takeScreenshot": "Take screenshot",
-    "screenshotFailed": "Couldn't capture screenshot",
     "modeHeader": "Modes",
     "capabilityHeader": "Capabilities",
     "capabilityDisable": "Disable {name}",
@@ -2096,7 +2106,9 @@
       "improving": "Improving...",
       "improveWithAi": "Improve with AI",
       "generateImprovement": "Generate improvement",
-      "replyImproved": "Reply improved"
+      "replyImproved": "Reply improved",
+      "attachFile": "Attach file",
+      "send": "Send message"
     },
     "attachment": {
       "download": "Download",
@@ -2178,7 +2190,6 @@
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
-    "addButton": "Add customer",
     "importMenu": {
       "importCustomers": "Import customers",
       "fromDevice": "From your device",
@@ -4119,7 +4130,7 @@
       "description": "Help the assistant remember things about you across chats."
     },
     "environment": {
-      "title": "Environment & secrets",
+      "title": "Environment variables & secrets",
       "description": "Environment variables and secrets injected into your agent sandboxes."
     },
     "organization": {
@@ -4222,10 +4233,6 @@
       "title": "Agent delegation",
       "description": "Configure agent delegation to other agents."
     },
-    "agentResponseTuning": {
-      "title": "Response tuning",
-      "description": "Tune how this agent reasons and writes."
-    },
     "automationTriggers": {
       "title": "Triggers",
       "description": "Manage automation triggers, schedules, and webhooks."
@@ -4252,7 +4259,8 @@
     }
   },
   "navigation": {
-    "chatWithAI": "Chat",
+    "newChat": "New chat",
+    "chat": "Chat",
     "apps": "Apps",
     "conversations": "Conversations",
     "knowledge": "Knowledge",
@@ -4388,11 +4396,14 @@
   },
   "userEnv": {
     "page": {
-      "title": "Environment & secrets",
+      "title": "Environment variables & secrets",
       "description": "Variables and secrets injected into all of your agent sandboxes.",
+      "agentAccessTitle": "Injected into your sandboxes",
       "note": "Secrets are encrypted and write-only — once saved they are never shown again. These variables are injected into all of your sandboxes."
     },
     "add": {
+      "button": "Add variable",
+      "title": "Add variable",
       "keyLabel": "Name",
       "keyPlaceholder": "e.g. MY_API_KEY",
       "keyInvalid": "Must start with a letter or underscore and contain only letters, numbers, and underscores.",
@@ -5310,7 +5321,6 @@
         "knowledge": "Knowledge",
         "webhook": "Webhooks",
         "delegation": "Delegation",
-        "responseTuning": "Response tuning",
         "conversationStarters": "Starters",
         "history": "History",
         "metrics": "Performance",
@@ -5503,46 +5513,6 @@
         "uploadStarted": "Uploading file...",
         "fileTooLarge": "File too large",
         "removeFailed": "Failed to remove file"
-      },
-      "responseTuning": {
-        "title": "Response tuning",
-        "description": "Control how this agent reasons and writes. Every option defaults to Automatic, where the platform picks the best setting for each message. Choose a fixed value to override it.",
-        "autoNote": "The Auto router and adaptive reasoning governor tune every reply automatically — language, style, length, and effort. You normally don't need to change anything here. Expand the overrides below only to force a fixed setting for every message this agent sends.",
-        "overridesSummary": "Manual overrides",
-        "adaptive": "Automatic",
-        "effort": "Reasoning effort",
-        "effortHelp": "How much the model thinks before answering. Automatic scales effort to each message — more for hard questions, less for simple ones. A fixed level applies the same effort every time.",
-        "effortLow": "Low",
-        "effortMedium": "Medium",
-        "effortHigh": "High",
-        "creativity": "Creativity",
-        "creativityHelp": "How varied the wording is. Precise gives focused, repeatable answers; Creative gives more exploratory ones. Automatic decides per message.",
-        "creativityPrecise": "Precise",
-        "creativityBalanced": "Balanced",
-        "creativityCreative": "Creative",
-        "style": "Style",
-        "styleHelp": "Gives replies a consistent tone. Automatic adds none.",
-        "styleConcise": "Concise",
-        "styleDetailed": "Detailed",
-        "styleFormal": "Formal",
-        "styleFriendly": "Friendly",
-        "verbosity": "Answer length",
-        "verbosityHelp": "How long answers tend to be, independent of tone. Automatic decides per message.",
-        "verbosityTerse": "Short",
-        "verbosityNormal": "Medium",
-        "verbosityVerbose": "Long",
-        "advancedTitle": "Advanced",
-        "advancedHelp": "These don't override Automatic — they set limits it stays within, and only apply to settings left on Automatic above.",
-        "qualityProfile": "Quality vs. speed",
-        "qualityProfileHelp": "How readily the agent spends extra reasoning when an answer looks weak. Strict favors quality; Lenient favors speed and cost.",
-        "qualityLenient": "Lenient",
-        "qualityBalanced": "Balanced",
-        "qualityStrict": "Strict",
-        "effortFloor": "Minimum effort",
-        "effortFloorHelp": "Never think less than this, even on simple messages.",
-        "effortCeiling": "Maximum effort",
-        "effortCeilingHelp": "Never think more than this — caps cost on hard messages.",
-        "boundNone": "No limit"
       },
       "tools": {
         "webSearchMode": "Web search",
@@ -6968,12 +6938,13 @@
     },
     "metrics": {
       "link": "Metrics",
-      "title": "Task metrics",
+      "title": "Task Metrics",
       "description": "Delivery, intervention, and cost KPIs for this project's tasks.",
       "period": {
         "last7Days": "Last 7 days",
         "last30Days": "Last 30 days",
-        "last90Days": "Last 90 days"
+        "last90Days": "Last 90 days",
+        "label": "Period"
       },
       "cappedNotice": "Some days hit the rollup scan cap — totals in this window may undercount.",
       "noData": "No data",
@@ -7206,7 +7177,6 @@
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
-    "addButton": "Add vendor",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",
@@ -7618,7 +7588,7 @@
       "none": "Nothing here."
     },
     "scorecard": {
-      "title": "Performance",
+      "title": "Agent Metrics",
       "subtitle": "Last 30 days — outcomes, review quality, and cost for this agent.",
       "tasksCompleted": "Tasks completed",
       "reviewOutcome": "First-pass approval",
@@ -7626,7 +7596,9 @@
       "avgRun": "Avg run time",
       "spend": "Spend",
       "recentRuns": "Recent runs",
-      "noRuns": "No runs yet."
+      "noRuns": "No runs yet.",
+      "runsCompleted": "Completed",
+      "runsFailed": "Failed"
     }
   },
   "runtimes": {
@@ -7636,7 +7608,7 @@
       "cliHint": "First, install the Tale CLI if you haven't already:",
       "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
       "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
-      "createKey": "Create an API key"
+      "createKey": "Create API key"
     },
     "list": {
       "title": "Connected daemons",

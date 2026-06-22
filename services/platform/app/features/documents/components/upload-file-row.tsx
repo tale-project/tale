@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { CircleAlert, CircleCheck, RotateCw, X } from 'lucide-react';
 import { memo } from 'react';
 
@@ -79,7 +80,7 @@ export const UploadFileRow = memo(function UploadFileRow({
       )}
     >
       {/* File info row */}
-      <div className="flex items-center gap-2">
+      <Row gap={2}>
         {/* Type badge */}
         <span
           className={cn(
@@ -161,7 +162,7 @@ export const UploadFileRow = memo(function UploadFileRow({
             <X className="text-muted-foreground size-2.5" />
           </button>
         )}
-      </div>
+      </Row>
 
       {/* Progress bar (only for uploading) */}
       {isUploading && (

@@ -1,0 +1,62 @@
+import { describe, expect, it } from 'vitest';
+
+import { checkAccessibility } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
+
+import { ChartCard } from './chart-card';
+
+describe('ChartCard', () => {
+  describe('rendering', () => {
+    it('renders the title and children', () => {
+      render(
+        <ChartCard title="Execution trend">
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      expect(screen.getByText('Execution trend')).toBeInTheDocument();
+      expect(screen.getByText('chart body')).toBeInTheDocument();
+    });
+
+    it('shows a busy placeholder and hides the chart while loading', () => {
+      render(
+        <ChartCard title="Trend" loading>
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      expect(screen.getByRole('status')).toBeInTheDocument();
+      expect(screen.queryByText('chart body')).not.toBeInTheDocument();
+    });
+
+    it('shows the empty state and hides the chart when empty', () => {
+      render(
+        <ChartCard title="Trend" isEmpty emptyTitle="No data yet">
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      expect(screen.getByText('No data yet')).toBeInTheDocument();
+      expect(screen.queryByText('chart body')).not.toBeInTheDocument();
+    });
+
+    it('renders an info tooltip trigger when given a tooltip', () => {
+      render(
+        <ChartCard title="Trend" tooltip="What this shows">
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      expect(
+        screen.getByRole('button', { name: 'What this shows' }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <ChartCard title="Execution trend" tooltip="Runs per day">
+          <div>chart body</div>
+        </ChartCard>,
+      );
+      await checkAccessibility(container);
+    });
+  });
+});

@@ -6,9 +6,9 @@
  * whole lifecycle starts here. */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Card } from '@tale/ui/card';
+import { Card, CardGrid } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Grid, HStack, VStack } from '@tale/ui/layout';
+import { HStack, Row, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
@@ -59,7 +59,7 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
   }
 
   return (
-    <Grid className="grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <CardGrid>
       {apps.map((app) => {
         const state = bySlug.get(app.slug);
         // Every card opens the org-level app page. For a project-scoped app that
@@ -73,13 +73,17 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
         return (
           <div key={app.slug} className="relative h-full">
             <Link {...cardLink} aria-label={app.name} className="block h-full">
-              <Card className="hover:border-primary/50 h-full transition-colors">
+              <Card interactive className="h-full">
                 <VStack gap={3}>
                   <HStack gap={3} className="items-start justify-between">
                     <HStack gap={3} className="min-w-0 items-start">
-                      <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
+                      <Row
+                        gap={0}
+                        justify="center"
+                        className="bg-muted text-muted-foreground size-9 shrink-0 rounded-md"
+                      >
                         <LayoutGrid className="size-5" />
-                      </div>
+                      </Row>
                       <VStack gap={1} className="min-w-0">
                         <Text as="span" className="font-semibold" truncate>
                           {app.name}
@@ -111,7 +115,6 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
             ) : (
               <div className="absolute bottom-3 left-3 z-10">
                 <Button
-                  size="sm"
                   disabled={isPending}
                   onClick={() =>
                     app.scope === 'project' ||
@@ -140,6 +143,6 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
           requiredIntegrations={wizardApp.requiredIntegrations}
         />
       )}
-    </Grid>
+    </CardGrid>
   );
 }

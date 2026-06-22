@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -147,13 +148,13 @@ export function SharedChatView({
   // loading state — render it as real text, never masked.
   if (!isLoading && !sharedThread) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+      <Stack align="center" justify="center" className="h-full p-8">
         <Text variant="muted">{t('share.notFound')}</Text>
         <Button variant="secondary" onClick={handleBack}>
           <ArrowLeft className="mr-2 size-4" />
           {t('share.backToChat')}
         </Button>
-      </div>
+      </Stack>
     );
   }
 
@@ -163,14 +164,18 @@ export function SharedChatView({
   // inside <Skeletonize loading>. Static labels/headings stay real text.
   return (
     <Skeletonize loading={isLoading}>
-      <div className="flex h-full flex-col">
-        <div className="border-border flex h-13 items-center justify-between border-b px-5">
-          <div className="flex items-center gap-3">
+      <Stack gap={0} className="h-full">
+        <Row
+          gap={0}
+          justify="between"
+          className="border-border h-13 border-b px-5"
+        >
+          <Row gap={3}>
             <Button
               variant="ghost"
               size="icon"
               onClick={handleBack}
-              aria-label={t('share.backToChat')}
+              title={t('share.backToChat')}
             >
               <ArrowLeft className="text-muted-foreground size-5" />
             </Button>
@@ -184,7 +189,7 @@ export function SharedChatView({
                 {t('share.sharedChat')}
               </Text>
             </div>
-          </div>
+          </Row>
           <SkeletonBox>
             <Button
               variant="secondary"
@@ -200,15 +205,19 @@ export function SharedChatView({
               {t('share.forkChat')}
             </Button>
           </SkeletonBox>
-        </div>
+        </Row>
 
         {/* The input footer is a flex SIBLING of the scroller — never inside
             the scroll container — so it cannot move with content. */}
-        <div className="flex h-full min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth">
-            <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
-              <div
-                className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
+        <Stack gap={0} className="h-full min-h-0 flex-1">
+          <Stack
+            gap={0}
+            className="min-h-0 flex-1 overflow-y-auto scroll-smooth"
+          >
+            <Stack gap={0} className="overflow-y-visible p-4 sm:p-6">
+              <Stack
+                gap={3}
+                className="mx-auto w-full max-w-(--chat-max-width) pt-6"
                 role="log"
                 aria-live="polite"
                 aria-labelledby={messageHistoryLabelId}
@@ -251,9 +260,9 @@ export function SharedChatView({
                         ))}
                       </div>
                     ))}
-              </div>
-            </div>
-          </div>
+              </Stack>
+            </Stack>
+          </Stack>
 
           <PanelFooter>
             <FileUpload.Root>
@@ -277,8 +286,8 @@ export function SharedChatView({
               {t('share.inputHint')}
             </Text>
           </PanelFooter>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
     </Skeletonize>
   );
 }

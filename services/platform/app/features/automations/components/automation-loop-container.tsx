@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
+import { Row, Stack } from '@tale/ui/layout';
 import { Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
 import React from 'react';
@@ -88,9 +89,9 @@ export function AutomationLoopContainer({
         onClick={() => data.onNodeClick?.(data.stepSlug)}
         style={{ overflow: 'visible', position: 'relative' }}
       >
-        <div className="flex h-full flex-col p-5">
+        <Stack gap={0} className="h-full p-5">
           {/* Header with icon, title, and label */}
-          <div className="mb-4 flex flex-shrink-0 items-start gap-3">
+          <Row gap={3} align="start" className="mb-4 flex-shrink-0">
             {/* Icon on left */}
             <Repeat className="size-6 shrink-0 rounded-md bg-cyan-100 p-1 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300" />
 
@@ -108,7 +109,7 @@ export function AutomationLoopContainer({
             >
               {t('stepTypes.loop')}
             </Badge>
-          </div>
+          </Row>
 
           {/* Loop Body Container - Children nodes will be rendered here */}
           <div
@@ -117,7 +118,7 @@ export function AutomationLoopContainer({
           >
             {/* Children nodes are rendered by ReactFlow's parent-child system */}
           </div>
-        </div>
+        </Stack>
       </button>
 
       {/* Execution status badge — sibling of the card button (nesting would

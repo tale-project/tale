@@ -32,11 +32,14 @@ describe('Input', () => {
     });
   });
 
-  describe('sizes', () => {
-    it.each(['default', 'sm', 'lg'] as const)('renders %s size', (size) => {
-      render(<Input size={size} placeholder="Test" />);
-      expect(screen.getByPlaceholderText('Test')).toBeInTheDocument();
-    });
+  describe('variants', () => {
+    it.each(['default', 'unstyled'] as const)(
+      'renders %s variant',
+      (variant) => {
+        render(<Input variant={variant} placeholder="Test" />);
+        expect(screen.getByPlaceholderText('Test')).toBeInTheDocument();
+      },
+    );
   });
 
   describe('password input', () => {

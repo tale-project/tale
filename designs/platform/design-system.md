@@ -3,6 +3,14 @@
 > Dev handoff reference for the Tale Dashboard design file (`tale-dashboard`).
 > All component IDs reference nodes in the `.pen` design file.
 
+> **Implementation.** This document is the design _intent_; the design system that actually ships is
+> the `@tale/ui` library ([`packages/ui/src/components/`](../../packages/ui/src/components/)), composed
+> by feature pages. `@tale/ui` is the source of truth for code. Build pages by composing those
+> components — never hand-roll layout HTML. The concept→component catalog, the one `gap` spacing scale,
+> and the button-size policy live in the
+> [`ui-components` skill](../../.claude/skills/ui-components/SKILL.md); the working contract is in
+> [`AGENTS.md`](../../AGENTS.md).
+
 ---
 
 ## Table of Contents

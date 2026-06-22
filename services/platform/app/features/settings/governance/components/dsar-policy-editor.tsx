@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Lock } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DsarGovernanceConfig } from '@/lib/shared/schemas/governance';
@@ -200,15 +201,17 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
 
   return (
     <Skeletonize loading={isLoading || !data} label={t('dsarPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('dsarPolicy.title')}
         description={t('dsarPolicy.description')}
       >
-        <div className="flex max-w-2xl flex-col gap-5">
+        <Stack gap={5} className="max-w-2xl">
           {data && !data.callerIsOwner && (
-            <div
+            <Row
               role="status"
-              className="border-border bg-muted/30 flex items-start gap-2 rounded-md border p-3 text-sm"
+              gap={2}
+              align="start"
+              className="border-border bg-muted/30 rounded-md border p-3 text-sm"
             >
               <Lock
                 className="text-muted-foreground mt-0.5 size-4 shrink-0"
@@ -217,7 +220,7 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
               <Text as="span" variant="muted" className="text-xs">
                 {t('dsarPolicy.ownerOnlyNotice')}
               </Text>
-            </div>
+            </Row>
           )}
 
           {data?.pending && (
@@ -246,7 +249,7 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
           </PendingFieldWrap>
 
           <PendingFieldWrap pending={pendingFields.requireDualApproval} t={t}>
-            <div className="flex items-start justify-between gap-3">
+            <Row gap={3} align="start" justify="between">
               <div className="flex flex-col gap-0.5">
                 <Text as="span" className="text-sm font-medium">
                   {t('dsarPolicy.requireDualApproval.label')}
@@ -261,7 +264,7 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
                 disabled={readOnly}
                 aria-label={t('dsarPolicy.requireDualApproval.label')}
               />
-            </div>
+            </Row>
           </PendingFieldWrap>
 
           <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
@@ -279,8 +282,8 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
               disabled={readOnly}
             />
           </PendingFieldWrap>
-        </div>
-      </PageSection>
+        </Stack>
+      </SettingsSection>
     </Skeletonize>
   );
 }
@@ -303,10 +306,10 @@ function PendingFieldWrap({
   return (
     <div className="relative opacity-60">
       <div className="pointer-events-none">{children}</div>
-      <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
+      <Row gap={1} className="text-muted-foreground mt-1 text-xs">
         <Lock className="size-3" aria-hidden="true" />
         <span>{t('dsarPolicy.pendingFieldLocked')}</span>
-      </div>
+      </Row>
     </div>
   );
 }
@@ -353,16 +356,17 @@ function PendingChangeBanner({
     });
   }
   return (
-    <div
+    <Stack
       role="status"
-      className="text-foreground flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+      gap={2}
+      className="text-foreground rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
     >
-      <div className="flex items-start gap-2">
+      <Row gap={2} align="start">
         <AlertTriangle
           className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
           aria-hidden="true"
         />
-        <div className="flex flex-col gap-1">
+        <Stack gap={1}>
           <Text as="span" className="font-medium">
             {t('dsarPolicy.pendingBanner.title')}
           </Text>
@@ -390,20 +394,19 @@ function PendingChangeBanner({
               ))}
             </ul>
           )}
-        </div>
-      </div>
-      <div className="flex justify-end">
+        </Stack>
+      </Row>
+      <Row gap={0} align="stretch" justify="end">
         <Button
           type="button"
           variant="destructive"
-          size="sm"
           icon={Ban}
           onClick={onCancel}
           disabled={cancelDisabled}
         >
           {t('dsarPolicy.pendingBanner.cancel')}
         </Button>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }

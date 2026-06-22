@@ -271,15 +271,11 @@ export function ApiKeySection({
             wrap
             className="ml-auto justify-end gap-y-1"
           >
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTestDialogOpen(true)}
-            >
+            <Button variant="ghost" onClick={() => setTestDialogOpen(true)}>
               <Zap className="mr-1 size-3.5" />
               {t('providers.testConnection')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={openDialog}>
+            <Button variant="ghost" onClick={openDialog}>
               <Pencil className="mr-1 size-3.5" />
               {hasSecret || config.secretsEnv
                 ? t('providers.editKey')
@@ -287,7 +283,7 @@ export function ApiKeySection({
             </Button>
           </HStack>
         </HStack>
-        <Card contentClassName="p-0">
+        <Card padding="none">
           {/* Env-var key source (issue #1711). When a `secretsEnv` is
               configured it is the preferred source; show whether it currently
               resolves. A stored key is shown below whenever one exists — even
@@ -404,7 +400,6 @@ export function ApiKeySection({
           />
           <Button
             type="button"
-            size="sm"
             className="self-start"
             onClick={() => performSave(false)}
             disabled={saving || apiKey.trim().length === 0}
@@ -434,7 +429,6 @@ export function ApiKeySection({
           <HStack gap={2} align="center" wrap>
             <Button
               type="button"
-              size="sm"
               onClick={performSaveEnv}
               disabled={
                 saving ||
@@ -448,7 +442,6 @@ export function ApiKeySection({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={clearEnv}
                 disabled={saving}
               >

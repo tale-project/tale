@@ -2,7 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -88,7 +89,7 @@ function deriveDraft(policy: ModerationPolicy): ModerationDraft {
 // Container — owns data fetching, local edit state, save/toast wiring, and the
 // loading state. Wraps the plain `ModerationProviderConfigForm` in
 // `<Skeletonize>` so the same tree renders the skeleton (the hand-rolled
-// loading `PageSection` with magic-height `Skeleton` boxes is gone — the
+// loading `SettingsSection` with magic-height `Skeleton` boxes is gone — the
 // skeleton-aware `<Switch>` masks itself to its real track height).
 //
 // All draft fields are seeded LAZILY from the (possibly already-warm) policy so
@@ -462,7 +463,7 @@ export function ModerationProviderConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
-      <PageSection
+      <SettingsSection
         title={t('moderationProvider.title')}
         description={t('moderationProvider.description', {
           secretPlaceholder: '{{secret}}',
@@ -486,7 +487,7 @@ export function ModerationProviderConfigView({
         {enabled && (
           <>
             <FormSection label={t('moderationProvider.applyTo')}>
-              <div className="flex flex-col gap-2">
+              <Stack gap={2}>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -505,14 +506,14 @@ export function ModerationProviderConfigView({
                   />
                   <span>{t('moderationProvider.modelOutput')}</span>
                 </label>
-              </div>
+              </Stack>
             </FormSection>
 
             <FormSection
               label={t('moderationProvider.failBehavior')}
               description={t('moderationProvider.failBehaviorDescription')}
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Grid sm={2} gap={3}>
                 <div>
                   <div className="text-muted-foreground mb-1 text-xs">
                     {t('moderationProvider.input')}
@@ -559,14 +560,14 @@ export function ModerationProviderConfigView({
                     ]}
                   />
                 </div>
-              </div>
+              </Grid>
             </FormSection>
 
             <FormSection
               label={t('moderationProvider.provider')}
               description={t('moderationProvider.providerDescription')}
             >
-              <div className="flex flex-wrap gap-2">
+              <Row gap={2} align="stretch" wrap>
                 {MODERATION_PRESETS.map((preset) => {
                   const active = responseShape === preset.id;
                   const label = active
@@ -598,7 +599,7 @@ export function ModerationProviderConfigView({
                     ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
                     : t('moderationProvider.presetCustomJsonPath')}
                 </Button>
-              </div>
+              </Row>
               {responseShape === 'custom_jsonpath' &&
                 !customCategoriesPath.trim() && (
                   <p className="mt-2 text-xs text-amber-600">
@@ -702,7 +703,7 @@ export function ModerationProviderConfigView({
             />
           </>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

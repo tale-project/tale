@@ -20,6 +20,7 @@ import {
   type MeasuringConfiguration,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { Row } from '@tale/ui/layout';
 import {
   type ReactNode,
   createContext,
@@ -204,9 +205,12 @@ export function ChatDndProvider({ children }: { children: ReactNode }) {
  */
 function ChatDragPreview({ title }: { title: string }) {
   return (
-    <div className="bg-popover text-popover-foreground border-border flex max-w-[15rem] rotate-2 cursor-grabbing items-center gap-2 rounded-md border px-2 py-1.5 text-sm shadow-xl">
+    <Row
+      gap={2}
+      className="bg-popover text-popover-foreground border-border max-w-[15rem] rotate-2 cursor-grabbing rounded-md border px-2 py-1.5 text-sm shadow-xl"
+    >
       <span className="truncate">{title}</span>
-    </div>
+    </Row>
   );
 }
 

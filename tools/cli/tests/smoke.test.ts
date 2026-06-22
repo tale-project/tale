@@ -134,6 +134,36 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   );
 
   test(
+    'uninstall --help documents the removal flags',
+    async () => {
+      const result = await run(['uninstall', '--help'], dir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.toLowerCase()).toContain('remove the tale cli');
+      expect(result.stdout).toContain('-f, --force');
+      expect(result.stdout).toContain('--purge');
+      expect(result.stdout).toContain('--dry-run');
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
+    'uninstall --dry-run is non-destructive and leaves the binary working',
+    async () => {
+      // The command loads, never prompts, and removes nothing. Exit 0 on a
+      // release binary (dry-run previews) or 3 on a `-dev` binary (the dev
+      // guard refuses) — both are non-destructive. The binary must still run
+      // afterward, which is the invariant that matters regardless of build.
+      const result = await run(['uninstall', '--dry-run'], dir);
+      expect([0, 3]).toContain(result.exitCode);
+
+      const version = await run(['--version'], dir);
+      expect(version.exitCode).toBe(0);
+      expect(version.stdout.trim()).not.toBe('');
+    },
+    SMOKE_TIMEOUT,
+  );
+
+  test(
     'start from a parent dir points at the child project, not a re-init',
     async () => {
       // init scaffolds into ./proj; running `tale start` from the parent must

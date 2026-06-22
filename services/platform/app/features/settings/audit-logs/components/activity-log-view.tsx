@@ -1,8 +1,9 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
-import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState } from 'react';
@@ -29,27 +30,6 @@ interface ActivityLogViewInnerProps {
   periodDays: 7 | 30 | 90;
   onPeriod: (value: string) => void;
   userEmailMap?: Map<string, string>;
-}
-
-function StatCell({ label, value }: { label: string; value: string }) {
-  const loading = useSkeleton();
-
-  return (
-    <div className="flex flex-1 flex-col gap-1 p-5">
-      <Text className="text-muted-foreground text-sm">{label}</Text>
-      {/* Mask the async value to its natural line box so the card height is
-          identical loading vs loaded and the number doesn't flash from 0. */}
-      <Text className="text-foreground font-mono text-2xl font-semibold">
-        {loading ? (
-          <SkeletonBox>
-            <span className="my-0.5 inline-block h-7 w-16" />
-          </SkeletonBox>
-        ) : (
-          value
-        )}
-      </Text>
-    </div>
-  );
 }
 
 function BreakdownRow({
@@ -161,32 +141,31 @@ function ActivityLogViewInner({
             options={periodOptions}
             value={String(periodDays)}
             onValueChange={onPeriod}
-            size="sm"
             aria-label={t('logs.activity.period.label')}
           />
         </div>
       </HStack>
 
-      <div className="border-border divide-border grid grid-cols-2 divide-y rounded-lg border md:grid-cols-4 md:divide-x md:divide-y-0">
-        <StatCell
+      <StatCardGrid>
+        <StatCard
           label={t('logs.activity.cards.total')}
           value={formatNumber(summary?.totalActions ?? 0)}
         />
-        <StatCell
+        <StatCard
           label={t('logs.activity.cards.success')}
           value={formatNumber(summary?.successCount ?? 0)}
         />
-        <StatCell
+        <StatCard
           label={t('logs.activity.cards.failure')}
           value={formatNumber(summary?.failureCount ?? 0)}
         />
-        <StatCell
+        <StatCard
           label={t('logs.activity.cards.denied')}
           value={formatNumber(summary?.deniedCount ?? 0)}
         />
-      </div>
+      </StatCardGrid>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Grid lg={2}>
         <BreakdownPanel
           title={t('logs.activity.byCategory.title')}
           empty={categories.length === 0}
@@ -226,7 +205,7 @@ function ActivityLogViewInner({
             ))}
           </Stack>
         </BreakdownPanel>
-      </div>
+      </Grid>
     </Stack>
   );
 }

@@ -11,14 +11,13 @@ import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
+import { selectDefaultServices } from '../compose/select-services';
 import {
   type RotatableService,
   type ServiceName,
   type StatefulService,
-  LOCKSTEP_SERVICES,
-  ROTATABLE_SERVICES,
-  STATEFUL_SERVICES,
-  isLockstepService,
+  type StopGatedService,
+  STOP_GATED_SERVICES,
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
@@ -38,6 +37,8 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
+import { drainConvex, endDrainConvex } from './drain-convex';
+import { flipSandboxTier } from './flip-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -70,7 +71,12 @@ async function ensureInfrastructure(
 
 interface DeployOptions {
   version: string;
-  updateStateful: boolean;
+  /**
+   * Opt into updating the stop-gated tier (`db`, `proxy`) even while it's
+   * running — accepts the brief downtime of recreating Postgres / the proxy.
+   * Without it, a running stop-gated service is left untouched (with a hint).
+   */
+  stop: boolean;
   env: DeploymentEnv;
   hostAlias: string;
   dryRun: boolean;
@@ -105,7 +111,7 @@ interface DeployOptions {
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
-  const { version, updateStateful, env, hostAlias, dryRun, services } = options;
+  const { version, stop, env, hostAlias, dryRun, services } = options;
   const streamLogs = !options.quiet && (process.stdout.isTTY ?? false);
 
   // Track containers started during this deploy for cleanup on interrupt
@@ -203,51 +209,37 @@ export async function deploy(options: DeployOptions): Promise<void> {
         rotatableToUpdate = services.filter(isRotatableService);
         statefulToUpdate = services.filter(isStatefulService);
       } else {
-        // Default: all rotatable services PLUS lockstep services.
-        //
-        // Lockstep services (sandbox, sandbox-egress) version in step with
-        // the platform image — shipping an old sandbox against new
-        // platform code would break the SSE wire contract. Including
-        // them on every default deploy matches the build matrix's
-        // single-version policy and avoids the "platform upgraded but
-        // sandbox stayed on yesterday's image" failure mode that drove
-        // the sandbox-wobbly-origami plan §5 rollout decision.
-        rotatableToUpdate = [...ROTATABLE_SERVICES];
+        // Default deploy uses the three-tier policy (see select-services.ts):
+        // rotatable (platform) blue-green; convex always-rolls in-place; the
+        // sandbox tier (sandbox + sandbox-egress) rolls separately via
+        // flipSandboxTier in lockstep with platform's colour; stop-gated
+        // (db, proxy) only when stopped / first deploy / --stop, else left
+        // running with a hint.
+        const runningState = new Map<StopGatedService, boolean>();
+        for (const service of STOP_GATED_SERVICES) {
+          runningState.set(
+            service,
+            await isContainerRunning(`${getProjectId()}-${service}`),
+          );
+        }
+        const selection = selectDefaultServices({
+          isFirstDeploy,
+          stop,
+          isStopGatedRunning: (s) => runningState.get(s) ?? false,
+        });
+        rotatableToUpdate = selection.rotatable;
+        statefulToUpdate = selection.stateful;
 
-        if (isFirstDeploy || updateStateful) {
-          statefulToUpdate = [...STATEFUL_SERVICES];
-          if (isFirstDeploy) {
-            logger.notice(
-              'First deployment detected - including infrastructure services',
-            );
-          }
-        } else {
-          // Check if any required stateful services are not running, and
-          // ALWAYS include lockstep services so they roll forward with
-          // the platform image.
-          const missingStateful: StatefulService[] = [];
-          for (const service of STATEFUL_SERVICES) {
-            if (isLockstepService(service)) continue; // handled below
-            const containerName = `${getProjectId()}-${service}`;
-            const running = await isContainerRunning(containerName);
-            if (!running) {
-              missingStateful.push(service);
-            }
-          }
-
-          const lockstepToUpdate: StatefulService[] = [...LOCKSTEP_SERVICES];
-
-          if (missingStateful.length > 0) {
-            logger.notice(
-              `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
-            );
-          }
-          if (lockstepToUpdate.length > 0) {
-            logger.info(
-              `Lockstep services: ${lockstepToUpdate.join(', ')} - included on every default deploy`,
-            );
-          }
-          statefulToUpdate = [...missingStateful, ...lockstepToUpdate];
+        if (isFirstDeploy) {
+          logger.notice(
+            'First deployment detected — including infrastructure services',
+          );
+        }
+        if (selection.leftRunning.length > 0) {
+          logger.warn(
+            `Left running, not updated: ${selection.leftRunning.join(', ')}. ` +
+              'Re-run with `tale deploy --stop` to update them (brief downtime).',
+          );
         }
       }
 
@@ -277,6 +269,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
       // Pull all required images first
       logger.step(`${prefix}Pulling images...`);
+      // On a default (blue-green) deploy the sandbox tier rolls via
+      // flipSandboxTier — NOT through statefulToUpdate — so its images must be
+      // pulled here even though sandbox isn't in statefulToUpdate. An explicit
+      // `--services` deploy is in-place and never rolls the sandbox tier
+      // (run-deploy rejects `--services sandbox`).
+      const sandboxTierRolls = !inPlaceUpdate;
       const imagesToPull = [
         ...rotatableToUpdate.map(
           (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
@@ -284,6 +282,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
         ...statefulToUpdate.map(
           (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
         ),
+        ...(sandboxTierRolls
+          ? [
+              `${env.GHCR_REGISTRY}/tale-sandbox:${version}`,
+              `${env.GHCR_REGISTRY}/tale-sandbox-egress:${version}`,
+            ]
+          : []),
       ];
 
       // The spawner's runtime image (consumed by `docker run` of user code,
@@ -291,9 +295,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // spawner's `SANDBOX_RUNTIME_IMAGE` default (`tale-sandbox-runtime:latest`).
       // Without this, a fresh deploy host has no local runtime image and the
       // first /v1/execute fails with image-not-found. Mirrors build.yml's
-      // re-tag step. Pulled whenever sandbox or sandbox-egress is being
-      // updated, since the runtime image versions in lockstep with the spawner.
+      // re-tag step. Needed whenever the sandbox tier rolls — which on a default
+      // deploy happens via flipSandboxTier, not statefulToUpdate — since the
+      // runtime image versions in lockstep with the spawner.
       const needsRuntimeImage =
+        sandboxTierRolls ||
         statefulToUpdate.includes('sandbox') ||
         statefulToUpdate.includes('sandbox-egress');
       const runtimeImageRemote = needsRuntimeImage
@@ -371,7 +377,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
         // block db/proxy/convex.
         const controllerEnabled = Boolean(process.env.CONTROLLER_TOKEN);
 
+        // Will this deploy actually recreate convex? `docker compose up -d` is a
+        // no-op when the image + config are unchanged, so only drain in-flight
+        // chat generation when convex's image version is changing (or a forced
+        // recreate). Draining a no-op deploy would refuse chats for nothing.
+        const convexWillRecreate =
+          !isFirstDeploy &&
+          statefulToUpdate.includes('convex') &&
+          (Boolean(options.forceRecreate) ||
+            (await getContainerVersion(`${getProjectId()}-convex`)) !==
+              version);
+
         if (dryRun) {
+          if (convexWillRecreate) {
+            await drainConvex({ dryRun: true });
+          }
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
@@ -381,6 +401,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
         } else {
+          // Drain in-flight chat generations before the in-place recreate kills
+          // them. Best-effort (see drain-convex.ts); the recovery watchdog
+          // finalizes anything that outlasts the drain budget.
+          if (convexWillRecreate) {
+            await drainConvex({ dryRun: false });
+          }
+
           const result = await dockerCompose(
             statefulCompose,
             [
@@ -414,6 +441,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
             if (!healthy) {
               throw new Error(`Service ${service} failed health check`);
             }
+          }
+
+          // Convex is back and healthy — lift the drain flag so new chat turns
+          // are accepted again. Best-effort; the backend's auto-expiry clears it
+          // anyway if this fails (see drain-convex.ts).
+          if (convexWillRecreate) {
+            await endDrainConvex();
           }
 
           // The controller is a non-critical opt-in sidecar. Bring it up in its
@@ -578,6 +612,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 );
               }
             }
+            await flipSandboxTier({
+              config: serviceConfig,
+              deployDir: env.DEPLOY_DIR,
+              currentColor,
+              nextColor,
+              dryRun: true,
+              streamLogs,
+              healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+            });
           } else {
             // Clean up any stale next-color containers from a previous failed deployment
             for (const service of rotatableToUpdate) {
@@ -640,6 +683,29 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
             // Drain old color (if exists)
             if (currentColor) {
+              // Pre-mark the old platform colour as shutting down BEFORE the
+              // drain sleep. Its /api/health then returns 503, so the proxy
+              // ejects it and routes NEW requests only to the new colour while
+              // in-flight requests finish during the window. Without this, both
+              // colours keep the `platform` alias for the whole sleep and
+              // traffic is split across two versions. Best-effort + platform-
+              // specific (the marker lives in the platform entrypoint); a
+              // failure just falls back to the graceful stop below.
+              for (const service of rotatableToUpdate) {
+                if (service !== 'platform') continue;
+                const oldName = `${getProjectId()}-${service}-${currentColor}`;
+                const marked = await exec('docker', [
+                  'exec',
+                  oldName,
+                  'touch',
+                  '/tmp/platform-shutting-down',
+                ]);
+                if (!marked.success) {
+                  logger.debug(
+                    `Could not pre-mark ${oldName} for shutdown (continuing): ${marked.stderr.trim()}`,
+                  );
+                }
+              }
               logger.step(
                 `Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`,
               );
@@ -661,6 +727,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 }
               }
             }
+
+            // Roll the sandbox tier (sandbox + sandbox-egress) onto the same
+            // new colour with its own zero-gap blue-green flip (bring up new
+            // colour → move the `sandbox` alias → drain + tear down the old).
+            await flipSandboxTier({
+              config: serviceConfig,
+              deployDir: env.DEPLOY_DIR,
+              currentColor,
+              nextColor,
+              dryRun: false,
+              streamLogs,
+              healthTimeout: env.HEALTH_CHECK_TIMEOUT,
+            });
           }
         }
       }

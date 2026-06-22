@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, X } from 'lucide-react';
@@ -110,8 +111,11 @@ export function OrganigramPanel({
     }));
 
   return (
-    <aside className="border-border bg-card flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l p-4">
-      <div className="flex items-start justify-between gap-2">
+    <Stack
+      as="aside"
+      className="border-border bg-card w-72 shrink-0 overflow-y-auto border-l p-4"
+    >
+      <Row gap={2} align="start" justify="between">
         <div className="min-w-0">
           <Text as="h3" variant="label" className="truncate">
             {node.displayName || node.slug}
@@ -124,10 +128,10 @@ export function OrganigramPanel({
           size="icon"
           variant="ghost"
           icon={X}
-          aria-label={t('panel.close')}
+          title={t('panel.close')}
           onClick={onClose}
         />
-      </div>
+      </Row>
 
       {node.description && (
         <Text as="p" variant="muted" className="text-sm">
@@ -157,7 +161,7 @@ export function OrganigramPanel({
         {t('panel.delegationHint')}
       </Text>
 
-      <Button asChild size="sm" variant="secondary" icon={ExternalLink}>
+      <Button asChild variant="secondary" icon={ExternalLink}>
         <Link
           to="/dashboard/$id/agents/$agentId"
           params={{ id: organizationId, agentId: node.slug }}
@@ -165,6 +169,6 @@ export function OrganigramPanel({
           {t('panel.openAgent')}
         </Link>
       </Button>
-    </aside>
+    </Stack>
   );
 }

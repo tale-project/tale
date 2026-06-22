@@ -5,6 +5,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -160,7 +161,7 @@ function ListSwimlane({
     <section>
       {/* Slim, Linear-style section header: a single full-width toggle
           (chevron + status + count). */}
-      <div className="bg-background sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5">
+      <Row gap={2} className="bg-background sticky top-0 z-10 px-3 py-1.5">
         <button
           type="button"
           aria-expanded={!isCollapsed}
@@ -179,7 +180,7 @@ function ListSwimlane({
             {rows.length}
           </Text>
         </button>
-      </div>
+      </Row>
       {!isCollapsed && (
         <div ref={setNodeRef} className={cn(isOver && 'bg-accent/30')}>
           <SortableContext

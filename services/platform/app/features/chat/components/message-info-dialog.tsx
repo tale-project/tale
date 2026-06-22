@@ -3,7 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
@@ -245,7 +245,7 @@ function DirectTtftProbe({
           Replay agent tools + system prompt
           {agentSlug ? '' : ' (unavailable — no agent on this message)'}
         </label>
-        <Button size="sm" className="w-fit" isLoading={running} onClick={onRun}>
+        <Button className="w-fit" isLoading={running} onClick={onRun}>
           Measure direct TTFT
         </Button>
         {error && (
@@ -738,7 +738,7 @@ export function MessageInfoDialog({
           </Field>
 
           <Field label={t('messageInfo.messageId')}>
-            <div className="flex items-center gap-1">
+            <Row gap={1}>
               <Text
                 as="div"
                 variant="code"
@@ -753,7 +753,7 @@ export function MessageInfoDialog({
                 }
                 onClick={handleCopyId}
               />
-            </div>
+            </Row>
           </Field>
 
           {metadata ? (

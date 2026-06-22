@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { ShieldAlert } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -20,16 +21,18 @@ export interface BlockedReasonProps {
 export function BlockedNotice(_props: BlockedReasonProps) {
   const { t } = useT('chat');
   return (
-    <div
+    <Row
       role="status"
       aria-live="polite"
-      className="text-muted-foreground flex items-start gap-2 text-sm"
+      gap={2}
+      align="start"
+      className="text-muted-foreground text-sm"
     >
       <ShieldAlert
         className="text-muted-foreground mt-0.5 size-4 shrink-0"
         aria-hidden
       />
       <span>{t('blockedNotice.body')}</span>
-    </div>
+    </Row>
   );
 }

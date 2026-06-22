@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { XIcon } from 'lucide-react';
 import { memo } from 'react';
@@ -25,11 +26,12 @@ export const FileAttachmentsList = memo(function FileAttachmentsList({
 
   return (
     <div className="border-border border-t py-2">
-      <div className="flex flex-wrap gap-2">
+      <Row gap={2} align="stretch" wrap>
         {files.map((file) => (
-          <div
+          <Row
             key={file.id}
-            className="bg-muted flex items-center gap-2 rounded-md px-3 py-2 text-sm"
+            gap={2}
+            className="bg-muted rounded-md px-3 py-2 text-sm"
           >
             {getFileIcon(file.type)}
             <Text as="span" title={file.file?.name}>
@@ -45,9 +47,9 @@ export const FileAttachmentsList = memo(function FileAttachmentsList({
             >
               <XIcon className="size-3" />
             </button>
-          </div>
+          </Row>
         ))}
-      </div>
+      </Row>
     </div>
   );
 });

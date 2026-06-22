@@ -29,6 +29,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/organization')({
 function OrganizationSettingsPage() {
   const { id: organizationId } = Route.useParams();
   // The container owns loading + access + the skeletonized view, so the
-  // skeleton IS the real `SettingsPage narrow` layout (matched centering).
+  // skeleton IS the real `SettingsPage` layout.
   return <OrganizationSettings organizationId={organizationId} />;
 }

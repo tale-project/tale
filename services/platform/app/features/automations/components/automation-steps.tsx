@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   ReactFlowProvider,
@@ -125,6 +125,7 @@ function AutomationStepsInner({
   onOpenAIChat,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const hasSteps = steps && steps.length > 0;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
@@ -343,7 +344,11 @@ function AutomationStepsInner({
       onAddStepOnEdge={handleAddStepOnEdge}
       onDeleteEdge={handleDeleteEdge}
     >
-      <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
+      <Row
+        gap={0}
+        align="stretch"
+        className="relative w-full flex-1 justify-stretch overflow-auto"
+      >
         <style>{MINIMAP_STYLES}</style>
         <div ref={containerRef} className="bg-background min-h-0 flex-[1_1_0]">
           <FlowCanvas
@@ -423,7 +428,11 @@ function AutomationStepsInner({
             }}
           >
             {!hasSteps && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <Row
+                gap={0}
+                justify="center"
+                className="pointer-events-none absolute inset-0"
+              >
                 <Stack gap={2} className="text-center">
                   <Text as="div" variant="muted">
                     {t('emptyState.noSteps')}
@@ -432,7 +441,7 @@ function AutomationStepsInner({
                     {t('emptyState.createStepsHint')}
                   </Text>
                 </Stack>
-              </div>
+              </Row>
             )}
 
             {((showActivityBanner && hasActiveTrigger) ||
@@ -448,6 +457,7 @@ function AutomationStepsInner({
                       <Button
                         variant="ghost"
                         size="icon"
+                        title={tCommon('aria.dismiss')}
                         className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
                         onClick={() => setShowActivityBanner(false)}
                       >
@@ -508,7 +518,7 @@ function AutomationStepsInner({
           onCreateStep={handleCreateStep}
           stepOptions={stepOptions}
         />
-      </div>
+      </Row>
     </AutomationCallbacksProvider>
   );
 }

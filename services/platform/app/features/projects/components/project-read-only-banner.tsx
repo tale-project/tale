@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Eye } from 'lucide-react';
 
@@ -13,7 +13,11 @@ import { useT } from '@/lib/i18n/client';
 export function ProjectReadOnlyBanner() {
   const { t } = useT('projects');
   return (
-    <div className="border-border bg-muted/40 flex items-start gap-3 rounded-md border p-3">
+    <Row
+      gap={3}
+      align="start"
+      className="border-border bg-muted/40 rounded-md border p-3"
+    >
       <Eye
         className="text-muted-foreground mt-0.5 size-4 shrink-0"
         aria-hidden="true"
@@ -24,6 +28,6 @@ export function ProjectReadOnlyBanner() {
           {t('readOnlyBanner.description')}
         </Text>
       </Stack>
-    </div>
+    </Row>
   );
 }

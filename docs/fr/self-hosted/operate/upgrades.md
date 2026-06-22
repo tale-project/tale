@@ -1,43 +1,61 @@
 ---
 title: Montées de version
-description: Comment `tale upgrade` et `tale deploy` font avancer une instance Tale — le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
+description: Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions.
 ---
 
-Les montées de version sur une instance Tale auto-hébergée passent par la CLI `tale` en deux étapes : `tale upgrade` pour bouger le binaire lui-même à la nouvelle version, puis `tale deploy` pour rouler les conteneurs plateforme pour correspondre. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
+Les montées de version sur une instance Tale auto-hébergée passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
 
-L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/install/cli-install). Cette page couvre ce que fait chaque sous-commande et l'ordre dans lequel les exécuter.
+Ce que tu ne fais plus, c'est garder la CLI synchronisée à la main : la CLI s'aligne elle-même sur l'instance automatiquement (voir plus bas), donc le seul pas délibéré est de choisir quand bouger de version avec `tale update`.
+
+L'installation de la CLI vit dans [Installer la CLI tale](/fr/self-hosted/install/cli-install). Cette page couvre ce que fait chaque commande et comment le modèle de versions fonctionne.
+
+## La CLI suit l'instance automatiquement
+
+Le binaire CLI est toujours à la même version que l'instance qu'il gère. Le workspace enregistre cette version dans `tale.json` ; à chaque commande, la CLI compare sa propre version à celle-là et, si elles diffèrent, se met à jour pour correspondre (en montant ou en descendant) avant de tourner. Quand elles correspondent déjà — le cas largement le plus fréquent — c'est un no-op sans appel réseau, donc tu ne le remarques jamais.
+
+Cela veut dire que tu lances rarement `tale update`, sauf quand tu veux délibérément bouger vers une nouvelle version. Un coéquipier qui a installé une CLI plus récente que ton instance, ou restauré un snapshot plus ancien, obtient la bonne version de CLI automatiquement à sa prochaine commande. Il n'y a aucun flag pour désactiver ça — garder l'outil et l'instance au pas l'un de l'autre est ce qui rend les déploiements sûrs.
 
 ## Avant de monter de version
 
 Deux choses valent la peine d'être confirmées d'abord :
 
-- Ta copie hors-hôte du volume `backups` est à jour — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). `tale deploy` snapshotte automatiquement les volumes de données avant toute étape qui peut migrer des données, mais le snapshot vit sur le même hôte ; la copie hors-hôte est ce qui survit à un disque mort.
+- Ta copie hors-hôte du volume `backups` est à jour — voir [Backups et restauration](/fr/self-hosted/operate/backups-and-restore). `tale update` snapshotte automatiquement les volumes de données avant toute étape qui peut migrer des données, mais le snapshot vit sur le même hôte ; la copie hors-hôte est ce qui survit à un disque mort.
 - Les notes de version pour la version cible ne nomment pas un changement breaking. Les notes sont liées depuis la page de release GitHub ; les changements breaking sont flaggés comme tels en haut.
 
 Si la montée de version traverse une version majeure (1.x → 2.x), lis les notes de migration de bout en bout avant de commencer. Les versions majeures sont où atterrissent les migrations de schéma et les changements de format de fichier de config.
 
 ## Les deux commandes
 
-`tale upgrade` met à jour le binaire CLI lui-même. La version plateforme déployée correspond à la version de la CLI — ce couplage est intentionnel, pour que la CLI que tu lances ne puisse pas déployer une version qu'elle ne connaît pas.
+`tale update` met à jour le binaire CLI, puis synchronise tes fichiers projet sur les templates de cette version. Il ne **touche pas** aux conteneurs en marche — c'est le boulot de `tale deploy`. Si la synchro des fichiers échoue, la CLI fait reculer son propre binaire à la version sur laquelle ton workspace était, pour que le binaire et `tale.json` ne dérivent jamais l'un de l'autre.
 
 ```bash
-# Bouge la CLI à la dernière release
-tale upgrade
+# Bouge la CLI et les fichiers projet à la dernière release
+tale update
 
-# Puis roule la plateforme pour correspondre
-tale deploy
+# Fixe une version précise (autorise les downgrades — voir Rollback)
+tale update --version 0.10.2
+
+# Aperçu du changement de version et de la synchro des fichiers sans rien toucher
+tale update --dry-run
 ```
 
-`tale deploy` fait le redémarrage rolling réel : il pull les nouvelles images, démarre la nouvelle couleur blue ou green à côté de celle qui tourne, attend les healthchecks, bascule le proxy, draine et retire l'ancienne couleur. Le défaut cible les services rotables (`platform`, `rag`, `crawler`) ; les services stateful (`db`, `proxy`) ont besoin de `--all` pour être mis à jour en place.
+`tale deploy` fait le vrai redémarrage rolling, et il déploie toujours la version propre à la CLI — qui, grâce à l'alignement, est la version qu'enregistre ton workspace. Il trie les services en trois étages :
+
+- **Étage app/compute** — `platform`, `sandbox`, `sandbox-egress` — roule à **chaque** déploiement, sans downtime (blue-green : la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine).
+- **Backend** — `convex` — roule à chaque déploiement lui aussi, pour ne jamais dériver en version d'avec `platform` ; il ne se recrée en place que quand son image a réellement changé.
+- **Étage à arrêt requis** — `db`, `proxy` — laissés **en marche et intacts** par défaut (recréer Postgres ou le proxy est une brève coupure que tu ne veux pas sur un roll de routine). Passe `--stop` pour les mettre à jour ; le déploiement prévient et les nomme quand il les saute.
 
 ```bash
-# Inclus les services stateful
-tale deploy --all
+# Après tale update, roule les conteneurs pour correspondre (étage app + convex)
+tale deploy
+
+# Mets aussi à jour db/proxy (brève coupure pendant qu'ils se recréent)
+tale deploy --stop
 
 # Roule seulement des services spécifiques
-tale deploy --services platform,rag
+tale deploy --services platform
 
-# Aperçu sans changements
+# Aperçu sans changement
 tale deploy --dry-run
 ```
 
@@ -45,7 +63,7 @@ tale deploy --dry-run
 
 ## Le pattern blue-green
 
-Une instance en marche est l'une des deux couleurs (blue ou green) à un instant donné. `tale deploy` monte l'autre couleur, attend qu'elle passe les healthchecks, puis bascule l'upstream de Caddy sur la nouvelle couleur. L'ancienne couleur draine ses requêtes en vol (défaut 30 s), puis sort.
+Une instance en marche est l'une des deux couleurs (blue ou green) à un instant donné. La phase de déploiement monte l'autre couleur, attend qu'elle passe les healthchecks, puis bascule l'upstream de Caddy sur la nouvelle couleur. L'ancienne couleur draine ses requêtes en vol (défaut 30 s), puis sort.
 
 Trois garanties que le pattern te donne :
 
@@ -53,16 +71,21 @@ Trois garanties que le pattern te donne :
 - **Le rollback de patch est une commande.** `tale rollback` redéploie la release patch précédente sur la couleur inactive et rebascule le trafic. Il refuse les downgrades minor et major — ceux-là peuvent laisser la base en avance sur le binaire, et leur chemin de récupération est une restauration de snapshot.
 - **Les healthchecks échoués bloquent la bascule.** Si la nouvelle couleur ne passe pas dans le timeout, le déploiement abandonne et l'ancienne couleur continue à servir.
 
-La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale deploy && tale status` et confirmation visuelle dans le navigateur.
+La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale update && tale deploy && tale status` et confirmation visuelle dans le navigateur.
 
 ## Rollback
 
 ```bash
-# Retour à la version patch précédente
+# Retour à la version patch précédente (demande confirmation)
 tale rollback
+
+# Ignorer l'invite en mode non-interactif
+tale rollback --yes
 ```
 
-`tale rollback` est limité aux pas de patch : il ne cible que la version précédente enregistrée, et refuse si cette version ne partage pas `major.minor` avec la plateforme qui tourne. Les releases patch ne portent jamais de migrations, donc redéployer le patch précédent est toujours sûr. Tout ce qui est plus gros peut avoir migré les données vers l'avant — déployer un binaire plus vieux sur des données migrées corrompt l'instance au lieu de la sauver. Pour ces cas, le chemin de récupération est de restaurer le snapshot pré-upgrade et de redéployer la version qui correspond ; le message de refus imprime les commandes exactes, et le walk complet vit dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
+`tale rollback` est limité aux pas de patch : il ne cible que la version précédente enregistrée, et refuse si cette version ne partage pas `major.minor` avec la plateforme qui tourne. Les releases patch ne portent jamais de migrations, donc redéployer le patch précédent est toujours sûr. Tout ce qui est plus gros peut avoir migré les données vers l'avant — déployer un binaire plus vieux sur des données migrées corrompt l'instance au lieu de la sauver. Pour ces cas, le chemin de récupération est de restaurer le snapshot pré-upgrade et de revenir à la version qui lui correspond avec `tale update --version <version>` suivi de `tale deploy --stop` (pour que `db`/`proxy` reculent aussi) ; le message de refus imprime les commandes exactes, et le walk complet vit dans [Backups et restauration](/fr/self-hosted/operate/backups-and-restore).
+
+Comme le rollback démolit les conteneurs en cours d'exécution, la commande prévient de ce qu'elle s'apprête à faire et demande confirmation avant de tirer la moindre image ; passe `--yes` pour ignorer cette invite dans les scripts ou en CI.
 
 ## Compatibilité de versions
 
@@ -73,6 +96,8 @@ Les versions Tale sont en semver. Les règles de compatibilité :
 - Major (`0.x → 1.x`) — lis les notes de migration, planifie la fenêtre de maintenance, attends-toi à des surprises.
 
 Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les migrations intermédiaires sont encore dans le binaire ; les notes de version le mentionnent quand ce n'est pas le cas.
+
+Pour descendre _délibérément_ d'une version — disons qu'une release minor se comporte mal et que tu as déjà inversé ses migrations — fixe la cible avec `tale update --version <version>`. La commande prévient quand la cible est plus ancienne que la version qui tourne et te rappelle d'inverser d'abord les migrations de données.
 
 ## Où cela s'inscrit
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import {
   ChevronRight,
   Loader2,
@@ -70,7 +71,7 @@ function StepRow({
   const bodyId = useId();
   const hasExpansion = expandedContent != null;
   return (
-    <div className="flex items-start gap-2 text-sm">
+    <Row gap={2} align="start" className="text-sm">
       <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
         {status === 'active' ? (
           <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
@@ -117,7 +118,7 @@ function StepRow({
           </span>
         )}
       </span>
-    </div>
+    </Row>
   );
 }
 

@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   Panel,
@@ -240,7 +241,11 @@ export function OrganigramCanvas({
   }
 
   return (
-    <div className="border-border flex h-[calc(100vh-220px)] min-h-105 overflow-hidden rounded-lg border">
+    <Row
+      gap={0}
+      align="stretch"
+      className="border-border h-[calc(100vh-220px)] min-h-105 overflow-hidden rounded-lg border"
+    >
       <div className="relative min-w-0 flex-1">
         <FlowCanvas
           nodes={nodes}
@@ -275,14 +280,16 @@ export function OrganigramCanvas({
         >
           {canEdit && isDirty && (
             <Panel position="top-right" className="m-3">
-              <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1.5 pl-3 shadow-sm ring-1">
+              <Row
+                gap={2}
+                className="ring-border bg-background rounded-lg p-1.5 pl-3 shadow-sm ring-1"
+              >
                 <Text variant="muted" className="text-xs">
                   {t('unsavedChanges')}
                 </Text>
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
                   icon={Undo2}
                   iconClassName="size-3.5"
                   disabled={isSaving}
@@ -292,7 +299,6 @@ export function OrganigramCanvas({
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
                   disabled={isSaving}
                   aria-busy={isSaving ? 'true' : undefined}
                   onClick={() => void handleSave()}
@@ -306,7 +312,7 @@ export function OrganigramCanvas({
                     ? tCommon('actions.saving')
                     : tCommon('actions.save')}
                 </Button>
-              </div>
+              </Row>
             </Panel>
           )}
           {focusSlug && focusExists && <FocusOnNode slug={focusSlug} />}
@@ -343,6 +349,6 @@ export function OrganigramCanvas({
           }}
         />
       )}
-    </div>
+    </Row>
   );
 }

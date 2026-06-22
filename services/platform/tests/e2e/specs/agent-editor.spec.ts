@@ -179,52 +179,6 @@ test.describe('agent editor depth', () => {
     await expect(reloaded).toHaveValue(newText, { timeout: TIMEOUT.PERSIST });
   });
 
-  test('response tuning: overrides reasoning effort, saves, persists', async ({
-    page,
-    org,
-  }) => {
-    await openAgentTab(page, org.organizationId, 'response-tuning');
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.agents.responseTuning.title'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // The overrides live inside a collapsed <details>; expand it.
-    await page
-      .getByText(t('settings.agents.responseTuning.overridesSummary'))
-      .click();
-
-    // "Medium" also appears in the floor/ceiling groups, so scope to the
-    // "Reasoning effort" radiogroup.
-    const effortGroup = page.getByRole('radiogroup', {
-      name: t('settings.agents.responseTuning.effort'),
-    });
-    await effortGroup
-      .getByRole('radio', {
-        name: t('settings.agents.responseTuning.effortMedium'),
-        exact: true,
-      })
-      .click();
-    await saveAndExpectToast(page);
-
-    await page.reload();
-    await page
-      .getByText(t('settings.agents.responseTuning.overridesSummary'))
-      .click();
-    await expect(
-      page
-        .getByRole('radiogroup', {
-          name: t('settings.agents.responseTuning.effort'),
-        })
-        .getByRole('radio', {
-          name: t('settings.agents.responseTuning.effortMedium'),
-          exact: true,
-        }),
-    ).toBeChecked({ timeout: TIMEOUT.PERSIST });
-  });
-
   test('conversation starters: adds a starter, saves, persists', async ({
     page,
     org,

@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { Row } from '@tale/ui/layout';
 import { History, Sparkles } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -239,7 +240,6 @@ export function AutomationNavigation({
       trigger={
         <Button
           variant="secondary"
-          size="sm"
           className="h-8 text-sm"
           icon={History}
           iconClassName="size-3.5"
@@ -301,10 +301,10 @@ function AutomationEditorActionsSlot({
   const controller = useActiveEditor();
   if (!controller) {
     return (
-      <div className="ml-auto flex items-center gap-2">
+      <Row gap={2} className="ml-auto">
         {assistant}
         {history}
-      </div>
+      </Row>
     );
   }
   return (

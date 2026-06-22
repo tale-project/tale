@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -93,12 +93,12 @@ function TeamDetailDialogContent({
               </Stack>
             </Skeletonize>
           ) : !teamMembers || teamMembers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-6">
+            <Stack gap={2} align="center" justify="center" className="py-6">
               <Users className="text-muted-foreground size-8" />
               <Text variant="muted" className="text-sm">
                 {tSettings('teams.noTeamMembers')}
               </Text>
-            </div>
+            </Stack>
           ) : (
             <div className="border-border overflow-hidden rounded-lg border">
               {teamMembers.map((member: TeamDetailMember, index: number) => (
@@ -110,13 +110,17 @@ function TeamDetailDialogContent({
                       : ''
                   }`}
                 >
-                  <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+                  <Row
+                    gap={0}
+                    justify="center"
+                    className="bg-muted size-8 shrink-0 rounded-full"
+                  >
                     <Text className="text-muted-foreground text-xs font-medium">
                       {(member.displayName || member.email || '?')
                         .charAt(0)
                         .toUpperCase()}
                     </Text>
-                  </div>
+                  </Row>
                   <Stack gap={0} className="min-w-0 flex-1">
                     <Text className="truncate text-sm font-medium">
                       {member.displayName ||

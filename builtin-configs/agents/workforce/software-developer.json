@@ -10,7 +10,7 @@
   "integrationBindings": ["github"],
   "supportedModels": [
     "openrouter:anthropic/claude-sonnet-4.6",
-    "openrouter:anthropic/claude-opus-4.6"
+    "openrouter:anthropic/claude-opus-4.8"
   ],
   "timeoutMs": 1800000,
   "personalizationMode": "on",

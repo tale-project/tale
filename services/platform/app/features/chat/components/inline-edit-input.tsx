@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Loader2 } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
@@ -62,7 +63,7 @@ export function InlineEditInput({
   const canSubmit = !!value.trim() && value.trim() !== messageContent;
 
   return (
-    <div className="bg-muted/50 border-border flex flex-col gap-3 rounded-2xl border p-4">
+    <Stack gap={3} className="bg-muted/50 border-border rounded-2xl border p-4">
       <textarea
         ref={textareaRef}
         value={value}
@@ -77,10 +78,9 @@ export function InlineEditInput({
         className="text-foreground min-h-[2.5rem] w-full resize-none bg-transparent text-sm leading-6 focus:outline-none disabled:opacity-50"
         rows={1}
       />
-      <div className="flex items-center justify-end gap-2">
+      <Row gap={2} justify="end">
         <Button
           variant="secondary"
-          size="sm"
           onClick={onCancel}
           disabled={isSubmitting}
           className="rounded-full"
@@ -89,7 +89,6 @@ export function InlineEditInput({
         </Button>
         <Button
           variant="primary"
-          size="sm"
           onClick={() => void handleSubmit()}
           disabled={!canSubmit || isSubmitting}
           className="rounded-full"
@@ -97,7 +96,7 @@ export function InlineEditInput({
           {isSubmitting && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
           {tChat('editSend')}
         </Button>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }

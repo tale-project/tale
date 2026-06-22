@@ -97,7 +97,7 @@ tale init [directory]              # Create a new project with example configs (
 tale start                         # Start all services locally
 tale start --detach                # Start in background
 tale start --port 8443             # Use a custom HTTPS port
-tale upgrade                       # Upgrade CLI and sync project files
+tale update                        # Update the CLI + sync project files (then `tale deploy`; CLI self-aligns automatically)
 tale convex admin                  # Generate Convex dashboard admin key
 tale config                        # Manage CLI configuration
 ```

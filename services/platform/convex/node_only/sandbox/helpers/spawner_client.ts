@@ -234,13 +234,34 @@ function signRequest(
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
-function getSpawnerUrl(): string {
+function spawnerBaseUrl(): string {
   // Mirrors RAG_URL / CRAWLER_URL convention: default to host loopback
   // so `bun dev`'s local convex-local-backend (running on the host) can
   // reach the spawner via the published port. Docker compose sets
   // SANDBOX_URL=http://sandbox:8003 on the tale-convex container so the
-  // dockerized convex resolves through Docker DNS instead.
+  // dockerized convex resolves through Docker DNS instead. In blue-green
+  // mode `sandbox` is the bare alias that the deploy flip points at the
+  // ACTIVE colour — so new executions always reach the live spawner.
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
+}
+
+/**
+ * Resolve the spawner URL for a SPECIFIC blue-green colour — used by cancel /
+ * session ops so they reach the exact colour an execution started on, even
+ * after a flip moved the bare `sandbox` alias to the new colour. `null`/empty
+ * colour (single-colour mode, or the docker DNS host isn't `sandbox`) falls
+ * back to the base URL.
+ */
+export function spawnerUrlForColor(color: string | null | undefined): string {
+  const base = spawnerBaseUrl();
+  if (!color) return base;
+  try {
+    const u = new URL(base);
+    if (u.hostname !== 'sandbox') return base; // dev/loopback → no per-colour host
+    return `${u.protocol}//sandbox-${color}:${u.port || '8003'}`;
+  } catch {
+    return base;
+  }
 }
 
 function getSpawnerToken(): string | null {
@@ -266,7 +287,22 @@ interface SpawnerExecuteCallbacks {
   onStdout?: (text: string) => void;
   /** Live stderr tail. Fires per spawner-side chunk (not line-buffered). */
   onStderr?: (text: string) => void;
+  /**
+   * Fired once, as soon as the spawner's response headers arrive, with the
+   * blue-green colour it reported via `X-Sandbox-Color` (or `null` in
+   * single-colour mode). The action persists it on the execution row BEFORE
+   * the body streams, so a concurrent user-Stop routes its cancel to the SAME
+   * colour even after a deploy flip.
+   */
+  onSpawnerColor?: (color: string | null) => Promise<void> | void;
 }
+
+// How many times to re-POST /v1/execute when the spawner answers 503 "draining"
+// (it's mid-flip and refusing new work). A handful of fast retries re-resolves
+// the `sandbox` DNS alias onto the freshly-active colour. Bounded so a genuinely
+// down tier still fails fast into SPAWNER_UNAVAILABLE.
+const DRAIN_RETRY_MAX = 5;
+const DRAIN_RETRY_DELAY_MS = 400;
 
 /**
  * POST /v1/execute as SSE. The spawner emits zero or more `event: phase`
@@ -293,27 +329,32 @@ export async function spawnerExecute(
   signal: AbortSignal,
   callbacks: SpawnerExecuteCallbacks = {},
 ): Promise<SpawnerExecuteResponse> {
-  const baseUrl = getSpawnerUrl();
+  const baseUrl = spawnerBaseUrl();
   const url = `${baseUrl}/v1/execute`;
   const path = new URL(url).pathname;
   const token = getSpawnerToken();
   const bodyJson = JSON.stringify(body);
-  const timestamp = String(Date.now());
 
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    accept: 'text/event-stream',
+  // Re-signed per attempt: each retry needs a fresh timestamp within the
+  // spawner's clock-skew tolerance.
+  const buildHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'text/event-stream',
+    };
+    if (token !== null) {
+      const timestamp = String(Date.now());
+      headers[SIGNATURE_HEADER] = signRequest(
+        'POST',
+        path,
+        timestamp,
+        bodyJson,
+        token,
+      );
+      headers[TIMESTAMP_HEADER] = timestamp;
+    }
+    return headers;
   };
-  if (token !== null) {
-    headers[SIGNATURE_HEADER] = signRequest(
-      'POST',
-      path,
-      timestamp,
-      bodyJson,
-      token,
-    );
-    headers[TIMESTAMP_HEADER] = timestamp;
-  }
 
   // Independent client-side timeout. Without this a stalled SSE stream
   // (network or spawner hang) would block the Convex action until its 30-min
@@ -321,25 +362,45 @@ export async function spawnerExecute(
   // user-stop still aborts immediately.
   const fetchTimeoutMs =
     (body.timeoutMs ?? SPAWNER_DEFAULT_TIMEOUT_MS) + SPAWNER_FETCH_OVERHEAD_MS;
-  const fetchAbort = AbortSignal.any([
-    signal,
-    AbortSignal.timeout(fetchTimeoutMs),
-  ]);
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: bodyJson,
-      signal: fetchAbort,
-    });
-  } catch (err) {
-    throw new Error(
-      `sandbox spawner unreachable at ${url}: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
-    );
-  }
+  // Fetch with blue-green drain-retry: a 503 "draining" means the targeted
+  // colour is mid-flip; re-POST so the `sandbox` alias re-resolves onto the
+  // now-active colour. Other statuses are handled below.
+  const doFetch = async (): Promise<Response> => {
+    for (let attempt = 0; ; attempt++) {
+      const fetchAbort = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(fetchTimeoutMs),
+      ]);
+      let r: Response;
+      try {
+        r = await fetch(url, {
+          method: 'POST',
+          headers: buildHeaders(),
+          body: bodyJson,
+          signal: fetchAbort,
+        });
+      } catch (err) {
+        throw new Error(
+          `sandbox spawner unreachable at ${url}: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
+        );
+      }
+      if (r.status === 503 && attempt < DRAIN_RETRY_MAX) {
+        const peek = await r.text().catch(() => '');
+        if (peek.includes('draining')) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, DRAIN_RETRY_DELAY_MS),
+          );
+          continue;
+        }
+        throw new Error(`sandbox spawner 503: ${peek || r.statusText}`);
+      }
+      return r;
+    }
+  };
+
+  const res = await doFetch();
 
   if (res.status === 401) {
     throw new Error(
@@ -363,6 +424,20 @@ export async function spawnerExecute(
   }
   if (!res.body) {
     throw new Error('sandbox spawner returned no body');
+  }
+
+  // Blue-green: report the colour the spawner self-identified (X-Sandbox-Color)
+  // so the caller can persist it on the execution row BEFORE streaming begins —
+  // a concurrent user-Stop then routes its cancel to this exact colour.
+  if (callbacks.onSpawnerColor) {
+    const reported = res.headers.get('x-sandbox-color');
+    try {
+      await callbacks.onSpawnerColor(
+        reported && reported.length > 0 ? reported : null,
+      );
+    } catch (err) {
+      console.warn(`[spawnerExecute] onSpawnerColor callback failed:`, err);
+    }
   }
 
   // SSE parser: events are separated by `\n\n`; each event has `event:` and
@@ -597,8 +672,13 @@ function validateExecuteResponse(
   return raw as unknown as SpawnerExecuteResponse;
 }
 
-export async function spawnerCancel(executionId: string): Promise<void> {
-  const url = `${getSpawnerUrl()}/v1/cancel/${encodeURIComponent(executionId)}`;
+export async function spawnerCancel(
+  executionId: string,
+  spawnerColor?: string | null,
+): Promise<void> {
+  // Route to the SAME colour the execution started on (persisted on the row),
+  // so a cancel still lands after a deploy flip moved the bare `sandbox` alias.
+  const url = `${spawnerUrlForColor(spawnerColor)}/v1/cancel/${encodeURIComponent(executionId)}`;
   const path = new URL(url).pathname;
   const token = getSpawnerToken();
   const body = '';

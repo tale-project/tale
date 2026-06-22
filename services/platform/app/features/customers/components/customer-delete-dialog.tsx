@@ -66,7 +66,7 @@ export function CustomerDeleteDialog({
           variant="ghost"
           size="icon"
           onClick={dialog.open}
-          aria-label={tCustomers('deleteCustomer')}
+          title={tCustomers('deleteCustomer')}
         >
           <Trash2 className="text-muted-foreground size-4" />
         </Button>

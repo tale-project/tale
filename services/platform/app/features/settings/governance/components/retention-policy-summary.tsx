@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 
 import { useT } from '@/lib/i18n/client';
@@ -26,7 +27,7 @@ export function RetentionPolicySummary({
   const graceDays = config.deletionGraceDays ?? 30;
 
   return (
-    <div className="border-border flex flex-col gap-4 rounded-lg border p-4">
+    <Stack className="border-border rounded-lg border p-4">
       <dl className="space-y-1 text-sm">
         {WIRE_MAPPING.map((wire) => (
           <SummaryRow
@@ -36,21 +37,21 @@ export function RetentionPolicySummary({
             bounds={bounds}
           />
         ))}
-        <div className="flex gap-2 pt-1">
+        <Row gap={2} align="stretch" className="pt-1">
           <dt className="text-muted-foreground w-44 shrink-0">
             {t('retentionPolicy.deletionGrace.label', 'Grace period (days)')}
           </dt>
           <dd>
             <SkeletonBox>{graceDays}</SkeletonBox>
           </dd>
-        </div>
+        </Row>
       </dl>
       <div className="border-border/50 border-t pt-4">
         <SkeletonBox fullWidth>
           <RetentionTimeline graceDays={graceDays} />
         </SkeletonBox>
       </div>
-    </div>
+    </Stack>
   );
 }
 
@@ -74,7 +75,7 @@ function SummaryRow({ wire, config, bounds }: SummaryRowProps) {
   const unit = bounds.get(id)?.unit ?? unitForCategory(id);
 
   return (
-    <div className="flex gap-2">
+    <Row gap={2} align="stretch">
       <dt className="text-muted-foreground w-44 shrink-0">{titleText}</dt>
       <dd>
         <SkeletonBox>
@@ -89,6 +90,6 @@ function SummaryRow({ wire, config, bounds }: SummaryRowProps) {
           )}
         </SkeletonBox>
       </dd>
-    </div>
+    </Row>
   );
 }

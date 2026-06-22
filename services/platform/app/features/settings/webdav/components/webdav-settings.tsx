@@ -51,7 +51,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
   const url = `${props.siteOrigin}/dav/${props.orgSlug}/documents/`;
 
   return (
-    <Stack gap={8}>
+    <>
       <SettingsSection
         title={t('connectionDetails.title')}
         description={t('description')}
@@ -64,23 +64,22 @@ export function WebdavSettings(props: WebdavSettingsProps) {
             description={t('connectionDetails.usernameHelp')}
             copyAriaLabel={t('connectionDetails.copyUsername')}
           />
-          <div className="flex flex-col gap-1">
+          <Stack gap={1}>
             <Text as="span" variant="label">
               {t('connectionDetails.passwordLabel')}
             </Text>
             <Text as="span" variant="muted" className="text-sm">
               {t('connectionDetails.passwordHelp')}
             </Text>
-          </div>
+          </Stack>
         </Stack>
       </SettingsSection>
 
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('list.title')}
         description={t('create.description')}
         action={
-          <Button size="sm" icon={KeyRound} onClick={() => setCreateOpen(true)}>
+          <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
             {t('create.submit')}
           </Button>
         }
@@ -98,7 +97,7 @@ export function WebdavSettings(props: WebdavSettingsProps) {
         revealed={revealed}
         onClose={() => setRevealed(null)}
       />
-    </Stack>
+    </>
   );
 }
 
@@ -133,8 +132,8 @@ function WebdavAppPasswordsTable({
         ),
       },
       // Column sizes double as the table's min-width floor (DataTable sums
-      // them) — keep the total ≤ 540px so the table fits this page's
-      // `SettingsPage narrow` 544px column without horizontal scroll.
+      // them) — keep the total within the full-width settings page budget
+      // (≤ 940px) so the table never forces horizontal scroll.
       {
         accessorKey: 'prefix',
         header: t('list.prefix'),
@@ -231,7 +230,7 @@ function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
         size="icon"
         variant="ghost"
         icon={Trash2}
-        aria-label={t('list.revoke')}
+        title={t('list.revoke')}
         disabled={isRevoking}
         onClick={() => setOpen(true)}
       />

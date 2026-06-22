@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -124,24 +124,26 @@ export function RequestDetailDrawer({
 function DrawerErrorState({ onRetry }: { onRetry: () => void }) {
   const { t } = useT('governance');
   return (
-    <div
+    <Stack
       role="alert"
       aria-live="polite"
-      className="border-border bg-muted/30 flex flex-col items-start gap-3 rounded-md border p-4"
+      gap={3}
+      align="start"
+      className="border-border bg-muted/30 rounded-md border p-4"
     >
-      <div className="flex items-center gap-2">
+      <Row gap={2}>
         <AlertTriangle className="text-destructive size-4" aria-hidden="true" />
         <Text as="span" className="font-medium">
           {t('dataSubjectRequests.drawer.errorState.title')}
         </Text>
-      </div>
+      </Row>
       <Text variant="muted" className="text-sm">
         {t('dataSubjectRequests.drawer.errorState.description')}
       </Text>
-      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+      <Button type="button" variant="secondary" onClick={onRetry}>
         {t('dataSubjectRequests.drawer.errorState.retry')}
       </Button>
-    </div>
+    </Stack>
   );
 }
 
@@ -215,8 +217,8 @@ function DrawerBody({
     request.effectiveAt > now;
 
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-center gap-2 pr-12">
+    <Stack gap={5}>
+      <Row as="header" gap={2} wrap className="pr-12">
         <SkeletonBox>
           <StatusBadge
             status={request.status}
@@ -230,7 +232,7 @@ function DrawerBody({
             status={request.status}
           />
         </SkeletonBox>
-      </header>
+      </Row>
 
       {isCoolingOff && request.effectiveAt !== undefined && (
         <CoolingOffBanner
@@ -280,7 +282,7 @@ function DrawerBody({
           ms={request.extensionDeadlineAt ?? request.slaDeadlineAt}
         />
         {request.extensionGrantedAt !== undefined && (
-          <div className="bg-muted/30 flex flex-col gap-1 rounded-md p-2 text-xs">
+          <Stack gap={1} className="bg-muted/30 rounded-md p-2 text-xs">
             <Text as="span" className="font-medium">
               {t('dataSubjectRequests.drawer.extensionGrantedTitle', {
                 name:
@@ -294,7 +296,7 @@ function DrawerBody({
                 {request.extensionReason}
               </Text>
             )}
-          </div>
+          </Stack>
         )}
       </Section>
 
@@ -376,7 +378,7 @@ function DrawerBody({
             {t('dataSubjectRequests.drawer.auditEmpty')}
           </Text>
         ) : (
-          <ol className="border-border flex flex-col gap-2 border-l pl-3">
+          <Stack as="ol" gap={2} className="border-border border-l pl-3">
             {auditEntries.map((entry) => (
               <li key={entry._id} className="flex flex-col gap-0.5">
                 <Text as="span" className="text-xs font-medium">
@@ -394,7 +396,7 @@ function DrawerBody({
                 </Text>
               </li>
             ))}
-          </ol>
+          </Stack>
         )}
       </Section>
 
@@ -402,12 +404,11 @@ function DrawerBody({
         <FullBreakdown snapshot={request.perCategorySnapshot} />
       )}
 
-      <footer className="flex flex-wrap gap-2">
+      <Row as="footer" gap={2} align="stretch" wrap>
         {canExtend && (
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             icon={Clock}
             onClick={onExtend}
           >
@@ -418,15 +419,14 @@ function DrawerBody({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             icon={RefreshCcw}
             onClick={onRetry}
           >
             {t('dataSubjectRequests.actions.retry')}
           </Button>
         )}
-      </footer>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 
@@ -439,16 +439,17 @@ function CoolingOffBanner({
 }) {
   const { t } = useT('governance');
   return (
-    <div
+    <Stack
       role="status"
-      className="text-foreground flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+      gap={2}
+      className="text-foreground rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
     >
-      <div className="flex items-start gap-2">
+      <Row gap={2} align="start">
         <Clock
           className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
           aria-hidden="true"
         />
-        <div className="flex flex-col gap-1">
+        <Stack gap={1}>
           <Text as="span" className="font-medium">
             {t('dataSubjectRequests.drawer.coolingOffBanner.title')}
           </Text>
@@ -458,20 +459,19 @@ function CoolingOffBanner({
           <Text as="span" variant="muted" className="text-xs">
             <TableDateCell date={effectiveAt} />
           </Text>
-        </div>
-      </div>
-      <div className="flex justify-end">
+        </Stack>
+      </Row>
+      <Row gap={0} align="stretch" justify="end">
         <Button
           type="button"
           variant="destructive"
-          size="sm"
           icon={Ban}
           onClick={onCancel}
         >
           {t('dataSubjectRequests.actions.cancel')}
         </Button>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 
@@ -483,16 +483,17 @@ function CancelledBlock({
   const { t } = useT('governance');
   const { request } = data;
   return (
-    <div
+    <Stack
       role="status"
-      className="border-border bg-muted/30 text-foreground flex flex-col gap-2 rounded-md border p-3 text-sm"
+      gap={2}
+      className="border-border bg-muted/30 text-foreground rounded-md border p-3 text-sm"
     >
-      <div className="flex items-start gap-2">
+      <Row gap={2} align="start">
         <Ban
           className="text-muted-foreground mt-0.5 size-4 shrink-0"
           aria-hidden="true"
         />
-        <div className="flex flex-1 flex-col gap-1">
+        <Stack gap={1} className="flex-1">
           <Text as="span" className="font-medium">
             {t('dataSubjectRequests.drawer.cancelledBlock.title')}
           </Text>
@@ -511,9 +512,9 @@ function CancelledBlock({
               <TableDateCell date={request.cancelledAt} />
             </Text>
           )}
-        </div>
-      </div>
-    </div>
+        </Stack>
+      </Row>
+    </Stack>
   );
 }
 
@@ -557,7 +558,13 @@ function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
       </summary>
       <dl className="mt-2 flex flex-col gap-1 px-1">
         {visible.map(({ key, rows, skippedByHold }) => (
-          <div key={key} className="flex justify-between gap-2 text-xs">
+          <Row
+            key={key}
+            gap={2}
+            align="stretch"
+            justify="between"
+            className="text-xs"
+          >
             <dt className="text-muted-foreground">
               {t(`dataSubjectRequests.categories.${key}`, key)}
             </dt>
@@ -567,7 +574,7 @@ function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
                 skippedByHold,
               })}
             </dd>
-          </div>
+          </Row>
         ))}
         {zeroCount > 0 && (
           <Text as="span" variant="muted" className="text-xs italic">
@@ -589,10 +596,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-2">
+    <Stack as="section" gap={2}>
       <h3 className="text-foreground text-sm font-medium">{title}</h3>
-      <div className="flex flex-col gap-2">{children}</div>
-    </section>
+      <Stack gap={2}>{children}</Stack>
+    </Stack>
   );
 }
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { lazy, useCallback, useRef, useState } from 'react';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -145,7 +145,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
 
   return (
     <Skeletonize loading={isLoading} label={t('pii.title')}>
-      <PageSection
+      <SettingsSection
         title={t('pii.title')}
         description={t('pii.description')}
         action={
@@ -177,7 +177,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
             />
           </SuspenseBoundary>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

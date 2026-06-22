@@ -34,7 +34,7 @@ export function ConditionalAccessError({
 
       <Stack gap={2}>
         {isMfaError && (
-          <Button onClick={onRetry} size="lg" fullWidth>
+          <Button onClick={onRetry} fullWidth>
             {t('sso.actions.completeMfa')}
           </Button>
         )}
@@ -46,7 +46,7 @@ export function ConditionalAccessError({
         )}
 
         {!isBlockedError && (
-          <Button onClick={onRetry} variant="secondary" size="lg" fullWidth>
+          <Button onClick={onRetry} variant="secondary" fullWidth>
             {t('sso.actions.tryAgain')}
           </Button>
         )}

@@ -23,10 +23,7 @@ function ProvidersIndexRoute() {
       >
         <ProvidersTable organizationId={id} />
       </SettingsSection>
-      <ModelCatalogCard
-        organizationId={id}
-        className="border-border border-t pt-8"
-      />
+      <ModelCatalogCard organizationId={id} />
     </SettingsPage>
   );
 }

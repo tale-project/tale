@@ -14,8 +14,9 @@ import { useLiveBrowserOptional } from '@/app/features/workspace/components/live
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanControlMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
+
+import { ApprovalCard } from './approval-card';
 
 interface HumanControlCardProps {
   approvalId: Id<'approvals'>;
@@ -98,12 +99,7 @@ function HumanControlCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'bg-card w-full max-w-2xl overflow-hidden rounded-xl border border-border p-4',
-        className,
-      )}
-    >
+    <ApprovalCard maxWidth="2xl" className={className}>
       <HStack gap={2} align="center" className="mb-2">
         <Hand className="text-primary size-4 shrink-0" />
         <Text as="div" variant="label">
@@ -135,7 +131,6 @@ function HumanControlCardComponent({
           <ActionRow gap={2} className="mt-1">
             {controlling ? (
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleReturn}
                 disabled={isReturning}
@@ -150,7 +145,6 @@ function HumanControlCardComponent({
               </Button>
             ) : (
               <Button
-                size="sm"
                 variant="primary"
                 onClick={handleTakeControl}
                 className="flex-1"
@@ -202,7 +196,7 @@ function HumanControlCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

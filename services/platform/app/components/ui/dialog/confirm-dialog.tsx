@@ -154,7 +154,6 @@ export function ConfirmDialog({
             onChange={(e) => setPhraseInput(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            size="sm"
           />
         </div>
       )}

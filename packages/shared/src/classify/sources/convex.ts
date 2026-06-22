@@ -12,6 +12,20 @@ import { noise } from '../kinds';
 
 export const classifyConvex: Classifier = (line) => {
   const body = stripAnsi(line);
+  // Push/deploy failure header. Convex prints the server error on the FOLLOWING
+  // lines as left-aligned prose (not an indented stack), so flag it as a block
+  // error — the stream classifier then keeps that body surfaced until the next
+  // milestone instead of dropping it as noise. Matched by text (not just the ✖
+  // glyph) so a non-TTY CI run, where the glyph may be absent, still surfaces it.
+  if (/Hit an error while (pushing|running)|while pushing to/i.test(body)) {
+    return {
+      kind: 'error',
+      errorBlock: true,
+      text: body.replace(/^[✖✗✘]\s*/, ''),
+      raw: line,
+      source: 'convex',
+    };
+  }
   if (/^[✖✗]|^\s*✘|Uncaught|Error:|error:/.test(body)) {
     return {
       kind: 'error',

@@ -5,7 +5,7 @@ description: La forme que suivent les notes de version de Tale — la promesse s
 
 Tale publie une version par minor et des patches comme tags correctifs entre elles. Les notes de version pour chaque tag suivent la même forme afin que tu puisses en scanner une en une minute et savoir si la montée de version est un bump de cinq minutes ou une fenêtre de maintenance. Cette page couvre le format : la promesse semver, ce que chaque section garantit, et où lire plus en profondeur quand une ligne pointe vers une migration.
 
-Les notes elles-mêmes vivent sur la page de release GitHub de chaque tag. La CLI les fait aussi remonter — `tale upgrade --notes` imprime les notes de la version qu'elle est sur le point d'installer.
+Les notes elles-mêmes vivent sur la page de release GitHub de chaque tag. La CLI les fait aussi remonter — `tale update --notes` imprime les notes de la version qu'elle est sur le point d'installer.
 
 ## La promesse semver
 
@@ -30,7 +30,7 @@ Chaque page de release est la même liste ordonnée de sections. Les sections vi
 
 ## Comment scanner une release
 
-Lis la ligne de version, les highlights et la section des changements breaking. Si la section breaking est vide et que la section sécurité ne nomme pas un fix qui touche ton install, la montée de version est la séquence à deux commandes de [Montées de version](/fr/self-hosted/operate/upgrades). Si l'une ou l'autre des sections a des lignes, parcours-les avant de lancer `tale deploy`.
+Lis la ligne de version, les highlights et la section des changements breaking. Si la section breaking est vide et que la section sécurité ne nomme pas un fix qui touche ton install, la montée de version est la séquence `tale update` + `tale deploy` depuis [Montées de version](/fr/self-hosted/operate/upgrades). Si l'une ou l'autre des sections a des lignes, parcours-les avant de lancer `tale deploy`.
 
 ```text
 0.12.0 (minor) — 14/05/2026
@@ -49,7 +49,7 @@ Sécurité
   Voir : avis TAL-2026-007.
 ```
 
-La forme ci-dessus est ce qu'imprime `tale upgrade --notes`. La version web de la même release ajoute des liens sur chaque ligne d'avis et de migration.
+La forme ci-dessus est ce qu'imprime `tale update --notes`. La version web de la même release ajoute des liens sur chaque ligne d'avis et de migration.
 
 ## Où cela s'inscrit
 

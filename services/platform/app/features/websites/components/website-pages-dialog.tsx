@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
+import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
@@ -98,7 +99,7 @@ function PageRow({
           </a>
         </Text>
       )}
-      <div className="text-muted-foreground flex gap-4 text-xs">
+      <Row align="stretch" className="text-muted-foreground text-xs">
         <span>
           <SkeletonBox>
             {t('pagesDialog.wordCount', { count: page.word_count })}
@@ -116,7 +117,7 @@ function PageRow({
             })}
           </span>
         )}
-      </div>
+      </Row>
     </div>
   );
 
@@ -125,9 +126,9 @@ function PageRow({
       <CollapsibleDetails summary={summary} onToggle={handleToggle}>
         <div className="mt-3 space-y-2">
           {isPending && (
-            <div className="flex justify-center py-2">
+            <Row gap={0} align="stretch" justify="center" className="py-2">
               <Spinner size="sm" />
-            </div>
+            </Row>
           )}
           {chunks?.length === 0 && (
             <Text variant="muted" className="text-sm">
@@ -156,7 +157,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
   return (
     <BorderedSection>
       <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
+        <Row gap={2} align="start" justify="between">
           <Heading level={3} size="sm" weight="medium">
             {result.title || result.url}
           </Heading>
@@ -165,7 +166,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
               score: (result.score * 100).toFixed(0) + '%',
             })}
           </Text>
-        </div>
+        </Row>
         <Text variant="caption">
           <a
             href={result.url}
@@ -295,7 +296,7 @@ export function WebsitePagesDialog({
       size="wide"
     >
       <div className="min-h-[400px] space-y-4">
-        <div className="flex gap-2">
+        <Row gap={2} align="stretch">
           <SearchInput
             value={searchQuery}
             onChange={handleSearchChange}
@@ -312,14 +313,14 @@ export function WebsitePagesDialog({
           >
             <SearchIcon className="size-4" />
           </Button>
-        </div>
+        </Row>
 
         {isSearchMode ? (
           <>
             {isSearching && (
-              <div className="flex justify-center py-4">
+              <Row gap={0} align="stretch" justify="center" className="py-4">
                 <Spinner size="sm" />
-              </div>
+              </Row>
             )}
 
             {!isSearching && searchResults.length === 0 && (
@@ -359,16 +360,15 @@ export function WebsitePagesDialog({
             </Skeletonize>
 
             {hasMore && (
-              <div className="flex justify-center pt-2">
+              <Row gap={0} align="stretch" justify="center" className="pt-2">
                 <Button
                   variant="secondary"
-                  size="sm"
                   onClick={loadMore}
                   disabled={isPending}
                 >
                   {isPending ? '...' : t('pagesDialog.loadMore')}
                 </Button>
-              </div>
+              </Row>
             )}
           </>
         )}

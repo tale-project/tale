@@ -236,7 +236,7 @@
     "slug": "platform/member/environment",
     "locale": "de",
     "frontmatter": {
-      "title": "Umgebung & Geheimnisse",
+      "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Deine persönlichen Umgebungsvariablen und Geheimnisse, die Tale in jede Agent-Sandbox einspeist, die du in einer Organisation startest — meist die Provider-Anmeldedaten, mit denen sich ein BYO-Agent authentifiziert."
     }
   },
@@ -1041,7 +1041,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Upgrades",
-      "description": "Wie `tale upgrade` und `tale deploy` eine Tale-Instanz vorwärtsbewegen — das Rolling-Restart-Pattern, was vor einem Upgrade zu tun ist und die Versions-Kompatibilitäts-Story."
+      "description": "Wie `tale update` eine Tale-Instanz vorwärtsbewegt — die automatische CLI-/Instanz-Versions-Angleichung, das Rolling-Restart-Pattern, was vor einem Upgrade zu tun ist und die Versions-Kompatibilitäts-Story."
     }
   },
   "de:self-hosted/operate/observability/operations": {
@@ -1356,7 +1356,7 @@
     "slug": "platform/member/environment",
     "locale": "fr",
     "frontmatter": {
-      "title": "Environnement et secrets",
+      "title": "Variables d'environnement et secrets",
       "description": "Tes variables d'environnement et secrets personnels, injectés dans chaque sandbox d'agent que tu lances dans une organisation — le plus souvent l'identifiant fournisseur avec lequel un agent BYO s'authentifie."
     }
   },
@@ -2161,7 +2161,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Montées de version",
-      "description": "Comment `tale upgrade` et `tale deploy` font avancer une instance Tale — le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions."
+      "description": "Comment `tale update` fait avancer une instance Tale — l'alignement automatique de version entre la CLI et l'instance, le pattern de redémarrage rolling, quoi faire avant une montée de version et l'histoire de la compatibilité de versions."
     }
   },
   "fr:self-hosted/operate/observability/operations": {
@@ -2476,7 +2476,7 @@
     "slug": "platform/member/environment",
     "locale": "en",
     "frontmatter": {
-      "title": "Environment & secrets",
+      "title": "Environment variables & secrets",
       "description": "Your personal environment variables and secrets, injected into every agent sandbox you run in an organisation — most often the provider credential a bring-your-own agent authenticates with."
     }
   },
@@ -3281,7 +3281,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Upgrades",
-      "description": "How `tale upgrade` and `tale deploy` move a Tale instance forward — the rolling restart pattern, what to do before an upgrade, and the version compatibility story."
+      "description": "How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story."
     }
   },
   "en:self-hosted/operate/observability/operations": {

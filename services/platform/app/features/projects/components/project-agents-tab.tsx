@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Row } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
@@ -281,9 +282,11 @@ export function ProjectAgentsTab({
       </PageSection>
 
       {showLockoutWarning ? (
-        <div
+        <Row
           role="note"
-          className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3"
+          gap={2}
+          align="start"
+          className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3"
         >
           <AlertTriangle
             className="mt-0.5 size-4 shrink-0 text-amber-600"
@@ -292,7 +295,7 @@ export function ProjectAgentsTab({
           <Text variant="caption" className="text-amber-700">
             {t('agents.lockoutWarning')}
           </Text>
-        </div>
+        </Row>
       ) : null}
     </ContentArea>
   );

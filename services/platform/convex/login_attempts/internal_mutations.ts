@@ -222,6 +222,7 @@ export const recordFailure = internalMutation({
         // audit-pepper rotation or email change. Without this, rows
         // written under one pepper become unmatchable after rotation.
         subjectUserId: user.userId,
+        link: { kind: 'security-monitoring' },
       });
     }
 

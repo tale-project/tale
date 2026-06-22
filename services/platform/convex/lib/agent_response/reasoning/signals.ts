@@ -52,6 +52,19 @@ export interface DifficultySignals {
   agentType?: string;
   /** Count of prior messages in the thread (follow-up detection). */
   historyMessageCount?: number;
+  /**
+   * Coarse reasoning-effort seed from the Auto router (low/medium/high). Blends
+   * the heuristic difficulty prior toward this hint (a PRIOR, weight {@link
+   * SEED_WEIGHT}) — never a hard override; the online controller still refines
+   * from observed usage. Undefined = heuristic prior only (pinned agents and
+   * non-Auto turns), so behaviour is byte-identical to before.
+   */
+  effortSeed?: 'low' | 'medium' | 'high';
+  /**
+   * Coarse creativity seed from the Auto router (precise/balanced/creative).
+   * Blends the creativity signal feeding the temperature governor, same weight.
+   */
+  creativitySeed?: 'precise' | 'balanced' | 'creative';
 }
 
 /**
@@ -165,6 +178,21 @@ const OFF_INTENSITY = 0.12;
 const PRIOR_BUDGET_GAMMA = 1.4;
 const PRIOR_BUDGET_MAX = TIER_BUDGET_TOKENS.high;
 
+// How far the Auto router's coarse hint pulls the heuristic prior toward it — a
+// blend, not an override (the online controller still refines from observed
+// usage). Representative prior intensity / creativity score per hint level.
+const SEED_WEIGHT = 0.5;
+const SEED_INTENSITY: Record<'low' | 'medium' | 'high', number> = {
+  low: 0.25,
+  medium: 0.55,
+  high: 0.85,
+};
+const SEED_CREATIVITY: Record<'precise' | 'balanced' | 'creative', number> = {
+  precise: 0,
+  balanced: 0.5,
+  creative: 1,
+};
+
 /**
  * Score a turn's reasoning difficulty into a continuous intensity, a creativity
  * signal, a coarse class, a canonical target, and a hard floor.
@@ -234,7 +262,12 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
   // ~2 turns and saturates by ~8; shortness fades out by ~40 tokens.
   const historyDepth = clamp01(((signals.historyMessageCount ?? 0) - 2) / 6);
   const shortness = 1 - clamp01(tokens / 40);
-  const followUpScore = historyDepth * shortness;
+  // A genuinely hard turn is never damped as a follow-up: a terse rework deep in
+  // a thread ("now redo it in Rust", "make it handle the edge cases") carries
+  // code / hard-verb / math signal and must score on its content, not be pulled
+  // down for being short. Plain short follow-ups still damp.
+  const followUpScore =
+    density > 0 || hardStrength > 0 || hasMath ? 0 : historyDepth * shortness;
 
   const z =
     W.bias +
@@ -266,13 +299,30 @@ export function scoreDifficulty(signals: DifficultySignals): DifficultyResult {
     !isTrivial;
   if (longContextQa) intensity *= 0.85;
 
+  // Router seed (Auto mode only): blend the heuristic prior toward the LLM's
+  // coarse effort read. The router actually read the message, so this fixes
+  // cold-start and the heuristic's semantic blind spots (a terse-but-hard ask)
+  // on turn one; the online controller then refines from observed usage, so a
+  // wrong hint self-corrects. Absent = byte-identical to the pure heuristic.
+  if (signals.effortSeed) {
+    intensity =
+      (1 - SEED_WEIGHT) * intensity +
+      SEED_WEIGHT * SEED_INTENSITY[signals.effortSeed];
+  }
+
   // Creativity: precise/deterministic work pulls temperature down, open-ended
   // generation pulls it up. Code / math / analytical intent are precise.
   const analytical =
     hasAnalyticalVerb || density > 0 || hasMath || hardStrength > 0;
-  const creativity = clamp01(
+  let creativity = clamp01(
     0.5 + 0.7 * creativeStrength - (analytical ? 0.35 : 0) - 0.2 * easyStrength,
   );
+  if (signals.creativitySeed) {
+    creativity = clamp01(
+      (1 - SEED_WEIGHT) * creativity +
+        SEED_WEIGHT * SEED_CREATIVITY[signals.creativitySeed],
+    );
+  }
 
   // Hard floors: a genuinely hard turn can't be starved by history.
   let floorTier: ReasoningTier = 'off';

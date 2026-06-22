@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
 import { WrapText } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -93,7 +94,11 @@ function CodeViewerComponent({
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       {showWrapToggle && (
-        <div className="border-border bg-muted/30 flex shrink-0 items-center justify-end border-b px-2 py-1">
+        <Row
+          gap={0}
+          justify="end"
+          className="border-border bg-muted/30 shrink-0 border-b px-2 py-1"
+        >
           <Button
             variant="ghost"
             size="sm"
@@ -104,7 +109,7 @@ function CodeViewerComponent({
               defaultValue: 'Toggle line wrap',
             })}
           />
-        </div>
+        </Row>
       )}
       <div className="min-h-0 flex-1 overflow-auto">
         {oversize ? (

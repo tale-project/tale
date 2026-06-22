@@ -34,7 +34,7 @@ function FileLinks({ files }: { files: NonNullable<RenderPart['files']> }) {
         isMarkdownFile(file.name) ? (
           <MarkdownFilePreview key={file.name} file={file} />
         ) : (
-          <Button key={file.name} asChild variant="secondary" size="sm">
+          <Button key={file.name} asChild variant="secondary">
             <a href={file.url} target="_blank" rel="noopener noreferrer">
               <FileText className="size-4" />
               {t('action.openFile', {

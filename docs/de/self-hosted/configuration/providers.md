@@ -33,7 +33,7 @@ Die Referenz ist das Dateiformat auf Platte und die Reihenfolge der Operationen,
 }
 ```
 
-Die vollständige Menge der Felder lebt in [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). Der ausgelieferte Default ist eine einzige `openrouter.json`, die Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt — ein Key für alles. Um einen Anbieter direkt statt über OpenRouter aufzurufen, füg eine weitere Datei hinzu (z. B. eine `openai.json`, die auf `https://api.openai.com/v1` zeigt); siehe [Modelle out of the box](/de/platform/models) für den vollen Default-Katalog.
+Die vollständige Menge der Felder lebt in [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). Der ausgelieferte Default ist eine einzige `openrouter.json`, die Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt — ein Key für alles — mit kuratierten Presets für die gängigen Anbieter (Anthropic, OpenAI, Google, xAI, Mistral, Meta, DeepSeek, Qwen, Cohere, Amazon, Perplexity und mehr). Um einen Anbieter direkt statt über OpenRouter aufzurufen, füg eine weitere Datei hinzu (z. B. eine `openai.json`, die auf `https://api.openai.com/v1` zeigt); siehe [Modelle out of the box](/de/platform/models) für den vollen Default-Katalog.
 
 `transcriptionMode` wählt, wie der Request-Body eines `transcription`-Modells geformt wird: `json-base64` (OpenRouters `input_audio`-Envelope) oder, wenn weggelassen, `multipart` — der OpenAI/Whisper-`multipart/form-data`-Upload, den auch vLLM, LocalAI und ein direkter OpenAI-Key erwarten. Setz es passend zum Transkriptions-Endpunkt, auf den du zeigst.
 

@@ -377,6 +377,11 @@ export class DockerSessionBackend implements SessionBackend {
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {
     const filters = ['--filter', 'label=tale.sandbox-session=1'];
+    // Blue-green: only this colour's sessions, so a draining old colour and a
+    // fresh new colour never both adopt/manage the same session container.
+    if (this.cfg.color) {
+      filters.push('--filter', `label=tale.color=${this.cfg.color}`);
+    }
     if (organizationId) {
       filters.push('--filter', `label=tale.org=${organizationId}`);
     }

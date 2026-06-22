@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalMatters } from '../hooks/queries';
@@ -91,7 +92,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         header: t('legalHold.columns.actions'),
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
+          <Row gap={2} align="stretch" justify="end">
             <Button
               type="button"
               variant="ghost"
@@ -116,7 +117,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
                 {t('legalHold.actions.closeMatter')}
               </Button>
             )}
-          </div>
+          </Row>
         ),
         size: 200,
       },
@@ -126,24 +127,22 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
         action={
           <Button
             type="button"
             variant="primary"
-            size="sm"
             onClick={() => setCreateOpen(true)}
           >
             {t('legalHold.actions.createMatter')}
           </Button>
         }
       >
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Select
             id="matters-status-filter"
-            size="sm"
             value={statusFilter}
             onValueChange={(v) =>
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained
@@ -152,7 +151,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
             options={statusOptions}
             aria-label={t('legalHold.filters.allStatuses')}
           />
-        </div>
+        </Row>
         <DataTable<MatterRow>
           columns={columns}
           data={matters ?? []}
@@ -165,7 +164,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           }}
           caption={t('legalHold.sections.matters.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <UpsertMatterDialog
         open={createOpen}

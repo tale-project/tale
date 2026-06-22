@@ -34,6 +34,15 @@ export interface DataTableActionMenuProps {
   href?: string;
   /** Button variant */
   variant?: 'primary' | 'destructive' | 'secondary' | 'ghost' | 'link';
+  /**
+   * Button size. Defaults to `default` (h-9) — the create/add action is a
+   * primary action that aligns with the h-9 search/filter controls beside it in
+   * the table toolbar, and matches the empty-state CTA so a list's add button is
+   * the same size in both places. `sm` stays available for genuinely dense bars.
+   */
+  size?: 'default' | 'sm';
+  /** Disable the action. */
+  disabled?: boolean;
   /** Menu items for dropdown (renders dropdown menu instead of simple button) */
   menuItems?: DataTableActionMenuItem[];
   /** Dropdown menu alignment */
@@ -58,6 +67,8 @@ export function DataTableActionMenu({
   onClick,
   href,
   variant,
+  size = 'default',
+  disabled,
   menuItems,
   align = 'end',
   className,
@@ -81,7 +92,12 @@ export function DataTableActionMenu({
     return (
       <DropdownMenu
         trigger={
-          <Button variant={variant} className={cn('gap-2', className)}>
+          <Button
+            variant={variant}
+            size={size}
+            disabled={disabled}
+            className={cn('gap-2', className)}
+          >
             {Icon && <Icon className="size-4" />}
             {label}
             <ChevronDown className="size-4" />
@@ -93,12 +109,13 @@ export function DataTableActionMenu({
     );
   }
 
-  // Render link button if href provided
-  if (href) {
+  // Render link button if href provided (a disabled link falls back to a
+  // disabled button — anchors have no native disabled state).
+  if (href && !disabled) {
     return (
       <Link
         to={href}
-        className={cn(buttonVariants({ variant }), 'gap-2', className)}
+        className={cn(buttonVariants({ variant, size }), 'gap-2', className)}
       >
         {Icon && <Icon className="size-4" />}
         {label}
@@ -111,6 +128,8 @@ export function DataTableActionMenu({
     <Button
       onClick={onClick}
       variant={variant}
+      size={size}
+      disabled={disabled}
       className={cn('gap-2', className)}
     >
       {Icon && <Icon className="size-4" />}

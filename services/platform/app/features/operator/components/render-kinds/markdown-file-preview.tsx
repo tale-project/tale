@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -78,7 +79,7 @@ export function MarkdownFilePreview({
   return (
     <ResponsiveDialog open={open} onOpenChange={setOpen}>
       <ResponsiveDialogTrigger asChild>
-        <Button variant="secondary" size="sm" icon={FileText}>
+        <Button variant="secondary" icon={FileText}>
           {t('action.openFile', { name: file.name, defaultValue: file.name })}
         </Button>
       </ResponsiveDialogTrigger>
@@ -92,13 +93,13 @@ export function MarkdownFilePreview({
         </ResponsiveDialogDescription>
         <div className="mt-2 max-h-[70vh] overflow-y-auto">
           {state.status === 'loading' && (
-            <div className="flex justify-center py-12">
+            <Row gap={0} align="stretch" justify="center" className="py-12">
               <Spinner
                 label={t('filePreview.loading', {
                   defaultValue: 'Loading preview…',
                 })}
               />
-            </div>
+            </Row>
           )}
           {state.status === 'error' && (
             <div className="text-muted-foreground space-y-3 py-8 text-center text-sm">
@@ -107,7 +108,7 @@ export function MarkdownFilePreview({
                   defaultValue: "Couldn't load the preview.",
                 })}
               </p>
-              <Button asChild variant="secondary" size="sm">
+              <Button asChild variant="secondary">
                 <a href={file.url} target="_blank" rel="noopener noreferrer">
                   {t('filePreview.openInNewTab', {
                     defaultValue: 'Open in a new tab',

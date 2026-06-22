@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -146,7 +147,7 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
     <WizardStep id="provider" onBeforeNext={connectOpenRouter}>
       {/* Heading + description live in the wizard hero now; the body is just
           the key field and its helper link, grouped tightly together. */}
-      <div className="flex flex-col gap-2">
+      <Stack gap={2}>
         <Input
           id="openrouter-key"
           type="password"
@@ -176,7 +177,7 @@ export function OpenRouterStep({ organizationId }: OpenRouterStepProps) {
             <ExternalLink className="size-3.5" aria-hidden />
           </a>
         </Text>
-      </div>
+      </Stack>
     </WizardStep>
   );
 }

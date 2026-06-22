@@ -2,7 +2,7 @@
 
 import RFB, { type RFBEventDetail } from '@novnc/novnc';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useMatch } from '@tanstack/react-router';
@@ -284,7 +284,7 @@ function ScreencastViewport({
       )}
 
       {status === 'connecting' && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <Row gap={0} justify="center" className="absolute inset-0">
           <Stack gap={2} className="items-center">
             <Spinner
               label={t('liveBrowser.connecting', {
@@ -295,47 +295,37 @@ function ScreencastViewport({
               {t('liveBrowser.connecting', { defaultValue: 'Connecting…' })}
             </Text>
           </Stack>
-        </div>
+        </Row>
       )}
 
       {status === 'disconnected' && (
-        <div className="absolute inset-0 flex items-center justify-center p-8">
+        <Row gap={0} justify="center" className="absolute inset-0 p-8">
           <Stack gap={3} className="items-center text-center">
             <Text variant="label" className="text-sm text-white">
               {t('liveBrowser.disconnected', {
                 defaultValue: 'Stream ended',
               })}
             </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              onClick={reconnect}
-            >
+            <Button variant="secondary" icon={RefreshCw} onClick={reconnect}>
               {t('liveBrowser.reconnect', { defaultValue: 'Reconnect' })}
             </Button>
           </Stack>
-        </div>
+        </Row>
       )}
 
       {status === 'error' && (
-        <div className="absolute inset-0 flex items-center justify-center p-8">
+        <Row gap={0} justify="center" className="absolute inset-0 p-8">
           <Stack gap={3} className="items-center text-center">
             <Text variant="label" className="text-sm text-white">
               {t('liveBrowser.error', {
                 defaultValue: 'Couldn’t connect to the live view.',
               })}
             </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              onClick={reconnect}
-            >
+            <Button variant="secondary" icon={RefreshCw} onClick={reconnect}>
               {t('liveBrowser.retry', { defaultValue: 'Retry' })}
             </Button>
           </Stack>
-        </div>
+        </Row>
       )}
     </div>
   );
@@ -382,8 +372,8 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
 
   return (
     <>
-      <div className="border-border flex items-center justify-between gap-2 border-b p-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <Row gap={2} justify="between" className="border-border border-b p-3">
+        <Row gap={2} className="min-w-0">
           <MonitorPlay
             className="text-muted-foreground size-4 shrink-0"
             aria-hidden
@@ -402,12 +392,12 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
               {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
             </span>
           )}
-        </div>
+        </Row>
         {/* Rendered in every variant. On desktop it's the pane's close; in the
             mobile Sheet (`embedded`) it replaces the Sheet's own absolute
             top-right close (suppressed via `hideClose`) so the close affordance
             stays aligned with this header row. */}
-        <div className="flex shrink-0 items-center gap-1">
+        <Row gap={1} className="shrink-0">
           {/* Reset browser — only while a session is live (nothing to reset
               otherwise). Recovery of last resort; wipes saved logins. */}
           {sessionActive && (
@@ -448,16 +438,16 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
               <X className="size-3.5" />
             </Button>
           </Tooltip>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <Stack gap={0} className="min-h-0 flex-1">
         <ScreencastViewport
           threadId={threadId}
           sessionActive={sessionActive}
           control={control}
         />
-      </div>
+      </Stack>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -485,9 +475,9 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
  *  only one WebSocket. */
 export function LiveBrowserMobileBody({ threadId }: { threadId: string }) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <Stack gap={0} className="h-full min-h-0">
       <LiveBrowserBody threadId={threadId} />
-    </div>
+    </Stack>
   );
 }
 

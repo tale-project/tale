@@ -32,6 +32,7 @@ import type { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { ApprovalCard } from './approval-card';
 import { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
@@ -191,12 +192,7 @@ function IntegrationApprovalCardComponent({
   const IntegrationIcon = metadata.integrationType === 'sql' ? Database : Globe;
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
@@ -316,7 +312,6 @@ function IntegrationApprovalCardComponent({
               />
               <ActionRow gap={2}>
                 <Button
-                  size="sm"
                   variant="secondary"
                   onClick={() => setShowFeedback(false)}
                   disabled={isProcessing}
@@ -326,7 +321,6 @@ function IntegrationApprovalCardComponent({
                   {t('backToActions')}
                 </Button>
                 <Button
-                  size="sm"
                   variant="secondary"
                   onClick={async () => {
                     if (feedbackText.trim()) {
@@ -371,7 +365,6 @@ function IntegrationApprovalCardComponent({
               <ActionRow gap={2}>
                 <Tooltip content={t('approveTooltip')}>
                   <Button
-                    size="sm"
                     variant="primary"
                     onClick={handleApprove}
                     disabled={isProcessing}
@@ -386,7 +379,6 @@ function IntegrationApprovalCardComponent({
 
                 <Tooltip content={t('rejectTooltip')}>
                   <Button
-                    size="sm"
                     variant="secondary"
                     onClick={handleReject}
                     disabled={isProcessing}
@@ -438,7 +430,7 @@ function IntegrationApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

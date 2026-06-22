@@ -273,7 +273,6 @@ export function ProjectFilesTab({
                   {failed && canEdit ? (
                     <Button
                       variant="ghost"
-                      size="sm"
                       onClick={() => void handleRetryIndexing(doc._id)}
                       disabled={isRetrying}
                       isLoading={isRetrying}
@@ -285,7 +284,6 @@ export function ProjectFilesTab({
                   {canEdit ? (
                     <Button
                       variant="ghost"
-                      size="sm"
                       onClick={() => setConfirmDetachId(doc._id)}
                     >
                       {t('files.detachAction')}

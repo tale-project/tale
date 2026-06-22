@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
@@ -42,13 +43,15 @@ export function ChatMessagesSkeleton() {
   const { t } = useT('chat');
   return (
     <Skeletonize loading label={t('skeleton.loadingMessage')}>
-      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6">
+      <Stack gap={3} className="mx-auto w-full max-w-(--chat-max-width) pt-6">
         {PLACEHOLDER_ROWS.map((row, rowIdx) =>
           row.role === 'user' ? (
-            <div
+            <Row
               // eslint-disable-next-line react/no-array-index-key
               key={rowIdx}
-              className="flex justify-end"
+              gap={0}
+              align="stretch"
+              justify="end"
             >
               {/* Hugging bubble, right-aligned. `h-11` matches a one-line user
                   bubble (text `leading-5` + `py-3`); the box's own rounding
@@ -58,17 +61,18 @@ export function ChatMessagesSkeleton() {
                   <div className="h-11" />
                 </SkeletonBox>
               </div>
-            </div>
+            </Row>
           ) : (
-            <div
+            <Row
               // eslint-disable-next-line react/no-array-index-key
               key={rowIdx}
-              className="flex justify-start"
+              gap={0}
+              align="stretch"
             >
               {/* Full-width prose, inset by the bubble's px-4/py-3 so the masked
                   lines align with the real rendered answer. */}
               <div className="w-full px-4 py-3">
-                <div className="flex flex-col gap-2">
+                <Stack gap={2}>
                   {row.lineWidths.map((lineWidth, lineIdx) => (
                     <div
                       // eslint-disable-next-line react/no-array-index-key
@@ -80,12 +84,12 @@ export function ChatMessagesSkeleton() {
                       </SkeletonBox>
                     </div>
                   ))}
-                </div>
+                </Stack>
               </div>
-            </div>
+            </Row>
           ),
         )}
-      </div>
+      </Stack>
     </Skeletonize>
   );
 }

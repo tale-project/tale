@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
@@ -657,7 +657,6 @@ export function ProviderAddPanel({
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
                       onClick={() => void handleFetchModels()}
                       disabled={isFetching}
                     >
@@ -669,12 +668,7 @@ export function ProviderAddPanel({
                       {t('providers.fetchModels')}
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={openAddDialog}
-                  >
+                  <Button type="button" variant="ghost" onClick={openAddDialog}>
                     <Plus className="mr-1 size-3.5" />
                     {t('providers.addModel')}
                   </Button>
@@ -702,8 +696,10 @@ export function ProviderAddPanel({
               )}
 
               {isFetching && rows.length === 0 && (
-                <div
-                  className="border-border flex items-center justify-center gap-2 rounded-xl border px-4 py-8"
+                <Row
+                  gap={2}
+                  justify="center"
+                  className="border-border rounded-xl border px-4 py-8"
                   role="status"
                   aria-live="polite"
                 >
@@ -711,7 +707,7 @@ export function ProviderAddPanel({
                   <Text variant="caption" className="text-muted-foreground">
                     {t('providers.fetchingModels')}
                   </Text>
-                </div>
+                </Row>
               )}
 
               {rows.length > 0 && (
@@ -726,7 +722,12 @@ export function ProviderAddPanel({
                   </div>
                   <Stack gap={0}>
                     {filteredRows.length === 0 && (
-                      <div className="flex flex-col items-center justify-center gap-1 px-4 py-8">
+                      <Stack
+                        gap={1}
+                        align="center"
+                        justify="center"
+                        className="px-4 py-8"
+                      >
                         <Text className="text-sm font-medium">
                           {t('providers.modelsEmpty.searchTitle')}
                         </Text>
@@ -736,7 +737,7 @@ export function ProviderAddPanel({
                         >
                           {t('providers.modelsEmpty.searchDescription')}
                         </Text>
-                      </div>
+                      </Stack>
                     )}
                     {visibleRows.map((row, rowIdx) => {
                       const model =

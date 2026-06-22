@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -238,7 +239,7 @@ export function SkillUploadDialog({
         footer={footer}
         className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"
       >
-        <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+        <Stack className="min-h-0 min-w-0 overflow-hidden">
           {state.step === 'upload' ? (
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
               <UploadStep onBundleParsed={state.setParsedBundle} />
@@ -248,7 +249,7 @@ export function SkillUploadDialog({
               <PreviewStep parsedBundle={state.parsedBundle} />
             </div>
           ) : null}
-        </div>
+        </Stack>
       </Dialog>
 
       <ConfirmDialog

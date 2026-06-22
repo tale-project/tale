@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { ChevronLeft } from 'lucide-react';
 import { memo, useEffect, useRef } from 'react';
 
@@ -35,9 +36,14 @@ export const ImproveMode = memo(function ImproveMode({
   }, []);
 
   return (
-    <div className="flex items-start gap-2 p-2">
+    <Row gap={2} align="start" className="p-2">
       <Tooltip content={tConversations('editor.backToEditor')}>
-        <Button onClick={onClose} variant="ghost" size="icon">
+        <Button
+          onClick={onClose}
+          variant="ghost"
+          size="icon"
+          aria-label={tConversations('editor.backToEditor')}
+        >
           <ChevronLeft className="size-4" />
         </Button>
       </Tooltip>
@@ -61,6 +67,6 @@ export const ImproveMode = memo(function ImproveMode({
           }
         }}
       />
-    </div>
+    </Row>
   );
 });

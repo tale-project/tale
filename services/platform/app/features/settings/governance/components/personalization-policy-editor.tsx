@@ -1,10 +1,10 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -28,7 +28,7 @@ function readEnabled(raw: unknown): boolean {
 
 // =============================================================================
 // Single toggle — owns data fetching, the local toggle state, save/toast
-// wiring, and the loading state. Renders the REAL `PageSection` +
+// wiring, and the loading state. Renders the REAL `SettingsSection` +
 // skeleton-aware `Switch` once, always, wrapped in `<Skeletonize>`. The
 // skeleton-aware `<Switch>` masks itself to its exact track size while loading.
 // =============================================================================
@@ -85,7 +85,7 @@ function PersonalizationPolicyToggle({
 
   return (
     <Skeletonize loading={isLoading} label={t(titleKey)}>
-      <PageSection
+      <SettingsSection
         title={t(titleKey)}
         description={t(descriptionKey)}
         action={

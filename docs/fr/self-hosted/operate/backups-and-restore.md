@@ -58,8 +58,8 @@ tale restore
 tale restore 20260611-142530-deploy --stop
 
 # Remonter le stack sur la version qui correspond aux données
-tale upgrade --version 0.9.6
-tale deploy --all
+tale update --version 0.9.6
+tale deploy --stop
 ```
 
 Le redéploiement de la version correspondante fait partie de la restauration, ce n'est pas un extra optionnel : le snapshot a capturé les données exactement comme cette version de la plateforme les a laissées, et un binaire plus récent relancerait immédiatement ses migrations dessus. La sortie de la restauration imprime la version exacte enregistrée dans le manifest du snapshot.

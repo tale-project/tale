@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Check, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
@@ -64,7 +65,7 @@ export function TeamListPanel({
   ];
 
   return (
-    <div className="flex flex-col">
+    <Stack gap={0}>
       {!hideHeader && (
         <div className="text-muted-foreground px-3 pt-2 pb-1.5 text-xs font-medium tracking-wide uppercase">
           {tNav('teamFilter.label')}
@@ -132,6 +133,6 @@ export function TeamListPanel({
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
-    </div>
+    </Stack>
   );
 }

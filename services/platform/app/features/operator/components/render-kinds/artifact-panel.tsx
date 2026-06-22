@@ -40,7 +40,7 @@ export function ArtifactPanel({ part }: { part: RenderPart }) {
           <Text as="span" truncate>
             {label}
           </Text>
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild variant="secondary">
             <a href={url} target="_blank" rel="noopener noreferrer">
               {t('action.open')}
             </a>

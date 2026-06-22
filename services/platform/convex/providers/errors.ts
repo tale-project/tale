@@ -1,3 +1,8 @@
+import {
+  classifyChatErrorCode,
+  PROVIDER_SCOPED_ERROR_CODES,
+} from '../../lib/shared/chat-errors';
+
 /**
  * Typed error for provider unavailability (HTTP 429, 502, 503, timeout).
  *
@@ -243,4 +248,30 @@ export function shouldFailoverToNextModel(error: unknown): boolean {
 
   // Conservative default: try the fallback for unrecognised errors.
   return true;
+}
+
+/**
+ * Failure scope: how widely a model failure should suppress retries.
+ *
+ * - `'terminal'`  — would fail on ANY model (content policy, context length,
+ *   no provider configured). Don't fall over at all. Equivalent to
+ *   `!shouldFailoverToNextModel(error)`.
+ * - `'provider'`  — a DETERMINISTIC property of the provider/account (out of
+ *   funds, invalid API key, host unreachable). Every model on that provider
+ *   would fail the same way, so the fallback loop skips the rest of the
+ *   provider's models and jumps to a model on a different provider.
+ * - `'model'`     — specific to this model OR transient (404 not-found, 429,
+ *   5xx, timeout, reset, missing per-model key). Try the next model in line,
+ *   even on the same provider — a sibling may succeed.
+ *
+ * The provider-scoped set lives in `lib/shared/chat-errors` so the backend
+ * failover decision and the client-facing error code stay in lockstep.
+ */
+export function classifyFailureScope(
+  error: unknown,
+): 'terminal' | 'provider' | 'model' {
+  if (!shouldFailoverToNextModel(error)) return 'terminal';
+  return PROVIDER_SCOPED_ERROR_CODES.has(classifyChatErrorCode(error))
+    ? 'provider'
+    : 'model';
 }

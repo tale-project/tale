@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -103,7 +103,7 @@ export function DiscussionCreateDialog({
         />
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">{t('create.category')}</span>
-          <div className="flex flex-wrap gap-2">
+          <Row gap={2} align="stretch" wrap>
             {DEFAULT_DISCUSSION_CATEGORIES.map((c) => (
               <button
                 key={c}
@@ -119,7 +119,7 @@ export function DiscussionCreateDialog({
                 {t(`categories.${c}`)}
               </button>
             ))}
-          </div>
+          </Row>
         </div>
         <FileUpload.Root>
           <ChatInput
@@ -141,11 +141,11 @@ export function DiscussionCreateDialog({
           />
         </FileUpload.Root>
         <p className="text-muted-foreground text-xs">{t('create.hint')}</p>
-        <div className="flex justify-end">
+        <Row gap={0} align="stretch" justify="end">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t('create.cancel')}
           </Button>
-        </div>
+        </Row>
       </Stack>
     </Dialog>
   );

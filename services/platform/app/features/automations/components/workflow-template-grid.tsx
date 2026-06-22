@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { AlertCircle } from 'lucide-react';
@@ -39,13 +39,15 @@ function TemplateBrandChips({ integrations }: { integrations: string[] }) {
       {integrations.map((integration) => {
         const Icon = getIntegrationBrandIcon(integration);
         return (
-          <div
+          <Row
             key={integration}
-            className="border-border bg-background text-foreground flex size-5 items-center justify-center rounded border p-1"
+            gap={0}
+            justify="center"
+            className="border-border bg-background text-foreground size-5 rounded border p-1"
             aria-label={integration}
           >
             <Icon className="size-3" />
-          </div>
+          </Row>
         );
       })}
     </>
@@ -106,9 +108,9 @@ export function WorkflowTemplateGrid({
 
   if (isLoadingTemplates) {
     return (
-      <div className="flex items-center justify-center p-8">
+      <Row gap={0} justify="center" className="p-8">
         <Spinner size="sm" label={t('templates.fetching')} />
-      </div>
+      </Row>
     );
   }
 
@@ -121,13 +123,15 @@ export function WorkflowTemplateGrid({
       <Text variant="muted">{t('templates.description')}</Text>
 
       {error && (
-        <div
-          className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-md p-3 text-sm"
+        <Row
+          gap={2}
+          align="start"
+          className="bg-destructive/10 text-destructive rounded-md p-3 text-sm"
           role="alert"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{error}</span>
-        </div>
+        </Row>
       )}
 
       <div

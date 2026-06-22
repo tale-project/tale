@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import {
   Table,
   TableBody,
@@ -31,7 +32,7 @@ export function MappingList({
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   return (
-    <div className="flex flex-col gap-2">
+    <Stack gap={2}>
       {mappings.length === 0 ? (
         <div className="text-muted-foreground text-sm">
           {t('moderationProvider.mappingsEmpty')}
@@ -80,7 +81,6 @@ export function MappingList({
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
-                    size="sm"
                     icon={Pencil}
                     disabled={disabled}
                     onClick={() => onEdit(index)}
@@ -96,7 +96,6 @@ export function MappingList({
       <div>
         <Button
           variant="secondary"
-          size="sm"
           icon={Plus}
           disabled={disabled}
           onClick={onAdd}
@@ -104,6 +103,6 @@ export function MappingList({
           {t('moderationProvider.addMapping')}
         </Button>
       </div>
-    </div>
+    </Stack>
   );
 }

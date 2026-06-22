@@ -501,6 +501,70 @@ describe('adjustTarget — effort bandit (tier hysteresis)', () => {
   });
 });
 
+describe('adjustTarget — anti-oscillation + cold-quality (P1-B / P1-C)', () => {
+  it('resists a marginal tier reversal once a tier is settled (lastTier guard)', () => {
+    // One retry → underResourcedEma = 0.5 (= underHi exactly): the bandit would
+    // bump low→medium, but if we last settled on 'low' and the signal is not
+    // decisively past the deadband, the guard holds at 'low'.
+    const mildlyUnder: ReasoningOutcome = {
+      difficultyClass: 'medium',
+      budgetTokens: 0,
+      selfTruncates: false,
+      retried: true,
+    };
+    const settledLow = recordOutcome(undefined, {
+      ...mildlyUnder,
+      chosenTier: 'low',
+    });
+    expect(adjustTarget(low, 'off', 'medium', settledLow, EFFORT).tier).toBe(
+      'low',
+    );
+    // Same signal with no settled lastTier bumps as the bandit normally would.
+    const noLast = recordOutcome(undefined, mildlyUnder);
+    expect(adjustTarget(low, 'off', 'medium', noLast, EFFORT).tier).toBe(
+      'medium',
+    );
+  });
+
+  it('needs two usage samples before trusting estimate on a self-trunc model (P1-B)', () => {
+    const lowUsage: ReasoningOutcome = {
+      difficultyClass: 'hard',
+      reasoningTokens: 1200,
+      budgetTokens: TIER_BUDGET_TOKENS.high,
+      selfTruncates: true,
+      finishReason: 'stop',
+    };
+    // One sample: still trust the (high) prior, not the single low reading.
+    const one = recordOutcome(undefined, lowUsage);
+    expect(adjustTarget(high, 'off', 'hard', one, SELF_TRUNC).tier).toBe(
+      'high',
+    );
+    // Two samples: estimate from usage now engages and drops below the prior.
+    const two = recordOutcome(one, lowUsage);
+    expect(
+      adjustTarget(high, 'off', 'hard', two, SELF_TRUNC).budgetTokens,
+    ).toBeLessThan(high.budgetTokens);
+  });
+
+  it('lifts a self-trunc off-class on sustained low quality with no usage (P1-C)', () => {
+    // Off-turns record a quality score but NO reasoning-token sample, so the
+    // estimate path stays cold — a deadlock the cold-quality bump breaks.
+    const badOff: ReasoningOutcome = {
+      difficultyClass: 'easy',
+      budgetTokens: 0,
+      selfTruncates: true,
+      qualityScore: 0.1,
+      chosenTier: 'off',
+    };
+    const bad = recordMany(6, badOff);
+    expect(adjustTarget(off, 'off', 'easy', bad, SELF_TRUNC).tier).toBe('low');
+
+    // A well-scoring off-class is left at off (no needless escalation).
+    const good = recordMany(6, { ...badOff, qualityScore: 0.95 });
+    expect(adjustTarget(off, 'off', 'easy', good, SELF_TRUNC).tier).toBe('off');
+  });
+});
+
 describe('adjustTarget — hierarchical profile (warm start)', () => {
   const selfTrunc = (reasoningTokens: number): ReasoningOutcome => ({
     difficultyClass: 'hard',

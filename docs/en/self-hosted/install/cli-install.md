@@ -133,14 +133,16 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `--stop` — stop running project containers before restoring.
 - `-y, --yes` — skip the confirmation prompt.
 
-`tale rollback` — roll back to the previous patch version (patch-level only). No arguments.
+`tale rollback` — roll back to the previous patch version (patch-level only). Prompts for confirmation before it touches anything.
+
+- `-y, --yes` — skip the confirmation prompt (required when running non-interactively).
 
 ### Maintain
 
-`tale upgrade` (alias `tale update`) — upgrade the CLI to the latest release and sync project files.
+`tale update` — move this Tale instance to a new version: update the CLI binary, then sync project files to that version's templates. Run `tale deploy` afterwards to roll the containers. The CLI also self-aligns to the instance version on every command, so this is only needed to deliberately change versions.
 
-- `-v, --version <version>` — install this exact version (e.g. `0.9.0`) instead of the latest; allows downgrades.
-- `-f, --force` — force re-download and overwrite locally modified files.
+- `-v, --version <version>` — update to this exact version (e.g. `0.9.0`) instead of the latest; allows downgrades.
+- `-f, --force` — force re-sync and overwrite locally modified project files.
 - `--dry-run` — show what would change without modifying anything.
 
 `tale cleanup` — remove inactive (non-current colour) containers. No arguments.
@@ -150,6 +152,12 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `-f, --force` — skip the confirmation prompt.
 - `-a, --all` — also remove the stateful infrastructure containers.
 - `--dry-run` — preview the reset without making changes.
+
+`tale uninstall` — remove the `tale` CLI binary from this system. It prompts before deleting anything and _offers_ to also remove the per-user config (`~/.tale-daemon`) and tear down a project's Docker resources and files. Without `--purge`, a project and its containers are left intact — run `tale reset --all` inside one to remove those.
+
+- `-f, --force` — skip the confirmation prompt (removes the binary only; the optional cleanups still need `--purge`).
+- `--purge` — also remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources and delete its files. Irreversible.
+- `--dry-run` — show what would be removed without removing anything.
 
 `tale config` — manage CLI configuration. Use the `show` subcommand to print the resolved config.
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { Link, useLocation } from '@tanstack/react-router';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
@@ -8,6 +9,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
 import { NotificationBell } from '@/app/features/notifications/components/notification-bell';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useIsMac } from '@/app/hooks/use-is-mac';
 import {
   useNavigationItems,
   type NavItem,
@@ -52,10 +54,23 @@ function NavigationItem({ item }: { item: NavItem }) {
   const iconActiveStyle =
     isActive && accentColor ? { color: accentColor } : undefined;
 
+  // Rail links are icon-only; the tooltip carries the label and, for items that
+  // own a global keyboard shortcut, a hint chip so the binding is discoverable.
+  const tooltipContent = item.shortcut ? (
+    <>
+      {item.label}
+      <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
+        {item.shortcut}
+      </span>
+    </>
+  ) : (
+    item.label
+  );
+
   if (item.external) {
     return (
       <NavigationMenuItem className={cn('relative')}>
-        <Tooltip content={item.label} side="right">
+        <Tooltip content={tooltipContent} side="right">
           <a
             href={item.href}
             target="_blank"
@@ -96,7 +111,7 @@ function NavigationItem({ item }: { item: NavItem }) {
 
   return (
     <NavigationMenuItem className={cn('relative')}>
-      <Tooltip content={item.label} side="right">
+      <Tooltip content={tooltipContent} side="right">
         <Link
           to={item.to}
           params={item.params}
@@ -142,6 +157,30 @@ export interface NavigationProps {
 export function Navigation({ organizationId }: NavigationProps) {
   const { t: tCommon } = useT('common');
   const { primary, pinned } = useNavigationItems(organizationId);
+  const navigate = useNavigate();
+  const isMac = useIsMac();
+
+  // New-chat shortcut, registered on the always-mounted rail so it works from
+  // anywhere in the dashboard (it used to live in the chat header and only
+  // fired while a chat was open). ⌥⌘N on Mac, Alt+Ctrl+N elsewhere — Option+N
+  // is a dead key on macOS, so match on `code` ("KeyN"), not `key`. Navigating
+  // to the base chat route resets to a fresh chat: when leaving an open thread
+  // the chat layout's own thread→new effect clears the prior state.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMod = isMac ? e.metaKey : e.ctrlKey;
+      if (isMod && e.altKey && e.code === 'KeyN') {
+        e.preventDefault();
+        e.stopPropagation();
+        void navigate({
+          to: '/dashboard/$id/chat',
+          params: { id: organizationId },
+        });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [isMac, navigate, organizationId]);
 
   return (
     <NavigationMenu

@@ -18,6 +18,7 @@
  * user-facing way to halt a runaway run from where runs are actually viewed.
  */
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
@@ -68,12 +69,7 @@ function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   };
 
   return (
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={isPending}
-      onClick={() => void run()}
-    >
+    <Button variant="secondary" disabled={isPending} onClick={() => void run()}>
       {t('rerun.button')}
     </Button>
   );
@@ -105,7 +101,6 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   return (
     <>
       <Button
-        size="sm"
         variant="destructive"
         disabled={isPending}
         onClick={() => setConfirmOpen(true)}
@@ -143,17 +138,17 @@ export function EmbeddedRun({
   const showRerun = TERMINAL_STATUSES.has(projection.status);
   const showStop = RUNNING_STATUSES.has(projection.status);
   return (
-    <div className="flex flex-col gap-3">
+    <Stack gap={3}>
       {(showRerun || showStop) && (
-        <div className="flex justify-end">
+        <Row gap={0} align="stretch" justify="end">
           {showRerun ? (
             <RerunButton executionId={executionId} />
           ) : (
             <StopButton executionId={executionId} />
           )}
-        </div>
+        </Row>
       )}
       <OperatorView projection={projection} />
-    </div>
+    </Stack>
   );
 }

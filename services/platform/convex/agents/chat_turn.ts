@@ -28,6 +28,7 @@ import {
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
+import { isDrainingNow } from '../control/drain';
 import { isActiveDocument } from '../documents/_helpers';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -204,6 +205,16 @@ export const chatWithAgentTurn = mutation({
         },
       );
       return { messageAlreadyExists: false, streamId: '' };
+    }
+
+    // Deploy drain gate: a `tale deploy` recreates the convex container in
+    // place, killing every in-flight (non-durable) chat generation. While the
+    // CLI is draining, refuse NEW turns so nothing starts mid-restart — the
+    // client retries this coded error onto the restarted backend (mirrors the
+    // sandbox spawner's 503 "draining"). Prewarm bypasses (it returned above);
+    // in-flight turns keep running and the CLI waits for them.
+    if (await isDrainingNow(ctx)) {
+      throw new ConvexError({ code: 'BACKEND_DRAINING' });
     }
 
     // Projects: validate access here (DB query) so a denial throws

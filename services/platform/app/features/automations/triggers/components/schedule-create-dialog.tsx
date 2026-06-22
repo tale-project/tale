@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { CronExpressionParser } from 'cron-parser';
@@ -262,7 +263,7 @@ export function ScheduleCreateDialog({
             errorMessage={formErrors.cronExpression?.message}
           />
           <Text variant="caption">{t('triggers.schedules.form.cronHelp')}</Text>
-          <div className="flex flex-wrap gap-2">
+          <Row gap={2} align="stretch" wrap>
             {CRON_PRESETS.map((preset) => (
               <Button
                 key={preset.value}
@@ -299,7 +300,7 @@ export function ScheduleCreateDialog({
                 </Button>
               }
             >
-              <div className="flex flex-col gap-3">
+              <Stack gap={3}>
                 <Input
                   id="naturalLanguage"
                   label={t('triggers.schedules.form.ai.label')}
@@ -318,7 +319,6 @@ export function ScheduleCreateDialog({
                 <Button
                   type="button"
                   variant="primary"
-                  size="sm"
                   onClick={handleGenerate}
                   disabled={!naturalLanguage.trim() || isGenerating}
                   isLoading={isGenerating}
@@ -327,9 +327,9 @@ export function ScheduleCreateDialog({
                 >
                   {t('triggers.schedules.form.ai.generateButton')}
                 </Button>
-              </div>
+              </Stack>
             </Popover>
-          </div>
+          </Row>
           {cronDescription && (
             <output
               className="text-muted-foreground text-xs"

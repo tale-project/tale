@@ -213,7 +213,6 @@ export function FormCard<T extends BasePayload>({
                     type="submit"
                     isLoading={form.formState.isSubmitting}
                     fullWidth
-                    size="lg"
                   >
                     {submitLabel}
                   </Button>

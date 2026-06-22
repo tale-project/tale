@@ -110,10 +110,14 @@ export const AgentSelector = memo(function AgentSelector({
         return a.label.localeCompare(b.label);
       });
 
-    // "Auto" is the default mode (null selection). Always pinned first so the
-    // user can return to letting the system route. Only offered when there's
-    // more than one agent to route between — with a single agent there's
-    // nothing to choose, so Auto would be redundant.
+    // "Auto" (the null selection) is pinned first so the user can hand routing
+    // back to the system — but it is NOT the default. New sessions open on the
+    // Assistant (see DEFAULT_SELECTED_AGENT in chat-layout-context): Auto has to
+    // run a routing classifier to pick an agent before it can answer, adding
+    // latency to the first token, whereas the general-purpose Assistant is
+    // suitable for most messages and starts immediately. Auto is only offered
+    // when there's more than one agent to route between — with a single agent
+    // there's nothing to choose, so it would be redundant.
     if (visibleAgents.length <= 1) return agentOptions;
     return [
       {
@@ -244,8 +248,8 @@ export const AgentSelector = memo(function AgentSelector({
           <Button
             type="button"
             className="gap-1.5 sm:min-w-32"
-            size="icon"
             variant="ghost"
+            size="sm"
             aria-label={t('agentSelector.label')}
             disabled={isAgentLoading}
           >
@@ -269,7 +273,6 @@ export const AgentSelector = memo(function AgentSelector({
           canManageAgents ? (
             <Button
               variant="ghost"
-              size="sm"
               className="w-full"
               icon={Plus}
               onClick={handleAddAgentClick}

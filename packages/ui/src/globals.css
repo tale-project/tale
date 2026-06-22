@@ -45,6 +45,16 @@
  */
 
 @theme {
+  /* Brand font tokens. Without these, Tailwind v4's `font-sans`/`font-mono`
+     utilities resolve to its built-in *system* stacks instead of Inter, so any
+     element carrying `font-sans` (e.g. the platform `<body>`) overrides the
+     `@layer base` Inter rule with the system font. Defining them here makes the
+     utilities — and the Preflight `--default-font-family` derived from
+     `--font-sans` — resolve to the bundled Inter stack everywhere. The `--font-mono`
+     value matches the json-diff-viewer stack below. */
+  --font-sans: 'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
   --color-bg-base: #ffffff;
   --color-bg-elevated: #f9fafb;
   --color-bg-muted: #f3f4f6;
@@ -131,6 +141,16 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
+  /* Semantic chart fills — theme-aware via the raw `--chart-*` tokens defined
+     in `:root` / `.dark`. Charts must read these (e.g. `var(--color-chart-success)`
+     or the `bg-chart-success` utility) rather than hardcoding hex, so dark mode
+     resolves correctly. See packages/ui/src/lib/chart-theme.ts. */
+  --color-chart-success: hsl(var(--chart-success));
+  --color-chart-failure: hsl(var(--chart-failure));
+  --color-chart-warning: hsl(var(--chart-warning));
+  --color-chart-neutral: hsl(var(--chart-neutral));
+  --color-chart-primary: hsl(var(--chart-primary));
+
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: var(--radius, 0.5rem);
@@ -206,6 +226,13 @@
   --chart-3: 197 37% 24%;
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
+  /* Semantic chart fills (light). Tuned for legibility on light surfaces;
+     dark equivalents live in `.dark` below. */
+  --chart-success: 158 64% 39%;
+  --chart-failure: 0 72% 51%;
+  --chart-warning: 38 92% 50%;
+  --chart-neutral: 240 4% 60%;
+  --chart-primary: 217 91% 60%;
   --radius: 0.5rem;
   --chat-max-width: 48rem;
 }
@@ -281,6 +308,13 @@
   --chart-3: 30 80% 55%;
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
+  /* Semantic chart fills (dark) — lifted lightness/saturation for contrast on
+     the near-black dark surface. */
+  --chart-success: 158 58% 52%;
+  --chart-failure: 0 84% 68%;
+  --chart-warning: 43 96% 56%;
+  --chart-neutral: 0 0% 55%;
+  --chart-primary: 213 94% 68%;
 }
 
 @media (prefers-reduced-motion: reduce) {

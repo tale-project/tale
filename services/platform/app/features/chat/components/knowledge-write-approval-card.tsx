@@ -23,7 +23,8 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { KnowledgeWriteMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
+
+import { ApprovalCard } from './approval-card';
 
 interface KnowledgeWriteApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -102,12 +103,7 @@ function KnowledgeWriteApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="center" className="mb-2">
         <BookOpen className="text-primary size-4 shrink-0" />
@@ -212,7 +208,6 @@ function KnowledgeWriteApprovalCardComponent({
             }
           >
             <Button
-              size="sm"
               variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
@@ -225,7 +220,6 @@ function KnowledgeWriteApprovalCardComponent({
 
           <Tooltip content={t('rejectTooltip')}>
             <Button
-              size="sm"
               variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
@@ -266,7 +260,7 @@ function KnowledgeWriteApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

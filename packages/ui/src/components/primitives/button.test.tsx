@@ -64,13 +64,102 @@ describe('Button', () => {
   });
 
   describe('sizes', () => {
-    it.each(['default', 'sm', 'lg', 'icon'] as const)(
+    it.each(['default', 'sm', 'icon', 'icon-sm'] as const)(
       'renders %s size',
       (size) => {
-        render(<Button size={size}>Button</Button>);
+        // `title` names the icon size (the type requires icon buttons to be
+        // labeled) and is harmless on the others.
+        render(
+          <Button size={size} title="Button">
+            Button
+          </Button>,
+        );
         expect(screen.getByRole('button')).toBeInTheDocument();
       },
     );
+  });
+
+  describe('title (icon-button label + tooltip)', () => {
+    it('uses `title` as the accessible name and drops the native title', () => {
+      render(
+        <Button size="icon" title="Zoom in">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      const button = screen.getByRole('button', { name: 'Zoom in' });
+      expect(button).toBeInTheDocument();
+      // No duplicate native browser tooltip.
+      expect(button).not.toHaveAttribute('title');
+    });
+
+    it('lets an explicit aria-label override the title for the name', () => {
+      render(
+        <Button size="icon" title="tooltip text" aria-label="real label">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      expect(
+        screen.getByRole('button', { name: 'real label' }),
+      ).toBeInTheDocument();
+    });
+
+    it('does not let `title` override a text button’s name from children', () => {
+      // For non-icon buttons the accessible name comes from the children; the
+      // `title` only drives the tooltip, never the name.
+      render(<Button title="tooltip text">Save</Button>);
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'tooltip text' })).toBeNull();
+    });
+
+    it('shows a tooltip on focus, sourced from `title`', async () => {
+      const { user } = render(
+        <Button size="icon" title="Zoom in">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      await user.tab();
+      // Radix opens the tooltip on trigger focus; content carries role=tooltip.
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Zoom in');
+    });
+
+    it('prefers explicit `tooltip` content over `title` for the visible tip', async () => {
+      const { user } = render(
+        <Button size="icon" title="aria name" tooltip="Rich tip">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      // The accessible name still comes from `title`.
+      expect(
+        screen.getByRole('button', { name: 'aria name' }),
+      ).toBeInTheDocument();
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Rich tip');
+    });
+
+    it('renders no tooltip trigger when used as a Slot (asChild)', () => {
+      // A Slot is typically another overlay's trigger; wrapping it in a tooltip
+      // trigger would break that composition, so the tooltip is suppressed.
+      render(
+        <Button asChild title="tooltip text">
+          <a href="/test">Link</a>
+        </Button>,
+      );
+      const link = screen.getByRole('link', { name: 'Link' });
+      // The Slot collapses onto the anchor; no extra tooltip-trigger button.
+      expect(link).toBeInTheDocument();
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('passes axe audit for an icon button named via `title`', async () => {
+      const { container } = render(
+        <Button size="icon" title="Zoom in">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      await checkAccessibility(container);
+    });
   });
 
   describe('interactions', () => {

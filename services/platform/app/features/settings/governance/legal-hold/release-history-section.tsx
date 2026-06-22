@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { PageSection } from '@tale/ui/page-section';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHoldReleaseRequestsPaginated } from '../hooks/queries';
@@ -71,7 +72,7 @@ export function ReleaseHistorySection({
         accessorKey: 'targetType',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <Stack gap={0}>
             {row.original.targetType && (
               <Badge variant="outline" className="self-start">
                 {t(`legalHold.targetTypes.${row.original.targetType}`)}
@@ -86,7 +87,7 @@ export function ReleaseHistorySection({
             >
               {row.original.targetId ?? row.original.holdId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 180,
@@ -162,21 +163,20 @@ export function ReleaseHistorySection({
   const isLoadingMore = result.status === 'LoadingMore';
 
   return (
-    <PageSection
+    <SettingsSection
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >
-      <div className="flex items-center gap-2">
+      <Row gap={2}>
         <Select
           id="release-history-status-filter"
-          size="sm"
           value={status}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to ReleaseStatus
           onValueChange={(v) => setStatus(v as ReleaseStatus)}
           options={statusOptions}
           aria-label={t('legalHold.columns.status')}
         />
-      </div>
+      </Row>
       <DataTable<HistoryRow>
         columns={columns}
         data={result.results as HistoryRow[]}
@@ -196,6 +196,6 @@ export function ReleaseHistorySection({
         }}
         caption={t('legalHold.sections.history.title')}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

@@ -13,6 +13,20 @@ const severityValidator = v.union(
   ...NOTIFICATION_SEVERITIES.map((s) => v.literal(s)),
 );
 
+/**
+ * Optional in-app deep-link target for a notification. The client maps each
+ * `kind` to a concrete dashboard route (see `notification-target.ts`) so the
+ * stored value stays route-agnostic (survives route refactors, locale-safe).
+ * Closed union — schema ships one release ahead of new emitters, per the
+ * Convex closed-union deploy-order constraint.
+ */
+export const notificationLinkValidator = v.union(
+  v.object({ kind: v.literal('agent'), agentSlug: v.string() }),
+  v.object({ kind: v.literal('audit-logs') }),
+  v.object({ kind: v.literal('dsar') }),
+  v.object({ kind: v.literal('security-monitoring') }),
+);
+
 export const notificationsTable = defineTable({
   organizationId: v.string(),
   category: categoryValidator,
@@ -34,6 +48,9 @@ export const notificationsTable = defineTable({
    * undefined and fall back to a best-effort email-hash match.
    */
   subjectUserId: v.optional(v.string()),
+  // Optional in-app deep-link target. Legacy rows pre-fix have it undefined and
+  // render without a body link (icon-only mark-as-read).
+  link: v.optional(notificationLinkValidator),
   createdAt: v.number(),
   // userIds (Better Auth user document _id, stored as string) that have dismissed this notification
   readBy: v.array(v.string()),

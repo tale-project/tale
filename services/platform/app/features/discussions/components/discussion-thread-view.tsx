@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -169,14 +169,18 @@ export function DiscussionThreadView({
   }, [navigate, linkedTaskId, organizationId, projectId]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-border flex min-h-13 items-center justify-between gap-3 border-b px-5 py-2">
+    <Stack gap={0} className="h-full">
+      <Row
+        gap={3}
+        justify="between"
+        className="border-border min-h-13 border-b px-5 py-2"
+      >
         <HStack gap={3} align="center" className="min-w-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={onBack}
-            aria-label={t('backToList')}
+            title={t('backToList')}
           >
             <ArrowLeft className="text-muted-foreground size-5" />
           </Button>
@@ -198,12 +202,12 @@ export function DiscussionThreadView({
         </HStack>
         <HStack gap={2}>
           {linkedTaskId ? (
-            <Button variant="secondary" size="sm" onClick={goToTask}>
+            <Button variant="secondary" onClick={goToTask}>
               <ListChecks className="mr-1 size-4" />
               {t('spawnTask.viewTask')}
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={handleSpawnTask}>
+            <Button variant="secondary" onClick={handleSpawnTask}>
               <ListPlus className="mr-1 size-4" />
               {t('spawnTask.cta')}
             </Button>
@@ -211,7 +215,6 @@ export function DiscussionThreadView({
           {status !== 'resolved' ? (
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => void handleSetStatus('resolved')}
             >
               <CheckCircle2 className="mr-1 size-4" />
@@ -220,7 +223,6 @@ export function DiscussionThreadView({
           ) : (
             <Button
               variant="secondary"
-              size="sm"
               onClick={() => void handleSetStatus('open')}
             >
               <RotateCcw className="mr-1 size-4" />
@@ -229,20 +231,20 @@ export function DiscussionThreadView({
           )}
           <Button
             variant="secondary"
-            size="sm"
             onClick={() => void handleSetStatus(isLocked ? 'open' : 'locked')}
           >
             <Lock className="mr-1 size-4" />
             {isLocked ? t('unlock') : t('lock')}
           </Button>
         </HStack>
-      </div>
+      </Row>
 
-      <div className="flex h-full min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth">
-          <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
-            <div
-              className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-2"
+      <Stack gap={0} className="h-full min-h-0 flex-1">
+        <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto scroll-smooth">
+          <Stack gap={0} className="overflow-y-visible p-4 sm:p-6">
+            <Stack
+              gap={3}
+              className="mx-auto w-full max-w-(--chat-max-width) pt-2"
               role="log"
               aria-live="polite"
               aria-labelledby={messageHistoryLabelId}
@@ -258,7 +260,11 @@ export function DiscussionThreadView({
                 />
               ))}
               {linkedTaskId ? (
-                <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+                <Row
+                  gap={2}
+                  justify="center"
+                  className="text-muted-foreground py-2 text-xs"
+                >
                   <GitBranchPlus className="size-3.5 shrink-0" aria-hidden />
                   <span>{t('spawnTask.converted')}</span>
                   <Link
@@ -272,11 +278,11 @@ export function DiscussionThreadView({
                   >
                     {t('spawnTask.viewTask')}
                   </Link>
-                </div>
+                </Row>
               ) : null}
-            </div>
-          </div>
-        </div>
+            </Stack>
+          </Stack>
+        </Stack>
 
         <PanelFooter>
           <FileUpload.Root>
@@ -306,7 +312,7 @@ export function DiscussionThreadView({
             {t('reply.hint')}
           </Text>
         </PanelFooter>
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   );
 }

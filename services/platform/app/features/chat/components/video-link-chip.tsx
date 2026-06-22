@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -97,7 +98,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
       <span aria-hidden="true" className="shrink-0 text-base leading-none">
         🎬
       </span>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <Stack gap={0} className="min-w-0 flex-1">
         {/* Open-source affordance: when the job carries a sourceUrl,
             wrap the title in an external link so the user can verify
             which video the chip represents after the pasted URL gets
@@ -155,7 +156,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
           )}
           <span className="truncate">{statusText}</span>
         </span>
-      </div>
+      </Stack>
       {isFailed && (
         <button
           type="button"

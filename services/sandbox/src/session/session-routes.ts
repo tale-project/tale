@@ -47,6 +47,39 @@ export class SessionRoutes {
     private readonly backend: SessionBackend,
   ) {}
 
+  /** Number of live sessions this spawner currently manages (drain readiness). */
+  sessionCount(): number {
+    return this.registry.size();
+  }
+
+  /** Live session ids — the deploy flip reads these from `/v1/drain-status` to
+   * decide whether to LINGER this colour (keep it serving its sessions) rather
+   * than tear it down. */
+  sessionIds(): string[] {
+    return this.registry.list().map((s) => s.sessionId);
+  }
+
+  /** Force-stop every non-finished session (compute reclaimed, workspace
+   * preserved). Used by the spawner's max-linger self-reap so a colour that
+   * lingered past its TTL can shut down without orphaning containers — even if
+   * the deploy CLI died mid-flip. Returns the number stopped. */
+  async stopAllSessions(): Promise<number> {
+    let stopped = 0;
+    for (const s of this.registry.list()) {
+      try {
+        await this.backend.stopSession(s.sessionId);
+        this.registry.delete(s.sessionId);
+        stopped += 1;
+      } catch (err) {
+        console.warn(
+          `[sandbox.session] linger stop failed for ${s.sessionId}:`,
+          err,
+        );
+      }
+    }
+    return stopped;
+  }
+
   /** runnerd token for a session: derived from SANDBOX_TOKEN when signed, or
    * '' in unsigned dev mode (runnerd skips the check, matching the spawner's
    * own opt-in HMAC policy). */
@@ -368,7 +401,14 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
-      return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
+      // Report the blue-green colour the session landed on so the platform can
+      // route later session ops to `sandbox-<color>` even after a flip lingers
+      // this colour (mirrors the execution path's X-Sandbox-Color).
+      return jsonResponse(
+        { session: this.toInfo(req.sessionId) },
+        201,
+        this.cfg.color ? { 'x-sandbox-color': this.cfg.color } : undefined,
+      );
     } finally {
       this.creating.delete(req.sessionId);
     }

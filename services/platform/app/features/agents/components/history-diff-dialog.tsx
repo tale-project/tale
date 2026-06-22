@@ -2,6 +2,7 @@
 
 import 'json-diff-kit/viewer.css';
 import { Button } from '@tale/ui/button';
+import { Grid, Row } from '@tale/ui/layout';
 import { Differ, Viewer } from 'json-diff-kit';
 import { useMemo } from 'react';
 
@@ -66,7 +67,7 @@ export function HistoryDiffDialog({
       })}
       size="wide"
       footer={
-        <div className="flex justify-end gap-2">
+        <Row gap={2} align="stretch" justify="end">
           <Button
             variant="secondary"
             onClick={() => onOpenChange(false)}
@@ -83,7 +84,7 @@ export function HistoryDiffDialog({
               ? tCommon('actions.loading')
               : t('agents.history.restore')}
           </Button>
-        </div>
+        </Row>
       }
     >
       {!hasChanges ? (
@@ -92,14 +93,18 @@ export function HistoryDiffDialog({
         </p>
       ) : (
         <div className="json-diff-wrapper max-h-[50vh] overflow-auto rounded-md border">
-          <div className="bg-muted sticky top-0 z-20 grid grid-cols-2 border-b">
+          <Grid
+            cols={2}
+            gap={0}
+            className="bg-muted sticky top-0 z-20 border-b"
+          >
             <div className="text-muted-foreground px-3 py-1.5 text-xs font-medium">
               {t('agents.history.currentVersion')}
             </div>
             <div className="text-muted-foreground border-l px-3 py-1.5 text-xs font-medium">
               {t('agents.history.snapshotVersion')}
             </div>
-          </div>
+          </Grid>
           <Viewer
             diff={diff}
             indent={2}

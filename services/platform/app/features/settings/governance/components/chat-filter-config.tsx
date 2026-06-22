@@ -2,7 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   Table,
@@ -22,6 +22,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -94,7 +95,7 @@ function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
 // =============================================================================
 // Container — owns data fetching, local edit state, save/toast wiring, and the
 // loading state. Wraps the plain `ChatFilterConfigForm` in `<Skeletonize>` so
-// the same tree renders the skeleton (the hand-rolled loading `PageSection`
+// the same tree renders the skeleton (the hand-rolled loading `SettingsSection`
 // with magic-height `Skeleton` boxes is gone — the skeleton-aware `<Switch>` /
 // `<Input>` mask themselves to their real height).
 //
@@ -285,7 +286,7 @@ export function ChatFilterConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
-      <PageSection
+      <SettingsSection
         title={t('contentSafety.title')}
         description={t('contentSafety.description')}
         action={
@@ -311,7 +312,7 @@ export function ChatFilterConfigView({
               label={t('contentSafety.applyTo')}
               description={t('contentSafety.applyToDescription')}
             >
-              <div className="flex flex-col gap-2">
+              <Stack gap={2}>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -330,7 +331,7 @@ export function ChatFilterConfigView({
                   />
                   <span>{t('contentSafety.modelOutput')}</span>
                 </label>
-              </div>
+              </Stack>
             </FormSection>
 
             <FormSection label={t('contentSafety.maskReplacement')}>
@@ -405,7 +406,7 @@ export function ChatFilterConfigView({
             />
           </>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }
@@ -529,7 +530,7 @@ function CategoryEditForm({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <Stack gap={0} className="h-full">
       <div className="shrink-0 pr-10">
         <h2 className="text-lg font-semibold tracking-tight">
           {isNew
@@ -542,7 +543,7 @@ function CategoryEditForm({
       </div>
 
       <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
-        <div className="flex flex-col gap-4">
+        <Stack>
           <FormSection label={t('contentSafety.categoryLabel')}>
             <Input
               value={label}
@@ -576,8 +577,8 @@ function CategoryEditForm({
             label={t('contentSafety.wordsCount', { count: wordLines.length })}
             description={t('contentSafety.wordsDescription')}
           >
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
+            <Stack gap={2}>
+              <Row gap={2} align="stretch">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -604,7 +605,7 @@ function CategoryEditForm({
                     void handleImportFile(e);
                   }}
                 />
-              </div>
+              </Row>
               <Textarea
                 value={wordsText}
                 rows={14}
@@ -612,12 +613,17 @@ function CategoryEditForm({
                 onChange={(e) => setWordsText(e.target.value)}
                 placeholder={t('contentSafety.wordsPlaceholder')}
               />
-            </div>
+            </Stack>
           </FormSection>
-        </div>
+        </Stack>
       </div>
 
-      <div className="flex shrink-0 justify-end gap-2 border-t pt-4">
+      <Row
+        gap={2}
+        align="stretch"
+        justify="end"
+        className="shrink-0 border-t pt-4"
+      >
         <Button variant="ghost" onClick={onCancel}>
           {tCommon('actions.cancel')}
         </Button>
@@ -628,8 +634,8 @@ function CategoryEditForm({
         >
           {tCommon('actions.save')}
         </Button>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 
@@ -657,7 +663,7 @@ function CategoryList({
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   return (
-    <div className="flex flex-col gap-2">
+    <Stack gap={2}>
       {categories.length === 0 ? (
         <div className="text-muted-foreground text-sm">
           {t('contentSafety.categoriesEmpty')}
@@ -692,7 +698,7 @@ function CategoryList({
                 <TableCell>{category.words.length}</TableCell>
                 <TableCell>{category.patterns.length}</TableCell>
                 <TableCell>
-                  <div className="flex justify-end gap-1">
+                  <Row gap={1} align="stretch" justify="end">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -715,7 +721,7 @@ function CategoryList({
                       disabled={disabled}
                       onClick={() => onDelete(index)}
                     />
-                  </div>
+                  </Row>
                 </TableCell>
               </TableRow>
             ))}
@@ -725,7 +731,6 @@ function CategoryList({
       <div>
         <Button
           variant="secondary"
-          size="sm"
           icon={Plus}
           disabled={disabled}
           onClick={onAdd}
@@ -733,7 +738,7 @@ function CategoryList({
           {t('contentSafety.addCategory')}
         </Button>
       </div>
-    </div>
+    </Stack>
   );
 }
 

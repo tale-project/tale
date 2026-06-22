@@ -1,7 +1,6 @@
 'use client';
 
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -11,6 +10,7 @@ import { z } from 'zod';
 import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -122,7 +122,7 @@ export function SystemPromptEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('systemPrompt.title')}>
-      <PageSection
+      <SettingsSection
         title={t('systemPrompt.title')}
         description={t('systemPrompt.description')}
       >
@@ -181,7 +181,7 @@ export function SystemPromptEditor({
             </Stack>
           </fieldset>
         </form>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

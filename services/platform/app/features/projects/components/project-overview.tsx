@@ -211,9 +211,7 @@ export function ProjectOverview({
         }
         description={statsLine}
         action={
-          <Button onClick={handleNewChat} size="sm">
-            {t('overview.newChatCta')}
-          </Button>
+          <Button onClick={handleNewChat}>{t('overview.newChatCta')}</Button>
         }
       />
 

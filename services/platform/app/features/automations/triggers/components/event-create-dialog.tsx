@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState, useMemo, useEffect } from 'react';
 
@@ -213,14 +214,14 @@ export function EventCreateDialog({
             <Text variant="label" className="mb-1">
               {t('triggers.events.form.eventType')}
             </Text>
-            <div className="flex items-center gap-2">
+            <Row gap={2}>
               <code className="bg-muted rounded px-2 py-1 font-mono text-sm">
                 {selectedEventType}
               </code>
               <Text as="span" variant="caption">
                 {selectedMeta?.label}
               </Text>
-            </div>
+            </Row>
           </div>
         ) : (
           <Select

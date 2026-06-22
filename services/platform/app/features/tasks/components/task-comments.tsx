@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
@@ -131,7 +132,7 @@ export function TaskComments({
     const author = resolveActor(c.authorType, c.authorId);
     const isEditing = editingId === c.messageId;
     return (
-      <div className="group/comment flex items-start gap-2">
+      <Row gap={2} align="start" className="group/comment">
         <AssigneeAvatar
           assigneeType={c.authorType}
           assigneeId={c.authorId}
@@ -153,7 +154,7 @@ export function TaskComments({
           </div>
 
           {isEditing ? (
-            <div className="mt-1 flex flex-col gap-2">
+            <Stack gap={2} className="mt-1">
               <MentionTextarea
                 id={`edit-comment-${c.messageId}`}
                 organizationId={organizationId}
@@ -164,23 +165,18 @@ export function TaskComments({
                 onKeyDown={onModEnter(() => void submitEdit(c.messageId))}
                 autoFocus
               />
-              <div className="flex gap-2">
+              <Row gap={2} align="stretch">
                 <Button
-                  size="sm"
                   disabled={editDraft.trim().length === 0}
                   onClick={() => void submitEdit(c.messageId)}
                 >
                   {tCommon('actions.save')}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setEditingId(null)}
-                >
+                <Button variant="secondary" onClick={() => setEditingId(null)}>
                   {tCommon('actions.cancel')}
                 </Button>
-              </div>
-            </div>
+              </Row>
+            </Stack>
           ) : (
             <MentionText
               body={c.body}
@@ -191,7 +187,10 @@ export function TaskComments({
           )}
 
           {!isEditing && canEdit && (
-            <div className="mt-1 flex items-center gap-3 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100">
+            <Row
+              gap={3}
+              className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
+            >
               {canManage(c) && (
                 <CommentAction
                   onClick={() => {
@@ -210,10 +209,10 @@ export function TaskComments({
                   {tCommon('actions.delete')}
                 </CommentAction>
               )}
-            </div>
+            </Row>
           )}
         </div>
-      </div>
+      </Row>
     );
   };
 
@@ -223,7 +222,7 @@ export function TaskComments({
         {t('detail.comments')} ({comments.length})
       </Text>
 
-      <ul className="mt-3 flex flex-col gap-4">
+      <Stack as="ul" className="mt-3">
         {comments.length === 0 && (
           <li>
             <Text as="p" variant="muted">
@@ -234,10 +233,10 @@ export function TaskComments({
         {comments.map((c) => (
           <li key={c.messageId}>{renderItem(c)}</li>
         ))}
-      </ul>
+      </Stack>
 
       {canEdit && (
-        <div className="mt-4 flex items-start gap-2">
+        <Row gap={2} align="start" className="mt-4">
           {currentUser && (
             <AssigneeAvatar
               assigneeType="user"
@@ -245,7 +244,7 @@ export function TaskComments({
               name={currentUser.name}
             />
           )}
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Stack gap={2} className="min-w-0 flex-1">
             <MentionTextarea
               id="new-comment"
               organizationId={organizationId}
@@ -261,17 +260,16 @@ export function TaskComments({
               target={{ taskId }}
               draft={draft}
             />
-            <div className="flex justify-end">
+            <Row gap={0} align="stretch" justify="end">
               <Button
-                size="sm"
                 disabled={draft.trim().length === 0}
                 onClick={() => void submitNew()}
               >
                 {t('actions.comment')}
               </Button>
-            </div>
-          </div>
-        </div>
+            </Row>
+          </Stack>
+        </Row>
       )}
     </section>
   );

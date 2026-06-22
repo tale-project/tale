@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import type { ReactNode } from 'react';
 
 import type { ChatItem } from '../hooks/use-merged-chat-items';
@@ -155,5 +156,9 @@ export function ApprovalCardRenderer({
   }
 
   if (!card) return null;
-  return <div className="flex justify-start">{card}</div>;
+  return (
+    <Row gap={0} align="stretch">
+      {card}
+    </Row>
+  );
 }

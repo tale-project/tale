@@ -133,14 +133,16 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `--stop` — laufende Projekt-Container vor dem Wiederherstellen stoppen.
 - `-y, --yes` — die Bestätigungsabfrage überspringen.
 
-`tale rollback` — auf die vorherige Patch-Version zurückrollen (nur Patch-Ebene). Keine Argumente.
+`tale rollback` — auf die vorherige Patch-Version zurückrollen (nur Patch-Ebene). Fragt vorher nach Bestätigung.
+
+- `-y, --yes` — die Bestätigungsabfrage überspringen (im nicht-interaktiven Betrieb erforderlich).
 
 ### Wartung
 
-`tale upgrade` (Alias `tale update`) — die CLI auf die neueste Version aktualisieren und Projektdateien synchronisieren.
+`tale update` — diese Tale-Instanz auf eine neue Version bewegen: zuerst das CLI-Binary aktualisieren, dann die Projektdateien synchronisieren; danach `tale deploy` ausführen, um die Container zu rollen. Die CLI gleicht sich bei jedem Befehl ohnehin an die Instanz-Version an, also brauchst du das nur, um die Version bewusst zu wechseln.
 
-- `-v, --version <version>` — genau diese Version installieren (z. B. `0.9.0`) statt der neuesten; erlaubt Downgrades.
-- `-f, --force` — Neudownload erzwingen und lokal geänderte Dateien überschreiben.
+- `-v, --version <version>` — auf genau diese Version aktualisieren (z. B. `0.9.0`) statt der neuesten; erlaubt Downgrades.
+- `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
 - `--dry-run` — anzeigen, was sich ändern würde, ohne etwas zu ändern.
 
 `tale cleanup` — inaktive (nicht-aktuelle) Container entfernen. Keine Argumente.
@@ -150,6 +152,12 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `-f, --force` — die Bestätigungsabfrage überspringen.
 - `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen.
 - `--dry-run` — den Reset vorab anzeigen, ohne Änderungen.
+
+`tale uninstall` — das `tale`-CLI-Binary von diesem System entfernen. Fragt nach, bevor etwas gelöscht wird, und _bietet an_, zusätzlich die benutzereigene Konfiguration (`~/.tale-daemon`) zu entfernen und die Docker-Ressourcen und Dateien eines Projekts abzubauen. Ohne `--purge` bleiben ein Projekt und seine Container unangetastet — führ darin `tale reset --all` aus, um sie zu entfernen.
+
+- `-f, --force` — die Bestätigungsabfrage überspringen (entfernt nur das Binary; die optionalen Aufräumschritte brauchen weiterhin `--purge`).
+- `--purge` — zusätzlich `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen abbauen und seine Dateien löschen. Nicht umkehrbar.
+- `--dry-run` — anzeigen, was entfernt würde, ohne etwas zu entfernen.
 
 `tale config` — CLI-Konfiguration verwalten. Mit dem Unterbefehl `show` die aufgelöste Konfiguration ausgeben.
 

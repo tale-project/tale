@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { VStack } from '@tale/ui/layout';
+import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
@@ -157,9 +157,9 @@ function ChangelogPage() {
 
   if (releases === null && !error) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <Row gap={0} justify="center" className="min-h-[60vh]">
         <Spinner size="lg" />
-      </div>
+      </Row>
     );
   }
 
@@ -252,7 +252,7 @@ function ChangelogPage() {
         ) : count === 0 ? (
           <Text variant="muted">{t('viewer.upToDate')}</Text>
         ) : (
-          <div className="flex flex-col gap-2">
+          <Stack gap={2}>
             {visibleReleases.map((release, i) => {
               const formattedDate = release.publishedAt
                 ? dateFormatter.format(new Date(release.publishedAt))
@@ -284,7 +284,7 @@ function ChangelogPage() {
                 </Accordion>
               );
             })}
-          </div>
+          </Stack>
         )}
 
         <div className="border-border-base mt-8 border-t pt-4">

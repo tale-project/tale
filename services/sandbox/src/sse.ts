@@ -15,6 +15,7 @@ const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
 
 export function sseResponse(
   run: (handle: SseHandle) => Promise<void>,
+  extraHeaders?: Record<string, string>,
 ): Response {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -52,7 +53,11 @@ export function sseResponse(
   });
   return new Response(stream, {
     status: 200,
+    // Core SSE headers spread LAST so a caller's `extraHeaders` (e.g. the
+    // blue-green `X-Sandbox-Color`) can add fields but never clobber the
+    // content-type / cache-control / buffering headers streaming depends on.
     headers: {
+      ...extraHeaders,
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
       'x-accel-buffering': 'no',

@@ -5,7 +5,7 @@ description: The shape Tale's release notes follow — the semver promise, where
 
 Tale ships a release per minor version and patches as bug-fix tags between them. The release notes for every tag follow the same shape so you can scan one in a minute and know whether the upgrade is a five-minute bump or a maintenance window. This page covers the format: the semver promise, what each section guarantees, and where to read deeper when a row points at a migration.
 
-The notes themselves live on the GitHub release page for each tag. The CLI also surfaces them — `tale upgrade --notes` prints the notes for the version it is about to install.
+The notes themselves live on the GitHub release page for each tag. The CLI also surfaces them — `tale update --notes` prints the notes for the version it is about to install.
 
 ## The semver promise
 
@@ -30,7 +30,7 @@ Each release page is the same ordered list of sections. Empty sections are omitt
 
 ## How to scan a release
 
-Read the version line, the highlights, and the breaking-changes section. If breaking changes is empty and the security section does not name a fix that touches your install, the upgrade is the two-command sequence from [Upgrades](/self-hosted/operate/upgrades). If either section has rows, walk them before running `tale deploy`.
+Read the version line, the highlights, and the breaking-changes section. If breaking changes is empty and the security section does not name a fix that touches your install, the upgrade is the `tale update` + `tale deploy` sequence from [Upgrades](/self-hosted/operate/upgrades). If either section has rows, walk them before running `tale deploy`.
 
 ```text
 0.12.0 (minor) — 2026-05-14
@@ -49,7 +49,7 @@ Security
   See: advisory TAL-2026-007.
 ```
 
-The shape above is what `tale upgrade --notes` prints. The web version of the same release adds links on every advisory and migration row.
+The shape above is what `tale update --notes` prints. The web version of the same release adds links on every advisory and migration row.
 
 ## Where this fits
 

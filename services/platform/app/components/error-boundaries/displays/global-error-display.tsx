@@ -125,7 +125,6 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             icon={showError ? ChevronUp : ChevronDown}
             iconClassName="size-3.5"
             onClick={() => setShowError((v) => !v)}

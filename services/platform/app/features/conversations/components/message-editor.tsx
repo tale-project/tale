@@ -7,6 +7,7 @@ import {
   useEditor,
   useInstance,
 } from '@milkdown/react';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import DOMPurify from 'dompurify';
 import { LoaderIcon } from 'lucide-react';
@@ -18,10 +19,11 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
+import { cn } from '@/lib/utils/cn';
+
 import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
 import { FileAttachmentsList } from './message-editor/file-attachments-list';
@@ -366,12 +368,12 @@ function MilkdownEditorInner({
           </div>
 
           {isImproving && (
-            <div className="flex h-full items-center justify-center pt-12 pb-4">
+            <Row gap={0} justify="center" className="h-full pt-12 pb-4">
               <LoaderIcon className="text-muted-foreground size-6 animate-spin" />
               <Text as="span" variant="muted" className="ml-2">
                 {tConversations('editor.improving')}
               </Text>
-            </div>
+            </Row>
           )}
         </div>
 

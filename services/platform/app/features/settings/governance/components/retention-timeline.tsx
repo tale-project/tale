@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,15 +24,15 @@ export function RetentionTimeline({ graceDays }: Props) {
   const noGrace = graceDays <= 0;
 
   return (
-    <div
+    <Stack
       role="img"
       aria-label={t(
         'retentionPolicy.timeline.ariaLabel',
         'Deletion lifecycle visualization',
       )}
-      className="flex flex-col gap-3"
+      gap={3}
     >
-      <div className="relative flex items-start justify-between">
+      <Row gap={0} align="start" justify="between" className="relative">
         <Step
           label={t('retentionPolicy.timeline.activeLabel', 'Active')}
           sub={t(
@@ -90,8 +91,8 @@ export function RetentionTimeline({ graceDays }: Props) {
           )}
           tone="permanent"
         />
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
 
@@ -103,7 +104,7 @@ interface StepProps {
 
 function Step({ label, sub, tone }: StepProps) {
   return (
-    <div className="flex w-20 flex-col items-center gap-1 text-center sm:w-32">
+    <Stack gap={1} align="center" className="w-20 text-center sm:w-32">
       <div
         className={cn(
           'h-3 w-3 rounded-full ring-2 ring-offset-2 ring-offset-background',
@@ -118,7 +119,7 @@ function Step({ label, sub, tone }: StepProps) {
       <Text className="text-muted-foreground text-[0.65rem] leading-tight">
         {sub}
       </Text>
-    </div>
+    </Stack>
   );
 }
 
@@ -130,7 +131,7 @@ interface ConnectorProps {
 
 function Connector({ tone, label, dashed }: ConnectorProps) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-1 pt-1">
+    <Stack gap={1} align="center" className="flex-1 pt-1">
       <div
         aria-hidden="true"
         className={cn(
@@ -144,6 +145,6 @@ function Connector({ tone, label, dashed }: ConnectorProps) {
       <Text className="text-muted-foreground text-[0.65rem] leading-tight">
         {label}
       </Text>
-    </div>
+    </Stack>
   );
 }

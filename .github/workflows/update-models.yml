@@ -48,7 +48,7 @@ jobs:
       - name: Detect changes
         id: diff
         run: |
-          if [ -n "$(git status --porcelain builtin-configs/providers)" ]; then
+          if [ -n "$(git status --porcelain builtin-configs/providers docs/en/platform/models.md docs/de/platform/models.md docs/fr/platform/models.md)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -69,7 +69,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add builtin-configs/providers
+          git add builtin-configs/providers docs/en/platform/models.md docs/de/platform/models.md docs/fr/platform/models.md
           # --no-verify: skip any husky hooks `bun install` may have registered.
           git commit --no-verify -m "$TITLE"
           # Bot-owned branch, recreated from HEAD each run → a plain force push is

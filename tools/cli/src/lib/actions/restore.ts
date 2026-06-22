@@ -201,9 +201,9 @@ export async function restore(options: RestoreOptions): Promise<void> {
       logger.info('  tale start');
     } else {
       logger.info(
-        `  tale upgrade --version ${manifest.platformVersion ?? '<version-at-snapshot-time>'}`,
+        `  tale update --version ${manifest.platformVersion ?? '<version-at-snapshot-time>'}`,
       );
-      logger.info('  tale deploy --all');
+      logger.info('  tale deploy --stop');
     }
   });
 }

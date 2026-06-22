@@ -2,6 +2,7 @@
 
 import { LinkButton } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { MessageSquare } from 'lucide-react';
 
@@ -17,8 +18,8 @@ export function ActivateConversationsEmptyState({
   const { t } = useT('conversations');
 
   return (
-    <div className="m-4 flex flex-1 items-center justify-center rounded-xl px-4 py-12">
-      <div className="flex max-w-md flex-col items-center text-center">
+    <Row gap={0} justify="center" className="m-4 flex-1 rounded-xl px-4 py-12">
+      <Stack gap={0} align="center" className="max-w-md text-center">
         <MessageSquare className="text-muted-foreground mb-4 size-6" />
         <Heading level={2} size="lg" className="mb-1">
           {t('activate.title')}
@@ -31,7 +32,7 @@ export function ActivateConversationsEmptyState({
         >
           {t('activate.connectEmail')}
         </LinkButton>
-      </div>
-    </div>
+      </Stack>
+    </Row>
   );
 }

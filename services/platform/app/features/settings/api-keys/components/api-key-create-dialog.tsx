@@ -174,7 +174,6 @@ export function ApiKeyCreateDialog({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={handleCopyKey}
                 className="absolute top-1/2 right-2 -translate-y-1/2"
                 aria-label={tCommon('actions.copy')}

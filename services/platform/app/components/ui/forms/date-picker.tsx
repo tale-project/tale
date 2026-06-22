@@ -83,7 +83,6 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
         ref={ref}
         type="button"
         variant="ghost"
-        size="sm"
         disabled={disabled}
         onClick={onClick}
         className={cn(

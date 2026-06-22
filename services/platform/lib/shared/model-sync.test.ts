@@ -41,8 +41,11 @@ describe('parseModelId / compareVersions', () => {
 describe('isFlagshipChatModel', () => {
   it('accepts frontier chat models, rejects non-frontier / non-chat / noise', () => {
     expect(isFlagshipChatModel(fact('anthropic/claude-opus-4.7'))).toBe(true);
-    // Non-frontier vendor.
-    expect(isFlagshipChatModel(fact('cohere/command-r'))).toBe(false);
+    // Newly-curated frontier vendors are eligible too.
+    expect(isFlagshipChatModel(fact('amazon/nova-pro-v1'))).toBe(true);
+    expect(isFlagshipChatModel(fact('x-ai/grok-4.20'))).toBe(true);
+    // Non-frontier vendor (still outside FRONTIER_VENDORS).
+    expect(isFlagshipChatModel(fact('nousresearch/hermes-4'))).toBe(false);
     // Not a text model.
     expect(
       isFlagshipChatModel(fact('openai/gpt-image-1', { isChat: false })),
@@ -159,6 +162,24 @@ describe('syncProviderModels — add + hide', () => {
       'anthropic/claude-opus-4.6',
       'anthropic/claude-opus-4.7',
     ]);
+  });
+
+  it('version-bumps a newly-curated frontier vendor (amazon)', () => {
+    const current = [chat('amazon/nova-lite-v1')];
+    const facts = [
+      fact('amazon/nova-2-lite-v1', {
+        displayName: 'Nova 2 Lite',
+        contextWindow: 1000000,
+      }),
+    ];
+    const { models, changes } = syncProviderModels({ current, facts });
+    const byId = new Map(models.map((m) => [m.id, m]));
+    expect(byId.get('amazon/nova-2-lite-v1')).toBeDefined();
+    expect(byId.get('amazon/nova-lite-v1')?.hidden).toBe(true);
+    expect(changes).toContainEqual({
+      kind: 'added',
+      modelId: 'amazon/nova-2-lite-v1',
+    });
   });
 
   it('hides every older version of a family when a newer one is added', () => {

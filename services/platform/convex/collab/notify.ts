@@ -202,6 +202,7 @@ export async function notifyTaskStatusChanged(
       bodyKey: actorName ? 'taskStatusChangedByBody' : 'taskStatusChangedBody',
       params: {
         title: args.task.title,
+        projectId: String(args.task.projectId),
         from: args.fromStatus,
         to: args.toStatus,
         ...(actorName ? { actor: actorName } : {}),
@@ -241,9 +242,11 @@ export async function notifyTaskAssigned(
     type: 'task_assigned',
     titleKey: 'taskAssigned',
     bodyKey: actorName ? 'taskAssignedByBody' : 'taskAssignedBody',
-    params: actorName
-      ? { title: args.task.title, actor: actorName }
-      : { title: args.task.title },
+    params: {
+      title: args.task.title,
+      projectId: String(args.task.projectId),
+      ...(actorName ? { actor: actorName } : {}),
+    },
     resourceType: 'task',
     resourceId: String(args.task._id),
     taskId: args.task._id,
@@ -283,9 +286,11 @@ export async function notifyTaskMentions(
       type: 'mention',
       titleKey: 'mention',
       bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
-      params: actorName
-        ? { title: args.task.title, actor: actorName }
-        : { title: args.task.title },
+      params: {
+        title: args.task.title,
+        projectId: String(args.task.projectId),
+        ...(actorName ? { actor: actorName } : {}),
+      },
       resourceType: 'task',
       resourceId: String(args.task._id),
       taskId: args.task._id,
@@ -340,9 +345,11 @@ export async function notifyTaskComment(
       type: 'mention',
       titleKey: 'mention',
       bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
-      params: actorName
-        ? { title: args.task.title, actor: actorName }
-        : { title: args.task.title },
+      params: {
+        title: args.task.title,
+        projectId: String(args.task.projectId),
+        ...(actorName ? { actor: actorName } : {}),
+      },
       resourceType: 'comment',
       resourceId: args.commentId,
       taskId: args.task._id,
@@ -365,9 +372,11 @@ export async function notifyTaskComment(
       type: 'task_commented',
       titleKey: 'taskCommented',
       bodyKey: actorName ? 'taskCommentedByBody' : 'taskCommentedBody',
-      params: actorName
-        ? { title: args.task.title, actor: actorName }
-        : { title: args.task.title },
+      params: {
+        title: args.task.title,
+        projectId: String(args.task.projectId),
+        ...(actorName ? { actor: actorName } : {}),
+      },
       resourceType: 'comment',
       resourceId: args.commentId,
       taskId: args.task._id,

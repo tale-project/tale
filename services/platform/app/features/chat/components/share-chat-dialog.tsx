@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Check, Copy, ExternalLink, Link } from 'lucide-react';
@@ -113,7 +114,7 @@ function ShareChatDialogContent({
       icon={<Link className="text-muted-foreground size-5" />}
       size="md"
     >
-      <div className="flex min-w-0 flex-col gap-4 overflow-hidden">
+      <Stack className="min-w-0 overflow-hidden">
         <Switch
           label={t('share.enableSharing')}
           description={t('share.enableSharingDescription')}
@@ -123,7 +124,7 @@ function ShareChatDialogContent({
         />
 
         {isShared && shareToken && (
-          <div className="flex min-w-0 flex-col gap-2">
+          <Stack gap={2} className="min-w-0">
             <Text variant="label" className="text-sm">
               {t('share.linkLabel')}
             </Text>
@@ -138,7 +139,6 @@ function ShareChatDialogContent({
             <div className="flex gap-1.5">
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={handleCopy}
                 className="gap-1.5"
                 aria-label={t('share.copyLink')}
@@ -152,7 +152,6 @@ function ShareChatDialogContent({
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
                 onClick={() => {
                   onOpenChange(false);
                   void navigate({
@@ -173,9 +172,9 @@ function ShareChatDialogContent({
             <Text variant="muted" className="text-xs">
               {t('share.linkHint')}
             </Text>
-          </div>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </Dialog>
   );
 }

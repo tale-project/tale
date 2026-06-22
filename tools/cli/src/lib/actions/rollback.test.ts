@@ -22,8 +22,15 @@ const stopContainerMock = mock();
 const removeContainerMock = mock();
 const setCurrentColorMock = mock();
 const setPreviousVersionMock = mock();
+const confirmMock = mock();
 const loggerInfoMock = mock();
 const loggerErrorMock = mock();
+const execMock = mock(async () => ({
+  success: true,
+  stdout: '',
+  stderr: '',
+  exitCode: 0,
+}));
 
 mock.module('../state/with-lock', () => ({
   withLock: (_dir: string, _cmd: string, fn: () => Promise<unknown>) => fn(),
@@ -64,6 +71,15 @@ mock.module('../docker/stop-container', () => ({
 mock.module('../docker/remove-container', () => ({
   removeContainer: removeContainerMock,
 }));
+// rollback pre-marks the old platform colour for shutdown via `docker exec`
+// before draining. Stub it deterministically (a sibling suite's exec mock
+// otherwise leaks in process-globally and returns undefined).
+mock.module('../docker/exec', () => ({
+  exec: execMock,
+}));
+mock.module('../../utils/prompt', () => ({
+  confirm: confirmMock,
+}));
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,
   error: loggerErrorMock,
@@ -84,10 +100,10 @@ const env: DeploymentEnv = {
 
 function expectRunbookPrinted(): void {
   const infoLines = loggerInfoMock.mock.calls.map((c) => String(c[0]));
-  expect(
-    infoLines.some((line) => line.includes('tale upgrade --version')),
-  ).toBe(true);
-  expect(infoLines.some((line) => line.includes('tale deploy --all'))).toBe(
+  expect(infoLines.some((line) => line.includes('tale update --version'))).toBe(
+    true,
+  );
+  expect(infoLines.some((line) => line.includes('tale deploy --stop'))).toBe(
     true,
   );
 }
@@ -105,8 +121,10 @@ afterEach(() => {
   removeContainerMock.mockReset();
   setCurrentColorMock.mockReset();
   setPreviousVersionMock.mockReset();
+  confirmMock.mockReset();
   loggerInfoMock.mockReset();
   loggerErrorMock.mockReset();
+  execMock.mockClear();
 });
 
 describe('rollback gate', () => {
@@ -116,7 +134,7 @@ describe('rollback gate', () => {
     getContainerVersionMock.mockResolvedValue('0.10.1');
 
     await expect(
-      rollback({ env }, { pullImage: pullImageMock }),
+      rollback({ env, assumeYes: false }, { pullImage: pullImageMock }),
     ).rejects.toThrow('Rollback refused: not a patch-level rollback');
 
     expect(pullImageMock).not.toHaveBeenCalled();
@@ -129,7 +147,7 @@ describe('rollback gate', () => {
     getPreviousVersionMock.mockResolvedValue(null);
 
     await expect(
-      rollback({ env }, { pullImage: pullImageMock }),
+      rollback({ env, assumeYes: false }, { pullImage: pullImageMock }),
     ).rejects.toThrow('No previous version');
 
     expect(pullImageMock).not.toHaveBeenCalled();
@@ -142,7 +160,7 @@ describe('rollback gate', () => {
     getContainerVersionMock.mockResolvedValue(null);
 
     await expect(
-      rollback({ env }, { pullImage: pullImageMock }),
+      rollback({ env, assumeYes: false }, { pullImage: pullImageMock }),
     ).rejects.toThrow('Unknown running version');
 
     expect(pullImageMock).not.toHaveBeenCalled();
@@ -155,14 +173,17 @@ describe('rollback gate', () => {
     getContainerVersionMock.mockResolvedValue('latest');
 
     await expect(
-      rollback({ env }, { pullImage: pullImageMock }),
+      rollback({ env, assumeYes: false }, { pullImage: pullImageMock }),
     ).rejects.toThrow('Rollback refused: cannot compare versions');
 
     expect(pullImageMock).not.toHaveBeenCalled();
     expectRunbookPrinted();
   });
+});
 
-  test('allows a patch-level rollback to the previous version', async () => {
+describe('rollback confirmation', () => {
+  /** Seed the mocks so a patch-level rollback passes the gate and succeeds. */
+  function arrangePatchRollback(): void {
     getCurrentColorMock.mockResolvedValue('blue');
     getPreviousVersionMock.mockResolvedValue('0.9.2');
     getContainerVersionMock.mockResolvedValue('0.9.3');
@@ -178,9 +199,15 @@ describe('rollback gate', () => {
     waitForHealthyMock.mockResolvedValue(true);
     stopContainerMock.mockResolvedValue(true);
     removeContainerMock.mockResolvedValue(true);
+  }
 
-    await rollback({ env }, { pullImage: pullImageMock });
+  test('proceeds with a patch-level rollback once the operator confirms', async () => {
+    arrangePatchRollback();
+    confirmMock.mockResolvedValue(true);
 
+    await rollback({ env, assumeYes: false }, { pullImage: pullImageMock });
+
+    expect(confirmMock).toHaveBeenCalledTimes(1);
     // platform — the only rotatable service
     expect(pullImageMock).toHaveBeenCalledTimes(1);
     expect(pullImageMock).toHaveBeenCalledWith(
@@ -191,5 +218,27 @@ describe('rollback gate', () => {
       env.DEPLOY_DIR,
       '0.9.3',
     );
+  });
+
+  test('aborts before pulling anything when the operator declines', async () => {
+    arrangePatchRollback();
+    confirmMock.mockResolvedValue(false);
+
+    await rollback({ env, assumeYes: false }, { pullImage: pullImageMock });
+
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    expect(pullImageMock).not.toHaveBeenCalled();
+    expect(setCurrentColorMock).not.toHaveBeenCalled();
+    expect(setPreviousVersionMock).not.toHaveBeenCalled();
+  });
+
+  test('skips the prompt and proceeds when --yes is set', async () => {
+    arrangePatchRollback();
+
+    await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(pullImageMock).toHaveBeenCalledTimes(1);
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
   });
 });

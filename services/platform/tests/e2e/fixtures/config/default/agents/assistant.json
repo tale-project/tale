@@ -10,5 +10,6 @@
   "structuredResponsesEnabled": false,
   "toolNames": ["request_human_input"],
   "maxSteps": 1,
-  "timeoutMs": 120000
+  "timeoutMs": 120000,
+  "metadata": { "autoInstall": true }
 }

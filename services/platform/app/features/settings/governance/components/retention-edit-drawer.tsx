@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useCallback, useState, type ReactNode } from 'react';
 
@@ -178,7 +179,7 @@ function RetentionEditFormBody({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <Stack gap={0} className="h-full">
       <div className="shrink-0 pr-10">
         <h2 className="text-lg font-semibold tracking-tight">
           {t('retentionPolicy.drawer.title', 'Edit retention policy')}
@@ -192,7 +193,7 @@ function RetentionEditFormBody({
       </div>
 
       <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-4">
-        <div className="flex flex-col gap-6">
+        <Stack gap={6}>
           <RetentionForm
             value={config}
             onChange={setConfig}
@@ -218,7 +219,6 @@ function RetentionEditFormBody({
                 }))
               }
               disabled={inputDisabled}
-              size="sm"
               min={0}
               max={90}
               description={t(
@@ -227,32 +227,30 @@ function RetentionEditFormBody({
               )}
             />
           </div>
-        </div>
+        </Stack>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 border-t pt-4">
+      <Row gap={2} justify="between" className="shrink-0 border-t pt-4">
         <Button
           variant="secondary"
-          size="sm"
           disabled={inputDisabled}
           onClick={handleResetToDefaults}
         >
           {t('retentionPolicy.reset', 'Reset to defaults')}
         </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+        <Row gap={2} align="stretch">
+          <Button variant="ghost" onClick={onClose}>
             {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="primary"
-            size="sm"
             disabled={!dirty || inputDisabled}
             onClick={() => setConfirmOpen(true)}
           >
             {t('retentionPolicy.save', 'Save changes')}
           </Button>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -271,7 +269,7 @@ function RetentionEditFormBody({
       >
         <DiffList from={savedConfig} to={config} bounds={bounds} />
       </ConfirmDialog>
-    </div>
+    </Stack>
   );
 }
 
@@ -301,7 +299,7 @@ function DiffList({
     );
   }
   return (
-    <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto text-sm">
+    <Stack as="ul" gap={1} className="max-h-64 overflow-y-auto text-sm">
       {entries.map((e) => (
         <li
           key={`${e.id}.${e.fromText}-${e.toText}`}
@@ -315,7 +313,7 @@ function DiffList({
           </span>
         </li>
       ))}
-    </ul>
+    </Stack>
   );
 }
 

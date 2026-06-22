@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { LinkButton } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Cpu, KeyRound } from 'lucide-react';
 import { useMemo } from 'react';
@@ -65,14 +65,13 @@ export function RuntimesSettings({
   }, [data]);
 
   return (
-    <Stack gap={8}>
+    <>
       <SettingsSection
         title={t('install.title')}
         description={t('description')}
         action={
           <LinkButton
-            size="sm"
-            variant="secondary"
+            variant="primary"
             icon={KeyRound}
             href="/dashboard/$id/settings/api/rest"
             params={{ id: organizationId }}
@@ -96,10 +95,7 @@ export function RuntimesSettings({
         </Text>
       </SettingsSection>
 
-      <SettingsSection
-        className="border-border border-t pt-8"
-        title={t('list.title')}
-      >
+      <SettingsSection title={t('list.title')}>
         {daemons.length === 0 ? (
           <EmptyState
             icon={Cpu}
@@ -107,7 +103,7 @@ export function RuntimesSettings({
             description={t('list.emptyHint')}
           />
         ) : (
-          <ul className="flex flex-col gap-2">
+          <Stack as="ul" gap={2}>
             {daemons.map(([daemonId, adapters]) => {
               const first = adapters[0];
               const worst: RuntimeRow['status'] = adapters.some(
@@ -122,7 +118,7 @@ export function RuntimesSettings({
                   key={daemonId}
                   className="border-border flex flex-col gap-2 rounded-lg border p-3"
                 >
-                  <div className="flex flex-wrap items-center gap-2">
+                  <Row gap={2} wrap>
                     <Text as="h3" variant="label" className="min-w-0 truncate">
                       {first?.name || daemonId}
                     </Text>
@@ -145,7 +141,7 @@ export function RuntimesSettings({
                         ),
                       })}
                     </Text>
-                  </div>
+                  </Row>
                   <Text as="p" variant="muted" className="font-mono text-xs">
                     {daemonId}
                   </Text>
@@ -169,9 +165,9 @@ export function RuntimesSettings({
                 </li>
               );
             })}
-          </ul>
+          </Stack>
         )}
       </SettingsSection>
-    </Stack>
+    </>
   );
 }

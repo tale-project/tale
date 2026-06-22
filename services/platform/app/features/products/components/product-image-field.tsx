@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { ImagePlus, X } from 'lucide-react';
 import { useRef } from 'react';
@@ -71,7 +72,7 @@ export function ProductImageField({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <Stack gap={2}>
       <Input
         id="imageUrl"
         type="url"
@@ -81,7 +82,7 @@ export function ProductImageField({
         placeholder={tProducts('edit.imageUrlPlaceholder')}
         disabled={isDisabled}
       />
-      <div className="flex items-center gap-3">
+      <Row gap={3}>
         {value && (
           <Image
             src={value}
@@ -99,7 +100,6 @@ export function ProductImageField({
         <Button
           type="button"
           variant="secondary"
-          size="sm"
           disabled={isDisabled}
           onClick={() => inputRef.current?.click()}
           className="gap-1.5"
@@ -115,7 +115,6 @@ export function ProductImageField({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             disabled={disabled}
             onClick={() => onChange('')}
             aria-label={tProducts('edit.removeImage')}
@@ -123,7 +122,7 @@ export function ProductImageField({
             <X className="size-4" />
           </Button>
         )}
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
