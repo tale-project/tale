@@ -43,7 +43,9 @@
       "title": "Terminer la configuration",
       "broken": "Certains fichiers installés sont manquants. Réinstallez pour les restaurer.",
       "connect": "Connectez {integration} pour utiliser cette application.",
-      "connectButton": "Connecter"
+      "connectButton": "Connecter",
+      "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
+      "setupButton": "Configurer"
     },
     "installWizard": {
       "title": "Configurer {name}",
@@ -61,7 +63,16 @@
       "skipForNow": "Je le ferai plus tard",
       "installFailed": "Impossible d'installer l'application",
       "integrationUnavailable": "{integration} n'est pas encore disponible dans cette organisation. Connectez-la depuis Paramètres → Intégrations.",
-      "oauthPopupBlocked": "Autorisez les fenêtres pop-up pour ce site afin de vous connecter, puis réessayez."
+      "oauthPopupBlocked": "Autorisez les fenêtres pop-up pour ce site afin de vous connecter, puis réessayez.",
+      "authModeStepLabel": "Mode de l'agent",
+      "authModeDescription": "Chaque agent d'automatisation peut utiliser l'accès aux modèles géré par la plateforme ou fournir ses propres identifiants.",
+      "authModeManaged": "Géré",
+      "authModeByo": "Votre propre clé",
+      "providerKeyLabel": "Clé API {provider}",
+      "connectProvider": "Connecter {provider}",
+      "providerConnectFailed": "Impossible de connecter le fournisseur",
+      "agentNeedsKeys": "{name} a besoin de ces identifiants pour fonctionner.",
+      "saveSecrets": "Enregistrer"
     },
     "confirm": "Êtes-vous sûr ?",
     "binding": {

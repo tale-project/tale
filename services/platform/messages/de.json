@@ -43,7 +43,9 @@
       "title": "Einrichtung abschließen",
       "broken": "Einige installierte Dateien fehlen. Installiere neu, um sie wiederherzustellen.",
       "connect": "Verbinde {integration}, um diese App zu nutzen.",
-      "connectButton": "Verbinden"
+      "connectButton": "Verbinden",
+      "agentNeedsSetup": "{agent} muss noch eingerichtet werden.",
+      "setupButton": "Einrichten"
     },
     "installWizard": {
       "title": "{name} einrichten",
@@ -61,7 +63,16 @@
       "skipForNow": "Später erledigen",
       "installFailed": "App konnte nicht installiert werden",
       "integrationUnavailable": "{integration} ist in dieser Organisation noch nicht verfügbar. Verbinde sie unter Einstellungen → Integrationen.",
-      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut."
+      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut.",
+      "authModeStepLabel": "Agent-Modus",
+      "authModeDescription": "Jeder Automatisierungs-Agent kann den verwalteten Modellzugang der Plattform nutzen oder eigene Zugangsdaten mitbringen.",
+      "authModeManaged": "Verwaltet",
+      "authModeByo": "Eigener Schlüssel",
+      "providerKeyLabel": "{provider}-API-Schlüssel",
+      "connectProvider": "{provider} verbinden",
+      "providerConnectFailed": "Anbieter konnte nicht verbunden werden",
+      "agentNeedsKeys": "{name} braucht diese Zugangsdaten zum Ausführen.",
+      "saveSecrets": "Speichern"
     },
     "confirm": "Bist du sicher?",
     "binding": {

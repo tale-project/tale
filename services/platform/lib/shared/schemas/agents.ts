@@ -168,6 +168,9 @@ const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
  *                        folder so system agents keep stable flat slugs.
  *  - `requires.integrations` — HARD dependency: the agent is cascade-disabled
  *                        when any listed integration is not connected.
+ *  - `requires.env`          — env/secret keys the agent needs set (chiefly a
+ *                        BYO external agent's own credential); drives the app
+ *                        install wizard's secrets step + readiness checklist.
  *  - `bundledByIntegration`  — the integration whose connection installs this
  *                        agent (provenance also tracked on the install row).
  */
@@ -176,7 +179,22 @@ const agentMetadataSchema = z.object({
   templateCatalog: z.boolean().optional(),
   labels: z.array(z.string().min(1).max(80)).max(12).optional(),
   requires: z
-    .object({ integrations: z.array(z.string().min(1)).optional() })
+    .object({
+      integrations: z.array(z.string().min(1)).optional(),
+      // Env / secret keys the agent needs set before it can run — chiefly a BYO
+      // external agent bringing its own credential. Declared so the app-install
+      // wizard can collect them and the readiness checklist can flag missing
+      // ones (the values live in the per-agent `agentEnv` store, never here).
+      env: z
+        .array(
+          z.object({
+            key: z.string().min(1).max(128),
+            secret: z.boolean().optional(),
+            description: z.string().max(300).optional(),
+          }),
+        )
+        .optional(),
+    })
     .optional(),
   bundledByIntegration: z.string().min(1).max(80).optional(),
 });

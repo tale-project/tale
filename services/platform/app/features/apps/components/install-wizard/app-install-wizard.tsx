@@ -16,16 +16,29 @@ import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
 import { useProjects } from '@/app/features/projects/hooks/queries';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import type { AppScope } from '@/lib/shared/schemas/apps';
 
+import {
+  type AgentAuthMode,
+  type AgentReadiness,
+  type RequiredProvider,
+  authModeOf,
+  isExternalAgent,
+  readAgentsResult,
+} from '../../hooks/use-app-agent-readiness';
 import { useAppInstallActions } from '../../hooks/use-install-state';
 import {
   type RequiredIntegration,
   useRequiredIntegrations,
 } from '../../hooks/use-required-integrations';
+import { AgentSecretsStep } from './agent-secrets-step';
+import { AuthModeStep } from './auth-mode-step';
 import { ConnectIntegrationStep } from './connect-integration-step';
+import { ConnectProviderStep } from './connect-provider-step';
 
 export interface AppInstallWizardProps {
   open: boolean;
@@ -39,20 +52,20 @@ export interface AppInstallWizardProps {
   /** Candidate required integrations (install mode) = the app's requires.integrations. */
   requiredIntegrations: readonly string[];
   /**
-   * 'install' (default): full flow — project? → install → connect → done.
+   * 'install' (default): full flow — project? → install → agents → integrations → done.
    * 'connect-only': the app is already installed (app-page readiness checklist) —
-   * skip the project + install steps and connect `initialSlugs` directly.
+   * skip the project + install steps and finish setup (agents + `initialSlugs`).
    */
   mode?: 'install' | 'connect-only';
   initialSlugs?: readonly string[];
 }
 
 /**
- * Inline install + integration-connect wizard. Clicking Install opens this
- * instead of silently installing and routing the user to Settings → Integrations:
- * it installs the app, then walks each unconnected required integration with the
- * credential form embedded in the dialog. Guided but non-blocking — every connect
- * step is skippable and the app-page readiness checklist remains the fallback.
+ * Inline install + setup wizard. Installs the app, then walks everything it needs
+ * before it can run — each unconnected required integration, each external
+ * agent's auth mode (managed vs BYO), the provider keys managed agents need, and
+ * the secrets BYO agents need — all in the dialog. Guided but non-blocking: every
+ * setup step is skippable and the app-page readiness checklist is the fallback.
  */
 export function AppInstallWizard(props: AppInstallWizardProps) {
   // Radix keeps content mounted during the close animation; bail before hooks
@@ -85,9 +98,7 @@ function AppInstallWizardContent({
   );
 
   // Snapshot WHICH integrations get a connect step exactly once (after load), so
-  // steps don't vanish mid-flow as the user connects them — each step gates its
-  // own validity instead. Integration credentials are independent of app install,
-  // so this is stable before/after the install step.
+  // steps don't vanish mid-flow as the user connects them.
   const [stepSlugs, setStepSlugs] = useState<string[] | null>(null);
   useEffect(() => {
     if (!isLoading && stepSlugs === null) {
@@ -154,6 +165,10 @@ function AppInstallWizardBody({
   const navigate = useNavigate();
   const { projects } = useProjects(organizationId);
   const { install } = useAppInstallActions(organizationId);
+  const fetchAgentReadiness = useConvexAction(
+    api.apps.agent_readiness.getAppAgentReadiness,
+  );
+  const setAuthMode = useConvexAction(api.agents.file_actions.setAgentAuthMode);
 
   const requiredBySlug = useMemo(
     () => new Map(required.map((r) => [r.slug, r])),
@@ -162,6 +177,82 @@ function AppInstallWizardBody({
 
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Agent setup is known only after the app is installed (its agent configs are
+  // copied then). Snapshot the agents once, and track per-external-agent mode.
+  const [agentSnapshot, setAgentSnapshot] = useState<AgentReadiness[] | null>(
+    null,
+  );
+  const [modeChoices, setModeChoices] = useState<Record<string, AgentAuthMode>>(
+    {},
+  );
+
+  const applyAgents = (agents: AgentReadiness[]) => {
+    setAgentSnapshot(agents);
+    setModeChoices(
+      Object.fromEntries(
+        agents.filter(isExternalAgent).map((a) => [a.agentSlug, authModeOf(a)]),
+      ),
+    );
+  };
+
+  // connect-only: the app is already installed → load agent setup on open.
+  useEffect(() => {
+    if (mode !== 'connect-only' || agentSnapshot !== null) return undefined;
+    let cancelled = false;
+    void fetchAgentReadiness
+      .mutateAsync({ organizationId, appSlug })
+      .then((r) => {
+        if (cancelled) return;
+        applyAgents(readAgentsResult(r));
+      })
+      .catch((err) => {
+        console.warn('[AppInstallWizard] agent readiness load failed:', err);
+        if (!cancelled) setAgentSnapshot([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, agentSnapshot, organizationId, appSlug]);
+
+  const externalAgents = useMemo(
+    () => (agentSnapshot ?? []).filter(isExternalAgent),
+    [agentSnapshot],
+  );
+
+  // Effective mode per agent (the chosen toggle, or its current default).
+  const effMode = (a: AgentReadiness): AgentAuthMode =>
+    isExternalAgent(a)
+      ? (modeChoices[a.agentSlug] ?? authModeOf(a))
+      : 'managed';
+  const needsProvider = (a: AgentReadiness): boolean =>
+    a.mode === 'internal' || a.mode === 'image' || effMode(a) === 'managed';
+  const needsEnv = (a: AgentReadiness): boolean =>
+    isExternalAgent(a) && effMode(a) === 'byo';
+
+  // Providers to connect: distinct, exist-but-unkeyed providers that a
+  // not-yet-resolvable provider+model agent needs under its chosen mode.
+  const providersToConnect = useMemo<RequiredProvider[]>(() => {
+    const map = new Map<string, RequiredProvider>();
+    for (const a of agentSnapshot ?? []) {
+      if (!needsProvider(a) || a.supportedModelsResolvable) continue;
+      for (const p of a.requiredProviders) {
+        if (p.exists && !p.hasKey && !map.has(p.name)) map.set(p.name, p);
+      }
+    }
+    return Array.from(map.values());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentSnapshot, modeChoices]);
+
+  const byoAgents = useMemo<AgentReadiness[]>(
+    () =>
+      (agentSnapshot ?? []).filter(
+        (a) => needsEnv(a) && a.requiredEnv.some((e) => !e.set),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentSnapshot, modeChoices],
+  );
 
   const needsProjectStep =
     mode === 'install' && scope === 'project' && !projectId;
@@ -178,6 +269,26 @@ function AppInstallWizardBody({
     if (hasInstallStep) {
       list.push({ id: 'install', label: t('installWizard.installStepLabel') });
     }
+    if (externalAgents.length > 0) {
+      list.push({
+        id: 'auth-mode',
+        label: t('installWizard.authModeStepLabel'),
+      });
+    }
+    for (const p of providersToConnect) {
+      list.push({
+        id: `provider-${p.name}`,
+        label: p.displayName ?? p.name,
+        optional: true,
+      });
+    }
+    for (const a of byoAgents) {
+      list.push({
+        id: `agent-env-${a.agentSlug}`,
+        label: a.displayName,
+        optional: true,
+      });
+    }
     for (const slug of stepSlugs) {
       list.push({
         id: `connect-${slug}`,
@@ -187,9 +298,17 @@ function AppInstallWizardBody({
     }
     list.push({ id: 'done', label: t('installWizard.doneStepLabel') });
     return list;
-    // labelFor reads requiredBySlug; both recompute together.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsProjectStep, hasInstallStep, stepSlugs, requiredBySlug, t]);
+  }, [
+    needsProjectStep,
+    hasInstallStep,
+    externalAgents,
+    providersToConnect,
+    byoAgents,
+    stepSlugs,
+    requiredBySlug,
+    t,
+  ]);
 
   const targetProjectId =
     scope === 'project'
@@ -199,7 +318,6 @@ function AppInstallWizardBody({
   const doInstall = async (): Promise<boolean> => {
     try {
       await install(appSlug, targetProjectId);
-      return true;
     } catch (err) {
       toast({
         title: t('installWizard.installFailed'),
@@ -208,6 +326,28 @@ function AppInstallWizardBody({
       });
       return false;
     }
+    // The app's agent configs now exist — load their setup needs before advancing.
+    try {
+      const r = await fetchAgentReadiness.mutateAsync({
+        organizationId,
+        appSlug,
+      });
+      applyAgents(readAgentsResult(r));
+    } catch (err) {
+      console.warn('[AppInstallWizard] agent readiness load failed:', err);
+      setAgentSnapshot([]);
+    }
+    return true;
+  };
+
+  const onChangeMode = (agentSlug: string, nextMode: AgentAuthMode) => {
+    setModeChoices((prev) => ({ ...prev, [agentSlug]: nextMode }));
+    // Persist so the runtime honors the choice; best-effort.
+    void setAuthMode
+      .mutateAsync({ organizationId, agentName: agentSlug, authMode: nextMode })
+      .catch((err) => {
+        console.warn('[AppInstallWizard] setAgentAuthMode failed:', err);
+      });
   };
 
   const handleFinish = () => {
@@ -220,10 +360,11 @@ function AppInstallWizardBody({
     }
   };
 
-  // Steps still unconnected at finish time drive the "some skipped" summary copy.
-  const skippedCount = stepSlugs.filter(
-    (slug) => !requiredBySlug.get(slug)?.connected,
-  ).length;
+  // What's still outstanding at finish → "some skipped" summary copy.
+  const skippedCount =
+    stepSlugs.filter((slug) => !requiredBySlug.get(slug)?.connected).length +
+    providersToConnect.length +
+    byoAgents.length;
 
   return (
     <Dialog
@@ -286,6 +427,30 @@ function AppInstallWizardBody({
             </VStack>
           </WizardStep>
         )}
+
+        {externalAgents.length > 0 && (
+          <AuthModeStep
+            externalAgents={externalAgents}
+            modeChoices={modeChoices}
+            onChange={onChangeMode}
+          />
+        )}
+
+        {providersToConnect.map((p) => (
+          <ConnectProviderStep
+            key={p.name}
+            provider={p}
+            organizationId={organizationId}
+          />
+        ))}
+
+        {byoAgents.map((a) => (
+          <AgentSecretsStep
+            key={a.agentSlug}
+            agent={a}
+            organizationId={organizationId}
+          />
+        ))}
 
         {stepSlugs.map((slug) => {
           const r = requiredBySlug.get(slug);

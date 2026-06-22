@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { useAppAgentReadiness } from '../hooks/use-app-agent-readiness';
 import { resolvePackLabels } from '../hooks/use-app-pack-labels';
 import { type AppTabDoc, type AppViewDoc, useApps } from '../hooks/use-apps';
 import {
@@ -36,19 +37,31 @@ function ReadinessChecklist({
   appSlug,
   status,
   blockedIntegrations,
+  blockedAgents,
   onConnect,
+  onSetupAgents,
 }: {
   organizationId: string;
   appSlug: string;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
+  /** Bundled agents not yet ready (no provider key / missing secrets). */
+  blockedAgents: { agentSlug: string; displayName: string }[];
   /** Open the inline connect wizard for one required integration. */
   onConnect: (slug: string) => void;
+  /** Open the inline wizard to finish the bundled agents' setup. */
+  onSetupAgents: () => void;
 }) {
   const { t } = useT('apps');
   const { install, isPending } = useAppInstallActions(organizationId);
 
-  if (status === 'active' && blockedIntegrations.length === 0) return null;
+  if (
+    status === 'active' &&
+    blockedIntegrations.length === 0 &&
+    blockedAgents.length === 0
+  ) {
+    return null;
+  }
 
   return (
     <Alert variant="warning" title={t('readiness.title')}>
@@ -78,6 +91,20 @@ function ReadinessChecklist({
               onClick={() => onConnect(slug)}
             >
               {t('readiness.connectButton')}
+            </Button>
+          </HStack>
+        ))}
+        {blockedAgents.map((agent) => (
+          <HStack
+            key={agent.agentSlug}
+            gap={3}
+            className="items-center justify-between"
+          >
+            <Text variant="muted" className="text-sm">
+              {t('readiness.agentNeedsSetup', { agent: agent.displayName })}
+            </Text>
+            <Button size="sm" variant="secondary" onClick={onSetupAgents}>
+              {t('readiness.setupButton')}
             </Button>
           </HStack>
         ))}
@@ -141,6 +168,8 @@ export function AppPage({
   const [wizardOpen, setWizardOpen] = useState(false);
   // The required integration whose connect-only wizard is open (readiness row).
   const [connectSlug, setConnectSlug] = useState<string | null>(null);
+  // Whether the agent-setup (connect-only) wizard is open.
+  const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
@@ -148,6 +177,20 @@ export function AppPage({
 
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
+
+  // Bundled-agent readiness — only meaningful once the app is installed.
+  const { agents: agentReadiness } = useAppAgentReadiness(
+    organizationId,
+    appSlug,
+    state !== undefined,
+  );
+  const blockedAgents = useMemo(
+    () =>
+      agentReadiness
+        .filter((a) => !a.ready)
+        .map((a) => ({ agentSlug: a.agentSlug, displayName: a.displayName })),
+    [agentReadiness],
+  );
 
   // A project-scoped app is used inside its bound project. When this page is
   // reached at the org-level route (or under the wrong project), redirect to the
@@ -255,7 +298,9 @@ export function AppPage({
             appSlug={appSlug}
             status={state.status}
             blockedIntegrations={state.blockedIntegrations}
+            blockedAgents={blockedAgents}
             onConnect={setConnectSlug}
+            onSetupAgents={() => setAgentSetupOpen(true)}
           />
           {connectSlug && (
             <AppInstallWizard
@@ -271,6 +316,22 @@ export function AppPage({
               requiredIntegrations={app.requiredIntegrations}
               mode="connect-only"
               initialSlugs={[connectSlug]}
+            />
+          )}
+          {agentSetupOpen && (
+            <AppInstallWizard
+              open
+              onOpenChange={(o) => {
+                if (!o) setAgentSetupOpen(false);
+              }}
+              organizationId={organizationId}
+              appSlug={appSlug}
+              appName={app.name}
+              scope={app.scope}
+              projectId={state.projectId ?? projectId}
+              requiredIntegrations={app.requiredIntegrations}
+              mode="connect-only"
+              initialSlugs={[]}
             />
           )}
           {app.views.length === 0 ? (

@@ -23,7 +23,7 @@ import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
@@ -362,6 +362,9 @@ export const listAppAgents = action({
             isRouter: result.config.isRouter,
             uiConfigurable: result.config.uiConfigurable,
             i18n: result.config.i18n,
+            // Carries `metadata.requires.env` — the per-agent readiness check
+            // reads the declared BYO secrets from here.
+            metadata: result.config.metadata,
           };
         }
         return {
@@ -374,6 +377,44 @@ export const listAppAgents = action({
     );
 
     return results.filter(Boolean);
+  },
+});
+
+/**
+ * Flip an external agent's `authMode` (managed ⇄ byo) on the org's copied agent
+ * config — the install wizard's per-agent mode choice. Read-modify-write through
+ * `saveAgent` so validation, history, and the capability gate all apply; the
+ * runtime reads `authMode` straight off this config, so the choice takes effect
+ * on the next run.
+ */
+export const setAgentAuthMode = action({
+  args: {
+    organizationId: v.string(),
+    agentName: v.string(),
+    authMode: v.union(v.literal('managed'), v.literal('byo')),
+  },
+  returns: v.object({ ok: v.boolean() }),
+  handler: async (ctx, args): Promise<{ ok: boolean }> => {
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+    const read = await readAgentFile(orgSlug, args.agentName);
+    if (!read.ok) {
+      throw new Error(`Cannot set auth mode: ${read.message}`);
+    }
+    if (read.config.primaryBehavior !== 'external-agent') {
+      throw new Error('authMode only applies to an external-agent.');
+    }
+    if (read.config.authMode === args.authMode) {
+      return { ok: true };
+    }
+    await ctx.runAction(api.agents.file_actions.saveAgent, {
+      organizationId: args.organizationId,
+      agentName: args.agentName,
+      config: { ...read.config, authMode: args.authMode },
+    });
+    return { ok: true };
   },
 });
 
