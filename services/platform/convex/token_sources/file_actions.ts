@@ -60,7 +60,10 @@ export const listTokenSources = action({
       targetEnvVar: string;
     }[] = [];
     for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+      // Skip the encrypted `<slug>.secrets.json` sidecars — they end in
+      // `.json` too, but are not token-source configs (and their derived
+      // `<slug>.secrets` slug fails validation).
+      if (!file.endsWith('.json') || file.endsWith('.secrets.json')) continue;
       const slug = path.basename(file, '.json');
       const read = await loadTokenSource(orgSlug, slug);
       if (!read.ok) continue;

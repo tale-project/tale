@@ -28,7 +28,7 @@ function TokenSourcesLayout() {
   }
 
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <SettingsSection
         title={tNav('tokenSources')}
         description={tSettings('menu.tokenSources.description')}

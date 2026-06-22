@@ -5186,7 +5186,13 @@
       "loadError": "Couldn't load token source",
       "empty": "No token sources yet. Add one to give agents a rotating credential pool.",
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "search": "Search token sources…",
+      "entityLabel": "token source",
+      "emptyTitle": "No token sources yet",
+      "actions": "Token source actions",
+      "deleteTitle": "Delete token source",
+      "deleteConfirm": "Delete the token source “{name}”? Agents bound to it will lose their credential pool."
     },
     "account": {
       "profile": {

@@ -4925,7 +4925,13 @@
       "loadError": "Impossible de charger la source de jetons",
       "empty": "Aucune source de jetons pour l'instant. Ajoutes-en une pour donner aux agents un pool d'identifiants rotatif.",
       "edit": "Modifier",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "search": "Rechercher des sources de jetons…",
+      "entityLabel": "source de jetons",
+      "emptyTitle": "Aucune source de jetons pour l'instant",
+      "actions": "Actions de la source de jetons",
+      "deleteTitle": "Supprimer la source de jetons",
+      "deleteConfirm": "Supprimer la source de jetons « {name} » ? Les agents qui y sont liés perdront leur pool d'identifiants."
     },
     "account": {
       "profile": {

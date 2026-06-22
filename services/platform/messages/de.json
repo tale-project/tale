@@ -4924,7 +4924,13 @@
       "loadError": "Token-Quelle konnte nicht geladen werden",
       "empty": "Noch keine Token-Quellen. Füge eine hinzu, um Agenten einen rotierenden Anmeldedaten-Pool zu geben.",
       "edit": "Bearbeiten",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "search": "Token-Quellen suchen…",
+      "entityLabel": "Token-Quelle",
+      "emptyTitle": "Noch keine Token-Quellen",
+      "actions": "Token-Quellen-Aktionen",
+      "deleteTitle": "Token-Quelle löschen",
+      "deleteConfirm": "Token-Quelle „{name}“ löschen? Daran gebundene Agenten verlieren ihren Anmeldedaten-Pool."
     },
     "account": {
       "profile": {
