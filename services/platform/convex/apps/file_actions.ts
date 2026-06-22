@@ -163,6 +163,11 @@ export const listApps = action({
         workflows: manifest.workflows ?? [],
         agents: manifest.agents ?? [],
         functions: manifest.capabilities?.functions ?? [],
+        // Declared integration dependencies — lets the hub know, before install,
+        // whether to route through the connect wizard. Pure projection of the
+        // already-parsed manifest; the same list is denormalized onto the
+        // install record (`appInstallations.requiredIntegrations`).
+        requiredIntegrations: manifest.requires?.integrations ?? [],
         views,
         ...(Object.keys(messages).length > 0 && { messages }),
       });

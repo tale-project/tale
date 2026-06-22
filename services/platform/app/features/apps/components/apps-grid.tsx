@@ -23,8 +23,8 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
-import { AppInstallDialog } from './app-install-dialog';
 import { AppLifecycleActions } from './app-lifecycle-actions';
+import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
 function InstallBadge({ state }: { state: AppInstallState }) {
   const { t } = useT('apps');
@@ -42,8 +42,10 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug } = useAppInstallStates(organizationId);
   const { install, isPending } = useAppInstallActions(organizationId);
-  // The project-scoped app awaiting an install target (opens the picker dialog).
-  const [pickProjectFor, setPickProjectFor] = useState<AppSummary | null>(null);
+  // The app whose install wizard is open. Project-scoped apps (need a target
+  // project) and apps with required integrations (need a connect step) route
+  // through the wizard; org-scoped apps with no requirements install in one click.
+  const [wizardApp, setWizardApp] = useState<AppSummary | null>(null);
 
   if (isLoading && apps.length === 0) return <SkeletonText lines={4} />;
   if (apps.length === 0) {
@@ -120,8 +122,9 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                   size="sm"
                   disabled={isPending}
                   onClick={() =>
-                    app.scope === 'project'
-                      ? setPickProjectFor(app)
+                    app.scope === 'project' ||
+                    app.requiredIntegrations.length > 0
+                      ? setWizardApp(app)
                       : void install(app.slug)
                   }
                 >
@@ -132,15 +135,17 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
           </div>
         );
       })}
-      {pickProjectFor && (
-        <AppInstallDialog
+      {wizardApp && (
+        <AppInstallWizard
           open
           onOpenChange={(o) => {
-            if (!o) setPickProjectFor(null);
+            if (!o) setWizardApp(null);
           }}
           organizationId={organizationId}
-          appSlug={pickProjectFor.slug}
-          appName={pickProjectFor.name}
+          appSlug={wizardApp.slug}
+          appName={wizardApp.name}
+          scope={wizardApp.scope}
+          requiredIntegrations={wizardApp.requiredIntegrations}
         />
       )}
     </Grid>

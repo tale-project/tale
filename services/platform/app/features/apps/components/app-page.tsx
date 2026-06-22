@@ -28,22 +28,24 @@ import {
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
-import { AppInstallDialog } from './app-install-dialog';
 import { AppLifecycleActions } from './app-lifecycle-actions';
+import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
 function ReadinessChecklist({
   organizationId,
   appSlug,
   status,
   blockedIntegrations,
+  onConnect,
 }: {
   organizationId: string;
   appSlug: string;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
+  /** Open the inline connect wizard for one required integration. */
+  onConnect: (slug: string) => void;
 }) {
   const { t } = useT('apps');
-  const navigate = useNavigate();
   const { install, isPending } = useAppInstallActions(organizationId);
 
   if (status === 'active' && blockedIntegrations.length === 0) return null;
@@ -73,12 +75,7 @@ function ReadinessChecklist({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() =>
-                void navigate({
-                  to: '/dashboard/$id/settings/integrations',
-                  params: { id: organizationId },
-                })
-              }
+              onClick={() => onConnect(slug)}
             >
               {t('readiness.connectButton')}
             </Button>
@@ -141,7 +138,9 @@ export function AppPage({
   const { t } = useT('apps');
   const { locale } = useLocale();
   const navigate = useNavigate();
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  // The required integration whose connect-only wizard is open (readiness row).
+  const [connectSlug, setConnectSlug] = useState<string | null>(null);
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
@@ -199,10 +198,11 @@ export function AppPage({
   }
 
   if (!state) {
-    // A project-scoped app reached at the org route (no projectId) must pick a
-    // target project first; with a project in scope (or an org app), install
-    // directly.
-    const needsProjectPick = app.scope === 'project' && !projectId;
+    // A project-scoped app (needs a target project) or one with required
+    // integrations (needs a connect step) routes through the install wizard;
+    // an org-scoped app with no requirements installs directly.
+    const needsWizard =
+      app.scope === 'project' || app.requiredIntegrations.length > 0;
     return (
       <>
         <EmptyState
@@ -213,8 +213,8 @@ export function AppPage({
             <Button
               disabled={isPending}
               onClick={() =>
-                needsProjectPick
-                  ? setPickerOpen(true)
+                needsWizard
+                  ? setWizardOpen(true)
                   : void install(appSlug, projectId)
               }
             >
@@ -222,13 +222,16 @@ export function AppPage({
             </Button>
           }
         />
-        {needsProjectPick && (
-          <AppInstallDialog
-            open={pickerOpen}
-            onOpenChange={setPickerOpen}
+        {needsWizard && (
+          <AppInstallWizard
+            open={wizardOpen}
+            onOpenChange={setWizardOpen}
             organizationId={organizationId}
             appSlug={appSlug}
             appName={app.name}
+            scope={app.scope}
+            projectId={projectId}
+            requiredIntegrations={app.requiredIntegrations}
           />
         )}
       </>
@@ -252,7 +255,24 @@ export function AppPage({
             appSlug={appSlug}
             status={state.status}
             blockedIntegrations={state.blockedIntegrations}
+            onConnect={setConnectSlug}
           />
+          {connectSlug && (
+            <AppInstallWizard
+              open
+              onOpenChange={(o) => {
+                if (!o) setConnectSlug(null);
+              }}
+              organizationId={organizationId}
+              appSlug={appSlug}
+              appName={app.name}
+              scope={app.scope}
+              projectId={state.projectId ?? projectId}
+              requiredIntegrations={app.requiredIntegrations}
+              mode="connect-only"
+              initialSlugs={[connectSlug]}
+            />
+          )}
           {app.views.length === 0 ? (
             <EmptyState
               title={t('noViews.title')}

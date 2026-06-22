@@ -20,7 +20,7 @@ import {
 } from '../hooks/use-integration-manage';
 import { IntegrationDetails } from './integration-details';
 import { IntegrationActiveView } from './integration-manage/integration-active-view';
-import { IntegrationCredentialsForm } from './integration-manage/integration-credentials-form';
+import { IntegrationCredentialsFormConnected } from './integration-manage/integration-credentials-form-connected';
 import { IntegrationIconUpload } from './integration-manage/integration-icon-upload';
 import { IntegrationUpdateSection } from './integration-manage/integration-update-section';
 import { SlackNotificationConfig } from './integration-manage/slack-notification-config';
@@ -203,50 +203,9 @@ export function IntegrationPanel({
               )}
             </Stack>
           ) : (
-            <IntegrationCredentialsForm
+            <IntegrationCredentialsFormConnected
               integration={integration}
-              isSql={manage.isSql}
-              busy={manage.busy}
-              isSavingOAuth2={manage.isSavingOAuth2}
-              selectedAuthMethod={manage.selectedAuthMethod ?? ''}
-              supportedMethods={manage.supportedMethods.filter(
-                (m): m is string => m != null,
-              )}
-              hasMultipleAuthMethods={manage.hasMultipleAuthMethods}
-              hasOAuth2Config={manage.hasOAuth2Config}
-              hasOAuth2Credentials={manage.hasOAuth2Credentials}
-              oauth2Fields={manage.oauth2Fields}
-              oauth2FieldsComplete={manage.oauth2FieldsComplete}
-              isEditingOAuth2={manage.isEditingOAuth2}
-              credentials={manage.credentials}
-              displayBindings={manage.displayBindings}
-              editableConfigFields={manage.editableConfigFields}
-              configValues={manage.configValues}
-              sqlConfig={manage.sqlConfig}
-              testResult={manage.testResult}
-              onAuthMethodChange={(value) => {
-                const method = manage.supportedMethods.find((m) => m === value);
-                if (method) {
-                  manage.setSelectedAuthMethod(method);
-                  manage.setCredentials({});
-                  manage.setTestResult(null);
-                }
-              }}
-              onCredentialChange={(key, value) =>
-                manage.setCredentials((prev) => ({ ...prev, [key]: value }))
-              }
-              onConfigValueChange={(key, value) =>
-                manage.setConfigValues((prev) => ({ ...prev, [key]: value }))
-              }
-              onSqlConfigChange={(key, value) =>
-                manage.setSqlConfig((prev) => ({ ...prev, [key]: value }))
-              }
-              onOAuth2FieldChange={(field, value) =>
-                manage.setOAuth2Fields((prev) => ({ ...prev, [field]: value }))
-              }
-              onEditOAuth2={manage.setIsEditingOAuth2}
-              onSaveOAuth2={manage.handleSaveOAuth2Only}
-              onDismissTestResult={() => manage.setTestResult(null)}
+              manage={manage}
             />
           )}
         </Stack>

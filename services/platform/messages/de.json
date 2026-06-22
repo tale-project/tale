@@ -45,6 +45,24 @@
       "connect": "Verbinde {integration}, um diese App zu nutzen.",
       "connectButton": "Verbinden"
     },
+    "installWizard": {
+      "title": "{name} einrichten",
+      "progress": "{label} · Schritt {current} von {total}",
+      "stepsAriaLabel": "Einrichtungsschritte",
+      "projectStepLabel": "Projekt",
+      "installStepLabel": "Installieren",
+      "installReady": "Bereit, {name} zu installieren.",
+      "installNeeds": "Diese App nutzt folgende Integrationen: {integrations}.",
+      "doneStepLabel": "Fertig",
+      "doneTitle": "{name} ist bereit",
+      "doneAllConnected": "Alles, was sie braucht, ist verbunden.",
+      "doneSomeSkipped": "Du hast einige Schritte übersprungen – du kannst sie jederzeit über die Einrichtungs-Checkliste der App abschließen.",
+      "finish": "Fertigstellen",
+      "skipForNow": "Später erledigen",
+      "installFailed": "App konnte nicht installiert werden",
+      "integrationUnavailable": "{integration} ist in dieser Organisation noch nicht verfügbar. Verbinde sie unter Einstellungen → Integrationen.",
+      "oauthPopupBlocked": "Erlaube Pop-ups für diese Seite, um zu verbinden, und versuche es erneut."
+    },
     "confirm": "Bist du sicher?",
     "binding": {
       "empty": "Noch nichts anzuzeigen.",

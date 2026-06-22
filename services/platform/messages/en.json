@@ -45,6 +45,24 @@
       "connect": "Connect {integration} to use this app.",
       "connectButton": "Connect"
     },
+    "installWizard": {
+      "title": "Set up {name}",
+      "progress": "{label} · step {current} of {total}",
+      "stepsAriaLabel": "Setup steps",
+      "projectStepLabel": "Project",
+      "installStepLabel": "Install",
+      "installReady": "Ready to install {name}.",
+      "installNeeds": "It uses these integrations: {integrations}.",
+      "doneStepLabel": "Done",
+      "doneTitle": "{name} is ready",
+      "doneAllConnected": "Everything it needs is connected.",
+      "doneSomeSkipped": "You skipped some steps — finish them anytime from the app's setup checklist.",
+      "finish": "Finish",
+      "skipForNow": "I'll do this later",
+      "installFailed": "Couldn't install the app",
+      "integrationUnavailable": "{integration} isn't available in this organization yet. Connect it from Settings → Integrations.",
+      "oauthPopupBlocked": "Allow pop-ups for this site to connect, then try again."
+    },
     "confirm": "Are you sure?",
     "binding": {
       "empty": "Nothing to show yet.",

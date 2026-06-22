@@ -45,6 +45,24 @@
       "connect": "Connectez {integration} pour utiliser cette application.",
       "connectButton": "Connecter"
     },
+    "installWizard": {
+      "title": "Configurer {name}",
+      "progress": "{label} · étape {current} sur {total}",
+      "stepsAriaLabel": "Étapes de configuration",
+      "projectStepLabel": "Projet",
+      "installStepLabel": "Installer",
+      "installReady": "Prêt à installer {name}.",
+      "installNeeds": "Cette application utilise ces intégrations : {integrations}.",
+      "doneStepLabel": "Terminé",
+      "doneTitle": "{name} est prête",
+      "doneAllConnected": "Tout ce dont elle a besoin est connecté.",
+      "doneSomeSkipped": "Vous avez ignoré certaines étapes — terminez-les à tout moment depuis la liste de configuration de l'application.",
+      "finish": "Terminer",
+      "skipForNow": "Je le ferai plus tard",
+      "installFailed": "Impossible d'installer l'application",
+      "integrationUnavailable": "{integration} n'est pas encore disponible dans cette organisation. Connectez-la depuis Paramètres → Intégrations.",
+      "oauthPopupBlocked": "Autorisez les fenêtres pop-up pour ce site afin de vous connecter, puis réessayez."
+    },
     "confirm": "Êtes-vous sûr ?",
     "binding": {
       "empty": "Rien à afficher pour le moment.",

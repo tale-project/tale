@@ -37,6 +37,11 @@ export interface AppSummary {
   agents: string[];
   /** capabilities.functions — the views' allowed Convex calls. */
   functions: FunctionBinding[];
+  /**
+   * Integration slugs the app declares it needs (`requires.integrations`). Lets
+   * the hub decide, before install, whether to route through the connect wizard.
+   */
+  requiredIntegrations: string[];
   views: AppViewDoc[];
   /**
    * The app's own pack-authored label catalogs (`messages/<locale>.json`),
