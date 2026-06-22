@@ -170,7 +170,12 @@ export const tasksTable = defineTable({
   .index('by_project_archived', ['projectId', 'archivedAt'])
   .index('by_assignee', ['organizationId', 'assigneeType', 'assigneeId'])
   .index('by_parent', ['parentTaskId'])
+  // External-ref dedup keyed at two scopes (see `agentUpsertTaskByExternalRef`):
+  // `by_org_external` for org-scoped materialization (one task per issue per org);
+  // `by_project_external` for project-scoped apps (one task per issue per project,
+  // so the same issue worked in two projects yields two independent tasks).
   .index('by_org_external', ['organizationId', 'externalSystem', 'externalId'])
+  .index('by_project_external', ['projectId', 'externalSystem', 'externalId'])
   .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
   // Due-soon / overdue sweeps (SLA enforcement).
   .index('by_org_dueDate', ['organizationId', 'dueDate'])
