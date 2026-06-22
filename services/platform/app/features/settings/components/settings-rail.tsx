@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -178,9 +179,11 @@ export function SettingsRail({
   };
 
   return (
-    <nav
+    <Stack
       aria-label={tNav('userSettings')}
-      className="bg-background border-border flex w-60 shrink-0 flex-col gap-6 overflow-y-auto border-r py-6 pr-3 pl-4"
+      as="nav"
+      gap={6}
+      className="bg-background border-border w-60 shrink-0 overflow-y-auto border-r py-6 pr-3 pl-4"
     >
       {sections.map((section) => {
         const visible = section.items.filter(
@@ -189,7 +192,7 @@ export function SettingsRail({
         if (visible.length === 0) return null;
 
         return (
-          <div key={section.key} className="flex flex-col gap-1">
+          <Stack key={section.key} gap={1}>
             <div className="px-2">
               <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                 {tSettings(`menu.railSections.${section.labelKey}`)}
@@ -216,10 +219,10 @@ export function SettingsRail({
                 ),
               )}
             </ul>
-          </div>
+          </Stack>
         );
       })}
-    </nav>
+    </Stack>
   );
 }
 

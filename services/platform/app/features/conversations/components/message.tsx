@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Clock, AlertCircle, Paperclip, Download, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -86,10 +87,14 @@ function AttachmentCard({
   const hasUrl = !!attachment.url;
 
   return (
-    <div className="bg-background flex items-center gap-2 rounded-lg border p-2">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+    <Row gap={2} className="bg-background rounded-lg border p-2">
+      <Row
+        gap={0}
+        justify="center"
+        className="size-8 shrink-0 rounded-lg bg-gray-100"
+      >
         <span className="text-sm">{icon}</span>
-      </div>
+      </Row>
       <div className="min-w-0 flex-1">
         <Text variant="label-sm" title={attachment.filename}>
           {middleEllipsis(attachment.filename, 28)}
@@ -101,9 +106,13 @@ function AttachmentCard({
         </Text>
       </div>
       {isDownloading ? (
-        <div className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+        <Row
+          gap={0}
+          justify="center"
+          className="text-muted-foreground size-6 shrink-0"
+        >
           <Loader2 className="size-3.5 animate-spin" />
-        </div>
+        </Row>
       ) : hasUrl || onDownload ? (
         <button
           type="button"
@@ -123,7 +132,7 @@ function AttachmentCard({
           <Download className="size-3.5" />
         </button>
       ) : null}
-    </div>
+    </Row>
   );
 }
 
@@ -229,7 +238,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
   }, [message.attachments, message.content, message.id, onDownloadAttachments]);
 
   return (
-    <div className="flex flex-col">
+    <Stack gap={0}>
       <div
         className={cn(
           'flex',
@@ -280,15 +289,15 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
             </Text>
             {displayAttachments.length > 0 && (
               <div className="flex flex-col gap-1.5 px-3 pb-3">
-                <div className="flex items-center gap-1">
+                <Row gap={1}>
                   <Paperclip className="text-muted-foreground size-3" />
                   <Text as="span" variant="caption" className="text-[10px]">
                     {t('attachment.attachments', {
                       count: displayAttachments.length,
                     })}
                   </Text>
-                </div>
-                <div className="flex flex-col gap-1">
+                </Row>
+                <Stack gap={1}>
                   {displayAttachments.map((att: Attachment) => (
                     <AttachmentCard
                       key={att.id}
@@ -301,7 +310,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
                       }
                     />
                   ))}
-                </div>
+                </Stack>
               </div>
             )}
           </div>
@@ -324,6 +333,6 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
           </Text>
         </div>
       </div>
-    </div>
+    </Stack>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { AlertCircle, Upload } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -150,13 +150,15 @@ export function UploadStep({ onBundleParsed }: UploadStepProps) {
       </FileUpload.Root>
 
       {error ? (
-        <div
-          className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-md p-3 text-sm"
+        <Row
+          gap={2}
+          align="start"
+          className="bg-destructive/10 text-destructive rounded-md p-3 text-sm"
           role="alert"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <pre className="font-sans whitespace-pre-wrap">{error}</pre>
-        </div>
+        </Row>
       ) : null}
     </Stack>
   );

@@ -850,7 +850,12 @@ export function ModelsSection({
             </div>
             <Stack gap={0}>
               {filteredRows.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-1 px-4 py-8">
+                <Stack
+                  gap={1}
+                  align="center"
+                  justify="center"
+                  className="px-4 py-8"
+                >
                   <Text className="text-sm font-medium">
                     {t('providers.modelsEmpty.searchTitle')}
                   </Text>
@@ -860,7 +865,7 @@ export function ModelsSection({
                   >
                     {t('providers.modelsEmpty.searchDescription')}
                   </Text>
-                </div>
+                </Stack>
               )}
               {visibleRows.map((row, rowIdx) => {
                 const model =

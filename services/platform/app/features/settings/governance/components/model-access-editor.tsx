@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -213,7 +213,7 @@ function RuleDialog({
       className="sm:max-w-2xl"
     >
       <Stack gap={4}>
-        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
           <Select
             label={t('modelAccess.scope')}
             options={SCOPE_OPTIONS}
@@ -271,7 +271,7 @@ function RuleDialog({
               />
             </div>
           )}
-        </div>
+        </Row>
 
         <CheckboxGroup
           label={
@@ -281,7 +281,7 @@ function RuleDialog({
           }
           disabled={cannotManage}
         >
-          <div className="grid grid-cols-2 gap-2">
+          <Grid cols={2} gap={2}>
             {allModelOptions.map((option) => {
               const selected =
                 mode === 'allowlist'
@@ -299,10 +299,7 @@ function RuleDialog({
                 }
               };
               return (
-                <div
-                  key={option.value}
-                  className="flex items-start justify-between gap-1"
-                >
+                <Row key={option.value} gap={1} align="start" justify="between">
                   <Checkbox
                     label={option.label}
                     checked={checked}
@@ -314,10 +311,10 @@ function RuleDialog({
                     capabilities={modelCapabilities.get(option.value)}
                     organizationId={organizationId}
                   />
-                </div>
+                </Row>
               );
             })}
-          </div>
+          </Grid>
         </CheckboxGroup>
       </Stack>
     </FormDialog>

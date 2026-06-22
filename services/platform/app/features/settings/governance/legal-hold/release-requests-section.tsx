@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -47,7 +47,7 @@ export function ReleaseRequestsSection({
         accessorKey: 'targetType',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <Stack gap={0}>
             {row.original.targetType && (
               <Badge variant="outline" className="self-start">
                 {t(`legalHold.targetTypes.${row.original.targetType}`)}
@@ -62,7 +62,7 @@ export function ReleaseRequestsSection({
             >
               {row.original.targetId ?? row.original.holdId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 200,
@@ -99,7 +99,7 @@ export function ReleaseRequestsSection({
         cell: ({ row }) => {
           const isSelf = currentUser?.userId === row.original.requestedBy;
           return (
-            <div className="flex justify-end gap-2">
+            <Row gap={2} align="stretch" justify="end">
               <Button
                 type="button"
                 variant="ghost"
@@ -127,7 +127,7 @@ export function ReleaseRequestsSection({
               >
                 {t('legalHold.actions.reject')}
               </Button>
-            </div>
+            </Row>
           );
         },
         size: 200,
@@ -142,7 +142,7 @@ export function ReleaseRequestsSection({
         accessorKey: 'targetType',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <Stack gap={0}>
             {row.original.targetType && (
               <Badge variant="outline" className="self-start">
                 {t(`legalHold.targetTypes.${row.original.targetType}`)}
@@ -157,7 +157,7 @@ export function ReleaseRequestsSection({
             >
               {row.original.targetId ?? row.original.holdId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 200,

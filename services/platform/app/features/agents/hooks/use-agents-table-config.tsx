@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Bot, Folder, Package } from 'lucide-react';
@@ -61,7 +61,7 @@ export function useAgentsTableConfig({
           if (row.original.type === 'folder') {
             const isApp = row.original.appSlug !== undefined;
             return (
-              <div className="flex min-h-8 items-center gap-3">
+              <Row gap={3} className="min-h-8">
                 {isApp ? (
                   <Package className="text-muted-foreground size-4 shrink-0" />
                 ) : (
@@ -72,11 +72,11 @@ export function useAgentsTableConfig({
                 </Text>
                 {isApp && <Badge variant="slate">{t('agents.appBadge')}</Badge>}
                 <Badge variant="outline">{row.original.agentCount}</Badge>
-              </div>
+              </Row>
             );
           }
           return (
-            <div className="flex min-h-8 items-center gap-3">
+            <Row gap={3} className="min-h-8">
               <Bot className="text-muted-foreground size-4 shrink-0" />
               <Text as="span" variant="label" truncate>
                 {showFolderPath && row.original.folderPath ? (
@@ -90,7 +90,7 @@ export function useAgentsTableConfig({
                   row.original.displayName
                 )}
               </Text>
-            </div>
+            </Row>
           );
         },
       },

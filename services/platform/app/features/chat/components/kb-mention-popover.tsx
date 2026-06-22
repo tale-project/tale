@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import {
   Highlight,
   type SearchResult,
@@ -65,16 +66,17 @@ export function KbMentionPopover({
         {t('kbMention.title')}
       </div>
       {status === 'loading' ? (
-        <div
+        <Row
           role="status"
           aria-label={t('kbMention.loading')}
-          className="text-muted-foreground flex items-center gap-2 px-3 py-3"
+          gap={2}
+          className="text-muted-foreground px-3 py-3"
         >
           <Loader className="size-3.5 animate-spin" />
           <Text as="span" variant="caption">
             {t('kbMention.loading')}
           </Text>
-        </div>
+        </Row>
       ) : results.length === 0 ? (
         <Text
           as="div"

@@ -2,6 +2,7 @@
 
 import 'json-diff-kit/viewer.css';
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Differ, Viewer } from 'json-diff-kit';
 import { useMemo } from 'react';
 
@@ -66,7 +67,7 @@ export function AutomationHistoryDiffDialog({
       })}
       size="wide"
       footer={
-        <div className="flex justify-end gap-2">
+        <Row gap={2} align="stretch" justify="end">
           <Button
             variant="secondary"
             onClick={() => onOpenChange(false)}
@@ -81,7 +82,7 @@ export function AutomationHistoryDiffDialog({
           >
             {isRestoring ? tCommon('actions.loading') : t('history.restore')}
           </Button>
-        </div>
+        </Row>
       }
     >
       {!hasChanges ? (

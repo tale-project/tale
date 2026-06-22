@@ -342,9 +342,11 @@ function RunCodePolicyRoute() {
             </Button>
 
             {testRows.length > 0 && (
-              <ul
+              <Stack
                 role="list"
-                className="border-border bg-card divide-border flex flex-col divide-y rounded-md border"
+                as="ul"
+                gap={0}
+                className="border-border bg-card divide-border divide-y rounded-md border"
               >
                 {testRows.map((row, idx) => {
                   const allowed = row.decision.decision === 'allowed';
@@ -385,7 +387,7 @@ function RunCodePolicyRoute() {
                     </li>
                   );
                 })}
-              </ul>
+              </Stack>
             )}
           </Stack>
         </PageSection>

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -50,7 +51,7 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
       })}
     >
       {editing ? (
-        <div className="flex flex-col gap-2">
+        <Stack gap={2}>
           <Input
             type="password"
             value={draft}
@@ -59,7 +60,7 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
             placeholder={t('moderationProvider.apiKeyPlaceholder')}
             autoFocus
           />
-          <div className="flex gap-2">
+          <Row gap={2} align="stretch">
             <Button
               variant="primary"
               size="sm"
@@ -81,10 +82,10 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
             >
               {tCommon('actions.cancel')}
             </Button>
-          </div>
-        </div>
+          </Row>
+        </Stack>
       ) : (
-        <div className="flex items-center gap-3">
+        <Row gap={3}>
           <code className="text-muted-foreground bg-muted rounded px-2 py-1 text-xs">
             {isLoading
               ? t('moderationProvider.apiKeyLoading')
@@ -102,7 +103,7 @@ export function ApiKeyPanel({ organizationId, disabled }: ApiKeyPanelProps) {
               ? t('moderationProvider.replaceKey')
               : t('moderationProvider.setKey')}
           </Button>
-        </div>
+        </Row>
       )}
     </FormSection>
   );

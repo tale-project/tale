@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useMatch } from '@tanstack/react-router';
@@ -732,10 +732,14 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
   }, [previewable, loadPreview, revokeObjectUrl]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <Stack gap={0} className="h-full min-h-0">
       {/* Toolbar: filename + actions. Download is ALWAYS available (any file,
           any size/type); Preview is offered only for previewable types. */}
-      <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
+      <Row
+        gap={2}
+        justify="between"
+        className="border-border border-b px-3 py-2"
+      >
         <Text variant="caption" className="truncate font-mono" title={path}>
           {filename}
         </Text>
@@ -769,7 +773,7 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
             </a>
           </Button>
         </div>
-      </div>
+      </Row>
       <div className="min-h-0 flex-1 overflow-hidden">
         <WorkspaceFileViewerContent
           state={state}
@@ -778,7 +782,7 @@ function WorkspaceFileViewer({ threadId, path }: WorkspaceFileViewerProps) {
           previewable={previewable}
         />
       </div>
-    </div>
+    </Stack>
   );
 }
 
@@ -925,8 +929,8 @@ function WorkspaceFilesBody({ threadId }: { threadId: string }) {
 
   return (
     <>
-      <div className="border-border flex items-center justify-between gap-2 border-b p-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <Row gap={2} justify="between" className="border-border border-b p-3">
+        <Row gap={2} className="min-w-0">
           <Folder
             className="text-muted-foreground size-4 shrink-0"
             aria-hidden
@@ -934,8 +938,8 @@ function WorkspaceFilesBody({ threadId }: { threadId: string }) {
           <span className="truncate text-sm font-medium">
             {t('workspaceFiles.title', { defaultValue: 'Workspace files' })}
           </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
+        </Row>
+        <Row gap={1} className="shrink-0">
           <Tooltip
             content={t('workspaceFiles.showHidden', {
               defaultValue: 'Show hidden files',
@@ -997,8 +1001,8 @@ function WorkspaceFilesBody({ threadId }: { threadId: string }) {
               <X className="size-3.5" />
             </Button>
           </Tooltip>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       {!sessionRunning ? (
         <SessionStoppedState />
@@ -1046,9 +1050,9 @@ function WorkspaceFilesBody({ threadId }: { threadId: string }) {
  *  caller (the chat Sheet) supplies the panel chrome. */
 export function WorkspaceFilesMobileBody({ threadId }: { threadId: string }) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <Stack gap={0} className="h-full min-h-0">
       <WorkspaceFilesBody threadId={threadId} />
-    </div>
+    </Stack>
   );
 }
 

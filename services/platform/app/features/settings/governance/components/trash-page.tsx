@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -366,7 +367,12 @@ export function TrashPage({ organizationId }: Props) {
               while the first page loads), so revealing it never pushes the
               page. It only shows the real button once more pages exist. */}
               {(loading || hasMore) && (
-                <div className="border-border flex justify-center border-t p-2">
+                <Row
+                  gap={0}
+                  align="stretch"
+                  justify="center"
+                  className="border-border border-t p-2"
+                >
                   {loading ? (
                     <SkeletonBox>
                       <div className="h-8 w-24 rounded-md" />
@@ -383,7 +389,7 @@ export function TrashPage({ organizationId }: Props) {
                         : t('trash.loadMore', 'Load more')}
                     </Button>
                   )}
-                </div>
+                </Row>
               )}
             </div>
           )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   ChevronDown,
@@ -117,7 +118,10 @@ function WorkspaceFileSidebarComponent({
   const totalCount = files.length;
 
   return (
-    <div className="border-border flex w-56 shrink-0 flex-col overflow-y-auto border-r py-1">
+    <Stack
+      gap={0}
+      className="border-border w-56 shrink-0 overflow-y-auto border-r py-1"
+    >
       {SECTIONS.map((section) => {
         const items = grouped[section.key];
         if (items.length === 0) return null;
@@ -156,7 +160,7 @@ function WorkspaceFileSidebarComponent({
               </span>
             </button>
             {isOpen && (
-              <ul className="flex flex-col py-0.5">
+              <Stack as="ul" gap={0} className="py-0.5">
                 {items.map((f) => {
                   const isActive = f.path === activePath;
                   const isStreaming = streamingPaths?.has(f.path) ?? false;
@@ -201,7 +205,7 @@ function WorkspaceFileSidebarComponent({
                     </li>
                   );
                 })}
-              </ul>
+              </Stack>
             )}
           </div>
         );
@@ -213,7 +217,7 @@ function WorkspaceFileSidebarComponent({
           </Text>
         </div>
       )}
-    </div>
+    </Stack>
   );
 }
 

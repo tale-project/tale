@@ -14,7 +14,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -419,25 +419,25 @@ function AgentCatalogCard({
  */
 function CatalogCardSkeleton() {
   return (
-    <Card contentClassName="flex h-full flex-col p-4">
-      <div className="flex items-start gap-3">
+    <Card padding="md" className="flex h-full flex-col">
+      <Row gap={3} align="start">
         <SkeletonBox>
           <div className="size-10 rounded-lg" />
         </SkeletonBox>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-start justify-between gap-2">
+        <Stack gap={1} className="min-w-0 flex-1">
+          <Row gap={2} align="start" justify="between">
             <div className="w-28 text-sm leading-none">
               <SkeletonText />
             </div>
             <SkeletonBox>
               <div className="h-5 w-16 rounded-full" />
             </SkeletonBox>
-          </div>
+          </Row>
           <div className="text-sm leading-snug">
             <SkeletonText lines={2} />
           </div>
-        </div>
-      </div>
+        </Stack>
+      </Row>
       <div className="mt-auto pt-4">
         <SkeletonBox>
           <div className="h-8 w-20 rounded-md" />

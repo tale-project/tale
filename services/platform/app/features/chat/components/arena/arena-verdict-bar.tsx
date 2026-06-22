@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { useState, useCallback } from 'react';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
@@ -92,8 +93,10 @@ export function ArenaVerdictBar({
   ];
 
   return (
-    <div
-      className="border-border flex items-center justify-center gap-2 border-t px-4 py-3"
+    <Row
+      gap={2}
+      justify="center"
+      className="border-border border-t px-4 py-3"
       role="group"
       aria-label={t('arena.verdictLabel')}
     >
@@ -112,6 +115,6 @@ export function ArenaVerdictBar({
           {label}
         </Button>
       ))}
-    </div>
+    </Row>
   );
 }

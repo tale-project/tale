@@ -1,3 +1,4 @@
+import { Stack } from '@tale/ui/layout';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
@@ -20,9 +21,9 @@ export function ConversationListPanel({
         hidden ? 'hidden md:flex' : 'flex',
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
         {children}
-      </div>
+      </Stack>
       {overlay}
     </div>
   );

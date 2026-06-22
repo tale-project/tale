@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -140,7 +140,7 @@ function RuleDialog({
       submitText={t('budgets.confirm')}
     >
       <Stack gap={4}>
-        <div className="flex flex-wrap gap-3 *:min-w-[10rem] *:flex-1">
+        <Row gap={3} align="stretch" wrap className="*:min-w-[10rem] *:flex-1">
           <Select
             label={t('budgets.scope')}
             options={SCOPE_OPTIONS}
@@ -211,7 +211,7 @@ function RuleDialog({
             disabled={cannotManage}
             size="sm"
           />
-        </div>
+        </Row>
 
         <Stack gap={3}>
           <div>

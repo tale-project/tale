@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { AlertTriangle, ChevronDown, Pencil, X } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -155,9 +156,9 @@ export const EditingBanner = memo(function EditingBanner({
         </button>
       ) : (
         <div className="ring-border size-9 shrink-0 overflow-hidden rounded-md ring-1">
-          <div className="bg-muted flex size-full items-center justify-center">
+          <Row gap={0} justify="center" className="bg-muted size-full">
             <Pencil className="text-muted-foreground size-4" />
-          </div>
+          </Row>
         </div>
       )}
       {ref.url && (

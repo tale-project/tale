@@ -1,6 +1,6 @@
 'use client';
 
-import { HStack, VStack } from '@tale/ui/layout';
+import { HStack, Row, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Eye, Loader, RotateCcw, X } from 'lucide-react';
 
@@ -67,9 +67,10 @@ export function AttachmentTray({
     <HStack gap={1} wrap className="mb-2">
       {kbMentionsEnabled &&
         kbMentions?.map((mention) => (
-          <div
+          <Row
             key={mention.documentId}
-            className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+            gap={3}
+            className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
           >
             <DocumentIcon
               fileName={
@@ -101,7 +102,7 @@ export function AttachmentTray({
             >
               <X className="text-muted-foreground size-3" />
             </button>
-          </div>
+          </Row>
         ))}
       {imageAttachments.map((attachment) => {
         // Pasted images carry an inline `[N]` marker in the message; show the
@@ -146,11 +147,15 @@ export function AttachmentTray({
                   className="size-full object-cover"
                 />
               ) : (
-                <div className="flex size-full items-center justify-center bg-linear-to-br from-blue-100 to-blue-200">
+                <Row
+                  gap={0}
+                  justify="center"
+                  className="size-full bg-linear-to-br from-blue-100 to-blue-200"
+                >
                   <span className="text-xs text-blue-600">
                     {tChat('fileTypes.image')}
                   </span>
-                </div>
+                </Row>
               )}
             </button>
             {pasteIndex !== null && (
@@ -178,9 +183,10 @@ export function AttachmentTray({
           audioInfo?.status === 'completed' && !!audioInfo.transcript;
 
         return (
-          <div
+          <Row
             key={attachment.fileId}
-            className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+            gap={3}
+            className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
           >
             <DocumentIcon fileName={attachment.fileName} />
             <VStack className="min-w-0 flex-1 gap-1">
@@ -235,19 +241,21 @@ export function AttachmentTray({
                 <RotateCcw className="size-3" />
               </button>
             )}
-          </div>
+          </Row>
         );
       })}
 
       {uploadingFiles.map((fileId) => (
-        <div
+        <Row
           key={fileId}
           role="status"
           aria-label={tChat('uploadingFile')}
-          className="border-border bg-muted flex size-9 items-center justify-center overflow-hidden rounded-lg border"
+          gap={0}
+          justify="center"
+          className="border-border bg-muted size-9 overflow-hidden rounded-lg border"
         >
           <Loader className="text-muted-foreground size-4 animate-spin" />
-        </div>
+        </Row>
       ))}
     </HStack>
   );

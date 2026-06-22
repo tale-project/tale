@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Lock } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -75,7 +76,7 @@ export function LegalHoldIndicator({
       side="right"
       contentClassName="max-w-xs"
       content={
-        <div className="flex flex-col gap-1 p-1 text-left">
+        <Stack gap={1} className="p-1 text-left">
           <div className="text-xs font-medium">{heading}</div>
           <div className="text-[11px] opacity-90">{body}</div>
           {adminDetails && adminDetails.length > 0 && (
@@ -88,7 +89,7 @@ export function LegalHoldIndicator({
               ))}
             </dl>
           )}
-        </div>
+        </Stack>
       }
     >
       <button

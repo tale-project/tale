@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
+import { Row } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -162,7 +163,7 @@ export function AgentWebhookSection({
         cell: ({ row }) => {
           const url = getWebhookUrl(row.original.token);
           return (
-            <div className="flex min-w-0 items-center gap-2">
+            <Row gap={2} className="min-w-0">
               <code
                 className="max-w-[300px] truncate font-mono text-sm"
                 title={url}
@@ -182,7 +183,7 @@ export function AgentWebhookSection({
                   <Copy className="size-3.5" />
                 )}
               </Button>
-            </div>
+            </Row>
           );
         },
         size: 400,
@@ -215,7 +216,7 @@ export function AgentWebhookSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
+          <Row gap={1} justify="end">
             <Button
               variant="ghost"
               size="sm"
@@ -232,7 +233,7 @@ export function AgentWebhookSection({
             >
               <Trash2 className="size-4" />
             </Button>
-          </div>
+          </Row>
         ),
         size: 100,
       },

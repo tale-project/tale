@@ -19,7 +19,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
@@ -243,7 +243,7 @@ function PgSection({
     >
       {state.enabled ? (
         <Stack gap={4}>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Grid sm={2}>
             <Input
               label={t('dataResidency.field.host')}
               value={state.host}
@@ -294,7 +294,7 @@ function PgSection({
                     : t('dataResidency.password.writeOnlyHint')
               }
             />
-          </div>
+          </Grid>
           <HStack gap={3} align="center" className="flex-wrap">
             <Button
               variant="secondary"
@@ -621,8 +621,8 @@ function DeploymentSettingsView({
           Save / Apply & restart bar stays pinned to the bottom of the viewport
           regardless of how short the content is (plain `position: sticky` only
           pins once the content is tall enough to scroll). */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pb-8">
+      <Stack gap={0} className="min-h-0 flex-1">
+        <Stack gap={8} className="min-h-0 flex-1 overflow-y-auto pb-8">
           {readOnly ||
           data?.secretsError === 'encrypted_no_key' ||
           data?.secretsError === 'unreadable' ? (
@@ -702,7 +702,7 @@ function DeploymentSettingsView({
           >
             {storage.s3 ? (
               <Stack gap={5}>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Grid sm={2}>
                   <Input
                     label={t('dataResidency.storage.region')}
                     value={storage.region}
@@ -719,7 +719,7 @@ function DeploymentSettingsView({
                       setStorage({ ...storage, endpoint: e.target.value })
                     }
                   />
-                </div>
+                </Grid>
                 <Switch
                   label={t('dataResidency.storage.forcePathStyle')}
                   checked={storage.forcePathStyle}
@@ -729,7 +729,7 @@ function DeploymentSettingsView({
                   }
                 />
                 <FormSection label={t('dataResidency.storage.bucketsLabel')}>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Grid sm={2}>
                     <Input
                       label={t('dataResidency.storage.bucket.files')}
                       value={storage.files}
@@ -773,12 +773,12 @@ function DeploymentSettingsView({
                         setStorage({ ...storage, search: e.target.value })
                       }
                     />
-                  </div>
+                  </Grid>
                 </FormSection>
                 <FormSection
                   label={t('dataResidency.storage.credentialsLabel')}
                 >
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Grid sm={2}>
                     <Input
                       label={t('dataResidency.storage.accessKeyId')}
                       value={storage.accessKeyId}
@@ -811,7 +811,7 @@ function DeploymentSettingsView({
                       }
                       description={t('dataResidency.storage.writeOnly')}
                     />
-                  </div>
+                  </Grid>
                 </FormSection>
                 <HStack gap={3} align="center" className="flex-wrap">
                   <Button
@@ -869,7 +869,7 @@ function DeploymentSettingsView({
               </p>
             }
           />
-        </div>
+        </Stack>
 
         {/* Footer docked to the bottom of the page (outside the scroll body)
             so Save / Apply & restart stay reachable regardless of content
@@ -928,7 +928,7 @@ function DeploymentSettingsView({
             </HStack>
           </Stack>
         </div>
-      </div>
+      </Stack>
 
       <ConfirmDialog
         open={restartConfirmOpen}

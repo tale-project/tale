@@ -1,3 +1,4 @@
+import { Row, Stack } from '@tale/ui/layout';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
@@ -45,8 +46,8 @@ function AutomationsPage() {
     // The DataTable renders its own loading skeleton; mirror AutomationsTable's
     // header so the layout doesn't shift once the ability check resolves.
     return (
-      <div className="flex flex-col gap-4 p-4">
-        <div className="flex items-center justify-between gap-4">
+      <Stack className="p-4">
+        <Row justify="between">
           <SearchInput
             wrapperClassName="w-full max-w-sm"
             placeholder={searchPlaceholder}
@@ -56,7 +57,7 @@ function AutomationsPage() {
             readOnly
           />
           <AutomationsActionMenu organizationId={organizationId} />
-        </div>
+        </Row>
         <DataTable<AutomationTableItem>
           columns={columns}
           data={[]}
@@ -69,7 +70,7 @@ function AutomationsPage() {
             totalCount: 0,
           }}
         />
-      </div>
+      </Stack>
     );
   }
 

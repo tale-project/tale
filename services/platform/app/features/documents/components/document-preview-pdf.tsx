@@ -1,6 +1,6 @@
 'use client';
 
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -457,9 +457,14 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   };
 
   return (
-    <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
+    <Stack ref={containerRef} gap={0} className="relative min-h-0 flex-1">
       <PreviewPane className="overflow-x-auto">
-        <div className="flex min-h-full w-fit min-w-full justify-center">
+        <Row
+          gap={0}
+          align="stretch"
+          justify="center"
+          className="min-h-full w-fit min-w-full"
+        >
           {/* Sized imperatively to the page's CSS footprint after each render so
               the canvas and the pdfjs-appended text/annotation layers share
               identical dimensions and stay pixel-aligned. The click handler is
@@ -475,7 +480,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           >
             <canvas ref={canvasRef} className="block size-full" />
           </div>
-        </div>
+        </Row>
         {!state.pdfDoc && (
           // Document-shaped pulse matching the rendered page footprint, so the
           // first painted page swaps in without the pane jumping from a
@@ -492,7 +497,12 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         )}
       </PreviewPane>
       {/* Floating toolbar pinned to the bottom of the visible pane (draggable) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-50 flex justify-center">
+      <Row
+        gap={0}
+        align="stretch"
+        justify="center"
+        className="pointer-events-none absolute inset-x-0 bottom-4 z-50"
+      >
         <HStack
           ref={toolbarRef}
           gap={2}
@@ -561,10 +571,10 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             </button>
           </HStack>
         </HStack>
-      </div>
+      </Row>
       {linkPopup && (
         <PdfLinkPopup state={linkPopup} onClose={() => setLinkPopup(null)} />
       )}
-    </div>
+    </Stack>
   );
 };

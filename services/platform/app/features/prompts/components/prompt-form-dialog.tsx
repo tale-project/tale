@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle } from 'lucide-react';
@@ -322,9 +322,11 @@ function PromptFormDialogContent({
         </HStack>
       )}
       {hasNewerVersion && (
-        <div
+        <Row
           role="alert"
-          className="border-warning bg-warning/10 text-warning-foreground flex items-start gap-2 rounded-md border p-3 text-sm"
+          gap={2}
+          align="start"
+          className="border-warning bg-warning/10 text-warning-foreground rounded-md border p-3 text-sm"
         >
           <AlertTriangle
             className="mt-0.5 size-4 shrink-0"
@@ -352,9 +354,9 @@ function PromptFormDialogContent({
           >
             {t('form.loadLatest')}
           </Button>
-        </div>
+        </Row>
       )}
-      <div className="flex flex-col gap-1">
+      <Stack gap={1}>
         <Input
           label={t('form.titleLabel')}
           value={title}
@@ -367,8 +369,8 @@ function PromptFormDialogContent({
             {t('form.titleAutoGenHint')}
           </Text>
         )}
-      </div>
-      <div className="flex flex-col gap-1">
+      </Stack>
+      <Stack gap={1}>
         <Textarea
           id={contentId}
           value={content}
@@ -405,7 +407,7 @@ function PromptFormDialogContent({
             {t('form.bytesOverLimitAlert')}
           </Text>
         )}
-      </div>
+      </Stack>
       <div role="group" aria-label={t('form.scopeLabel')}>
         <Tabs
           items={scopeTabItems}
@@ -433,7 +435,7 @@ function PromptFormDialogContent({
         </Text>
       )}
       {!(scope === 'team' && teamOptions.length === 0) && (
-        <div className="flex flex-col gap-2">
+        <Stack gap={2}>
           <label id={categoryLabelId} className="text-sm font-medium">
             {t('form.categoryLabel')}
           </label>
@@ -448,7 +450,7 @@ function PromptFormDialogContent({
             onSelect={setCategoryId}
             ariaLabelledBy={categoryLabelId}
           />
-        </div>
+        </Stack>
       )}
       <TagChipInput
         value={tags}

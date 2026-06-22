@@ -1,6 +1,9 @@
 import { Badge } from '@tale/ui/badge';
+import { Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -48,7 +51,62 @@ interface ScorecardRun {
 
 interface ScorecardPayload {
   daily: ScorecardDay[];
+  /** Same shape as `daily` for the immediately-preceding window (deltas). */
+  previousDaily: ScorecardDay[];
   recentRuns: ScorecardRun[];
+}
+
+interface ScorecardTotals {
+  runsStarted: number;
+  runsFailed: number;
+  durationSum: number;
+  durationCount: number;
+  costCents: number;
+  tasksCompleted: number;
+  reviewsPassed: number;
+  reviewsChangesRequested: number;
+  escalations: number;
+}
+
+function reduceDaily(days: ScorecardDay[]): ScorecardTotals {
+  return days.reduce(
+    (acc, day) => ({
+      runsStarted: acc.runsStarted + day.runsStarted,
+      runsFailed: acc.runsFailed + day.runsFailed,
+      durationSum: acc.durationSum + day.runDurationSumMs,
+      durationCount: acc.durationCount + day.runDurationCount,
+      costCents: acc.costCents + day.costCents,
+      tasksCompleted: acc.tasksCompleted + day.tasksCompleted,
+      reviewsPassed: acc.reviewsPassed + day.reviewsPassed,
+      reviewsChangesRequested:
+        acc.reviewsChangesRequested + day.reviewsChangesRequested,
+      escalations: acc.escalations + day.escalations,
+    }),
+    {
+      runsStarted: 0,
+      runsFailed: 0,
+      durationSum: 0,
+      durationCount: 0,
+      costCents: 0,
+      tasksCompleted: 0,
+      reviewsPassed: 0,
+      reviewsChangesRequested: 0,
+      escalations: 0,
+    },
+  );
+}
+
+function passRateOf(t: ScorecardTotals): number | undefined {
+  const reviews = t.reviewsPassed + t.reviewsChangesRequested;
+  return reviews > 0
+    ? Math.round((t.reviewsPassed / reviews) * 100)
+    : undefined;
+}
+
+function avgRunSecondsOf(t: ScorecardTotals): number | undefined {
+  return t.durationCount > 0
+    ? Math.round(t.durationSum / t.durationCount / 1000)
+    : undefined;
 }
 
 function formatCents(cents: number): string {
@@ -83,74 +141,13 @@ function AgentMetricsTab() {
   // The query returns v.any(); the payload shape is owned by getAgentScorecard.
   const scorecard: ScorecardPayload | undefined = data ?? undefined;
 
-  const totals = (scorecard?.daily ?? []).reduce(
-    (acc, day) => ({
-      runsStarted: acc.runsStarted + day.runsStarted,
-      runsFailed: acc.runsFailed + day.runsFailed,
-      durationSum: acc.durationSum + day.runDurationSumMs,
-      durationCount: acc.durationCount + day.runDurationCount,
-      costCents: acc.costCents + day.costCents,
-      tasksCompleted: acc.tasksCompleted + day.tasksCompleted,
-      reviewsPassed: acc.reviewsPassed + day.reviewsPassed,
-      reviewsChangesRequested:
-        acc.reviewsChangesRequested + day.reviewsChangesRequested,
-      escalations: acc.escalations + day.escalations,
-    }),
-    {
-      runsStarted: 0,
-      runsFailed: 0,
-      durationSum: 0,
-      durationCount: 0,
-      costCents: 0,
-      tasksCompleted: 0,
-      reviewsPassed: 0,
-      reviewsChangesRequested: 0,
-      escalations: 0,
-    },
-  );
-  const reviews = totals.reviewsPassed + totals.reviewsChangesRequested;
-  const passRate =
-    reviews > 0
-      ? Math.round((totals.reviewsPassed / reviews) * 100)
-      : undefined;
-  const avgRunSeconds =
-    totals.durationCount > 0
-      ? Math.round(totals.durationSum / totals.durationCount / 1000)
-      : undefined;
+  const totals = reduceDaily(scorecard?.daily ?? []);
+  const prev = reduceDaily(scorecard?.previousDaily ?? []);
 
-  const stats: Array<{ label: string; value: string; detail?: string }> = [
-    {
-      label: t('scorecard.tasksCompleted'),
-      value: String(totals.tasksCompleted),
-      detail: t('kpi.runs', {
-        started: totals.runsStarted,
-        failed: totals.runsFailed,
-      }),
-    },
-    {
-      label: t('scorecard.reviewOutcome'),
-      value: passRate !== undefined ? `${passRate}%` : '—',
-      detail: t('scorecard.reviewDetail', {
-        passed: totals.reviewsPassed,
-        changes: totals.reviewsChangesRequested,
-        escalations: totals.escalations,
-      }),
-    },
-    {
-      label: t('scorecard.avgRun'),
-      value: avgRunSeconds !== undefined ? `${avgRunSeconds}s` : '—',
-    },
-    {
-      label: t('scorecard.spend'),
-      value: formatCents(totals.costCents),
-      detail: t('kpi.costDetail', {
-        perTask:
-          totals.tasksCompleted > 0
-            ? formatCents(totals.costCents / totals.tasksCompleted)
-            : '0.00',
-      }),
-    },
-  ];
+  const passRate = passRateOf(totals);
+  const prevPassRate = passRateOf(prev);
+  const avgRunSeconds = avgRunSecondsOf(totals);
+  const prevAvgRunSeconds = avgRunSecondsOf(prev);
 
   return (
     <ContentArea variant="narrow" gap={6}>
@@ -159,28 +156,81 @@ function AgentMetricsTab() {
         description={t('scorecard.subtitle')}
       />
 
-      <section className="grid grid-cols-2 gap-3">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="border-border bg-card flex flex-col gap-1 rounded-lg border p-4"
-          >
+      <StatCardGrid cols={2}>
+        <StatCard
+          label={t('scorecard.tasksCompleted')}
+          value={String(totals.tasksCompleted)}
+        >
+          <Stack gap={1} className="mt-0.5">
+            <TrendIndicator
+              value={totals.tasksCompleted}
+              previous={prev.tasksCompleted}
+            />
             <Text as="p" variant="muted" className="text-xs">
-              {stat.label}
+              {t('kpi.runs', {
+                started: totals.runsStarted,
+                failed: totals.runsFailed,
+              })}
             </Text>
-            <Text as="p" className="text-2xl font-semibold tabular-nums">
-              {stat.value}
-            </Text>
-            {stat.detail && (
-              <Text as="p" variant="muted" className="text-xs">
-                {stat.detail}
-              </Text>
-            )}
-          </div>
-        ))}
-      </section>
+          </Stack>
+        </StatCard>
 
-      <section className="flex flex-col gap-2">
+        <StatCard
+          label={t('scorecard.reviewOutcome')}
+          value={passRate !== undefined ? `${passRate}%` : '—'}
+        >
+          <Stack gap={1} className="mt-0.5">
+            {passRate !== undefined ? (
+              <TrendIndicator value={passRate} previous={prevPassRate} />
+            ) : null}
+            <Text as="p" variant="muted" className="text-xs">
+              {t('scorecard.reviewDetail', {
+                passed: totals.reviewsPassed,
+                changes: totals.reviewsChangesRequested,
+                escalations: totals.escalations,
+              })}
+            </Text>
+          </Stack>
+        </StatCard>
+
+        <StatCard
+          label={t('scorecard.avgRun')}
+          value={avgRunSeconds !== undefined ? `${avgRunSeconds}s` : '—'}
+        >
+          {avgRunSeconds !== undefined ? (
+            <div className="mt-0.5">
+              <TrendIndicator
+                value={avgRunSeconds}
+                previous={prevAvgRunSeconds}
+                inverted
+              />
+            </div>
+          ) : null}
+        </StatCard>
+
+        <StatCard
+          label={t('scorecard.spend')}
+          value={formatCents(totals.costCents)}
+        >
+          <Stack gap={1} className="mt-0.5">
+            <TrendIndicator
+              value={totals.costCents}
+              previous={prev.costCents}
+              inverted
+            />
+            <Text as="p" variant="muted" className="text-xs">
+              {t('kpi.costDetail', {
+                perTask:
+                  totals.tasksCompleted > 0
+                    ? formatCents(totals.costCents / totals.tasksCompleted)
+                    : '0.00',
+              })}
+            </Text>
+          </Stack>
+        </StatCard>
+      </StatCardGrid>
+
+      <Stack as="section" gap={2}>
         <Text as="h3" variant="label">
           {t('scorecard.recentRuns')}
         </Text>
@@ -216,7 +266,7 @@ function AgentMetricsTab() {
             ))}
           </ul>
         )}
-      </section>
+      </Stack>
     </ContentArea>
   );
 }

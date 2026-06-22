@@ -1,3 +1,4 @@
+import { Row } from '@tale/ui/layout';
 import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
 
 import {
@@ -112,8 +113,12 @@ function SettingsMobileActionBar() {
   if (!controller) return null;
 
   return (
-    <div className="border-border flex items-center justify-end gap-2 border-b px-4 py-2 md:hidden">
+    <Row
+      gap={2}
+      justify="end"
+      className="border-border border-b px-4 py-2 md:hidden"
+    >
       <EditorActions controller={controller} entityKind="settings" />
-    </div>
+    </Row>
   );
 }

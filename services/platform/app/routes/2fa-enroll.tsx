@@ -1,6 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
-import { Stack, VStack } from '@tale/ui/layout';
+import { Grid, Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 /**
  * Post-grace enrollment wall. The sign-in after-hook returns
@@ -253,11 +253,16 @@ function TwoFactorEnrollPage() {
               <Text variant="muted" className="text-sm">
                 {t('backupCodes.warningOnce')}
               </Text>
-              <ul className="bg-muted grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-sm">
+              <Grid
+                as="ul"
+                cols={2}
+                gap={2}
+                className="bg-muted rounded-md border p-3 font-mono text-sm"
+              >
                 {step.backupCodes.map((c) => (
                   <li key={c}>{c}</li>
                 ))}
-              </ul>
+              </Grid>
               <Stack gap={2}>
                 <Button
                   variant="secondary"

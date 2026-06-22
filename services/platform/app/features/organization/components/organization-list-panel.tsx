@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Check, Loader2, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -55,7 +56,7 @@ export function OrganizationListPanel({
   const orgs = userOrgs ?? [];
 
   return (
-    <div className="flex flex-col">
+    <Stack gap={0}>
       {!hideHeader && (
         <div className="text-muted-foreground px-3 pt-2 pb-1.5 text-xs font-medium tracking-wide uppercase">
           {tNav('orgSwitcher.label')}
@@ -121,6 +122,6 @@ export function OrganizationListPanel({
           <span>{tSettings('organization.createOrganization')}</span>
         </button>
       </div>
-    </div>
+    </Stack>
   );
 }

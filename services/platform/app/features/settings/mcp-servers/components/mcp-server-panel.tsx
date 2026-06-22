@@ -5,7 +5,7 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Heading } from '@tale/ui/heading';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useAction } from 'convex/react';
 import {
@@ -376,7 +376,7 @@ export function McpServerPanel({
 
         <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
           {isEditing ? (
-            <div className="flex justify-end gap-3">
+            <Row gap={3} align="stretch" justify="end">
               <Button
                 type="button"
                 variant="secondary"
@@ -392,7 +392,7 @@ export function McpServerPanel({
               >
                 {isSubmitting ? t('form.saving') : t('form.save')}
               </Button>
-            </div>
+            </Row>
           ) : (
             <HStack justify="between" align="center">
               <Button

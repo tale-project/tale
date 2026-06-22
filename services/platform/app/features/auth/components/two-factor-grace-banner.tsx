@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
@@ -38,9 +39,11 @@ export function TwoFactorGraceBanner({
 
   return (
     <div className="px-4 pt-2">
-      <div
+      <Row
         role="alert"
-        className="bg-warning/10 border-warning/30 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
+        gap={2}
+        wrap
+        className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
       >
         <span className="grow">
           <span className="font-medium">
@@ -56,7 +59,7 @@ export function TwoFactorGraceBanner({
         >
           {t('grace.setupLink')}
         </Link>
-      </div>
+      </Row>
     </div>
   );
 }

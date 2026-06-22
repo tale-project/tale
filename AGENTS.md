@@ -5,11 +5,7 @@ Cursor, Codex, Copilot, Gemini CLI). Read it in full before your first change. D
 on-demand guides under [`.claude/skills/`](.claude/skills/) — this file is the contract; the skills
 are the how-to. The index is at the bottom.
 
-Tale is a monorepo on Bun workspaces. Every workspace script runs through the filter:
-
-```bash
-bun run --filter @tale/<workspace> <script>
-```
+Tale is a monorepo on Bun workspaces; every workspace script runs through `bun run --filter @tale/<workspace> <script>`.
 
 ## How to work
 
@@ -87,20 +83,21 @@ If you didn't verify it, it isn't done — say so rather than claiming it. Paste
 
 A change is rarely one file. Expand a local edit into its blast radius:
 
-| You changed…                                             | You must also…                                                                                  |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| A user-visible string                                    | `en/de/fr.json` (+`de-CH` if differs) · glossary · docs(3) · manual guide · e2e                 |
-| A translation key (add/rename/remove)                    | all base locales same commit · remove dead keys everywhere                                      |
-| A new interactive UI element                             | i18n label · a11y (HTML/keyboard/aria/contrast/24px) · docs · manual guide · e2e                |
-| A new `components/ui/` primitive                         | Storybook story (all variants) · a11y block · Skeletonize support                               |
-| A Convex field/table (rename/retype/split/drop/backfill) | migration + up/down + `migration.test.ts` + registry + `migrations:check`                       |
-| A knowledge-DB schema                                    | dbmate migration under `migrations/knowledge-db/<schema>/` · verify a fresh `compose up`        |
-| Env var / CLI flag / config key / API field              | docs(3) · `.env.example` · `README{,.de,.fr}.md` · setup                                        |
-| Error wording / validation / rate limit                  | docs(3) · tests · i18n                                                                          |
-| A date display                                           | `useFormatDate()` — never `toLocale*`                                                           |
-| A new query/mutation                                     | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader         |
-| A path/command/pattern a skill or `AGENTS.md` documents  | update that guide + the skill index · run `bun .claude/check-skill-links.mjs`                   |
-| A skill added/renamed/rescoped                           | set globs in `.claude/skill-globs.json` · `bun .claude/gen-skill-adapters.mjs` (Cursor/Copilot) |
+| You changed…                                             | You must also…                                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| A user-visible string                                    | `en/de/fr.json` (+`de-CH` if differs) · glossary · docs(3) · manual guide · e2e                  |
+| A translation key (add/rename/remove)                    | all base locales same commit · remove dead keys everywhere                                       |
+| A new interactive UI element                             | i18n label · a11y (HTML/keyboard/aria/contrast/24px) · docs · manual guide · e2e                 |
+| A new `components/ui/` primitive                         | Storybook story (all variants) · a11y block · Skeletonize support                                |
+| A feature page / route                                   | compose `@tale/ui` + layout primitives (no raw layout HTML) · button-size policy · one gap scale |
+| A Convex field/table (rename/retype/split/drop/backfill) | migration + up/down + `migration.test.ts` + registry + `migrations:check`                        |
+| A knowledge-DB schema                                    | dbmate migration under `migrations/knowledge-db/<schema>/` · verify a fresh `compose up`         |
+| Env var / CLI flag / config key / API field              | docs(3) · `.env.example` · `README{,.de,.fr}.md` · setup                                         |
+| Error wording / validation / rate limit                  | docs(3) · tests · i18n                                                                           |
+| A date display                                           | `useFormatDate()` — never `toLocale*`                                                            |
+| A new query/mutation                                     | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader          |
+| A path/command/pattern a skill or `AGENTS.md` documents  | update that guide + the skill index · run `bun .claude/check-skill-links.mjs`                    |
+| A skill added/renamed/rescoped                           | set globs in `.claude/skill-globs.json` · `bun .claude/gen-skill-adapters.mjs` (Cursor/Copilot)  |
 
 → Full guide: [`definition-of-done`](.claude/skills/definition-of-done/SKILL.md), [`ship`](.claude/skills/ship/SKILL.md)
 
@@ -166,7 +163,7 @@ knip · strict typecheck. **When you add a rule, add the guard.**
 - **No status comments** (`// REFACTORED`, `// TODO: see #123`) and no comments narrating removed code. Git is the record. Comments explain _why_, rarely _what_.
 - **Comments address the next reader of the code, never the chat or a follow-up.** No verification-status notes, handoff messages, or references to the conversation/plan (e.g. `// ⚠️ UNVERIFIED … require a live stack to validate (see plan)`). That belongs in the PR description, an issue, or your reply — not the source. If something is genuinely unproven, say so in the PR, not in a comment that ships forever.
 - **No empty catch blocks.** Log (`console.warn`/`console.error`) or re-throw. Silent catches hide bugs.
-- **No locale-aware date methods.** `toLocaleDateString`/`toLocaleTimeString`/`toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from [`lib/utils/date/format`](services/platform/lib/utils/date/format.ts).
+- **No locale-aware date methods.** `toLocaleDateString`/`toLocaleTimeString`/`toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from `lib/utils/date/format`.
 - **No `\uXXXX` escapes in JSON.** Write non-ASCII literally as UTF-8 (`ät`, `é`, `—`, `«»`). JSON's required escapes (`\n`, `\t`, `\"`, `\\`) stay.
 
 → Full guide: [`clean-code`](.claude/skills/clean-code/SKILL.md)
@@ -215,10 +212,31 @@ run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly
 - **Navigation** uses TanStack Router (`useNavigate()`, `<Link>`). No `window.location`.
 - **Images** go through the `Image` component (`@/components/ui/image`); never bare `<img>`.
 - **No hardcoded user-facing strings** — always the `useT()` hook. A stray English literal in JSX is a bug.
-- **Loading is centralized** — split into presentational + container, wrap the plain part in `<Skeletonize loading>` ([`@tale/ui/skeleton-context`](packages/ui/src/components/feedback/skeleton-context.tsx)); skeleton-aware leaves mask to their own size. Never the bare `<Skeleton>` or a magic `h-[…]`.
+- **Loading is centralized** — split into presentational + container, wrap the plain part in `<Skeletonize loading>` (`@tale/ui/skeleton-context`); skeleton-aware leaves mask to their own size. Never the bare `<Skeleton>` or a magic `h-[…]`.
 - **CVA for named variants** (`variant`/`size`/`tone`); a conditional `cn()` for boolean states. Reach for `useMemo`/`memo` only when the profile justifies it, and avoid the `useEffect` reflex.
 
 → Full guide: [`react`](.claude/skills/react/SKILL.md), [`ui-components`](.claude/skills/ui-components/SKILL.md)
+
+## Design system & UI composition
+
+Tale has **one** design system — `@tale/ui` primitives, composed by feature pages. One concept, one
+component. **Build pages by composing components; never hand-roll layout HTML.**
+
+- **Compose, don't hand-roll.** Feature pages/routes (`services/platform/app/**`) use design-system
+  components + layout primitives — no raw `<div className="flex/grid …">`, `<section>`, `<h1|2|3>`, or
+  `<button>` for layout. Vertical → `Stack`, horizontal → `Row`, grid → `Grid` (`@tale/ui/layout`);
+  titled section → `PageSection`/`SettingsSection`; action cluster → `ActionRow`; a semantic element →
+  the primitive's `as` prop (`<Stack as="ul">`). Bespoke layout (chat/canvas, virtualization, measured
+  nodes) may stay raw with a one-line `// raw layout: <reason>`.
+- **One spacing scale** — named `gap` steps (`2` field group · `4` within a section / default · `6`
+  loose · `8` between sections); never a raw `gap-[…]` or `space-y-*` for layout.
+- **Button size by context** — `default` (page/dialog actions) · `sm` (dense/toolbar/table/inline) ·
+  `lg` (marketing CTAs) · icon-only → `IconButton` (never a bare `size="icon"`).
+- **One way per surface** — lists/tables → `useListPage` + `DataTable` (one add-item affordance, one
+  empty path); forms → `useFormEditor` + `Form`/`Field`; settings → `SettingsPage` + `SettingsSection`
+  (no page title — the rail names it).
+
+→ Full catalog + how-to: [`ui-components`](.claude/skills/ui-components/SKILL.md)
 
 ## Convex
 
@@ -246,8 +264,7 @@ Every user-facing string goes through the translation layer; never compare again
 in code, tests, or stories. **`en.json` is the schema** — every key exists in `de.json` and `fr.json`
 on the same commit; `de-CH` carries only differing values (fallback `de-CH → de → en`). Remove dead
 keys everywhere (orphan-key test). Sentence case; **informal form** (`du`, `tu` — never `Sie`/`vous`);
-ICU placeholders copy exactly; brand names don't translate. `useT(namespace)` from
-[`lib/i18n/client`](services/platform/lib/i18n/client.tsx).
+ICU placeholders copy exactly; brand names don't translate. `useT(namespace)` from `lib/i18n/client`.
 → Full guide: [`translation`](.claude/skills/translation/SKILL.md)
 
 ## Documentation
@@ -271,22 +288,25 @@ respect `prefers-reduced-motion`. Every component has an `accessibility` describ
 
 ## Anti-patterns — you'll be tempted to X; don't
 
-| Tempted to…                                                    | Instead                                            | Caught by                      |
-| -------------------------------------------------------------- | -------------------------------------------------- | ------------------------------ |
-| Update `en.json` only                                          | all base locales + variants, same commit           | i18n parity test · Ripple Map  |
-| Add a Convex field, skip the migration                         | versioned reversible migration + test              | `migrations:check` · DoD       |
-| Hand-roll a skeleton (`h-[200px]`)                             | `<Skeletonize>` + skeleton-aware leaves            | `skeleton-conventions.test.ts` |
-| Build a new Button/Input/Badge                                 | reuse/extend the `packages/ui` primitive           | reuse discipline · review      |
-| Build a 2nd catalog/list/page like an existing one             | extract the shared concept; both render through it | reuse discipline · review      |
-| Two surfaces (agents vs workflows) doing one thing differently | one concept, one implementation both call          | reuse discipline · review      |
-| `as any` to silence TS                                         | type guard / generic / discriminated union         | oxlint `no-explicit-any`       |
-| Bare `<img>`                                                   | the `Image` component                              | oxlint jsx-a11y `alt-text`     |
-| `toLocaleDateString`                                           | `useFormatDate()`                                  | code style · review            |
-| `.collect()` on a large set                                    | `for await` / `.paginate()`                        | `convex` guide · review        |
-| `window.location` for nav                                      | `useNavigate`/`<Link>`                             | `react` guide                  |
-| `useEffect` for derived state                                  | derive in render / event handler                   | `react` guide                  |
-| Empty catch                                                    | log or re-throw                                    | code style                     |
-| Declare "done" unrun                                           | observe the outcome, show evidence                 | verification doctrine          |
+| Tempted to…                                                    | Instead                                             | Caught by                      |
+| -------------------------------------------------------------- | --------------------------------------------------- | ------------------------------ |
+| Update `en.json` only                                          | all base locales + variants, same commit            | i18n parity test · Ripple Map  |
+| Add a Convex field, skip the migration                         | versioned reversible migration + test               | `migrations:check` · DoD       |
+| Hand-roll a skeleton (`h-[200px]`)                             | `<Skeletonize>` + skeleton-aware leaves             | `skeleton-conventions.test.ts` |
+| Build a new Button/Input/Badge                                 | reuse/extend the `packages/ui` primitive            | reuse discipline · review      |
+| Build a 2nd catalog/list/page like an existing one             | extract the shared concept; both render through it  | reuse discipline · review      |
+| Two surfaces (agents vs workflows) doing one thing differently | one concept, one implementation both call           | reuse discipline · review      |
+| Hand-roll page layout (`<div className="flex/grid…">`)         | compose `Stack`/`Row`/`Grid` (`@tale/ui/layout`)    | `ui-components` · review       |
+| Raw `gap-[…]` / arbitrary spacing                              | the named gap scale (`2`/`4`/`6`/`8`)               | `ui-components` · review       |
+| `<Button size>` picked by feel                                 | the size policy (default/sm/lg · icon→`IconButton`) | `ui-components` · review       |
+| `as any` to silence TS                                         | type guard / generic / discriminated union          | oxlint `no-explicit-any`       |
+| Bare `<img>`                                                   | the `Image` component                               | oxlint jsx-a11y `alt-text`     |
+| `toLocaleDateString`                                           | `useFormatDate()`                                   | code style · review            |
+| `.collect()` on a large set                                    | `for await` / `.paginate()`                         | `convex` guide · review        |
+| `window.location` for nav                                      | `useNavigate`/`<Link>`                              | `react` guide                  |
+| `useEffect` for derived state                                  | derive in render / event handler                    | `react` guide                  |
+| Empty catch                                                    | log or re-throw                                     | code style                     |
+| Declare "done" unrun                                           | observe the outcome, show evidence                  | verification doctrine          |
 
 ## Skills and guides index
 

@@ -287,7 +287,7 @@ export function ApiKeySection({
             </Button>
           </HStack>
         </HStack>
-        <Card contentClassName="p-0">
+        <Card padding="none">
           {/* Env-var key source (issue #1711). When a `secretsEnv` is
               configured it is the preferred source; show whether it currently
               resolves. A stored key is shown below whenever one exists — even

@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Position } from '@xyflow/react';
 
@@ -92,13 +93,13 @@ export function AutomationStep({ data }: AutomationStepProps) {
       )}
       onClick={() => onNodeClick(data.stepSlug)}
     >
-      <div className="flex gap-3 px-2.5 py-2">
+      <Row gap={3} align="stretch" className="px-2.5 py-2">
         {/* Icon on left */}
         {getIcon(data.stepType, data.actionType)}
 
         {/* Content in center */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <Row gap={2}>
             <Heading level={3} size="sm">
               {data.label}
             </Heading>
@@ -108,7 +109,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
                 {t('sidePanel.end')}
               </span>
             )}
-          </div>
+          </Row>
           {data.description && (
             <Text variant="caption" className="mt-1 line-clamp-2">
               {data.description}
@@ -123,7 +124,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         >
           {getStepTypeLabel(data.stepType)}
         </Badge>
-      </div>
+      </Row>
     </button>
   );
 

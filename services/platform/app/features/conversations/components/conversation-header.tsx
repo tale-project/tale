@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   ArrowLeft,
@@ -208,7 +209,7 @@ export function ConversationHeader({
     : null;
 
   return (
-    <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
+    <Stack gap={3} className="border-border border-b p-4 sm:px-6 sm:py-4">
       {/* Back button - visible only on mobile */}
       {onBack && (
         <Button
@@ -223,11 +224,11 @@ export function ConversationHeader({
       )}
 
       {/* Subject Row */}
-      <div className="flex items-center justify-between gap-4">
+      <Row justify="between">
         <Text className="min-w-0 truncate text-base font-semibold tracking-tight">
           {conversation.subject || conversation.title}
         </Text>
-        <div className="flex shrink-0 items-center gap-1">
+        <Row gap={1} className="shrink-0">
           <DropdownMenu
             trigger={
               <Button
@@ -243,8 +244,8 @@ export function ConversationHeader({
             align="end"
             onOpenChange={handleDropdownOpenChange}
           />
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       {/* Sender Row */}
       <div className="flex items-center gap-2.5">
@@ -272,7 +273,7 @@ export function ConversationHeader({
           >
             {customer.name || customer.email}
           </button>
-          <div className="text-muted-foreground flex items-center text-xs tracking-tight">
+          <Row gap={0} className="text-muted-foreground text-xs tracking-tight">
             <button
               type="button"
               className="cursor-pointer hover:underline"
@@ -286,9 +287,9 @@ export function ConversationHeader({
                 <span>{lastMessageTime}</span>
               </>
             )}
-          </div>
+          </Row>
         </div>
       </div>
-    </div>
+    </Stack>
   );
 }

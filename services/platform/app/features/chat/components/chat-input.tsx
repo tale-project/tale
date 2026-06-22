@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowUp, CircleStop } from 'lucide-react';
 import {
@@ -856,7 +856,10 @@ export function ChatInput({
         />
 
         {/* Soft top shadow lifts the composer off the conversation above it. */}
-        <div className="border-border sm:border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]">
+        <Stack
+          gap={2}
+          className="border-border sm:border-muted-foreground/50 relative mb-2 rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]"
+        >
           {videoLinkJobs.length > 0 && (
             <HStack gap={1} wrap className="mb-2">
               {videoLinkJobs.map((job) => (
@@ -1195,7 +1198,7 @@ export function ChatInput({
               })()}
             </HStack>
           </HStack>
-        </div>
+        </Stack>
       </FileUpload.DropZone>
 
       <DataNoticeFooter organizationId={organizationId} className="pt-1 pb-1" />

@@ -1,4 +1,5 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { Row } from '@tale/ui/layout';
 import { useMemo } from 'react';
 
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
@@ -39,7 +40,11 @@ export function KanbanBoard({
       onDragCancel={dnd.onDragCancel}
       autoScroll={dnd.autoScroll}
     >
-      <div className="flex h-full snap-x gap-3 overflow-x-auto px-0.5 pb-4">
+      <Row
+        gap={3}
+        align="stretch"
+        className="h-full snap-x overflow-x-auto px-0.5 pb-4"
+      >
         {TASK_STATUS_ORDER.map((status) => (
           <BoardColumn
             key={status}
@@ -52,7 +57,7 @@ export function KanbanBoard({
             projectKey={projectKey}
           />
         ))}
-      </div>
+      </Row>
       <DragOverlay>
         {dnd.activeTask ? (
           <TaskCard

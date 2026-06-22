@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Row } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -243,16 +244,18 @@ export function PlaceHoldDialog({
             />
           ) : (
             <>
-              <div
+              <Row
                 role="alert"
-                className="border-destructive/40 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border px-3 py-2 text-xs"
+                gap={2}
+                align="start"
+                className="border-destructive/40 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-xs"
               >
                 <AlertTriangle
                   className="mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
                 <span>{t('legalHold.dialogs.placeHold.orgWarning')}</span>
-              </div>
+              </Row>
               <Input
                 id="hold-org-confirm"
                 label={t('legalHold.dialogs.placeHold.orgConfirmLabel', {

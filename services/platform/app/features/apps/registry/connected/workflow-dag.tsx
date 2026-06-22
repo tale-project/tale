@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 /**
  * Connected `WorkflowDag` block — the app's workflow display, which **fully
  * reuses the global automations canvas** (`AutomationSteps`), not a bespoke
@@ -168,7 +169,11 @@ export function WorkflowDag({
     // the test / step-config side panel — chat and side panel are mutually
     // exclusive, as in the global editor.
     body = (
-      <div className="relative flex h-[32rem] w-full overflow-hidden rounded-md border">
+      <Row
+        gap={0}
+        align="stretch"
+        className="relative h-[32rem] w-full overflow-hidden rounded-md border"
+      >
         <AutomationSteps
           steps={steps}
           hasActiveTrigger={false}
@@ -193,15 +198,15 @@ export function WorkflowDag({
             stepOptions={stepOptions}
           />
         )}
-      </div>
+      </Row>
     );
   } else {
     // The canvas fills a flex parent; give it a bounded height so it embeds
     // cleanly inside the app page rather than collapsing.
     const canvas = (
-      <div className="flex h-[28rem] w-full">
+      <Row gap={0} align="stretch" className="h-[28rem] w-full">
         <AutomationSteps steps={steps} hasActiveTrigger={false} />
-      </div>
+      </Row>
     );
     body = executionId ? (
       <ExecutionStatusProvider executionId={executionId}>

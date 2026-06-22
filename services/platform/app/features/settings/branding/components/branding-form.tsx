@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import {
@@ -222,7 +222,7 @@ export function BrandingForm({
       onSubmit={handleSubmit((values) => save(values))}
       className="w-full max-w-sm shrink-0 space-y-0 self-start"
     >
-      <div className="flex h-full flex-col justify-between">
+      <Stack gap={0} justify="between" className="h-full">
         <FormSection>
           <Input
             id="branding-app-name"
@@ -357,7 +357,7 @@ export function BrandingForm({
             </Button>
           </HStack>
         )}
-      </div>
+      </Stack>
     </Form>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { ArrowRightLeft } from 'lucide-react';
@@ -144,8 +145,8 @@ function DocumentComparisonDialogContent({
       description={t('comparison.description')}
       size="wide"
     >
-      <div className="flex min-w-0 flex-col gap-4 pt-2">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Stack className="min-w-0 pt-2">
+        <Grid md={2}>
           <ComparisonFileSelector
             label={t('comparison.baseDocument')}
             selectedFile={baseFile}
@@ -162,9 +163,9 @@ function DocumentComparisonDialogContent({
             disabled={isRunning}
             inputId="comparison-target-upload"
           />
-        </div>
+        </Grid>
 
-        <div className="flex items-center justify-end gap-2">
+        <Row gap={2} justify="end">
           {error && (
             <Text variant="error" className="flex-1 text-sm">
               {error}
@@ -179,16 +180,16 @@ function DocumentComparisonDialogContent({
           >
             {t('comparison.compareButton')}
           </Button>
-        </div>
+        </Row>
 
         {isRunning && (
-          <div className="flex items-center justify-center py-8">
+          <Row gap={0} justify="center" className="py-8">
             <Spinner size="md" label={t('comparison.comparing')} />
-          </div>
+          </Row>
         )}
 
         {result && <ComparisonResults result={result} />}
-      </div>
+      </Stack>
     </Dialog>
   );
 }

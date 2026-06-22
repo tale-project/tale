@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Lock } from 'lucide-react';
@@ -91,7 +92,7 @@ export function ActiveHoldsSection({
         accessorKey: 'targetLabel',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col">
+          <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetLabel}>
               {row.original.targetLabel}
             </Text>
@@ -104,7 +105,7 @@ export function ActiveHoldsSection({
             >
               {row.original.targetId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 180,
@@ -155,7 +156,7 @@ export function ActiveHoldsSection({
         header: t('legalHold.columns.actions'),
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <Row gap={0} align="stretch" justify="end">
             <Button
               type="button"
               variant="ghost"
@@ -167,7 +168,7 @@ export function ActiveHoldsSection({
             >
               {t('legalHold.actions.requestRelease')}
             </Button>
-          </div>
+          </Row>
         ),
         size: 140,
       },
@@ -192,7 +193,7 @@ export function ActiveHoldsSection({
           </Button>
         }
       >
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Select
             id="active-holds-targettype-filter"
             size="sm"
@@ -204,7 +205,7 @@ export function ActiveHoldsSection({
             options={targetTypeOptions}
             aria-label={t('legalHold.filters.allTargets')}
           />
-        </div>
+        </Row>
         <DataTable<LegalHoldRow>
           columns={columns}
           data={rows ?? []}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { RefreshCw } from 'lucide-react';
 import { useCallback } from 'react';
@@ -95,7 +96,7 @@ export function ModelCatalogCard({
       title={t('providers.modelCatalog.title')}
       description={t('providers.modelCatalog.description')}
     >
-      <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+      <Row justify="between" className="rounded-lg border px-4 py-3">
         <Text as="span" variant="caption" className="text-muted-foreground">
           {latest
             ? latest.ok
@@ -118,7 +119,7 @@ export function ModelCatalogCard({
         >
           {t('providers.modelCatalog.refresh')}
         </Button>
-      </div>
+      </Row>
       <SettingsToggleRow
         label={t('providers.modelCatalog.autoSync')}
         description={t('providers.modelCatalog.autoSyncHelp')}

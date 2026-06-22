@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -107,7 +108,7 @@ export function EndpointEditDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <Stack>
         <FormSection
           label={t('moderationProvider.endpointUrlField')}
           description={t('moderationProvider.endpointUrlFieldDescription')}
@@ -120,9 +121,9 @@ export function EndpointEditDialog({
         </FormSection>
 
         <FormSection label={t('moderationProvider.headersTitle')}>
-          <div className="flex flex-col gap-2">
+          <Stack gap={2}>
             {draft.headers.map((header, index) => (
-              <div key={index} className="flex gap-2">
+              <Row key={index} gap={2} align="stretch">
                 <Input
                   aria-label={t('moderationProvider.headerNameAria')}
                   value={header.key}
@@ -147,7 +148,7 @@ export function EndpointEditDialog({
                 >
                   <Trash2 className="size-4" />
                 </Button>
-              </div>
+              </Row>
             ))}
             <Button
               variant="secondary"
@@ -157,7 +158,7 @@ export function EndpointEditDialog({
             >
               {t('moderationProvider.addHeader')}
             </Button>
-          </div>
+          </Stack>
         </FormSection>
 
         <FormSection
@@ -195,7 +196,7 @@ export function EndpointEditDialog({
             footer — the scrollbar already takes the overflow, this is
             just visual breathing room. */}
         <div className="pb-2" />
-      </div>
+      </Stack>
     </Dialog>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Bot } from 'lucide-react';
 
@@ -40,8 +41,8 @@ export function TaskAgentRuns({ taskId }: { taskId: Id<'tasks'> }) {
   const totalCostCents = runs.reduce((sum, run) => sum + run.costCents, 0);
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
+    <Stack as="section" gap={2}>
+      <Row gap={2} justify="between">
         <div className="flex items-center gap-1.5">
           <Bot className="text-muted-foreground size-4" aria-hidden />
           <Text as="h3" variant="label">
@@ -53,7 +54,7 @@ export function TaskAgentRuns({ taskId }: { taskId: Id<'tasks'> }) {
             {t('agentRuns.totalCost', { amount: formatCents(totalCostCents) })}
           </Text>
         )}
-      </div>
+      </Row>
       <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
         {runs.map((run) => (
           <li
@@ -83,6 +84,6 @@ export function TaskAgentRuns({ taskId }: { taskId: Id<'tasks'> }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Stack>
   );
 }

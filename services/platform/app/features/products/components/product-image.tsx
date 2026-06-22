@@ -1,5 +1,6 @@
 'use client';
 
+import { Grid } from '@tale/ui/layout';
 import { ComponentPropsWithoutRef } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
@@ -40,7 +41,7 @@ export function ProductImage({
             +{images.length - 1}
           </div>
           <div className="bg-background absolute top-0 left-full z-50 ml-2 hidden min-w-[280px] rounded-md border p-4 shadow-lg group-hover:block">
-            <div className="grid grid-cols-2 gap-4">
+            <Grid cols={2}>
               {images.map((image, imgIndex) => (
                 <div
                   key={imgIndex}
@@ -55,7 +56,7 @@ export function ProductImage({
                   />
                 </div>
               ))}
-            </div>
+            </Grid>
           </div>
         </>
       )}

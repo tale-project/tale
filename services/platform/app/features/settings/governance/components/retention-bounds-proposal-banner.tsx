@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
@@ -114,10 +115,10 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
   const inFlight = apply.isPending || reject.isPending;
 
   return (
-    <div className="border-warning bg-warning/10 flex flex-col gap-3 rounded border p-3">
-      <div className="flex items-start gap-3">
+    <Stack gap={3} className="border-warning bg-warning/10 rounded border p-3">
+      <Row gap={3} align="start">
         <ShieldAlert className="text-warning mt-0.5 h-4 w-4 shrink-0" />
-        <div className="flex flex-1 flex-col gap-1">
+        <Stack gap={1} className="flex-1">
           <Text className="text-sm font-medium">
             {t(titleKey, titleFallback)}
           </Text>
@@ -138,10 +139,10 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
            * it the operator is asked to approve a black-box change.
            * Round-2 / M10.
            */}
-        </div>
-      </div>
+        </Stack>
+      </Row>
 
-      <div className="ml-7 flex flex-wrap gap-2">
+      <Row gap={2} align="stretch" wrap className="ml-7">
         <Button
           variant="primary"
           size="sm"
@@ -187,7 +188,7 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
             {t('retentionPolicy.boundsProposal.detailsLabel', 'View details')}
           </Button>
         )}
-      </div>
+      </Row>
 
       {drawerOpen && (
         <Suspense fallback={null}>
@@ -199,6 +200,6 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
           />
         </Suspense>
       )}
-    </div>
+    </Stack>
   );
 }

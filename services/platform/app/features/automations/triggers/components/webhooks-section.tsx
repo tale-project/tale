@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
@@ -153,7 +154,7 @@ export function WebhooksSection({
         cell: ({ row }) => {
           const url = getWebhookUrl(row.original.token);
           return (
-            <div className="flex min-w-0 items-center gap-2">
+            <Row gap={2} className="min-w-0">
               <code
                 className="max-w-[300px] truncate font-mono text-sm"
                 title={url}
@@ -173,7 +174,7 @@ export function WebhooksSection({
                   <Copy className="size-3.5" />
                 )}
               </Button>
-            </div>
+            </Row>
           );
         },
         size: 400,
@@ -206,7 +207,7 @@ export function WebhooksSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end">
+          <Row gap={0} justify="end">
             <Button
               variant="ghost"
               size="sm"
@@ -215,7 +216,7 @@ export function WebhooksSection({
             >
               <Trash2 className="size-4" />
             </Button>
-          </div>
+          </Row>
         ),
         size: 60,
       },

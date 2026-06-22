@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, LinkButton } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { BarChart3, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -82,7 +83,7 @@ export function TasksWorkspace({
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">
-      <div className="flex items-center justify-between gap-3">
+      <Row gap={3} justify="between">
         <Tabs
           variant="pill"
           value={view}
@@ -94,7 +95,7 @@ export function TasksWorkspace({
             { value: 'list', label: t('views.list') },
           ]}
         />
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <LinkButton
             href="/dashboard/$id/projects/$projectId/metrics"
             params={{ id: organizationId, projectId }}
@@ -107,8 +108,8 @@ export function TasksWorkspace({
           <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
             {t('actions.create')}
           </Button>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       {isFirstLoad ? (
         <TasksSkeleton view={view} />

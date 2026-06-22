@@ -10,6 +10,7 @@
  * framing. Pure: it takes already-parsed `rows`.
  */
 import { Badge } from '@tale/ui/badge';
+import { Row } from '@tale/ui/layout';
 import {
   Table,
   TableBody,
@@ -166,11 +167,11 @@ export function DataTable({
                 {acts.length > 0 && (
                   // Stop row-click expansion when interacting with actions.
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex flex-wrap gap-2">
+                    <Row gap={2} align="stretch" wrap>
                       {acts.map((a, ai) => (
                         <BoundButton key={ai} action={a} item={row} />
                       ))}
-                    </div>
+                    </Row>
                   </TableCell>
                 )}
               </TableRow>

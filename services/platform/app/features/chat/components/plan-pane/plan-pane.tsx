@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { useMatch } from '@tanstack/react-router';
 import { PanelRightClose, Telescope, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -134,8 +135,9 @@ function PlanPaneComponent() {
   }
 
   return (
-    <div
-      className="border-border bg-background relative flex h-full shrink-0 flex-col border-l"
+    <Stack
+      gap={0}
+      className="border-border bg-background relative h-full shrink-0 border-l"
       style={{ width }}
       role="complementary"
       aria-label={t('ariaLabel')}
@@ -149,8 +151,8 @@ function PlanPaneComponent() {
         aria-label={t('paneResizeHandle')}
       />
 
-      <div className="border-border flex items-center justify-between gap-2 border-b p-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <Row gap={2} justify="between" className="border-border border-b p-3">
+        <Row gap={2} className="min-w-0">
           <Telescope className="text-muted-foreground size-4 shrink-0" />
           <span className="truncate text-sm font-medium">{t('title')}</span>
           <Badge variant="outline" className="shrink-0 text-xs">
@@ -161,8 +163,8 @@ function PlanPaneComponent() {
               {t('failedCount', { count: counts.failed })}
             </Badge>
           )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
+        </Row>
+        <Row gap={1} className="shrink-0">
           <Tooltip content={t('paneMinimize')} side="bottom">
             <Button
               variant="ghost"
@@ -185,8 +187,8 @@ function PlanPaneComponent() {
               <X className="size-3.5" />
             </Button>
           </Tooltip>
-        </div>
-      </div>
+        </Row>
+      </Row>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <TodoListCard
@@ -195,7 +197,7 @@ function PlanPaneComponent() {
           className="border-0 shadow-none"
         />
       </div>
-    </div>
+    </Stack>
   );
 }
 

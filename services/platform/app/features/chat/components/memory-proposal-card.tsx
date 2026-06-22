@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Card } from '@tale/ui/card';
+import { Row } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -55,8 +57,8 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
   };
 
   return (
-    <div className="bg-card rounded-md border p-3">
-      <div className="text-muted-foreground mb-1 text-xs font-medium">
+    <Card padding="sm">
+      <div className="text-fg-muted mb-1 text-xs font-medium">
         💡 {t('card.label')}
       </div>
       {editing ? (
@@ -70,7 +72,7 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       ) : (
         <p className="mb-2 text-sm">{memory.content}</p>
       )}
-      <div className="flex justify-end gap-2">
+      <Row gap={2} align="stretch" justify="end">
         {editing ? (
           <>
             <Button
@@ -109,7 +111,7 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
             </Button>
           </>
         )}
-      </div>
-    </div>
+      </Row>
+    </Card>
   );
 }

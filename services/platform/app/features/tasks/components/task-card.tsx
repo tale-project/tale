@@ -1,5 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Card } from '@tale/ui/card';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { GitBranch } from 'lucide-react';
 
@@ -68,22 +70,13 @@ export function TaskCard({
   };
 
   return (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- draggable kanban card; dnd-kit's {...sortable.attributes} injects role/tabIndex at runtime and keyboard activation is handled via onKeyDown
-    <div
-      ref={sortable.setNodeRef}
-      style={style}
-      {...sortable.attributes}
-      {...sortable.listeners}
-      onClick={() => onOpen?.(task)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onOpen?.(task);
-        }
-      }}
+    <Card
+      asChild
+      padding="sm"
+      shadow="sm"
+      interactive
       className={cn(
-        'group border-border bg-card cursor-pointer rounded-lg border p-3 text-left shadow-sm transition-[colors,box-shadow]',
-        'hover:border-border-strong hover:shadow-md focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        'group cursor-pointer text-left hover:shadow-md',
         // While dragging, the in-place card becomes a faint placeholder marking
         // the slot the floating overlay will land in.
         sortable.isDragging && 'opacity-40',
@@ -91,69 +84,84 @@ export function TaskCard({
         dragging && 'ring-border rotate-1 shadow-lg ring-1',
       )}
     >
-      {identifier && (
-        <Text
-          as="span"
-          variant="caption"
-          className="font-mono text-[10px] tracking-wide"
-        >
-          {identifier}
-        </Text>
-      )}
-      <Text as="p" variant="label" className="line-clamp-2 leading-snug">
-        {task.title}
-      </Text>
-
-      {task.labels && task.labels.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {task.labels.slice(0, 4).map((label) => (
-            <TaskLabelBadge
-              key={label}
-              label={label}
-              projectId={task.projectId}
-              className="px-1.5 py-px text-[10px]"
-            />
-          ))}
-          <TaskLabelOverflow labels={task.labels.slice(4)} />
-        </div>
-      )}
-
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <PriorityPicker
-            priority={task.priority ?? null}
-            onChange={(priority) =>
-              updateTask.mutate({ taskId: task._id, priority })
-            }
-          />
-          {task.parentTaskId && (
-            <Tooltip content={parentLabel}>
-              <span className="inline-flex" aria-label={parentLabel}>
-                <GitBranch
-                  className="text-muted-foreground size-3.5"
-                  aria-hidden="true"
-                />
-              </span>
-            </Tooltip>
-          )}
-          <BlockedIndicator blocked={blocked} />
-          <AgentWorkingIndicator working={isAgentWorking(task._id)} />
-          <NeedsReviewIndicator needsReview={needsReview(task._id)} />
-          <DueDateIndicator dueDate={task.dueDate} status={task.status} />
-          {total > 0 && <SubtaskProgress done={done} total={total} />}
-          <CommentCountIndicator count={task.commentCount} />
-        </div>
-        <AssigneePicker
-          organizationId={task.organizationId}
-          projectId={task.projectId}
-          assigneeType={task.assigneeType}
-          assigneeId={task.assigneeId}
-          onAssign={(assigneeType, assigneeId) =>
-            assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- draggable kanban card; dnd-kit's {...sortable.attributes} injects role/tabIndex at runtime and keyboard activation is handled via onKeyDown */}
+      <div
+        ref={sortable.setNodeRef}
+        style={style}
+        {...sortable.attributes}
+        {...sortable.listeners}
+        onClick={() => onOpen?.(task)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpen?.(task);
           }
-          onUnassign={() => assignTask.mutate({ taskId: task._id })}
-        />
+        }}
+      >
+        {identifier && (
+          <Text
+            as="span"
+            variant="caption"
+            className="font-mono text-[10px] tracking-wide"
+          >
+            {identifier}
+          </Text>
+        )}
+        <Text as="p" variant="label" className="line-clamp-2 leading-snug">
+          {task.title}
+        </Text>
+
+        {task.labels && task.labels.length > 0 && (
+          <Row gap={1} align="stretch" wrap className="mt-2">
+            {task.labels.slice(0, 4).map((label) => (
+              <TaskLabelBadge
+                key={label}
+                label={label}
+                projectId={task.projectId}
+                className="px-1.5 py-px text-[10px]"
+              />
+            ))}
+            <TaskLabelOverflow labels={task.labels.slice(4)} />
+          </Row>
+        )}
+
+        <Row gap={2} justify="between" className="mt-3">
+          <div className="flex items-center gap-1.5">
+            <PriorityPicker
+              priority={task.priority ?? null}
+              onChange={(priority) =>
+                updateTask.mutate({ taskId: task._id, priority })
+              }
+            />
+            {task.parentTaskId && (
+              <Tooltip content={parentLabel}>
+                <span className="inline-flex" aria-label={parentLabel}>
+                  <GitBranch
+                    className="text-muted-foreground size-3.5"
+                    aria-hidden="true"
+                  />
+                </span>
+              </Tooltip>
+            )}
+            <BlockedIndicator blocked={blocked} />
+            <AgentWorkingIndicator working={isAgentWorking(task._id)} />
+            <NeedsReviewIndicator needsReview={needsReview(task._id)} />
+            <DueDateIndicator dueDate={task.dueDate} status={task.status} />
+            {total > 0 && <SubtaskProgress done={done} total={total} />}
+            <CommentCountIndicator count={task.commentCount} />
+          </div>
+          <AssigneePicker
+            organizationId={task.organizationId}
+            projectId={task.projectId}
+            assigneeType={task.assigneeType}
+            assigneeId={task.assigneeId}
+            onAssign={(assigneeType, assigneeId) =>
+              assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
+            }
+            onUnassign={() => assignTask.mutate({ taskId: task._id })}
+          />
+        </Row>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Heading } from '@tale/ui/heading';
+import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
@@ -41,7 +42,7 @@ export function WelcomeView({
 
   return (
     <Skeletonize loading={isLoading} label={t('skeleton.loadingWelcome')}>
-      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-6">
+      <Stack gap={6} className="mx-auto w-full max-w-(--chat-max-width)">
         <Heading level={1} weight="semibold" className="text-[1.75rem]">
           <SkeletonBox>
             {hasStarters ? (
@@ -57,7 +58,7 @@ export function WelcomeView({
         </Heading>
 
         {(hasStarters || isLoading) && (
-          <ul className="divide-border flex flex-col divide-y" role="list">
+          <Stack as="ul" gap={0} className="divide-border divide-y" role="list">
             {starters.map((starter, index) => (
               <li key={index} className="py-1">
                 <button
@@ -76,9 +77,9 @@ export function WelcomeView({
                 </button>
               </li>
             ))}
-          </ul>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </Skeletonize>
   );
 }

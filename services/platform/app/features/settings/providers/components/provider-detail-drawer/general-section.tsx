@@ -44,7 +44,7 @@ export function GeneralSection({
           {t('providers.editGeneral')}
         </Button>
       </HStack>
-      <Card contentClassName="p-0">
+      <Card padding="none">
         <InfoRow label={t('providers.displayName')}>
           <SkeletonBox>{config.displayName}</SkeletonBox>
         </InfoRow>

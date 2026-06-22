@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { EmptyState } from '@tale/ui/empty-state';
+import { Grid, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -301,9 +302,13 @@ export function WorkforceDashboard({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <Stack>
       {/* Master toggle + health strip */}
-      <section className="border-border bg-card flex flex-col gap-3 rounded-lg border p-4">
+      <Stack
+        as="section"
+        gap={3}
+        className="border-border bg-card rounded-lg border p-4"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Power
@@ -362,7 +367,7 @@ export function WorkforceDashboard({
             )}
           </div>
         )}
-      </section>
+      </Stack>
 
       {!isLoading && totals?.capped ? (
         <div className="border-border bg-muted/40 rounded-md border px-3 py-2 text-xs">
@@ -372,11 +377,12 @@ export function WorkforceDashboard({
 
       <Skeletonize loading={isLoading} className="flex flex-col gap-4">
         {/* Paired KPI stat cards */}
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Grid as="section" cols={2} lg={4} gap={3}>
           {stats.map((stat) => (
-            <div
+            <Stack
               key={stat.label}
-              className="border-border bg-card flex flex-col gap-1 rounded-lg border p-3"
+              gap={1}
+              className="border-border bg-card rounded-lg border p-3"
             >
               <Text as="p" variant="muted" className="text-xs">
                 {stat.label}
@@ -391,9 +397,9 @@ export function WorkforceDashboard({
                   {stat.detail}
                 </Text>
               </SkeletonBox>
-            </div>
+            </Stack>
           ))}
-        </section>
+        </Grid>
 
         {/* Trend */}
         <ChartCard
@@ -428,7 +434,7 @@ export function WorkforceDashboard({
       </Skeletonize>
 
       {/* Leaderboard */}
-      <div className="flex flex-col gap-3">
+      <Stack gap={3}>
         <h2 className="text-base font-semibold">{t('leaderboard.title')}</h2>
         <DataTable
           caption={t('leaderboard.title')}
@@ -444,7 +450,7 @@ export function WorkforceDashboard({
             description: t('noDataDescription'),
           }}
         />
-      </div>
+      </Stack>
 
       {/* Needs attention */}
       {attention && (
@@ -501,7 +507,7 @@ export function WorkforceDashboard({
           />
         </section>
       )}
-    </div>
+    </Stack>
   );
 }
 
@@ -540,7 +546,7 @@ function AttentionList({
           {emptyLabel}
         </Text>
       ) : (
-        <ul className="mt-2 flex flex-col gap-1">
+        <Stack as="ul" gap={1} className="mt-2">
           {items.slice(0, 8).map((item) => (
             <li
               key={item.key}
@@ -568,7 +574,7 @@ function AttentionList({
               )}
             </li>
           ))}
-        </ul>
+        </Stack>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { FileText, Upload, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
@@ -121,9 +122,9 @@ export function ComparisonFileSelector({
 
   if (selectedFile) {
     return (
-      <div className="flex flex-col gap-2">
+      <Stack gap={2}>
         <span className="text-sm font-medium">{label}</span>
-        <div className="bg-muted/30 flex items-center gap-2 rounded-lg border px-3 py-2">
+        <Row gap={2} className="bg-muted/30 rounded-lg border px-3 py-2">
           <FileText
             className="text-muted-foreground size-4 shrink-0"
             aria-hidden="true"
@@ -141,13 +142,13 @@ export function ComparisonFileSelector({
           >
             <X className="size-3.5" aria-hidden="true" />
           </Button>
-        </div>
-      </div>
+        </Row>
+      </Stack>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <Stack gap={2}>
       <span className="text-sm font-medium">{label}</span>
       <Tabs items={tabItems} value={activeTab} onValueChange={setActiveTab} />
 
@@ -207,6 +208,6 @@ export function ComparisonFileSelector({
           aria-label={label}
         />
       )}
-    </div>
+    </Stack>
   );
 }

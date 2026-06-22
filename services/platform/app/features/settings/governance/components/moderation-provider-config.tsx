@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -486,7 +487,7 @@ export function ModerationProviderConfigView({
         {enabled && (
           <>
             <FormSection label={t('moderationProvider.applyTo')}>
-              <div className="flex flex-col gap-2">
+              <Stack gap={2}>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -505,14 +506,14 @@ export function ModerationProviderConfigView({
                   />
                   <span>{t('moderationProvider.modelOutput')}</span>
                 </label>
-              </div>
+              </Stack>
             </FormSection>
 
             <FormSection
               label={t('moderationProvider.failBehavior')}
               description={t('moderationProvider.failBehaviorDescription')}
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Grid sm={2} gap={3}>
                 <div>
                   <div className="text-muted-foreground mb-1 text-xs">
                     {t('moderationProvider.input')}
@@ -559,14 +560,14 @@ export function ModerationProviderConfigView({
                     ]}
                   />
                 </div>
-              </div>
+              </Grid>
             </FormSection>
 
             <FormSection
               label={t('moderationProvider.provider')}
               description={t('moderationProvider.providerDescription')}
             >
-              <div className="flex flex-wrap gap-2">
+              <Row gap={2} align="stretch" wrap>
                 {MODERATION_PRESETS.map((preset) => {
                   const active = responseShape === preset.id;
                   const label = active
@@ -598,7 +599,7 @@ export function ModerationProviderConfigView({
                     ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
                     : t('moderationProvider.presetCustomJsonPath')}
                 </Button>
-              </div>
+              </Row>
               {responseShape === 'custom_jsonpath' &&
                 !customCategoriesPath.trim() && (
                   <p className="mt-2 text-xs text-amber-600">

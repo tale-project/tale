@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row } from '@tale/ui/layout';
 import { AlertTriangle, Box, Loader2, Moon, Pin } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -132,7 +133,7 @@ export function SandboxStateIndicator({
   const accessibleLabel = stateLabel ? `${identity} · ${stateLabel}` : identity;
 
   return (
-    <div className="flex items-center gap-1">
+    <Row gap={1}>
       <Tooltip content={tooltip} side="top" contentClassName="max-w-xs">
         <span
           className="inline-flex shrink-0 cursor-help"
@@ -152,6 +153,6 @@ export function SandboxStateIndicator({
           </span>
         </Tooltip>
       )}
-    </div>
+    </Row>
   );
 }

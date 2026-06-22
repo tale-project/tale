@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { memo } from 'react';
 
 interface ImageViewerProps {
@@ -9,14 +10,18 @@ interface ImageViewerProps {
 
 function ImageViewerComponent({ url, alt }: ImageViewerProps) {
   return (
-    <div className="bg-checkerboard flex h-full w-full items-center justify-center overflow-auto p-4">
+    <Row
+      gap={0}
+      justify="center"
+      className="bg-checkerboard h-full w-full overflow-auto p-4"
+    >
       <img
         src={url}
         alt={alt}
         className="max-h-full max-w-full object-contain"
         draggable={false}
       />
-    </div>
+    </Row>
   );
 }
 

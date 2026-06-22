@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
 import { Plus, X } from 'lucide-react';
@@ -79,7 +80,7 @@ export function TaskDependencies({
   return (
     // Lives in the modal's side property panel — the heading mirrors the
     // panel's PropertyField label style so the column reads as one list.
-    <section className="flex flex-col gap-3">
+    <Stack as="section" gap={3}>
       <h3 className="text-muted-foreground text-xs font-medium">
         {t('detail.dependencies')}
       </h3>
@@ -119,7 +120,7 @@ export function TaskDependencies({
             .catch(onMutationError)
         }
       />
-    </section>
+    </Stack>
   );
 }
 
@@ -155,7 +156,7 @@ function DependencyGroup({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
+      <Row gap={0} justify="between">
         <Text as="span" variant="caption">
           {label}
         </Text>
@@ -188,9 +189,9 @@ function DependencyGroup({
             }
           />
         )}
-      </div>
+      </Row>
       {items.length > 0 ? (
-        <ul className="flex flex-col gap-1">
+        <Stack as="ul" gap={1}>
           {items.map((item) => (
             <li key={item._id} className="flex items-center gap-1">
               <button
@@ -227,7 +228,7 @@ function DependencyGroup({
               )}
             </li>
           ))}
-        </ul>
+        </Stack>
       ) : (
         <Text as="p" variant="muted" className="text-xs">
           {t('detail.noDependencies')}

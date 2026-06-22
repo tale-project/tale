@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Table, TableBody, TableCell } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -151,8 +152,8 @@ export function PaginatedMarkdownTable({
       </Table>
 
       {showPagination && (
-        <div className="border-border bg-background flex items-center gap-5 border-t p-2">
-          <div className="flex items-center gap-3">
+        <Row gap={5} className="border-border bg-background border-t p-2">
+          <Row gap={3}>
             {/* Previous button */}
             <button
               onClick={handlePrevPage}
@@ -183,7 +184,7 @@ export function PaginatedMarkdownTable({
             >
               <ChevronRight className="size-5" />
             </button>
-          </div>
+          </Row>
 
           {/* Page info text */}
           <Text
@@ -197,7 +198,7 @@ export function PaginatedMarkdownTable({
               total: totalRows,
             })}
           </Text>
-        </div>
+        </Row>
       )}
     </div>
   );

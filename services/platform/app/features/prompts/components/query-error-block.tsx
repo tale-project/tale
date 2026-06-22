@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -20,16 +21,13 @@ interface QueryErrorBlockProps {
 export function QueryErrorBlock({ message, onRetry }: QueryErrorBlockProps) {
   const { t } = useT('common');
   return (
-    <div
-      role="alert"
-      className="flex flex-col items-center gap-3 py-6 text-center"
-    >
+    <Stack role="alert" gap={3} align="center" className="py-6 text-center">
       <Text variant="muted" className="text-sm">
         {message}
       </Text>
       <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
         {t('retry')}
       </Button>
-    </div>
+    </Stack>
   );
 }

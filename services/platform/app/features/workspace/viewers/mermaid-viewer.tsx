@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useTheme } from '@tale/ui/theme';
@@ -72,24 +73,26 @@ function MermaidViewerComponent({ code }: MermaidViewerProps) {
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
+      <Row gap={0} justify="center" className="h-full p-4">
         <Text variant="muted" className="text-sm">
           {error}
         </Text>
-      </div>
+      </Row>
     );
   }
 
   return (
     <div className="relative h-full overflow-auto p-4">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <Row gap={0} justify="center" className="absolute inset-0">
           <Spinner />
-        </div>
+        </Row>
       )}
-      <div
+      <Row
         ref={containerRef}
-        className="flex items-center justify-center [&_svg]:max-w-full"
+        gap={0}
+        justify="center"
+        className="[&_svg]:max-w-full"
       />
     </div>
   );

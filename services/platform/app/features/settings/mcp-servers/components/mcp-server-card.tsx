@@ -88,10 +88,7 @@ export function McpServerCard({
   );
 
   return (
-    <Card
-      className="hover:border-primary/50 cursor-pointer transition-colors"
-      contentClassName="p-0"
-    >
+    <Card padding="none" interactive className="cursor-pointer">
       <div className="relative">
         <div className="absolute right-5 bottom-5 z-10">
           <DropdownMenu

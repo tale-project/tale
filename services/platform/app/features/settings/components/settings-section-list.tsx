@@ -1,6 +1,7 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { Stack } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -43,15 +44,17 @@ export function SettingsSectionList({
       className={cn('flex flex-col gap-7', className)}
     >
       {groups.map((group) => (
-        <div key={group.key} className="flex flex-col gap-2">
+        <Stack key={group.key} gap={2}>
           {group.label && (
             <div className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
               {group.label}
             </div>
           )}
-          <ul
+          <Stack
             role="list"
-            className="border-border bg-card flex flex-col rounded-lg border"
+            as="ul"
+            gap={0}
+            className="border-border bg-card rounded-lg border"
           >
             {group.items.map((item, index) => {
               const Icon = item.icon;
@@ -86,8 +89,8 @@ export function SettingsSectionList({
                 </li>
               );
             })}
-          </ul>
-        </div>
+          </Stack>
+        </Stack>
       ))}
     </nav>
   );

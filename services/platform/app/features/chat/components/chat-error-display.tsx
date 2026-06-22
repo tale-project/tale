@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { Row, Stack } from '@tale/ui/layout';
 import { RotateCcw, TriangleAlert } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -27,11 +28,11 @@ export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
   const sanitized = sanitizeChatError(error);
 
   return (
-    <div className="mt-3 flex flex-col gap-2" role="alert" aria-live="polite">
-      <div className="text-destructive flex items-center gap-2">
+    <Stack gap={2} className="mt-3" role="alert" aria-live="polite">
+      <Row gap={2} className="text-destructive">
         <TriangleAlert className="size-4 shrink-0" />
         <span className="text-sm font-medium">{tChat('errorGenerating')}</span>
-      </div>
+      </Row>
       <p className="text-muted-foreground text-[13px]">
         {tChat(sanitized.i18nKey, sanitized.params)}
       </p>
@@ -62,6 +63,6 @@ export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
           {tChat('retryGeneration')}
         </Button>
       )}
-    </div>
+    </Stack>
   );
 }

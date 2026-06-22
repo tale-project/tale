@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -71,7 +72,7 @@ export function ReleaseHistorySection({
         accessorKey: 'targetType',
         header: t('legalHold.columns.target'),
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <Stack gap={0}>
             {row.original.targetType && (
               <Badge variant="outline" className="self-start">
                 {t(`legalHold.targetTypes.${row.original.targetType}`)}
@@ -86,7 +87,7 @@ export function ReleaseHistorySection({
             >
               {row.original.targetId ?? row.original.holdId}
             </Text>
-          </div>
+          </Stack>
         ),
         meta: { skeleton: { type: 'two-line' as const } },
         size: 180,
@@ -166,7 +167,7 @@ export function ReleaseHistorySection({
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >
-      <div className="flex items-center gap-2">
+      <Row gap={2}>
         <Select
           id="release-history-status-filter"
           size="sm"
@@ -176,7 +177,7 @@ export function ReleaseHistorySection({
           options={statusOptions}
           aria-label={t('legalHold.columns.status')}
         />
-      </div>
+      </Row>
       <DataTable<HistoryRow>
         columns={columns}
         data={result.results as HistoryRow[]}

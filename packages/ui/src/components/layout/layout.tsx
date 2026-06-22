@@ -1,59 +1,69 @@
 'use client';
 
+import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { forwardRef, HTMLAttributes } from 'react';
+import { type ElementType, forwardRef, type HTMLAttributes } from 'react';
 
 import { cn } from '../../lib/cn';
 
-const stackVariants = cva('', {
+/**
+ * The single spacing scale shared by every layout primitive (`Stack`, `Row`,
+ * `Grid`) and re-used by `ActionRow` and `PageSection`. One scale, one source of
+ * truth — pick a named step, never a raw `gap-[…]`.
+ *
+ * Recommended steps for app layout: `2` (field groups: label → control → hint),
+ * `4` (within a section — the default), `6` (loose grouping inside a wide
+ * section), `8` (between sections / the settings rhythm). `5`, `10` and `12`
+ * remain for legacy callers; avoid them in new code.
+ */
+export const gapScale = {
+  0: 'gap-0',
+  1: 'gap-1',
+  2: 'gap-2',
+  3: 'gap-3',
+  4: 'gap-4',
+  5: 'gap-5',
+  6: 'gap-6',
+  8: 'gap-8',
+  10: 'gap-10',
+  12: 'gap-12',
+} as const;
+
+const alignVariants = {
+  start: 'items-start',
+  center: 'items-center',
+  end: 'items-end',
+  stretch: 'items-stretch',
+  baseline: 'items-baseline',
+} as const;
+
+const justifyVariants = {
+  start: 'justify-start',
+  center: 'justify-center',
+  end: 'justify-end',
+  between: 'justify-between',
+  around: 'justify-around',
+  evenly: 'justify-evenly',
+} as const;
+
+const stackVariants = cva('flex flex-col', {
   variants: {
-    gap: {
-      0: 'space-y-0',
-      1: 'space-y-1',
-      2: 'space-y-2',
-      3: 'space-y-3',
-      4: 'space-y-4',
-      5: 'space-y-5',
-      6: 'space-y-6',
-      8: 'space-y-8',
-      10: 'space-y-10',
-      12: 'space-y-12',
-    },
+    gap: gapScale,
+    align: alignVariants,
+    justify: justifyVariants,
   },
   defaultVariants: {
     gap: 4,
+    align: 'stretch',
+    justify: 'start',
   },
 });
 
-const flexVariants = cva('flex', {
+const rowVariants = cva('flex flex-row', {
   variants: {
-    gap: {
-      0: 'gap-0',
-      1: 'gap-1',
-      2: 'gap-2',
-      3: 'gap-3',
-      4: 'gap-4',
-      5: 'gap-5',
-      6: 'gap-6',
-      8: 'gap-8',
-      10: 'gap-10',
-      12: 'gap-12',
-    },
-    align: {
-      start: 'items-start',
-      center: 'items-center',
-      end: 'items-end',
-      stretch: 'items-stretch',
-      baseline: 'items-baseline',
-    },
-    justify: {
-      start: 'justify-start',
-      center: 'justify-center',
-      end: 'justify-end',
-      between: 'justify-between',
-      around: 'justify-around',
-      evenly: 'justify-evenly',
-    },
+    gap: gapScale,
+    align: alignVariants,
+    justify: justifyVariants,
   },
   defaultVariants: {
     gap: 4,
@@ -64,18 +74,7 @@ const flexVariants = cva('flex', {
 
 const gridVariants = cva('grid', {
   variants: {
-    gap: {
-      0: 'gap-0',
-      1: 'gap-1',
-      2: 'gap-2',
-      3: 'gap-3',
-      4: 'gap-4',
-      5: 'gap-5',
-      6: 'gap-6',
-      8: 'gap-8',
-      10: 'gap-10',
-      12: 'gap-12',
-    },
+    gap: gapScale,
     cols: {
       1: 'grid-cols-1',
       2: 'grid-cols-2',
@@ -123,88 +122,174 @@ const gridVariants = cva('grid', {
   },
 });
 
+/** Semantic elements a layout primitive may render as (`<Stack as="ul">`). */
+type LayoutElement =
+  | 'div'
+  | 'section'
+  | 'article'
+  | 'aside'
+  | 'header'
+  | 'footer'
+  | 'main'
+  | 'nav'
+  | 'ul'
+  | 'ol'
+  | 'li'
+  | 'form'
+  | 'fieldset';
+
+interface PolymorphicProps {
+  /**
+   * Render a semantic element instead of the default `div` — use this to keep
+   * pages composing primitives rather than dropping to raw HTML (`as="ul"` for a
+   * list, `as="form"` for a form, `as="section"` for a landmark).
+   */
+  as?: LayoutElement;
+  /**
+   * Merge layout classes onto the single child element instead of rendering a
+   * wrapper. Mutually exclusive with `as`.
+   */
+  asChild?: boolean;
+}
+
 interface StackProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof stackVariants> {}
-
-/**
- * Stack — vertical layout with configurable spacing (`space-y-*`). Default
- * gap is `4` (16px).
- */
-export const Stack = forwardRef<HTMLDivElement, StackProps>(
-  ({ gap, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(stackVariants({ gap }), className)}
-      {...props}
-    />
-  ),
-);
-Stack.displayName = 'Stack';
-
-interface HStackProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof flexVariants> {
+  extends
+    HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof stackVariants>,
+    PolymorphicProps {
+  /** Allow items to wrap onto multiple lines. */
   wrap?: boolean;
 }
 
 /**
- * HStack — horizontal flex layout with configurable spacing and alignment.
- * Default gap is `4` (16px), items centered vertically.
+ * Stack — the canonical **vertical** layout primitive: `flex-col` with a named
+ * `gap`. Defaults to `gap={4}` (16px) and `align="stretch"` so children fill the
+ * width. Use for stacked sections, fields, and cards instead of a raw
+ * `<div className="flex flex-col gap-…">`.
  */
-export const HStack = forwardRef<HTMLDivElement, HStackProps>(
-  ({ gap, align, justify, wrap = false, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        flexVariants({ gap, align, justify }),
-        wrap && 'flex-wrap',
-        className,
-      )}
-      {...props}
-    />
-  ),
+export const Stack = forwardRef<HTMLDivElement, StackProps>(
+  (
+    {
+      gap,
+      align,
+      justify,
+      wrap = false,
+      as = 'div',
+      asChild = false,
+      className,
+      ...props
+    },
+    ref,
+  ) => {
+    const Comp: ElementType = asChild ? Slot : as;
+    return (
+      <Comp
+        ref={ref}
+        className={cn(
+          stackVariants({ gap, align, justify }),
+          wrap && 'flex-wrap',
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
 );
-HStack.displayName = 'HStack';
+Stack.displayName = 'Stack';
 
-interface VStackProps
+interface RowProps
   extends
     HTMLAttributes<HTMLDivElement>,
-    Omit<VariantProps<typeof flexVariants>, 'align'> {
-  align?: 'start' | 'center' | 'end' | 'stretch';
+    VariantProps<typeof rowVariants>,
+    PolymorphicProps {
+  /** Allow items to wrap onto multiple lines. */
+  wrap?: boolean;
 }
 
 /**
- * VStack — vertical flex layout (alias for `flex-col` with gap).
+ * Row — the canonical **horizontal** layout primitive: `flex-row` with a named
+ * `gap`. Defaults to `gap={4}` (16px) and `align="center"`. Use for inline
+ * groups (icon + label, control clusters) instead of a raw
+ * `<div className="flex items-center gap-…">`. For a cluster of action buttons,
+ * prefer the semantic `ActionRow`.
  */
-export const VStack = forwardRef<HTMLDivElement, VStackProps>(
-  ({ gap, align = 'stretch', justify, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        flexVariants({ gap, align, justify }),
-        'flex-col',
-        className,
-      )}
-      {...props}
-    />
-  ),
+export const Row = forwardRef<HTMLDivElement, RowProps>(
+  (
+    {
+      gap,
+      align,
+      justify,
+      wrap = false,
+      as = 'div',
+      asChild = false,
+      className,
+      ...props
+    },
+    ref,
+  ) => {
+    const Comp: ElementType = asChild ? Slot : as;
+    return (
+      <Comp
+        ref={ref}
+        className={cn(
+          rowVariants({ gap, align, justify }),
+          wrap && 'flex-wrap',
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
 );
-VStack.displayName = 'VStack';
-
-interface GridProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof gridVariants> {}
+Row.displayName = 'Row';
 
 /**
- * Grid — responsive grid layout. `cols` controls the column count at each
- * breakpoint (`sm`, `md`, `lg`, `xl` props).
+ * @deprecated Use `Row` — the canonical horizontal layout primitive. Kept as an
+ * alias so existing call sites keep working; new code should import `Row`.
+ */
+export const HStack = Row;
+
+/**
+ * @deprecated Use `Stack` — the canonical vertical layout primitive. Kept as an
+ * alias so existing call sites keep working; new code should import `Stack`.
+ */
+export const VStack = Stack;
+
+interface GridProps
+  extends
+    HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof gridVariants>,
+    PolymorphicProps {}
+
+/**
+ * Grid — responsive grid layout. `cols` controls the column count, with
+ * per-breakpoint overrides (`sm`, `md`, `lg`, `xl`). Shares the one `gap` scale.
  */
 export const Grid = forwardRef<HTMLDivElement, GridProps>(
-  ({ cols, sm, md, lg, xl, gap, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(gridVariants({ cols, sm, md, lg, xl, gap }), className)}
-      {...props}
-    />
-  ),
+  (
+    {
+      cols,
+      sm,
+      md,
+      lg,
+      xl,
+      gap,
+      as = 'div',
+      asChild = false,
+      className,
+      ...props
+    },
+    ref,
+  ) => {
+    const Comp: ElementType = asChild ? Slot : as;
+    return (
+      <Comp
+        ref={ref}
+        className={cn(gridVariants({ cols, sm, md, lg, xl, gap }), className)}
+        {...props}
+      />
+    );
+  },
 );
 Grid.displayName = 'Grid';
 
@@ -240,7 +325,7 @@ export const NarrowContainer = forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('mx-auto w-full max-w-[544px] px-4', className)}
+    className={cn('mx-auto w-full max-w-136 px-4', className)}
     {...props}
   />
 ));

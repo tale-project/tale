@@ -1,6 +1,6 @@
 'use client';
 
-import { VStack } from '@tale/ui/layout';
+import { Row, VStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -274,7 +274,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   if (!displayUrl) {
     return (
       <>
-        <div className="bg-muted flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2">
+        <Row gap={3} className="bg-muted max-w-[280px] rounded-lg px-3 py-2">
           <FileTypeIcon
             fileType={attachment.fileType}
             fileName={attachment.fileName}
@@ -288,7 +288,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
             </Text>
           </VStack>
           {viewTranscriptButton}
-        </div>
+        </Row>
         {transcriptDialog}
       </>
     );
@@ -296,7 +296,10 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   return (
     <>
-      <div className="bg-muted hover:bg-muted/80 flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2 transition-colors">
+      <Row
+        gap={3}
+        className="bg-muted hover:bg-muted/80 max-w-[280px] rounded-lg px-3 py-2 transition-colors"
+      >
         <a
           href={displayUrl}
           target="_blank"
@@ -317,7 +320,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           </VStack>
         </a>
         {viewTranscriptButton}
-      </div>
+      </Row>
       {transcriptDialog}
     </>
   );
@@ -421,7 +424,10 @@ export const FilePartDisplay = memo(function FilePartDisplay({
 
   return (
     <>
-      <div className="bg-background border-border flex w-full items-center gap-3 rounded-xl border px-4 py-3 shadow-xs">
+      <Row
+        gap={3}
+        className="bg-background border-border w-full rounded-xl border px-4 py-3 shadow-xs"
+      >
         {canPreview ? (
           <button
             type="button"
@@ -431,7 +437,9 @@ export const FilePartDisplay = memo(function FilePartDisplay({
             {body}
           </button>
         ) : (
-          <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
+          <Row gap={3} className="min-w-0 flex-1">
+            {body}
+          </Row>
         )}
         <a
           href={filePart.url}
@@ -444,7 +452,7 @@ export const FilePartDisplay = memo(function FilePartDisplay({
         >
           <Download className="size-4" strokeWidth={1.5} />
         </a>
-      </div>
+      </Row>
       {canPreview && previewOpen && (
         <DocumentPreviewDialog
           open

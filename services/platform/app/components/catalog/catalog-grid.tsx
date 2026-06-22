@@ -1,7 +1,6 @@
 'use client';
 
-import { Card } from '@tale/ui/card';
-import { Grid } from '@tale/ui/layout';
+import { Card, CardGrid, CardMedia } from '@tale/ui/card';
 import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
@@ -11,12 +10,11 @@ import { cn } from '@/lib/utils/cn';
  * that lays them out. Used by every "browse and act" surface (the integrations,
  * agents, and automations catalogs) so they stay visually identical.
  *
- * Why a dedicated card instead of `<Card>` directly: the `Card` primitive wraps
- * its children in a `p-6` content box, so callers that ALSO padded the outer
- * frame (the old agent catalog did `<Card className="p-4">`) double-padded and
- * the cards ballooned. `CatalogCard` owns a single `p-4` content box and slots
- * (media, title, badge, description, meta, actions), keeping every catalog card
- * sized to its content.
+ * `CatalogCard` is the catalog-specific composition of the `@tale/ui/card`
+ * primitive: a single `padding="md"` box with the catalog slots (media, title,
+ * badge, description, meta, actions). The grid and media tile delegate straight
+ * to the shared `CardGrid` / `CardMedia` so every catalog stays aligned with the
+ * rest of the app's cards.
  */
 
 /** Responsive catalog grid: 1 → 2 (sm) → 3 (lg) columns. */
@@ -27,24 +25,16 @@ export function CatalogGrid({
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <Grid cols={1} sm={2} lg={3} gap={4} className={className}>
-      {children}
-    </Grid>
-  );
+  return <CardGrid className={className}>{children}</CardGrid>;
 }
 
 /**
  * A 40px bordered media tile for a catalog card (brand glyph, icon, or avatar),
  * so icon sizing is identical across catalogs. Render an `<img>`/`<Icon>` (≈24px)
- * inside it.
+ * inside it. Thin alias over the shared `CardMedia`.
  */
 export function CatalogCardIcon({ children }: { children: ReactNode }) {
-  return (
-    <span className="border-border bg-background flex size-10 shrink-0 items-center justify-center rounded-lg border">
-      {children}
-    </span>
-  );
+  return <CardMedia>{children}</CardMedia>;
 }
 
 interface CatalogCardProps {
@@ -112,22 +102,20 @@ export function CatalogCard({
     </>
   );
 
-  const frameClass = cn(
-    'h-full',
-    interactive && 'hover:border-primary/50 transition-colors',
-    active && 'border-primary/50',
-    className,
-  );
-
   if (interactive) {
     return (
-      <Card className={frameClass} contentClassName="h-full p-0">
+      <Card
+        asChild
+        interactive
+        padding="md"
+        className={cn('h-full', active && 'border-border-strong', className)}
+      >
         <button
           type="button"
           onClick={onClick}
           disabled={disabled}
           aria-label={ariaLabel}
-          className="focus-visible:ring-ring flex h-full w-full flex-col p-4 text-left outline-none focus-visible:ring-2 disabled:opacity-50"
+          className="flex h-full w-full flex-col text-left disabled:opacity-50"
         >
           {inner}
         </button>
@@ -136,7 +124,14 @@ export function CatalogCard({
   }
 
   return (
-    <Card className={frameClass} contentClassName="flex h-full flex-col p-4">
+    <Card
+      padding="md"
+      className={cn(
+        'flex h-full flex-col',
+        active && 'border-border-strong',
+        className,
+      )}
+    >
       {inner}
     </Card>
   );

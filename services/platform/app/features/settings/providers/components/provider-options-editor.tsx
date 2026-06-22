@@ -297,7 +297,7 @@ export function ProviderOptionsEditor({
 
         <CollapsibleGuide label={copy.guideLabel} content={copy.description} />
 
-        <Card contentClassName="px-4 py-2.5">
+        <Card padding="none" className="px-4 py-2.5">
           {isEmpty ? (
             <Text className="text-muted-foreground text-sm italic">
               {copy.notConfigured}
@@ -420,7 +420,7 @@ function ProviderOptionsEditorSheet({
         />
       </HStack>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <Stack gap={0} className="min-h-0 flex-1">
         <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           <Stack gap={3}>
             <CollapsibleGuide label={guideLabel} content={description} />
@@ -467,7 +467,7 @@ function ProviderOptionsEditorSheet({
             </Button>
           </HStack>
         </div>
-      </div>
+      </Stack>
     </>
   );
 }

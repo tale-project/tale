@@ -4,6 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, type HTMLAttributes } from 'react';
 
 import { cn } from '../../lib/cn';
+import { gapScale } from './layout';
 
 const actionRowVariants = cva('flex items-center', {
   variants: {
@@ -12,10 +13,12 @@ const actionRowVariants = cva('flex items-center', {
       end: 'justify-end',
       between: 'justify-between',
     },
+    // Subset of the shared `gapScale` so action clusters never drift from the
+    // one spacing scale. Surface stays 1|2|3 (default 2) for back-compat.
     gap: {
-      1: 'gap-1',
-      2: 'gap-2',
-      3: 'gap-3',
+      1: gapScale[1],
+      2: gapScale[2],
+      3: gapScale[3],
     },
   },
   defaultVariants: {

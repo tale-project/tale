@@ -1,6 +1,12 @@
+import type { Infer } from 'convex/values';
+
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
-import { NOTIFICATION_CATEGORIES, NOTIFICATION_SEVERITIES } from './schema';
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_SEVERITIES,
+  notificationLinkValidator,
+} from './schema';
 
 type Category = (typeof NOTIFICATION_CATEGORIES)[number];
 type Severity = (typeof NOTIFICATION_SEVERITIES)[number];
@@ -19,6 +25,8 @@ interface WriteNotificationArgs {
    * regardless of audit-pepper rotation or email change.
    */
   subjectUserId?: string;
+  /** Optional in-app deep-link target for the notification body. */
+  link?: Infer<typeof notificationLinkValidator>;
 }
 
 /**
@@ -40,6 +48,7 @@ export async function writeNotificationForOrgs(
       bodyKey: args.bodyKey,
       params: args.params,
       subjectUserId: args.subjectUserId,
+      link: args.link,
       createdAt: now,
       readBy: [],
     });

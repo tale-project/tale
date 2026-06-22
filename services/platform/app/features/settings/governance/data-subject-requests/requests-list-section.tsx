@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -114,7 +115,7 @@ export function RequestsListSection({
         accessorKey: 'targetUserName',
         header: t('dataSubjectRequests.columns.target'),
         cell: ({ row }) => (
-          <div className="flex min-w-0 flex-col">
+          <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetUserName}>
               {row.original.targetUserName}
             </Text>
@@ -129,7 +130,7 @@ export function RequestsListSection({
                 {row.original.targetUserId}
               </Text>
             )}
-          </div>
+          </Stack>
         ),
         size: 220,
       },

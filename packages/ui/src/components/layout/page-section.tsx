@@ -4,15 +4,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { gapScale } from './layout';
 import { SectionHeader } from './section-header';
 
 const sectionVariants = cva('flex flex-col', {
   variants: {
+    // Subset of the shared `gapScale` so titled sections never drift from the
+    // one spacing scale. Surface stays 3|4|5|6 (default 4) for back-compat.
     gap: {
-      3: 'gap-3',
-      4: 'gap-4',
-      5: 'gap-5',
-      6: 'gap-6',
+      3: gapScale[3],
+      4: gapScale[4],
+      5: gapScale[5],
+      6: gapScale[6],
     },
   },
   defaultVariants: {

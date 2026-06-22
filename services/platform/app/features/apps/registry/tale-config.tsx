@@ -17,7 +17,13 @@
 import { type Config } from '@measured/puck';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { Card } from '@tale/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@tale/ui/card';
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 
@@ -140,8 +146,16 @@ export const taleConfig: Config<TaleComponents> = {
       },
       defaultProps: { title: '', description: '', body: '' },
       render: ({ title, description, body }) => (
-        <Card title={title} description={description}>
-          {body}
+        <Card>
+          {(title || description) && (
+            <CardHeader className="pb-3">
+              {title ? <CardTitle>{title}</CardTitle> : null}
+              {description ? (
+                <CardDescription>{description}</CardDescription>
+              ) : null}
+            </CardHeader>
+          )}
+          <CardContent>{body}</CardContent>
         </Card>
       ),
     },

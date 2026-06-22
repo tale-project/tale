@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
@@ -98,14 +99,14 @@ export function SchedulesSection({
         id: 'cronExpression',
         header: t('triggers.schedules.columns.cronExpression'),
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <Row gap={2}>
             <code className="bg-muted rounded px-2 py-0.5 font-mono text-sm">
               {row.original.cronExpression}
             </code>
             <Text as="span" variant="caption">
               {row.original.timezone}
             </Text>
-          </div>
+          </Row>
         ),
         size: 220,
       },
@@ -147,7 +148,7 @@ export function SchedulesSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
+          <Row gap={1} justify="end">
             <Button
               variant="ghost"
               size="sm"
@@ -164,7 +165,7 @@ export function SchedulesSection({
             >
               <Trash2 className="size-4" />
             </Button>
-          </div>
+          </Row>
         ),
         size: 100,
       },

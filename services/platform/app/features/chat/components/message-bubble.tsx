@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Row, Stack } from '@tale/ui/layout';
 import {
   CopyIcon,
   CheckIcon,
@@ -786,7 +787,7 @@ function MessageBubbleComponent({
                    * then renders with no extra chrome.
                    */}
                   {voiceIndicatorEnabled && message.threadId && (
-                    <div className="mb-2 flex items-center justify-start">
+                    <Row gap={0} className="mb-2">
                       <VoiceOutputIndicator
                         enabled
                         messageId={message.id}
@@ -795,7 +796,7 @@ function MessageBubbleComponent({
                         organizationId={organizationId}
                         isFreshSinceMount={isFreshSinceMount}
                       />
-                    </div>
+                    </Row>
                   )}
                   <MessageSegments
                     segments={messageSegments.segments}
@@ -819,18 +820,15 @@ function MessageBubbleComponent({
                     />
                   )}
                   {showTrailingLoader && (
-                    <div
-                      className="mt-2 flex h-5 items-center"
-                      aria-hidden="true"
-                    >
+                    <Row gap={0} className="mt-2 h-5" aria-hidden="true">
                       <ThinkingDots />
-                    </div>
+                    </Row>
                   )}
                 </CitationsContext.Provider>
               )}
             </div>
             {isUser && (isOverflowing || isExpanded) && (
-              <div className="flex justify-end">
+              <Row gap={0} align="stretch" justify="end">
                 <button
                   type="button"
                   onClick={() => setIsExpanded((v) => !v)}
@@ -838,7 +836,7 @@ function MessageBubbleComponent({
                 >
                   {isExpanded ? tChat('showLess') : tChat('showMore')}
                 </button>
-              </div>
+              </Row>
             )}
             {message.isFailed && (
               <ChatErrorDisplay error={message.error} onRetry={onRetry} />
@@ -857,7 +855,7 @@ function MessageBubbleComponent({
         )}
 
         {message.fileParts && message.fileParts.length > 0 && (
-          <div className="mt-2 flex flex-col gap-2">
+          <Stack gap={2} className="mt-2">
             {message.fileParts.map((part, i) => {
               const galleryIdx = filePartGalleryIndices[i];
               const isAssistantImage =
@@ -879,11 +877,11 @@ function MessageBubbleComponent({
                 />
               );
             })}
-          </div>
+          </Stack>
         )}
 
         {message.attachments && message.attachments.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <Row gap={1} align="stretch" wrap className="mt-2">
             {message.attachments.map((attachment, i) => {
               const galleryIdx = attachmentGalleryIndices[i];
               return (
@@ -896,7 +894,7 @@ function MessageBubbleComponent({
                 />
               );
             })}
-          </div>
+          </Row>
         )}
         {/* Errored turn: only Show Info is useful — collapse the toolbar.
             Entrance animation only on a live transition, not on remount. */}
@@ -991,7 +989,7 @@ function MessageBubbleComponent({
                   }
                 />
               ) : (
-                <div className="flex items-start gap-1 pt-2">
+                <Row gap={1} align="start" className="pt-2">
                   <Tooltip
                     content={isCopied ? t('actions.copied') : t('actions.copy')}
                     side="bottom"
@@ -1028,7 +1026,7 @@ function MessageBubbleComponent({
                     </Tooltip>
                   )}
                   {moreMenu}
-                </div>
+                </Row>
               )}
             </div>
           )}

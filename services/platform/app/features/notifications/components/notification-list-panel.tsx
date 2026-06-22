@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
-import { useNavigate } from '@tanstack/react-router';
 import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -14,7 +13,6 @@ import {
   useMyNotifications,
   useUnreadNotificationCount,
 } from '@/app/features/inbox/hooks/queries';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -29,6 +27,11 @@ import {
   useNotificationsUnreadCount,
   type NotificationsFilter,
 } from '../hooks/queries';
+import {
+  orgNotificationTarget,
+  personalNotificationTarget,
+} from '../lib/notification-target';
+import { NotificationRow } from './notification-row';
 import { ReviewActions } from './review-actions';
 
 interface NotificationListPanelProps {
@@ -73,8 +76,6 @@ export function NotificationListPanel({
   const { t } = useT('notifications');
   const { t: tInbox } = useT('inbox');
   const { t: tCommon } = useT('common');
-  const { formatRelative, formatDate } = useFormatDate();
-  const navigate = useNavigate();
 
   const { results, status, loadMore } = useNotificationsList(organizationId);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
@@ -89,23 +90,6 @@ export function NotificationListPanel({
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
 
-  const openMyNotification = useCallback(
-    (notif: (typeof myNotifications)[number]) => {
-      if (!notif.read) markMyRead.mutate({ notificationId: notif._id });
-      const params = isRecord(notif.params) ? notif.params : undefined;
-      const projectId = params?.projectId;
-      if (notif.taskId && typeof projectId === 'string') {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/tasks',
-          params: { id: organizationId, projectId },
-          search: { task: String(notif.taskId) },
-        });
-        onNavigate?.();
-      }
-    },
-    [markMyRead, navigate, organizationId, onNavigate],
-  );
-
   const handleMarkRead = useCallback(
     (notificationId: Id<'notifications'>) => {
       setHiddenIds((prev) => {
@@ -118,6 +102,18 @@ export function NotificationListPanel({
     [markRead],
   );
 
+  const handleMarkMyRead = useCallback(
+    (notificationId: Id<'userNotifications'>) => {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.add(notificationId);
+        return next;
+      });
+      void markMyRead.mutateAsync({ notificationId });
+    },
+    [markMyRead],
+  );
+
   const handleMarkAllRead = useCallback(() => {
     if (filter === 'unread') {
       setHiddenIds((prev) => {
@@ -125,12 +121,22 @@ export function NotificationListPanel({
         for (const n of results) {
           if (!n.read) next.add(n._id);
         }
+        for (const n of myNotifications) {
+          if (!n.read) next.add(n._id);
+        }
         return next;
       });
     }
     void markAllRead.mutateAsync({ organizationId });
     void markAllMyRead.mutateAsync({ organizationId });
-  }, [filter, markAllRead, markAllMyRead, organizationId, results]);
+  }, [
+    filter,
+    markAllRead,
+    markAllMyRead,
+    organizationId,
+    results,
+    myNotifications,
+  ]);
 
   const handleFilterChange = useCallback((next: NotificationsFilter) => {
     setFilter(next);
@@ -143,10 +149,13 @@ export function NotificationListPanel({
     for (const n of results) {
       if (hiddenIds.has(n._id) && !n.read) stillPresent.add(n._id);
     }
+    for (const n of myNotifications) {
+      if (hiddenIds.has(n._id) && !n.read) stillPresent.add(n._id);
+    }
     if (stillPresent.size !== hiddenIds.size) {
       setHiddenIds(stillPresent);
     }
-  }, [results, hiddenIds]);
+  }, [results, myNotifications, hiddenIds]);
 
   // Filter client-side so toggling Unread/All never changes the query key (a
   // query reset would re-flash the skeleton). `hiddenIds` covers the optimistic
@@ -259,118 +268,59 @@ export function NotificationListPanel({
                 typeof params?.approvalId === 'string'
                   ? params.approvalId
                   : undefined;
-              const canNavigate =
-                n.taskId !== undefined && typeof params?.projectId === 'string';
+              const target = personalNotificationTarget({
+                organizationId,
+                taskId: n.taskId,
+                params: n.params,
+              });
               return (
-                <li key={n._id} className={cn(!n.read && 'bg-accent/10')}>
-                  <div className="flex w-full items-start gap-3 px-4 py-3">
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'mt-1.5 size-2 shrink-0 rounded-full',
-                        n.read ? 'bg-transparent' : 'bg-sky-500',
-                      )}
+                <NotificationRow
+                  key={n._id}
+                  title={tInbox(n.titleKey)}
+                  body={tInbox(
+                    n.bodyKey,
+                    // `params` is the i18n interpolation map (stored as
+                    // v.any()); narrow to what t() accepts.
+                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                    params as Record<string, string | number>,
+                  )}
+                  createdAt={n.createdAt}
+                  read={n.read}
+                  target={target}
+                  onActivate={() => {
+                    if (!n.read) handleMarkMyRead(n._id);
+                    if (target) onNavigate?.();
+                  }}
+                  onMarkRead={() => handleMarkMyRead(n._id)}
+                  markReadPending={markMyRead.isPending}
+                >
+                  {approvalId && (
+                    <ReviewActions
+                      notificationId={n._id}
+                      approvalId={approvalId}
                     />
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={() => openMyNotification(n)}
-                        disabled={!canNavigate && n.read}
-                        className={cn(
-                          'block w-full text-left',
-                          (canNavigate || !n.read) && 'cursor-pointer',
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="text-foreground text-sm font-medium">
-                            {tInbox(n.titleKey)}
-                          </div>
-                          <span
-                            className="text-muted-foreground shrink-0 text-[10px]"
-                            title={formatDate(new Date(n.createdAt), 'long')}
-                          >
-                            {formatRelative(new Date(n.createdAt))}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap">
-                          {tInbox(
-                            n.bodyKey,
-                            // `params` is the i18n interpolation map (stored
-                            // as v.any()); narrow to what t() accepts.
-                            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                            params as Record<string, string | number>,
-                          )}
-                        </div>
-                      </button>
-                      {approvalId && (
-                        <ReviewActions
-                          notificationId={n._id}
-                          approvalId={approvalId}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </li>
+                  )}
+                </NotificationRow>
               );
             })}
             {items.map((n) => {
               const params = isRecord(n.params) ? n.params : undefined;
-              const title = t(stripNsPrefix(n.titleKey), params);
-              const body = t(stripNsPrefix(n.bodyKey), params);
-              const absoluteDate = formatDate(new Date(n.createdAt), 'long');
-
-              const rowClasses = cn(
-                'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-                !n.read && 'bg-accent/10 hover:bg-muted/60 cursor-pointer',
-                n.read && 'opacity-70 cursor-default',
-              );
-              const rowBody = (
-                <>
-                  {!n.read && (
-                    <span className="sr-only">{t('ariaUnread')}</span>
-                  )}
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'mt-1.5 size-2 shrink-0 rounded-full',
-                      n.read ? 'bg-transparent' : 'bg-sky-500',
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="text-foreground text-sm font-medium">
-                        {title}
-                      </div>
-                      <span
-                        className="text-muted-foreground shrink-0 text-[10px]"
-                        title={absoluteDate}
-                      >
-                        {formatRelative(new Date(n.createdAt))}
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground mt-0.5 text-xs whitespace-pre-wrap">
-                      {body}
-                    </div>
-                  </div>
-                </>
-              );
-
+              const target = orgNotificationTarget(organizationId, n.link);
               return (
-                <li key={n._id}>
-                  {n.read ? (
-                    <div className={rowClasses}>{rowBody}</div>
-                  ) : (
-                    <button
-                      type="button"
-                      aria-label={t('markAsRead')}
-                      disabled={markRead.isPending}
-                      onClick={() => handleMarkRead(n._id)}
-                      className={rowClasses}
-                    >
-                      {rowBody}
-                    </button>
-                  )}
-                </li>
+                <NotificationRow
+                  key={n._id}
+                  title={t(stripNsPrefix(n.titleKey), params)}
+                  body={t(stripNsPrefix(n.bodyKey), params)}
+                  createdAt={n.createdAt}
+                  read={n.read}
+                  target={target}
+                  onActivate={() => {
+                    if (!n.read) handleMarkRead(n._id);
+                    if (target) onNavigate?.();
+                  }}
+                  onMarkRead={() => handleMarkRead(n._id)}
+                  markReadPending={markRead.isPending}
+                />
               );
             })}
           </ul>

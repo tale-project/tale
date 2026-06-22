@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -45,11 +45,16 @@ export function SavedBackupCodesDialog({
         <Text variant="muted" className="text-sm">
           {t('backupCodes.description')}
         </Text>
-        <ul className="bg-muted grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-sm">
+        <Grid
+          as="ul"
+          cols={2}
+          gap={2}
+          className="bg-muted rounded-md border p-3 font-mono text-sm"
+        >
           {backupCodes.map((code) => (
             <li key={code}>{code}</li>
           ))}
-        </ul>
+        </Grid>
       </Stack>
     </ConfirmDialog>
   );

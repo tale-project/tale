@@ -1,5 +1,6 @@
 'use client';
 
+import { Grid } from '@tale/ui/layout';
 import { memo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -63,7 +64,7 @@ export const ThumbnailPicker = memo(function ThumbnailPicker({
       <p className="text-muted-foreground mb-2 text-xs font-medium">
         {t('imageEdit.pickAnImage')}
       </p>
-      <div className="grid grid-cols-3 gap-2">
+      <Grid cols={3} gap={2}>
         {displayable.map((img) => {
           const isActive = img.key === activeKey;
           return (
@@ -85,7 +86,7 @@ export const ThumbnailPicker = memo(function ThumbnailPicker({
             </button>
           );
         })}
-      </div>
+      </Grid>
     </div>
   );
 });

@@ -1,3 +1,4 @@
+import { Row } from '@tale/ui/layout';
 import {
   AudioLines,
   Brain,
@@ -42,7 +43,7 @@ export function ModelTagIcons({ tags, t }: ModelTagIconsProps) {
   if (tags.length === 0) return null;
 
   return (
-    <div className="mt-0.5 flex shrink-0 items-start gap-1">
+    <Row gap={1} align="start" className="mt-0.5 shrink-0">
       {tags.map((tag) => {
         const config = TAG_CONFIG[tag];
         if (!config) return null;
@@ -55,6 +56,6 @@ export function ModelTagIcons({ tags, t }: ModelTagIconsProps) {
           </Tooltip>
         );
       })}
-    </div>
+    </Row>
   );
 }

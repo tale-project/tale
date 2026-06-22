@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useState } from 'react';
 
@@ -68,7 +69,7 @@ function BrandingSettingsView({
         {/* `justify-center` centers the fixed-width form on small screens where
             the preview is hidden; it's inert on lg where the flex-1 preview fills
             the row. */}
-        <div className="flex flex-1 justify-center gap-6">
+        <Row gap={6} align="stretch" justify="center" className="flex-1">
           <BrandingForm
             organizationId={organizationId}
             branding={branding}
@@ -78,7 +79,7 @@ function BrandingSettingsView({
           <div className="hidden flex-1 lg:flex">
             <BrandingPreview data={previewData} />
           </div>
-        </div>
+        </Row>
       </SettingsSection>
     </SettingsPage>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import {
@@ -160,7 +161,11 @@ export function CodeBlock({
 
   return (
     <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">
-      <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
+      <Row
+        gap={0}
+        justify="between"
+        className="border-border border-b px-4 py-2.5"
+      >
         <span className="text-muted-foreground font-sans text-xs">
           {lang ?? 'code'}
         </span>
@@ -177,7 +182,7 @@ export function CodeBlock({
           )}
           {isCopied ? t('actions.copied') : t('actions.copy')}
         </Button>
-      </div>
+      </Row>
       <pre
         ref={preRef}
         {...props}

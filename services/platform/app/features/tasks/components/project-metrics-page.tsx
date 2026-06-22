@@ -1,28 +1,28 @@
 'use client';
 
-import { EmptyState } from '@tale/ui/empty-state';
+import { ChartCard } from '@tale/ui/chart-card';
+import { ChartLegend } from '@tale/ui/chart-legend';
+import { CHART_COLORS, getChartSeriesColor } from '@tale/ui/chart-theme';
+import { Grid, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Sparkline } from '@tale/ui/sparkline';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
+import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { Link } from '@tanstack/react-router';
 import { BarChart3, ChevronLeft } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageHeader } from '@/app/components/layout/page-header';
+import {
+  seriesToLegend,
+  TrendAreaChart,
+  TrendBarChart,
+  TrendLineChart,
+  type ChartSeries,
+} from '@/app/components/metrics/charts';
 import { Select } from '@/app/components/ui/forms/select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -60,104 +60,23 @@ interface ProjectMetricsDay {
   capped: boolean;
 }
 
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+interface ProjectTotals {
+  created: number;
+  completed: number;
+  agent: number;
+  human: number;
+  cycleSum: number;
+  cycleCount: number;
+  cost: number;
+  runs: number;
+  failed: number;
+  changes: number;
+  escalations: number;
+  capped: boolean;
 }
 
-function shortDay(dateKey: string): string {
-  return dateKey.slice(5);
-}
-
-/**
- * One bordered chart card. The card chrome (title) always renders; the chart
- * slot masks itself while loading and falls back to an `EmptyState` when the
- * period has no data — the page never goes blank.
- */
-function ChartCard({
-  title,
-  heightClassName,
-  isLoading,
-  isEmpty,
-  emptyTitle,
-  emptyDescription,
-  children,
-}: {
-  title: string;
-  heightClassName: string;
-  isLoading: boolean;
-  isEmpty: boolean;
-  emptyTitle: string;
-  emptyDescription: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-border bg-card rounded-lg border p-4">
-      <Text as="h3" variant="label">
-        {title}
-      </Text>
-      <div className={`mt-3 ${heightClassName}`}>
-        {isLoading ? (
-          <SkeletonBox fullWidth>
-            <div className={`w-full ${heightClassName}`} />
-          </SkeletonBox>
-        ) : isEmpty ? (
-          <EmptyState
-            icon={BarChart3}
-            title={emptyTitle}
-            description={emptyDescription}
-            className="h-full py-0"
-          />
-        ) : (
-          children
-        )}
-      </div>
-    </section>
-  );
-}
-
-interface ProjectMetricsPageProps {
-  organizationId: string;
-  projectId: Id<'projects'>;
-  periodDays: PeriodDays;
-  onChangePeriod: (period: PeriodDays) => void;
-}
-
-/**
- * The project's dedicated metrics page (mirrors the automations metrics
- * page): period switcher, paired-KPI stat cards honoring the KPI pairing
- * contract, and the task charts — cumulative flow from the EOD status
- * snapshots, created-vs-completed throughput, the cycle-time trend,
- * agent-vs-human completions, and daily spend. Reads only the per-project
- * daily rollups.
- */
-export function ProjectMetricsPage({
-  organizationId,
-  projectId,
-  periodDays,
-  onChangePeriod,
-}: ProjectMetricsPageProps) {
-  const { t } = useT('tasks');
-
-  const { data, isLoading } = useConvexQuery(
-    api.task_metrics.queries.getProjectTaskMetrics,
-    { projectId, days: periodDays },
-  );
-  // The query returns v.any(); the shape is owned by getProjectTaskMetrics.
-  const daily: ProjectMetricsDay[] = data?.daily ?? [];
-
-  const periodOptions = useMemo(
-    () => [
-      { value: '7', label: t('metrics.period.last7Days') },
-      { value: '30', label: t('metrics.period.last30Days') },
-      { value: '90', label: t('metrics.period.last90Days') },
-    ],
-    [t],
-  );
-
-  const totals = daily.reduce(
+function reduceTotals(days: ProjectMetricsDay[]): ProjectTotals {
+  return days.reduce<ProjectTotals>(
     (acc, day) => ({
       created: acc.created + day.tasksCreated,
       completed: acc.completed + day.tasksCompleted,
@@ -187,26 +106,88 @@ export function ProjectMetricsPage({
       capped: false,
     },
   );
-  const avgCycleHours =
-    totals.cycleCount > 0
-      ? (totals.cycleSum / totals.cycleCount / 3_600_000).toFixed(1)
-      : undefined;
-  const interventionRate =
-    totals.runs > 0
-      ? Math.round(((totals.changes + totals.escalations) / totals.runs) * 100)
-      : 0;
+}
+
+function formatCents(cents: number): string {
+  return (cents / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function avgCycleHours(t: ProjectTotals): number | undefined {
+  return t.cycleCount > 0 ? t.cycleSum / t.cycleCount / 3_600_000 : undefined;
+}
+
+function interventionRateOf(t: ProjectTotals): number {
+  return t.runs > 0
+    ? Math.round(((t.changes + t.escalations) / t.runs) * 100)
+    : 0;
+}
+
+function shortDay(dateKey: string): string {
+  return dateKey.slice(5);
+}
+
+interface ProjectMetricsPageProps {
+  organizationId: string;
+  projectId: Id<'projects'>;
+  periodDays: PeriodDays;
+  onChangePeriod: (period: PeriodDays) => void;
+}
+
+/**
+ * The project's dedicated metrics page (mirrors the automations metrics page):
+ * period switcher, paired-KPI stat cards honoring the KPI pairing contract
+ * with period-over-period deltas, and the task charts — cumulative flow,
+ * created-vs-completed throughput, the cycle-time trend, agent-vs-human
+ * completions, and daily spend. Reads only the per-project daily rollups; all
+ * charts share the chart-theme tokens (theme-aware in dark mode).
+ */
+export function ProjectMetricsPage({
+  organizationId,
+  projectId,
+  periodDays,
+  onChangePeriod,
+}: ProjectMetricsPageProps) {
+  const { t } = useT('tasks');
+
+  const { data, isLoading } = useConvexQuery(
+    api.task_metrics.queries.getProjectTaskMetrics,
+    { projectId, days: periodDays },
+  );
+  // The query returns v.any(); the shape is owned by getProjectTaskMetrics.
+  const daily: ProjectMetricsDay[] = data?.daily ?? [];
+  const previousDaily: ProjectMetricsDay[] = data?.previousDaily ?? [];
+
+  const periodOptions = useMemo(
+    () => [
+      { value: '7', label: t('metrics.period.last7Days') },
+      { value: '30', label: t('metrics.period.last30Days') },
+      { value: '90', label: t('metrics.period.last90Days') },
+    ],
+    [t],
+  );
+
+  const totals = reduceTotals(daily);
+  const prev = reduceTotals(previousDaily);
+
+  const cycleHours = avgCycleHours(totals);
+  const prevCycleHours = avgCycleHours(prev);
+  const interventionRate = interventionRateOf(totals);
+  const prevInterventionRate = interventionRateOf(prev);
 
   const flowData = daily.map((day) => ({
-    label: shortDay(day.dateKey),
+    dateKey: day.dateKey,
     ...day.statusCountsEod,
   }));
   const throughputData = daily.map((day) => ({
-    label: shortDay(day.dateKey),
+    dateKey: day.dateKey,
     completed: day.tasksCompleted,
     created: day.tasksCreated,
   }));
   const cycleTimeData = daily.map((day) => ({
-    label: shortDay(day.dateKey),
+    dateKey: day.dateKey,
     hours:
       day.cycleTimeCount > 0
         ? Number(
@@ -215,12 +196,12 @@ export function ProjectMetricsPage({
         : null,
   }));
   const completionsData = daily.map((day) => ({
-    label: shortDay(day.dateKey),
+    dateKey: day.dateKey,
     agent: day.agentCompleted,
     human: day.humanCompleted,
   }));
   const costData = daily.map((day) => ({
-    label: shortDay(day.dateKey),
+    dateKey: day.dateKey,
     cost: Number((day.totalCostCents / 100).toFixed(2)),
   }));
 
@@ -229,35 +210,48 @@ export function ProjectMetricsPage({
   const emptyTitle = t('metrics.noData');
   const emptyDescription = t('metrics.noDataDescription');
 
-  const stats = [
+  const flowSeries: ChartSeries[] = [
     {
-      label: t('metrics.completed', { days: periodDays }),
-      value: String(totals.completed),
-      detail: t('metrics.completedDetail', {
-        agent: totals.agent,
-        human: totals.human,
-      }),
+      key: 'backlog',
+      label: t('status.backlog'),
+      color: getChartSeriesColor(0),
+    },
+    { key: 'todo', label: t('status.todo'), color: getChartSeriesColor(1) },
+    {
+      key: 'in_progress',
+      label: t('status.in_progress'),
+      color: getChartSeriesColor(2),
     },
     {
-      label: t('metrics.cycleTime'),
-      value: avgCycleHours !== undefined ? `${avgCycleHours}h` : '—',
-      detail: t('metrics.created', { count: totals.created }),
+      key: 'in_review',
+      label: t('status.in_review'),
+      color: getChartSeriesColor(3),
+    },
+  ];
+  const throughputSeries: ChartSeries[] = [
+    {
+      key: 'created',
+      label: t('metrics.createdLabel'),
+      color: CHART_COLORS.primary,
     },
     {
-      label: t('metrics.intervention'),
-      value: `${interventionRate}%`,
-      detail: t('metrics.interventionDetail', {
-        changes: totals.changes,
-        escalations: totals.escalations,
-      }),
+      key: 'completed',
+      label: t('metrics.completedLabel'),
+      color: CHART_COLORS.success,
+    },
+  ];
+  const completionsSeries: ChartSeries[] = [
+    {
+      key: 'agent',
+      label: t('metrics.agentLabel'),
+      color: CHART_COLORS.success,
+      stackId: 'completions',
     },
     {
-      label: t('metrics.cost', { days: periodDays }),
-      value: formatCents(totals.cost),
-      detail: t('metrics.costDetail', {
-        runs: totals.runs,
-        failed: totals.failed,
-      }),
+      key: 'human',
+      label: t('metrics.humanLabel'),
+      color: CHART_COLORS.primary,
+      stackId: 'completions',
     },
   ];
 
@@ -299,193 +293,204 @@ export function ProjectMetricsPage({
           </div>
         ) : null}
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="border-border bg-card flex flex-col gap-1 rounded-lg border p-3"
-            >
-              <Text as="p" variant="muted" className="text-xs">
-                {stat.label}
-              </Text>
-              <SkeletonBox>
-                <Text as="p" className="text-xl font-semibold tabular-nums">
-                  {stat.value}
-                </Text>
-              </SkeletonBox>
+        <StatCardGrid cols={4}>
+          <StatCard
+            label={t('metrics.completed', { days: periodDays })}
+            value={String(totals.completed)}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.completed}
+                previous={prev.completed}
+              />
               <SkeletonBox>
                 <Text as="p" variant="muted" className="text-xs">
-                  {stat.detail}
+                  {t('metrics.completedDetail', {
+                    agent: totals.agent,
+                    human: totals.human,
+                  })}
                 </Text>
               </SkeletonBox>
-            </div>
-          ))}
-        </section>
+              {daily.length > 1 ? (
+                <Sparkline
+                  data={daily.map((day) => day.tasksCompleted)}
+                  filled
+                  color="var(--color-chart-success)"
+                  className="mt-1"
+                />
+              ) : null}
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.cycleTime')}
+            value={cycleHours !== undefined ? `${cycleHours.toFixed(1)}h` : '—'}
+          >
+            <Stack gap={1} className="mt-0.5">
+              {cycleHours !== undefined ? (
+                <TrendIndicator
+                  value={cycleHours}
+                  previous={prevCycleHours}
+                  inverted
+                />
+              ) : null}
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.created', { count: totals.created })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.intervention')}
+            value={`${interventionRate}%`}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={interventionRate}
+                previous={prevInterventionRate}
+                inverted
+              />
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.interventionDetail', {
+                    changes: totals.changes,
+                    escalations: totals.escalations,
+                  })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+
+          <StatCard
+            label={t('metrics.cost', { days: periodDays })}
+            value={formatCents(totals.cost)}
+          >
+            <Stack gap={1} className="mt-0.5">
+              <TrendIndicator
+                value={totals.cost}
+                previous={prev.cost}
+                inverted
+              />
+              <SkeletonBox>
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('metrics.costDetail', {
+                    runs: totals.runs,
+                    failed: totals.failed,
+                  })}
+                </Text>
+              </SkeletonBox>
+            </Stack>
+          </StatCard>
+        </StatCardGrid>
 
         <ChartCard
           title={t('metrics.cumulativeFlow')}
-          heightClassName="h-52"
-          isLoading={isLoading}
+          bodyClassName="h-52"
+          loading={isLoading}
           isEmpty={noDays}
+          emptyIcon={BarChart3}
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
+          legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
         >
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={flowData}>
-              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-              <XAxis dataKey="label" fontSize={11} />
-              <YAxis allowDecimals={false} fontSize={11} width={28} />
-              <Tooltip />
-              <Area
-                dataKey="backlog"
-                stackId="flow"
-                name={t('status.backlog')}
-                fill="#94a3b8"
-                stroke="#94a3b8"
-              />
-              <Area
-                dataKey="todo"
-                stackId="flow"
-                name={t('status.todo')}
-                fill="#60a5fa"
-                stroke="#60a5fa"
-              />
-              <Area
-                dataKey="in_progress"
-                stackId="flow"
-                name={t('status.in_progress')}
-                fill="#f59e0b"
-                stroke="#f59e0b"
-              />
-              <Area
-                dataKey="in_review"
-                stackId="flow"
-                name={t('status.in_review')}
-                fill="#a78bfa"
-                stroke="#a78bfa"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <TrendAreaChart
+            data={flowData}
+            series={flowSeries}
+            xKey="dateKey"
+            xTickFormatter={shortDay}
+          />
         </ChartCard>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Grid lg={2}>
           <ChartCard
             title={t('metrics.throughput')}
-            heightClassName="h-44"
-            isLoading={isLoading}
+            bodyClassName="h-44"
+            loading={isLoading}
             isEmpty={noDays}
+            emptyIcon={BarChart3}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
+            legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={throughputData}>
-                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis allowDecimals={false} fontSize={11} width={28} />
-                <Tooltip />
-                <Bar
-                  dataKey="created"
-                  name={t('metrics.createdLabel')}
-                  fill="#60a5fa"
-                  radius={[2, 2, 0, 0]}
-                />
-                <Bar
-                  dataKey="completed"
-                  name={t('metrics.completedLabel')}
-                  fill="var(--color-chart-success, #10b981)"
-                  radius={[2, 2, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <TrendBarChart
+              data={throughputData}
+              series={throughputSeries}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+            />
           </ChartCard>
 
           <ChartCard
             title={t('metrics.cycleTimeTrend')}
-            heightClassName="h-44"
-            isLoading={isLoading}
+            bodyClassName="h-44"
+            loading={isLoading}
             isEmpty={noCycleTimes}
+            emptyIcon={BarChart3}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cycleTimeData}>
-                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis fontSize={11} width={28} />
-                <Tooltip />
-                <Line
-                  dataKey="hours"
-                  name={t('metrics.cycleHoursLabel')}
-                  stroke="#a78bfa"
-                  dot={false}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <TrendLineChart
+              data={cycleTimeData}
+              series={[
+                {
+                  key: 'hours',
+                  label: t('metrics.cycleHoursLabel'),
+                  color: getChartSeriesColor(3),
+                },
+              ]}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+              valueFormatter={(v) => `${v.toFixed(1)}h`}
+            />
           </ChartCard>
-        </div>
+        </Grid>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Grid lg={2}>
           <ChartCard
             title={t('metrics.agentVsHuman')}
-            heightClassName="h-44"
-            isLoading={isLoading}
+            bodyClassName="h-44"
+            loading={isLoading}
             isEmpty={noDays}
+            emptyIcon={BarChart3}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
+            legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={completionsData}>
-                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis allowDecimals={false} fontSize={11} width={28} />
-                <Tooltip />
-                <Bar
-                  dataKey="agent"
-                  stackId="completions"
-                  name={t('metrics.agentLabel')}
-                  fill="var(--color-chart-success, #10b981)"
-                  radius={[0, 0, 0, 0]}
-                />
-                <Bar
-                  dataKey="human"
-                  stackId="completions"
-                  name={t('metrics.humanLabel')}
-                  fill="#60a5fa"
-                  radius={[2, 2, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <TrendBarChart
+              data={completionsData}
+              series={completionsSeries}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+            />
           </ChartCard>
 
           <ChartCard
             title={t('metrics.costTrend')}
-            heightClassName="h-44"
-            isLoading={isLoading}
+            bodyClassName="h-44"
+            loading={isLoading}
             isEmpty={noDays}
+            emptyIcon={BarChart3}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={costData}>
-                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis fontSize={11} width={36} />
-                <Tooltip
-                  formatter={(value) =>
-                    typeof value === 'number' ? formatCents(value * 100) : ''
-                  }
-                />
-                <Bar
-                  dataKey="cost"
-                  name={t('metrics.costLabel')}
-                  fill="#f59e0b"
-                  radius={[2, 2, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <TrendBarChart
+              data={costData}
+              series={[
+                {
+                  key: 'cost',
+                  label: t('metrics.costLabel'),
+                  color: CHART_COLORS.warning,
+                },
+              ]}
+              xKey="dateKey"
+              xTickFormatter={shortDay}
+              allowDecimals
+              valueFormatter={(v) => formatCents(v * 100)}
+            />
           </ChartCard>
-        </div>
+        </Grid>
       </Skeletonize>
     </ContentArea>
   );

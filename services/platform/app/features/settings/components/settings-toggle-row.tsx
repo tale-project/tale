@@ -1,6 +1,7 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { forwardRef, useId, type ComponentRef, type ReactNode } from 'react';
 
@@ -64,7 +65,7 @@ export const SettingsToggleRow = forwardRef<
           className,
         )}
       >
-        <div className="flex min-w-0 flex-col gap-1">
+        <Stack gap={1} className="min-w-0">
           <span
             id={labelId}
             className="text-foreground text-sm leading-none font-medium"
@@ -78,7 +79,7 @@ export const SettingsToggleRow = forwardRef<
               <SkeletonBox fullWidth>{description}</SkeletonBox>
             </Description>
           )}
-        </div>
+        </Stack>
         <div className="shrink-0">
           <Switch
             ref={ref}

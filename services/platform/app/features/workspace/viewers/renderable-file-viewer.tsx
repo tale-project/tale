@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Code, Eye } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 
@@ -57,9 +58,11 @@ function RenderableFileViewerComponent({
   const effectiveMode: 'source' | 'preview' = isStreaming ? 'source' : viewMode;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="border-border bg-muted/30 flex shrink-0 items-center justify-end gap-1 border-b px-2 py-1"
+    <Stack gap={0} className="h-full min-h-0">
+      <Row
+        gap={1}
+        justify="end"
+        className="border-border bg-muted/30 shrink-0 border-b px-2 py-1"
         role="group"
         aria-label={t('canvas.viewToggleAriaLabel', {
           defaultValue: 'Toggle source / preview',
@@ -84,7 +87,7 @@ function RenderableFileViewerComponent({
         >
           {t('canvas.viewPreview', { defaultValue: 'Preview' })}
         </Button>
-      </div>
+      </Row>
       <div className="min-h-0 flex-1 overflow-hidden">
         {effectiveMode === 'source' ? (
           <CodeViewer path={path} content={content} />
@@ -98,7 +101,7 @@ function RenderableFileViewerComponent({
           <MarkdownViewer content={content} />
         )}
       </div>
-    </div>
+    </Stack>
   );
 }
 

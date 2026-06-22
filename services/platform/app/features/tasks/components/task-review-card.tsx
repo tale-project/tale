@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Bot, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
@@ -52,11 +53,13 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
   };
 
   return (
-    <section
-      className="border-primary/40 bg-primary/5 flex flex-col gap-3 rounded-lg border p-3"
+    <Stack
+      as="section"
+      gap={3}
+      className="border-primary/40 bg-primary/5 rounded-lg border p-3"
       aria-label={t('review.needsReview')}
     >
-      <div className="flex items-start gap-2">
+      <Row gap={2} align="start">
         <Bot className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
         <div className="flex flex-col gap-0.5">
           <Text as="h3" variant="label">
@@ -69,10 +72,10 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
               })}
           </Text>
         </div>
-      </div>
+      </Row>
 
       {requestingChanges ? (
-        <div className="flex flex-col gap-2">
+        <Stack gap={2}>
           <Textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
@@ -80,7 +83,7 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
             rows={3}
             autoFocus
           />
-          <div className="flex items-center justify-end gap-2">
+          <Row gap={2} justify="end">
             <Button
               size="sm"
               variant="ghost"
@@ -97,10 +100,10 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
             >
               {t('review.sendFeedback')}
             </Button>
-          </div>
-        </div>
+          </Row>
+        </Stack>
       ) : (
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Button
             size="sm"
             icon={CheckCircle2}
@@ -117,8 +120,8 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
           >
             {t('review.requestChanges')}
           </Button>
-        </div>
+        </Row>
       )}
-    </section>
+    </Stack>
   );
 }

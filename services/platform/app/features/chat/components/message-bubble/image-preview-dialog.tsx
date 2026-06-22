@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo } from 'react';
@@ -89,7 +90,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
         alt={currentAlt}
         toolbarPosition="overlay"
         headerContent={
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Row gap={2} className="min-w-0 flex-1">
             <Text as="span" truncate className="text-foreground/80 min-w-0">
               {currentAlt}
             </Text>
@@ -101,7 +102,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
                 })}
               </Text>
             )}
-          </div>
+          </Row>
         }
         className="flex-1 p-3"
         resetTrigger={currentSrc}

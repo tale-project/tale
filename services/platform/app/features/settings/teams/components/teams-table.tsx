@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { Plus, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -91,7 +92,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   return (
     // No section header here — the Teams settings page already renders the
     // "Teams" title + description, so the table is just the bare content.
-    <div className="flex flex-col gap-3">
+    <Stack gap={3}>
       {teamIds.length > 0 && <TeamMembersPreloader teamIds={teamIds} />}
 
       <DataTable
@@ -140,6 +141,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           }}
         />
       )}
-    </div>
+    </Stack>
   );
 }

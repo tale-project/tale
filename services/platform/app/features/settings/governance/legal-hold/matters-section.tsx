@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -91,7 +92,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         header: t('legalHold.columns.actions'),
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
+          <Row gap={2} align="stretch" justify="end">
             <Button
               type="button"
               variant="ghost"
@@ -116,7 +117,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
                 {t('legalHold.actions.closeMatter')}
               </Button>
             )}
-          </div>
+          </Row>
         ),
         size: 200,
       },
@@ -140,7 +141,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           </Button>
         }
       >
-        <div className="flex items-center gap-2">
+        <Row gap={2}>
           <Select
             id="matters-status-filter"
             size="sm"
@@ -152,7 +153,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
             options={statusOptions}
             aria-label={t('legalHold.filters.allStatuses')}
           />
-        </div>
+        </Row>
         <DataTable<MatterRow>
           columns={columns}
           data={matters ?? []}

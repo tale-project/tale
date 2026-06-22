@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Filter } from 'lucide-react';
 import { useState } from 'react';
@@ -93,7 +94,7 @@ export function CategoryFilterPopover({
       <p className="text-muted-foreground px-3 py-1.5 text-[11px] font-medium">
         {t('categoryFilter.title')}
       </p>
-      <div className="flex flex-col">
+      <Stack gap={0}>
         {categories.map((category) => {
           const checked = selectedIds.includes(category._id);
           return (
@@ -144,7 +145,7 @@ export function CategoryFilterPopover({
             </label>
           );
         })}
-      </div>
+      </Stack>
     </Popover>
   );
 }

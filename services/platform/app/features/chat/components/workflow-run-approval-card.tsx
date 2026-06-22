@@ -49,6 +49,7 @@ import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
@@ -212,12 +213,7 @@ function WorkflowRunApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
@@ -538,7 +534,7 @@ function WorkflowRunApprovalCardComponent({
           </HStack>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

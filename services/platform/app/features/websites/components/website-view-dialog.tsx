@@ -6,7 +6,7 @@ import { Button } from '@tale/ui/button';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Heading } from '@tale/ui/heading';
-import { HStack } from '@tale/ui/layout';
+import { Grid, HStack, Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
@@ -110,7 +110,7 @@ function PageRow({
           </a>
         </Text>
       )}
-      <div className="text-muted-foreground flex gap-4 text-xs">
+      <Row align="stretch" className="text-muted-foreground text-xs">
         <span>
           <SkeletonBox>
             {t('pagesDialog.wordCount', { count: page.word_count })}
@@ -128,7 +128,7 @@ function PageRow({
             })}
           </span>
         )}
-      </div>
+      </Row>
     </div>
   );
 
@@ -137,9 +137,9 @@ function PageRow({
       <CollapsibleDetails summary={summary} onToggle={handleToggle}>
         <div className="mt-3 space-y-2">
           {isPending && (
-            <div className="flex justify-center py-2">
+            <Row gap={0} align="stretch" justify="center" className="py-2">
               <Spinner size="sm" />
-            </div>
+            </Row>
           )}
           {chunks?.length === 0 && (
             <Text variant="muted" className="text-sm">
@@ -168,7 +168,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
   return (
     <BorderedSection>
       <div className="space-y-2">
-        <div className="flex min-w-0 items-start justify-between gap-2">
+        <Row gap={2} align="start" justify="between" className="min-w-0">
           <Heading
             level={3}
             size="sm"
@@ -182,7 +182,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
               score: (result.score * 100).toFixed(0) + '%',
             })}
           </Text>
-        </div>
+        </Row>
         <Text variant="caption">
           <a
             href={result.url}
@@ -330,7 +330,7 @@ export function ViewWebsiteDialog({
       {
         label: t('viewDialog.status'),
         value: (
-          <div className="flex flex-wrap items-center gap-2">
+          <Row gap={2} wrap>
             <Badge
               variant={
                 website.status && website.status in statusVariant
@@ -357,7 +357,7 @@ export function ViewWebsiteDialog({
                 {String(website.metadata.lastSyncError)}
               </Text>
             )}
-          </div>
+          </Row>
         ),
       },
       {
@@ -419,7 +419,7 @@ export function ViewWebsiteDialog({
           </Text>
         </HStack>
 
-        <div className="flex gap-2">
+        <Row gap={2} align="stretch">
           <SearchInput
             value={searchQuery}
             onChange={handleSearchChange}
@@ -436,14 +436,14 @@ export function ViewWebsiteDialog({
           >
             <SearchIcon className="size-4" />
           </Button>
-        </div>
+        </Row>
 
         {isSearchMode ? (
           <>
             {isSearching && (
-              <div className="flex justify-center py-4">
+              <Row gap={0} align="stretch" justify="center" className="py-4">
                 <Spinner size="sm" />
-              </div>
+              </Row>
             )}
 
             {!isSearching && searchResults.length === 0 && (
@@ -467,7 +467,7 @@ export function ViewWebsiteDialog({
             )}
 
             <Skeletonize loading={isFirstLoad && isPending}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Grid sm={2} xl={3} gap={3}>
                 {(isFirstLoad && isPending
                   ? [
                       { ...PLACEHOLDER_PAGE, url: 'placeholder-1' },
@@ -478,11 +478,11 @@ export function ViewWebsiteDialog({
                 ).map((page) => (
                   <PageRow key={page.url} page={page} websiteId={website._id} />
                 ))}
-              </div>
+              </Grid>
             </Skeletonize>
 
             {hasMore && (
-              <div className="flex justify-center pt-2">
+              <Row gap={0} align="stretch" justify="center" className="pt-2">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -495,7 +495,7 @@ export function ViewWebsiteDialog({
                     t('pagesDialog.loadMore')
                   )}
                 </Button>
-              </div>
+              </Row>
             )}
           </>
         )}

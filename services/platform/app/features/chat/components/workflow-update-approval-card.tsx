@@ -35,6 +35,8 @@ import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { ApprovalCard } from './approval-card';
+
 interface WorkflowUpdateApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
@@ -172,12 +174,7 @@ function WorkflowUpdateApprovalCardComponent({
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-2">
         <HStack gap={2}>
@@ -445,7 +442,7 @@ function WorkflowUpdateApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

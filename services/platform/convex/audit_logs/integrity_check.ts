@@ -135,6 +135,7 @@ export const notifyIntegrityFailure = internalMutation({
         ? 'auditIntegrityUnverifiableDetails'
         : 'auditIntegrityFailedDetails',
       params: { reason: args.reason },
+      link: { kind: 'audit-logs' },
     });
     return null;
   },

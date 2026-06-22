@@ -2,7 +2,7 @@
 
 import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   AlertCircle,
@@ -102,15 +102,17 @@ export function IntegrationUpdateSection({
             </FileUpload.Root>
 
             {updateParseError && (
-              <div
-                className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-md p-3 text-sm"
+              <Row
+                gap={2}
+                align="start"
+                className="bg-destructive/10 text-destructive rounded-md p-3 text-sm"
                 role="alert"
               >
                 <AlertCircle className="mt-0.5 size-4 shrink-0" />
                 <pre className="font-sans whitespace-pre-wrap">
                   {updateParseError}
                 </pre>
-              </div>
+              </Row>
             )}
 
             {parsedUpdate && (

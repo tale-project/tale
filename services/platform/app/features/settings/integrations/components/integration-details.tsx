@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
@@ -343,14 +344,18 @@ export function IntegrationDetails({
           onToggle={() => toggle('operations')}
           isLast={lastSection === 'operations'}
         >
-          <div className="border-border bg-muted flex gap-3 border-x px-4 py-3">
+          <Row
+            gap={3}
+            align="stretch"
+            className="border-border bg-muted border-x px-4 py-3"
+          >
             <ul
               className="max-h-48 flex-1 space-y-1.5 overflow-y-auto text-sm"
               role="list"
             >
               {restOperations.map((op) => (
                 <li key={op.name} className="flex min-w-0 flex-col gap-0.5">
-                  <div className="flex min-w-0 items-center gap-1">
+                  <Row gap={1} className="min-w-0">
                     <Text as="span" variant="code" truncate>
                       {op.name}
                     </Text>
@@ -359,7 +364,7 @@ export function IntegrationDetails({
                         — {op.title}
                       </Text>
                     )}
-                  </div>
+                  </Row>
                   {op.description && (
                     <Text variant="caption">{op.description}</Text>
                   )}
@@ -368,7 +373,7 @@ export function IntegrationDetails({
               ))}
             </ul>
             <ContentCopyButton value={operationsSummary} />
-          </div>
+          </Row>
         </SectionRow>
       )}
 
@@ -384,14 +389,18 @@ export function IntegrationDetails({
           onToggle={() => toggle('sqlOperations')}
           isLast={lastSection === 'sqlOperations'}
         >
-          <div className="border-border bg-muted flex gap-3 border-x px-4 py-3">
+          <Row
+            gap={3}
+            align="stretch"
+            className="border-border bg-muted border-x px-4 py-3"
+          >
             <ul
               className="max-h-60 flex-1 space-y-2 overflow-y-auto text-sm"
               role="list"
             >
               {sqlOperations.map((op) => (
                 <li key={op.name}>
-                  <div className="flex min-w-0 items-center gap-2">
+                  <Row gap={2} className="min-w-0">
                     <Text as="span" variant="code" truncate>
                       {op.name}
                     </Text>
@@ -410,7 +419,7 @@ export function IntegrationDetails({
                         {t('integrations.manageDialog.requiresApproval')}
                       </Badge>
                     )}
-                  </div>
+                  </Row>
                   {op.description && (
                     <Text variant="caption" className="mt-0.5">
                       {op.description}
@@ -434,7 +443,7 @@ export function IntegrationDetails({
               ))}
             </ul>
             <ContentCopyButton value={sqlOperationsSummary} />
-          </div>
+          </Row>
         </SectionRow>
       )}
 
@@ -458,13 +467,18 @@ export function IntegrationDetails({
           onToggle={() => toggle('allowedHosts')}
           isLast={lastSection === 'allowedHosts'}
         >
-          <div className="border-border bg-muted flex flex-wrap gap-1 border-x px-4 py-3">
+          <Row
+            gap={1}
+            align="stretch"
+            wrap
+            className="border-border bg-muted border-x px-4 py-3"
+          >
             {allowedHosts.map((host) => (
               <Badge key={host} variant="outline">
                 {host}
               </Badge>
             ))}
-          </div>
+          </Row>
         </SectionRow>
       )}
 
@@ -482,7 +496,11 @@ export function IntegrationDetails({
           onToggle={() => toggle('connectorCode')}
           isLast={lastSection === 'connectorCode'}
         >
-          <div className="border-border bg-muted flex gap-3 border-x px-4 py-3">
+          <Row
+            gap={3}
+            align="stretch"
+            className="border-border bg-muted border-x px-4 py-3"
+          >
             {lineCount > 0 ? (
               <>
                 <pre className="relative max-h-96 flex-1 overflow-y-auto text-xs break-words whitespace-pre-wrap">
@@ -499,7 +517,7 @@ export function IntegrationDetails({
                 </pre>
               </div>
             )}
-          </div>
+          </Row>
         </SectionRow>
       )}
 

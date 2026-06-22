@@ -1,6 +1,7 @@
 'use client';
 
 import { LinkButton } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -323,7 +324,7 @@ export function AutomationsTable({
     // `PageLayout` adds no padding, so without this the table renders flush to
     // the edge — no gap, and its select / 3-dot columns sit out of line with
     // the rest of the app. `gap-4` controls the search-bar / table spacing.
-    <div className="flex flex-col gap-4 p-4">
+    <Stack className="p-4">
       <div className="flex items-center justify-between gap-4">
         <SearchInput
           wrapperClassName="w-full max-w-sm"
@@ -393,6 +394,6 @@ export function AutomationsTable({
           />
         }
       />
-    </div>
+    </Stack>
   );
 }

@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { notificationLinkValidator } from './schema';
 
 const notificationDocValidator = v.object({
   _id: v.id('notifications'),
@@ -18,6 +19,7 @@ const notificationDocValidator = v.object({
   titleKey: v.string(),
   bodyKey: v.string(),
   params: v.optional(v.any()),
+  link: v.optional(notificationLinkValidator),
   createdAt: v.number(),
   readBy: v.array(v.string()),
   read: v.boolean(),
@@ -65,6 +67,7 @@ export const list = query({
       titleKey: n.titleKey,
       bodyKey: n.bodyKey,
       params: n.params,
+      link: n.link,
       createdAt: n.createdAt,
       readBy: n.readBy,
       read: n.readBy.includes(userId),

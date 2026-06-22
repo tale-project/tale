@@ -1,6 +1,6 @@
 import { Badge } from '@tale/ui/badge';
 import { Heading } from '@tale/ui/heading';
-import { Center } from '@tale/ui/layout';
+import { Center, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -110,7 +110,11 @@ const PLACEHOLDER_STEPS = [
  */
 function AutomationCanvasSkeleton() {
   return (
-    <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
+    <Row
+      gap={0}
+      align="stretch"
+      className="relative w-full flex-1 justify-stretch overflow-auto"
+    >
       <div className="bg-background relative min-h-0 flex-[1_1_0]">
         <div
           className="absolute inset-0 opacity-20"
@@ -121,7 +125,7 @@ function AutomationCanvasSkeleton() {
           }}
         />
         <Center className="absolute inset-0">
-          <div className="flex flex-col items-center">
+          <Stack gap={0} align="center">
             {PLACEHOLDER_STEPS.map((step, index) => (
               <div key={step.name}>
                 {index > 0 && (
@@ -130,7 +134,7 @@ function AutomationCanvasSkeleton() {
                 {/* Real step-card shape (mirrors AutomationStep):
                     icon, heading, caption, trailing type badge. */}
                 <div className="border-border bg-card w-[18.75rem] rounded-lg border shadow-sm">
-                  <div className="flex gap-3 px-2.5 py-2">
+                  <Row gap={3} align="stretch" className="px-2.5 py-2">
                     <SkeletonBox>
                       <div className="size-5 shrink-0 rounded-sm" />
                     </SkeletonBox>
@@ -148,11 +152,11 @@ function AutomationCanvasSkeleton() {
                     >
                       <SkeletonBox>{step.type}</SkeletonBox>
                     </Badge>
-                  </div>
+                  </Row>
                 </div>
               </div>
             ))}
-          </div>
+          </Stack>
         </Center>
         <div className="absolute right-4 bottom-4">
           <SkeletonBox>
@@ -160,7 +164,10 @@ function AutomationCanvasSkeleton() {
           </SkeletonBox>
         </div>
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-          <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
+          <Row
+            gap={2}
+            className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
+          >
             <SkeletonBox>
               <div className="size-8 rounded-md" />
             </SkeletonBox>
@@ -173,10 +180,10 @@ function AutomationCanvasSkeleton() {
             <SkeletonBox>
               <div className="size-8 rounded-md" />
             </SkeletonBox>
-          </div>
+          </Row>
         </div>
       </div>
-    </div>
+    </Row>
   );
 }
 
@@ -242,20 +249,20 @@ function AutomationDetailLayout() {
             {/* Real tab strip: the static tab labels are known at load and
                 stay real text; only the trailing assistant/history actions
                 (data-dependent) are masked. */}
-            <div className="border-border flex min-h-12 shrink-0 flex-nowrap items-center gap-4 border-b px-4">
+            <Row className="border-border min-h-12 shrink-0 border-b px-4">
               <Text variant="caption">{t('navigation.editor')}</Text>
               <Text variant="caption">{t('executions.title')}</Text>
               <Text variant="caption">{t('configuration.title')}</Text>
               <Text variant="caption">{t('triggers.title')}</Text>
-              <div className="ml-auto flex items-center gap-2">
+              <Row gap={2} className="ml-auto">
                 <SkeletonBox>
                   <div className="size-8 rounded-md" />
                 </SkeletonBox>
                 <SkeletonBox>
                   <div className="h-8 w-20 rounded-md" />
                 </SkeletonBox>
-              </div>
-            </div>
+              </Row>
+            </Row>
           </Skeletonize>
         }
         organizationId={organizationId}
@@ -271,17 +278,17 @@ function AutomationDetailLayout() {
             With `contents`, the row below is the direct flex child of the
             column, exactly like the loaded layout. */}
         <Skeletonize loading className="contents">
-          <div className="relative flex min-h-0 flex-1">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          <Row gap={0} align="stretch" className="relative min-h-0 flex-1">
+            <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
               <AutomationCanvasSkeleton />
-            </div>
+            </Stack>
             {/* Real AI-panel aside (mounts open by default once loaded): same
                 fixed-width bordered column with a masked header. */}
             <aside
               style={{ width: 384 }}
               className="bg-background border-border hidden min-h-0 shrink-0 flex-col border-l md:flex"
             >
-              <div className="border-border flex shrink-0 items-center gap-3 border-b p-3">
+              <Row gap={3} className="border-border shrink-0 border-b p-3">
                 <SkeletonBox>
                   <div className="size-8 rounded-lg" />
                 </SkeletonBox>
@@ -293,9 +300,9 @@ function AutomationDetailLayout() {
                     <div className="size-8 rounded-md" />
                   </SkeletonBox>
                 </div>
-              </div>
+              </Row>
             </aside>
-          </div>
+          </Row>
         </Skeletonize>
       </PageLayout>
     );
@@ -470,8 +477,8 @@ function AutomationDetailInner({
       organizationId={organizationId}
     >
       <ExecutionStatusProvider>
-        <div className="relative flex min-h-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <Row gap={0} align="stretch" className="relative min-h-0 flex-1">
+          <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             {isExactAutomationPage ? (
               <SuspenseBoundary
                 fallback={
@@ -496,7 +503,7 @@ function AutomationDetailInner({
             ) : (
               <Outlet />
             )}
-          </div>
+          </Stack>
 
           {isAIChatOpen && !isUrlSidePanelOpen && (
             <AutomationAIChatPanel
@@ -522,7 +529,7 @@ function AutomationDetailInner({
               onPanelWidthChange={setPanelWidth}
             />
           )}
-        </div>
+        </Row>
       </ExecutionStatusProvider>
     </PageLayout>
   );

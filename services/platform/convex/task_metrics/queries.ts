@@ -35,10 +35,19 @@ async function requireMember(
   return { userId: member.userId, role: member.role };
 }
 
-function windowKeys(days: number): { startKey: string; todayKey: string } {
+function windowKeys(days: number): {
+  startKey: string;
+  /** Start of the immediately-preceding equal-length window (for deltas). */
+  prevStartKey: string;
+  todayKey: string;
+} {
   const clamped = Math.min(Math.max(days, 1), TREND_MAX_DAYS);
   const todayKey = utcDayKey(Date.now());
-  return { startKey: dayKeyDaysBefore(todayKey, clamped), todayKey };
+  return {
+    startKey: dayKeyDaysBefore(todayKey, clamped),
+    prevStartKey: dayKeyDaysBefore(todayKey, clamped * 2),
+    todayKey,
+  };
 }
 
 /**
@@ -200,20 +209,43 @@ export const getAgentScorecard = query({
   returns: v.any(),
   handler: async (ctx, args) => {
     await requireMember(ctx, args.organizationId);
-    const { startKey } = windowKeys(args.days ?? 30);
+    const { startKey, prevStartKey } = windowKeys(args.days ?? 30);
 
-    const daily: Array<Doc<'agentTaskMetricsDaily'>> = [];
+    // Scan from the previous window's start so we can split current vs prior
+    // period in one pass — the prior totals power the scorecard's deltas.
+    const allRows: Array<Doc<'agentTaskMetricsDaily'>> = [];
     for await (const row of ctx.db
       .query('agentTaskMetricsDaily')
       .withIndex('by_org_agent_date', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('agentSlug', args.agentSlug)
-          .gte('dateKey', startKey),
+          .gte('dateKey', prevStartKey),
       )) {
-      daily.push(row);
+      allRows.push(row);
     }
-    daily.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    allRows.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+    const toDay = (row: Doc<'agentTaskMetricsDaily'>) => ({
+      dateKey: row.dateKey,
+      runsStarted: row.runsStarted,
+      runsCompleted: row.runsCompleted,
+      runsFailed: row.runsFailed,
+      runDurationSumMs: row.runDurationSumMs,
+      runDurationCount: row.runDurationCount,
+      inputTokens: row.inputTokens,
+      outputTokens: row.outputTokens,
+      costCents: row.costCents,
+      tasksCompleted: row.tasksCompleted,
+      reviewsPassed: row.reviewsPassed,
+      reviewsChangesRequested: row.reviewsChangesRequested,
+      escalations: row.escalations,
+      staleEod: row.staleEod,
+    });
+    const daily = allRows.filter((r) => r.dateKey >= startKey).map(toDay);
+    const previousDaily = allRows
+      .filter((r) => r.dateKey < startKey)
+      .map(toDay);
 
     const recentRuns = await ctx.db
       .query('taskAgentRuns')
@@ -226,22 +258,8 @@ export const getAgentScorecard = query({
       .take(20);
 
     return {
-      daily: daily.map((row) => ({
-        dateKey: row.dateKey,
-        runsStarted: row.runsStarted,
-        runsCompleted: row.runsCompleted,
-        runsFailed: row.runsFailed,
-        runDurationSumMs: row.runDurationSumMs,
-        runDurationCount: row.runDurationCount,
-        inputTokens: row.inputTokens,
-        outputTokens: row.outputTokens,
-        costCents: row.costCents,
-        tasksCompleted: row.tasksCompleted,
-        reviewsPassed: row.reviewsPassed,
-        reviewsChangesRequested: row.reviewsChangesRequested,
-        escalations: row.escalations,
-        staleEod: row.staleEod,
-      })),
+      daily,
+      previousDaily,
       recentRuns: recentRuns.map((run) => ({
         runId: run._id,
         taskId: run.taskId,
@@ -487,44 +505,49 @@ export const getProjectTaskMetrics = query({
     const access = checkProjectAccess(project, teamIds, role);
     if (!access.canRead) throw new Error('TASK_FORBIDDEN');
 
-    const { startKey } = windowKeys(args.days ?? 30);
-    const daily: Array<Doc<'taskMetricsDaily'>> = [];
+    const { startKey, prevStartKey } = windowKeys(args.days ?? 30);
+    // Scan from the previous window's start; split current vs prior period so
+    // the metrics tab can show period-over-period deltas.
+    const allRows: Array<Doc<'taskMetricsDaily'>> = [];
     for await (const row of ctx.db
       .query('taskMetricsDaily')
       .withIndex('by_org_project_date', (q) =>
         q
           .eq('organizationId', project.organizationId)
           .eq('projectId', args.projectId)
-          .gte('dateKey', startKey),
+          .gte('dateKey', prevStartKey),
       )) {
-      daily.push(row);
+      allRows.push(row);
     }
-    daily.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    allRows.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+    const toDay = (row: Doc<'taskMetricsDaily'>) => ({
+      dateKey: row.dateKey,
+      tasksCreated: row.tasksCreated,
+      tasksCompleted: row.tasksCompleted,
+      tasksCancelled: row.tasksCancelled,
+      cycleTimeSumMs: row.cycleTimeSumMs,
+      cycleTimeCount: row.cycleTimeCount,
+      leadTimeSumMs: row.leadTimeSumMs,
+      leadTimeCount: row.leadTimeCount,
+      statusCountsEod: row.statusCountsEod,
+      wipEod: row.wipEod,
+      overdueEod: row.overdueEod,
+      staleEod: row.staleEod,
+      agentCompleted: row.agentCompleted,
+      humanCompleted: row.humanCompleted,
+      agentRunsStarted: row.agentRunsStarted,
+      agentRunsFailed: row.agentRunsFailed,
+      totalCostCents: row.totalCostCents,
+      reviewsPassed: row.reviewsPassed,
+      reviewsChangesRequested: row.reviewsChangesRequested,
+      escalations: row.escalations,
+      capped: row.capped,
+    });
 
     return {
-      daily: daily.map((row) => ({
-        dateKey: row.dateKey,
-        tasksCreated: row.tasksCreated,
-        tasksCompleted: row.tasksCompleted,
-        tasksCancelled: row.tasksCancelled,
-        cycleTimeSumMs: row.cycleTimeSumMs,
-        cycleTimeCount: row.cycleTimeCount,
-        leadTimeSumMs: row.leadTimeSumMs,
-        leadTimeCount: row.leadTimeCount,
-        statusCountsEod: row.statusCountsEod,
-        wipEod: row.wipEod,
-        overdueEod: row.overdueEod,
-        staleEod: row.staleEod,
-        agentCompleted: row.agentCompleted,
-        humanCompleted: row.humanCompleted,
-        agentRunsStarted: row.agentRunsStarted,
-        agentRunsFailed: row.agentRunsFailed,
-        totalCostCents: row.totalCostCents,
-        reviewsPassed: row.reviewsPassed,
-        reviewsChangesRequested: row.reviewsChangesRequested,
-        escalations: row.escalations,
-        capped: row.capped,
-      })),
+      daily: allRows.filter((r) => r.dateKey >= startKey).map(toDay),
+      previousDaily: allRows.filter((r) => r.dateKey < startKey).map(toDay),
     };
   },
 });

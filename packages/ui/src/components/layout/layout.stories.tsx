@@ -1,14 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import {
-  Center,
-  Grid,
-  HStack,
-  NarrowContainer,
-  Spacer,
-  Stack,
-  VStack,
-} from './layout';
+import { Center, Grid, NarrowContainer, Row, Spacer, Stack } from './layout';
 
 const meta: Meta = {
   title: 'Layout/Primitives',
@@ -18,7 +10,10 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          'Layout primitive components for building consistent layouts.',
+          'Layout primitives for composing pages without raw layout `<div>`s. ' +
+          '`Stack` (vertical) and `Row` (horizontal) share one `gap` scale; ' +
+          '`Grid` is responsive. `HStack`/`VStack` are deprecated aliases of ' +
+          '`Row`/`Stack`.',
       },
     },
   },
@@ -39,7 +34,7 @@ const Box = ({
   </div>
 );
 
-export const StackComponent: StoryObj = {
+export const StackVertical: StoryObj = {
   render: () => (
     <div className="max-w-xs">
       <Stack gap={4}>
@@ -51,25 +46,49 @@ export const StackComponent: StoryObj = {
   ),
 };
 
-export const HStackComponent: StoryObj = {
+/** The recommended spacing rhythm: 2 (field groups), 4 (within a section), 6, 8 (between sections). */
+export const StackGapRhythm: StoryObj = {
   render: () => (
-    <HStack gap={4}>
-      <Box>Item 1</Box>
-      <Box>Item 2</Box>
-      <Box>Item 3</Box>
-    </HStack>
+    <Row gap={6} align="start" wrap>
+      {([2, 4, 6, 8] as const).map((gap) => (
+        <Stack key={gap} gap={1} className="max-w-48">
+          <span className="text-muted-foreground text-xs">gap={gap}</span>
+          <Stack gap={gap}>
+            <Box>A</Box>
+            <Box>B</Box>
+            <Box>C</Box>
+          </Stack>
+        </Stack>
+      ))}
+    </Row>
   ),
 };
 
-export const VStackComponent: StoryObj = {
+export const RowHorizontal: StoryObj = {
   render: () => (
-    <div className="max-w-xs">
-      <VStack gap={4}>
-        <Box>Item 1</Box>
-        <Box>Item 2</Box>
-        <Box>Item 3</Box>
-      </VStack>
-    </div>
+    <Row gap={4}>
+      <Box>Item 1</Box>
+      <Box>Item 2</Box>
+      <Box>Item 3</Box>
+    </Row>
+  ),
+};
+
+export const RowJustify: StoryObj = {
+  render: () => (
+    <Stack gap={3} className="w-full">
+      {(['start', 'center', 'end', 'between'] as const).map((justify) => (
+        <Row
+          key={justify}
+          gap={2}
+          justify={justify}
+          className="bg-muted/30 w-full rounded-md p-2"
+        >
+          <Box>A</Box>
+          <Box>B</Box>
+        </Row>
+      ))}
+    </Stack>
   ),
 };
 
@@ -83,6 +102,22 @@ export const GridResponsive: StoryObj = {
   ),
 };
 
+/** Use `as` to render a semantic element (here a `<ul>`) instead of a raw list tag on the page. */
+export const PolymorphicAs: StoryObj = {
+  render: () => (
+    <Stack as="ul" gap={2} className="max-w-xs">
+      {['First', 'Second', 'Third'].map((label) => (
+        <li
+          key={label}
+          className="bg-primary/10 border-primary/20 rounded-md border p-3 text-sm"
+        >
+          {label}
+        </li>
+      ))}
+    </Stack>
+  ),
+};
+
 export const CenterComponent: StoryObj = {
   render: () => (
     <Center className="bg-muted/30 h-40 rounded-lg">
@@ -93,11 +128,11 @@ export const CenterComponent: StoryObj = {
 
 export const SpacerComponent: StoryObj = {
   render: () => (
-    <HStack gap={4} className="w-full">
+    <Row gap={4} className="w-full">
       <Box>Left</Box>
       <Spacer />
       <Box>Right</Box>
-    </HStack>
+    </Row>
   ),
 };
 

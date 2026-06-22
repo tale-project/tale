@@ -1,6 +1,6 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
+import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
@@ -254,7 +254,7 @@ export function UploadPolicyEditor({
             >
               <Stack gap={6} className="max-w-2xl">
                 <Stack gap={4}>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Grid md={2}>
                     <Input
                       label={t('uploadPolicy.allowedExtensions')}
                       placeholder={t('uploadPolicy.extensionPlaceholder')}
@@ -269,7 +269,7 @@ export function UploadPolicyEditor({
                       errorMessage={errors.blockedExtensions?.message}
                       {...register('blockedExtensions')}
                     />
-                  </div>
+                  </Grid>
 
                   <Input
                     label={t('uploadPolicy.allowedMimeTypes')}
@@ -279,7 +279,7 @@ export function UploadPolicyEditor({
                     {...register('allowedMimeTypes')}
                   />
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Grid md={2}>
                     <Input
                       label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
                       type="number"
@@ -298,7 +298,7 @@ export function UploadPolicyEditor({
                       errorMessage={errors.maxVolumeGB?.message}
                       {...register('maxVolumeGB')}
                     />
-                  </div>
+                  </Grid>
                 </Stack>
 
                 <HStack justify="end">

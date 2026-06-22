@@ -1,5 +1,7 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
+
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { MemoryProposalCard } from './memory-proposal-card';
@@ -28,10 +30,10 @@ export function InlineMemoryProposals({
   if (memories.length === 0) return null;
 
   return (
-    <div className="mt-2 flex flex-col gap-2">
+    <Stack gap={2} className="mt-2">
       {memories.map((m) => (
         <MemoryProposalCard key={m._id} memory={m} />
       ))}
-    </div>
+    </Stack>
   );
 }

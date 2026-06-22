@@ -119,11 +119,11 @@ function TodoListCardComponent({
         </HStack>
       )}
       {(hideHeader || !collapsed) && (
-        <ol className="m-0 flex list-none flex-col gap-0 p-0">
+        <Stack as="ol" gap={0} className="m-0 list-none p-0">
           {todosData.todos.map((todo) => (
             <TodoRow key={todo.id} todo={todo} />
           ))}
-        </ol>
+        </Stack>
       )}
     </div>
   );
@@ -287,7 +287,7 @@ function TodoSourceChips({ sources }: { sources: TodoSource[] }) {
   const visible = expanded ? sources : sources.slice(0, SOURCE_COLLAPSED_LIMIT);
 
   return (
-    <div className="mt-1 flex flex-col gap-1">
+    <Stack gap={1} className="mt-1">
       <div className="flex flex-wrap gap-1.5">
         {visible.map((src, idx) => (
           <TodoSourceChip key={`${src.url}-${idx}`} source={src} />
@@ -313,7 +313,7 @@ function TodoSourceChips({ sources }: { sources: TodoSource[] }) {
           )}
         </button>
       )}
-    </div>
+    </Stack>
   );
 }
 

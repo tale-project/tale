@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -133,7 +134,7 @@ function ModalLayout({
   footer?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
       {/* Inside the fixed-height edit dialog each column owns its scroll; in
           the auto-height create dialog these min-h/overflow rules are inert.
@@ -144,15 +145,21 @@ function ModalLayout({
           the scrollport slightly so focus rings on full-width fields aren't
           clipped at the column edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
-        <div className="flex min-w-0 flex-1 flex-col gap-5 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2">
+        <Stack
+          gap={5}
+          className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
+        >
           {main}
-        </div>
-        <aside className="flex shrink-0 flex-col gap-4 md:-mr-2 md:min-h-0 md:w-[15.5rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6">
+        </Stack>
+        <Stack
+          as="aside"
+          className="shrink-0 md:-mr-2 md:min-h-0 md:w-[15.5rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
+        >
           {panel}
-        </aside>
+        </Stack>
       </div>
       {footer && <div className="shrink-0">{footer}</div>}
-    </div>
+    </Stack>
   );
 }
 
@@ -178,12 +185,12 @@ function PropertyField({
     );
   }
   return (
-    <div className="flex min-h-7 items-center gap-2">
+    <Row gap={2} className="min-h-7">
       <span className="text-muted-foreground w-20 shrink-0 text-xs font-medium">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
-    </div>
+    </Row>
   );
 }
 
@@ -330,7 +337,7 @@ function CreateTaskBody({
         </>
       }
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <Row gap={2} justify="end">
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             {tCommon('actions.cancel')}
           </Button>
@@ -340,7 +347,7 @@ function CreateTaskBody({
           >
             {t('actions.create')}
           </Button>
-        </div>
+        </Row>
       }
     />
   );
@@ -421,7 +428,7 @@ function EditTaskBody({
   return (
     <ModalLayout
       header={
-        <div className="flex flex-col gap-2">
+        <Stack gap={2}>
           {identifier && (
             <Text
               as="span"
@@ -450,7 +457,7 @@ function EditTaskBody({
               {task.title}
             </h2>
           )}
-        </div>
+        </Stack>
       }
       main={
         <>
@@ -492,15 +499,15 @@ function EditTaskBody({
 
           <TaskAgentRuns taskId={task._id} />
 
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
+          <Stack as="section" gap={2}>
+            <Row gap={2}>
               <Text as="h3" variant="label">
                 {t('detail.subtasks')}
               </Text>
               {subtasksTotal > 0 && (
                 <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
               )}
-            </div>
+            </Row>
             {subtasks.length > 0 && (
               <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
                 {subtasks.map((sub) => {
@@ -556,7 +563,7 @@ function EditTaskBody({
               </ul>
             )}
             {canEdit && (
-              <div className="flex items-center gap-2">
+              <Row gap={2}>
                 <Textarea
                   id="new-subtask"
                   rows={1}
@@ -580,9 +587,9 @@ function EditTaskBody({
                 >
                   {t('actions.add')}
                 </Button>
-              </div>
+              </Row>
             )}
-          </section>
+          </Stack>
 
           <TaskComments
             taskId={task._id}
@@ -597,7 +604,7 @@ function EditTaskBody({
             <Text as="h3" variant="label">
               {t('detail.activity')}
             </Text>
-            <ul className="mt-3 flex flex-col gap-3">
+            <Stack as="ul" gap={3} className="mt-3">
               {activity.map((entry) => {
                 const labelKey = TASK_ACTIVITY_LABEL_KEY[entry.action];
                 const label = labelKey ? t(labelKey) : entry.action;
@@ -637,7 +644,7 @@ function EditTaskBody({
                   </li>
                 );
               })}
-            </ul>
+            </Stack>
           </section>
         </>
       }
@@ -854,14 +861,14 @@ function EditableDescription({
         baseline={value}
       />
       {isDirty && (
-        <div className="flex gap-2">
+        <Row gap={2} align="stretch">
           <Button size="sm" onClick={save}>
             {tCommon('actions.save')}
           </Button>
           <Button size="sm" variant="secondary" onClick={discard}>
             {tCommon('actions.discard')}
           </Button>
-        </div>
+        </Row>
       )}
     </>
   );

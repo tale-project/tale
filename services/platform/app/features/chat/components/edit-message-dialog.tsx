@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Loader2 } from 'lucide-react';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
@@ -77,7 +78,7 @@ function EditMessageDialogContent({
       hideClose
       size="lg"
       footer={
-        <div className="flex justify-end gap-2">
+        <Row gap={2} align="stretch" justify="end">
           <Button
             variant="secondary"
             onClick={() => onOpenChange(false)}
@@ -95,7 +96,7 @@ function EditMessageDialogContent({
             )}
             {tChat('editSend')}
           </Button>
-        </div>
+        </Row>
       }
     >
       <textarea

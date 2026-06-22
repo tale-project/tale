@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Globe, Loader } from 'lucide-react';
 
@@ -33,9 +33,13 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       size: 256,
       cell: ({ row }) => (
         <HStack gap={2}>
-          <div className="bg-muted flex size-5 shrink-0 items-center justify-center rounded">
+          <Row
+            gap={0}
+            justify="center"
+            className="bg-muted size-5 shrink-0 rounded"
+          >
             <Globe className="text-muted-foreground size-3" />
-          </div>
+          </Row>
           <Text as="span" variant="label" truncate>
             {row.original.domain}
           </Text>
@@ -98,9 +102,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
             alignRight
           />
         ) : (
-          <div className="flex justify-end">
+          <Row gap={0} align="stretch" justify="end">
             <Loader className="text-muted-foreground size-4 animate-spin" />
-          </div>
+          </Row>
         ),
     },
     {

@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -520,8 +520,8 @@ export function ChatHistorySidebar({
       )}
       {...restProps}
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <section className="flex flex-col">
+      <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
+        <Stack as="section" gap={0}>
           {showSkeleton ? (
             // Mirror the loaded sidebar geometry (Projects header + folder rows,
             // Chats header + chat rows) so the reveal is a mask swap, not a
@@ -532,11 +532,11 @@ export function ChatHistorySidebar({
             // or be ignored by the mask (fullWidth).
             <Skeletonize loading>
               <Stack gap={1} className="pb-2">
-                <div className="flex h-7 items-center px-2">
+                <Row gap={0} className="h-7 px-2">
                   <SkeletonBox>
                     <div className="h-3 w-16" />
                   </SkeletonBox>
-                </div>
+                </Row>
                 {Array.from({ length: 2 }).map((_, i) => (
                   <div
                     key={`project-${i}`}
@@ -559,22 +559,26 @@ export function ChatHistorySidebar({
                     </div>
                   </div>
                 ))}
-                <div className="border-border mt-1.5 flex h-7 items-center border-t px-2 pt-2.5">
+                <Row
+                  gap={0}
+                  className="border-border mt-1.5 h-7 border-t px-2 pt-2.5"
+                >
                   <SkeletonBox>
                     <div className="h-3 w-12" />
                   </SkeletonBox>
-                </div>
+                </Row>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div
+                  <Row
                     key={`chat-${i}`}
-                    className="flex min-h-[1.5rem] items-center px-2 py-1.5"
+                    gap={0}
+                    className="min-h-[1.5rem] px-2 py-1.5"
                   >
                     <div style={{ width: `${82 - (i % 4) * 14}%` }}>
                       <SkeletonBox fullWidth>
                         <div className="h-3.5" />
                       </SkeletonBox>
                     </div>
-                  </div>
+                  </Row>
                 ))}
               </Stack>
             </Skeletonize>
@@ -584,7 +588,12 @@ export function ChatHistorySidebar({
                 label={t('projectsSection')}
                 action={newProjectButton}
               />
-              <div className="flex flex-col items-center justify-center gap-1 px-6 py-10 text-center">
+              <Stack
+                gap={1}
+                align="center"
+                justify="center"
+                className="px-6 py-10 text-center"
+              >
                 <MessageSquareDashedIcon
                   className="text-muted-foreground/60 mb-1 size-8"
                   aria-hidden
@@ -599,7 +608,7 @@ export function ChatHistorySidebar({
                 <Text as="div" variant="caption" className="text-nowrap">
                   {t('history.emptySubtitle')}
                 </Text>
-              </div>
+              </Stack>
             </>
           ) : (
             <ChatRowContext.Provider value={rowContext}>
@@ -655,8 +664,8 @@ export function ChatHistorySidebar({
               </ChatDndProvider>
             </ChatRowContext.Provider>
           )}
-        </section>
-      </div>
+        </Stack>
+      </Stack>
 
       {archivedChats && archivedChats.length > 0 && (
         <section className="border-border mt-2 shrink-0 border-t pt-2">
@@ -699,9 +708,10 @@ export function ChatHistorySidebar({
               className="max-h-64 min-h-0 overflow-y-auto pt-1 pb-2"
             >
               {archivedChats.map((chat) => (
-                <div
+                <Row
                   key={chat._id}
-                  className="group hover:bg-accent hover:text-accent-foreground relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
+                  gap={2}
+                  className="group hover:bg-accent hover:text-accent-foreground relative rounded-md px-2 py-1.5 text-sm transition-colors"
                 >
                   <button
                     type="button"
@@ -727,7 +737,7 @@ export function ChatHistorySidebar({
                       isArchived
                     />
                   </div>
-                </div>
+                </Row>
               ))}
               {canLoadMoreArchived && (
                 <button
@@ -856,7 +866,7 @@ function ProjectFolder({
 
   return (
     <div ref={setNodeRef} className={dropZoneClassName(isOver)}>
-      <div className="group relative flex items-center">
+      <Row gap={0} className="group relative">
         <button
           type="button"
           onClick={() => onSetCollapsed(!collapsed)}
@@ -909,7 +919,7 @@ function ProjectFolder({
             items={menuItems}
           />
         </div>
-      </div>
+      </Row>
       <div
         className={cn(
           'grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',

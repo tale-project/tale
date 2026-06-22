@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -85,7 +86,7 @@ export function ColorPickerInput({
         tabIndex={-1}
         aria-hidden="true"
       />
-      <div className="flex items-center justify-center px-2 py-1.5">
+      <Row gap={0} justify="center" className="px-2 py-1.5">
         <Text as="span" variant="muted" className="leading-5">
           #
         </Text>
@@ -99,12 +100,12 @@ export function ColorPickerInput({
           className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-sm leading-5 font-normal outline-none"
           aria-label={`${label} hex value`}
         />
-      </div>
+      </Row>
     </div>
   );
 
   return (
-    <div className="flex items-stretch justify-between">
+    <Row gap={0} align="stretch" justify="between">
       <label
         htmlFor={id}
         className="text-foreground text-sm leading-5 font-medium"
@@ -112,6 +113,6 @@ export function ColorPickerInput({
         {label}
       </label>
       {loading ? <SkeletonBox>{control}</SkeletonBox> : control}
-    </div>
+    </Row>
   );
 }

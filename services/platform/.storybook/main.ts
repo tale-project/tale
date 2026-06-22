@@ -9,6 +9,7 @@ export default defineStorybookMain({
     '../app/components/ui/**/*.stories.@(ts|tsx)',
     '../app/components/icons/**/*.stories.@(ts|tsx)',
     '../app/components/theme/**/*.stories.@(ts|tsx)',
+    '../app/components/metrics/**/*.stories.@(ts|tsx)',
   ],
   staticDirs: ['../public'],
   async viteFinal(viteConfig) {

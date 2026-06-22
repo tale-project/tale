@@ -1,8 +1,8 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
+import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { useTranslation } from 'react-i18next';
 
@@ -48,16 +48,19 @@ export function FeedbackSummaryCards({
   const sentimentLabel = formatPercent(helpful, total, i18n.language);
 
   return (
-    <div className="border-border grid grid-cols-2 overflow-hidden rounded-lg border md:grid-cols-4">
-      <div className="border-border col-span-2 flex flex-col gap-3 border-b px-5 py-6 md:border-r md:border-b-0">
-        <Text className="text-muted-foreground text-sm">
+    <StatCardGrid className="overflow-hidden">
+      {/* Bespoke sentiment cell: a percentage with an inline denominator and a
+          positive/negative bar — too specialized for the plain StatCard, so it
+          rides along as a `col-span-2` child of the same grid. */}
+      <div className="col-span-2 flex flex-col gap-3 p-5">
+        <Text className="text-fg-muted text-sm">
           {t('feedback.cards.sentiment')}
         </Text>
         <div className="flex items-baseline gap-2">
           <Text
             className={cn(
-              'text-foreground font-mono text-3xl font-semibold',
-              capped && 'text-muted-foreground opacity-60',
+              'text-fg-base font-mono text-3xl font-semibold',
+              capped && 'text-fg-muted opacity-60',
             )}
             aria-label={
               capped
@@ -96,7 +99,7 @@ export function FeedbackSummaryCards({
           </SkeletonBox>
         ) : total > 0 ? (
           <div
-            className="bg-muted relative h-2 w-full overflow-hidden rounded-full"
+            className="bg-bg-muted relative h-2 w-full overflow-hidden rounded-full"
             role="img"
             aria-hidden="true"
           >
@@ -114,48 +117,16 @@ export function FeedbackSummaryCards({
           </div>
         ) : null}
       </div>
-      <Cell
+      <StatCard
         label={t('feedback.cards.helpful')}
         value={formatNumber(helpful, i18n.language)}
-        accent="positive"
+        valueClassName="text-emerald-600 dark:text-emerald-400"
       />
-      <Cell
+      <StatCard
         label={t('feedback.cards.notHelpful')}
         value={formatNumber(notHelpful, i18n.language)}
-        accent="negative"
+        valueClassName="text-rose-600 dark:text-rose-400"
       />
-    </div>
-  );
-}
-
-function Cell({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent: 'positive' | 'negative';
-}) {
-  const loading = useSkeleton();
-  return (
-    <Stack className="border-border border-b px-5 py-6 md:border-r md:border-b-0 last:md:border-r-0">
-      <Text className="text-muted-foreground text-sm">{label}</Text>
-      <Text
-        className={cn(
-          'text-foreground font-mono text-2xl font-semibold',
-          accent === 'positive' && 'text-emerald-600 dark:text-emerald-400',
-          accent === 'negative' && 'text-rose-600 dark:text-rose-400',
-        )}
-      >
-        {loading ? (
-          <SkeletonBox>
-            <span className="my-0.5 inline-block h-7 w-16" />
-          </SkeletonBox>
-        ) : (
-          value
-        )}
-      </Text>
-    </Stack>
+    </StatCardGrid>
   );
 }

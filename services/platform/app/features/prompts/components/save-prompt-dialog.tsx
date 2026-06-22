@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useCallback, useId, useMemo, useState } from 'react';
 
@@ -182,7 +183,7 @@ function SavePromptDialogContent({
       confirmDiscardOnDirty={hasUserEdits}
       submitText={t('form.save')}
     >
-      <div className="flex flex-col gap-1">
+      <Stack gap={1}>
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -217,7 +218,7 @@ function SavePromptDialogContent({
             {t('form.bytesOverLimitAlert')}
           </Text>
         )}
-      </div>
+      </Stack>
 
       <RadioGroup
         label={t('saveAs.saveTo')}
@@ -239,7 +240,7 @@ function SavePromptDialogContent({
         />
       )}
 
-      <div className="flex flex-col gap-2">
+      <Stack gap={2}>
         <label
           id={categoryLabelId}
           className="text-muted-foreground text-sm font-medium"
@@ -257,7 +258,7 @@ function SavePromptDialogContent({
           onSelect={setCategoryId}
           ariaLabelledBy={categoryLabelId}
         />
-      </div>
+      </Stack>
     </FormDialog>
   );
 }

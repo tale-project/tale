@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { RotateCcw } from 'lucide-react';
 import {
@@ -253,11 +253,7 @@ export function PromptHistoryDialog({
             onBack={() => setComparingVersion(null)}
           />
         ) : historyQuery.isLoading ? (
-          <div
-            className="flex flex-col gap-2 py-2"
-            role="status"
-            aria-busy="true"
-          >
+          <Stack gap={2} className="py-2" role="status" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -266,7 +262,7 @@ export function PromptHistoryDialog({
               />
             ))}
             <span className="sr-only">{t('history.loading')}</span>
-          </div>
+          </Stack>
         ) : historyQuery.isError ? (
           <QueryErrorBlock
             message={t('history.loadFailed')}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Download } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -147,7 +148,7 @@ export function AuditLogsPage({
           defaultValue="audit"
           className="flex min-h-0 flex-1 flex-col"
           actions={
-            <div className="flex items-center gap-2">
+            <Row gap={2}>
               <DataTableFilters
                 filters={auditFilterConfigs}
                 onClearAll={handleClearFilters}
@@ -180,7 +181,7 @@ export function AuditLogsPage({
                   </Button>
                 </>
               )}
-            </div>
+            </Row>
           }
           items={[
             {

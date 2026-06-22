@@ -1,7 +1,7 @@
 'use client';
 
 import { buttonVariants } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
@@ -25,7 +25,7 @@ function ApiDocsLink() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <div className="flex justify-center py-4">
+    <Row gap={0} align="stretch" justify="center" className="py-4">
       <a
         href="/docs"
         target="_blank"
@@ -35,7 +35,7 @@ function ApiDocsLink() {
         <BookOpen className="mr-2 size-4" />
         {tSettings('apiDocs.openDocs')}
       </a>
-    </div>
+    </Row>
   );
 }
 

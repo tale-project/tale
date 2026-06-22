@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -218,8 +218,10 @@ export function ProjectSlugListEditor({
             // they're still discoverable in the searchable picker when
             // adding, and we surface them as a `title` tooltip here for
             // power users who want to recall the context on hover.
-            <div
-              className="flex min-w-0 items-baseline gap-2"
+            <Row
+              gap={2}
+              align="baseline"
+              className="min-w-0"
               title={item.description}
             >
               <Text as="span" variant="body" truncate className="min-w-0">
@@ -234,7 +236,7 @@ export function ProjectSlugListEditor({
                   ({t('editor.slugFallback')})
                 </Text>
               ) : null}
-            </div>
+            </Row>
           )}
         />
       ) : null}

@@ -33,6 +33,7 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
+import { Grid, Row, Stack } from '@tale/ui/layout';
 import type { TFunction } from 'i18next';
 import { Plus, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
@@ -162,8 +163,8 @@ interface SectionProps {
 
 function Section({ title, description, children }: SectionProps): ReactNode {
   return (
-    <section className="flex flex-col gap-3">
-      <header className="flex flex-col gap-1">
+    <Stack as="section" gap={3}>
+      <Stack as="header" gap={1}>
         <h3 className="text-sm font-semibold text-[color:var(--color-fg-base)]">
           {title}
         </h3>
@@ -172,9 +173,9 @@ function Section({ title, description, children }: SectionProps): ReactNode {
             {description}
           </p>
         )}
-      </header>
+      </Stack>
       {children}
-    </section>
+    </Stack>
   );
 }
 
@@ -299,7 +300,7 @@ function PatternsSection({
       title={tPiiConfigPanel('patternsTitle')}
       description={tPiiConfigPanel('patternsDescription')}
     >
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <Grid as="ul" sm={2} gap={2}>
         {BUILT_IN_PATTERN_NAMES.map((name) => {
           const Icon = piiTypeIcon(name);
           const id = `pii-pattern-${name}`;
@@ -333,7 +334,7 @@ function PatternsSection({
             </li>
           );
         })}
-      </ul>
+      </Grid>
     </Section>
   );
 }
@@ -418,13 +419,15 @@ function CustomPatternsSection({
       title={tPiiConfigPanel('customPatternsTitle')}
       description={tPiiConfigPanel('customPatternsDescription')}
     >
-      <div className="flex flex-col gap-2">
+      <Stack gap={2}>
         {value.customPatterns.map((p, index) => (
-          <div
+          <Row
             key={`${p.name}-${index}`}
-            className="flex items-center justify-between gap-3 rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] px-3 py-2"
+            gap={3}
+            justify="between"
+            className="rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] px-3 py-2"
           >
-            <div className="flex min-w-0 flex-col">
+            <Stack gap={0} className="min-w-0">
               <span className="truncate text-sm font-medium text-[color:var(--color-fg-base)]">
                 {p.name}
               </span>
@@ -433,7 +436,7 @@ function CustomPatternsSection({
                 <span aria-hidden>→</span>
                 <span className="font-mono">{p.replacement}</span>
               </div>
-            </div>
+            </Stack>
             <Button
               type="button"
               variant="ghost"
@@ -443,11 +446,14 @@ function CustomPatternsSection({
               onClick={() => removePattern(index)}
               title={`${tPiiConfigPanel('removeCustomPattern')} — ${p.name}`}
             />
-          </div>
+          </Row>
         ))}
 
         {draft && (
-          <div className="flex flex-col gap-3 rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] p-3">
+          <Stack
+            gap={3}
+            className="rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] p-3"
+          >
             <Field label={tPiiConfigPanel('customPatternNameLabel')}>
               <Input
                 value={draft.name}
@@ -479,7 +485,7 @@ function CustomPatternsSection({
                 className="font-mono"
               />
             </Field>
-            <div className="flex gap-2">
+            <Row gap={2} align="stretch">
               <Button
                 type="button"
                 size="sm"
@@ -496,8 +502,8 @@ function CustomPatternsSection({
               >
                 {tPiiConfigPanel('cancelCustomPattern')}
               </Button>
-            </div>
-          </div>
+            </Row>
+          </Stack>
         )}
 
         {!draft && (
@@ -513,7 +519,7 @@ function CustomPatternsSection({
             {tPiiConfigPanel('addCustomPattern')}
           </Button>
         )}
-      </div>
+      </Stack>
     </Section>
   );
 }

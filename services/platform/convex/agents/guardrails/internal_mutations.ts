@@ -99,6 +99,7 @@ export const recordBudgetWarnCrossing = internalMutation({
         spentCents: args.spentCents,
         monthlyCents: args.monthlyCents,
       },
+      link: { kind: 'agent', agentSlug: args.agentSlug },
     });
     return null;
   },
@@ -134,6 +135,7 @@ export const recordBudgetPause = internalMutation({
         spentCents: args.spentCents,
         monthlyCents: args.monthlyCents,
       },
+      link: { kind: 'agent', agentSlug: args.agentSlug },
     });
     await createAuditLog(ctx, {
       organizationId: args.organizationId,
@@ -253,6 +255,7 @@ export const tripTaskCircuitBreaker = internalMutation({
         windowRuns: args.windowRuns,
         windowHours: args.windowHours,
       },
+      link: { kind: 'agent', agentSlug: args.agentSlug },
     });
     await createAuditLog(ctx, {
       organizationId: args.organizationId,

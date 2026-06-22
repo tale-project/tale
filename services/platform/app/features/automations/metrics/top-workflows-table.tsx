@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row } from '@tanstack/react-table';
@@ -140,7 +141,7 @@ export function TopWorkflowsTable({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <Stack gap={3}>
       <h2 className="text-base font-semibold">{t('metrics.table.title')}</h2>
       <DataTable
         columns={columns}
@@ -157,6 +158,6 @@ export function TopWorkflowsTable({
           description: t('metrics.empty.description'),
         }}
       />
-    </div>
+    </Stack>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { useQuery } from 'convex/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
@@ -677,12 +678,15 @@ export const ChatMessages = memo(function ChatMessages({
 
       if (message.systemMessageDisplay === 'pill') {
         return (
-          <div key={message.key} className="flex justify-end">
-            <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+          <Row key={message.key} gap={0} align="stretch" justify="end">
+            <Row
+              gap={2}
+              className="bg-primary/10 text-primary rounded-full px-4 py-2 text-sm"
+            >
               <CheckCircle2 className="size-4" aria-hidden="true" />
               <span>{message.systemMessageBody ?? message.content}</span>
-            </div>
-          </div>
+            </Row>
+          </Row>
         );
       }
 
@@ -783,7 +787,7 @@ export const ChatMessages = memo(function ChatMessages({
         )}
       >
         {isEditing && onEditSubmit && onEditCancel ? (
-          <div className="flex justify-end" ref={editInputScrollRef}>
+          <Row gap={0} align="stretch" justify="end" ref={editInputScrollRef}>
             <div className="w-full max-w-[85%]">
               <InlineEditInput
                 messageContent={editingMessageContent ?? message.content}
@@ -791,7 +795,7 @@ export const ChatMessages = memo(function ChatMessages({
                 onCancel={onEditCancel}
               />
             </div>
-          </div>
+          </Row>
         ) : (
           <>
             <MessageBubble
@@ -887,18 +891,14 @@ export const ChatMessages = memo(function ChatMessages({
 
   const forkDivider =
     forkDividerAfterIdx >= 0 ? (
-      <div
-        key="fork-divider"
-        className="flex items-center gap-3 py-2"
-        role="separator"
-      >
+      <Row key="fork-divider" gap={3} className="py-2" role="separator">
         <div className="bg-border h-px flex-1" />
         <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
           <Lock className="size-3" />
           {forkedFromShare ? t('shareBoundary') : t('forkBoundary')}
         </span>
         <div className="bg-border h-px flex-1" />
-      </div>
+      </Row>
     ) : null;
 
   const renderItemWithDivider = (item: ChatItem, idx: number) => {
@@ -927,7 +927,7 @@ export const ChatMessages = memo(function ChatMessages({
   // Shared between the virtualized and non-virtualized paths.
   const loadMoreHeader =
     canLoadMore || isLoadingMore ? (
-      <div className="flex justify-center py-2">
+      <Row gap={0} align="stretch" justify="center" className="py-2">
         <Button
           variant="ghost"
           size="sm"
@@ -944,7 +944,7 @@ export const ChatMessages = memo(function ChatMessages({
             t('loadOlderMessages')
           )}
         </Button>
-      </div>
+      </Row>
     ) : null;
 
   // Post-send gap affordance: shown only until the assistant message appears
@@ -1035,7 +1035,7 @@ export const ChatMessages = memo(function ChatMessages({
         // BARE (it owns internal sub-state live regions; see above). No
         // parent `gap` — the live wrapper carries its own bottom padding
         // only when populated, so an empty wrapper adds no phantom gap.
-        <div className="flex flex-col pb-2">
+        <Stack gap={0} className="pb-2">
           <div
             aria-live="polite"
             className={responseFooterLive ? 'pb-3' : undefined}
@@ -1043,12 +1043,13 @@ export const ChatMessages = memo(function ChatMessages({
             {responseFooterLive}
           </div>
           {responseFooterStatic}
-        </div>
+        </Stack>
       }
     />
   ) : (
-    <div
-      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
+    <Stack
+      gap={0}
+      className="mx-auto w-full max-w-(--chat-max-width)"
       role="log"
       aria-live="polite"
       aria-labelledby={messageHistoryLabelId}
@@ -1056,13 +1057,13 @@ export const ChatMessages = memo(function ChatMessages({
       <h2 id={messageHistoryLabelId} className="sr-only">
         {t('aria.messageHistory')}
       </h2>
-      <div className="flex flex-col gap-3 pt-6">
+      <Stack gap={3} className="pt-6">
         {loadMoreHeader}
 
         {/* Messages before the last user message */}
-        <div className="flex flex-col gap-3">
+        <Stack gap={3}>
           {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
-        </div>
+        </Stack>
 
         {/* Last user message */}
         {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
@@ -1070,9 +1071,10 @@ export const ChatMessages = memo(function ChatMessages({
         {/* Response area: min-height fills viewport so scroll-to-bottom
             positions the user message at the top. When AI response exceeds
             viewport height, min-height becomes irrelevant. */}
-        <div
+        <Stack
           ref={responseAreaRef}
-          className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
+          gap={3}
+          className="shrink-0 [overflow-anchor:none]"
         >
           {afterItems.map((item, i) =>
             renderItemWithDivider(item, lastUserIdx + 1 + i),
@@ -1081,9 +1083,9 @@ export const ChatMessages = memo(function ChatMessages({
               aria-live="polite", so both pieces render inside it as before. */}
           {responseFooterLive}
           {responseFooterStatic}
-        </div>
-      </div>
-    </div>
+        </Stack>
+      </Stack>
+    </Stack>
   );
 
   return (

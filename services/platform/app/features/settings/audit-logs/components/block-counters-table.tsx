@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -114,11 +115,11 @@ export function BlockCountersTable({
       }}
       footer={
         rows.length > 0 ? (
-          <div className="border-border flex h-10 items-center border-t px-4">
+          <Row gap={0} className="border-border h-10 border-t px-4">
             <Text variant="muted" className="text-xs">
               {t('logs.blockCounters.footerCount', { count: rows.length })}
             </Text>
-          </div>
+          </Row>
         ) : undefined
       }
     />

@@ -1,6 +1,7 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
+import { Stack } from '@tale/ui/layout';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
@@ -47,7 +48,7 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
           {/* Cap the title/description column at a readable line length so long
               descriptions don't stretch the full content width (and run up
               against a right-aligned `action`). */}
-          <div className="flex max-w-2xl min-w-0 flex-col gap-1">
+          <Stack gap={1} className="max-w-2xl min-w-0">
             <h2
               id={headingId}
               className="text-foreground text-base leading-tight font-semibold"
@@ -67,7 +68,7 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
                 {description}
               </Description>
             )}
-          </div>
+          </Stack>
           {action && <div className="shrink-0">{action}</div>}
         </div>
         {children}

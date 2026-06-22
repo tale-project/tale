@@ -1,5 +1,6 @@
 'use client';
 
+import { Stack } from '@tale/ui/layout';
 import { useEffect, useRef } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -69,10 +70,11 @@ function AutomationAssistantContent({
   }, [itemCount, isLoading]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div
+    <Stack gap={0} className="relative min-h-0 flex-1">
+      <Stack
         ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-2"
+        gap={0}
+        className="min-h-0 flex-1 overflow-y-auto px-3 py-2"
       >
         {/* The SAME rendering stack as the chat page: ChatMessages →
             MessageBubble (markdown, thought timeline, attachments) +
@@ -103,7 +105,7 @@ function AutomationAssistantContent({
             />
           </ThreadMessageMetadataProvider>
         </BranchProvider>
-      </div>
+      </Stack>
 
       <ChatInput
         className="p-2"
@@ -125,7 +127,7 @@ function AutomationAssistantContent({
         isTranscribing={isTranscribing}
         transcriptionStatuses={transcriptionStatuses}
       />
-    </div>
+    </Stack>
   );
 }
 

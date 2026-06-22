@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { Row, Stack } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
 
 import type { DocumentComparisonResult } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
@@ -17,12 +18,8 @@ export function ComparisonResults({ result }: ComparisonResultsProps) {
   const { stats, changeBlocks, truncated } = result;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label={t('comparison.statsSummary')}
-      >
+    <Stack>
+      <Row gap={2} wrap role="group" aria-label={t('comparison.statsSummary')}>
         {stats.added > 0 && (
           <Badge variant="green" dot>
             {t('comparison.statsAdded', { count: stats.added })}
@@ -43,11 +40,12 @@ export function ComparisonResults({ result }: ComparisonResultsProps) {
             {t('comparison.statsUnchanged', { count: stats.unchanged })}
           </Badge>
         )}
-      </div>
+      </Row>
 
       {stats.highDivergence && (
-        <div
-          className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950/30"
+        <Row
+          gap={2}
+          className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950/30"
           role="alert"
         >
           <AlertTriangle
@@ -57,18 +55,19 @@ export function ComparisonResults({ result }: ComparisonResultsProps) {
           <span className="text-sm text-yellow-800 dark:text-yellow-300">
             {t('comparison.highDivergence')}
           </span>
-        </div>
+        </Row>
       )}
 
       {truncated && (
-        <div
-          className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/30"
+        <Row
+          gap={2}
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/30"
           role="status"
         >
           <span className="text-sm text-blue-800 dark:text-blue-300">
             {t('comparison.resultsTruncated')}
           </span>
-        </div>
+        </Row>
       )}
 
       {changeBlocks.length === 0 && (
@@ -78,18 +77,14 @@ export function ComparisonResults({ result }: ComparisonResultsProps) {
       )}
 
       {changeBlocks.length > 0 && (
-        <div
-          className="flex flex-col gap-3"
-          role="list"
-          aria-label={t('comparison.changesList')}
-        >
+        <Stack gap={3} role="list" aria-label={t('comparison.changesList')}>
           {changeBlocks.map((block, index) => (
             <div key={index} role="listitem">
               <ComparisonChangeBlock block={block} index={index} />
             </div>
           ))}
-        </div>
+        </Stack>
       )}
-    </div>
+    </Stack>
   );
 }

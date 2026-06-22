@@ -64,14 +64,14 @@ export function WebdavSettings(props: WebdavSettingsProps) {
             description={t('connectionDetails.usernameHelp')}
             copyAriaLabel={t('connectionDetails.copyUsername')}
           />
-          <div className="flex flex-col gap-1">
+          <Stack gap={1}>
             <Text as="span" variant="label">
               {t('connectionDetails.passwordLabel')}
             </Text>
             <Text as="span" variant="muted" className="text-sm">
               {t('connectionDetails.passwordHelp')}
             </Text>
-          </div>
+          </Stack>
         </Stack>
       </SettingsSection>
 

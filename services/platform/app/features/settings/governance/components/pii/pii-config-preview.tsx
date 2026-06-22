@@ -13,6 +13,7 @@
  * in via `React.lazy(() => import('./pii-config-preview'))`.
  */
 
+import { Row, Stack } from '@tale/ui/layout';
 import type { TFunction } from 'i18next';
 import { ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -103,7 +104,10 @@ export function PiiConfigPreview({
     config.enabledPatterns.length > 0 || config.customPatterns.length > 0;
 
   return (
-    <div className="flex flex-col gap-6 rounded-lg border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)]/40 p-4">
+    <Stack
+      gap={6}
+      className="rounded-lg border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)]/40 p-4"
+    >
       <Stage
         step={1}
         title={tPiiConfigPanel('inputTitle')}
@@ -168,7 +172,7 @@ export function PiiConfigPreview({
           tPiiConfigPanel={tPiiConfigPanel}
         />
       )}
-    </div>
+    </Stack>
   );
 }
 
@@ -182,13 +186,15 @@ function NoPatternsNotice({
   tPiiConfigPanel: TFunction;
 }): ReactNode {
   return (
-    <div
+    <Row
       role="status"
-      className="flex items-start gap-2 rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 text-xs text-[color:var(--color-fg-muted)]"
+      gap={2}
+      align="start"
+      className="rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-base)] p-3 text-xs text-[color:var(--color-fg-muted)]"
     >
       <ShieldAlert className="mt-0.5 size-4 shrink-0 opacity-60" aria-hidden />
       <span>{tPiiConfigPanel('noPatternsEnabled')}</span>
-    </div>
+    </Row>
   );
 }
 
@@ -205,8 +211,8 @@ interface StageProps {
 
 function Stage({ step, title, hint, children }: StageProps): ReactNode {
   return (
-    <section className="flex flex-col gap-2">
-      <header className="flex items-baseline gap-3">
+    <Stack as="section" gap={2}>
+      <Row as="header" gap={3} align="baseline">
         <span
           aria-hidden
           className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--color-accent-base)] text-xs font-medium text-[color:var(--color-accent-fg)]"
@@ -221,9 +227,11 @@ function Stage({ step, title, hint, children }: StageProps): ReactNode {
             {hint}
           </span>
         )}
-      </header>
-      <div className="ml-9 flex flex-col gap-2">{children}</div>
-    </section>
+      </Row>
+      <Stack gap={2} className="ml-9">
+        {children}
+      </Stack>
+    </Stack>
   );
 }
 
@@ -396,31 +404,35 @@ function BlockNotice({
 }: BlockNoticeProps): ReactNode {
   if (!blocked) {
     return (
-      <div
+      <Row
         role="status"
         aria-live="polite"
-        className="flex items-start gap-2 rounded-md border border-[color:var(--color-success-base)]/40 bg-[color:var(--color-success-base)]/10 p-3 text-sm text-[color:var(--color-success-fg)]"
+        gap={2}
+        align="start"
+        className="rounded-md border border-[color:var(--color-success-base)]/40 bg-[color:var(--color-success-base)]/10 p-3 text-sm text-[color:var(--color-success-fg)]"
       >
         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>{tPiiConfigPanel('blockPassBody')}</span>
-      </div>
+      </Row>
     );
   }
   return (
-    <div
+    <Row
       role="alert"
       aria-live="assertive"
-      className="flex items-start gap-2 rounded-md border border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/10 p-3 text-sm text-[color:var(--color-danger)]"
+      gap={2}
+      align="start"
+      className="rounded-md border border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/10 p-3 text-sm text-[color:var(--color-danger)]"
     >
       <ShieldX className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <div className="flex flex-col gap-1">
+      <Stack gap={1}>
         <span>{tPiiConfigPanel('blockBody')}</span>
         <span className="text-xs opacity-80">
           {categories.join(', ')} · {matchCount}{' '}
           {tPiiConfigPanel('detectionCount')}
         </span>
-      </div>
-    </div>
+      </Stack>
+    </Row>
   );
 }
 
@@ -441,10 +453,10 @@ function DetectionSummary({
   }
   if (byType.size === 0) {
     return (
-      <div className="flex items-center gap-2 text-xs text-[color:var(--color-fg-muted)]">
+      <Row gap={2} className="text-xs text-[color:var(--color-fg-muted)]">
         <ShieldAlert className="size-3.5 shrink-0 opacity-60" aria-hidden />
         <span>{tPiiConfigPanel('noPii')}</span>
-      </div>
+      </Row>
     );
   }
   return (

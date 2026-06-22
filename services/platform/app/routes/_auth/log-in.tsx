@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import {
   createFileRoute,
   useNavigate,
@@ -342,7 +342,7 @@ export function LogInPage() {
                 right) — the standard pattern — so the space directly under the
                 input is free for the error message to read as field feedback. */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-2">
+              <Row gap={2} justify="between">
                 <Label htmlFor="password">{t('password')}</Label>
                 <Button
                   type="button"
@@ -359,7 +359,7 @@ export function LogInPage() {
                 >
                   {t('login.forgotPassword')}
                 </Button>
-              </div>
+              </Row>
               <Input
                 id="password"
                 type="password"
@@ -378,10 +378,11 @@ export function LogInPage() {
               // `space-y-4`) so the message reads as feedback on the inputs —
               // matching the ~6px gap a field-level error uses — rather than
               // floating midway to the button.
-              <div
+              <Stack
                 role="alert"
                 aria-live="polite"
-                className="-mt-2.5 flex flex-col gap-1"
+                gap={1}
+                className="-mt-2.5"
               >
                 <p className="text-destructive flex items-start gap-1.5 text-sm font-medium">
                   <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -392,7 +393,7 @@ export function LogInPage() {
                     {t('login.lockoutAdvisory')}
                   </p>
                 )}
-              </div>
+              </Stack>
             )}
 
             <Button type="submit" fullWidth disabled={isSubmitting || !isValid}>
@@ -404,11 +405,11 @@ export function LogInPage() {
         {/* A single "or" divider separates the credential method above from the
             alternative sign-in methods grouped below — it reads correctly with
             one alternative (passkey) or two (passkey + SSO). */}
-        <div className="flex items-center gap-3" aria-hidden="true">
+        <Row gap={3} aria-hidden="true">
           <span className="bg-border h-px flex-1" />
           <span className="text-muted-foreground text-xs">{tCommon('or')}</span>
           <span className="bg-border h-px flex-1" />
-        </div>
+        </Row>
 
         <Stack gap={3}>
           <Button

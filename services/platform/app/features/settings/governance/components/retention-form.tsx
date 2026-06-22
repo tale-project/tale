@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { Input } from '@/app/components/ui/forms/input';
@@ -113,9 +113,12 @@ function CategoryRow({
     .join(' ');
 
   return (
-    <div className="border-border/50 flex flex-col gap-3 border-b border-dashed pb-4 last:border-b-0 last:pb-0">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+    <Stack
+      gap={3}
+      className="border-border/50 border-b border-dashed pb-4 last:border-b-0 last:pb-0"
+    >
+      <Row align="start" justify="between">
+        <Stack gap={1}>
           <Text className="text-sm font-medium">{titleText}</Text>
           <Text className="text-muted-foreground text-xs">
             {descriptionText}
@@ -134,7 +137,7 @@ function CategoryRow({
               )}
             </Text>
           )}
-        </div>
+        </Stack>
         {enabledKey ? (
           <Switch
             label={t('retentionPolicy.enabled', 'Enabled')}
@@ -148,7 +151,7 @@ function CategoryRow({
             disabled={inputDisabled}
           />
         ) : null}
-      </div>
+      </Row>
       {enabled && (
         <div className="max-w-xs">
           <Input
@@ -171,6 +174,6 @@ function CategoryRow({
           />
         </div>
       )}
-    </div>
+    </Stack>
   );
 }

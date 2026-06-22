@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { memo, useMemo } from 'react';
 
 interface SvgViewerProps {
@@ -32,14 +33,14 @@ function sanitizeSvg(input: string): string {
 function SvgViewerComponent({ svg }: SvgViewerProps) {
   const safe = useMemo(() => sanitizeSvg(svg), [svg]);
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
+    <Row gap={0} justify="center" className="h-full w-full overflow-auto p-4">
       <div
         className="max-h-full max-w-full [&_svg]:h-auto [&_svg]:max-h-full [&_svg]:max-w-full"
         // eslint-disable-next-line react/no-danger -- sanitized above
         // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml -- `safe` is sanitizeSvg() output
         dangerouslySetInnerHTML={{ __html: safe }}
       />
-    </div>
+    </Row>
   );
 }
 

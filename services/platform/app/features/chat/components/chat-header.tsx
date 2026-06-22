@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { Row } from '@tale/ui/layout';
 import {
   SearchCommand,
   type SearchCommandLabels,
@@ -250,7 +251,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">
-        <div className="flex flex-1 justify-start">
+        <Row gap={0} align="stretch" className="flex-1">
           <Button
             size="icon"
             variant="ghost"
@@ -299,7 +300,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
               />
             </>
           )}
-        </div>
+        </Row>
       </AdaptiveHeaderRoot>
 
       <SearchCommand

@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -126,7 +127,7 @@ export function ProviderDefaultModelsPanel({
             ? modelsWithTag.find((m) => m.id === selectedId)
             : undefined;
         return (
-          <div key={tag} className="flex items-end gap-2">
+          <Row key={tag} gap={2} align="end">
             <Select
               wrapperClassName="flex-1"
               label={modelTagLabel(tag, t)}
@@ -147,7 +148,7 @@ export function ProviderDefaultModelsPanel({
             />
             {/* Match the default trigger's height (h-10) so the info icon
                 centers against the select, not its label. */}
-            <div className="flex h-10 items-center">
+            <Row gap={0} className="h-10">
               {selected ? (
                 <ModelInfoPopover
                   tags={selected.tags as string[]}
@@ -156,8 +157,8 @@ export function ProviderDefaultModelsPanel({
                   triggerClassName="mt-0"
                 />
               ) : null}
-            </div>
-          </div>
+            </Row>
+          </Row>
         );
       })}
     </FormDialog>

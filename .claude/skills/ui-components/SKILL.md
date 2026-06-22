@@ -60,6 +60,73 @@ skeleton rules but lives next to its feature.
 - **No hardcoded user-facing strings** — even in stories/tests. Route through the i18n hook (`useT`);
   wording conventions are the [`translation`](../translation/SKILL.md) skill.
 
+## Composing pages — use the set, don't hand-roll
+
+The rules above build primitives; this builds _pages_ from them. **Feature pages and routes
+(`services/platform/app/**`) compose design-system components — they do not emit raw layout HTML.** A
+raw `<div className="flex flex-col gap-4">` on a page is the defect this prevents.
+
+- **Layout primitives** ([`@tale/ui/layout`](../../../packages/ui/src/components/layout/layout.tsx)):
+  vertical → `Stack`, horizontal → `Row`, responsive grid → `Grid`. They share one `gap` scale and take
+  `align`/`justify`/`wrap`, plus an `as` prop for semantic elements (`<Stack as="ul">`,
+  `<Stack as="form">`, `<Row as="nav">`) and `asChild` to merge onto a single child. `HStack`/`VStack`
+  are **deprecated aliases** of `Row`/`Stack`. A cluster of action buttons is the semantic `ActionRow`;
+  a titled section is `PageSection` (or `SettingsSection`). There is **no `Box`** — a neutral wrapper is
+  `<Stack gap={0}>`.
+- **One spacing scale** — `gapScale` in
+  [`layout.tsx`](../../../packages/ui/src/components/layout/layout.tsx). Recommended steps: **`2`** field
+  group (label → control → hint), **`4`** within a section (the default), **`6`** loose grouping, **`8`**
+  between sections (the settings rhythm). Never a raw `gap-[…]` or `space-y-*` for layout.
+- **Button size by context**
+  ([`button.tsx`](../../../packages/ui/src/components/primitives/button.tsx)): **`default`** page/dialog
+  primary & secondary actions · **`sm`** dense/toolbar/table/card-header/inline · **`lg`**
+  marketing/hero CTAs only · icon-only →
+  [`IconButton`](../../../packages/ui/src/components/primitives/icon-button.tsx) (forces `aria-label`);
+  never a bare `<Button size="icon">`.
+- **Escape hatch.** Genuinely bespoke layout — chat/canvas, virtualization, geometry-measured
+  containers, responsive direction flips (`flex-col sm:flex-row`) — may stay raw with a one-line
+  `// raw layout: <reason>` so it reads as deliberate, not an oversight.
+
+## Concept → component catalog
+
+One concept, one component. Find it here before writing layout markup; import via `@tale/ui/<subpath>`
+unless noted.
+
+| Concept                 | Component                           | Concept                     | Component                  |
+| ----------------------- | ----------------------------------- | --------------------------- | -------------------------- |
+| Vertical group          | `Stack`                             | Horizontal group            | `Row`                      |
+| Responsive grid         | `Grid`                              | Action-button cluster       | `ActionRow`                |
+| Center content          | `Center`                            | Flex spacer                 | `Spacer`                   |
+| Page-width wrapper      | `Container` / `NarrowContainer`     | Titled section              | `PageSection`              |
+| Settings page / section | `SettingsPage` / `SettingsSection`¹ | Section header              | `SectionHeader`            |
+| Card                    | `Card`                              | Bordered subsection         | `BorderedSection`          |
+| Heading (h1–h6)         | `Heading`                           | Body / muted / label text   | `Text`                     |
+| Button / link-button    | `Button` / `LinkButton`             | Icon-only button            | `IconButton`               |
+| Text / multiline input  | `Input` / `Textarea`                | Field (label+control+error) | `Field`                    |
+| Select / searchable     | `Select` / `SearchableSelect`²      | Toggle                      | `Switch`²                  |
+| Checkbox                | `Checkbox`                          | Slider                      | `Slider`                   |
+| List / table            | `DataTable` (+ `useListPage`)¹      | Empty state                 | `EmptyState`               |
+| Badge / status dot      | `Badge` / `StatusIndicator`         | Alert / callout             | `Alert`                    |
+| Dialog / sheet          | `ResponsiveDialog`                  | Popover / menu              | `Popover` / `DropdownMenu` |
+| Tooltip                 | `Tooltip`                           | Tabs                        | `Tabs`                     |
+| Stat / stat group       | `StatItem` / `StatGrid`             | Code (inline / block)       | `InlineCode` / `CodeBlock` |
+| Image                   | `Image`                             | Loading                     | `Skeletonize` / `Spinner`  |
+
+¹ App-level (not `@tale/ui`): `SettingsPage`/`SettingsSection`, `DataTable`, `useListPage` live under
+`services/platform/app/components/` — import from `@/app/...`. ² `Select`, `SearchableSelect`, `Switch`
+currently live in `app/components/ui/forms/` and are being centralized into `@tale/ui`; a `RadioGroup`
+is planned. Import from the app path until promoted.
+
+Missing a concept? Extend the closest primitive or add a new one in `packages/ui` (story + a11y +
+skeleton-aware) — never a one-off in a feature folder.
+
+## When to create a new primitive
+
+Reuse → extend (add a `variant`/prop) → compose → only then create. A new shared primitive lives in
+`packages/ui/src/components/<category>/`, ships a `*.stories.tsx` (all variants) and a
+`checkAccessibility()` block, is skeleton-aware if it's a leaf, and gets a `@tale/ui/<name>` subpath
+export.
+
 ## Patterns (show, don't tell)
 
 CVA base + named `variant`, then `cn(...)` so `className` overrides

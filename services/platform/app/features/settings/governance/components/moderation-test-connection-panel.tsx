@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -48,7 +49,7 @@ export function TestConnectionPanel({
       label={t('moderationProvider.testConnection')}
       description={t('moderationProvider.testConnectionDescription')}
     >
-      <div className="flex flex-col gap-3">
+      <Stack gap={3}>
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -71,7 +72,7 @@ export function TestConnectionPanel({
           </Button>
         </div>
         {result && <TestResultView result={result} />}
-      </div>
+      </Stack>
     </FormSection>
   );
 }

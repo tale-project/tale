@@ -1,4 +1,5 @@
 import { Button } from '@tale/ui/button';
+import { Row } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { createFileRoute } from '@tanstack/react-router';
@@ -309,7 +310,7 @@ function ConversationStartersTab() {
           dragHandleLabel={t('agents.conversationStarters.dragHandle')}
           removeLabel={t('agents.conversationStarters.remove')}
           renderItem={({ item, index }) => (
-            <div className="flex items-center gap-2">
+            <Row gap={2}>
               <span className="text-muted-foreground text-sm">
                 {index + 1}.
               </span>
@@ -321,7 +322,7 @@ function ConversationStartersTab() {
                 maxLength={MAX_CONVERSATION_STARTER_LENGTH}
                 wrapperClassName="min-w-0 flex-1"
               />
-            </div>
+            </Row>
           )}
         />
 

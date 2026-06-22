@@ -32,6 +32,7 @@ import type { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { ApprovalCard } from './approval-card';
 import { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
@@ -191,12 +192,7 @@ function IntegrationApprovalCardComponent({
   const IntegrationIcon = metadata.integrationType === 'sql' ? Database : Globe;
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        className,
-      )}
-    >
+    <ApprovalCard className={className}>
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
@@ -438,7 +434,7 @@ function IntegrationApprovalCardComponent({
           </Badge>
         </HStack>
       )}
-    </div>
+    </ApprovalCard>
   );
 }
 

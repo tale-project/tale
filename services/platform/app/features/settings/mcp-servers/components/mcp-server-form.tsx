@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { useCallback, useState } from 'react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -416,7 +416,7 @@ export function McpServerForm({
         </FormSection>
 
         {!hideActions && (
-          <div className="flex justify-end gap-3">
+          <Row gap={3} align="stretch" justify="end">
             {onCancel && (
               <Button
                 type="button"
@@ -430,7 +430,7 @@ export function McpServerForm({
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? t('form.saving') : t('form.save')}
             </Button>
-          </div>
+          </Row>
         )}
       </Stack>
     </form>

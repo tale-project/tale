@@ -105,7 +105,7 @@ export function PartEnvelope({
   );
 
   return (
-    <Card className={cn(isGate && 'bg-muted/30')}>
+    <Card className={cn(isGate && 'bg-bg-muted/30')}>
       <VStack gap={3}>
         <HStack gap={2} className="flex-wrap items-center justify-between">
           {hasBody ? (

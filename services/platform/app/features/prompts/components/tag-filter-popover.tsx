@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import { Tag } from 'lucide-react';
 import { useState } from 'react';
@@ -66,7 +67,7 @@ export function TagFilterPopover({
       <p className="text-muted-foreground px-3 py-1.5 text-[11px] font-medium">
         {t('tagFilter.title')}
       </p>
-      <div className="flex flex-col">
+      <Stack gap={0}>
         {tags.map((tag) => (
           <label
             key={tag}
@@ -88,7 +89,7 @@ export function TagFilterPopover({
             </span>
           </label>
         ))}
-      </div>
+      </Stack>
     </Popover>
   );
 }

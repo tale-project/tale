@@ -1,5 +1,6 @@
 'use client';
 
+import { Row } from '@tale/ui/layout';
 import { X } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -26,7 +27,7 @@ export function ComposerCapabilityPills({
   if (active.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <Row gap={1} wrap>
       {active.map((cap) => {
         const Icon = cap.icon;
         return (
@@ -46,6 +47,6 @@ export function ComposerCapabilityPills({
           </Tooltip>
         );
       })}
-    </div>
+    </Row>
   );
 }

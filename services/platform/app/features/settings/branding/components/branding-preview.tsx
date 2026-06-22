@@ -1,5 +1,6 @@
 'use client';
 
+import { Row, Stack } from '@tale/ui/layout';
 import {
   MessageCircle,
   Inbox,
@@ -37,15 +38,16 @@ function BrowserChrome({
   faviconUrl?: string | null;
 }) {
   return (
-    <div
-      className="border-b-border flex h-9 items-center border-b px-6"
+    <Row
+      gap={0}
+      className="border-b-border h-9 border-b px-6"
       data-testid="browser-chrome"
     >
-      <div className="flex gap-1">
+      <Row gap={1} align="stretch">
         <div className="bg-border size-2 rounded-full" />
         <div className="bg-border size-2 rounded-full" />
         <div className="bg-border size-2 rounded-full" />
-      </div>
+      </Row>
       <div className="flex flex-1 items-center justify-center gap-1.5">
         {faviconUrl ? (
           <Image
@@ -67,7 +69,7 @@ function BrowserChrome({
         )}
       </div>
       <div className="bg-border size-2.5 rounded-sm" />
-    </div>
+    </Row>
   );
 }
 
@@ -80,8 +82,11 @@ export const BrandingPreview = memo(function BrandingPreview({
     data;
 
   return (
-    <div
-      className="bg-muted -mt-[106px] -mr-4 -mb-6 flex min-h-[calc(100vh-80px)] flex-1 items-start justify-center overflow-hidden p-6 pt-[130px]"
+    <Row
+      gap={0}
+      align="start"
+      justify="center"
+      className="bg-muted -mt-[106px] -mr-4 -mb-6 min-h-[calc(100vh-80px)] flex-1 overflow-hidden p-6 pt-[130px]"
       role="img"
       aria-label={t('branding.preview')}
     >
@@ -89,11 +94,15 @@ export const BrandingPreview = memo(function BrandingPreview({
         <BrowserChrome appName={appName} faviconUrl={faviconUrl} />
 
         {/* App layout preview */}
-        <div className="flex h-[400px]">
+        <Row gap={0} align="stretch" className="h-[400px]">
           {/* Sidebar */}
-          <div className="bg-muted/50 border-border flex w-12 shrink-0 flex-col items-center border-r py-3">
+          <Stack
+            gap={0}
+            align="center"
+            className="bg-muted/50 border-border w-12 shrink-0 border-r py-3"
+          >
             {/* Logo */}
-            <div className="flex size-8 items-center justify-center pb-4">
+            <Row gap={0} justify="center" className="size-8 pb-4">
               {logoUrl ? (
                 <Image
                   src={logoUrl}
@@ -117,14 +126,16 @@ export const BrandingPreview = memo(function BrandingPreview({
                   }
                 />
               )}
-            </div>
+            </Row>
 
             {/* Nav icons */}
-            <div className="flex flex-col gap-2 pt-4">
+            <Stack gap={2} className="pt-4">
               {NAV_ICONS.map((Icon, i) => (
-                <div
+                <Row
                   key={i}
-                  className="relative flex size-8 items-center justify-center rounded"
+                  gap={0}
+                  justify="center"
+                  className="relative size-8 rounded"
                 >
                   {i === 0 && accentColor && (
                     <div
@@ -144,24 +155,24 @@ export const BrandingPreview = memo(function BrandingPreview({
                         : undefined
                     }
                   />
-                </div>
+                </Row>
               ))}
-            </div>
+            </Stack>
 
             <div className="mt-auto">
               <User className="text-muted-foreground size-4" />
             </div>
-          </div>
+          </Stack>
 
           {/* Main content */}
-          <div className="flex flex-1 flex-col">
+          <Stack gap={0} className="flex-1">
             {/* Header */}
-            <div className="border-border flex h-10 items-center border-b px-4">
+            <Row gap={0} className="border-border h-10 border-b px-4">
               <div className="bg-muted h-2 w-16 rounded-sm" />
-            </div>
+            </Row>
 
             {/* Tab nav */}
-            <div className="border-border flex h-8 items-center gap-3 border-b px-4">
+            <Row gap={3} className="border-border h-8 border-b px-4">
               <span
                 className="text-foreground mt-auto border-b-2 pb-1.5 text-[10px] font-medium"
                 style={{
@@ -176,14 +187,14 @@ export const BrandingPreview = memo(function BrandingPreview({
               <span className="text-muted-foreground text-[10px]">
                 {tConversations('status.spam')}
               </span>
-            </div>
+            </Row>
 
             {/* Content placeholder */}
-            <div className="flex flex-1 flex-col gap-3 p-4">
+            <Stack gap={3} className="flex-1 p-4">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
+                <Row key={i} gap={3}>
                   <div className="bg-muted size-6 rounded-full" />
-                  <div className="flex flex-1 flex-col gap-1">
+                  <Stack gap={1} className="flex-1">
                     <div
                       className="bg-muted h-2 rounded"
                       style={{ width: `${60 + i * 10}%` }}
@@ -192,14 +203,14 @@ export const BrandingPreview = memo(function BrandingPreview({
                       className="bg-muted/50 h-1.5 rounded"
                       style={{ width: `${40 + i * 5}%` }}
                     />
-                  </div>
+                  </Stack>
                   <div className="bg-muted/50 h-1.5 w-8 rounded" />
-                </div>
+                </Row>
               ))}
-            </div>
-          </div>
-        </div>
+            </Stack>
+          </Stack>
+        </Row>
       </div>
-    </div>
+    </Row>
   );
 });

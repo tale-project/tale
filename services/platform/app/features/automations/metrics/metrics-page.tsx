@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Grid, Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { useMemo } from 'react';
 
@@ -82,7 +82,7 @@ export function WorkflowMetricsPage({
         failed={summary?.failed ?? 0}
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <Grid lg={3}>
         <div className="lg:col-span-2">
           <ExecutionTrendChart series={series} />
         </div>
@@ -93,7 +93,7 @@ export function WorkflowMetricsPage({
             running={summary?.running ?? 0}
           />
         </div>
-      </div>
+      </Grid>
 
       <TopWorkflowsTable
         organizationId={organizationId}

@@ -20,7 +20,7 @@ import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { HStack, VStack } from '@tale/ui/layout';
+import { Grid, HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
@@ -230,11 +230,11 @@ function ReadinessSection({
 function TabContent({ tab }: { tab: AppTabDoc }) {
   if (tab.columns && tab.columns.length > 0) {
     return (
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <Grid lg={2} className="items-start">
         {tab.columns.map((col, i) => (
           <AppView key={i} data={col} />
         ))}
-      </div>
+      </Grid>
     );
   }
   return <AppView data={tab.data} />;

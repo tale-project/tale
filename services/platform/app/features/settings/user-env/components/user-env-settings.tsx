@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -254,7 +255,7 @@ function EnvVarList({
 
   if (loading) {
     return (
-      <ul className="flex flex-col gap-2" aria-hidden="true">
+      <Stack as="ul" gap={2} aria-hidden="true">
         {Array.from({ length: 3 }).map((_, i) => (
           <li
             key={i}
@@ -264,7 +265,7 @@ function EnvVarList({
             <SkeletonText />
           </li>
         ))}
-      </ul>
+      </Stack>
     );
   }
 
@@ -275,7 +276,7 @@ function EnvVarList({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <Stack as="ul" gap={2}>
       {vars.map((envVar) => (
         <EnvVarRow
           key={envVar.key}
@@ -283,7 +284,7 @@ function EnvVarList({
           envVar={envVar}
         />
       ))}
-    </ul>
+    </Stack>
   );
 }
 
@@ -322,7 +323,7 @@ function EnvVarRow({
   return (
     <li className="border-border flex items-start justify-between gap-3 rounded-lg border p-3">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex items-baseline gap-2">
+        <Row gap={2} align="baseline">
           <code className="text-foreground truncate text-sm font-medium">
             {envVar.key}
           </code>
@@ -331,7 +332,7 @@ function EnvVarRow({
               {t('list.secretBadge')}
             </span>
           )}
-        </div>
+        </Row>
         <code className="text-muted-foreground truncate font-mono text-xs">
           {displayValue}
         </code>

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Popover } from '@tale/ui/popover';
 import {
   Check,
@@ -278,7 +279,7 @@ export function CategoryPickerPopover({
           </button>
         }
       >
-        <div role="listbox" className="flex flex-col">
+        <Stack role="listbox" gap={0}>
           {/*
            * No explicit "None" option. A prompt can still end up
            * uncategorized via category deletion or a scope change that
@@ -312,7 +313,7 @@ export function CategoryPickerPopover({
                   )}
                 >
                   {isRenaming ? (
-                    <div className="flex flex-1 items-center gap-1 px-2 py-1">
+                    <Row gap={1} className="flex-1 px-2 py-1">
                       <Input
                         size="sm"
                         value={renameValue}
@@ -344,7 +345,7 @@ export function CategoryPickerPopover({
                       >
                         <X className="size-4" />
                       </button>
-                    </div>
+                    </Row>
                   ) : (
                     <>
                       <button
@@ -386,7 +387,7 @@ export function CategoryPickerPopover({
             <>
               <div className="border-border my-1 border-t" />
               {creating ? (
-                <div className="flex items-center gap-2 px-2 py-1.5">
+                <Row gap={2} className="px-2 py-1.5">
                   <Input
                     ref={createInputRef}
                     size="sm"
@@ -412,7 +413,7 @@ export function CategoryPickerPopover({
                   >
                     {t('categories.create')}
                   </Button>
-                </div>
+                </Row>
               ) : (
                 <button
                   type="button"
@@ -425,7 +426,7 @@ export function CategoryPickerPopover({
               )}
             </>
           )}
-        </div>
+        </Stack>
       </Popover>
 
       <ConfirmDialog

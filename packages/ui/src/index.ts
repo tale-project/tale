@@ -39,6 +39,25 @@ export {
 
 export { Container, type ContainerProps } from './components/layout/container';
 export { Section, type SectionProps } from './components/layout/section';
+export {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardGrid,
+  CardHeader,
+  CardMedia,
+  CardTitle,
+  cardVariants,
+  type CardGridProps,
+  type CardProps,
+} from './components/layout/card';
+export {
+  StatCard,
+  StatCardGrid,
+  type StatCardGridProps,
+  type StatCardProps,
+} from './components/data-display/stat-card-grid';
 
 export {
   Tooltip,

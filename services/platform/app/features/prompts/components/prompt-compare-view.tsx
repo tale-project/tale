@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { diffLines } from 'diff';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
@@ -166,7 +167,7 @@ export function PromptCompareView({
   const hasChanges = hasContentChanges || hasMetadataChanges;
 
   return (
-    <div className="flex flex-col gap-3">
+    <Stack gap={3}>
       <Text variant="muted" className="text-xs">
         {t('history.compareDescription', {
           date: formatDate(new Date(snapshot.publishedAt), 'long'),
@@ -270,7 +271,7 @@ export function PromptCompareView({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between">
+      <Row gap={0} justify="between">
         <Button type="button" variant="ghost" onClick={onBack}>
           <ArrowLeft className="mr-1 size-4" />
           {t('history.backToList')}
@@ -284,7 +285,7 @@ export function PromptCompareView({
           <RotateCcw className="mr-1 size-3" />
           {t('history.restore')}
         </Button>
-      </div>
-    </div>
+      </Row>
+    </Stack>
   );
 }
