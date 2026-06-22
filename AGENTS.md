@@ -164,6 +164,7 @@ knip · strict typecheck. **When you add a rule, add the guard.**
 
 - **Filenames:** dash-case everywhere except Convex, which uses snake_case.
 - **No status comments** (`// REFACTORED`, `// TODO: see #123`) and no comments narrating removed code. Git is the record. Comments explain _why_, rarely _what_.
+- **Comments address the next reader of the code, never the chat or a follow-up.** No verification-status notes, handoff messages, or references to the conversation/plan (e.g. `// ⚠️ UNVERIFIED … require a live stack to validate (see plan)`). That belongs in the PR description, an issue, or your reply — not the source. If something is genuinely unproven, say so in the PR, not in a comment that ships forever.
 - **No empty catch blocks.** Log (`console.warn`/`console.error`) or re-throw. Silent catches hide bugs.
 - **No locale-aware date methods.** `toLocaleDateString`/`toLocaleTimeString`/`toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from [`lib/utils/date/format`](services/platform/lib/utils/date/format.ts).
 - **No `\uXXXX` escapes in JSON.** Write non-ASCII literally as UTF-8 (`ät`, `é`, `—`, `«»`). JSON's required escapes (`\n`, `\t`, `\"`, `\\`) stay.

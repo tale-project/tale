@@ -1,7 +1,6 @@
 'use client';
 
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
@@ -11,6 +10,7 @@ import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -19,8 +19,8 @@ import {
   type PasswordPolicyConfig,
   passwordPolicyConfigSchema,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
@@ -40,11 +40,10 @@ interface PasswordPolicyForm {
 
 const FORM_ID = 'governance-password-policy-form';
 
-function parseConfig(raw: unknown): PasswordPolicyConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = passwordPolicyConfigSchema.safeParse(obj);
-  return result.success ? result.data : DEFAULT_PASSWORD_POLICY;
-}
+const parseConfig = createConfigParser(
+  passwordPolicyConfigSchema,
+  () => DEFAULT_PASSWORD_POLICY,
+);
 
 // =============================================================================
 // Single editor — owns data fetching, the form controller, save/toast wiring,
@@ -177,7 +176,7 @@ export function PasswordPolicyEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('passwordPolicy.title')}
         description={t('passwordPolicy.description')}
       >
@@ -268,12 +267,13 @@ export function PasswordPolicyEditor({
                   formId={FORM_ID}
                   canEdit={canEdit}
                   entityKind="governance_password_policy"
+                  suppressServerErrorToast
                 />
               </HStack>
             </Stack>
           </fieldset>
         </form>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

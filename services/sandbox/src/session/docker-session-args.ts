@@ -308,6 +308,9 @@ export function buildDockerSessionRunArgs(
     // metadata read on boot.
     '--label',
     'tale.sandbox-session=1',
+    // Blue-green colour so `listSessions` (adoption) only sees this colour's
+    // sessions — a fresh green never adopts a draining blue's sessions.
+    ...(cfg.color ? ['--label', `tale.color=${cfg.color}`] : []),
     '--label',
     `tale.session=${inp.sessionId}`,
     '--label',

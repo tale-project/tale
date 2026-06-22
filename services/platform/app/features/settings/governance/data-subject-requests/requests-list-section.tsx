@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -15,6 +14,7 @@ import {
   DataTableFilters,
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
   ERASURE_STATUSES,
@@ -179,7 +179,7 @@ export function RequestsListSection({
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('dataSubjectRequests.title')}
         description={t('dataSubjectRequests.description')}
         action={
@@ -233,7 +233,7 @@ export function RequestsListSection({
           }}
           caption={t('dataSubjectRequests.sections.requestsList.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <FileRequestDialog
         open={fileOpen}

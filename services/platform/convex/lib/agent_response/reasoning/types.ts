@@ -72,6 +72,14 @@ export interface BucketStats {
    * coalesce to a neutral 1.0 = "no quality complaint yet").
    */
   qualityEma?: number;
+  /**
+   * The reasoning tier the controller last settled on for this class. Drives the
+   * effort-tier bandit's anti-oscillation: a class hovering on a tier seam may
+   * not flip back the other way on EMA noise unless the reversing signal clears
+   * its deadband by a margin. Optional (legacy rows / pre-decision buckets omit
+   * it; absence disables the guard, so behaviour matches the unsmoothed bandit).
+   */
+  lastTier?: ReasoningTier;
 }
 
 /**

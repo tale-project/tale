@@ -6,7 +6,10 @@ import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
 import type { Agent } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
 
-import type { ResponseTuningConfig } from '../../../lib/shared/schemas/agents';
+import type {
+  ResponseReasoningSeed,
+  ResponseStyleAdvice,
+} from '../../../lib/shared/response-tuning';
 import type { ActionCtx } from '../../_generated/server';
 import type { AutoRouteReason } from '../../streaming/validators';
 import type { FileAttachment } from '../attachments';
@@ -83,13 +86,18 @@ export interface GenerateResponseConfig {
    */
   reasoningCapability?: ReasoningCapabilityConfig;
   /**
-   * Per-agent response tuning (`agentConfig.responseTuning`). Drives the
-   * governor's fixed-effort / floor / ceiling / budget-cap / temperature-range
-   * / quality-profile inputs and the style/verbosity prompt fragments. Replaces
-   * the old per-message `reasoningOverride` path. Optional — absence = today's
-   * fully-adaptive behaviour.
+   * Prose-level response shaping (style/verbosity) the Auto router advised for
+   * this turn, rendered into the style/verbosity prompt fragment. Set ONLY in
+   * Auto mode; absent for pinned agents (tone comes from their instructions).
    */
-  responseTuning?: ResponseTuningConfig;
+  responseStyle?: ResponseStyleAdvice;
+  /**
+   * Coarse reasoning seed (effort/creativity) the Auto router advised for this
+   * turn. Fed to `buildReasoningOptions` as a PRIOR (blended into the difficulty
+   * score), never a hard override — the online controller still refines from
+   * observed usage. Set ONLY in Auto mode; absent = fully-heuristic prior.
+   */
+  routeSeed?: ResponseReasoningSeed;
   /**
    * Advisory reply-language hint from the Auto router (BCP-47 code or language
    * name). Inserted into the response-language directive's fallback chain just

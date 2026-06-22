@@ -71,10 +71,15 @@ const WASTE_BUDGET_FRACTION = 0.6;
 const WASTE_OUTPUT_FLOOR = 256;
 // The controller may not exceed this multiple of the per-turn prior.
 const BAND_MAX = 1.5;
-// Samples required before the controller adjusts a bucket at all.
-const MIN_SAMPLES_TO_TRUST = 1;
+// Samples required before the controller trusts usage to estimate a budget. Two
+// (not one) so a single noisy reasoning-token reading can't swing the estimate;
+// the org-wide profile warm-start already covers a fresh thread in a known org.
+const MIN_SAMPLES_TO_TRUST = 2;
 // Samples required before an effort-tier bucket may be trimmed below the prior.
 const MIN_N_TO_TRIM = 2;
+// Anti-oscillation: a reversing tier move must clear its deadband by this margin
+// before it may flip the tier the controller last settled on (see adjustTarget).
+const HYSTERESIS_MARGIN = 0.15;
 // Cap on how much a cross-thread profile counts as evidence, so a thread's own
 // observations eventually dominate its inherited (org/model) warm start.
 const PROFILE_SAMPLE_CAP = 20;
@@ -103,13 +108,19 @@ export interface ReasoningOutcome {
    * (e.g. tool-only turns) — the EMA simply isn't updated.
    */
   qualityScore?: number;
+  /**
+   * The reasoning tier the controller settled on for this turn. Persisted to the
+   * bucket's `lastTier` to drive the effort-tier anti-oscillation guard next
+   * turn. Omit when unknown — the prior `lastTier` is then preserved.
+   */
+  chosenTier?: ReasoningTier;
 }
 
 /**
- * Quality-feedback tuning, selected per agent via `responseTuning.qualityProfile`.
- * `balanced` reproduces the original deadband constants exactly (so an agent
- * without a profile behaves identically to before). `strict` reasons more
- * readily and trims less; `lenient` is the opposite.
+ * Quality-feedback tuning preset for the controller deadbands. The governor
+ * always runs `balanced` now (the manual per-agent `qualityProfile` override was
+ * removed); `strict`/`lenient` are retained as the preset vocabulary for the
+ * deadband table and tests. `balanced` is `adjustTarget`'s default.
  */
 export type QualityProfile = 'lenient' | 'balanced' | 'strict';
 
@@ -131,6 +142,12 @@ const QUALITY_DEADBANDS: Record<QualityProfile, QualityDeadbands> = {
 
 // How strongly a quality shortfall lifts the effective under-resourced signal.
 const QUALITY_UNDER_WEIGHT = 0.5;
+// Quality-shortfall fraction at/above which a self-truncating class with NO
+// usage samples (e.g. parked at `off`/`low`, so it never produced thinking
+// tokens) is nudged up one tier — so the model gets to think and reveal its real
+// need instead of being deadlocked by a too-low prior. Conservative: only fires
+// on a clear, sustained quality complaint (qualityEma well below the target).
+const QUALITY_COLD_BUMP = 0.25;
 
 function welfordUpdate(b: BucketStats, x: number): BucketStats {
   const count = b.count + 1;
@@ -199,7 +216,10 @@ export function recordOutcome(
     ? ema(priorQualityEma, clamp01(q))
     : priorQualityEma;
 
-  bucket = { ...bucket, underResourcedEma, wastefulEma, qualityEma };
+  // Remember the tier we settled on (anti-oscillation guard); preserve the
+  // prior when this turn didn't report one (e.g. a non-steerable / tool turn).
+  const lastTier = outcome.chosenTier ?? bucket.lastTier;
+  bucket = { ...bucket, underResourcedEma, wastefulEma, qualityEma, lastTier };
 
   // Cross-class Welford over the difficulty intensity (self-calibration input).
   let { intensityCount, intensityMean, intensityM2 } = base;
@@ -246,6 +266,8 @@ interface CombinedView {
   wastefulEma: number;
   /** Response-quality EMA from the level with evidence (thread preferred). */
   qualityEma: number;
+  /** Last settled tier from the level with evidence (anti-oscillation guard). */
+  lastTier?: ReasoningTier;
 }
 
 /**
@@ -291,6 +313,10 @@ function combineBuckets(
   const qualityEma = threadBucket
     ? (threadBucket.qualityEma ?? 1)
     : (profileBucket?.qualityEma ?? 1);
+  // Prefer the thread's own settled tier; fall back to the inherited profile
+  // when the thread bucket exists but hasn't recorded a tier yet (mirrors the
+  // `?? default` coalescing the sibling EMAs above use).
+  const lastTier = threadBucket?.lastTier ?? profileBucket?.lastTier;
   return {
     mean,
     std,
@@ -298,6 +324,7 @@ function combineBuckets(
     underResourcedEma,
     wastefulEma,
     qualityEma,
+    lastTier,
   };
 }
 
@@ -341,9 +368,23 @@ export function adjustTarget(
   );
 
   if (capability.selfTruncates) {
-    // Need at least one token sample to estimate the budget from usage;
-    // otherwise trust the prior (floored).
+    // Not enough token samples to estimate the budget from usage yet. Trust the
+    // (floored) prior — UNLESS the class has been answering poorly with no way
+    // to learn: a self-truncating model parked at a low tier never produces
+    // thinking-token samples, so without this nudge a genuinely-underpowered
+    // class could stay deadlocked. A clear, sustained quality shortfall bumps it
+    // one tier so the model gets to think and reveal its real need next turn.
     if (view.count < MIN_SAMPLES_TO_TRUST) {
+      if (
+        qualityShortfall >= QUALITY_COLD_BUMP &&
+        TIER_RANK[prior.tier] < TIER_RANK.high
+      ) {
+        const bumped = maxTier(
+          tierFromRank(TIER_RANK[prior.tier] + 1),
+          floorTier,
+        );
+        return { tier: bumped, budgetTokens: TIER_BUDGET_TOKENS[bumped] };
+      }
       return clampToFloor(prior, floorTier, floorBudget);
     }
     // Usage reveals the true need: estimate it plus an uncertainty headroom,
@@ -382,7 +423,28 @@ export function adjustTarget(
     rank -= 1;
   }
   rank = Math.max(TIER_RANK[floorTier], Math.min(rank, TIER_RANK.high));
-  const tier = maxTier(tierFromRank(rank), floorTier);
+  let tier = maxTier(tierFromRank(rank), floorTier);
+
+  // Anti-oscillation: once the class has settled on a tier, don't flip back the
+  // other way on a marginal signal — a class hovering on a seam would otherwise
+  // wobble every turn (the reason someone reached for a manual effort floor).
+  // Hold at the last tier unless the reversing signal clears its deadband by
+  // HYSTERESIS_MARGIN. Never holds below the floor; strong starvation (effUnder
+  // ≥ UNDER_RESOURCED_STRONG) always escalates, so a starved class still jumps.
+  const lastTier = view.lastTier;
+  if (
+    lastTier &&
+    lastTier !== tier &&
+    TIER_RANK[lastTier] >= TIER_RANK[floorTier]
+  ) {
+    const movingUp = TIER_RANK[tier] > TIER_RANK[lastTier];
+    const decisive = movingUp
+      ? effUnder >= UNDER_RESOURCED_STRONG ||
+        effUnder >= db.underHi + HYSTERESIS_MARGIN
+      : effUnder < db.underLo - HYSTERESIS_MARGIN ||
+        view.wastefulEma >= db.wasteHi + HYSTERESIS_MARGIN;
+    if (!decisive) tier = lastTier;
+  }
   return { tier, budgetTokens: TIER_BUDGET_TOKENS[tier] };
 }
 

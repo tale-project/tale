@@ -1,20 +1,17 @@
 'use client';
 
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import type { z } from 'zod';
 
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { voiceOutputConfigSchema } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
-
-type VoiceOutputConfig = z.infer<typeof voiceOutputConfigSchema>;
 
 interface VoiceOutputPolicyEditorProps {
   organizationId: string;
@@ -23,16 +20,13 @@ interface VoiceOutputPolicyEditorProps {
 // Backend default is ON when the policy row is missing (see
 // `isVoiceOutputOrgEnabled` in convex/tts/queries.ts). Mirror that here so
 // the toggle reflects effective state, not just persisted state.
-function parseConfig(raw: unknown): VoiceOutputConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = voiceOutputConfigSchema.safeParse(obj);
-  if (result.success) return result.data;
-  return { enabled: true };
-}
+const parseConfig = createConfigParser(voiceOutputConfigSchema, () => ({
+  enabled: true,
+}));
 
 // =============================================================================
 // Single editor — owns data fetching, save/toast wiring, and the loading
-// state. Renders the REAL `PageSection` + skeleton-aware `Switch` once, always,
+// state. Renders the REAL `SettingsSection` + skeleton-aware `Switch` once, always,
 // wrapped in `<Skeletonize>`. The skeleton-aware `<Switch>` masks itself to its
 // exact track size while loading.
 // =============================================================================
@@ -82,7 +76,7 @@ export function VoiceOutputPolicyEditor({
 
   return (
     <Skeletonize loading={isLoading} label={t('voiceOutput.title')}>
-      <PageSection
+      <SettingsSection
         title={t('voiceOutput.title')}
         description={t('voiceOutput.description')}
         action={

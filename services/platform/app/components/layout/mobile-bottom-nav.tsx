@@ -93,7 +93,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
       },
       {
         key: 'chat',
-        label: tNav('chatWithAI'),
+        label: tNav('chat'),
         icon: MessageCircle,
         to: `/dashboard/${organizationId}/chat`,
         activePrefix: `/dashboard/${organizationId}/chat`,

@@ -17,6 +17,7 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
 import { cn } from '@/lib/utils/cn';
 
 import { useBranchContext } from '../context/branch-context';
@@ -32,6 +33,7 @@ import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
+import { ModelFallbackNotice } from './model-fallback-notice';
 import { ThinkingIndicator } from './thought-timeline';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
@@ -662,6 +664,17 @@ export const ChatMessages = memo(function ChatMessages({
     const message = item.data;
 
     if (message.role === 'system' && message.systemMessageDisplay) {
+      // Model-fallback notices carry a structured body — render a localized line.
+      if (message.systemMessageTag === SYSTEM_MSG_TAG.MODEL_FALLBACK) {
+        return (
+          <div key={message.key} data-message-key={message.key}>
+            <ModelFallbackNotice
+              body={message.systemMessageBody ?? message.content}
+            />
+          </div>
+        );
+      }
+
       if (message.systemMessageDisplay === 'pill') {
         return (
           <div key={message.key} className="flex justify-end">

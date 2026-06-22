@@ -2,7 +2,6 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Lock } from 'lucide-react';
@@ -11,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -177,7 +177,7 @@ export function ActiveHoldsSection({
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
         action={
@@ -217,7 +217,7 @@ export function ActiveHoldsSection({
           }}
           caption={t('legalHold.sections.activeHolds.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <PlaceHoldDialog
         open={placeOpen}

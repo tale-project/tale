@@ -103,7 +103,7 @@ export const BranchNavigator = memo(function BranchNavigator({
         className="size-6"
         onClick={handlePrev}
         disabled={currentIndex <= 0}
-        aria-label={t('branchNavigator.previous')}
+        title={t('branchNavigator.previous')}
       >
         <ChevronLeft className="size-3.5" />
       </Button>
@@ -116,7 +116,7 @@ export const BranchNavigator = memo(function BranchNavigator({
         className="size-6"
         onClick={handleNext}
         disabled={currentIndex >= totalCount - 1}
-        aria-label={t('branchNavigator.next')}
+        title={t('branchNavigator.next')}
       >
         <ChevronRight className="size-3.5" />
       </Button>

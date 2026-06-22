@@ -5,13 +5,15 @@ vi.mock('../_generated/server', () => ({
 }));
 
 vi.mock('./schema', async () => {
-  // `routeTuningValidator` is wrapped in `v.optional(...)` at import time, so it
-  // must be a real validator — a string placeholder throws. `knowledgeFile...`
-  // is used directly as a field value, so a stub string is fine there.
+  // `routeTuningValidator` / `routeSeedValidator` are wrapped in `v.optional(...)`
+  // at import time, so they must be real validators — a string placeholder
+  // throws. `knowledgeFile...` is used directly as a field value, so a stub
+  // string is fine there.
   const { v } = await import('convex/values');
   return {
     knowledgeFileRagStatusValidator: 'mock-validator',
     routeTuningValidator: v.object({}),
+    routeSeedValidator: v.object({}),
   };
 });
 

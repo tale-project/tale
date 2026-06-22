@@ -43,18 +43,21 @@ bun run build:linux
 # Deploy the current CLI version (blue-green, zero-downtime)
 tale deploy
 
-# Also update stateful services
-tale deploy --all
+# Also update the stop-gated tier (db, proxy) — brief downtime
+tale deploy --stop
 
 # Deploy specific services only (in-place update)
-tale deploy --services platform,rag
+tale deploy --services platform
 
 # Dry run to preview changes
 tale deploy --dry-run
 ```
 
-The deployed version always matches the running CLI's version. To move
-to a newer version, run `tale upgrade` first, then `tale deploy`.
+The deployed version always matches the running CLI's version. The CLI keeps
+itself aligned to the instance automatically — every command checks the
+workspace's recorded version and self-updates the binary to match. To move to a
+new version, run `tale update` (updates the CLI + syncs project files), then
+`tale deploy` to roll the containers.
 
 ### Management Commands
 
@@ -92,16 +95,35 @@ tale reset --force --all
 ### `tale deploy`
 
 Deploy the current CLI version with the blue-green strategy. The deployed
-platform version always matches the running CLI; to upgrade, run
-`tale upgrade` first.
+platform version always matches the running CLI. To move to a different version,
+use `tale update` first (updates the CLI + syncs project files), then `tale
+deploy` to roll the containers.
 
 | Option                  | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
-| `-a, --all`             | Also update infrastructure (db, proxy)                        |
+| `--stop`                | Also update the stop-gated tier (db, proxy) — brief downtime  |
 | `-s, --services <list>` | Specific services to update (comma-separated)                 |
 | `--dry-run`             | Preview deployment without making changes                     |
 | `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly) |
 | `--host <hostname>`     | Host alias for proxy (default: `tale.local` or `$HOST`)       |
+
+### `tale update`
+
+Move the CLI and your on-disk project files to a new version. Updates the CLI
+binary first, then syncs the project files to that version's templates. It does
+**not** roll the containers — run `tale deploy` afterwards for that. If the file
+sync fails, the CLI is rolled back to the workspace's previous version so the
+binary and `tale.json` never drift apart. With no `--version`, targets the
+latest release.
+
+The CLI also self-aligns to the instance version on every command, so you rarely
+run `tale update` except to deliberately move versions.
+
+| Option                | Description                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `-v, --version <ver>` | Update to this exact version instead of latest (allows downgrade) |
+| `-f, --force`         | Force re-sync of locally modified project files                   |
+| `--dry-run`           | Preview the version change and file sync without modifying        |
 
 ### `tale status`
 
@@ -131,7 +153,7 @@ the archive is crash-consistent.
 List snapshots, or restore one into the data volumes. Restoring verifies
 the sha256 sidecars first, refuses while any project container is running,
 and asks for confirmation. After a restore, redeploy the version recorded
-in the snapshot (`tale upgrade --version <version> && tale deploy --all`).
+in the snapshot (`tale update --version <version>` then `tale deploy --stop`).
 
 | Option      | Description                                      |
 | ----------- | ------------------------------------------------ |

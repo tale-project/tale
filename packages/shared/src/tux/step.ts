@@ -19,7 +19,7 @@ import {
   getReporterLevel,
   setActiveRegion,
 } from './context';
-import { doneLine, errorLine, infoLine, warnLine } from './lines';
+import { doneLine, errorLine, stepStartLine, warnLine } from './lines';
 
 /**
  * Throw from a `runStep` task to end the step as `[ ! ]` warn (degraded but
@@ -54,7 +54,7 @@ export async function runStep<T>(
 
   // ── Non-interactive: append-only start + result lines, no cursor escapes. ──
   if (!caps.interactive) {
-    infoLine(`${active}...`);
+    stepStartLine(`${active}...`);
     try {
       const result = await task();
       doneLine(`${done} (${elapsed()})`);

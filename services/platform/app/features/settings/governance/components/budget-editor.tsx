@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -23,6 +22,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -321,7 +321,7 @@ const COLUMN_COUNT = 7;
 
 // =============================================================================
 // Single editor — owns data fetching, rules state, dialog state, and
-// save/toast wiring. Renders the REAL `PageSection` once, always, wrapped in
+// save/toast wiring. Renders the REAL `SettingsSection` once, always, wrapped in
 // `<Skeletonize>`; the table renders fixed PLACEHOLDER rows while loading so an
 // empty `<tbody>` never reads as "no rules" during load.
 // =============================================================================
@@ -489,7 +489,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   return (
     <Skeletonize loading={loading} label={t('budgets.title')}>
-      <PageSection
+      <SettingsSection
         title={t('budgets.title')}
         description={t('budgets.description')}
         action={
@@ -609,7 +609,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => onEditRule(index)}
                             disabled={cannotManage}
-                            aria-label={t('budgets.editRuleAriaLabel', {
+                            title={t('budgets.editRuleAriaLabel', {
                               index: index + 1,
                             })}
                           >
@@ -620,7 +620,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => onRemoveRule(index)}
                             disabled={cannotManage}
-                            aria-label={t('budgets.removeRuleAriaLabel', {
+                            title={t('budgets.removeRuleAriaLabel', {
                               index: index + 1,
                             })}
                           >
@@ -668,7 +668,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           variant="destructive"
           onConfirm={onConfirmRemove}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

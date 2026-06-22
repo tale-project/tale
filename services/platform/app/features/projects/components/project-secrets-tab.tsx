@@ -196,7 +196,7 @@ export function ProjectSecretsTab({
                   size="icon"
                   variant="ghost"
                   icon={Trash2}
-                  aria-label={tCommon('actions.delete')}
+                  title={tCommon('actions.delete')}
                   onClick={() => void handleDelete(secret.name)}
                 />
               </div>

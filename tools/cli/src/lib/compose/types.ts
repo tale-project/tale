@@ -65,34 +65,51 @@ export interface ServiceConfig {
 
 export const ROTATABLE_SERVICES = ['platform'] as const;
 /**
- * Lockstep services — always re-deployed on default `tale deploy`, even
- * though they're stateful (no blue/green rotation). Sandbox-side wire
- * protocol versions in lockstep with platform: shipping an old sandbox
- * image against new platform code would fail with HARVEST_FAILED on the
- * first run. Distinct from STATEFUL_SERVICES so the policy is explicit;
- * see deploy.ts default-services logic.
- *
- * Plan: sandbox-wobbly-origami §5 "Rollout".
+ * Sandbox tier — the spawner and its egress proxy. Kept in STATEFUL_SERVICES so
+ * `isStatefulService` / `isValidService` still recognize them as real service
+ * names, but they are NOT rolled through the stateful compose path: a default
+ * `tale deploy` rolls them via their own zero-gap blue-green flip
+ * (`flipSandboxTier`, in lockstep with platform's colour). The wire protocol
+ * versions with platform, so an old sandbox image against new platform code
+ * would fail with HARVEST_FAILED on the first run — hence the lockstep flip.
  */
-export const LOCKSTEP_SERVICES = ['sandbox', 'sandbox-egress'] as const;
+const SANDBOX_TIER_SERVICES = ['sandbox', 'sandbox-egress'] as const;
 export const STATEFUL_SERVICES = [
   'db',
   'proxy',
   'convex',
-  // Lockstep entries are part of STATEFUL_SERVICES for legacy
-  // back-compat (existing isStatefulService callers depend on this).
-  // The deploy.ts default path treats LOCKSTEP_SERVICES specially —
-  // see below.
-  ...LOCKSTEP_SERVICES,
+  // Listed only for service-name recognition (isStatefulService /
+  // isValidService); the default deploy rolls these via flipSandboxTier,
+  // never through the stateful compose path.
+  ...SANDBOX_TIER_SERVICES,
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
   ...STATEFUL_SERVICES,
 ] as const;
 
+/**
+ * Stop-gated tier — data/proxy infrastructure that is NOT rolled on a default
+ * deploy while it's running. A running stop-gated container is left untouched
+ * (with a warning) unless the operator opts into the downtime with
+ * `tale deploy --stop` (or it's already stopped, or it's a first deploy),
+ * because recreating Postgres / the proxy means an availability blip that a
+ * routine app-tier roll shouldn't incur.
+ */
+export const STOP_GATED_SERVICES = ['db', 'proxy'] as const;
+/**
+ * Always-roll-in-place tier — deployed via the stateful compose on EVERY
+ * default deploy. `convex` must never version-skew from platform but can't be
+ * two-color (it owns the single `convex-data` volume), so it's recreated in
+ * place and only when its image actually changed. `sandbox` / `sandbox-egress`
+ * are NOT here: they roll through their own zero-gap blue-green flip
+ * (`flipSandboxTier`, alongside platform's colour), not the stateful path.
+ */
+export const ALWAYS_ROLL_SERVICES = ['convex'] as const;
+
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
-type LockstepService = (typeof LOCKSTEP_SERVICES)[number];
+export type StopGatedService = (typeof STOP_GATED_SERVICES)[number];
 export type ServiceName = RotatableService | StatefulService;
 
 export function isValidService(name: string): name is ServiceName {
@@ -105,8 +122,4 @@ export function isRotatableService(name: string): name is RotatableService {
 
 export function isStatefulService(name: string): name is StatefulService {
   return (STATEFUL_SERVICES as readonly string[]).includes(name);
-}
-
-export function isLockstepService(name: string): name is LockstepService {
-  return (LOCKSTEP_SERVICES as readonly string[]).includes(name);
 }

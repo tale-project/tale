@@ -41,7 +41,7 @@ For a deeper walk on what makes an agent good, see [Create an agent](/platform/a
 
 ## Step 5 — Open chat
 
-Open **Chat** in the sidebar and click **New chat**. Pick the agent from the picker, type a question the agent's domain covers, send. The reply streams back; if it lands the way you wrote the instructions to land, the org is done with onboarding.
+Click **New chat** in the sidebar. Pick the agent from the picker, type a question the agent's domain covers, send. The reply streams back; if it lands the way you wrote the instructions to land, the org is done with onboarding.
 
 Three follow-ups worth doing now while everything is fresh:
 

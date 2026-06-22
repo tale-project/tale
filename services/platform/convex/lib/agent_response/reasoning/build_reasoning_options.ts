@@ -22,19 +22,14 @@ import {
   type ReasoningCapability,
   type ReasoningCapabilityConfig,
 } from './capability';
-import { adjustTarget, type QualityProfile } from './controller';
+import { adjustTarget } from './controller';
 import { decideTemperature } from './generation_params';
 import { scoreDifficulty, type DifficultySignals } from './signals';
 import {
   adaptiveDifficultyThresholds,
   classFromIntensity,
-  maxTier,
-  minTier,
-  TIER_BUDGET_TOKENS,
-  TIER_RANK,
   type DifficultyClass,
   type ReasoningState,
-  type ReasoningTarget,
   type ReasoningTier,
 } from './types';
 
@@ -66,37 +61,6 @@ export interface BuildReasoningOptionsInput {
    * from the org's accumulated learning from turn one.
    */
   profile?: ReasoningState;
-  /**
-   * Composer-sourced FIXED reasoning tier. When set, the adaptive controller
-   * is bypassed and this tier (with its canonical budget) is used directly.
-   * `undefined` keeps the governor in charge.
-   */
-  effortOverride?: ReasoningTier;
-  /**
-   * Composer-sourced FIXED creativity score in [0, 1]. Overrides the
-   * difficulty-scaled creativity fed to `decideTemperature` (which still
-   * drops temperature for reasoning-only models). `undefined` = adaptive.
-   */
-  creativityOverride?: number;
-  /**
-   * Agent-configured FLOOR — the adaptive controller may not settle below this
-   * tier. `undefined` = no floor beyond the per-turn hard floor (Layer A).
-   */
-  effortFloorTier?: ReasoningTier;
-  /**
-   * Agent-configured CEILING — the adaptive controller may not exceed this
-   * tier. Applied after the floor (the schema enforces floor ≤ ceiling).
-   */
-  effortCeilingTier?: ReasoningTier;
-  /**
-   * Agent-configured per-difficulty-class hard cap on the thinking-token
-   * budget (budgetTokens-knob models). `undefined` = no extra cap.
-   */
-  budgetCaps?: Partial<Record<DifficultyClass, number>>;
-  /** Agent-configured temperature band override for `decideTemperature`. */
-  temperatureRange?: { min?: number; max?: number };
-  /** Agent-configured quality-feedback preset for the controller deadbands. */
-  qualityProfile?: QualityProfile;
 }
 
 export interface ReasoningDecision {
@@ -120,20 +84,7 @@ export interface ReasoningDecision {
 export function buildReasoningOptions(
   input: BuildReasoningOptionsInput,
 ): ReasoningDecision {
-  const {
-    modelData,
-    baseProviderOptions,
-    signals,
-    state,
-    profile,
-    effortOverride,
-    creativityOverride,
-    effortFloorTier,
-    effortCeilingTier,
-    budgetCaps,
-    temperatureRange,
-    qualityProfile,
-  } = input;
+  const { modelData, baseProviderOptions, signals, state, profile } = input;
 
   const difficulty = scoreDifficulty(signals);
   const capability = resolveReasoningCapability(modelData);
@@ -151,29 +102,19 @@ export function buildReasoningOptions(
     adaptiveDifficultyThresholds(thresholdSource),
   );
 
-  // Fixed effort profile bypasses the adaptive controller entirely; otherwise
-  // use the controller-adjusted target (when steerable) / raw prior.
-  const rawTarget = effortOverride
-    ? { tier: effortOverride, budgetTokens: TIER_BUDGET_TOKENS[effortOverride] }
-    : capability
-      ? adjustTarget(
-          difficulty.target,
-          difficulty.floorTier,
-          difficultyClass,
-          state,
-          capability,
-          profile,
-          qualityProfile,
-        )
-      : difficulty.target;
-
-  // Apply the agent-configured floor/ceiling band and per-class budget cap. The
-  // controller still adapts WITHIN the band; the floor never undercuts Layer A.
-  const target = applyTuningBounds(rawTarget, {
-    effortFloorTier,
-    effortCeilingTier,
-    budgetCap: budgetCaps?.[difficultyClass],
-  });
+  // The governor is fully in charge: the controller-adjusted target when the
+  // model is steerable, else the Layer-A prior. (Any router effort/creativity
+  // hint already shaped `difficulty` inside `scoreDifficulty` as a prior.)
+  const target = capability
+    ? adjustTarget(
+        difficulty.target,
+        difficulty.floorTier,
+        difficultyClass,
+        state,
+        capability,
+        profile,
+      )
+    : difficulty.target;
 
   const { overlay, applied } = capability
     ? buildOverlay(target.tier, target.budgetTokens, capability, modelData)
@@ -181,10 +122,9 @@ export function buildReasoningOptions(
 
   const reasoningActive = applied && target.tier !== 'off';
   const temperature = decideTemperature(
-    creativityOverride ?? difficulty.creativity,
+    difficulty.creativity,
     capability,
     reasoningActive,
-    temperatureRange,
   );
 
   const providerOptions = asProviderOptions(
@@ -203,40 +143,6 @@ export function buildReasoningOptions(
     temperature,
     applied,
   };
-}
-
-/**
- * Apply the per-agent effort floor/ceiling and per-class budget cap to a target.
- * Ceiling is applied first, then the floor (floor wins on conflict; the schema
- * already enforces floor ≤ ceiling). Tier and budget are kept consistent.
- */
-function applyTuningBounds(
-  target: ReasoningTarget,
-  bounds: {
-    effortFloorTier?: ReasoningTier;
-    effortCeilingTier?: ReasoningTier;
-    budgetCap?: number;
-  },
-): ReasoningTarget {
-  let { tier, budgetTokens } = target;
-
-  if (bounds.effortCeilingTier) {
-    tier = minTier(tier, bounds.effortCeilingTier);
-    if (TIER_RANK[tier] < TIER_RANK[target.tier]) {
-      budgetTokens = Math.min(budgetTokens, TIER_BUDGET_TOKENS[tier]);
-    }
-  }
-  if (bounds.effortFloorTier) {
-    tier = maxTier(tier, bounds.effortFloorTier);
-    budgetTokens = Math.max(
-      budgetTokens,
-      TIER_BUDGET_TOKENS[bounds.effortFloorTier],
-    );
-  }
-  if (bounds.budgetCap != null && bounds.budgetCap > 0) {
-    budgetTokens = Math.min(budgetTokens, bounds.budgetCap);
-  }
-  return { tier, budgetTokens };
 }
 
 function buildOverlay(

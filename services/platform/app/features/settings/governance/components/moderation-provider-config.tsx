@@ -2,7 +2,6 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
@@ -10,6 +9,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -88,7 +88,7 @@ function deriveDraft(policy: ModerationPolicy): ModerationDraft {
 // Container — owns data fetching, local edit state, save/toast wiring, and the
 // loading state. Wraps the plain `ModerationProviderConfigForm` in
 // `<Skeletonize>` so the same tree renders the skeleton (the hand-rolled
-// loading `PageSection` with magic-height `Skeleton` boxes is gone — the
+// loading `SettingsSection` with magic-height `Skeleton` boxes is gone — the
 // skeleton-aware `<Switch>` masks itself to its real track height).
 //
 // All draft fields are seeded LAZILY from the (possibly already-warm) policy so
@@ -462,7 +462,7 @@ export function ModerationProviderConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
-      <PageSection
+      <SettingsSection
         title={t('moderationProvider.title')}
         description={t('moderationProvider.description', {
           secretPlaceholder: '{{secret}}',
@@ -702,7 +702,7 @@ export function ModerationProviderConfigView({
             />
           </>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

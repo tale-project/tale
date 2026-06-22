@@ -33,7 +33,7 @@ The reference is the file format on disk and the order operations follow when ad
 }
 ```
 
-The full set of fields lives in [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). The shipped default is a single `openrouter.json` that covers chat, vision, embeddings, transcription, text-to-speech, and image generation — one key for everything. To call a vendor directly instead of through OpenRouter, add another file (for example an `openai.json` pointed at `https://api.openai.com/v1`); see [Models out of the box](/platform/models) for the full default catalogue.
+The full set of fields lives in [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). The shipped default is a single `openrouter.json` that covers chat, vision, embeddings, transcription, text-to-speech, and image generation — one key for everything — with curated presets across the common providers (Anthropic, OpenAI, Google, xAI, Mistral, Meta, DeepSeek, Qwen, Cohere, Amazon, Perplexity, and more). To call a vendor directly instead of through OpenRouter, add another file (for example an `openai.json` pointed at `https://api.openai.com/v1`); see [Models out of the box](/platform/models) for the full default catalogue.
 
 `transcriptionMode` selects how a `transcription` model's request body is shaped: `json-base64` (OpenRouter's `input_audio` envelope) or, when omitted, `multipart` — the OpenAI/Whisper `multipart/form-data` upload that vLLM, LocalAI, and a direct OpenAI key also expect. Set it to match whichever transcription endpoint you point at.
 

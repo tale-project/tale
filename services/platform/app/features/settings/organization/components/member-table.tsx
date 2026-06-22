@@ -83,8 +83,8 @@ export function MemberTable({
   );
 
   // Column sizes double as the table's min-width floor (DataTable sums them).
-  // They must total ≤ 540px so the table fits the `SettingsPage narrow`
-  // 544px column on the Organization page without horizontal scroll.
+  // Keep the total within the full-width settings page budget (≤ 940px) so the
+  // table never forces horizontal scroll on the Organization page.
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       // Multi-row select — canonical 40px column. Enables bulk-remove via

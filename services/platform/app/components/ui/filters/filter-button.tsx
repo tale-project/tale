@@ -6,10 +6,13 @@ import { ComponentProps } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-interface FilterButtonProps extends ComponentProps<typeof Button> {
+// Intersection (not `interface extends`) because Button's props are a
+// discriminated union (icon size requires aria-label) — an interface can't
+// extend a union, but an intersection distributes over it cleanly.
+type FilterButtonProps = ComponentProps<typeof Button> & {
   hasActiveFilters: boolean;
   isLoading?: boolean;
-}
+};
 
 export function FilterButton({
   hasActiveFilters,

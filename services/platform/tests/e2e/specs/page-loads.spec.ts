@@ -12,9 +12,13 @@ import { t } from '../helpers/i18n';
  * route. Read-only — only navigates and asserts.
  */
 
-/** "New chat" renders in both the desktop bar and mobile header; pin the first. */
-function newChatButton(page: Page): Locator {
-  return page.getByRole('button', { name: t('chat.newChat') }).first();
+/**
+ * The chat surface is settled once its header search control renders (New chat
+ * is no longer a header button — it moved to the side-nav rail). It renders in
+ * both the desktop bar and mobile header; pin the first (visible).
+ */
+function chatSurfaceAnchor(page: Page): Locator {
+  return page.getByRole('button', { name: t('chat.searchChat') }).first();
 }
 
 interface RouteCase {
@@ -30,7 +34,7 @@ function routeCases(): readonly RouteCase[] {
       // Org index `beforeLoad` redirect to the chat surface (no heading there).
       key: 'org-landing',
       path: (id) => `/dashboard/${id}`,
-      anchor: (page) => newChatButton(page),
+      anchor: (page) => chatSurfaceAnchor(page),
     },
     {
       // Viewer fetches GitHub releases first; the <h1> renders in BOTH the

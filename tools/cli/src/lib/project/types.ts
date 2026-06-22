@@ -6,7 +6,7 @@ export interface TaleProject {
   /**
    * Unique project ID used to namespace Docker resources (containers, volumes,
    * networks). Format: `{sanitized-name}-{6-hex}` (e.g. `my-app-a3f1b2`).
-   * Optional for backwards compatibility with pre-ID projects; `tale upgrade`
+   * Optional for backwards compatibility with pre-ID projects; `tale update`
    * auto-assigns one to legacy projects.
    */
   id?: string;

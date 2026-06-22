@@ -37,10 +37,14 @@ test('starts a thread, reopens it by URL, then deletes it', async ({
     page.getByText(t('chat.chatsSection'), { exact: true }).first(),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
-  // Leave the thread, then re-open it by URL — a deterministic "open from
-  // history" that doesn't depend on the auto-generated title.
+  // Leave the thread via the side-nav "New chat" rail link (the header button
+  // was removed; new chat now lives on the rail + a global shortcut). The rail
+  // links are icon-only, so scope to the nav landmark and target the chat href.
+  // Then re-open by URL — a deterministic "open from history" that doesn't
+  // depend on the auto-generated title.
   await page
-    .getByRole('button', { name: t('chat.newChat') })
+    .getByRole('navigation', { name: t('common.aria.mainNavigation') })
+    .locator(`a[href$="/dashboard/${organizationId}/chat"]`)
     .first()
     .click();
   await page.waitForURL(/\/chat(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });

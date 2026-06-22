@@ -6,15 +6,6 @@ import { cn } from '@/lib/utils/cn';
 
 interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
   /**
-   * Constrains the page content to a centered reading column matching
-   * `ContentArea variant="narrow"` (`max-w-[544px] mx-auto`) used by other
-   * form-heavy pages (project overview, agent settings). Use for personal
-   * and org-level settings pages whose forms read better in a single
-   * column. Pages dominated by a data table or side-by-side preview should
-   * leave this `false` (default) and let their own layout dictate width.
-   */
-  narrow?: boolean;
-  /**
    * Makes the page participate in its parent's flex height so a single
    * child can claim the remaining viewport — required when the child uses
    * `DataTable stickyLayout`, an internally-scrolling tab strip, or any
@@ -35,7 +26,6 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
  * the visual rhythm is the same on every page in the settings area.
  */
 export function SettingsPage({
-  narrow,
   fitToContainer,
   children,
   className,
@@ -45,7 +35,6 @@ export function SettingsPage({
     <div
       className={cn(
         'flex w-full flex-col gap-8',
-        narrow && 'mx-auto max-w-[544px] self-center',
         // Bottom breathing room. ContentArea's `py-6` lives on a `flex-1`
         // child of the scroll container, so its padding-bottom is clipped
         // at the scroll boundary; a `pb-6` on this content-sized wrapper

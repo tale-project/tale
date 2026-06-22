@@ -1,461 +1,98 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import { encodeChatError } from '@/lib/shared/chat-errors';
 
 import { sanitizeChatError } from './sanitize-chat-error';
 
-describe('sanitizeChatError', () => {
-  it('returns generic when rawError is undefined', () => {
-    expect(sanitizeChatError(undefined)).toEqual({
-      category: 'generic',
-      i18nKey: 'errorGeneratingDescription',
-    });
+// Exhaustive classification coverage lives in lib/shared/chat-errors.test.ts.
+// These tests cover the client adapter: envelope-authoritative decoding, named
+// variant selection, and raw-detail sanitization.
+
+describe('sanitizeChatError — legacy raw strings', () => {
+  it('falls back to classifying an un-enveloped error', () => {
+    const result = sanitizeChatError('Error 402: payment required');
+    expect(result.code).toBe('credit_exhausted');
+    expect(result.i18nKey).toBe('errorHintCreditExhausted');
+    expect(result.params).toBeUndefined();
   });
 
-  it('returns generic when rawError is empty string', () => {
-    expect(sanitizeChatError('')).toEqual({
-      category: 'generic',
-      i18nKey: 'errorGeneratingDescription',
-    });
-  });
-
-  it('returns generic with rawMessage for unknown error messages', () => {
-    expect(sanitizeChatError('Something unexpected happened')).toEqual({
-      category: 'generic',
-      i18nKey: 'errorGeneratingDescription',
-      rawMessage: 'Something unexpected happened',
-    });
-  });
-
-  it('strips the stack trace from an uncategorized error (no file path leaks)', () => {
-    const raw = `Uncaught Error: Failed after 3 attempts
-    at <anonymous> (../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;
-    const result = sanitizeChatError(raw);
-    expect(result.category).toBe('generic');
+  it('defaults to generic for unrecognized errors', () => {
+    const result = sanitizeChatError('Something unexpected happened');
+    expect(result.code).toBe('generic');
     expect(result.i18nKey).toBe('errorGeneratingDescription');
+    expect(result.rawMessage).toBe('Something unexpected happened');
+  });
+
+  it('strips stack frames / paths from the raw detail', () => {
+    const raw =
+      'Failed after 3 attempts\n    at process (/app/node_modules/ai/x.ts:7:1)';
+    const result = sanitizeChatError(raw);
     expect(result.rawMessage).toBe('Failed after 3 attempts');
     expect(result.rawMessage).not.toContain('node_modules');
   });
 
-  it('suppresses rawMessage when a single-line error carries a path/frame', () => {
+  it('drops the raw detail entirely when only a stack frame is present', () => {
     const result = sanitizeChatError(
-      'boom at /node_modules/ai/dist/index.mjs:5758:14',
+      'at Object.<anonymous> (/app/node_modules/ai/index.js:1:1)',
     );
-    expect(result.category).toBe('generic');
     expect(result.rawMessage).toBeUndefined();
   });
+});
 
-  describe('credit exhausted errors', () => {
-    it('matches OpenRouter credit error', () => {
-      const raw =
-        'Uncaught Error: This request requires more credits. You requested up to 65536 tokens, but can only afford 23255.';
-      expect(sanitizeChatError(raw)).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
+describe('sanitizeChatError — structured envelope (authoritative)', () => {
+  it('trusts the backend code over what the raw text would classify as', () => {
+    // Raw text looks like a 500, but the backend stamped credit_exhausted.
+    const encoded = encodeChatError({
+      code: 'credit_exhausted',
+      provider: 'OpenRouter',
+      raw: 'HTTP 500 from upstream',
     });
-
-    it('matches "can only afford" phrasing', () => {
-      expect(sanitizeChatError('can only afford 500 tokens')).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
-    });
-
-    it('matches credit insufficient error', () => {
-      expect(sanitizeChatError('Credit insufficient for request')).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
-    });
-
-    it('matches "Insufficient credits" phrasing', () => {
-      expect(
-        sanitizeChatError(
-          'Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org.',
-        ),
-      ).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
-    });
-
-    it('matches "never purchased credits" phrasing', () => {
-      expect(sanitizeChatError('This account never purchased credits')).toEqual(
-        {
-          category: 'creditExhausted',
-          i18nKey: 'errorHintCreditExhausted',
-        },
-      );
-    });
-
-    it('matches HTTP 402 error', () => {
-      expect(sanitizeChatError('Error 402: payment required')).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
-    });
-
-    it('matches backend "Provider credit limit reached" message', () => {
-      expect(sanitizeChatError('Provider credit limit reached')).toEqual({
-        category: 'creditExhausted',
-        i18nKey: 'errorHintCreditExhausted',
-      });
-    });
-
-    it('does not false-positive on numbers containing 402', () => {
-      expect(sanitizeChatError('Error code 14025 encountered')).toEqual({
-        category: 'generic',
-        i18nKey: 'errorGeneratingDescription',
-        rawMessage: 'Error code 14025 encountered',
-      });
-    });
+    const result = sanitizeChatError(encoded);
+    expect(result.code).toBe('credit_exhausted');
+    expect(result.rawMessage).toBe('HTTP 500 from upstream');
   });
 
-  describe('auth errors', () => {
-    it('matches HTTP 401 error', () => {
-      expect(sanitizeChatError('Error 401: unauthorized')).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
+  it('selects the named variant and passes params when a provider is known', () => {
+    const encoded = encodeChatError({
+      code: 'credit_exhausted',
+      provider: 'OpenRouter',
+      raw: 'requires more credits',
     });
-
-    it('matches HTTP 403 error', () => {
-      expect(sanitizeChatError('Error 403: forbidden')).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('matches invalid key error', () => {
-      expect(sanitizeChatError('Invalid key provided for this model')).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('matches expired key error', () => {
-      expect(sanitizeChatError('Your expired key cannot be used')).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('matches authentication failed error', () => {
-      expect(
-        sanitizeChatError('Authentication failed for this request'),
-      ).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('matches "Missing Authentication header" error', () => {
-      const raw = `Uncaught Error: Missing Authentication header
-    at <anonymous> (../../../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;
-      expect(sanitizeChatError(raw)).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('matches "User not found" error from invalid API key', () => {
-      const raw = `Uncaught Error: User not found.
-    at <anonymous> (../../../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;
-      expect(sanitizeChatError(raw)).toEqual({
-        category: 'authError',
-        i18nKey: 'errorHintAuthError',
-      });
-    });
-
-    it('does not false-positive on numbers containing 401', () => {
-      expect(sanitizeChatError('Error code 14013 encountered')).toEqual({
-        category: 'generic',
-        i18nKey: 'errorGeneratingDescription',
-        rawMessage: 'Error code 14013 encountered',
-      });
-    });
+    const result = sanitizeChatError(encoded);
+    expect(result.i18nKey).toBe('errorHintCreditExhaustedNamed');
+    expect(result.params).toEqual({ provider: 'OpenRouter', model: undefined });
   });
 
-  describe('model not found errors', () => {
-    it('matches model not found error', () => {
-      expect(
-        sanitizeChatError('The model was not found on this provider'),
-      ).toEqual({
-        category: 'modelNotFound',
-        i18nKey: 'errorHintModelNotFound',
-      });
+  it('uses the base variant when no provider/model is available', () => {
+    const encoded = encodeChatError({
+      code: 'credit_exhausted',
+      raw: 'requires more credits',
     });
-
-    it('matches model not available error', () => {
-      expect(sanitizeChatError('Model gpt-5 is not available')).toEqual({
-        category: 'modelNotFound',
-        i18nKey: 'errorHintModelNotFound',
-      });
-    });
-
-    it('matches invalid model error', () => {
-      expect(sanitizeChatError('Invalid model specified')).toEqual({
-        category: 'modelNotFound',
-        i18nKey: 'errorHintModelNotFound',
-      });
-    });
-
-    it('matches HTTP 404 error', () => {
-      expect(sanitizeChatError('Error 404: not found')).toEqual({
-        category: 'modelNotFound',
-        i18nKey: 'errorHintModelNotFound',
-      });
-    });
-
-    it('does not false-positive on numbers containing 404', () => {
-      expect(sanitizeChatError('Error code 14043 encountered')).toEqual({
-        category: 'generic',
-        i18nKey: 'errorGeneratingDescription',
-        rawMessage: 'Error code 14043 encountered',
-      });
-    });
-  });
-
-  describe('token limit errors', () => {
-    it('matches fewer max_tokens error', () => {
-      const raw =
-        'This request requires fewer max_tokens. You requested up to 65536 tokens.';
-      expect(sanitizeChatError(raw)).toEqual({
-        category: 'tokenLimit',
-        i18nKey: 'errorHintTokenLimit',
-      });
-    });
-
-    it('matches token limit error', () => {
-      expect(sanitizeChatError('Exceeded token limit for this model')).toEqual({
-        category: 'tokenLimit',
-        i18nKey: 'errorHintTokenLimit',
-      });
-    });
-
-    it('matches max_tokens reference', () => {
-      expect(sanitizeChatError('max_tokens exceeded')).toEqual({
-        category: 'tokenLimit',
-        i18nKey: 'errorHintTokenLimit',
-      });
-    });
-  });
-
-  describe('output cap too high errors', () => {
-    it('classifies "max_tokens is too large ... supports at most N completion tokens" as outputCapTooHigh', () => {
-      // The CONFIGURED cap exceeds the model's real ceiling — the operator
-      // should lower maxOutputTokens, not the end-user shorten their request.
-      // Must NOT be mislabeled tokenLimit ("output token limit exceeded").
-      expect(
-        sanitizeChatError(
-          'max_tokens is too large: 200000. This model supports at most 128000 completion tokens.',
-        ),
-      ).toEqual({
-        category: 'outputCapTooHigh',
-        i18nKey: 'errorHintOutputCapTooHigh',
-      });
-    });
-
-    it('does not shadow the unsupported-parameter classifier', () => {
-      expect(
-        sanitizeChatError(
-          "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
-        ).category,
-      ).toBe('unsupportedParameter');
-    });
-  });
-
-  describe('unsupported parameter errors', () => {
-    it('classifies an Azure reasoning-model max_tokens rejection as unsupportedParameter, not tokenLimit', () => {
-      // GPT-5 / o-series reasoning deployments reject `max_tokens` and require
-      // `max_completion_tokens`. The verbatim 400 body contains "max_tokens",
-      // which must NOT be mislabeled as an output-token-limit problem.
-      const raw =
-        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.";
-      expect(sanitizeChatError(raw)).toEqual({
-        category: 'unsupportedParameter',
-        i18nKey: 'errorHintUnsupportedParameter',
-      });
-    });
-
-    it('matches "is not supported with this model" phrasing', () => {
-      expect(
-        sanitizeChatError(
-          "Unsupported value: 'temperature' is not supported with this model.",
-        ),
-      ).toEqual({
-        category: 'unsupportedParameter',
-        i18nKey: 'errorHintUnsupportedParameter',
-      });
-    });
-
-    it('matches an unrecognized request argument error', () => {
-      expect(
-        sanitizeChatError('Unrecognized request argument supplied: foo'),
-      ).toEqual({
-        category: 'unsupportedParameter',
-        i18nKey: 'errorHintUnsupportedParameter',
-      });
-    });
-  });
-
-  describe('context length errors', () => {
-    it('matches context length exceeded', () => {
-      expect(sanitizeChatError('context_length exceeded')).toEqual({
-        category: 'contextLength',
-        i18nKey: 'errorHintContextLength',
-      });
-    });
-
-    it('matches context window error', () => {
-      expect(sanitizeChatError('Exceeded context window limit')).toEqual({
-        category: 'contextLength',
-        i18nKey: 'errorHintContextLength',
-      });
-    });
-
-    it('matches maximum context length', () => {
-      expect(
-        sanitizeChatError('maximum context length is 128000 tokens'),
-      ).toEqual({
-        category: 'contextLength',
-        i18nKey: 'errorHintContextLength',
-      });
-    });
-  });
-
-  describe('rate limit errors', () => {
-    it('matches rate limit error', () => {
-      expect(sanitizeChatError('Rate limit exceeded')).toEqual({
-        category: 'rateLimited',
-        i18nKey: 'errorHintRateLimited',
-      });
-    });
-
-    it('matches "too many requests"', () => {
-      expect(sanitizeChatError('Too many requests, please slow down')).toEqual({
-        category: 'rateLimited',
-        i18nKey: 'errorHintRateLimited',
-      });
-    });
-
-    it('matches HTTP 429 reference', () => {
-      expect(sanitizeChatError('Error 429: rate limited')).toEqual({
-        category: 'rateLimited',
-        i18nKey: 'errorHintRateLimited',
-      });
-    });
-  });
-
-  describe('content filter errors', () => {
-    it('matches content filter error', () => {
-      expect(sanitizeChatError('Content filter triggered')).toEqual({
-        category: 'contentFilter',
-        i18nKey: 'errorHintContentFilter',
-      });
-    });
-
-    it('matches content policy error', () => {
-      expect(sanitizeChatError('Violated content policy')).toEqual({
-        category: 'contentFilter',
-        i18nKey: 'errorHintContentFilter',
-      });
-    });
-
-    it('matches moderation error', () => {
-      expect(sanitizeChatError('Request flagged by moderation system')).toEqual(
-        {
-          category: 'contentFilter',
-          i18nKey: 'errorHintContentFilter',
-        },
-      );
-    });
-  });
-
-  describe('tool failure errors', () => {
-    it('matches tool error', () => {
-      expect(sanitizeChatError('Tool error: customer_read failed')).toEqual({
-        category: 'toolFailure',
-        i18nKey: 'errorHintToolFailure',
-      });
-    });
-
-    it('matches tool failure', () => {
-      expect(sanitizeChatError('Tool execution failed')).toEqual({
-        category: 'toolFailure',
-        i18nKey: 'errorHintToolFailure',
-      });
-    });
-
-    it('matches unable to complete', () => {
-      expect(
-        sanitizeChatError('Unable to complete the requested operation'),
-      ).toEqual({
-        category: 'toolFailure',
-        i18nKey: 'errorHintToolFailure',
-      });
-    });
-  });
-
-  describe('provider errors', () => {
-    it('matches 500 server error', () => {
-      expect(sanitizeChatError('Error 500: internal server error')).toEqual({
-        category: 'providerError',
-        i18nKey: 'errorHintProviderError',
-      });
-    });
-
-    it('matches 502 bad gateway', () => {
-      expect(sanitizeChatError('Error 502: bad gateway')).toEqual({
-        category: 'providerError',
-        i18nKey: 'errorHintProviderError',
-      });
-    });
-
-    it('matches 503 service unavailable', () => {
-      expect(sanitizeChatError('Error 503: service unavailable')).toEqual({
-        category: 'providerError',
-        i18nKey: 'errorHintProviderError',
-      });
-    });
-
-    it('matches overloaded error', () => {
-      expect(sanitizeChatError('The model is currently overloaded')).toEqual({
-        category: 'providerError',
-        i18nKey: 'errorHintProviderError',
-      });
-    });
-
-    it('matches capacity error', () => {
-      expect(sanitizeChatError('No capacity available for this model')).toEqual(
-        {
-          category: 'providerError',
-          i18nKey: 'errorHintProviderError',
-        },
-      );
-    });
-
-    it('does not false-positive on numbers containing 500', () => {
-      expect(sanitizeChatError('Processed 15003 items')).toEqual({
-        category: 'generic',
-        i18nKey: 'errorGeneratingDescription',
-        rawMessage: 'Processed 15003 items',
-      });
-    });
-  });
-
-  it('does not include rawMessage for categorized errors', () => {
-    const rawWithStack = `Uncaught Error: This request requires more credits.
-    at <anonymous> (../../node_modules/ai/dist/index.mjs:5758:14)
-    at runUpdateMessageJob (../../node_modules/ai/dist/index.mjs:8306:10)`;
-    const result = sanitizeChatError(rawWithStack);
+    const result = sanitizeChatError(encoded);
     expect(result.i18nKey).toBe('errorHintCreditExhausted');
-    expect(result.rawMessage).toBeUndefined();
+    expect(result.params).toBeUndefined();
   });
 
-  it('prioritizes credit exhausted over token limit for combined errors', () => {
-    const raw =
-      'This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens, but can only afford 23255.';
-    const result = sanitizeChatError(raw);
-    expect(result.category).toBe('creditExhausted');
+  it('passes the model name for model_not_found', () => {
+    const encoded = encodeChatError({
+      code: 'model_not_found',
+      provider: 'OpenRouter',
+      model: 'anthropic/claude-opus-4.8',
+      raw: 'model not found',
+    });
+    const result = sanitizeChatError(encoded);
+    expect(result.i18nKey).toBe('errorHintModelNotFoundNamed');
+    expect(result.params?.model).toBe('anthropic/claude-opus-4.8');
+  });
+
+  it('surfaces triedCount only when more than one model was attempted', () => {
+    const many = sanitizeChatError(
+      encodeChatError({ code: 'provider_error', triedCount: 3, raw: 'x' }),
+    );
+    expect(many.triedCount).toBe(3);
+    const one = sanitizeChatError(
+      encodeChatError({ code: 'provider_error', triedCount: 1, raw: 'x' }),
+    );
+    expect(one.triedCount).toBeUndefined();
   });
 });

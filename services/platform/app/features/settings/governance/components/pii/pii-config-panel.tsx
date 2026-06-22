@@ -441,7 +441,7 @@ function CustomPatternsSection({
               icon={Trash2}
               disabled={disabled}
               onClick={() => removePattern(index)}
-              aria-label={`${tPiiConfigPanel('removeCustomPattern')} — ${p.name}`}
+              title={`${tPiiConfigPanel('removeCustomPattern')} — ${p.name}`}
             />
           </div>
         ))}

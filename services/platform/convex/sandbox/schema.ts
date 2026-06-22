@@ -174,6 +174,15 @@ export const sandboxExecutionsTable = defineTable({
 
   errorCode: v.optional(sandboxErrorCodeValidator),
   errorMessage: v.optional(v.string()),
+
+  /**
+   * Blue-green colour of the spawner this execution is running on, self-reported
+   * by the spawner via the `X-Sandbox-Color` response header at execute start.
+   * `undefined` in single-colour mode. The user-Stop / cancel path reads it so
+   * `spawnerCancel` reaches the SAME colour even after a deploy flip moved the
+   * bare `sandbox` alias to the new colour.
+   */
+  spawnerColor: v.optional(v.string()),
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId', ['organizationId'])

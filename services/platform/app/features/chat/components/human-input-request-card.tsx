@@ -457,7 +457,7 @@ function HumanInputRequestCardComponent({
                     setViewedVersionIdx(Math.max(0, displayedVersionIdx - 1))
                   }
                   disabled={displayedVersionIdx <= 0}
-                  aria-label={t('versionPrevious')}
+                  title={t('versionPrevious')}
                 >
                   <ChevronLeft className="size-3.5" />
                 </Button>
@@ -476,7 +476,7 @@ function HumanInputRequestCardComponent({
                     )
                   }
                   disabled={isViewingLatestVersion}
-                  aria-label={t('versionNext')}
+                  title={t('versionNext')}
                 >
                   <ChevronRight className="size-3.5" />
                 </Button>

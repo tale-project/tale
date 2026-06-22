@@ -112,7 +112,7 @@ export function Banner({
           size="icon"
           onClick={onClose}
           className={bannerCloseVariants({ variant })}
-          aria-label={t('aria.dismiss')}
+          title={t('aria.dismiss')}
         >
           <X className="size-full" />
         </Button>

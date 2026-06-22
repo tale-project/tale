@@ -36,13 +36,24 @@ import {
   type KbMention,
   type MentionTrigger,
 } from '../hooks/use-kb-mentions';
-import { captureScreenshot } from '../utils/capture-screenshot';
+import { useVideoUrlIngest } from '../hooks/use-video-url-ingest';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
 import { AttachmentTray } from './chat-input/attachment-tray';
 import { toBcp47 } from './chat-input/locale-defaults';
+import {
+  PasteImageOverlay,
+  type PasteImageChip,
+} from './chat-input/paste-image-overlay';
+import {
+  buildMarkerToken,
+  collapseMarkerSpaces,
+  nextPasteImageId,
+  pastedImageIdFromName,
+  tokenSpans,
+} from './chat-input/paste-image-tokens';
 import { ComposerCapabilityPills } from './composer-capability-pills';
 import { ComposerModeMenu } from './composer-mode-menu';
 import {
@@ -185,6 +196,23 @@ interface ChatInputProps extends Omit<
   variant?: 'full' | 'assistant';
 }
 
+/**
+ * Media-processing states that block sending, in send-button-tooltip
+ * precedence order; each maps to its `chat` i18n tooltip key.
+ */
+type MediaBlockReason =
+  | 'transcribing'
+  | 'processingVideo'
+  | 'failedVideo'
+  | 'failedAudio';
+
+const MEDIA_BLOCK_TOOLTIP_KEY: Record<MediaBlockReason, string> = {
+  transcribing: 'transcription.inProgressTooltip',
+  processingVideo: 'videoLink.chip.inProgressTooltip',
+  failedVideo: 'videoLink.chip.failedSendBlockedTooltip',
+  failedAudio: 'transcription.failedSendBlockedTooltip',
+};
+
 export function ChatInput({
   value = '',
   onChange,
@@ -259,14 +287,27 @@ export function ChatInput({
   // path so we don't mutate the textarea while an IME commit is in
   // flight (round-2 V10 / HIGH #19).
   const isComposingRef = useRef(false);
-  // Set as soon as a paste begins ingest; cleared in `.finally`. The
-  // send-gate ORs this in so a paste-then-Enter race can't bypass the
-  // chip rendering (chip query won't show the row until the mutation
-  // round-trip lands, but `ingestVideoUrlsFromText` runs fire-and-forget
-  // so without this flag the gate has nothing to watch) — round-2 V10 /
-  // HIGH #23.
-  const pasteIngestInFlightRef = useRef(false);
-  const [pasteIngestPending, setPasteIngestPending] = useState(false);
+  // A pasted/dropped video URL ingests fire-and-forget; `pasteIngestPending`
+  // lets the send-gate block a paste-then-Enter race until the chip row lands
+  // (round-2 V10 / HIGH #23). Shared by the paste + drag-drop handlers below.
+  const { pending: pasteIngestPending, ingest: ingestVideoUrls } =
+    useVideoUrlIngest(ingestVideoUrlsFromText, organizationId, i18n.language);
+
+  // Single source of truth for the media-processing states that block send.
+  // `mediaBlockReason` names the active one (precedence order) for the send-
+  // button tooltip; `mediaBlocksSend` is the OR consumed by the send-gate and
+  // the disabled state. `pasteIngestPending` (blocks send, no tooltip) and
+  // `sendBlocked` (carries its own reason string) stay separate.
+  const mediaBlockReason: MediaBlockReason | null = isTranscribing
+    ? 'transcribing'
+    : isProcessingVideo
+      ? 'processingVideo'
+      : hasFailedVideoJobs
+        ? 'failedVideo'
+        : hasFailedAudioJobs
+          ? 'failedAudio'
+          : null;
+  const mediaBlocksSend = mediaBlockReason !== null;
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
@@ -423,10 +464,7 @@ export function ChatInput({
       disabled ||
       isUploading ||
       isIndexing ||
-      isTranscribing ||
-      isProcessingVideo ||
-      hasFailedVideoJobs ||
-      hasFailedAudioJobs ||
+      mediaBlocksSend ||
       pasteIngestPending ||
       sendBlocked
     )
@@ -449,8 +487,10 @@ export function ChatInput({
       attachments.length > 0 ? clearAttachments() : undefined;
 
     // Prepend any staged quote as a markdown blockquote so the model sees
-    // the referenced passage above the user's message, then clear it.
-    const trimmed = value.trim();
+    // the referenced passage above the user's message, then clear it. The
+    // `[N]` markers ride along (positional reference for the agent); their
+    // reserve spaces collapse to one so the sent text stays clean.
+    const trimmed = collapseMarkerSpaces(value).trim();
     const messageToSend = quotedText
       ? `> ${quotedText.replace(/\n/g, '\n> ')}\n\n${trimmed}`
       : trimmed;
@@ -471,28 +511,6 @@ export function ChatInput({
     onSendMessage(messageToSend, attachmentsToSend, kbRefsToSend);
   };
 
-  const screenshotSupported =
-    typeof navigator !== 'undefined' &&
-    !!navigator.mediaDevices?.getDisplayMedia;
-
-  const handleTakeScreenshot = useCallback(async () => {
-    try {
-      const file = await captureScreenshot();
-      if (file) await uploadFiles([file]);
-    } catch (err) {
-      // The user dismissing the OS picker rejects with NotAllowed/Abort —
-      // treat as a silent cancel, surface anything else.
-      if (
-        err instanceof DOMException &&
-        (err.name === 'NotAllowedError' || err.name === 'AbortError')
-      ) {
-        return;
-      }
-      console.error('[screenshot] capture failed', err);
-      toast({ title: tComposer('screenshotFailed'), variant: 'destructive' });
-    }
-  }, [uploadFiles, tComposer]);
-
   const imageAttachments = useMemo(
     () => attachments.filter((att) => att.fileType.startsWith('image/')),
     [attachments],
@@ -502,6 +520,106 @@ export function ChatInput({
     () => attachments.filter((att) => !att.fileType.startsWith('image/')),
     [attachments],
   );
+
+  // Chip data per image id, derived purely from the live attachments + uploads
+  // — the marker is independent of the image (deleting a `[N]` keeps the
+  // attachment, and vice-versa). An id present here means a `[N]` token refers
+  // to a real image, which also gates atomic marker deletion below.
+  const pasteChips = useMemo(() => {
+    const map = new Map<number, PasteImageChip>();
+    for (const id of uploadingFiles) {
+      const tokenId = pastedImageIdFromName(id);
+      if (tokenId !== null) map.set(tokenId, { status: 'uploading' });
+    }
+    for (const att of attachments) {
+      const tokenId = pastedImageIdFromName(att.fileName);
+      if (tokenId !== null && att.fileType.startsWith('image/')) {
+        map.set(tokenId, { status: 'ready', previewUrl: att.previewUrl });
+      }
+    }
+    return map;
+  }, [attachments, uploadingFiles]);
+
+  // Clicking an inline `[N]` chip opens the same preview dialog as its tray
+  // thumbnail (the chip mirrors the tray, it doesn't replace it).
+  const openPastedImage = useCallback(
+    (id: number) => {
+      const att = attachments.find(
+        (a) => pastedImageIdFromName(a.fileName) === id,
+      );
+      if (att?.previewUrl) {
+        setPreviewImage({ src: att.previewUrl, alt: att.fileName });
+      }
+    },
+    [attachments],
+  );
+
+  // Removing an image from the tray also strips its inline `[N]` marker, so a
+  // removed image never leaves an orphan token behind. (Deleting the marker
+  // alone keeps the image — see deletePastedTokenAtCaret.)
+  const handleRemoveAttachment = useCallback(
+    (fileId: Id<'_storage'>) => {
+      const att = attachments.find((a) => a.fileId === fileId);
+      const id = att ? pastedImageIdFromName(att.fileName) : null;
+      if (id !== null && onChange) {
+        const span = tokenSpans(value).find((s) => s.id === id);
+        if (span) {
+          let end = span.end;
+          while (value[end] === ' ') end += 1;
+          onChange(value.slice(0, span.start) + value.slice(end));
+        }
+      }
+      removeAttachment(fileId);
+    },
+    [attachments, value, onChange, removeAttachment],
+  );
+
+  // Insert `[N]` marker(s) (each with reserve spaces for the chip) at the
+  // caret. Shared by paste and the drag-from-tray drop below.
+  const insertMarkersAtCaret = (ids: number[]) => {
+    const textarea = textareaRef.current;
+    if (!textarea || !onChange || ids.length === 0) return;
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const before = textarea.value.slice(0, start);
+    const lead = before.length > 0 && !/\s$/.test(before) ? ' ' : '';
+    const tokenText = lead + ids.map(buildMarkerToken).join('');
+    textarea.setRangeText(tokenText, start, end, 'end');
+    onChange(textarea.value);
+  };
+
+  // Drag a tray image into the composer to drop its `[N]` marker. The tray
+  // thumbnail puts its id on the drag in this custom type; we move the caret to
+  // the drop point (best-effort) and insert the marker there.
+  const handleMarkerDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-tale-marker-id')) {
+      e.preventDefault();
+      e.stopPropagation(); // suppress the FileUpload drop overlay over the input
+    }
+  };
+  const handleMarkerDrop = (e: React.DragEvent) => {
+    const raw = e.dataTransfer.getData('application/x-tale-marker-id');
+    if (!raw) return; // not a marker drag — let the file DropZone handle it
+    const id = Number(raw);
+    if (!Number.isInteger(id)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ta = textareaRef.current;
+    if (ta) {
+      const doc = document as Document & {
+        caretPositionFromPoint?: (
+          x: number,
+          y: number,
+        ) => { offsetNode: Node; offset: number } | null;
+      };
+      const pos = doc.caretPositionFromPoint?.(e.clientX, e.clientY);
+      if (pos && (pos.offsetNode === ta || ta.contains(pos.offsetNode))) {
+        ta.setSelectionRange(pos.offset, pos.offset);
+      }
+      ta.focus();
+    }
+    insertMarkersAtCaret([id]);
+  };
 
   const handleInputChange = (newValue: string) => {
     onChange?.(newValue);
@@ -518,6 +636,41 @@ export function ChatInput({
     },
     [value, onChange],
   );
+
+  // Treat a `[N]` marker as a single atomic unit when deleting: a plain
+  // Backspace at the end of `[1]` would otherwise erase only `]` and leave a
+  // dangling `[1`. When the caret sits inside/adjacent to a marker, wipe the
+  // whole token plus its reserve spaces. Deleting a marker only removes the
+  // marker — the image stays in the tray. Returns true when it handled the key.
+  const deletePastedTokenAtCaret = (
+    e: React.KeyboardEvent,
+    direction: 'back' | 'forward',
+  ): boolean => {
+    if (pasteChips.size === 0) return false;
+    const ta = textareaRef.current;
+    if (
+      !ta ||
+      ta.selectionStart === null ||
+      ta.selectionStart !== ta.selectionEnd
+    ) {
+      return false;
+    }
+    const caret = ta.selectionStart;
+    const span = tokenSpans(ta.value).find(
+      (s) =>
+        pasteChips.has(s.id) &&
+        (direction === 'back'
+          ? s.start < caret && caret <= s.end
+          : s.start <= caret && caret < s.end),
+    );
+    if (!span) return false;
+    e.preventDefault();
+    let end = span.end;
+    while (ta.value[end] === ' ') end += 1; // consume the reserve spaces
+    ta.setRangeText('', span.start, end, 'end');
+    onChange?.(ta.value);
+    return true;
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // IME composition guard. macOS Pinyin / Japanese Kotoeri commits a
@@ -564,6 +717,13 @@ export function ChatInput({
       }
     }
 
+    // Atomic marker deletion (runs before the textarea's default edit so a
+    // Backspace can't shave a `[1]` token down to a dangling `[1`).
+    if (!isComposing) {
+      if (e.key === 'Backspace' && deletePastedTokenAtCaret(e, 'back')) return;
+      if (e.key === 'Delete' && deletePastedTokenAtCaret(e, 'forward')) return;
+    }
+
     if (e.key !== 'Enter' || e.shiftKey) return;
     if (isComposing) return;
     e.preventDefault();
@@ -592,26 +752,40 @@ export function ChatInput({
     const items = e.clipboardData?.items;
     if (!items) return;
 
+    // Name each pasted image `[N].<ext>`, where N is one past the highest `[N]`
+    // already in the text — so numbering restarts at 1 once a send clears the
+    // composer and never collides with a token the user typed.
     const imageFiles: File[] = [];
+    const newImageIds: number[] = [];
+    let nextId = nextPasteImageId(textareaRef.current?.value ?? value);
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) {
           const extension = item.type.split('/')[1] || 'png';
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const renamedFile = new File(
-            [file],
-            `pasted-image-${timestamp}.${extension}`,
-            { type: file.type },
+          const id = nextId++;
+          newImageIds.push(id);
+          imageFiles.push(
+            new File([file], `[${id}].${extension}`, { type: file.type }),
           );
-          imageFiles.push(renamedFile);
         }
       }
     }
 
     if (imageFiles.length > 0) {
+      // A pasted image is represented by its `[N]` marker, inserted
+      // programmatically below. Clipboards frequently ship a text/alt or URL
+      // fallback ALONGSIDE the image bytes, so prevent the native text paste
+      // (and skip the text-normalize path) — otherwise that fallback inserts
+      // on top of the marker and the message double-ups.
+      e.preventDefault();
+      // Drop a `[N]` reference marker at the caret so the image has a position
+      // in the message; the overlay paints a thumbnail badge over it and the
+      // agent sees `[N]` in the prose next to the `[N].ext` attachment.
+      insertMarkersAtCaret(newImageIds);
       void uploadFiles(imageFiles);
+      return;
     }
 
     // Video-link detection. Read both text/plain and text/html (rich-
@@ -629,23 +803,7 @@ export function ChatInput({
         // double, some older email clients ship single).
         html.match(/href=["']([^"']+)["']/g)?.join(' ') ||
         '';
-      if (text) {
-        // Set the in-flight ref BEFORE awaiting the ingest so the send-
-        // gate sees the pending state on the very next render. Cleared
-        // in `.finally`. Without this, a user who pastes then hits
-        // Enter immediately would ship the message before the mutation
-        // round-trip lands and the chip query reflects the new row.
-        pasteIngestInFlightRef.current = true;
-        setPasteIngestPending(true);
-        void ingestVideoUrlsFromText(
-          text,
-          organizationId,
-          i18n.language,
-        ).finally(() => {
-          pasteIngestInFlightRef.current = false;
-          setPasteIngestPending(false);
-        });
-      }
+      ingestVideoUrls(text);
     }
 
     // Normalize the pasted text: collapse the blank-line stacks that copying
@@ -683,27 +841,7 @@ export function ChatInput({
       <FileUpload.DropZone
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
-        onTextDrop={
-          ingestVideoUrlsFromText
-            ? (text) => {
-                // Mirror the paste-handler gate so a drag-and-drop URL
-                // followed by an immediate Enter doesn't beat the chip
-                // into existence — without this, the send-gate doesn't
-                // know an ingest is in-flight and the agent receives
-                // the raw URL instead of the transcript.
-                pasteIngestInFlightRef.current = true;
-                setPasteIngestPending(true);
-                void ingestVideoUrlsFromText(
-                  text,
-                  organizationId,
-                  i18n.language,
-                ).finally(() => {
-                  pasteIngestInFlightRef.current = false;
-                  setPasteIngestPending(false);
-                });
-              }
-            : undefined
-        }
+        onTextDrop={ingestVideoUrlsFromText ? ingestVideoUrls : undefined}
         clickable={false}
         disabled={attachDisabled || fileUploadDisabled}
       >
@@ -787,7 +925,7 @@ export function ChatInput({
               transcriptionStatuses={transcriptionStatuses}
               indexingStatuses={indexingStatuses}
               retryAudioTranscription={retryAudioTranscription}
-              removeAttachment={removeAttachment}
+              removeAttachment={handleRemoveAttachment}
               onPreviewImage={setPreviewImage}
               onPreviewTranscript={setPreviewTranscript}
             />
@@ -823,6 +961,8 @@ export function ChatInput({
               onFocus={onComposerActivate}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              onDragOver={handleMarkerDragOver}
+              onDrop={handleMarkerDrop}
               // Caret moves (clicks, arrow keys) only update/close an open
               // mention picker — typing is what opens it (handleInputChange).
               onSelect={() => updateMentionTrigger(true)}
@@ -850,6 +990,12 @@ export function ChatInput({
                   ? `${mentionListboxId}-option-${clampedMentionHighlight}`
                   : undefined
               }
+            />
+            <PasteImageOverlay
+              textareaRef={textareaRef}
+              value={value}
+              chips={pasteChips}
+              onOpen={openPastedImage}
             />
             {value.length === 0 && !inputDisabled && (
               <Text
@@ -897,11 +1043,6 @@ export function ChatInput({
                 organizationId={organizationId}
                 threadId={threadId}
                 onAttachFile={() => fileInputRef.current?.click()}
-                onTakeScreenshot={
-                  screenshotSupported && !fileUploadDisabled
-                    ? () => void handleTakeScreenshot()
-                    : undefined
-                }
                 fileUploadDisabled={fileUploadDisabled}
                 disabled={attachDisabled}
               />
@@ -976,24 +1117,15 @@ export function ChatInput({
                       inputDisabled ||
                       isUploading ||
                       isIndexing ||
-                      isTranscribing ||
-                      isProcessingVideo ||
-                      hasFailedVideoJobs ||
-                      hasFailedAudioJobs ||
+                      mediaBlocksSend ||
                       pasteIngestPending ||
                       sendBlocked;
                 const tooltipContent =
-                  isTranscribing && !isLoading
-                    ? tChat('transcription.inProgressTooltip')
-                    : isProcessingVideo && !isLoading
-                      ? tChat('videoLink.chip.inProgressTooltip')
-                      : hasFailedVideoJobs && !isLoading
-                        ? tChat('videoLink.chip.failedSendBlockedTooltip')
-                        : hasFailedAudioJobs && !isLoading
-                          ? tChat('transcription.failedSendBlockedTooltip')
-                          : sendBlocked && sendBlockedReason && !isLoading
-                            ? sendBlockedReason
-                            : '';
+                  !isLoading && mediaBlockReason
+                    ? tChat(MEDIA_BLOCK_TOOLTIP_KEY[mediaBlockReason])
+                    : sendBlocked && sendBlockedReason && !isLoading
+                      ? sendBlockedReason
+                      : '';
                 // Native `disabled` swallows pointer events on
                 // Chromium/WebKit, so the Tooltip trigger never fires
                 // when the button is in exactly the states the tooltip

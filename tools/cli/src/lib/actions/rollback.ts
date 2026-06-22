@@ -2,12 +2,14 @@ import { sameMinor } from '../../utils/compare-versions';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { runStepsInParallel } from '../../utils/progress';
+import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { ROTATABLE_SERVICES } from '../compose/types';
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
+import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
@@ -22,6 +24,8 @@ import { withLock } from '../state/with-lock';
 
 interface RollbackOptions {
   env: DeploymentEnv;
+  /** Skip the confirmation prompt (the `-y/--yes` flag / non-interactive use). */
+  assumeYes: boolean;
 }
 
 /**
@@ -54,10 +58,11 @@ function printSnapshotRestoreRunbook(): void {
   logger.info('     (interactive, snapshot-backed):');
   logger.info('       tale migrate down --to <version> --step');
   logger.info(
-    '  2. Re-deploy the version that matches the migrated-down data:',
+    '  2. Move the CLI to the version that matches the migrated-down data,',
   );
-  logger.info('       tale upgrade --version <version>');
-  logger.info('       tale deploy --all');
+  logger.info('     then roll the containers to match:');
+  logger.info('       tale update --version <version>');
+  logger.info('       tale deploy --stop');
   logger.info('  If a migration is not reversible, restore the data-volume');
   logger.info('  backup taken before the upgrade instead');
   logger.info('  (see docs/self-hosted/operate/backups-and-restore.md).');
@@ -67,7 +72,7 @@ export async function rollback(
   options: RollbackOptions,
   deps: RollbackDeps = {},
 ): Promise<void> {
-  const { env } = options;
+  const { env, assumeYes } = options;
   const pull = deps.pullImage ?? pullImage;
 
   await withLock(env.DEPLOY_DIR, 'rollback', async () => {
@@ -132,6 +137,28 @@ export async function rollback(
     logger.info(
       `Rolling back to: ${rollbackColor} (version ${rollbackVersion})`,
     );
+
+    // Destructive, hard-to-undo: this redeploys the previous patch on the idle
+    // colour, flips traffic, then drains and tears down the running containers.
+    // Warn what's about to happen and require explicit consent before pulling a
+    // single image. `--yes` (assumeYes) skips the prompt for non-interactive use;
+    // we gate on it rather than letting `confirm` resolve, because `confirm`
+    // returns its `default` (false here) under --yes, which would cancel.
+    logger.warn(
+      `About to roll the live platform back from ${currentVersion} to ${rollbackVersion}.`,
+    );
+    logger.warn(
+      'This redeploys the previous patch on the idle colour, flips traffic, and ' +
+        'tears down the current containers. It rolls back the binary only — ' +
+        'data is not migrated down.',
+    );
+    if (!assumeYes) {
+      const ok = await confirm({ message: 'Roll back now?', default: false });
+      if (!ok) {
+        logger.info('Rollback cancelled');
+        return;
+      }
+    }
 
     const serviceConfig = {
       version: rollbackVersion,
@@ -211,6 +238,26 @@ export async function rollback(
     await setCurrentColor(env.DEPLOY_DIR, rollbackColor);
     await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
     logger.info(`Version history updated: previous=${currentVersion}`);
+
+    // Pre-mark the old platform colour as shutting down BEFORE the drain sleep
+    // so its /api/health 503s and the proxy stops routing new requests to it
+    // while in-flight ones finish (mirrors deploy.ts). Best-effort + platform-
+    // specific; a failure just falls back to the graceful stop below.
+    for (const service of ROTATABLE_SERVICES) {
+      if (service !== 'platform') continue;
+      const oldName = `${getProjectId()}-${service}-${currentColor}`;
+      const marked = await exec('docker', [
+        'exec',
+        oldName,
+        'touch',
+        '/tmp/platform-shutting-down',
+      ]);
+      if (!marked.success) {
+        logger.debug(
+          `Could not pre-mark ${oldName} for shutdown (continuing): ${marked.stderr.trim()}`,
+        );
+      }
+    }
 
     // Drain current color
     logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);

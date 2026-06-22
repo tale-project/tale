@@ -136,7 +136,7 @@ export function RoleMappingSection({
               size="icon"
               onClick={() => onRemove(index)}
               disabled={disabled}
-              aria-label={t('integrations.sso.removeRule')}
+              title={t('integrations.sso.removeRule')}
               className="shrink-0"
             >
               <Trash2 className="h-4 w-4" />

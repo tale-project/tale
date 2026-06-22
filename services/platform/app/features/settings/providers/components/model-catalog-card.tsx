@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { RefreshCw } from 'lucide-react';
 import { useCallback } from 'react';
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -90,8 +90,7 @@ export function ModelCatalogCard({
   }, [organizationId, sync, t]);
 
   return (
-    <PageSection
-      as="h2"
+    <SettingsSection
       className={className}
       title={t('providers.modelCatalog.title')}
       description={t('providers.modelCatalog.description')}
@@ -128,6 +127,6 @@ export function ModelCatalogCard({
         disabled={setAutoSync.isPending}
         onCheckedChange={onToggleAutoSync}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

@@ -1,4 +1,5 @@
 import { Slot } from '@radix-ui/react-slot';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Link } from '@tanstack/react-router';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2, type LucideIcon } from 'lucide-react';
@@ -6,6 +7,7 @@ import * as React from 'react';
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
+import { TooltipContent } from '../overlays/tooltip';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:opacity-50 leading-none ring-offset-background cursor-pointer',
@@ -37,10 +39,10 @@ export const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
+interface ButtonOwnProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+    Omit<VariantProps<typeof buttonVariants>, 'size'> {
   asChild?: boolean;
   isLoading?: boolean;
   /** Icon to display before the button text */
@@ -57,10 +59,50 @@ export interface ButtonProps
    * and action rows where labels would otherwise overlap on mobile.
    */
   collapseLabel?: boolean;
+  /**
+   * One-stop label for icon buttons: a plain-string `title` populates BOTH the
+   * `aria-label` (accessibility) AND a hover/focus tooltip, so callers set a
+   * single prop instead of repeating themselves. The native `title` attribute
+   * is suppressed so there's no duplicate browser tooltip. An explicit
+   * `aria-label` or `tooltip` overrides the respective half.
+   */
+  title?: string;
+  /**
+   * Rich tooltip content (overrides `title` for the visible tooltip only).
+   * Use when the tooltip needs more than the plain accessible name — e.g. a
+   * keyboard-shortcut badge. Rendered with the shared Tooltip primitive, and
+   * NEVER when `asChild` is set (the button is then a Radix `Slot`, usually
+   * another overlay's trigger, and wrapping a Slot in a tooltip trigger breaks
+   * that composition).
+   */
+  tooltip?: React.ReactNode;
+  /** Side the tooltip opens on (default `top`). */
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
-// Plain control — the real button. No skeleton logic of its own.
-const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonProps>(
+type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
+
+/**
+ * Icon-only buttons (`size="icon"`) MUST be named — there's no visible text.
+ * Enforced at the type level: a button must carry a `title` (which becomes both
+ * the label and a tooltip), OR an explicit `aria-label`, OR be a non-icon size.
+ * Phrasing it as "labeled OR non-icon" (rather than discriminating on `size`)
+ * keeps dynamic `size={cond ? 'sm' : 'icon'}` buttons valid as long as they're
+ * labeled — a plain `size`-discriminated union would reject those outright.
+ */
+export type ButtonProps = ButtonOwnProps &
+  (
+    | ({ size?: ButtonSize | null } & { 'aria-label': string })
+    | ({ size?: ButtonSize | null } & { title: string })
+    | { size?: Exclude<ButtonSize, 'icon'> | null }
+  );
+
+// Loose internal props — the wrapper has already resolved title → aria-label
+// and stripped the tooltip props, so the base never sees them.
+type ButtonBaseProps = ButtonOwnProps & { size?: ButtonSize | null };
+
+// Plain control — the real button. No skeleton/tooltip logic of its own.
+const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
   (
     {
       className,
@@ -137,11 +179,40 @@ ButtonBase.displayName = 'ButtonBase';
  * with an overlay at its exact size.
  */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  (props, ref) => (
-    <SkeletonBox fullWidth={props.fullWidth}>
-      <ButtonBase {...props} ref={ref} />
-    </SkeletonBox>
-  ),
+  ({ tooltip, tooltipSide, title, 'aria-label': ariaLabel, ...props }, ref) => {
+    // `title` shows a tooltip for any button, and ALSO names icon-only buttons
+    // (they have no visible text). Text buttons keep their accessible name from
+    // their children — `title` must NOT override it there — so the name only
+    // falls back to `title` for `size="icon"`. The native `title` attribute is
+    // dropped either way so the browser doesn't pop a duplicate tooltip.
+    const accessibleName =
+      ariaLabel ?? (props.size === 'icon' ? title : undefined);
+    const tip = tooltip ?? title;
+    const base = (
+      <ButtonBase {...props} aria-label={accessibleName} ref={ref} />
+    );
+    // The tooltip Trigger must wrap the REAL button (`ButtonBase` forwards its
+    // ref + props), never the `SkeletonBox` span — a plain span drops the
+    // Trigger's injected handlers/ref, leaving the tooltip permanently shut.
+    // So the Trigger goes inside and `SkeletonBox` wraps the whole thing.
+    // No tooltip when `asChild` — the button is then a Radix `Slot` (typically
+    // another overlay's trigger), and wrapping a Slot in a tooltip trigger
+    // breaks that composition.
+    const withTooltip =
+      tip == null || props.asChild ? (
+        base
+      ) : (
+        <TooltipPrimitive.Provider delayDuration={300}>
+          <TooltipPrimitive.Root>
+            <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
+            <TooltipPrimitive.Portal>
+              <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
+            </TooltipPrimitive.Portal>
+          </TooltipPrimitive.Root>
+        </TooltipPrimitive.Provider>
+      );
+    return <SkeletonBox fullWidth={props.fullWidth}>{withTooltip}</SkeletonBox>;
+  },
 );
 Button.displayName = 'Button';
 

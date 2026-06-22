@@ -6,9 +6,10 @@
  */
 
 import type {
-  AgentRoutingConfig,
-  ResponseTuningConfig,
-} from '../../../lib/shared/schemas/agents';
+  ResponseReasoningSeed,
+  ResponseStyleAdvice,
+} from '../../../lib/shared/response-tuning';
+import type { AgentRoutingConfig } from '../../../lib/shared/schemas/agents';
 import type { ToolName } from '../../agent_tools/tool_registry';
 import type { AgentType } from '../context_management/constants';
 
@@ -99,12 +100,19 @@ export interface SerializableAgentConfig {
   /** Ordered fallback model IDs (tried in sequence when primary fails) */
   fallbackModels?: string[];
   /**
-   * Per-agent response tuning (effort/creativity/style + governor bounds).
-   * Consumed by `buildReasoningOptions` and the style/verbosity prompt
-   * fragments. Mirrors `responseTuningSchema` in
-   * `lib/shared/schemas/agents.ts`.
+   * Prose-level response shaping (style/verbosity) the Auto router advised for
+   * this turn. Rendered into a short system-prompt suffix by
+   * `tuningInstructionSuffix`. Set ONLY in Auto mode; a pinned agent's tone
+   * comes from its own `instructions`.
    */
-  responseTuning?: ResponseTuningConfig;
+  responseStyle?: ResponseStyleAdvice;
+  /**
+   * Coarse reasoning seed (effort/creativity) the Auto router advised for this
+   * turn. Fed to `buildReasoningOptions` as a PRIOR — blended into the
+   * difficulty score, never a hard override; the online controller still
+   * refines from observed usage. Set ONLY in Auto mode.
+   */
+  routeSeed?: ResponseReasoningSeed;
   /**
    * Advisory reply-language hint set by the Auto router for this turn (BCP-47
    * code or language name). Feeds ONLY the response-language directive's

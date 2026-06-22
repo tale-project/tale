@@ -66,6 +66,10 @@ export const continueExternalAgentTurn = internalAction({
     interactionMode: v.optional(
       v.union(v.literal('interactive'), v.literal('autonomous')),
     ),
+    /** Blue-green colour the session lives on — routes the re-attach to
+     * `sandbox-<color>` so a resume reaches a session lingering on the old
+     * colour after a deploy flip. Optional: single-colour / pre-blue-green. */
+    spawnerColor: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -161,6 +165,9 @@ export const continueExternalAgentTurn = internalAction({
         }),
         ...(args.interactionMode !== undefined && {
           interactionMode: args.interactionMode,
+        }),
+        ...(args.spawnerColor !== undefined && {
+          spawnerColor: args.spawnerColor,
         }),
         resumeFrom,
         onTimeline: async (content) => {

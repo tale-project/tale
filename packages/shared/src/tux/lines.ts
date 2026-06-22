@@ -36,8 +36,22 @@ export function doneLine(message: string): void {
   writeLine(`${marker('done')} ${message}`);
 }
 
-/** Neutral information, rendered gray. Suppressed by `--quiet`. */
+/** Neutral information, rendered gray. Suppressed by `--quiet`. Markerless on
+ *  purpose: neutral narration reads as prose, visually distinct from the marked
+ *  `[ ✓ ]`/`[ ! ]`/`[ x ]` events around it. For a step's in-progress line, use
+ *  {@link stepStartLine} — that one keeps a marker. */
 export function infoLine(message: string): void {
+  if (quiet()) return;
+  const p = getPalette();
+  writeLine(`${p.dim}${message}${p.reset}`);
+}
+
+/** A step's in-progress line for non-interactive `runStep` (append-only mode):
+ *  the dim `[ - ]` pending marker that pairs with the step's
+ *  `[ ✓ ]`/`[ ! ]`/`[ x ]` terminal. Unlike {@link infoLine}, a step start is
+ *  half of a pair — not standalone narration — so it keeps the marker.
+ *  Suppressed by `--quiet`. */
+export function stepStartLine(message: string): void {
   if (quiet()) return;
   const p = getPalette();
   writeLine(`${p.dim}${getMarkers().info} ${message}${p.reset}`);

@@ -16,6 +16,16 @@ const reasoningBucketValidator = v.object({
   // Response-quality EMA per class (quality-feedback governor). Optional;
   // legacy rows omit it and readers coalesce to a neutral 1.0.
   qualityEma: v.optional(v.number()),
+  // Last tier the controller settled on (effort-tier anti-oscillation guard).
+  // Optional; absence disables the guard for that bucket.
+  lastTier: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
 });
 
 export const threadMetadataTable = defineTable({
@@ -308,7 +318,12 @@ export const threadMetadataTable = defineTable({
   .index('by_projectId_and_userId', ['projectId', 'userId'])
   // Discussions: list a project's discussions, and a task's discussion(s).
   .index('by_kind_projectId', ['kind', 'projectId'])
-  .index('by_kind_taskId', ['kind', 'taskId']);
+  .index('by_kind_taskId', ['kind', 'taskId'])
+  // Deploy drain + recovery watchdog: enumerate the (small) set of threads
+  // currently `generating` without scanning every thread. Used by
+  // `control/drain.ts:countActiveGenerations` and
+  // `agents/recover_stuck_chat_turns.ts`.
+  .index('by_generationStatus', ['generationStatus']);
 
 /**
  * Messages sent while a turn is running (Claude-Code-TUI-style "keep typing

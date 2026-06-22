@@ -2,7 +2,6 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   Table,
@@ -22,6 +21,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -94,7 +94,7 @@ function deriveDraft(policy: ChatFilterPolicy): ChatFilterDraft {
 // =============================================================================
 // Container — owns data fetching, local edit state, save/toast wiring, and the
 // loading state. Wraps the plain `ChatFilterConfigForm` in `<Skeletonize>` so
-// the same tree renders the skeleton (the hand-rolled loading `PageSection`
+// the same tree renders the skeleton (the hand-rolled loading `SettingsSection`
 // with magic-height `Skeleton` boxes is gone — the skeleton-aware `<Switch>` /
 // `<Input>` mask themselves to their real height).
 //
@@ -285,7 +285,7 @@ export function ChatFilterConfigView({
 
   return (
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
-      <PageSection
+      <SettingsSection
         title={t('contentSafety.title')}
         description={t('contentSafety.description')}
         action={
@@ -405,7 +405,7 @@ export function ChatFilterConfigView({
             />
           </>
         )}
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

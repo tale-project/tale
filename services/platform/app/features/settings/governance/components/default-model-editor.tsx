@@ -3,7 +3,6 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -26,6 +25,7 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import {
   useListProviders,
   useModelCapabilities,
@@ -576,7 +576,7 @@ export function DefaultModelEditor({
 
   return (
     <Skeletonize loading={loading} label={t('defaultModels.title')}>
-      <PageSection
+      <SettingsSection
         title={t('defaultModels.title')}
         description={t('defaultModels.description')}
         action={
@@ -657,7 +657,7 @@ export function DefaultModelEditor({
                           size="icon"
                           onClick={() => openEditDialog(index)}
                           disabled={cannotManage}
-                          aria-label={t('defaultModels.editRule', {
+                          title={t('defaultModels.editRule', {
                             index: index + 1,
                           })}
                         >
@@ -668,7 +668,7 @@ export function DefaultModelEditor({
                           size="icon"
                           onClick={() => setDeletingIndex(index)}
                           disabled={cannotManage}
-                          aria-label={t('defaultModels.removeRule', {
+                          title={t('defaultModels.removeRule', {
                             index: index + 1,
                           })}
                         >
@@ -721,7 +721,7 @@ export function DefaultModelEditor({
           variant="destructive"
           onConfirm={confirmRemoveRule}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

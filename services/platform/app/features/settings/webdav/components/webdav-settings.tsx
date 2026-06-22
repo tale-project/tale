@@ -133,8 +133,8 @@ function WebdavAppPasswordsTable({
         ),
       },
       // Column sizes double as the table's min-width floor (DataTable sums
-      // them) — keep the total ≤ 540px so the table fits this page's
-      // `SettingsPage narrow` 544px column without horizontal scroll.
+      // them) — keep the total within the full-width settings page budget
+      // (≤ 940px) so the table never forces horizontal scroll.
       {
         accessorKey: 'prefix',
         header: t('list.prefix'),
@@ -231,7 +231,7 @@ function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
         size="icon"
         variant="ghost"
         icon={Trash2}
-        aria-label={t('list.revoke')}
+        title={t('list.revoke')}
         disabled={isRevoking}
         onClick={() => setOpen(true)}
       />

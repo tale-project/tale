@@ -2,6 +2,11 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  formatModelFallbackBody,
+  SYSTEM_MSG_TAG,
+} from '@/lib/shared/constants/system-message-tags';
+
 import type { ChatMessage } from './use-message-processing';
 import { useModelFallbackAutoSwitch } from './use-model-fallback-auto-switch';
 
@@ -19,7 +24,12 @@ const fallback = (id: string, model: string): ChatMessage =>
   msg({
     id,
     role: 'system',
-    content: `[MODEL_FALLBACK] gpt-5 failed — retrying with ${model}.`,
+    systemMessageTag: SYSTEM_MSG_TAG.MODEL_FALLBACK,
+    systemMessageBody: formatModelFallbackBody({
+      from: 'gpt-5',
+      to: model,
+      reason: 'provider_unreachable',
+    }),
   });
 
 const assistant = (id: string): ChatMessage =>

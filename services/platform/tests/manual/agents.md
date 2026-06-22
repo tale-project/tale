@@ -7,12 +7,12 @@
 
 ## Scope & routes
 
-| Surface           | Route                                                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| List              | `/dashboard/{org}/agents`                                                                                                                                         |
-| Editor (tabs)     | `/dashboard/{org}/agents/{slug}/{general\|instructions\|tools\|knowledge\|skills\|delegation\|response-tuning\|conversation-starters\|webhook\|metrics\|history}` |
-| Organigram        | `/dashboard/{org}/agents/organigram`                                                                                                                              |
-| Workforce metrics | `/dashboard/{org}/agents/metrics`                                                                                                                                 |
+| Surface           | Route                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| List              | `/dashboard/{org}/agents`                                                                                                                        |
+| Editor (tabs)     | `/dashboard/{org}/agents/{slug}/{general\|instructions\|tools\|knowledge\|skills\|delegation\|conversation-starters\|webhook\|metrics\|history}` |
+| Organigram        | `/dashboard/{org}/agents/organigram`                                                                                                             |
+| Workforce metrics | `/dashboard/{org}/agents/metrics`                                                                                                                |
 
 ## Prerequisites
 
@@ -35,25 +35,24 @@ delete them after.
 
 ## Functional tests
 
-| ID  | Test            | Steps (route + control)                                                                                                                                                       | Expected                                                                    |
-| --- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| F1  | List loads      | `/dashboard/{org}/agents`                                                                                                                                                     | Table (`settings.agents.title`); seeded `E2E Assistant` listed              |
-| F2  | Create agent    | **Create** (`settings.agents.createAgent`) → name (`settings.agents.form.name`) + display name (`form.displayName`) → **Continue** (`createDialog.continue`)                  | Editor opens for the new agent                                              |
-| F3  | Tab nav         | Open each editor tab (`settings.agents.navigation.{general,instructionsModel,tools,knowledge,skills,delegation,responseTuning,conversationStarters,webhook,metrics,history}`) | Each renders without error; URL reflects the tab                            |
-| F4  | General         | General tab → display name, description, team binding, task timeout → **Save**                                                                                                | Persists across reload                                                      |
-| F5  | Instructions    | Instructions tab → system prompt (`settings.agents.form.systemInstructions`) + model select → **Save**                                                                        | Saved toast (`settings.agents.agentSaved`); persists                        |
-| F6  | Tools           | Tools tab → toggle a custom tool + set web-search mode (`settings.agents.tools.modeTool`) → **Save**                                                                          | Persists                                                                    |
-| F7  | Knowledge       | Knowledge tab → RAG retrieval mode (`settings.agents.knowledge.modeTool`) → **Save**                                                                                          | Persists                                                                    |
-| F8  | Skills          | Skills tab → bind a skill → **Save**                                                                                                                                          | Persists; over the per-agent max is blocked                                 |
-| F9  | Delegation      | Delegation tab → add a delegate in the editor                                                                                                                                 | Delegate added to the graph                                                 |
-| F10 | Response tuning | Tuning tab → expand (`responseTuning.overridesSummary`), set effort (`responseTuning.effort` → `effortMedium`) → **Save**                                                     | Persists                                                                    |
-| F11 | Starters        | Starters tab → **Add** (`conversationStarters.add`) → type (`conversationStarters.placeholder`) → **Save**; reorder                                                           | Persists; per-locale starters supported                                     |
-| F12 | Webhook         | Webhook tab → configure URL                                                                                                                                                   | Saved; payload contract shown                                               |
-| F13 | Metrics         | Metrics tab ("Performance")                                                                                                                                                   | Daily scorecard (runs, tokens, cost, review pass/fail)                      |
-| F14 | Delete agent    | Row **⋯** (`common.actions.openMenu`) → **Delete** (`common.actions.delete`) → confirm (`settings.agents.deleteAgent`)                                                        | Agent removed from list                                                     |
-| F15 | Organigram      | `/dashboard/{org}/agents/organigram`                                                                                                                                          | Org chart canvas; Humans root; drag to set delegation; edits via side panel |
-| F16 | Workforce       | `/dashboard/{org}/agents/metrics`                                                                                                                                             | Workforce dashboard (`workforce.title`) with cross-agent metrics            |
-| F17 | History         | History tab (`settings.agents.navigation.history`)                                                                                                                            | Past runs/changes for the agent are listed                                  |
+| ID  | Test         | Steps (route + control)                                                                                                                                        | Expected                                                                    |
+| --- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| F1  | List loads   | `/dashboard/{org}/agents`                                                                                                                                      | Table (`settings.agents.title`); seeded `E2E Assistant` listed              |
+| F2  | Create agent | **Create** (`settings.agents.createAgent`) → name (`settings.agents.form.name`) + display name (`form.displayName`) → **Continue** (`createDialog.continue`)   | Editor opens for the new agent                                              |
+| F3  | Tab nav      | Open each editor tab (`settings.agents.navigation.{general,instructionsModel,tools,knowledge,skills,delegation,conversationStarters,webhook,metrics,history}`) | Each renders without error; URL reflects the tab                            |
+| F4  | General      | General tab → display name, description, team binding, task timeout → **Save**                                                                                 | Persists across reload                                                      |
+| F5  | Instructions | Instructions tab → system prompt (`settings.agents.form.systemInstructions`) + model select → **Save**                                                         | Saved toast (`settings.agents.agentSaved`); persists                        |
+| F6  | Tools        | Tools tab → toggle a custom tool + set web-search mode (`settings.agents.tools.modeTool`) → **Save**                                                           | Persists                                                                    |
+| F7  | Knowledge    | Knowledge tab → RAG retrieval mode (`settings.agents.knowledge.modeTool`) → **Save**                                                                           | Persists                                                                    |
+| F8  | Skills       | Skills tab → bind a skill → **Save**                                                                                                                           | Persists; over the per-agent max is blocked                                 |
+| F9  | Delegation   | Delegation tab → add a delegate in the editor                                                                                                                  | Delegate added to the graph                                                 |
+| F10 | Starters     | Starters tab → **Add** (`conversationStarters.add`) → type (`conversationStarters.placeholder`) → **Save**; reorder                                            | Persists; per-locale starters supported                                     |
+| F11 | Webhook      | Webhook tab → configure URL                                                                                                                                    | Saved; payload contract shown                                               |
+| F12 | Metrics      | Metrics tab ("Performance")                                                                                                                                    | Daily scorecard (runs, tokens, cost, review pass/fail)                      |
+| F13 | Delete agent | Row **⋯** (`common.actions.openMenu`) → **Delete** (`common.actions.delete`) → confirm (`settings.agents.deleteAgent`)                                         | Agent removed from list                                                     |
+| F14 | Organigram   | `/dashboard/{org}/agents/organigram`                                                                                                                           | Org chart canvas; Humans root; drag to set delegation; edits via side panel |
+| F15 | Workforce    | `/dashboard/{org}/agents/metrics`                                                                                                                              | Workforce dashboard (`workforce.title`) with cross-agent metrics            |
+| F16 | History      | History tab (`settings.agents.navigation.history`)                                                                                                             | Past runs/changes for the agent are listed                                  |
 
 ## Boundary & error tests
 

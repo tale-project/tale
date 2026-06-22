@@ -34,7 +34,7 @@ La directive compte parce que tout éditeur sous charge saute les lectures de sc
 | `integrations/<slug>/config.json`  | Manifeste d'intégration — operations, méthode d'auth, hôtes autorisés.               |
 | `integrations/<slug>/connector.ts` | Connecteur TypeScript optionnel pour les formes REST que le manifeste ne couvre pas. |
 | `branding/branding.json`           | Branding de l'org — couleurs, logos, expéditeurs courriel.                           |
-| `.tale/reference/`                 | Miroir de schéma en lecture seule ; régénéré par `tale init` et `tale upgrade`.      |
+| `.tale/reference/`                 | Miroir de schéma en lecture seule ; régénéré par `tale init` et `tale update`.       |
 
 L'arbre de référence est byte-à-byte identique aux schémas contre lesquels la plateforme valide au déploiement. Traite-le comme canonique : quand un nom de champ dans une config écrite à la main désaccorde avec la référence, la référence gagne.
 
@@ -46,7 +46,7 @@ Le fichier de règles nomme trois règles que chaque éditeur applique pendant l
 - **Les workflows utilisent les operations d'intégration.** Une étape de workflow référence une operation d'intégration déclarée dans `integrations/<slug>/config.json`. Éditer une étape contre une operation qui n'existe pas fait échouer la validation.
 - **Le nommage est imposé.** Les noms de fichier d'agent correspondent à `[a-z0-9][a-z0-9_-]*\.json`. Les slugs d'étape de workflow correspondent à `[a-z0-9][a-z0-9_-]*`. Les répertoires d'intégration sont en minuscules alphanumériques avec tirets ou soulignés.
 
-Quand l'éditeur propose un changement, demande-lui de citer le fichier dans `.tale/reference/` sur lequel il s'est appuyé. S'il ne peut pas, régénère le miroir avec `tale upgrade` et réessaie.
+Quand l'éditeur propose un changement, demande-lui de citer le fichier dans `.tale/reference/` sur lequel il s'est appuyé. S'il ne peut pas, régénère le miroir avec `tale update` et réessaie.
 
 ## Où cela s'inscrit
 

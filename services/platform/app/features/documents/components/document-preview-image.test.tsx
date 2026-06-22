@@ -14,9 +14,9 @@ vi.mock('@/lib/i18n/client', () => ({
           'preview.document': 'Document',
         },
         common: {
-          'imagePreview.zoomIn': 'Zoom in',
-          'imagePreview.zoomOut': 'Zoom out',
-          'imagePreview.resetZoom': 'Reset zoom',
+          'flow.zoomIn': 'Zoom in',
+          'flow.zoomOut': 'Zoom out',
+          'flow.resetView': 'Reset view',
         },
       };
       return translations[ns]?.[key] ?? key;
@@ -88,7 +88,7 @@ describe('DocumentPreviewImage', () => {
       screen.getByRole('button', { name: 'Zoom out' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Reset zoom' }),
+      screen.getByRole('button', { name: 'Reset view' }),
     ).toBeInTheDocument();
   });
 

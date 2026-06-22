@@ -9,6 +9,15 @@ import {
 import type { ModelMessage } from 'ai';
 import { type ObjectType, v } from 'convex/values';
 
+import {
+  buildHumanErrorSentence,
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../../lib/shared/chat-errors';
+import {
+  formatModelFallbackBody,
+  SYSTEM_MSG_TAG,
+} from '../../../lib/shared/constants/system-message-tags';
 import { parseModelRef } from '../../../lib/shared/utils/model-ref';
 import {
   isRecord,
@@ -18,13 +27,18 @@ import {
 import { components, internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
+import { routeSeedValidator, routeTuningValidator } from '../../agents/schema';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
+  classifyFailureScope,
   isTransientProviderError,
-  shouldFailoverToNextModel,
 } from '../../providers/errors';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
+import {
+  isModelScopeRetired,
+  retiredScopeKey,
+} from '../../providers/failure_scope';
 // Node-only fast-path resolver — in-process, skips the ~340ms runAction hop
 // that resolve_model.ts uses to stay V8-importable.
 import { resolveLanguageModelByIdNode } from '../../providers/resolve_model_node';
@@ -48,10 +62,7 @@ import {
 } from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
-import {
-  NonRetryableError,
-  classifyProviderError,
-} from '../error_classification';
+import { NonRetryableError } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
 import { buildHooksFromConfig } from './build_hooks';
 import {
@@ -70,76 +81,6 @@ import {
 } from './todos_reminder';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
-
-/**
- * Convex validator mirror of `responseTuningSchema` (lib/shared/schemas/agents).
- * Kept in lockstep so the serializable config can carry per-agent tuning
- * through the scheduler arg boundary.
- */
-const responseTuningValidator = v.object({
-  effort: v.optional(
-    v.union(
-      v.literal('adaptive'),
-      v.literal('low'),
-      v.literal('medium'),
-      v.literal('high'),
-    ),
-  ),
-  creativity: v.optional(
-    v.union(
-      v.literal('adaptive'),
-      v.literal('precise'),
-      v.literal('balanced'),
-      v.literal('creative'),
-    ),
-  ),
-  style: v.optional(
-    v.union(
-      v.literal('adaptive'),
-      v.literal('concise'),
-      v.literal('detailed'),
-      v.literal('formal'),
-      v.literal('friendly'),
-    ),
-  ),
-  effortFloor: v.optional(
-    v.union(
-      v.literal('off'),
-      v.literal('low'),
-      v.literal('medium'),
-      v.literal('high'),
-    ),
-  ),
-  effortCeiling: v.optional(
-    v.union(
-      v.literal('off'),
-      v.literal('low'),
-      v.literal('medium'),
-      v.literal('high'),
-    ),
-  ),
-  budgetCaps: v.optional(
-    v.object({
-      easy: v.optional(v.number()),
-      medium: v.optional(v.number()),
-      hard: v.optional(v.number()),
-    }),
-  ),
-  temperatureRange: v.optional(
-    v.object({ min: v.optional(v.number()), max: v.optional(v.number()) }),
-  ),
-  verbosity: v.optional(
-    v.union(
-      v.literal('adaptive'),
-      v.literal('terse'),
-      v.literal('normal'),
-      v.literal('verbose'),
-    ),
-  ),
-  qualityProfile: v.optional(
-    v.union(v.literal('lenient'), v.literal('balanced'), v.literal('strict')),
-  ),
-});
 
 const serializableAgentConfigValidator = v.object({
   name: v.string(),
@@ -216,7 +157,11 @@ const serializableAgentConfigValidator = v.object({
   outputReserve: v.optional(v.number()),
   fallbackModels: v.optional(v.array(v.string())),
   personalizationMode: v.optional(v.union(v.literal('on'), v.literal('off'))),
-  responseTuning: v.optional(responseTuningValidator),
+  /** Prose-level style/verbosity the Auto router advised (Auto mode only). */
+  responseStyle: v.optional(routeTuningValidator),
+  /** Coarse reasoning seed (effort/creativity) the Auto router advised, fed to
+   *  the governor as a prior (Auto mode only). */
+  routeSeed: v.optional(routeSeedValidator),
   /** Advisory reply-language hint from the Auto router (feeds the language
    *  directive's fallback only). See `SerializableAgentConfig.replyLocaleHint`. */
   replyLocaleHint: v.optional(v.string()),
@@ -393,6 +338,13 @@ export async function runGenerationCore(
     throw new Error(`Invalid agent type: ${agentTypeStr}`);
   }
 
+  // Tracked across the fallback loop so the final catch-all can build an
+  // accurate, provider-specific error envelope (which model/provider failed
+  // last, and how many were attempted).
+  let lastResolvedProvider: string | undefined;
+  let lastResolvedModelId: string | undefined;
+  let attemptedCount = 0;
+
   try {
     const toolBuildStart = Date.now();
 
@@ -549,27 +501,39 @@ export async function runGenerationCore(
       }
     }
 
-    // Fallback retry loop — try each model in order until one succeeds
+    // Fallback retry loop — try each model in order until one succeeds.
+    //
+    // A model that fails with a DETERMINISTIC provider-level error retires the
+    // failing *resource* — the credential (provider + API key) for funds/auth,
+    // or the endpoint (provider + baseUrl) for an unreachable host — and every
+    // later model sharing that resource is skipped instead of waiting on a
+    // doomed request. Keying by credential (not provider name) means a sibling
+    // model with its own `secretsEnv` key is still tried after another key dies.
     let lastFallbackError: unknown;
-    for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
-      const currentModelId = modelsToTry[attempt];
+    const deadScopes = new Set<string>();
 
-      // RESOLUTION (no HTTP). A model/provider that is not configured or
-      // wrongly configured — missing/unknown provider or model, unresolvable
-      // API key, malformed baseURL — throws synchronously here. When that
-      // happens we go straight to the next model in line WITHOUT making (and
-      // waiting on) a doomed request, and without recording a circuit-breaker
-      // failure (it's a config problem, not provider flakiness).
-      // orgSlug was resolved once in the outer Promise.all and is shared across
-      // model lookup + delegation + workflows so multi-org deployments read each
-      // org's own provider/API-key files. Per-entry provider qualifier (e.g.
-      // "openrouter:foo") takes precedence over the agent's.
-      let resolved: Awaited<ReturnType<typeof resolveLanguageModelByIdNode>>;
+    // RESOLUTION (no HTTP) is memoized per model index so the catch can look
+    // ahead for the next attemptable model without paying for it twice. A
+    // model/provider that is not configured or wrongly configured — missing
+    // provider/model, unresolvable key, malformed baseURL — resolves to an
+    // error here, and we move on WITHOUT a doomed request or a circuit-breaker
+    // record (config problem, not provider flakiness). Per-entry provider
+    // qualifier ("openrouter:foo") takes precedence over the agent's.
+    type Resolution =
+      | {
+          ok: true;
+          resolved: Awaited<ReturnType<typeof resolveLanguageModelByIdNode>>;
+        }
+      | { ok: false; error: unknown };
+    const resolutionCache = new Map<number, Resolution>();
+    const resolveAt = async (index: number): Promise<Resolution> => {
+      const cached = resolutionCache.get(index);
+      if (cached) return cached;
+      const ref = modelsToTry[index];
+      let result: Resolution;
       try {
-        const parsed = currentModelId
-          ? parseModelRef(currentModelId)
-          : undefined;
-        resolved = parsed
+        const parsed = ref ? parseModelRef(ref) : undefined;
+        const resolved = parsed
           ? await resolveLanguageModelByIdNode(ctx, {
               modelId: parsed.modelId,
               providerName: parsed.providerName ?? agentConfig.provider,
@@ -580,26 +544,64 @@ export async function runGenerationCore(
               tag: 'chat',
               organizationId,
             });
-      } catch (resolveError) {
-        lastFallbackError = resolveError;
+        result = { ok: true, resolved };
+      } catch (error) {
+        result = { ok: false, error };
+      }
+      resolutionCache.set(index, result);
+      return result;
+    };
+    // First index ≥ `from` that resolves to a configured model on a live scope.
+    const findNextAttemptable = async (from: number): Promise<number> => {
+      for (let i = from; i < modelsToTry.length; i++) {
+        const r = await resolveAt(i);
+        if (r.ok && !isModelScopeRetired(r.resolved.modelData, deadScopes)) {
+          return i;
+        }
+      }
+      return -1;
+    };
+
+    for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
+      const currentModelId = modelsToTry[attempt];
+
+      const resolution = await resolveAt(attempt);
+      if (!resolution.ok) {
+        lastFallbackError = resolution.error;
         if (attempt < modelsToTry.length - 1) {
           debugLog('SKIP_UNCONFIGURED_MODEL', {
             model: currentModelId ?? 'default',
             nextModel: modelsToTry[attempt + 1] ?? 'default',
             reason:
-              resolveError instanceof Error
-                ? resolveError.message
-                : String(resolveError),
+              resolution.error instanceof Error
+                ? resolution.error.message
+                : String(resolution.error),
           });
           continue;
         }
-        throw resolveError;
+        throw resolution.error;
+      }
+      const resolved = resolution.resolved;
+
+      // Skip a resource already retired this turn — no HTTP call, no
+      // circuit-breaker record, no fallback notice. If it's the last entry the
+      // loop falls through to the throw below, carrying the real cause.
+      if (isModelScopeRetired(resolved.modelData, deadScopes)) {
+        debugLog('SKIP_DEAD_SCOPE', {
+          model: resolved.modelData.modelId,
+          provider: resolved.modelData.providerName,
+        });
+        if (attempt < modelsToTry.length - 1) continue;
+        break;
       }
 
       try {
         const { languageModel, modelData } = resolved;
         const resolvedProvider = modelData.providerName;
         const resolvedModelId = modelData.modelId;
+        lastResolvedProvider = resolvedProvider;
+        lastResolvedModelId = resolvedModelId;
+        attemptedCount += 1;
 
         // Prewarm only pays off when there is a cache to warm. For a model whose
         // caching strategy resolves to 'none' (unknown family, no operator
@@ -735,6 +737,11 @@ export async function runGenerationCore(
             : undefined,
         });
 
+        // Is another model still worth trying if this one fails? (Resolution is
+        // memoized, so this lookahead is reused by the catch's failover.)
+        const hasNextAttemptable =
+          (await findNextAttemptable(attempt + 1)) !== -1;
+
         const result = await generateAgentResponse(
           {
             agentType,
@@ -762,7 +769,8 @@ export async function runGenerationCore(
             modelMaxOutputTokens: modelData.maxOutputTokens,
             modelContextWindow: modelData.contextWindow,
             reasoningCapability: modelData.reasoning,
-            responseTuning: agentConfig.responseTuning,
+            responseStyle: agentConfig.responseStyle,
+            routeSeed: agentConfig.routeSeed,
             replyLocaleHint: agentConfig.replyLocaleHint,
           },
           {
@@ -795,9 +803,10 @@ export async function runGenerationCore(
             pinnedFileIds: args.pinnedFileIds,
             requestStartMs: args.requestStartMs,
             // Suppress error cleanup (stream error, generation status clear,
-            // failed message) when there are more fallback models to try.
-            // The fallback loop handles cleanup itself.
-            suppressErrorCleanup: attempt < modelsToTry.length - 1,
+            // failed message) when there is another model still worth trying.
+            // The fallback loop handles cleanup itself; the final catch-all
+            // owns it when nothing attemptable remains.
+            suppressErrorCleanup: hasNextAttemptable,
             prewarm: args.prewarm,
           },
         );
@@ -845,103 +854,108 @@ export async function runGenerationCore(
         return result;
       } catch (fallbackError) {
         lastFallbackError = fallbackError;
-        const hasMoreFallbacks = attempt < modelsToTry.length - 1;
 
-        // Retry on any provider-specific error with remaining fallbacks.
-        // This includes transient errors (429, 5xx) AND non-transient
-        // provider errors (401 auth, 404 model-not-found) because a
-        // different fallback model may use a different provider.
-        if (hasMoreFallbacks && shouldFailoverToNextModel(fallbackError)) {
-          const failedModelLabel = currentModelId ?? model;
-          const nextModel = modelsToTry[attempt + 1] ?? 'default';
+        const scope = classifyFailureScope(fallbackError);
 
-          // Record circuit breaker failure only for transient errors
-          // (429, 5xx, timeouts). Non-transient errors like 401/404 are
-          // config issues, not provider flakiness.
-          if (
-            currentModelId &&
-            agentConfig.provider &&
-            isTransientProviderError(fallbackError)
-          ) {
-            recordFailure(agentConfig.provider, currentModelId);
-          }
+        // Terminal: would fail on ANY model (content policy, context length,
+        // no provider configured). Don't walk the chain at all.
+        if (scope === 'terminal') throw fallbackError;
 
-          // Check remaining deadline budget before retrying
-          if (deadlineMs && Date.now() >= deadlineMs - 5000) {
-            debugLog('FALLBACK_SKIP_DEADLINE', {
-              failedModel: failedModelLabel,
-              remainingMs: deadlineMs - Date.now(),
-            });
-            throw fallbackError;
-          }
+        const failedRef = currentModelId ?? model;
+        const reasonCode = classifyChatErrorCode(fallbackError);
 
-          const errStatus = isRecord(fallbackError)
-            ? (fallbackError['status'] ?? fallbackError['statusCode'])
-            : undefined;
-          const errMessage = isRecord(fallbackError)
-            ? getString(fallbackError, 'message')
-            : undefined;
-          debugLog('MODEL_FALLBACK', {
-            attempt: attempt + 1,
-            failedModel: failedModelLabel,
-            nextModel,
-            errorStatus: typeof errStatus === 'number' ? errStatus : undefined,
-            errorMessage: errMessage?.slice(0, 200),
-          });
+        // Deterministic provider-level failure (out of funds / invalid key /
+        // host down): retire the failing RESOURCE — the credential (provider +
+        // key) for funds/auth, the endpoint for an unreachable host — so its
+        // siblings are skipped, but a sibling with its OWN key is still tried.
+        const retired = retiredScopeKey(reasonCode, resolved.modelData);
+        if (retired) deadScopes.add(retired);
 
-          // Save system message so the user sees the fallback in chat
-          try {
-            await saveMessage(ctx, components.agent, {
-              threadId,
-              message: {
-                role: 'system',
-                content: `[MODEL_FALLBACK] ${failedModelLabel} was unavailable. Trying ${nextModel}...`,
-              },
-            });
-          } catch (msgError) {
-            console.error(
-              '[runAgentGeneration] Failed to save fallback message:',
-              msgError,
-            );
-          }
-
-          // Clean up stale assistant messages from this attempt.
-          // With suppressErrorCleanup, generateAgentResponse skips saving
-          // failed messages, but the Agent SDK may have created a pending
-          // message before the error. Convert any failed/pending assistant
-          // messages to a system fallback note.
-          try {
-            const msgs = await listMessages(ctx, components.agent, {
-              threadId,
-              paginationOpts: { cursor: null, numItems: 5 },
-              excludeToolMessages: true,
-            });
-            const staleAssistants = msgs.page.filter(
-              (m: MessageDoc) =>
-                m.message?.role === 'assistant' &&
-                (m.status === 'failed' || m.status === 'pending'),
-            );
-            for (const stale of staleAssistants) {
-              await ctx.runMutation(components.agent.messages.updateMessage, {
-                messageId: stale._id,
-                patch: {
-                  status: 'success',
-                  message: {
-                    role: 'system',
-                    content: `[MODEL_FALLBACK] ${failedModelLabel} failed — retrying with ${nextModel}.`,
-                  },
-                },
-              });
-            }
-          } catch (cleanupError) {
-            debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
-          }
-
-          continue;
+        // Record a circuit-breaker failure only for transient errors (429,
+        // 5xx, timeouts) — config/account issues aren't provider flakiness.
+        if (
+          currentModelId &&
+          agentConfig.provider &&
+          isTransientProviderError(fallbackError)
+        ) {
+          recordFailure(agentConfig.provider, currentModelId);
         }
 
-        // Non-transient error or no more fallbacks — rethrow
-        throw fallbackError;
+        // The next model still worth attempting (skips retired resources).
+        const nextIndex = await findNextAttemptable(attempt + 1);
+        const outOfTime = deadlineMs != null && Date.now() >= deadlineMs - 5000;
+
+        // Nothing attemptable left, or no time budget — surface the cause.
+        if (nextIndex === -1 || outOfTime) {
+          if (outOfTime) {
+            debugLog('FALLBACK_SKIP_DEADLINE', {
+              failedModel: failedRef,
+              remainingMs:
+                deadlineMs != null ? deadlineMs - Date.now() : undefined,
+            });
+          }
+          throw fallbackError;
+        }
+
+        const nextRef = modelsToTry[nextIndex] ?? 'default';
+        // Machine-readable body — the chat UI renders a localized line and the
+        // model auto-switch reads `to`.
+        const fallbackBody = `${SYSTEM_MSG_TAG.MODEL_FALLBACK} ${formatModelFallbackBody(
+          { from: failedRef, to: nextRef, reason: reasonCode },
+        )}`;
+
+        debugLog('MODEL_FALLBACK', {
+          attempt: attempt + 1,
+          failedModel: failedRef,
+          nextModel: nextRef,
+          scope,
+          reason: reasonCode,
+        });
+
+        // Save a structured system message so the user sees the fallback.
+        try {
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: { role: 'system', content: fallbackBody },
+          });
+        } catch (msgError) {
+          console.error(
+            '[runAgentGeneration] Failed to save fallback message:',
+            msgError,
+          );
+        }
+
+        // Convert any stale failed/pending assistant message from this attempt
+        // (suppressErrorCleanup left it untouched) into the same structured
+        // fallback note so the thread doesn't show an orphaned error bubble.
+        try {
+          const msgs = await listMessages(ctx, components.agent, {
+            threadId,
+            paginationOpts: { cursor: null, numItems: 5 },
+            excludeToolMessages: true,
+          });
+          const staleAssistants = msgs.page.filter(
+            (m: MessageDoc) =>
+              m.message?.role === 'assistant' &&
+              (m.status === 'failed' || m.status === 'pending'),
+          );
+          for (const stale of staleAssistants) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: stale._id,
+              patch: {
+                status: 'success',
+                message: { role: 'system', content: fallbackBody },
+              },
+            });
+          }
+        } catch (cleanupError) {
+          debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
+        }
+
+        // Advance to the next model; the dead-provider guard at the top of the
+        // loop skips any retired-provider entries before `nextRef` cheaply
+        // (resolution only, no request).
+        continue;
       }
     }
 
@@ -1013,19 +1027,42 @@ export async function runGenerationCore(
         const newestAssistant = msgs.page.find(
           (m: MessageDoc) => m.message?.role === 'assistant',
         );
-        const hasFailedAssistant = newestAssistant?.status === 'failed';
-        if (!hasFailedAssistant) {
-          const providerError = classifyProviderError(error);
+        // Structured, machine-readable error: the chat UI decodes it into an
+        // authoritative, localized, provider-specific message; non-chat
+        // surfaces fall back to the human sentence in `content`.
+        const code = classifyChatErrorCode(error);
+        const failedContent = buildHumanErrorSentence(code, {
+          provider: lastResolvedProvider,
+          model: lastResolvedModelId,
+        });
+        const failedError = encodeChatError({
+          code,
+          provider: lastResolvedProvider,
+          model: lastResolvedModelId,
+          triedCount: attemptedCount > 0 ? attemptedCount : undefined,
+          raw: getString(err, 'message') ?? 'Unknown error',
+        });
+
+        if (newestAssistant?.status === 'failed') {
+          // Already failed (generateAgentResponse saved it with its own
+          // envelope) — leave it.
+        } else if (newestAssistant?.status === 'pending') {
+          // Zombie pending message — the SDK created it but generation threw
+          // before finalize. Update in place so the user sees the error
+          // instead of a perpetual spinner.
+          await ctx.runMutation(components.agent.messages.updateMessage, {
+            messageId: newestAssistant._id,
+            patch: {
+              status: 'failed',
+              error: failedError,
+              message: { role: 'assistant' as const, content: failedContent },
+            },
+          });
+        } else {
           await saveMessage(ctx, components.agent, {
             threadId,
-            message: {
-              role: 'assistant',
-              content: providerError.userMessage,
-            },
-            metadata: {
-              status: 'failed',
-              error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
-            },
+            message: { role: 'assistant', content: failedContent },
+            metadata: { status: 'failed', error: failedError },
           });
         }
       } catch (saveError) {

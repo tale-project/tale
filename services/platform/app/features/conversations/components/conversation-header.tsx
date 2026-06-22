@@ -216,7 +216,7 @@ export function ConversationHeader({
           size="icon"
           className="shrink-0 md:hidden"
           onClick={onBack}
-          aria-label={tCommon('actions.back')}
+          title={tCommon('actions.back')}
         >
           <ArrowLeft className="size-5" />
         </Button>

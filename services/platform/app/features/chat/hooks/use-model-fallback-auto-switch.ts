@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
 
+import {
+  parseModelFallbackBody,
+  SYSTEM_MSG_TAG,
+} from '@/lib/shared/constants/system-message-tags';
+
 import type { ChatMessage } from './use-message-processing';
 
 interface UseModelFallbackAutoSwitchParams {
@@ -12,12 +17,11 @@ interface UseModelFallbackAutoSwitchParams {
 }
 
 /**
- * Auto-switch the model selector after a successful fallback, extracted from
- * ChatInterface.
+ * Auto-switch the model selector after a successful fallback.
  *
- * Watches messages reactively: when a `[MODEL_FALLBACK]` "retrying with X"
- * message is followed by a successful assistant response, update the selector
- * so future messages use the working model.
+ * Watches messages reactively: when a `[MODEL_FALLBACK]` notice is followed by a
+ * successful assistant response, pin the selector to the model that worked
+ * (the notice's structured `to` field) so future messages use it.
  *
  * The `isLoading` guard makes this only scan once a response has ended — the
  * detection requires "a successful assistant message AFTER the fallback", which
@@ -39,22 +43,15 @@ export function useModelFallbackAutoSwitch({
     if (isLoading) return;
     if (!agentName || !messages.length) return;
 
-    // Find the latest MODEL_FALLBACK "retrying with" message
+    // Find the latest model-fallback notice.
     const fallbackMsg = messages
       .toReversed()
-      .find(
-        (msg) =>
-          msg.role === 'system' &&
-          msg.content?.includes('[MODEL_FALLBACK]') &&
-          msg.content?.includes('retrying with'),
-      );
-    if (
-      !fallbackMsg?.content ||
-      fallbackMsg.id === lastProcessedFallbackRef.current
-    )
+      .find((msg) => msg.systemMessageTag === SYSTEM_MSG_TAG.MODEL_FALLBACK);
+    if (!fallbackMsg || fallbackMsg.id === lastProcessedFallbackRef.current) {
       return;
+    }
 
-    // Only switch after a successful assistant message appears after the fallback
+    // Only switch once a successful assistant message follows the fallback.
     const fallbackIdx = messages.findIndex((msg) => msg.id === fallbackMsg.id);
     const hasSuccessAfter = messages
       .slice(fallbackIdx + 1)
@@ -63,16 +60,14 @@ export function useModelFallbackAutoSwitch({
 
     lastProcessedFallbackRef.current = fallbackMsg.id;
 
-    // Extract target model: "X failed — retrying with <model>."
-    // Greedy match up to the trailing period to handle dots in model
-    // names (e.g. "moonshotai/kimi-k2.5").
-    const match = fallbackMsg.content.match(/retrying with (.+)\./);
-    if (!match) return;
+    const { to } = parseModelFallbackBody(
+      fallbackMsg.systemMessageBody ?? fallbackMsg.content ?? '',
+    );
+    // `to === 'default'` is the tag-default (no concrete ref to pin) — skip.
+    if (!to || to === 'default') return;
 
-    const successfulModel = match[1];
-    const currentSelected = selectedModelOverrides[agentName];
-    if (successfulModel && successfulModel !== currentSelected) {
-      setSelectedModelOverride(agentName, successfulModel);
+    if (to !== selectedModelOverrides[agentName]) {
+      setSelectedModelOverride(agentName, to);
     }
   }, [
     messages,

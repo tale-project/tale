@@ -36,7 +36,7 @@ export function ScrollToBottomButton({
             size="icon"
             variant="secondary"
             className="bg-background/95 rounded-full shadow-lg backdrop-blur-xs"
-            aria-label={t('aria.scrollToBottom')}
+            title={t('aria.scrollToBottom')}
           >
             <ArrowDown className="h-4 w-4" />
           </Button>

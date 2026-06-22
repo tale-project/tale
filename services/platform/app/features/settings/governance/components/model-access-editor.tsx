@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -29,6 +28,7 @@ import {
   type ModelInfoCapabilities,
   ModelInfoPopover,
 } from '@/app/features/chat/components/model-info-popover';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import {
   useListProviders,
@@ -594,7 +594,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
 
   return (
     <Skeletonize loading={loading} label={t('modelAccess.title')}>
-      <PageSection
+      <SettingsSection
         title={t('modelAccess.title')}
         description={t('modelAccess.description')}
         action={
@@ -705,7 +705,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                               size="icon"
                               onClick={() => openEditDialog(index)}
                               disabled={cannotManage}
-                              aria-label={t('modelAccess.editRule')}
+                              title={t('modelAccess.editRule')}
                             >
                               <Pencil className="size-4" />
                             </Button>
@@ -714,7 +714,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                               size="icon"
                               onClick={() => setDeletingIndex(index)}
                               disabled={cannotManage}
-                              aria-label={t('modelAccess.deleteRule')}
+                              title={t('modelAccess.deleteRule')}
                             >
                               <Trash2 className="size-4" />
                             </Button>
@@ -802,7 +802,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
             }
           }}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

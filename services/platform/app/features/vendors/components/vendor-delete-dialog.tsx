@@ -65,7 +65,7 @@ export function VendorDeleteDialog({
           variant="ghost"
           size="icon"
           onClick={dialog.open}
-          aria-label={tVendors('deleteVendor')}
+          title={tVendors('deleteVendor')}
           className="hover:bg-transparent"
         >
           <Trash2 className="size-4" />

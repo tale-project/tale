@@ -32,7 +32,7 @@ interface SettingsToggleRowProps {
  * the Switch via `aria-labelledby` rather than relying on the row-level
  * association.
  *
- * Use this instead of pairing a `PageSection` with a bare `Switch`: the
+ * Use this instead of pairing a `SettingsSection` with a bare `Switch`: the
  * bare-switch layout leaves the toggle anchored to the left under a
  * heading, breaking the "controls live on the right" visual rhythm shared
  * with the rest of settings.

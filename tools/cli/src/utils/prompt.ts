@@ -57,7 +57,8 @@ export class NonInteractiveError extends Error {
   }
 }
 
-function isInteractive(): boolean {
+/** Whether a real terminal is attached on both stdin and stdout. */
+export function isInteractive(): boolean {
   return process.stdin.isTTY && process.stdout.isTTY;
 }
 

@@ -16,6 +16,7 @@ import {
   questionLine,
   rule,
   sourceLine,
+  stepStartLine,
   table,
   warnLine,
 } from './lines.ts';
@@ -61,18 +62,25 @@ afterEach(() => {
 });
 
 describe('line emitters (plain ASCII profile)', () => {
-  it('render bracketed ASCII markers with no escape codes', () => {
+  it('render ASCII markers (info is markerless) with no escape codes', () => {
     doneLine('done');
     infoLine('info');
     questionLine('a question');
     warnLine('warn');
     errorLine('err');
     expect(stdout()).toContain('[ + ] done');
-    expect(stdout()).toContain('[ - ] info');
+    // info is neutral narration — emitted as plain text, with no marker.
+    expect(stdout()).toContain('info');
+    expect(stdout()).not.toContain('[ - ]');
     expect(stdout()).toContain('[ ? ] a question');
     expect(stdout()).toContain('[ ! ] warn');
     expect(stderr()).toContain('[ x ] err');
     expect(stdout() + stderr()).not.toContain('\x1b');
+  });
+
+  it('stepStartLine keeps the [ - ] marker (a step start pairs with its terminal)', () => {
+    stepStartLine('Starting X');
+    expect(stdout()).toContain('[ - ] Starting X');
   });
 
   it('routes errors (and error source lines) to stderr, the rest to stdout', () => {

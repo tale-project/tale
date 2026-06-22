@@ -1,15 +1,15 @@
 ---
-title: Environment & secrets
+title: Environment variables & secrets
 description: Your personal environment variables and secrets, injected into every agent sandbox you run in an organisation — most often the provider credential a bring-your-own agent authenticates with.
 ---
 
-Environment & secrets is your personal store of variables that Tale injects into every agent sandbox you run in this organisation. When an external agent starts its sandbox, each entry you have saved here is set in the container's environment before the agent runs, so a command the agent issues — or the agent itself — can read it. The headline use is credentials: a [bring-your-own external agent](/platform/agents/external-agent) authenticates with the API key or token you keep here instead of the platform gateway. It is a member-level page that every role can reach, and the entries are scoped to you and to the current organisation, so they never leak to teammates and never follow you into another org.
+Environment variables & secrets is your personal store of variables that Tale injects into every agent sandbox you run in this organisation. When an external agent starts its sandbox, each entry you have saved here is set in the container's environment before the agent runs, so a command the agent issues — or the agent itself — can read it. The headline use is credentials: a [bring-your-own external agent](/platform/agents/external-agent) authenticates with the API key or token you keep here instead of the platform gateway. It is a member-level page that every role can reach, and the entries are scoped to you and to the current organisation, so they never leak to teammates and never follow you into another org.
 
 This page covers the two kinds of entry, how secrets are protected, the rules a name and value have to satisfy, and where the values end up.
 
 ## Variables and secrets
 
-Open **Settings > Environment**. The page is an add form at the top and the list of what you have saved below. Each entry is a **Name** and a **Value**, plus a **Secret** switch that decides how the value is stored and shown.
+Open **Settings > Environment**. **Add variable** opens a dialog for a new entry, with the list of what you have saved below. Each entry is a **Name** and a **Value**, plus a **Secret** switch that decides how the value is stored and shown.
 
 A plain variable is stored as-is and shown back in full in the list — use it for non-sensitive configuration the agent expects, a region name or an endpoint. A **secret** is encrypted the moment you save it and is write-only from then on: the list shows `••••••••` in place of the value, and there is no way to read it back. Turn the switch on for anything sensitive — an API key, an OAuth token, a password. The trade-off is that you cannot review a secret's value later, so if you are unsure it is right, delete it and add it again rather than hunting for a reveal button that does not exist.
 
@@ -29,4 +29,4 @@ That last step is the boundary worth understanding: the values land inside your 
 
 ## Where this fits
 
-Environment & secrets is the one member-level page that reaches into the sandbox rather than the chat — it is how your own keys and configuration get to the agents you run, without an Editor or Admin setting them for you. The entry you will add most often is the provider credential for a [bring-your-own external agent](/platform/agents/external-agent); read this page alongside that one to see both halves — where the credential is stored and how an agent is told to use it instead of the platform gateway. For the rest of your personal settings — display name, password, custom instructions — see [Preferences](/platform/member/preferences).
+Environment variables & secrets is the one member-level page that reaches into the sandbox rather than the chat — it is how your own keys and configuration get to the agents you run, without an Editor or Admin setting them for you. The entry you will add most often is the provider credential for a [bring-your-own external agent](/platform/agents/external-agent); read this page alongside that one to see both halves — where the credential is stored and how an agent is told to use it instead of the platform gateway. For the rest of your personal settings — display name, password, custom instructions — see [Preferences](/platform/member/preferences).

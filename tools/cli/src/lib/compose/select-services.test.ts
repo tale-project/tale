@@ -1,0 +1,72 @@
+import { describe, expect, test } from 'bun:test';
+
+import { selectDefaultServices } from './select-services';
+
+const ALL_RUNNING = () => true;
+const NONE_RUNNING = () => false;
+
+describe('selectDefaultServices', () => {
+  test('always rolls platform + the always-roll tier (convex); sandbox flips separately', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+    });
+    expect(sel.rotatable).toEqual(['platform']);
+    // sandbox / sandbox-egress are NOT here — they roll via the blue-green flip.
+    expect(sel.stateful).toEqual(['convex']);
+  });
+
+  test('running db/proxy are left untouched without --stop', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+    });
+    expect(sel.leftRunning).toEqual(['db', 'proxy']);
+    expect(sel.stateful).not.toContain('db');
+    expect(sel.stateful).not.toContain('proxy');
+  });
+
+  test('--stop includes db/proxy even when running', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: true,
+      isStopGatedRunning: ALL_RUNNING,
+    });
+    expect(sel.leftRunning).toEqual([]);
+    expect(sel.stateful).toEqual(['convex', 'db', 'proxy']);
+  });
+
+  test('stopped db/proxy are updated without --stop', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: NONE_RUNNING,
+    });
+    expect(sel.leftRunning).toEqual([]);
+    expect(sel.stateful).toContain('db');
+    expect(sel.stateful).toContain('proxy');
+  });
+
+  test('a partially-running stop-gated tier updates only the stopped one', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: (s) => s === 'db', // db running, proxy stopped
+    });
+    expect(sel.leftRunning).toEqual(['db']);
+    expect(sel.stateful).toContain('proxy');
+    expect(sel.stateful).not.toContain('db');
+  });
+
+  test('first deploy includes everything regardless of running state', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: true,
+      stop: false,
+      isStopGatedRunning: ALL_RUNNING,
+    });
+    expect(sel.leftRunning).toEqual([]);
+    expect(sel.stateful).toEqual(['convex', 'db', 'proxy']);
+  });
+});

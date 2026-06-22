@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Lock } from 'lucide-react';
@@ -10,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { DsarGovernanceConfig } from '@/lib/shared/schemas/governance';
@@ -200,7 +200,7 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
 
   return (
     <Skeletonize loading={isLoading || !data} label={t('dsarPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('dsarPolicy.title')}
         description={t('dsarPolicy.description')}
       >
@@ -280,7 +280,7 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
             />
           </PendingFieldWrap>
         </div>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

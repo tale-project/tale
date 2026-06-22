@@ -13,6 +13,8 @@ const KEYS = [
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
+  'SANDBOX_COLOR',
+  'SANDBOX_HOST_SESSION_ROOT',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -196,5 +198,28 @@ describe('loadConfig — deployment.json sandboxRuntime', () => {
   test('malformed deployment.json fails closed', () => {
     writeFileSync(join(cfgDir, 'deployment.json'), '{ not json');
     expect(() => loadConfig()).toThrow(/not valid JSON/);
+  });
+});
+
+describe('blue-green colour', () => {
+  test('unset SANDBOX_COLOR ⇒ single-colour (null), flat session root', () => {
+    process.env.SANDBOX_HOST_SESSION_ROOT = '/var/lib/tale-sandbox/sessions';
+    const cfg = loadConfig();
+    expect(cfg.color).toBeNull();
+    expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions');
+  });
+
+  test('SANDBOX_COLOR scopes the host session root per colour', () => {
+    process.env.SANDBOX_HOST_SESSION_ROOT = '/var/lib/tale-sandbox/sessions';
+    process.env.SANDBOX_COLOR = 'green';
+    const cfg = loadConfig();
+    expect(cfg.color).toBe('green');
+    expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions/green');
+  });
+
+  test('invalid SANDBOX_COLOR is ignored (single-colour)', () => {
+    process.env.SANDBOX_COLOR = 'Blue/../etc'; // path traversal / bad chars
+    const cfg = loadConfig();
+    expect(cfg.color).toBeNull();
   });
 });

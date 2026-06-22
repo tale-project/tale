@@ -1,60 +1,53 @@
 /**
- * Pure helpers that translate the per-agent `responseTuning` config (see
- * `responseTuningSchema` in `./schemas/agents`) into the primitives the chat
- * backend consumes:
+ * The per-message response-shaping advice the Auto router classifier produces,
+ * and the pure helpers that turn the prose part of it into a system-prompt
+ * fragment.
  *
- *  - a FIXED reasoning-tier override (bypasses the adaptive controller),
- *  - a creativity score in [0,1] feeding the temperature governor,
- *  - effort floor/ceiling tiers that BOUND the adaptive controller,
- *  - per-difficulty thinking-budget caps,
- *  - a temperature range,
- *  - a quality-feedback preset,
- *  - system-prompt fragments for style and verbosity.
+ * Two distinct, advisory shapes — there are NO per-agent manual overrides any
+ * more; the adaptive reasoning governor (effort/temperature) and the router
+ * (style/verbosity + a reasoning seed) are the sole, automatic deciders:
  *
- * Pure and dependency-free — shared by the agent settings UI and the chat
- * backend.
+ *  - {@link ResponseStyleAdvice} — prose-level tone/depth (`style`) and length
+ *    (`verbosity`), rendered into a short instruction suffix appended to the
+ *    agent's system prompt for the turn.
+ *  - {@link ResponseReasoningSeed} — a coarse effort/creativity hint fed to the
+ *    governor as a PRIOR (blended into the difficulty score), never a hard
+ *    override. The online controller still refines from observed usage.
+ *
+ * Pure and dependency-free — the canonical home shared by the router helpers
+ * (`auto_route_helpers.ts` aliases these) and the chat backend.
  */
-
-import type { ResponseTuningConfig } from './schemas/agents';
 
 /**
- * Fixed effort → reasoning-tier override. `undefined` means "adaptive": leave
- * the governor in control. ('off' is not a valid *fixed* effort — the composer
- * only ever exposed low/medium/high — so the enum here excludes it.)
+ * Prose-level response shaping the router advises per message: tone/depth
+ * (`style`) and length (`verbosity`). `style` controls phrasing; `verbosity`
+ * targets length specifically, so both can be set together. Only emitted in
+ * Auto mode; a pinned agent's tone comes from its own `systemInstructions`.
  */
-export function effortToTierOverride(
-  effort: ResponseTuningConfig['effort'],
-): 'low' | 'medium' | 'high' | undefined {
-  if (!effort || effort === 'adaptive') return undefined;
-  return effort;
+export interface ResponseStyleAdvice {
+  style?: 'concise' | 'detailed' | 'formal' | 'friendly';
+  verbosity?: 'terse' | 'normal' | 'verbose';
 }
 
 /**
- * Fixed creativity → sampling-creativity score in [0,1]. `undefined` = adaptive
- * (difficulty-scaled). The backend feeds this into `decideTemperature`, so
- * reasoning-only models that forbid temperature still correctly omit it.
+ * Coarse per-message reasoning seed the router advises — a PRIOR for the
+ * adaptive reasoning governor, never a hard override. `effort` seeds how much
+ * step-by-step reasoning the turn gets; `creativity` seeds the sampling
+ * temperature. The governor blends these into its difficulty score on the first
+ * turn (fixing cold-start), then the online controller refines from observed
+ * reasoning-token usage + response quality, so a wrong hint self-corrects.
  */
-export function creativityToScoreOverride(
-  creativity: ResponseTuningConfig['creativity'],
-): number | undefined {
-  switch (creativity) {
-    case 'precise':
-      return 0;
-    case 'balanced':
-      return 0.5;
-    case 'creative':
-      return 1;
-    default:
-      return undefined;
-  }
+export interface ResponseReasoningSeed {
+  effort?: 'low' | 'medium' | 'high';
+  creativity?: 'precise' | 'balanced' | 'creative';
 }
 
 /**
- * Fixed style → a short system-prompt instruction fragment. Empty string means
- * "adaptive" (no override). Appended to the agent instructions for the turn.
+ * Style → a short system-prompt instruction fragment. Empty string means "no
+ * advice" (the default). Appended to the agent instructions for the turn.
  */
 export function styleInstructionFragment(
-  style: ResponseTuningConfig['style'],
+  style: ResponseStyleAdvice['style'],
 ): string {
   switch (style) {
     case 'concise':
@@ -72,11 +65,11 @@ export function styleInstructionFragment(
 
 /**
  * Verbosity → a soft length-target fragment, independent of `style`. Empty
- * string means "adaptive". `style` controls tone/depth phrasing; `verbosity`
+ * string means "no advice". `style` controls tone/depth phrasing; `verbosity`
  * targets length specifically, so both can be set together.
  */
 export function verbosityInstructionFragment(
-  verbosity: ResponseTuningConfig['verbosity'],
+  verbosity: ResponseStyleAdvice['verbosity'],
 ): string {
   switch (verbosity) {
     case 'terse':
@@ -96,12 +89,12 @@ export function verbosityInstructionFragment(
  * neither is set.
  */
 export function tuningInstructionSuffix(
-  tuning: ResponseTuningConfig | undefined,
+  advice: ResponseStyleAdvice | undefined,
 ): string {
-  if (!tuning) return '';
+  if (!advice) return '';
   const parts = [
-    styleInstructionFragment(tuning.style),
-    verbosityInstructionFragment(tuning.verbosity),
+    styleInstructionFragment(advice.style),
+    verbosityInstructionFragment(advice.verbosity),
   ].filter(Boolean);
   return parts.join('\n');
 }

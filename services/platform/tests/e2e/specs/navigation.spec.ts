@@ -42,9 +42,14 @@ function navLinkByHref(page: Page, hrefSuffix: string): Locator {
   return primaryNav(page).locator(`a[href$="${hrefSuffix}"]`);
 }
 
-/** "New chat" renders in both the desktop bar and mobile header; pin the first. */
-function newChatButton(page: Page): Locator {
-  return page.getByRole('button', { name: t('chat.newChat') }).first();
+/**
+ * The chat surface is settled once its header search control renders. (New chat
+ * is no longer a header button — it lives on the side-nav rail and a global
+ * shortcut — so the search control is the stable "we're on chat" anchor.) It
+ * renders in both the desktop bar and mobile header; pin the first (visible).
+ */
+function chatSurfaceAnchor(page: Page): Locator {
+  return page.getByRole('button', { name: t('chat.searchChat') }).first();
 }
 
 interface NavCase {
@@ -137,7 +142,7 @@ test.describe('navigation: primary side-nav rail', () => {
     await page.waitForURL(/\/chat(?:[/?#]|$)/, {
       timeout: TIMEOUT.FIRST_PAINT,
     });
-    await expect(newChatButton(page)).toBeVisible({
+    await expect(chatSurfaceAnchor(page)).toBeVisible({
       timeout: TIMEOUT.FIRST_PAINT,
     });
     await expect(primaryNav(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
@@ -159,7 +164,9 @@ test.describe('navigation: primary side-nav rail', () => {
       .first()
       .click();
     await page.waitForURL(/\/chat(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
-    await expect(newChatButton(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(chatSurfaceAnchor(page)).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
   });
 });
 
@@ -286,7 +293,9 @@ test.describe('navigation: 404 and history', () => {
     await page.waitForURL(/\/chat(?:[/?#]|$)/, {
       timeout: TIMEOUT.FIRST_PAINT,
     });
-    await expect(newChatButton(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(chatSurfaceAnchor(page)).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
 
     // Step 2: deep-link into a nested settings page (a distinct history entry).
     await page.goto(dashboardUrl(organizationId, '/settings/account'));
@@ -303,7 +312,9 @@ test.describe('navigation: 404 and history', () => {
     // Back → chat surface (URL + content track the history pop).
     await page.goBack();
     await page.waitForURL(/\/chat(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
-    await expect(newChatButton(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(chatSurfaceAnchor(page)).toBeVisible({
+      timeout: TIMEOUT.VISIBLE,
+    });
 
     // Forward → back to the settings account page.
     await page.goForward();

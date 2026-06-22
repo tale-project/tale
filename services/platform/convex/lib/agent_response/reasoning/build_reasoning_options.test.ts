@@ -147,89 +147,60 @@ describe('buildReasoningOptions', () => {
     });
   });
 
-  describe('per-agent response-tuning bounds', () => {
-    it('caps the tier at the effort ceiling on a hard turn', () => {
-      const decision = buildReasoningOptions({
-        modelData: {
-          providerName: 'openai',
-          modelId: 'gpt-5',
-          reasoning: { knob: 'effort', supportsMinimal: true },
-        },
-        signals: HARD,
-        effortCeilingTier: 'low',
-      });
-      // HARD alone would be 'high'; the ceiling clamps it to 'low'.
-      expect(decision.tier).toBe('low');
-      expect(decision.providerOptions).toEqual({
-        openai: { reasoningEffort: 'low' },
-      });
-    });
+  describe('router reasoning seed (Auto-mode prior blend)', () => {
+    const RANK: Record<string, number> = { off: 0, low: 1, medium: 2, high: 3 };
+    const GPT5 = {
+      providerName: 'openai',
+      modelId: 'gpt-5',
+      reasoning: { knob: 'effort' as const, supportsMinimal: true },
+    };
 
-    it('lifts the tier to the effort floor on a trivial turn', () => {
-      const decision = buildReasoningOptions({
-        modelData: {
-          providerName: 'openai',
-          modelId: 'gpt-5',
-          reasoning: { knob: 'effort', supportsMinimal: true },
-        },
+    it('lifts a lexically-plain prompt when the router seeds high effort', () => {
+      const seeded = buildReasoningOptions({
+        modelData: GPT5,
+        signals: { ...TRIVIAL, effortSeed: 'high' },
+      });
+      const unseeded = buildReasoningOptions({
+        modelData: GPT5,
         signals: TRIVIAL,
-        effortFloorTier: 'high',
       });
-      expect(decision.tier).toBe('high');
+      // The seed pulls the heuristic prior up, so a trivial-LOOKING prompt the
+      // router judged hard reasons harder than the pure heuristic would.
+      expect(RANK[seeded.tier]).toBeGreaterThan(RANK[unseeded.tier]);
     });
 
-    it('caps the thinking budget by the per-class budgetCap', () => {
-      const decision = buildReasoningOptions({
-        modelData: {
-          providerName: 'anthropic',
-          modelId: 'anthropic/claude-sonnet-4',
-          reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
-          maxOutputTokens: 64000,
-        },
+    it('an undefined seed reproduces the pure-heuristic decision (additive only)', () => {
+      const base = buildReasoningOptions({ modelData: GPT5, signals: HARD });
+      const seedless = buildReasoningOptions({
+        modelData: GPT5,
+        signals: { ...HARD, effortSeed: undefined, creativitySeed: undefined },
+      });
+      expect(seedless.tier).toBe(base.tier);
+      expect(seedless.providerOptions).toEqual(base.providerOptions);
+    });
+
+    it('a creativity seed shifts the sampling temperature on a non-reasoning model', () => {
+      const sampling = {
+        providerName: 'openai',
+        modelId: 'openai/gpt-4o',
+      };
+      const precise = buildReasoningOptions({
+        modelData: sampling,
         signals: {
           kind: 'chat',
-          promptText:
-            'Refactor and analyze this large module thoroughly. '.repeat(60),
+          promptText: 'summarize this',
+          creativitySeed: 'precise',
         },
-        budgetCaps: { hard: 4096, medium: 4096, easy: 4096 },
       });
-      const thinking = (
-        decision.providerOptions?.anthropic as Record<string, unknown>
-      )?.thinking as { budget_tokens: number };
-      expect(thinking.budget_tokens).toBeLessThanOrEqual(4096);
-    });
-
-    it('honors a custom temperature range for sampling models', () => {
-      const decision = buildReasoningOptions({
-        modelData: { providerName: 'openai', modelId: 'openai/gpt-4o' },
-        signals: { kind: 'chat', promptText: 'write a creative poem' },
-        creativityOverride: 1,
-        temperatureRange: { min: 0.2, max: 0.5 },
-      });
-      // creativity=1 maps to the top of the band → 0.5.
-      expect(decision.temperature).toBe(0.5);
-    });
-
-    it('is identical to no-tuning when no bounds are set', () => {
-      const base = buildReasoningOptions({
-        modelData: {
-          providerName: 'openai',
-          modelId: 'gpt-5',
-          reasoning: { knob: 'effort', supportsMinimal: true },
+      const creative = buildReasoningOptions({
+        modelData: sampling,
+        signals: {
+          kind: 'chat',
+          promptText: 'summarize this',
+          creativitySeed: 'creative',
         },
-        signals: HARD,
       });
-      const tuned = buildReasoningOptions({
-        modelData: {
-          providerName: 'openai',
-          modelId: 'gpt-5',
-          reasoning: { knob: 'effort', supportsMinimal: true },
-        },
-        signals: HARD,
-        qualityProfile: 'balanced',
-      });
-      expect(tuned.tier).toBe(base.tier);
-      expect(tuned.providerOptions).toEqual(base.providerOptions);
+      expect(creative.temperature).toBeGreaterThan(precise.temperature ?? 0);
     });
   });
 });

@@ -1,41 +1,59 @@
 ---
 title: Upgrades
-description: How `tale upgrade` and `tale deploy` move a Tale instance forward — the rolling restart pattern, what to do before an upgrade, and the version compatibility story.
+description: How `tale update` moves a Tale instance forward — automatic CLI/instance version alignment, the rolling restart pattern, what to do before an upgrade, and the version compatibility story.
 ---
 
-Upgrades on a self-hosted Tale instance run through the `tale` CLI in two steps: `tale upgrade` to move the binary itself to the new version, then `tale deploy` to roll the platform containers to match. The deploy uses a blue-green pattern — the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
+Upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern — the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
 
-The CLI install lives in [Install the tale CLI](/self-hosted/install/cli-install). This page covers what each subcommand does and the order to run them in.
+What you no longer do is keep the CLI in sync by hand: the CLI aligns itself to the instance automatically (see below), so the only deliberate step is choosing when to move versions with `tale update`.
+
+The CLI install lives in [Install the tale CLI](/self-hosted/install/cli-install). This page covers what each command does and how the version model works.
+
+## The CLI tracks the instance automatically
+
+The CLI binary is always the same version as the instance it manages. The workspace records that version in `tale.json`; on every command the CLI compares its own version against it and, if they differ, self-updates the binary to match (up or down) before running. When they already match — the overwhelmingly common case — this is a no-op with no network call, so you never notice it.
+
+That means you rarely run `tale update` except when you deliberately want to move to a new version. A teammate who installed a newer CLI than your instance, or restored an older snapshot, gets the right CLI version automatically on their next command. There is no flag to turn this off — keeping the tool and the instance in lockstep is what makes deploys safe.
 
 ## Before you upgrade
 
 Two things are worth confirming first:
 
-- Your off-host copy of the `backups` volume is current — see [Backups and restore](/self-hosted/operate/backups-and-restore). `tale deploy` snapshots the data volumes automatically before any step that can migrate data, but the snapshot lives on the same host; the off-host copy is what survives a dead disk.
+- Your off-host copy of the `backups` volume is current — see [Backups and restore](/self-hosted/operate/backups-and-restore). `tale update` snapshots the data volumes automatically before any step that can migrate data, but the snapshot lives on the same host; the off-host copy is what survives a dead disk.
 - The release notes for the target version do not name a breaking change. The notes are linked from the GitHub release page; breaking changes are flagged as such at the top.
 
 If the upgrade crosses a major version (1.x → 2.x), read the migration notes end-to-end before starting. Major versions are where schema migrations and config-file format changes land.
 
 ## The two commands
 
-`tale upgrade` updates the CLI binary itself. The deployed platform version matches the CLI's version — that coupling is intentional, so the CLI you run cannot deploy a version it does not know about.
+`tale update` updates the CLI binary and then syncs your project files to that version's templates. It does **not** touch the running containers — that is `tale deploy`'s job. If the file sync fails, the CLI rolls its own binary back to the version your workspace was on, so the binary and `tale.json` never drift apart.
 
 ```bash
-# Move the CLI to the latest release
-tale upgrade
+# Move the CLI + project files to the latest release
+tale update
 
-# Then roll the platform to match
-tale deploy
+# Pin a specific version (allows downgrades — see Rolling back)
+tale update --version 0.10.2
+
+# Preview the version change and file sync without touching anything
+tale update --dry-run
 ```
 
-`tale deploy` does the actual rolling restart: it pulls new images, starts the new blue or green colour alongside the running one, waits for healthchecks, flips the proxy, drains and removes the old colour. The default targets the rotatable services (`platform`, `rag`, `crawler`); stateful services (`db`, `proxy`) need `--all` to update in place.
+`tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
+
+- **App/compute tier** — `platform`, `sandbox`, `sandbox-egress` — rolls on **every** deploy with zero downtime (blue-green: the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains).
+- **Backend** — `convex` — rolls on every deploy too, so it never version-skews from `platform`; it recreates in place only when its image actually changed.
+- **Stop-gated tier** — `db`, `proxy` — left **running and untouched** by default (recreating Postgres or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 
 ```bash
-# Include the stateful services
-tale deploy --all
+# After tale update, roll the containers to match (app tier + convex)
+tale deploy
+
+# Also update db/proxy (brief downtime while they recreate)
+tale deploy --stop
 
 # Roll only specific services
-tale deploy --services platform,rag
+tale deploy --services platform
 
 # Preview without changes
 tale deploy --dry-run
@@ -45,7 +63,7 @@ tale deploy --dry-run
 
 ## The blue-green pattern
 
-A running instance is one of the two colours (blue or green) at any given time. `tale deploy` brings up the other colour, waits for it to pass healthchecks, then flips Caddy's upstream to the new colour. The old colour drains its in-flight requests (default 30 s), then exits.
+A running instance is one of the two colours (blue or green) at any given time. The deploy phase brings up the other colour, waits for it to pass healthchecks, then flips Caddy's upstream to the new colour. The old colour drains its in-flight requests (default 30 s), then exits.
 
 Three guarantees the pattern gives you:
 
@@ -53,16 +71,21 @@ Three guarantees the pattern gives you:
 - **Patch rollback is one command.** `tale rollback` redeploys the previous patch release on the idle colour and flips traffic back. It refuses minor and major downgrades — those can leave the database ahead of the binary, and their recovery path is a snapshot restore.
 - **Failed healthchecks block the flip.** If the new colour does not pass within the timeout, the deploy aborts and the old colour continues serving.
 
-The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale deploy && tale status` and visual confirmation in the browser.
+The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale update && tale deploy && tale status` and visual confirmation in the browser.
 
 ## Rolling back
 
 ```bash
-# Back to the previous patch version
+# Back to the previous patch version (prompts for confirmation)
 tale rollback
+
+# Skip the prompt when running non-interactively
+tale rollback --yes
 ```
 
-`tale rollback` is gated to patch-level steps: it only targets the recorded previous version, and refuses unless that version shares `major.minor` with the running platform. Patch releases never carry migrations, so redeploying the previous patch is always safe. Anything bigger may have migrated data forward — redeploying an older binary on top of migrated data corrupts the instance instead of recovering it. For those, the recovery path is restoring the pre-upgrade snapshot and redeploying the version that matches it; the refusal message prints the exact commands, and the full walk lives in [Backups and restore](/self-hosted/operate/backups-and-restore).
+`tale rollback` is gated to patch-level steps: it only targets the recorded previous version, and refuses unless that version shares `major.minor` with the running platform. Patch releases never carry migrations, so redeploying the previous patch is always safe. Anything bigger may have migrated data forward — redeploying an older binary on top of migrated data corrupts the instance instead of recovering it. For those, the recovery path is restoring the pre-upgrade snapshot and moving back to the version that matches it with `tale update --version <version>` followed by `tale deploy --stop` (so `db`/`proxy` roll back too); the refusal message prints the exact commands, and the full walk lives in [Backups and restore](/self-hosted/operate/backups-and-restore).
+
+Because the rollback tears down the running containers, the command warns what it is about to do and asks for confirmation before it pulls a single image; pass `--yes` to skip that prompt in scripts or CI.
 
 ## Version compatibility
 
@@ -73,6 +96,8 @@ Tale versions are semver. The compatibility rules:
 - Major (`0.x → 1.x`) — read the migration notes, schedule the maintenance window, expect surprises.
 
 Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate migrations are still in the binary; the release notes call it out when this is not the case.
+
+To move _down_ a version deliberately — say a minor release misbehaves and you have already reversed its migrations — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version and reminds you to reverse data migrations first.
 
 ## Where this fits
 

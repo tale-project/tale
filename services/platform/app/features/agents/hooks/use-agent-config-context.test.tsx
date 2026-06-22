@@ -193,12 +193,12 @@ describe('useAgentConfig', () => {
   it('stays clean when a nested patch only reorders keys (no false dirty)', () => {
     // Regression: dirty detection was `JSON.stringify(config) !==
     // JSON.stringify(saved)`, which is key-order-sensitive. Re-applying the
-    // same nested object with its keys in a different order (as the response
-    // tuning panel does on every patch) must NOT read as dirty.
+    // same nested object with its keys in a different order (as a config panel
+    // does on every patch) must NOT read as dirty.
     const { result } = renderHook(() => useAgentConfig(), {
       wrapper: createWrapper({
         ...BASE_CONFIG,
-        responseTuning: { effort: 'high', creativity: 'balanced' },
+        routing: { modelSelection: 'auto', cascade: true },
       }),
     });
     expect(result.current.isDirty).toBe(false);
@@ -206,10 +206,10 @@ describe('useAgentConfig', () => {
     act(() => {
       // Same content, keys reversed + an explicit `undefined` leaf.
       result.current.updateConfig({
-        responseTuning: {
-          creativity: 'balanced',
-          effort: 'high',
-          style: undefined,
+        routing: {
+          cascade: true,
+          modelSelection: 'auto',
+          cascadeDraftModel: undefined,
         },
       });
     });
@@ -217,16 +217,16 @@ describe('useAgentConfig', () => {
     expect(result.current.isDirty).toBe(false);
   });
 
-  it('becomes dirty on a real nested response-tuning change', () => {
+  it('becomes dirty on a real nested routing change', () => {
     const { result } = renderHook(() => useAgentConfig(), {
       wrapper: createWrapper({
         ...BASE_CONFIG,
-        responseTuning: { effort: 'high' },
+        routing: { modelSelection: 'auto' },
       }),
     });
 
     act(() => {
-      result.current.updateConfig({ responseTuning: { effort: 'low' } });
+      result.current.updateConfig({ routing: { modelSelection: 'config' } });
     });
 
     expect(result.current.isDirty).toBe(true);

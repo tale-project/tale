@@ -106,7 +106,7 @@ function AgentFileRow({
             variant="ghost"
             size="icon"
             onClick={() => setConfirmOpen(true)}
-            aria-label={t('agents.knowledge.removeFile')}
+            title={t('agents.knowledge.removeFile')}
           >
             <Trash2 className="text-muted-foreground size-4" />
           </Button>

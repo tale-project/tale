@@ -12,6 +12,16 @@ const bucket = v.object({
   // Response-quality EMA per class (quality-feedback governor). Optional;
   // legacy rows omit it and readers coalesce to a neutral 1.0.
   qualityEma: v.optional(v.number()),
+  // Last tier the controller settled on (effort-tier anti-oscillation guard).
+  // Optional; absence disables the guard for that bucket.
+  lastTier: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('low'),
+      v.literal('medium'),
+      v.literal('high'),
+    ),
+  ),
 });
 
 /**

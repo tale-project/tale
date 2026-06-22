@@ -1,15 +1,15 @@
 'use client';
 
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -20,10 +20,11 @@ import {
   loginPolicyConfigSchema,
   type LoginPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 
 interface LoginPolicyEditorProps {
   organizationId: string;
@@ -37,17 +38,12 @@ interface LoginPolicyForm {
 
 const FORM_ID = 'governance-login-policy-form';
 
-function parseConfig(raw: unknown): LoginPolicyConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = loginPolicyConfigSchema.safeParse(obj);
-  if (result.success) return result.data;
-  return {
-    enabled: true,
-    maxAttemptsBeforeLockout: DEFAULT_LOGIN_MAX_ATTEMPTS,
-    backoffSchedule: [...DEFAULT_LOGIN_BACKOFF_MS],
-    trustedProxies: [...DEFAULT_TRUSTED_PROXIES],
-  };
-}
+const parseConfig = createConfigParser(loginPolicyConfigSchema, () => ({
+  enabled: true,
+  maxAttemptsBeforeLockout: DEFAULT_LOGIN_MAX_ATTEMPTS,
+  backoffSchedule: [...DEFAULT_LOGIN_BACKOFF_MS],
+  trustedProxies: [...DEFAULT_TRUSTED_PROXIES],
+}));
 
 function stringToProxyList(value: string): string[] | null {
   const parts = value
@@ -103,10 +99,18 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   // `enabled` is instant-save (a switch in the section header); the other
   // fields are batched through the EditorActions cluster at the bottom.
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => {
-    if (!isLoading) setEnabled(savedConfig.enabled);
-  }, [isLoading, savedConfig]);
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'login_policy',
+    savedEnabled: savedConfig.enabled,
+    isLoading,
+    buildConfig: (next): LoginPolicyConfig => ({
+      ...savedConfig,
+      enabled: next,
+    }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('loginPolicy.saveFailed'),
+  });
 
   const schema = useMemo(
     () =>
@@ -187,36 +191,10 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     formState: { errors },
   } = editor.form;
   const canEdit = !cannotManage;
-  const isToggling = upsertMutation.isPending;
-
-  const handleToggleEnabled = useCallback(
-    async (next: boolean) => {
-      setEnabled(next);
-      try {
-        await upsertMutation.mutateAsync({
-          organizationId,
-          policyType: 'login_policy',
-          config: {
-            ...savedConfig,
-            enabled: next,
-          } satisfies LoginPolicyConfig,
-        });
-      } catch (err) {
-        console.error('[loginPolicy toggle]', err);
-        setEnabled(!next);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('loginPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [organizationId, savedConfig, t, toast, upsertMutation],
-  );
 
   return (
     <Skeletonize loading={isLoading} label={t('loginPolicy.title')}>
-      <PageSection
+      <SettingsSection
         title={t('loginPolicy.title')}
         description={t('loginPolicy.description')}
         action={
@@ -224,8 +202,8 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             label={t('loginPolicy.enabled')}
             hideLabelOnMobile
             checked={enabled}
-            onCheckedChange={handleToggleEnabled}
-            disabled={!canEdit || isToggling}
+            onCheckedChange={onToggle}
+            disabled={!canEdit || isToggling || editor.isSaving}
           />
         }
       >
@@ -288,13 +266,14 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
                     formId={FORM_ID}
                     canEdit={canEdit}
                     entityKind="governance_login_policy"
+                    suppressServerErrorToast
                   />
                 </HStack>
               )}
             </Stack>
           </fieldset>
         </form>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

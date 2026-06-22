@@ -14,8 +14,6 @@ import {
   Ellipsis,
   Search,
   Share,
-  Plus,
-  SquarePen,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 
@@ -24,6 +22,7 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useIsMac } from '@/app/hooks/use-is-mac';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -39,12 +38,12 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const navigate = useNavigate();
-  const { isHistoryOpen, setIsHistoryOpen, clearChatState } = useChatLayout();
+  const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [isMac, setIsMac] = useState(false);
+  const isMac = useIsMac();
 
   const { t: tChat } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
@@ -86,19 +85,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     [navigate, organizationId],
   );
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const platform = (
-        navigator.platform ||
-        navigator.userAgent ||
-        ''
-      ).toLowerCase();
-      setIsMac(platform.includes('mac'));
-    }
-  }, []);
-
   const findShortcut = isMac ? '⌘ K' : 'CTRL + K';
-  const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
   const historyShortcut = isMac ? '⌘ H' : 'CTRL + H';
 
   const handleToggleSearch = useCallback(() => {
@@ -114,14 +101,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     }
   }, [isHistoryOpen, setIsHistoryOpen]);
 
-  const handleNewChat = useCallback(() => {
-    clearChatState();
-    void navigate({
-      to: '/dashboard/$id/chat',
-      params: { id: organizationId },
-    });
-  }, [navigate, organizationId, clearChatState]);
-
   const handleChatSelect = useCallback(() => {
     setIsMobileHistoryOpen(false);
   }, []);
@@ -135,11 +114,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         handleToggleSearch();
         return;
       }
-      if (isMod && e.altKey && e.code === 'KeyN') {
-        e.preventDefault();
-        e.stopPropagation();
-        handleNewChat();
-      }
       if (isMod && !e.shiftKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
         e.stopPropagation();
@@ -148,7 +122,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
+  }, [isMac, handleToggleSearch, handleToggleHistory]);
 
   // The per-thread voice toggle moved to the composer (next to dictation),
   // so the header dropdown now only carries the export action.
@@ -185,7 +159,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         />
       </Sheet>
 
-      <div className="border-border bg-background/95 hidden h-13 items-center gap-1 border-b px-5 backdrop-blur-xs md:flex">
+      <div className="border-border bg-background/95 hidden h-13 items-center border-b px-4 backdrop-blur-xs md:flex">
         <Tooltip
           content={
             <>
@@ -205,7 +179,14 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             aria-label={
               isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
-            className={cn(isHistoryOpen && 'bg-accent text-accent-foreground')}
+            // Negative margin pulls the icon's glyph to the header's content
+            // edge so it lines up with page titles (which start at px-4), since
+            // a ghost icon button carries its own p-2 inset. Same idiom as the
+            // onboarding wizard's leading Back button.
+            className={cn(
+              '-ml-2',
+              isHistoryOpen && 'bg-accent text-accent-foreground',
+            )}
           >
             <MessagesSquare
               className={cn(
@@ -235,28 +216,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             aria-label={tChat('searchChat')}
           >
             <Search className={baseIconClasses} />
-          </Button>
-        </Tooltip>
-
-        <Tooltip
-          content={
-            <>
-              {tChat('newChat')}
-              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
-                {newChatShortcut}
-              </span>
-            </>
-          }
-          side="bottom"
-          contentClassName="py-1.5"
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleNewChat}
-            aria-label={tChat('newChat')}
-          >
-            <SquarePen className={baseIconClasses} />
           </Button>
         </Tooltip>
 
@@ -296,7 +255,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             size="icon"
             variant="ghost"
             onClick={handleToggleHistory}
-            aria-label={
+            title={
               isMobileHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
           >
@@ -311,7 +270,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             size="icon"
             variant="ghost"
             onClick={handleToggleSearch}
-            aria-label={tChat('searchChat')}
+            title={tChat('searchChat')}
           >
             <Search className={baseIconClasses} />
           </Button>
@@ -321,7 +280,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
                 size="icon"
                 variant="ghost"
                 onClick={() => setIsShareDialogOpen(true)}
-                aria-label={tChat('share.button')}
+                title={tChat('share.button')}
               >
                 <Share className={baseIconClasses} />
               </Button>
@@ -340,14 +299,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
               />
             </>
           )}
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleNewChat}
-            aria-label={tChat('newChat')}
-          >
-            <Plus className={baseIconClasses} />
-          </Button>
         </div>
       </AdaptiveHeaderRoot>
 

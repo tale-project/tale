@@ -688,6 +688,7 @@ function MessageBubbleComponent({
       <Button
         variant="ghost"
         size="icon"
+        aria-label={t('actions.showInfo')}
         className="p-1"
         onClick={handleInfoClick}
         data-testid="message-info-button"
@@ -765,7 +766,10 @@ function MessageBubbleComponent({
                     displayContent
                   )}
                 </p>
-              ) : (
+              ) : message.isFailed ? null : (
+                // Failed turns render only <ChatErrorDisplay/> below — the saved
+                // content is just an error sentence (kept for non-chat surfaces)
+                // and would duplicate the localized hint.
                 <CitationsContext.Provider value={citationsContextValue}>
                   {/*
                    * Voice-output indicator: lifted to the TOP of the
@@ -950,6 +954,9 @@ function MessageBubbleComponent({
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={
+                            isCopied ? t('actions.copied') : t('actions.copy')
+                          }
                           className="p-1"
                           onClick={handleCopy}
                           data-testid="message-copy-button"
@@ -971,6 +978,7 @@ function MessageBubbleComponent({
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={tChat('forkChat')}
                             className="p-1"
                             onClick={handleForkClick}
                           >
@@ -991,6 +999,9 @@ function MessageBubbleComponent({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={
+                        isCopied ? t('actions.copied') : t('actions.copy')
+                      }
                       className="p-1"
                       onClick={handleCopy}
                       data-testid="message-copy-button"
@@ -1008,6 +1019,7 @@ function MessageBubbleComponent({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={tChat('forkChat')}
                         className="p-1"
                         onClick={handleForkClick}
                       >
@@ -1068,6 +1080,9 @@ function MessageBubbleComponent({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={
+                  isSavedPrompt ? tChat('unsavePrompt') : tChat('savePrompt')
+                }
                 className="size-6 p-1"
                 onClick={handleBookmarkClick}
               >
@@ -1084,6 +1099,7 @@ function MessageBubbleComponent({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label={tChat('editMessage')}
                 className="size-6 p-1"
                 onClick={handleEditClick}
               >

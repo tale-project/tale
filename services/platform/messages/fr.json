@@ -1091,7 +1091,9 @@
       "policyViolation": "Message bloqué par la politique de contenu",
       "modelAccessDenied": "Modèle non disponible",
       "budgetExceeded": "Limite d'utilisation atteinte",
-      "kbRefInvalid": "Un document référencé n’est plus disponible. Supprime-le et réessaie."
+      "kbRefInvalid": "Un document référencé n’est plus disponible. Supprime-le et réessaie.",
+      "backendRestarting": "Le serveur redémarre",
+      "backendRestartingDescription": "Le serveur redémarre brièvement pour une mise à jour. Merci de renvoyer ton message dans un instant."
     },
     "blockedNotice": {
       "body": "Cette réponse a été bloquée par la politique de contenu de ton organisation."
@@ -1701,6 +1703,16 @@
     "errorHintTokenLimit": "La limite de tokens en sortie du modèle a été dépassée. Essaie une requête plus courte ou demande à ton administrateur d'ajuster les paramètres du modèle.",
     "errorHintToolFailure": "L'agent a rencontré une erreur lors de l'accès aux données. Essaie de reformuler ta demande ou de demander un ensemble de données plus restreint.",
     "errorHintUnsupportedParameter": "Le modèle a rejeté l'un des paramètres de la requête. Cela indique généralement une mauvaise configuration du fournisseur ou du modèle — vérifie les paramètres du modèle ou ouvre les détails ci-dessous.",
+    "errorHintProviderUnreachable": "Le fournisseur d'IA est injoignable. Il est peut-être hors ligne ou mal configuré. Réessaie ou contacte ton administrateur.",
+    "errorHintCreditExhaustedNamed": "{provider} n'a plus de crédits. Contacte ton administrateur pour ajouter des crédits ou changer de fournisseur.",
+    "errorHintAuthErrorNamed": "La clé API de {provider} est invalide ou expirée. Contacte ton administrateur pour la mettre à jour.",
+    "errorHintProviderUnreachableNamed": "{provider} est injoignable. Le fournisseur est peut-être hors ligne ou mal configuré. Réessaie ou contacte ton administrateur.",
+    "errorHintModelNotFoundNamed": "Le modèle sélectionné est introuvable chez {provider}. Il a peut-être été renommé ou supprimé.",
+    "errorHintRateLimitedNamed": "Limite de débit atteinte chez {provider}. Merci de patienter un moment puis de réessayer.",
+    "errorTriedModels": "{count} modèles ont été essayés avant d'abandonner.",
+    "modelFallbackNotice": "{from} était indisponible — passage à {to}.",
+    "modelFallbackDefaultModel": "le modèle par défaut",
+    "modelFallbackUnknown": "le modèle précédent",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",
@@ -1996,8 +2008,6 @@
     "capabilityHeader": "Capacités",
     "capabilityDisable": "Désactiver {name}",
     "requiresIntegration": "Nécessite {name}",
-    "takeScreenshot": "Faire une capture d'écran",
-    "screenshotFailed": "Impossible de faire la capture d'écran",
     "kbMention": {
       "title": "Base de connaissances",
       "loading": "Recherche de documents…",
@@ -2097,7 +2107,9 @@
       "improving": "Amélioration...",
       "improveWithAi": "Améliorer avec l'IA",
       "generateImprovement": "Générer une amélioration",
-      "replyImproved": "Réponse améliorée"
+      "replyImproved": "Réponse améliorée",
+      "attachFile": "Joindre un fichier",
+      "send": "Envoyer le message"
     },
     "attachment": {
       "download": "Télécharger",
@@ -4120,7 +4132,7 @@
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre."
     },
     "environment": {
-      "title": "Environnement et secrets",
+      "title": "Variables d'environnement et secrets",
       "description": "Variables d'environnement et secrets injectés dans tes sandboxes d'agent."
     },
     "organization": {
@@ -4223,10 +4235,6 @@
       "title": "Délégation de l'agent",
       "description": "Configure la délégation de l'agent vers d'autres agents."
     },
-    "agentResponseTuning": {
-      "title": "Réglage des réponses",
-      "description": "Règle la façon dont cet agent raisonne et rédige."
-    },
     "automationTriggers": {
       "title": "Déclencheurs",
       "description": "Gère les déclencheurs, planifications et webhooks d'automatisation."
@@ -4253,7 +4261,8 @@
     }
   },
   "navigation": {
-    "chatWithAI": "Chat",
+    "newChat": "Nouveau chat",
+    "chat": "Chat",
     "apps": "Applications",
     "conversations": "Conversations",
     "knowledge": "Connaissances",
@@ -4389,11 +4398,14 @@
   },
   "userEnv": {
     "page": {
-      "title": "Environnement et secrets",
+      "title": "Variables d'environnement et secrets",
       "description": "Variables et secrets injectés dans toutes tes sandboxes d'agent.",
+      "agentAccessTitle": "Injectés dans tes sandboxes",
       "note": "Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes sandboxes."
     },
     "add": {
+      "button": "Ajouter une variable",
+      "title": "Ajouter une variable",
       "keyLabel": "Nom",
       "keyPlaceholder": "ex. MY_API_KEY",
       "keyInvalid": "Doit commencer par une lettre ou un trait de soulignement et ne contenir que des lettres, des chiffres et des traits de soulignement.",
@@ -5049,7 +5061,6 @@
         "knowledge": "Base de connaissances",
         "webhook": "Webhooks",
         "delegation": "Délégation",
-        "responseTuning": "Réglage des réponses",
         "conversationStarters": "Amorces",
         "history": "Historique",
         "metrics": "Performance",
@@ -5242,46 +5253,6 @@
         "uploadStarted": "Téléversement du fichier...",
         "fileTooLarge": "Fichier trop volumineux",
         "removeFailed": "Échec du retrait du fichier"
-      },
-      "responseTuning": {
-        "title": "Réglage des réponses",
-        "description": "Détermine comment cet agent raisonne et rédige. Chaque option est sur Automatique par défaut — la plateforme choisit alors le meilleur réglage pour chaque message. Choisis une valeur fixe pour la remplacer.",
-        "autoNote": "Le routeur Auto et le gouverneur de raisonnement adaptatif ajustent chaque réponse automatiquement — langue, style, longueur et effort. En général, tu n'as rien à modifier ici. Développe les remplacements ci-dessous uniquement pour imposer un réglage fixe à chaque message envoyé par cet agent.",
-        "overridesSummary": "Remplacements manuels",
-        "adaptive": "Automatique",
-        "effort": "Effort de raisonnement",
-        "effortHelp": "À quel point le modèle réfléchit. Automatique ajuste l'effort à chaque message — davantage pour les questions difficiles, moins pour les simples. Une valeur fixe applique toujours le même effort.",
-        "effortLow": "Faible",
-        "effortMedium": "Moyen",
-        "effortHigh": "Élevé",
-        "creativity": "Créativité",
-        "creativityHelp": "À quel point la formulation varie. Précis donne des réponses ciblées et reproductibles ; Créatif en donne de plus exploratoires. Automatique décide par message.",
-        "creativityPrecise": "Précis",
-        "creativityBalanced": "Équilibré",
-        "creativityCreative": "Créatif",
-        "style": "Style",
-        "styleHelp": "Donne un ton constant aux réponses. Automatique n'en ajoute aucun.",
-        "styleConcise": "Concis",
-        "styleDetailed": "Détaillé",
-        "styleFormal": "Formel",
-        "styleFriendly": "Amical",
-        "verbosity": "Longueur des réponses",
-        "verbosityHelp": "La longueur habituelle des réponses, indépendamment du ton. Automatique décide par message.",
-        "verbosityTerse": "Courte",
-        "verbosityNormal": "Moyenne",
-        "verbosityVerbose": "Longue",
-        "advancedTitle": "Avancé",
-        "advancedHelp": "Ceci ne remplace pas Automatique — ces options fixent des limites qu'il respecte, et ne s'appliquent qu'aux réglages laissés sur Automatique ci-dessus.",
-        "qualityProfile": "Qualité vs. rapidité",
-        "qualityProfileHelp": "À quel point l'agent ajoute du raisonnement quand une réponse semble faible. Strict privilégie la qualité ; Indulgent privilégie la rapidité et le coût.",
-        "qualityLenient": "Indulgent",
-        "qualityBalanced": "Équilibré",
-        "qualityStrict": "Strict",
-        "effortFloor": "Effort minimal",
-        "effortFloorHelp": "Ne jamais réfléchir moins que cela, même pour les messages simples.",
-        "effortCeiling": "Effort maximal",
-        "effortCeilingHelp": "Ne jamais réfléchir plus que cela — limite le coût sur les messages difficiles.",
-        "boundNone": "Aucune limite"
       },
       "tools": {
         "webSearchMode": "Recherche web",

@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -9,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHoldReleaseRequestsPaginated } from '../hooks/queries';
@@ -162,7 +162,7 @@ export function ReleaseHistorySection({
   const isLoadingMore = result.status === 'LoadingMore';
 
   return (
-    <PageSection
+    <SettingsSection
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >
@@ -196,6 +196,6 @@ export function ReleaseHistorySection({
         }}
         caption={t('legalHold.sections.history.title')}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

@@ -20,22 +20,21 @@ const DEFAULT_TEMP_MAX = 0.9;
  *  - self-truncating thinking (Anthropic) requires temperature unset/1 *while
  *    thinking is enabled* (it's fine to set when reasoning is off).
  *
- * `range` lets a per-agent `responseTuning.temperatureRange` override the
- * default [0.4, 0.9] band; partial ranges fall back to the default endpoint.
- * Callers still let an explicit per-request temperature win over this default.
+ * Interpolates the default [0.4, 0.9] band by the turn's creativity signal
+ * (which a router creativity hint may already have shaped upstream). Callers
+ * still let an explicit per-request temperature win over this default.
  */
 export function decideTemperature(
   creativity: number,
   capability: ReasoningCapability | null,
   reasoningActive: boolean,
-  range?: { min?: number; max?: number },
 ): number | undefined {
   if (capability) {
     if (capability.knob === 'effort') return undefined;
     if (capability.selfTruncates && reasoningActive) return undefined;
   }
-  const min = range?.min ?? DEFAULT_TEMP_MIN;
-  const max = Math.max(min, range?.max ?? DEFAULT_TEMP_MAX);
-  const t = min + clamp01(creativity) * (max - min);
+  const t =
+    DEFAULT_TEMP_MIN +
+    clamp01(creativity) * (DEFAULT_TEMP_MAX - DEFAULT_TEMP_MIN);
   return Math.round(t * 100) / 100;
 }

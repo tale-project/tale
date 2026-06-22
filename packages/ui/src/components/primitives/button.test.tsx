@@ -67,10 +67,41 @@ describe('Button', () => {
     it.each(['default', 'sm', 'lg', 'icon'] as const)(
       'renders %s size',
       (size) => {
-        render(<Button size={size}>Button</Button>);
+        // `title` names the icon size (the type requires icon buttons to be
+        // labeled) and is harmless on the others.
+        render(
+          <Button size={size} title="Button">
+            Button
+          </Button>,
+        );
         expect(screen.getByRole('button')).toBeInTheDocument();
       },
     );
+  });
+
+  describe('title (icon-button label + tooltip)', () => {
+    it('uses `title` as the accessible name and drops the native title', () => {
+      render(
+        <Button size="icon" title="Zoom in">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      const button = screen.getByRole('button', { name: 'Zoom in' });
+      expect(button).toBeInTheDocument();
+      // No duplicate native browser tooltip.
+      expect(button).not.toHaveAttribute('title');
+    });
+
+    it('lets an explicit aria-label override the title for the name', () => {
+      render(
+        <Button size="icon" title="tooltip text" aria-label="real label">
+          <Mail className="size-4" />
+        </Button>,
+      );
+      expect(
+        screen.getByRole('button', { name: 'real label' }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('interactions', () => {

@@ -1,18 +1,25 @@
 import { chmod, rename, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import { compareVersions, extractVersion } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
-import { requireProject } from '../project/find-project';
-import { update } from './update';
+
+/**
+ * CLI binary self-management: resolve a GitHub release, download + verify its
+ * platform binary, and atomically replace the running binary — keeping a
+ * backup so the caller can roll back if a *subsequent* step fails.
+ *
+ * Extracted from the old `tale upgrade` action so both the version-alignment
+ * hook ({@link ../version/align}) and `tale update` reuse one implementation.
+ * The binary mechanics are unchanged; the only behavioural difference is that
+ * {@link installBinary} hands the backup path back to the caller instead of
+ * deleting it inline — {@link commitInstall} / {@link rollbackInstall} decide
+ * its fate.
+ */
 
 const GITHUB_REPO = 'tale-project/tale';
-
-// First release that ships `tale upgrade --internal-sync-only`. Older binaries
-// don't have the subcommand, so re-spawning them with this flag would fail.
-const MIN_VERSION_WITH_INTERNAL_SYNC = '0.2.8';
 
 const SUPPORTED_TARGETS: Record<string, string> = {
   'linux-x64': 'tale_linux',
@@ -20,28 +27,39 @@ const SUPPORTED_TARGETS: Record<string, string> = {
   'win32-x64': 'tale_windows.exe',
 };
 
-interface UpgradeOptions {
-  /** Install this exact version (e.g. "0.9.0" or "v0.9.0") instead of latest. */
-  version?: string;
-  force?: boolean;
-  dryRun?: boolean;
-  internalSyncOnly?: boolean;
-}
-
-function normalizeTag(input: string): string {
-  const trimmed = input.trim();
-  return trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
-}
-
-interface ReleaseInfo {
+export interface ReleaseInfo {
   tag: string;
   version: string;
   assetNames: string[];
 }
 
-interface ReadyReleaseResult {
+export interface ResolvedRelease {
   release: ReleaseInfo;
+  /**
+   * Tags newer than `release` that lack the binary for this platform — i.e.
+   * a newer version exists but its binary hasn't been uploaded yet. Empty
+   * when a specific version was requested. Newest-first.
+   */
   skipped: string[];
+}
+
+/**
+ * Opaque handle returned by {@link installBinary}. Carries the path of the
+ * backed-up previous binary so the caller can {@link commitInstall} (discard
+ * it) or {@link rollbackInstall} (restore it).
+ */
+export interface InstallHandle {
+  installPath: string;
+  backupPath: string;
+}
+
+export function isDevBuild(version: string = pkg.version): boolean {
+  return version.includes('-dev');
+}
+
+function normalizeTag(input: string): string {
+  const trimmed = input.trim();
+  return trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -67,7 +85,7 @@ function parseRelease(data: Record<string, unknown>): ReleaseInfo | null {
 
 async function fetchLatestReadyRelease(
   asset: string,
-): Promise<ReadyReleaseResult> {
+): Promise<ResolvedRelease> {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=15`;
   const response = await fetch(url, {
     headers: {
@@ -129,7 +147,7 @@ async function fetchLatestReadyRelease(
     );
   }
 
-  // Collect versions that are newer than the best ready release but lack the binary
+  // Collect versions newer than the best ready release but lacking the binary
   for (const candidate of candidates) {
     if (compareVersions(candidate.version, best.version) > 0) {
       skipped.push(candidate.tag);
@@ -201,8 +219,24 @@ function getAssetName(): string {
   return asset;
 }
 
-function getInstallPath(): string {
+/** The on-disk path of the running `tale` binary — what install replaced and uninstall removes. */
+export function getBinaryPath(): string {
   return process.execPath;
+}
+
+/**
+ * Resolve the release to install: a specific version when `version` is set,
+ * otherwise the latest release whose platform binary is uploaded.
+ */
+export async function resolveRelease(opts: {
+  version?: string;
+}): Promise<ResolvedRelease> {
+  const asset = getAssetName();
+  if (opts.version) {
+    const release = await fetchReleaseByTag(asset, normalizeTag(opts.version));
+    return { release, skipped: [] };
+  }
+  return fetchLatestReadyRelease(asset);
 }
 
 function formatBytes(bytes: number): string {
@@ -296,7 +330,16 @@ async function verifyBinary(binaryPath: string, expectedVersion: string) {
   }
 }
 
-async function replaceBinary(tmpPath: string, installPath: string) {
+/**
+ * Replace the binary at `installPath` with `tmpPath`, backing up the current
+ * binary to `${installPath}.bak`. Returns the backup path — the caller owns it
+ * ({@link commitInstall} / {@link rollbackInstall}). Throws (and self-restores
+ * the backup) if the move fails.
+ */
+async function replaceBinary(
+  tmpPath: string,
+  installPath: string,
+): Promise<string> {
   const bakPath = `${installPath}.bak`;
 
   // Back up current binary (instant rename on same filesystem)
@@ -306,7 +349,7 @@ async function replaceBinary(tmpPath: string, installPath: string) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'EACCES' || code === 'EPERM') {
       throw new Error(
-        `Permission denied backing up ${installPath}. Try: sudo tale upgrade`,
+        `Permission denied backing up ${installPath}. Try: sudo tale update`,
         { cause: err },
       );
     }
@@ -340,7 +383,7 @@ async function replaceBinary(tmpPath: string, installPath: string) {
   }
 
   if (!succeeded) {
-    // Attempt to restore backup
+    // Move failed — restore the backup so the running binary is intact.
     try {
       await rename(bakPath, installPath);
     } catch {
@@ -355,25 +398,36 @@ async function replaceBinary(tmpPath: string, installPath: string) {
     );
   }
 
-  // Clean up backup (best-effort)
-  await unlink(bakPath).catch(() => {});
+  return bakPath;
 }
 
-function replaceBinaryWindows(tmpPath: string, installPath: string) {
-  const oldPath = `${installPath}.old`;
+/**
+ * Windows variant: rename the running exe out of the way (allowed on Windows)
+ * and move the new binary into place. Returns the `.old` backup path.
+ */
+function replaceBinaryWindows(tmpPath: string, installPath: string): string {
+  // `ren` takes a bare destination NAME (same directory), so the backup lands
+  // at `${dir}\\${oldName}` — derive everything from installPath's basename so
+  // the returned handle, the restore-on-failure rename, and commitInstall /
+  // rollbackInstall all reference the SAME real file regardless of the binary's
+  // name. (A prior `${installPath}.old` mismatched the literal `tale.old.exe`
+  // it actually created, silently breaking rollback.)
+  const base = basename(installPath);
+  const oldName = `${base}.old`;
+  const oldPath = join(dirname(installPath), oldName);
 
-  // Clean up previous .old file if exists
+  // Clean up a stale backup from a previous run if present
   try {
     Bun.spawnSync(['cmd', '/c', 'del', '/f', oldPath], { stdout: 'pipe' });
   } catch {
-    // ignore
+    // ignore — best-effort cleanup of a leftover backup
   }
 
   // Windows allows renaming a running exe
-  const renameOld = Bun.spawnSync(
-    ['cmd', '/c', 'ren', installPath, 'tale.old.exe'],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const renameOld = Bun.spawnSync(['cmd', '/c', 'ren', installPath, oldName], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
   if (renameOld.exitCode !== 0) {
     throw new Error(
       `Failed to rename running binary. Try closing other tale processes.`,
@@ -385,201 +439,140 @@ function replaceBinaryWindows(tmpPath: string, installPath: string) {
     { stdout: 'pipe', stderr: 'pipe' },
   );
   if (renameNew.exitCode !== 0) {
-    // Attempt to restore
-    Bun.spawnSync(
-      ['cmd', '/c', 'ren', `${dirname(installPath)}\\tale.old.exe`, 'tale.exe'],
-      { stdout: 'pipe' },
-    );
+    // Restore the previous binary (rename the backup back to the original name).
+    Bun.spawnSync(['cmd', '/c', 'ren', oldPath, base], { stdout: 'pipe' });
     throw new Error(`Failed to place new binary. Previous version restored.`);
+  }
+
+  return oldPath;
+}
+
+/**
+ * Download, verify, and install the given release over the running binary.
+ * Returns an {@link InstallHandle} whose backup the caller must dispose of via
+ * {@link commitInstall} (on success) or {@link rollbackInstall} (on failure).
+ */
+export async function installBinary(
+  release: ReleaseInfo,
+): Promise<InstallHandle> {
+  const asset = getAssetName();
+  const installPath = getBinaryPath();
+  const tmpPath = join(tmpdir(), `tale-update-${Date.now()}`);
+
+  try {
+    await downloadBinary(release.tag, asset, tmpPath);
+    await verifyBinary(tmpPath, release.version);
+  } catch (err) {
+    await unlink(tmpPath).catch((e: unknown) => {
+      console.warn('[tale] failed to clean up temp download:', e);
+    });
+    throw err;
+  }
+
+  const backupPath =
+    process.platform === 'win32'
+      ? replaceBinaryWindows(tmpPath, installPath)
+      : await replaceBinary(tmpPath, installPath);
+
+  return { installPath, backupPath };
+}
+
+/** Discard the backup after a successful install (best-effort). */
+export async function commitInstall(handle: InstallHandle): Promise<void> {
+  if (process.platform === 'win32') {
+    Bun.spawnSync(['cmd', '/c', 'del', '/f', handle.backupPath], {
+      stdout: 'pipe',
+    });
+    return;
+  }
+  await unlink(handle.backupPath).catch((e: unknown) => {
+    console.warn('[tale] failed to remove install backup:', e);
+  });
+}
+
+/** Restore the backed-up previous binary, undoing an {@link installBinary}. */
+export async function rollbackInstall(handle: InstallHandle): Promise<void> {
+  if (process.platform === 'win32') {
+    Bun.spawnSync(
+      ['cmd', '/c', 'move', '/y', handle.backupPath, handle.installPath],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    return;
+  }
+  await rename(handle.backupPath, handle.installPath);
+}
+
+/**
+ * Delete the `tale` binary at `installPath` (defaults to the running binary) —
+ * the inverse of {@link installBinary}, used by `tale uninstall`.
+ *
+ * Unix: `unlink` works even on the running binary (the inode lives until this
+ * process exits). A permission error retries under `sudo rm` — the same
+ * escalation {@link replaceBinary} uses for the install path. An already-gone
+ * binary is a no-op.
+ *
+ * Windows can't delete a running `.exe`, so we hand the deletion to a detached
+ * `cmd` that waits for this process to exit, then deletes the file. Best-effort:
+ * removal completes a moment after the command returns.
+ */
+export async function removeBinary(
+  installPath: string = getBinaryPath(),
+): Promise<void> {
+  if (process.platform === 'win32') {
+    // Detached so it outlives this process; the short ping is a portable
+    // "sleep" that lets the running .exe release before `del` runs.
+    Bun.spawn(
+      ['cmd', '/c', `ping 127.0.0.1 -n 2 >nul & del /f /q "${installPath}"`],
+      { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
+    );
+    logger.info(
+      'Windows cannot delete a running binary — it will be removed once this process exits.',
+    );
+    return;
+  }
+
+  try {
+    await unlink(installPath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return; // already gone — nothing to do
+    if (code === 'EACCES' || code === 'EPERM') {
+      logger.info('Requesting sudo to remove binary...');
+      const sudoResult = Bun.spawnSync(['sudo', 'rm', '-f', installPath], {
+        stdout: 'inherit',
+        stderr: 'inherit',
+        stdin: 'inherit',
+      });
+      if (sudoResult.exitCode !== 0) {
+        throw new Error(
+          `Permission denied removing ${installPath}. Try: sudo tale uninstall`,
+          { cause: err },
+        );
+      }
+      return;
+    }
+    throw err;
   }
 }
 
-export async function upgrade(options: UpgradeOptions): Promise<void> {
-  // Phase 4 shortcut: internal sync-only mode (called after binary replacement)
-  if (options.internalSyncOnly) {
-    await update({
-      force: options.force,
-      dryRun: options.dryRun,
-      skipHeader: true,
+/**
+ * Best-effort cleanup of leftover update backups next to the binary —
+ * `${installPath}.bak` (Unix) and `${dir}/${basename}.old` (Windows). A missing
+ * backup is the common case and is silently ignored.
+ */
+export async function removeBinaryBackups(
+  installPath: string = getBinaryPath(),
+): Promise<void> {
+  const backups =
+    process.platform === 'win32'
+      ? [join(dirname(installPath), `${basename(installPath)}.old`)]
+      : [`${installPath}.bak`];
+
+  for (const backup of backups) {
+    await unlink(backup).catch((err: NodeJS.ErrnoException) => {
+      if (err.code !== 'ENOENT') {
+        logger.warn(`Failed to remove backup ${backup}: ${err.message}`);
+      }
     });
-    return;
-  }
-
-  requireProject();
-
-  const prefix = options.dryRun ? '[DRY-RUN] ' : '';
-  const pinnedVersion = options.version;
-  logger.header(
-    pinnedVersion
-      ? `${prefix}Migrating Tale CLI to ${pinnedVersion}`
-      : `${prefix}Upgrading Tale CLI`,
-  );
-
-  // Phase 1: Resolve target release (latest, or pinned)
-  const asset = getAssetName();
-  let release: ReleaseInfo;
-  let skipped: string[] = [];
-  if (pinnedVersion) {
-    const tag = normalizeTag(pinnedVersion);
-    logger.step(`${prefix}Looking up release ${tag}...`);
-    release = await fetchReleaseByTag(asset, tag);
-  } else {
-    logger.step(`${prefix}Checking for updates...`);
-    try {
-      ({ release, skipped } = await fetchLatestReadyRelease(asset));
-    } catch (err) {
-      throw new Error(
-        `Could not check for updates. ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
-      );
-    }
-  }
-
-  const currentVersion = pkg.version;
-  const comparison = compareVersions(release.version, currentVersion);
-
-  logger.info(`Current version: ${currentVersion}`);
-  if (pinnedVersion) {
-    logger.info(`Target version:  ${release.version}`);
-  } else if (skipped.length > 0) {
-    logger.info(
-      `Latest version:  ${skipped[0].replace(/^v/, '')} (binary not yet available)`,
-    );
-    logger.info(`Upgrading to:    ${release.version}`);
-    logger.warn(
-      `Skipping ${skipped.map((t) => t.replace(/^v/, '')).join(', ')} — binary not yet uploaded. ` +
-        `Re-run 'tale upgrade' later to pick up newer versions.`,
-    );
-  } else {
-    logger.info(`Latest version:  ${release.version}`);
-  }
-
-  if (pinnedVersion && comparison < 0) {
-    logger.warn(
-      `Downgrading from ${currentVersion} to ${release.version}. ` +
-        `Data migrations from the newer version persist in the database — reverse ` +
-        `them FIRST with \`tale migrate down --to ${release.version}\` (check ` +
-        `\`tale migrate status\`), then deploy the older binary.`,
-    );
-  }
-
-  const isDevBuild = currentVersion.includes('dev');
-  // When pinnedVersion, always replace unless the user is already on the exact target.
-  const needsBinaryUpgrade = pinnedVersion
-    ? comparison !== 0 || isDevBuild || options.force
-    : isDevBuild || comparison > 0 || options.force;
-
-  if (!needsBinaryUpgrade) {
-    logger.success(
-      pinnedVersion
-        ? `CLI is already on v${currentVersion}`
-        : `CLI is up to date (v${currentVersion})`,
-    );
-    if (!pinnedVersion && skipped.length > 0) {
-      logger.info(
-        `Note: ${skipped[0].replace(/^v/, '')} is available but binary not yet uploaded — re-run 'tale upgrade' later.`,
-      );
-    }
-    logger.blank();
-
-    // Still sync project files even if binary is current
-    logger.step(`${prefix}Syncing project files...`);
-    await update({
-      force: options.force,
-      dryRun: options.dryRun,
-      skipHeader: true,
-    });
-    return;
-  }
-
-  if (options.dryRun) {
-    logger.info(`${prefix}Would download ${asset} from ${release.tag}`);
-    logger.info(`${prefix}Would replace ${getInstallPath()}`);
-    logger.blank();
-    logger.step(
-      `${prefix}Project file sync preview (based on current v${currentVersion} templates):`,
-    );
-    logger.info('Note: actual changes may differ after upgrading.');
-    await update({
-      force: options.force,
-      dryRun: true,
-      skipHeader: true,
-    });
-    return;
-  }
-
-  // Phase 2: Download & verify
-  const tmpPath = join(tmpdir(), `tale-upgrade-${Date.now()}`);
-
-  logger.step(`Downloading ${asset} (${release.tag})...`);
-  try {
-    await downloadBinary(release.tag, asset, tmpPath);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
-
-  logger.step('Verifying downloaded binary...');
-  try {
-    await verifyBinary(tmpPath, release.version);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
-
-  // Phase 3: Replace binary
-  logger.step('Installing new binary...');
-  try {
-    if (process.platform === 'win32') {
-      replaceBinaryWindows(tmpPath, getInstallPath());
-    } else {
-      await replaceBinary(tmpPath, getInstallPath());
-    }
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
-
-  logger.success(`CLI upgraded to v${release.version}`);
-  if (skipped.length > 0) {
-    logger.info(
-      `Note: ${skipped[0].replace(/^v/, '')} binary may become available soon — re-run 'tale upgrade' later.`,
-    );
-  }
-
-  // Phase 4: Sync project files using the NEW binary.
-  // Older releases (pre-0.2.8) don't have `tale upgrade --internal-sync-only`,
-  // so when downgrading past that boundary we fall back to running the sync
-  // in-process with the current binary's logic.
-  logger.blank();
-  logger.step('Syncing project files with new version...');
-
-  if (compareVersions(release.version, MIN_VERSION_WITH_INTERNAL_SYNC) < 0) {
-    logger.warn(
-      `Target v${release.version} predates 'upgrade --internal-sync-only'; running sync in-process instead.`,
-    );
-    await update({
-      force: options.force,
-      dryRun: options.dryRun,
-      skipHeader: true,
-    });
-    return;
-  }
-
-  const installPath = getInstallPath();
-  const syncArgs = [installPath, 'upgrade', '--internal-sync-only'];
-  if (options.force) syncArgs.push('--force');
-
-  const syncResult = Bun.spawnSync(syncArgs, {
-    stdout: 'inherit',
-    stderr: 'inherit',
-    stdin: 'inherit',
-  });
-
-  if (syncResult.exitCode !== 0) {
-    throw new Error(
-      'Project file sync failed. The CLI binary was upgraded successfully. ' +
-        'Run "tale upgrade --internal-sync-only" to retry syncing project files.',
-    );
   }
 }

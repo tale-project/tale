@@ -25,6 +25,10 @@ import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
 import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
+import type {
+  ResponseReasoningSeed,
+  ResponseStyleAdvice,
+} from '../../lib/shared/response-tuning';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { components, internal } from '../_generated/api';
 import { internalAction, type ActionCtx } from '../_generated/server';
@@ -132,6 +136,11 @@ export const runChatTurnGeneration = internalAction({
       // 1. Auto-route (LLM classifier) — only when no agent is pinned.
       let resolvedAgentSlug = args.agentSlug;
       let autoRouteReason: AutoRouteReason | undefined;
+      // The router's per-message advice (Auto mode only) — applied to the
+      // agentConfig once it's built below. `routeStyle` shapes the prose
+      // suffix; `routeSeed` seeds the reasoning governor's prior.
+      let routeStyle: ResponseStyleAdvice | undefined;
+      let routeSeed: ResponseReasoningSeed | undefined;
       if (args.agentSlug === AUTO_AGENT_SLUG) {
         const allowedAgentSlugs = args.projectId
           ? await ctx.runQuery(
@@ -154,6 +163,8 @@ export const runChatTurnGeneration = internalAction({
         );
         resolvedAgentSlug = resolved.agentSlug;
         autoRouteReason = resolved.reason;
+        routeStyle = resolved.tuning;
+        routeSeed = resolved.seed;
 
         // Broadcast the resolved route the instant routing settles so the
         // client's thinking timeline flips "Routing…" → "Routed to X" BEFORE
@@ -197,6 +208,10 @@ export const runChatTurnGeneration = internalAction({
         modelId: args.modelId,
       });
       const agentConfig = configResult.config;
+      // Carry the Auto router's per-message advice onto the config for this turn
+      // (both unset for a pinned agent — the router only runs under Auto).
+      agentConfig.responseStyle = routeStyle;
+      agentConfig.routeSeed = routeSeed;
       // BYO external agents bypass platform model governance entirely: their
       // model is a raw provider id (or empty = the credential's default), not a
       // catalog entry subject to default-model resolution or model-access RBAC.

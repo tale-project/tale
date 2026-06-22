@@ -181,6 +181,20 @@ cron(
   {},
 );
 
+// Plain chat-turn recovery — the deploy-drain backstop. A turn killed mid-
+// generation (drain budget exceeded, crash, or the 30-min action ceiling) with
+// no out-of-process source of truth to resume is finalized here: keep streamed
+// text as success, else mark it failed with a retryable "backend restarted"
+// bubble, and clear the stuck `generating` lock. Own cron entry (a throw must
+// not disable a sibling watchdog). External-agent turns have their own 2-min
+// restorative sweep above; this only finalizes plain turns + any straggler.
+cron(
+  'recover stuck chat turns (every 5 min)',
+  '*/5 * * * *',
+  internal.agents.recover_stuck_chat_turns.recoverStuckChatTurns,
+  {},
+);
+
 // GDPR erasure watchdog (round-2 V5 P0-14) - the same shape as the
 // transcription watchdog above. Convex actions hard-stop at 30 min;
 // `gdprErasureRequests` rows whose subject has too many rows / RAG

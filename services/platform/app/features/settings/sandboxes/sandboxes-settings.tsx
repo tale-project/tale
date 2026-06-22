@@ -1,5 +1,4 @@
 import { Badge } from '@tale/ui/badge';
-import { PageSection } from '@tale/ui/page-section';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
 import { Pin, PinOff, Square, Trash2 } from 'lucide-react';
@@ -9,6 +8,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
@@ -254,14 +254,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   // Non-privileged member (or unauthenticated) → query returns null.
   if (data === null) {
     return (
-      <PageSection title={t('title')}>
+      <SettingsSection title={t('title')}>
         <p className="text-muted-foreground text-sm">{t('accessDenied')}</p>
-      </PageSection>
+      </SettingsSection>
     );
   }
 
   return (
-    <PageSection title={t('title')} description={t('description')}>
+    <SettingsSection title={t('title')} description={t('description')}>
       <DataTable<SandboxRow>
         columns={columns}
         data={data ?? []}
@@ -292,6 +292,6 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           ).finally(() => setConfirmDestroy(null));
         }}
       />
-    </PageSection>
+    </SettingsSection>
   );
 }

@@ -25,10 +25,10 @@ import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
 
 import {
-  creativityToScoreOverride,
-  effortToTierOverride,
-  tuningInstructionSuffix,
-} from '../../../lib/shared/response-tuning';
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../../lib/shared/chat-errors';
+import { tuningInstructionSuffix } from '../../../lib/shared/response-tuning';
 import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
@@ -178,7 +178,8 @@ export async function generateAgentResponse(
     modelMaxOutputTokens,
     modelContextWindow,
     reasoningCapability,
-    responseTuning,
+    responseStyle,
+    routeSeed,
     replyLocaleHint,
   } = config;
   const {
@@ -927,18 +928,14 @@ export async function generateAgentResponse(
             maxSteps: args.maxSteps,
             agentType,
             historyMessageCount: structuredThreadContext?.stats.messageCount,
+            // Auto-router reasoning seed (Auto mode only): blends the heuristic
+            // difficulty prior toward the router's coarse read as a PRIOR — the
+            // controller still refines from observed usage.
+            effortSeed: routeSeed?.effort,
+            creativitySeed: routeSeed?.creativity,
           },
           state: reasoningState,
           profile: reasoningProfile ?? undefined,
-          effortOverride: effortToTierOverride(responseTuning?.effort),
-          creativityOverride: creativityToScoreOverride(
-            responseTuning?.creativity,
-          ),
-          effortFloorTier: responseTuning?.effortFloor,
-          effortCeilingTier: responseTuning?.effortCeiling,
-          budgetCaps: responseTuning?.budgetCaps,
-          temperatureRange: responseTuning?.temperatureRange,
-          qualityProfile: responseTuning?.qualityProfile,
         })
       : undefined;
     const reasoningProviderOptions =
@@ -948,10 +945,10 @@ export async function generateAgentResponse(
     const effectiveTemperature =
       generationParams?.temperature ?? reasoningDecision?.temperature;
 
-    // Per-agent response-tuning style/verbosity fragment, appended to the
-    // agent's instructions for this turn (replaces the old per-message composer
-    // style application in start_chat).
-    const tuningSuffix = tuningInstructionSuffix(responseTuning);
+    // Auto-router style/verbosity fragment, appended to the agent's
+    // instructions for this turn. Set only in Auto mode; a pinned agent's tone
+    // comes from its own instructions, so this is empty there.
+    const tuningSuffix = tuningInstructionSuffix(responseStyle);
     const tunedInstructions = tuningSuffix
       ? instructions
         ? `${instructions}\n\n${tuningSuffix}`
@@ -2165,21 +2162,37 @@ export async function generateAgentResponse(
 
     const cancelled = await checkCancelled();
 
+    // The model is reasoning-STEERABLE this turn (has a capability) — true even
+    // when the governor chose `off`. We record an outcome for every steerable
+    // turn, INCLUDING a self-truncating model parked at `off`: a bad off-turn is
+    // exactly the signal that it under-reasoned, and without recording it the
+    // class could never climb out of off. `selfTruncates` is undefined only for
+    // non-steerable models.
+    const reasoningSteered =
+      reasoningDecision != null &&
+      reasoningDecision.selfTruncates !== undefined;
+
     // Score the final answer's quality (hedging / specificity / hallucination /
     // length) so the governor's online controller learns from whether the
-    // budget produced GOOD answers, not just token counts. Only when the model
-    // was actually steered this turn and produced text.
+    // budget produced GOOD answers, not just token counts. The quality profile
+    // is fixed at 'balanced' (the manual per-agent override was removed).
     const reasoningQualityScore =
-      reasoningDecision?.applied && responseResult.text
+      reasoningSteered && responseResult.text
         ? analyzeResponseQuality({
             text: responseResult.text,
             complexity: reasoningDecision.difficultyClass,
-            thresholds: thresholdsFor(
-              responseTuning?.qualityProfile ?? 'balanced',
-            ),
+            thresholds: thresholdsFor('balanced'),
             isMathLike: /\d\s*[+\-*/×÷=]\s*\d/.test(responseResult.text),
           }).score
         : undefined;
+
+    // Don't feed a thinking-token sample for a turn that wasn't actually steered
+    // to think (a self-truncating model at `off`): a `0` sample would poison the
+    // Welford mean ("this class needs 0 tokens") and trap the class at off. The
+    // qualityScore still flows, so a bad off-turn can still push it up.
+    const recordedReasoningTokens = reasoningDecision?.applied
+      ? responseResult.usage?.reasoningTokens
+      : undefined;
 
     // Run the remaining post-processing in parallel — clearGenerationStatus
     // (the only operation the user perceives), onAgentComplete (metadata +
@@ -2234,8 +2247,9 @@ export async function generateAgentResponse(
           : Promise.resolve(),
         // Adaptive Reasoning Governor (Layer C): fold this turn's outcome into
         // the thread's learned state so the next turn converges toward the
-        // model's revealed need. Only when the model is actually steerable.
-        reasoningDecision?.applied
+        // model's revealed need. Recorded for every steerable turn (incl. a
+        // self-truncating model parked at `off`).
+        reasoningSteered
           ? ctx
               .runMutation(
                 internal.threads.internal_mutations.updateThreadReasoningState,
@@ -2244,12 +2258,13 @@ export async function generateAgentResponse(
                   difficultyClass: reasoningDecision.difficultyClass,
                   budgetTokens: reasoningDecision.budgetTokens,
                   selfTruncates: reasoningDecision.selfTruncates ?? false,
-                  reasoningTokens: responseResult.usage?.reasoningTokens,
+                  reasoningTokens: recordedReasoningTokens,
                   outputTokens: responseResult.usage?.outputTokens,
                   intensity: reasoningDecision.intensity,
                   finishReason: responseResult.finishReason,
                   retried: didRetry,
                   qualityScore: reasoningQualityScore,
+                  chosenTier: reasoningDecision.tier,
                 },
               )
               .catch((reasoningErr: unknown) =>
@@ -2263,7 +2278,7 @@ export async function generateAgentResponse(
           : Promise.resolve(),
         // Also fold the outcome into the cross-thread profile (per org + model)
         // so future threads — and the stateless API path — warm-start from it.
-        reasoningDecision?.applied && organizationId
+        reasoningSteered && organizationId
           ? ctx
               .runMutation(
                 internal.threads.internal_mutations.updateReasoningProfile,
@@ -2273,12 +2288,13 @@ export async function generateAgentResponse(
                   difficultyClass: reasoningDecision.difficultyClass,
                   budgetTokens: reasoningDecision.budgetTokens,
                   selfTruncates: reasoningDecision.selfTruncates ?? false,
-                  reasoningTokens: responseResult.usage?.reasoningTokens,
+                  reasoningTokens: recordedReasoningTokens,
                   outputTokens: responseResult.usage?.outputTokens,
                   intensity: reasoningDecision.intensity,
                   finishReason: responseResult.finishReason,
                   retried: didRetry,
                   qualityScore: reasoningQualityScore,
+                  chosenTier: reasoningDecision.tier,
                 },
               )
               .catch((profileErr: unknown) =>
@@ -2537,6 +2553,15 @@ export async function generateAgentResponse(
         );
         const failedContent =
           'I was unable to complete your request. Please try again.';
+        // Stamp a structured, machine-readable envelope on the error so the
+        // chat UI can render an authoritative, localized, provider-specific
+        // message instead of regex-guessing the raw provider string.
+        const failedError = encodeChatError({
+          code: classifyChatErrorCode(error),
+          provider,
+          model,
+          raw: errorMessage || 'Unknown error',
+        });
 
         if (newestAssistant?.status === 'failed') {
           // Already marked as failed (e.g. by SDK's call.fail())
@@ -2549,7 +2574,7 @@ export async function generateAgentResponse(
             messageId: newestAssistant._id,
             patch: {
               status: 'failed',
-              error: errorMessage || 'Unknown error',
+              error: failedError,
               message: {
                 role: 'assistant' as const,
                 content: failedContent,
@@ -2570,7 +2595,7 @@ export async function generateAgentResponse(
               },
               metadata: {
                 status: 'failed',
-                error: errorMessage || 'Unknown error',
+                error: failedError,
               },
             },
           );

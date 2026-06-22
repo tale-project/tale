@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { ConvexError } from 'convex/values';
 import { useState } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -12,6 +11,7 @@ import {
 import { useToast } from '@/app/hooks/use-toast';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 
 const CARD_TEXTAREA_MAX = 800;
 
@@ -36,7 +36,7 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       toast({ title: t('toasts.saved') });
     } catch (err) {
       toast({
-        title: errorMessage(err, t('errors.saveFailed')),
+        title: convexErrorMessage(err, t('errors.saveFailed')),
         variant: 'destructive',
       });
     }
@@ -48,7 +48,7 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       toast({ title: t('toasts.discarded') });
     } catch (err) {
       toast({
-        title: errorMessage(err, t('errors.saveFailed')),
+        title: convexErrorMessage(err, t('errors.saveFailed')),
         variant: 'destructive',
       });
     }
@@ -112,19 +112,4 @@ export function MemoryProposalCard({ memory }: MemoryProposalCardProps) {
       </div>
     </div>
   );
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ConvexError) {
-    const data: unknown = err.data;
-    if (
-      data !== null &&
-      typeof data === 'object' &&
-      'message' in data &&
-      typeof data.message === 'string'
-    ) {
-      return data.message;
-    }
-  }
-  return fallback;
 }

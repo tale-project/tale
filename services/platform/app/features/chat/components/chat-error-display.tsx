@@ -33,16 +33,21 @@ export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
         <span className="text-sm font-medium">{tChat('errorGenerating')}</span>
       </div>
       <p className="text-muted-foreground text-[13px]">
-        {tChat(sanitized.i18nKey)}
+        {tChat(sanitized.i18nKey, sanitized.params)}
       </p>
-      {error && (
+      {sanitized.triedCount != null && (
+        <p className="text-muted-foreground/70 text-xs">
+          {tChat('errorTriedModels', { count: sanitized.triedCount })}
+        </p>
+      )}
+      {sanitized.rawMessage && (
         <CollapsibleDetails
           variant="compact"
           summary={tChat('errorDetailsSummary')}
-          open={sanitized.category === 'generic'}
+          open={sanitized.code === 'generic'}
         >
           <p className="text-muted-foreground mt-1 font-mono text-xs break-all whitespace-pre-wrap opacity-70">
-            {error}
+            {sanitized.rawMessage}
           </p>
         </CollapsibleDetails>
       )}

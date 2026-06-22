@@ -46,7 +46,10 @@ export interface SelectedAgent {
 
 /**
  * Default composer selection: pin the general-purpose chat agent rather than
- * Auto. New sessions (no persisted choice) open on the Assistant; users can
+ * Auto. New sessions (no persisted choice) open on the Assistant because it's
+ * faster — Auto must first run a routing classifier to decide which agent
+ * should answer (extra latency before the first token), whereas the Assistant
+ * is suitable for most messages and starts replying immediately. Users can
  * still switch to Auto or any specialist. `displayName` here is only a fallback
  * label — the selector renders the catalogue-resolved (localized) name once the
  * agent list loads, so this placeholder is never user-visible in practice.

@@ -233,6 +233,7 @@ export function ExecutionsTable({
             <Button
               variant="ghost"
               size="icon"
+              title={tCommon('actions.copy')}
               className="p-1"
               onClick={(e) => {
                 e.stopPropagation();
@@ -306,6 +307,7 @@ export function ExecutionsTable({
       formatTimestampWithMillis,
       calculateDuration,
       tTables,
+      tCommon,
     ],
   );
 

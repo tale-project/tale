@@ -133,14 +133,16 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `--stop` — arrêter les conteneurs du projet avant la restauration.
 - `-y, --yes` — ignorer l'invite de confirmation.
 
-`tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Aucun argument.
+`tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Demande confirmation au préalable.
+
+- `-y, --yes` — ignorer l'invite de confirmation (requis en mode non-interactif).
 
 ### Maintenance
 
-`tale upgrade` (alias `tale update`) — mettre à jour le CLI vers la dernière version et synchroniser les fichiers projet.
+`tale update` — bouger cette instance Tale vers une nouvelle version : mettre à jour le binaire CLI, puis synchroniser les fichiers projet sur les templates de cette version. Lance `tale deploy` ensuite pour rouler les conteneurs. La CLI s'aligne aussi d'elle-même sur la version de l'instance à chaque commande, donc ceci n'est nécessaire que pour changer délibérément de version.
 
-- `-v, --version <version>` — installer exactement cette version (p. ex. `0.9.0`) au lieu de la dernière ; autorise les rétrogradations.
-- `-f, --force` — forcer le re-téléchargement et écraser les fichiers modifiés localement.
+- `-v, --version <version>` — mettre à jour vers exactement cette version (p. ex. `0.9.0`) au lieu de la dernière ; autorise les rétrogradations.
+- `-f, --force` — forcer la re-synchronisation et écraser les fichiers projet modifiés localement.
 - `--dry-run` — montrer ce qui changerait sans rien modifier.
 
 `tale cleanup` — supprimer les conteneurs inactifs (couleur non courante). Aucun argument.
@@ -150,6 +152,12 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-f, --force` — ignorer l'invite de confirmation.
 - `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état.
 - `--dry-run` — prévisualiser la réinitialisation sans rien modifier.
+
+`tale uninstall` — supprimer le binaire CLI `tale` de ce système. Il demande confirmation avant de supprimer quoi que ce soit et _propose_ de retirer aussi la configuration propre à l'utilisateur (`~/.tale-daemon`) et de démanteler les ressources Docker et les fichiers d'un projet. Sans `--purge`, un projet et ses conteneurs restent intacts — lance `tale reset --all` à l'intérieur pour les supprimer.
+
+- `-f, --force` — ignorer l'invite de confirmation (supprime uniquement le binaire ; les nettoyages optionnels nécessitent toujours `--purge`).
+- `--purge` — retirer aussi `~/.tale-daemon` et, pour un projet trouvé depuis le répertoire courant, démanteler ses ressources Docker et supprimer ses fichiers. Irréversible.
+- `--dry-run` — montrer ce qui serait supprimé sans rien supprimer.
 
 `tale config` — gérer la configuration du CLI. Utilise le sous-commande `show` pour afficher la configuration résolue.
 

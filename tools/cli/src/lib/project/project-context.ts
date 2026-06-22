@@ -36,14 +36,14 @@ export function getProjectId(): string {
  * that uses Docker before any Docker operation runs.
  *
  * Throws with an actionable message if the project has no valid ID,
- * directing the user to `tale upgrade` (which auto-assigns IDs to legacy projects).
+ * directing the user to `tale update` (which auto-assigns IDs to legacy projects).
  */
 export async function resolveProjectContext(projectDir: string): Promise<void> {
   const project = await readProject(projectDir);
   const id = project.id;
   if (typeof id !== 'string' || id.trim() === '') {
     throw new Error(
-      'Project has no valid ID. Run "tale upgrade" to assign one.',
+      'Project has no valid ID. Run "tale update" to assign one.',
     );
   }
   if (!isValidProjectId(id)) {
@@ -58,7 +58,7 @@ export async function resolveProjectContext(projectDir: string): Promise<void> {
  * Like `resolveProjectContext`, but if the project has no `id` yet (legacy
  * project pre-dating per-project isolation) auto-assigns one, persists it
  * atomically, and proceeds. This is a UX smoothing for `tale start` /
- * `tale deploy` so users don't have to run `tale upgrade` as a separate step.
+ * `tale deploy` so users don't have to run `tale update` as a separate step.
  *
  * An invalid (non-empty but malformed) ID still throws — it signals
  * tampering or corruption that the user should resolve explicitly.

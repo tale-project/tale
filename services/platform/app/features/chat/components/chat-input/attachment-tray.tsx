@@ -17,6 +17,7 @@ import {
   type IndexingStatusInfo,
   type TranscriptionStatusInfo,
 } from './attachment-status-label';
+import { pastedImageIdFromName } from './paste-image-tokens';
 
 interface TranscriptPreview {
   fileName: string;
@@ -102,47 +103,72 @@ export function AttachmentTray({
             </button>
           </div>
         ))}
-      {imageAttachments.map((attachment) => (
-        <div
-          key={attachment.fileId}
-          className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
-        >
-          <button
-            type="button"
-            aria-label={tChat('viewImage')}
-            onClick={() =>
-              attachment.previewUrl &&
-              onPreviewImage({
-                src: attachment.previewUrl,
-                alt: attachment.fileName,
-              })
+      {imageAttachments.map((attachment) => {
+        // Pasted images carry an inline `[N]` marker in the message; show the
+        // same index here so the tray thumbnail and the marker correlate.
+        const pasteIndex = pastedImageIdFromName(attachment.fileName);
+        return (
+          <div
+            key={attachment.fileId}
+            // Drag an image into the composer to drop its `[N]` marker (the
+            // composer reads this id on drop). Only images with a marker id are
+            // draggable.
+            draggable={pasteIndex !== null}
+            onDragStart={
+              pasteIndex !== null
+                ? (e) => {
+                    e.dataTransfer.setData(
+                      'application/x-tale-marker-id',
+                      String(pasteIndex),
+                    );
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }
+                : undefined
             }
-            className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+            className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
           >
-            {attachment.previewUrl ? (
-              <img
-                src={attachment.previewUrl}
-                alt={attachment.fileName}
-                className="size-full object-cover"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
-                <span className="text-xs text-blue-600">
-                  {tChat('fileTypes.image')}
-                </span>
-              </div>
+            <button
+              type="button"
+              aria-label={tChat('viewImage')}
+              onClick={() =>
+                attachment.previewUrl &&
+                onPreviewImage({
+                  src: attachment.previewUrl,
+                  alt: attachment.fileName,
+                })
+              }
+              className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+            >
+              {attachment.previewUrl ? (
+                <img
+                  src={attachment.previewUrl}
+                  alt={attachment.fileName}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center bg-linear-to-br from-blue-100 to-blue-200">
+                  <span className="text-xs text-blue-600">
+                    {tChat('fileTypes.image')}
+                  </span>
+                </div>
+              )}
+            </button>
+            {pasteIndex !== null && (
+              <span className="pointer-events-none absolute right-0 bottom-0 rounded-tl-[4px] bg-black/70 px-1 text-[10px] leading-[1.4] font-semibold text-white tabular-nums">
+                {pasteIndex}.
+              </span>
             )}
-          </button>
-          <button
-            type="button"
-            aria-label={tChat('removeAttachment')}
-            onClick={() => removeAttachment(attachment.fileId)}
-            className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <X className="text-muted-foreground size-3" />
-          </button>
-        </div>
-      ))}
+            <button
+              type="button"
+              aria-label={tChat('removeAttachment')}
+              onClick={() => removeAttachment(attachment.fileId)}
+              className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <X className="text-muted-foreground size-3" />
+            </button>
+          </div>
+        );
+      })}
 
       {fileAttachments.map((attachment) => {
         const audioInfo = isAudioOrVideo(attachment.fileType)

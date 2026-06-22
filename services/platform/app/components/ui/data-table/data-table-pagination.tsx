@@ -123,7 +123,7 @@ export function DataTablePagination({
         onClick={handlePrevious}
         disabled={isPrevDisabled}
         className="p-1.5"
-        aria-label={t('aria.previousPage')}
+        title={t('aria.previousPage')}
       >
         {isLoading ? (
           <Loader2 className="size-4 animate-spin" />
@@ -151,7 +151,7 @@ export function DataTablePagination({
         onClick={handleNext}
         disabled={isNextDisabled}
         className="p-1.5"
-        aria-label={t('aria.nextPage')}
+        title={t('aria.nextPage')}
       >
         {isLoading ? (
           <Loader2 className="size-4 animate-spin" />

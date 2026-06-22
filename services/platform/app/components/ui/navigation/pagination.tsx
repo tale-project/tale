@@ -117,7 +117,7 @@ export function Pagination({
           loadingStates.prev ||
           loadingStates.next
         }
-        aria-label={t('aria.previousPage')}
+        title={t('aria.previousPage')}
         className="p-1.5"
       >
         {loadingStates.prev ? (
@@ -146,7 +146,7 @@ export function Pagination({
         disabled={
           isEmpty || isNextDisabled || loadingStates.prev || loadingStates.next
         }
-        aria-label={t('aria.nextPage')}
+        title={t('aria.nextPage')}
         className="p-1.5"
       >
         {loadingStates.next ? (

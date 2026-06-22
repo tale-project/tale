@@ -17,7 +17,9 @@ import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
 import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
-import { createUpgradeCommand } from './commands/upgrade';
+import { createUninstallCommand } from './commands/uninstall';
+import { createUpdateCommand } from './commands/update';
+import { ensureAligned } from './lib/version/align';
 import * as logger from './utils/logger';
 import {
   configureOutput,
@@ -36,8 +38,8 @@ program
   .name('tale')
   .description('Tale CLI - deployment and management tools')
   // `--version` keeps Commander's default `-V`. `--verbose` is intentionally
-  // long-only: a root `-v` would shadow `upgrade`'s local `-v, --version`,
-  // which Commander resolves globally (parsing `tale upgrade -v X` as the root
+  // long-only: a root `-v` would shadow `update`'s local `-v, --version`,
+  // which Commander resolves globally (parsing `tale update -v X` as the root
   // flag and erroring on the leftover arg).
   .version(pkg.version)
   .option('--verbose', 'verbose output (debug logs, raw passthrough)')
@@ -57,10 +59,17 @@ program
 // Resolve the global flags into ONE output mode and apply it before any command
 // runs, so every command inherits the same color/verbosity/json configuration.
 // Global flags go before the subcommand: `tale --json status`.
-program.hook('preAction', () => {
+//
+// Then keep the CLI in lockstep with the instance it manages: `ensureAligned`
+// re-execs under the workspace's recorded version when the running binary
+// differs. It's a pure file read (no network) when already aligned — the
+// common case. `--version`/`--help`/bare `tale` never reach `preAction`, so
+// they always report/run the binary as-is.
+program.hook('preAction', async (_thisCommand, actionCommand) => {
   const mode = resolveOutputMode(program.opts<GlobalFlags>());
   configureOutput(mode);
   setActiveOutputMode(mode);
+  await ensureAligned(actionCommand.name());
 });
 
 // Group headings keep the command list scannable. Commander renders each
@@ -80,10 +89,11 @@ program.addCommand(createBackupCommand().helpGroup(OPERATE));
 program.addCommand(createRestoreCommand().helpGroup(OPERATE));
 program.addCommand(createRollbackCommand().helpGroup(OPERATE));
 
-program.addCommand(createUpgradeCommand().helpGroup(MAINTAIN));
+program.addCommand(createUpdateCommand().helpGroup(MAINTAIN));
 program.addCommand(createMigrateCommand().helpGroup(MAINTAIN));
 program.addCommand(createCleanupCommand().helpGroup(MAINTAIN));
 program.addCommand(createResetCommand().helpGroup(MAINTAIN));
+program.addCommand(createUninstallCommand().helpGroup(MAINTAIN));
 program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));

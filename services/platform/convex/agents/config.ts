@@ -136,7 +136,6 @@ export function toSerializableConfig(
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? false,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
-    responseTuning: config.responseTuning,
     routing: config.routing,
     fallbackModels:
       config.supportedModels.length > 1

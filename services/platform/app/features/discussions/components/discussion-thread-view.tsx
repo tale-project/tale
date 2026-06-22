@@ -176,7 +176,7 @@ export function DiscussionThreadView({
             variant="ghost"
             size="icon"
             onClick={onBack}
-            aria-label={t('backToList')}
+            title={t('backToList')}
           >
             <ArrowLeft className="text-muted-foreground size-5" />
           </Button>

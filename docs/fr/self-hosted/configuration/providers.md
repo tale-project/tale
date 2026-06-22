@@ -33,7 +33,7 @@ La référence est le format de fichier sur disque et l'ordre des opérations à
 }
 ```
 
-L'ensemble complet des champs vit dans [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). Le défaut livré est un seul `openrouter.json` qui couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d'images — une clé pour tout. Pour appeler un fournisseur directement plutôt que via OpenRouter, ajoute un autre fichier (par exemple un `openai.json` pointant vers `https://api.openai.com/v1`) ; voir [Modèles livrés en standard](/fr/platform/models) pour le catalogue complet par défaut.
+L'ensemble complet des champs vit dans [`builtin-configs/providers/`](https://github.com/tale-project/tale/tree/main/builtin-configs/providers). Le défaut livré est un seul `openrouter.json` qui couvre le chat, la vision, les embeddings, la transcription, la synthèse vocale et la génération d'images — une clé pour tout — avec des presets curés pour les fournisseurs courants (Anthropic, OpenAI, Google, xAI, Mistral, Meta, DeepSeek, Qwen, Cohere, Amazon, Perplexity et plus). Pour appeler un fournisseur directement plutôt que via OpenRouter, ajoute un autre fichier (par exemple un `openai.json` pointant vers `https://api.openai.com/v1`) ; voir [Modèles livrés en standard](/fr/platform/models) pour le catalogue complet par défaut.
 
 `transcriptionMode` sélectionne la forme du corps de requête d'un modèle `transcription` : `json-base64` (l'enveloppe `input_audio` d'OpenRouter) ou, s'il est omis, `multipart` — l'upload `multipart/form-data` OpenAI/Whisper qu'attendent aussi vLLM, LocalAI et une clé OpenAI directe. Définis-le selon l'endpoint de transcription que tu vises.
 

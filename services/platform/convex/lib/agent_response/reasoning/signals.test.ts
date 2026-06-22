@@ -98,4 +98,65 @@ describe('scoreDifficulty', () => {
     expect(['off', 'low', 'medium']).toContain(borderline.target.tier);
     expect(borderline.intensity).toBeLessThan(1);
   });
+
+  it('does not damp a terse HARD rework deep in a thread (P1-A)', () => {
+    // A short message deep in a thread WITH code is a rework, not a casual
+    // follow-up — the follow-up penalty must not pull it below its code floor.
+    const rework = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'now redo it in Rust:\n```rs\nfn main(){}\n```',
+      historyMessageCount: 12,
+    });
+    expect(rework.floorTier).toBe('medium');
+    expect(['medium', 'high']).toContain(rework.target.tier);
+    // A plain short follow-up in the same deep thread still damps to easy.
+    const casual = scoreDifficulty({
+      kind: 'chat',
+      promptText: 'and the next one?',
+      historyMessageCount: 12,
+    });
+    expect(['off', 'low']).toContain(casual.target.tier);
+  });
+
+  it('blends the prior toward a router effort seed (P0-A)', () => {
+    // A lexically-plain prompt the heuristic rates low, lifted by a high seed.
+    const plain = 'walk me through the options here';
+    const unseeded = scoreDifficulty({ kind: 'chat', promptText: plain });
+    const seeded = scoreDifficulty({
+      kind: 'chat',
+      promptText: plain,
+      effortSeed: 'high',
+    });
+    expect(seeded.intensity).toBeGreaterThan(unseeded.intensity);
+  });
+
+  it('is byte-identical to the pure heuristic when no seed is given (P0-A)', () => {
+    const signals = {
+      kind: 'chat' as const,
+      promptText: 'Please analyze and evaluate this rigorously.',
+      historyMessageCount: 3,
+    };
+    const base = scoreDifficulty(signals);
+    const seedless = scoreDifficulty({
+      ...signals,
+      effortSeed: undefined,
+      creativitySeed: undefined,
+    });
+    expect(seedless).toEqual(base);
+  });
+
+  it('blends creativity toward a router creativity seed (P0-A)', () => {
+    const plain = 'tell me about cats';
+    const precise = scoreDifficulty({
+      kind: 'chat',
+      promptText: plain,
+      creativitySeed: 'precise',
+    });
+    const creative = scoreDifficulty({
+      kind: 'chat',
+      promptText: plain,
+      creativitySeed: 'creative',
+    });
+    expect(creative.creativity).toBeGreaterThan(precise.creativity);
+  });
 });

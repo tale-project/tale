@@ -53,8 +53,8 @@ function FlowCornerControls() {
       <Button
         size="icon"
         variant="secondary"
-        aria-label={t('flow.zoomIn')}
         title={t('flow.zoomIn')}
+        tooltipSide="right"
         onClick={() => void zoomIn({ duration: 150 })}
       >
         <Plus className="size-4" />
@@ -62,8 +62,8 @@ function FlowCornerControls() {
       <Button
         size="icon"
         variant="secondary"
-        aria-label={t('flow.zoomOut')}
         title={t('flow.zoomOut')}
+        tooltipSide="right"
         onClick={() => void zoomOut({ duration: 150 })}
       >
         <Minus className="size-4" />
@@ -71,8 +71,8 @@ function FlowCornerControls() {
       <Button
         size="icon"
         variant="secondary"
-        aria-label={t('flow.resetView')}
         title={t('flow.resetView')}
+        tooltipSide="right"
         onClick={() => void fitView({ padding: 0.2, duration: 300 })}
       >
         <Maximize className="size-4" />
@@ -101,7 +101,6 @@ function FlowCenterToolbar({
         {onOpenAi && (
           <Button
             size="icon"
-            aria-label={t('flow.aiEditor')}
             title={t('flow.aiEditor')}
             onClick={onOpenAi}
             className="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"

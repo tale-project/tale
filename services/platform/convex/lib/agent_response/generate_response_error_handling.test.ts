@@ -1,5 +1,10 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../../lib/shared/chat-errors';
+
 // Mock @convex-dev/agent before importing the module under test
 const mockAbortStream = vi.fn();
 const mockListMessages = vi.fn();
@@ -171,7 +176,15 @@ describe('generateAgentResponse error handling', () => {
         },
         metadata: {
           status: 'failed',
-          error: 'Model API unavailable',
+          // The error is stamped with the structured `TALE_ERR1` envelope so the
+          // chat UI can render a localized, provider-specific message; the raw
+          // provider text is preserved after the header line.
+          error: encodeChatError({
+            code: classifyChatErrorCode(testError),
+            provider: 'openai',
+            model: 'gpt-4',
+            raw: 'Model API unavailable',
+          }),
         },
       },
     );
@@ -242,14 +255,19 @@ describe('generateAgentResponse error handling', () => {
       generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
     ).rejects.toBe('string error');
 
-    // Non-Error thrown values are wrapped as { message: String(error) }
+    // Non-Error thrown values are stringified into the envelope's raw tail.
     expect(mockSaveMessage).toHaveBeenCalledWith(
       ctx,
       expect.objectContaining({ streams: expect.anything() }),
       expect.objectContaining({
         metadata: expect.objectContaining({
           status: 'failed',
-          error: 'string error',
+          error: encodeChatError({
+            code: classifyChatErrorCode('string error'),
+            provider: 'openai',
+            model: 'gpt-4',
+            raw: 'string error',
+          }),
         }),
       }),
     );

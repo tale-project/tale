@@ -137,7 +137,7 @@ export function ComparisonFileSelector({
             size="icon"
             onClick={handleClear}
             disabled={disabled}
-            aria-label={t('comparison.clearSelection')}
+            title={t('comparison.clearSelection')}
           >
             <X className="size-3.5" aria-hidden="true" />
           </Button>

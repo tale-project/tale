@@ -8,7 +8,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
-import { routeTuningValidator } from './schema';
+import { routeSeedValidator, routeTuningValidator } from './schema';
 
 export const getBindingByAgent = internalQuery({
   args: {
@@ -77,6 +77,7 @@ export const getAutoRouteCache = internalQuery({
       agentSlug: v.string(),
       language: v.optional(v.string()),
       tuning: v.optional(routeTuningValidator),
+      seed: v.optional(routeSeedValidator),
       capabilities: v.optional(v.array(v.string())),
     }),
     v.null(),
@@ -97,6 +98,7 @@ export const getAutoRouteCache = internalQuery({
       agentSlug: row.agentSlug,
       language: row.language,
       tuning: row.tuning,
+      seed: row.seed,
       capabilities: row.capabilities,
     };
   },

@@ -37,6 +37,8 @@ Sous la disposition org-first, les bornes de rétention sont **par org** : édit
 
 Le conteneur plateforme surveille le fichier ; les changements proposent une mise à jour de bornes pour chaque org existante. Les admins voient la proposition dans leur écran **Politique de rétention** et l'appliquent eux-mêmes. L'étape propose-puis-applique est délibérée : resserrer un plancher raccourcit l'historique, ce qui est une action destructive qu'aucun opérateur ne devrait poser silencieusement sur chaque tenant.
 
+Le même `retention.json` contient aussi, sous une clé `policy`, les fenêtres de rétention choisies par l'admin (p. ex. `"policy": { "auditLogEnabled": true, "auditLogRetentionDays": 730 }`). Ce bloc est écrit par **Paramètres > Gouvernance > Politique de rétention** dans l'app, donc les admins ne l'éditent normalement jamais à la main — mais garder les bornes et la politique dans un seul fichier signifie qu'il n'y a qu'un fichier de rétention par org à appréhender.
+
 ## Le sweep de rétention
 
 Un cron planifié dans `tale-convex` fait la suppression réelle. Chaque catégorie est sweepée indépendamment — un run lent sur une ne bloque pas les autres. Les suppressions sont auditées (chaque catégorie a son propre événement `*.retention_deleted`), et restaurer une entité dans sa fenêtre de grâce est possible depuis **Corbeille** avant le sweep final.

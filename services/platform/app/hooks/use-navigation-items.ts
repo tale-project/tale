@@ -15,6 +15,8 @@ import { useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
+import { useIsMac } from './use-is-mac';
+
 export interface NavItem {
   label: string;
   to: string;
@@ -30,6 +32,12 @@ export interface NavItem {
   subItems?: NavItem[];
   /** Unread count rendered as a chip on the nav icon (omit/0 = no chip). */
   badge?: number;
+  /**
+   * Platform-resolved keyboard-shortcut hint (e.g. `⌥ ⌘ N`) shown as a chip in
+   * the item's hover tooltip. Present only for items that own a global
+   * shortcut; the binding itself lives in the `Navigation` component.
+   */
+  shortcut?: string;
   /**
    * Custom active-path matcher. When provided, replaces the default
    * `pathname === href || pathname.startsWith(href + '/')` check. Useful when
@@ -50,15 +58,18 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { t: tKnowledge } = useT('knowledge');
   const { t: tConversations } = useT('conversations');
   const { t: tProjects } = useT('projects');
+  const isMac = useIsMac();
+  const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
   return useMemo(
     (): NavigationItems => ({
       primary: [
         {
-          label: tNav('chatWithAI'),
+          label: tNav('newChat'),
           to: '/dashboard/$id/chat',
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
           icon: MessageCircle,
+          shortcut: newChatShortcut,
         },
         {
           label: tNav('apps'),
@@ -178,6 +189,6 @@ export function useNavigationItems(businessId: string): NavigationItems {
       ],
       pinned: [],
     }),
-    [businessId, tNav, tKnowledge, tConversations, tProjects],
+    [businessId, tNav, tKnowledge, tConversations, tProjects, newChatShortcut],
   );
 }

@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -24,6 +23,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -301,7 +301,7 @@ const COLUMN_COUNT = 7;
 
 // =============================================================================
 // Single editor — owns data fetching, rules state, dialog state, and save/toast
-// wiring. Renders the REAL `PageSection` once, always, wrapped in
+// wiring. Renders the REAL `SettingsSection` once, always, wrapped in
 // `<Skeletonize>`. The table renders fixed PLACEHOLDER rows while loading so an
 // empty `<tbody>` never reads as "no rules" during load; the real empty-state
 // only shows once loaded with zero rules.
@@ -465,7 +465,7 @@ export function FeatureFlagsEditor({
 
   return (
     <Skeletonize loading={loading} label={t('featureFlags.title')}>
-      <PageSection
+      <SettingsSection
         title={t('featureFlags.title')}
         description={t('featureFlags.description')}
         action={
@@ -578,7 +578,7 @@ export function FeatureFlagsEditor({
                           size="icon"
                           onClick={() => onEditRule(index)}
                           disabled={cannotManage}
-                          aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                          title={`${t('featureFlags.editRule')} ${index + 1}`}
                         >
                           <Pencil className="size-4" />
                         </Button>
@@ -587,7 +587,7 @@ export function FeatureFlagsEditor({
                           size="icon"
                           onClick={() => onRemoveRule(index)}
                           disabled={cannotManage}
-                          aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                          title={`${t('featureFlags.deleteRule')} ${index + 1}`}
                         >
                           <Trash2 className="size-4" />
                         </Button>
@@ -632,7 +632,7 @@ export function FeatureFlagsEditor({
           variant="destructive"
           onConfirm={onConfirmRemove}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

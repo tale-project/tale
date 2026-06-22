@@ -25,6 +25,7 @@ import {
   taskSubscriptionsTable,
   userNotificationsTable,
 } from './collab/schema';
+import { backendControlTable } from './control/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
@@ -162,6 +163,9 @@ export default defineSchema({
   // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See
   // `lib/config_cache/schema.ts`.
   configCache: configCacheTable,
+  // Backend-wide control flags (deploy drain). Singleton row; re-derivable /
+  // transient. See `control/schema.ts`.
+  backendControl: backendControlTable,
   // Versioned data-migration framework. `migrationLedger` records which
   // migrations have applied (and their resume cursors); `migrationSnapshots`
   // holds pre-`up` backups so destructive migrations can be rolled back. See

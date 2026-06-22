@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -22,6 +21,7 @@ import {
   type FilterConfig,
 } from '@/app/components/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useRestoreSoftDeletedRow } from '@/app/features/settings/governance/hooks/mutations';
 import { useListTrashedRows } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -70,7 +70,7 @@ interface TrashCursor {
 
 // =============================================================================
 // Single page — owns data fetching, pagination/filter state, the access check,
-// the restore mutation, and the loading state. Renders the REAL `PageSection` +
+// the restore mutation, and the loading state. Renders the REAL `SettingsSection` +
 // trash table once, always, wrapped in `<Skeletonize>` (no horizontal/vertical
 // shift on load). While loading, the table renders fixed PLACEHOLDER rows (same
 // cell count/height) so an empty body never reads as "nothing trashed"; the
@@ -212,7 +212,7 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('trash.title', 'Trash')}
         description={t(
           'trash.description',
@@ -388,7 +388,7 @@ export function TrashPage({ organizationId }: Props) {
             </div>
           )}
         </Skeletonize>
-      </PageSection>
+      </SettingsSection>
 
       <ConfirmDialog
         open={restoreTarget !== null}

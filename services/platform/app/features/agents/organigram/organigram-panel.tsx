@@ -124,7 +124,7 @@ export function OrganigramPanel({
           size="icon"
           variant="ghost"
           icon={X}
-          aria-label={t('panel.close')}
+          title={t('panel.close')}
           onClick={onClose}
         />
       </div>

@@ -125,6 +125,7 @@ function AutomationStepsInner({
   onOpenAIChat,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const hasSteps = steps && steps.length > 0;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
@@ -448,6 +449,7 @@ function AutomationStepsInner({
                       <Button
                         variant="ghost"
                         size="icon"
+                        title={tCommon('aria.dismiss')}
                         className="ml-auto size-6 shrink-0 p-1 text-amber-600 hover:bg-amber-100 hover:text-amber-700"
                         onClick={() => setShowActivityBanner(false)}
                       >

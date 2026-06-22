@@ -366,7 +366,7 @@ export function AutomationSidePanel({
             size="icon"
             className="size-8"
             onClick={onClose}
-            aria-label={t('sidePanel.close')}
+            title={t('sidePanel.close')}
           >
             <X className="size-4" />
           </Button>

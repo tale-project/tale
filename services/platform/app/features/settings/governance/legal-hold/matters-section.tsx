@@ -2,7 +2,6 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
@@ -10,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalMatters } from '../hooks/queries';
@@ -126,7 +126,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
         action={
@@ -165,7 +165,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           }}
           caption={t('legalHold.sections.matters.title')}
         />
-      </PageSection>
+      </SettingsSection>
 
       <UpsertMatterDialog
         open={createOpen}

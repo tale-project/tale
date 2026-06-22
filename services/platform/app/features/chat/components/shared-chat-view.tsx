@@ -170,7 +170,7 @@ export function SharedChatView({
               variant="ghost"
               size="icon"
               onClick={handleBack}
-              aria-label={t('share.backToChat')}
+              title={t('share.backToChat')}
             >
               <ArrowLeft className="text-muted-foreground size-5" />
             </Button>

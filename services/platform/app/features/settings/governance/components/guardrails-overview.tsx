@@ -2,7 +2,6 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { PageSection } from '@tale/ui/page-section';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import {
@@ -19,6 +18,7 @@ import { useMemo, useState } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
@@ -211,7 +211,7 @@ export function GuardrailsOverview({
 
   return (
     <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
-      <PageSection
+      <SettingsSection
         title={t('guardrailsOverview.title')}
         description={t('guardrailsOverview.description')}
       >
@@ -254,7 +254,7 @@ export function GuardrailsOverview({
           organizationId={organizationId}
           chatFilterLabels={chatFilterLabels}
         />
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

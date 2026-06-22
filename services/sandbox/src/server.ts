@@ -31,6 +31,7 @@ import { SessionRoutes } from './session/session-routes.ts';
 import {
   cancelExecution,
   executeRequest,
+  inFlightIds,
   inFlightSize,
   isInFlight,
   registerInFlight,
@@ -43,6 +44,24 @@ const cfg = loadConfig();
 // Execution backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
 const backend = createBackend(cfg);
+
+// Blue-green drain state. `POST /v1/drain` flips this so the spawner stops
+// accepting NEW work (one-shot executions + new sessions) while still serving
+// cancels, existing-session execs, and `/v1/drain-status` — letting the CLI
+// flip traffic to the new colour, poll until in-flight reaches zero, then stop
+// this colour. Unlike SIGTERM it does NOT exit or cancel in-flight work.
+let draining = false;
+// When this colour entered drain mode (the max-linger self-reap anchor). The
+// CLI flip lingers a colour that still has live sessions instead of tearing it
+// down; if the deploy dies mid-flip, this lets the spawner reclaim the session
+// compute itself once `cfg.session.maxLingerMs` elapses, so a colour can never
+// hold a session forever. `null` when not draining.
+let drainStartedAt: number | null = null;
+// One-shot guard so the linger reap fires once (it stops sessions; the thin
+// spawner then sits idle until the next flip's teardown removes its container —
+// we deliberately do NOT process.exit, which `restart: unless-stopped` would
+// just bounce back into a zombie old-colour spawner).
+let lingerReaped = false;
 // Session subsystem (persistent sessions). Lazily constructed on first session
 // route hit so a kubernetes deployment (session backend not yet implemented)
 // only errors when sessions are actually used, never at boot.
@@ -124,7 +143,53 @@ async function handleHealth(): Promise<Response> {
   );
 }
 
+/**
+ * Control-plane drain endpoints (no HMAC — like `/health`). The spawner is not
+ * host-exposed in production (internal network only); the CLI reaches these via
+ * `docker exec <spawner> curl -s localhost:8003/v1/drain[-status]` during a
+ * blue-green flip, and `docker exec` already implies host-root.
+ */
+function handleDrain(): Response {
+  if (!draining) {
+    draining = true;
+    drainStartedAt = Date.now();
+  }
+  console.log(
+    '[sandbox] entered drain mode — refusing new executions/sessions',
+  );
+  return jsonResponse({ draining: true, inFlight: inFlightSize() }, 200);
+}
+
+function handleDrainStatus(): Response {
+  // Read the session count without force-constructing the session subsystem
+  // (a status probe must never trigger backend init).
+  return jsonResponse(
+    {
+      draining,
+      color: cfg.color,
+      inFlight: inFlightSize(),
+      inFlightIds: inFlightIds(),
+      sessions: sessionRoutes?.sessionCount() ?? 0,
+      // Live session ids — the flip lingers this colour while any remain.
+      sessionIds: sessionRoutes?.sessionIds() ?? [],
+    },
+    200,
+  );
+}
+
 async function handleExecute(req: Request): Promise<Response> {
+  // Draining: this colour is being rolled out — reject new one-shot work so
+  // Convex's next /v1/execute lands on the new colour. In-flight executions
+  // continue; the CLI waits for them via /v1/drain-status.
+  if (draining) {
+    return jsonResponse(
+      {
+        error: 'draining',
+        message: 'spawner is draining; retry on the active colour',
+      },
+      503,
+    );
+  }
   let body: string;
   try {
     body = await readBodyCapped(req, cfg.maxRequestBodyBytes);
@@ -216,27 +281,30 @@ async function handleExecute(req: Request): Promise<Response> {
 
   // Keepalive + stream-close handling live in sseResponse (extracted to
   // sse.ts so the session exec route shares them).
-  return sseResponse(async ({ send }) => {
-    try {
-      const result = await executeRequest(backend, cfg, parsed, {
-        onPhase: (e) => send('phase', e),
-        // Live stdout/stderr tail. Per-line for stdout (PHASE markers
-        // stripped); per-chunk for stderr. Coalescing is left to the
-        // platform-side action because that's where the cost of "too
-        // many mutations" actually lives — SSE event overhead is small.
-        onStdoutDelta: (text) => send('stdout', { text }),
-        onStderrDelta: (text) => send('stderr', { text }),
-      });
-      send('result', result);
-    } catch (err) {
-      send('error', {
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      unregisterInFlight(parsed.executionId);
-      req.signal.removeEventListener('abort', abortHandler);
-    }
-  });
+  return sseResponse(
+    async ({ send }) => {
+      try {
+        const result = await executeRequest(backend, cfg, parsed, {
+          onPhase: (e) => send('phase', e),
+          // Live stdout/stderr tail. Per-line for stdout (PHASE markers
+          // stripped); per-chunk for stderr. Coalescing is left to the
+          // platform-side action because that's where the cost of "too
+          // many mutations" actually lives — SSE event overhead is small.
+          onStdoutDelta: (text) => send('stdout', { text }),
+          onStderrDelta: (text) => send('stderr', { text }),
+        });
+        send('result', result);
+      } catch (err) {
+        send('error', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        unregisterInFlight(parsed.executionId);
+        req.signal.removeEventListener('abort', abortHandler);
+      }
+    },
+    cfg.color ? { 'x-sandbox-color': cfg.color } : undefined,
+  );
 }
 
 async function handleCancel(req: Request, id: string): Promise<Response> {
@@ -351,6 +419,17 @@ async function handleSessionRoutes(
 
   // POST /v1/sessions (create)
   if (req.method === 'POST' && path === '/v1/sessions') {
+    // Draining: refuse NEW sessions so they land on the active colour. Execs
+    // on existing sessions (below) keep working until the session is reaped.
+    if (draining) {
+      return jsonResponse(
+        {
+          error: 'draining',
+          message: 'spawner is draining; create on the active colour',
+        },
+        503,
+      );
+    }
     const r = await readAndAuth(req);
     if ('error' in r) return r.error;
     return getSessionRoutes().handleCreate(r.body);
@@ -534,6 +613,12 @@ async function router(req: Request): Promise<Response> {
   if (req.method === 'GET' && url.pathname === '/health') {
     return handleHealth();
   }
+  if (req.method === 'POST' && url.pathname === '/v1/drain') {
+    return handleDrain();
+  }
+  if (req.method === 'GET' && url.pathname === '/v1/drain-status') {
+    return handleDrainStatus();
+  }
   if (req.method === 'POST' && url.pathname === '/v1/execute') {
     return handleExecute(req);
   }
@@ -595,6 +680,32 @@ async function main(): Promise<void> {
       void sessions.sweepExpired().catch((err) => {
         console.warn('[sandbox.session] periodic sweep failed:', err);
       });
+      // Max-linger self-reap (CLI-independent safety net): if this colour has
+      // been draining longer than the linger TTL, reclaim its session compute
+      // ourselves so a deploy that died mid-flip can't pin compute forever.
+      // Stop-only (workspace preserved); the spawner stays up — `restart:
+      // unless-stopped` would otherwise bounce a self-exit into a zombie
+      // old-colour spawner. The next flip's teardown removes this container.
+      if (
+        draining &&
+        !lingerReaped &&
+        drainStartedAt !== null &&
+        Date.now() - drainStartedAt > cfg.session.maxLingerMs
+      ) {
+        lingerReaped = true;
+        void sessions
+          .stopAllSessions()
+          .then((n) => {
+            if (n > 0) {
+              console.warn(
+                `[sandbox.session] max-linger (${cfg.session.maxLingerMs}ms) reached while draining — reclaimed ${n} session(s); workspaces preserved for resume on the active colour.`,
+              );
+            }
+          })
+          .catch((err) => {
+            console.warn('[sandbox.session] linger reap failed:', err);
+          });
+      }
     }, SESSION_SWEEP_INTERVAL_MS);
     stopSessionSweep = () => clearInterval(sweepTimer);
   } catch (err) {

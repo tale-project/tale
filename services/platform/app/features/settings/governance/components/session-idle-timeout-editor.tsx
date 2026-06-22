@@ -1,15 +1,15 @@
 'use client';
 
 import { HStack, Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -22,10 +22,11 @@ import {
   SESSION_IDLE_TIMEOUT_MAX_MINUTES,
   SESSION_IDLE_TIMEOUT_MIN_MINUTES,
 } from '@/lib/shared/session-idle';
-import { isRecord } from '@/lib/utils/type-utils';
 
+import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 
 interface SessionIdleTimeoutEditorProps {
   organizationId: string;
@@ -37,11 +38,9 @@ interface SessionIdleTimeoutForm {
 
 const FORM_ID = 'governance-session-idle-timeout-form';
 
-function parseConfig(raw: unknown): SessionIdleTimeoutConfig {
-  const obj = isRecord(raw) ? raw : {};
-  const result = sessionIdleTimeoutConfigSchema.safeParse(obj);
-  return result.success ? result.data : { ...DEFAULT_SESSION_IDLE_TIMEOUT };
-}
+const parseConfig = createConfigParser(sessionIdleTimeoutConfigSchema, () => ({
+  ...DEFAULT_SESSION_IDLE_TIMEOUT,
+}));
 
 // =============================================================================
 // Mirrors `LoginPolicyEditor`: owns data fetching, the form controller, the
@@ -69,10 +68,18 @@ export function SessionIdleTimeoutEditor({
 
   // `enabled` is instant-save (header switch); `idleTimeoutMinutes` is batched
   // through the EditorActions cluster.
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => {
-    if (!isLoading) setEnabled(savedConfig.enabled);
-  }, [isLoading, savedConfig]);
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'session_idle_timeout',
+    savedEnabled: savedConfig.enabled,
+    isLoading,
+    buildConfig: (next): SessionIdleTimeoutConfig => ({
+      ...savedConfig,
+      enabled: next,
+    }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('sessionIdleTimeout.saveFailed'),
+  });
 
   const schema = useMemo(
     () =>
@@ -137,36 +144,10 @@ export function SessionIdleTimeoutEditor({
     formState: { errors },
   } = editor.form;
   const canEdit = !cannotManage;
-  const isToggling = upsertMutation.isPending;
-
-  const handleToggleEnabled = useCallback(
-    async (next: boolean) => {
-      setEnabled(next);
-      try {
-        await upsertMutation.mutateAsync({
-          organizationId,
-          policyType: 'session_idle_timeout',
-          config: {
-            ...savedConfig,
-            enabled: next,
-          } satisfies SessionIdleTimeoutConfig,
-        });
-      } catch (err) {
-        console.error('[sessionIdleTimeout toggle]', err);
-        setEnabled(!next);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('sessionIdleTimeout.saveFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [organizationId, savedConfig, t, toast, upsertMutation],
-  );
 
   return (
     <Skeletonize loading={isLoading} label={t('sessionIdleTimeout.title')}>
-      <PageSection
+      <SettingsSection
         title={t('sessionIdleTimeout.title')}
         description={t('sessionIdleTimeout.description')}
         action={
@@ -174,8 +155,8 @@ export function SessionIdleTimeoutEditor({
             label={t('sessionIdleTimeout.enabled')}
             hideLabelOnMobile
             checked={enabled}
-            onCheckedChange={handleToggleEnabled}
-            disabled={!canEdit || isToggling}
+            onCheckedChange={onToggle}
+            disabled={!canEdit || isToggling || editor.isSaving}
           />
         }
       >
@@ -210,13 +191,14 @@ export function SessionIdleTimeoutEditor({
                     formId={FORM_ID}
                     canEdit={canEdit}
                     entityKind="governance_session_idle_timeout"
+                    suppressServerErrorToast
                   />
                 </HStack>
               )}
             </Stack>
           </fieldset>
         </form>
-      </PageSection>
+      </SettingsSection>
     </Skeletonize>
   );
 }

@@ -58,8 +58,8 @@ tale restore
 tale restore 20260611-142530-deploy --stop
 
 # Den Stack auf der Version zurückbringen, die zu den Daten passt
-tale upgrade --version 0.9.6
-tale deploy --all
+tale update --version 0.9.6
+tale deploy --stop
 ```
 
 Das Redeploy der passenden Version ist Teil des Restores, kein optionales Extra: Der Snapshot hat die Daten exakt so erfasst, wie diese Plattform-Version sie hinterlassen hat, und ein neueres Binary würde sofort wieder seine Migrationen darauf laufen lassen. Die Restore-Ausgabe druckt die exakte Version aus dem Manifest des Snapshots.

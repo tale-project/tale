@@ -31,7 +31,7 @@ function SecurityMonitoringRoute() {
   // reveal together under one coordinated skeletonization and are spaced by
   // SettingsPage's layout.
   return (
-    <SettingsPage narrow>
+    <SettingsPage>
       <LoginPolicyEditor organizationId={organizationId} />
       <PasswordPolicyEditor organizationId={organizationId} />
       <TwoFactorPolicyEditor organizationId={organizationId} />

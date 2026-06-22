@@ -16,6 +16,17 @@ export function createPlatformService(
     volumes: ['convex-data:/app/data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
+    // Graceful shutdown budget. The entrypoint's SIGTERM trap
+    // (services/platform/docker-entrypoint.sh) drains for
+    // SHUTDOWN_DRAIN_SECONDS (6) so the proxy stops routing, waits
+    // SHUTDOWN_GRACE_SECONDS (5) for in-flight requests, then gives Vite up to
+    // SHUTDOWN_TIMEOUT_SECONDS (30) to exit = ~41s worst case. Without this,
+    // Docker's default 10s grace SIGKILLs the old colour mid-drain on a
+    // blue-green flip, cutting in-flight HTTP/SSE chat streams. `docker stop`
+    // (no -t, see stop-container.ts) honors this StopTimeout — the same
+    // mechanism the sandbox tier relies on (create-sandbox-service.ts). Keep
+    // this >= the SHUTDOWN_* budget; bump it if those defaults grow.
+    stop_grace_period: '45s',
     healthcheck: {
       test: [
         'CMD-SHELL',

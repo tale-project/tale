@@ -449,6 +449,73 @@ function probeDocker(
   });
 }
 
+/** Launch the Docker engine for the host OS, fire-and-forget — the engine then
+ *  comes up asynchronously (which {@link startDockerDaemon} polls for). Returns
+ *  whether the launch command itself succeeded. Mirrors the per-OS launch in the
+ *  CLI's ensureDocker (tools/cli/src/lib/docker/ensure-docker.ts): `open -a
+ *  Docker` on macOS, Start-Process on Windows, `systemctl start docker` on Linux.
+ *  The Linux path uses `sudo -n` so it FAILS FAST when passwordless sudo isn't
+ *  configured, rather than hanging the boot on a hidden password prompt. */
+function launchDockerEngine(): boolean {
+  try {
+    if (process.platform === 'darwin') {
+      return (
+        spawnSync('open', ['-a', 'Docker'], { stdio: 'ignore' }).status === 0
+      );
+    }
+    if (process.platform === 'win32') {
+      return (
+        spawnSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            'Start-Process -FilePath "$env:ProgramFiles\\Docker\\Docker\\Docker Desktop.exe"',
+          ],
+          { stdio: 'ignore' },
+        ).status === 0
+      );
+    }
+    // Linux: the engine runs as a privileged systemd service. `-n` makes sudo
+    // fail immediately (instead of prompting) when passwordless sudo is absent.
+    return (
+      spawnSync('sudo', ['-n', 'systemctl', 'start', 'docker'], {
+        stdio: 'ignore',
+      }).status === 0
+    );
+  } catch (err) {
+    warnLine(
+      `Could not start the Docker engine: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return false;
+  }
+}
+
+/** Wake a stopped Docker engine so `bun dev` doesn't dead-end when Docker Desktop
+ *  just isn't running — the common case on a dev machine. Launches it (see
+ *  {@link launchDockerEngine}) then polls until it answers or ~60s elapse.
+ *  Best-effort and non-fatal: returns the re-probed status; the caller degrades
+ *  to a warning when it stays down. */
+async function startDockerDaemon(): Promise<'ok' | 'no-daemon'> {
+  const ready = await runStep(
+    { active: 'Starting the Docker engine', done: 'Docker engine started' },
+    async () => {
+      if (!launchDockerEngine()) {
+        throw new StepWarning(
+          'could not launch it (start Docker manually if this keeps happening)',
+        );
+      }
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        if ((await probeDocker(5_000)) === 'ok') return true;
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+      throw new StepWarning('the engine did not come up within 60s');
+    },
+  );
+  return ready ? 'ok' : 'no-daemon';
+}
+
 /** Probe the bifrost gateway on its host-published loopback port until it
  *  accepts connections — this is the axis that breaks when the dev overlay's
  *  port binding is missing. Honours BIFROST_URL; warn-and-continue on timeout. */
@@ -494,8 +561,11 @@ async function waitForBifrostGateway(
  *  `up` it recreates whatever config drifted (bifrost gains its port, the rest
  *  gain source mounts / extra_hosts) — the intended convergence to dev config.
  *
- *  Docker absent is NON-FATAL: warn with the concrete side-effects and let the
- *  app come up anyway (pure frontend/Convex work doesn't need the gateway). */
+ *  A stopped engine is auto-started first (Docker Desktop / systemd) so a dev
+ *  machine where Docker simply isn't running doesn't have to start it by hand.
+ *  Docker absent (or unstartable) is NON-FATAL: warn with the concrete
+ *  side-effects and let the app come up anyway (pure frontend/Convex work
+ *  doesn't need it). */
 async function ensureDockerDependencies(): Promise<void> {
   // The hermetic E2E stack (playwright.config.ts) is anonymous-Convex + mock
   // LLM with "no external services" — the backing images aren't built in the
@@ -503,7 +573,7 @@ async function ensureDockerDependencies(): Promise<void> {
   // wastes the cold-boot budget and destabilizes the Convex pre-warm that
   // follows. Let the E2E webServer opt out explicitly.
   if (isTruthy(process.env.TALE_DEV_SKIP_DOCKER)) {
-    infoLine('Skipping docker backing services (TALE_DEV_SKIP_DOCKER set)');
+    infoLine('Skipping Docker backing services (TALE_DEV_SKIP_DOCKER set)');
     return;
   }
 
@@ -529,15 +599,22 @@ async function ensureDockerDependencies(): Promise<void> {
   // around the pipe. Explicit override still wins.
   process.env.BUILDKIT_PROGRESS ??= 'plain';
 
-  const status = await probeDocker(10_000);
+  let status = await probeDocker(10_000);
+  // CLI present but the engine is down: try to start it instead of dead-ending —
+  // the common case on a dev machine where Docker Desktop simply isn't running.
+  if (status === 'no-daemon') {
+    status = await startDockerDaemon();
+  }
   if (status !== 'ok') {
-    const why =
-      status === 'no-binary'
-        ? 'Docker is not installed'
-        : 'Docker daemon is not running / unreachable';
-    warnLine(`${why} — skipping docker backing services.`);
+    // A failed start already explained itself via startDockerDaemon's warning;
+    // only the not-installed case still needs a warning here.
+    if (status === 'no-binary') {
+      warnLine(
+        'Docker is not installed — continuing without the backing services.',
+      );
+    }
     infoLine(
-      'Until started: the LLM gateway (bifrost) is unreachable (external agents / chat fail), the sandbox is down (no agent code execution), and db / knowledge-db are down (no knowledge base / RAG).',
+      "While the backing services are down: chat and external agents fail (no LLM gateway), agents can't run code (no sandbox), and the knowledge base / RAG is unavailable (no db).",
     );
     infoLine(
       `Start them with: docker ${dockerComposeArgs(['up', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
@@ -690,7 +767,7 @@ export async function runDevFleet() {
   infoLine('Starting Tale dev environment');
   if (useExternalConvex) {
     infoLine(
-      `Convex: external (${process.env.CONVEX_URL || 'http://127.0.0.1:3210'})`,
+      `Using external Convex (${process.env.CONVEX_URL || 'http://127.0.0.1:3210'})`,
     );
   }
 
@@ -766,7 +843,7 @@ export async function runDevFleet() {
     // the READY banner below. Everything between "Starting" and here is silent,
     // so this lands as the second line the developer sees.
     infoLine(
-      `Cold start can take 30-90s; ${appUrl} is unreachable until the READY banner below.`,
+      `Cold start takes 30-90s — ${appUrl} won't load until the READY banner below.`,
     );
 
     // Bring up the docker backing stack (gateway, sandbox, db, knowledge-db)

@@ -60,12 +60,17 @@ export const IconButton = forwardRef<
       variant = 'ghost',
       className,
       'aria-label': ariaLabel,
+      tooltip,
       asChild,
       slotChild,
       ...props
     },
     ref,
   ) => {
+    // An icon button always has an accessible name (`aria-label`), so show it
+    // as a tooltip for free unless the caller supplies richer `tooltip`
+    // content. Skipped for the `asChild` (Slot) path below.
+    const resolvedTooltip = tooltip ?? ariaLabel;
     const iconNode = (
       <Icon
         className={cn(
@@ -108,6 +113,7 @@ export const IconButton = forwardRef<
         variant={variant}
         size="icon"
         aria-label={ariaLabel}
+        tooltip={resolvedTooltip}
         className={cn(focusOverride, className)}
         {...props}
       >

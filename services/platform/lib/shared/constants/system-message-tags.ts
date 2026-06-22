@@ -15,7 +15,7 @@ export const SYSTEM_MSG_TAG = {
   MODEL_FALLBACK: '[MODEL_FALLBACK]',
 } as const;
 
-type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
+export type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
 
 const TAG_REGEX = /^\[([A-Z][A-Z_]+)\]/;
 const KNOWN_TAGS = new Set<string>(Object.values(SYSTEM_MSG_TAG));
@@ -64,4 +64,52 @@ export function getSystemMessageDisplay(
 ): SystemMessageDisplay {
   if (!tag) return 'info';
   return DISPLAY_MAP[tag];
+}
+
+/**
+ * Structured payload carried in a `[MODEL_FALLBACK]` system-message body.
+ *
+ * The backend writes it machine-readably (URL-encoded values, no localized
+ * prose) so the chat UI can render a localized line and the model auto-switch
+ * can read `to` reliably — instead of regex-scraping an English sentence.
+ */
+interface ModelFallbackBody {
+  /** The model ref that just failed. */
+  from?: string;
+  /** The next model ref being attempted ('default' for the tag-default). */
+  to?: string;
+  /** A `ChatErrorCode`-style reason the previous model failed. */
+  reason?: string;
+}
+
+export function formatModelFallbackBody(body: ModelFallbackBody): string {
+  const parts: string[] = [];
+  if (body.from) parts.push(`from=${encodeURIComponent(body.from)}`);
+  if (body.to) parts.push(`to=${encodeURIComponent(body.to)}`);
+  if (body.reason) parts.push(`reason=${encodeURIComponent(body.reason)}`);
+  return parts.join(' ');
+}
+
+/**
+ * Parse a `[MODEL_FALLBACK]` body. Returns an empty object for legacy bodies
+ * (the previous English-sentence format), so callers can fall back gracefully.
+ */
+export function parseModelFallbackBody(body: string): ModelFallbackBody {
+  const result: ModelFallbackBody = {};
+  for (const token of body.trim().split(/\s+/)) {
+    const eq = token.indexOf('=');
+    if (eq <= 0) continue;
+    const key = token.slice(0, eq);
+    const rawValue = token.slice(eq + 1);
+    let value: string;
+    try {
+      value = decodeURIComponent(rawValue);
+    } catch {
+      value = rawValue;
+    }
+    if (key === 'from') result.from = value;
+    else if (key === 'to') result.to = value;
+    else if (key === 'reason') result.reason = value;
+  }
+  return result;
 }

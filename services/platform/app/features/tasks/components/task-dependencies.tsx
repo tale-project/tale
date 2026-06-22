@@ -220,7 +220,7 @@ function DependencyGroup({
                   variant="ghost"
                   size="icon"
                   icon={X}
-                  aria-label={t('detail.removeDependency')}
+                  title={t('detail.removeDependency')}
                   className="text-muted-foreground hover:text-foreground size-7 shrink-0"
                   onClick={() => onRemove(item._id)}
                 />

@@ -207,6 +207,11 @@ export const runExternalAgentTurn = internalAction({
     // Hoisted so the catch can finalize side-effects (it's assigned once the
     // sandbox is resolved, before the message + op row exist).
     let sessionId: string | null = null;
+    // Blue-green colour the live session is on (from the create response or the
+    // existing row). Threaded into run_agent so its session ops route to
+    // `sandbox-<color>` — keeping a turn reachable if a deploy flip lingers the
+    // old colour mid-turn. `null` ⇒ single-colour / unknown → bare alias.
+    let liveSpawnerColor: string | null = null;
     // Mirror of the most recent content patched into the streaming message, so
     // the catch can mark it failed while preserving the partial tool timeline.
     let lastContent: AgentAssistantContent = '';
@@ -247,18 +252,24 @@ export const runExternalAgentTurn = internalAction({
       if (existing) {
         sessionId = existing.sessionId;
         sessionCreatedAt = existing.createdAt;
-        const alive = await sessionIsAlive(existing.sessionId);
+        // Default to the row's recorded colour; a re-create below may move it.
+        liveSpawnerColor = existing.spawnerColor ?? null;
+        const alive = await sessionIsAlive(
+          existing.sessionId,
+          existing.spawnerColor,
+        );
         if (!alive) {
           console.warn(
             '[runExternalAgentTurn] resuming stopped session in place:',
             sessionId,
           );
           try {
-            await sessionCreate({
+            const created = await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
+            liveSpawnerColor = created.spawnerColor;
           } catch (createErr) {
             // 409: the container is actually still live (race with the reaper /
             // a re-adopted session). That's a successful resume, NOT an orphan
@@ -309,11 +320,12 @@ export const runExternalAgentTurn = internalAction({
         );
         try {
           try {
-            await sessionCreate({
+            const created = await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
+            liveSpawnerColor = created.spawnerColor;
           } catch (createErr) {
             // 409 duplicate: the spawner still owns a session under this
             // deterministic id that the platform no longer tracks (e.g. a
@@ -325,11 +337,12 @@ export const runExternalAgentTurn = internalAction({
               `[runExternalAgentTurn] reaping orphan spawner session ${sessionId} (create 409)`,
             );
             await sessionDestroy(sessionId);
-            await sessionCreate({
+            const recreated = await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
+            liveSpawnerColor = recreated.spawnerColor;
           }
         } catch (createErr) {
           await ctx.runMutation(
@@ -341,6 +354,20 @@ export const runExternalAgentTurn = internalAction({
         await ctx.runMutation(
           internal.sandbox.session_mutations.setSessionStatus,
           { rowId, status: 'active', lastActivityAt: Date.now() },
+        );
+      }
+
+      // Persist the colour the session landed on so a recovery/continuation
+      // after a deploy flip routes session ops to the lingering colour. No-ops
+      // on a null colour (single-colour mode) and only when it changed.
+      if (sessionId !== null && liveSpawnerColor !== null) {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.setSessionSpawnerColor,
+          {
+            organizationId: args.organizationId,
+            sessionId,
+            spawnerColor: liveSpawnerColor,
+          },
         );
       }
 
@@ -659,6 +686,7 @@ export const runExternalAgentTurn = internalAction({
           sessionId: liveSessionId,
           threadId: args.threadId,
           ...(args.streamId !== undefined && { streamId: args.streamId }),
+          ...(liveSpawnerColor !== null && { spawnerColor: liveSpawnerColor }),
           execId: id,
           agentSlug: args.agentKind,
           prompt: args.rawPrompt,

@@ -14,8 +14,9 @@ export function createRollbackCommand(): Command {
       'Roll back to the previous version (patch-level rollbacks only — ' +
         'minor/major recovery goes through backup restore)',
     )
+    .option('-y, --yes', 'Non-interactive: skip the confirmation prompt', false)
     .action(
-      action(async () => {
+      action(async (options: { yes: boolean }) => {
         const projectDir = requireProject();
         await resolveProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
@@ -27,7 +28,7 @@ export function createRollbackCommand(): Command {
           );
         }
         const env = loadEnv(projectDir);
-        await rollback({ env });
+        await rollback({ env, assumeYes: options.yes });
       }),
     );
 }

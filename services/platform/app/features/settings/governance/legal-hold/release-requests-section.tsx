@@ -3,13 +3,13 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -191,7 +191,7 @@ export function ReleaseRequestsSection({
 
   return (
     <>
-      <PageSection
+      <SettingsSection
         title={t('legalHold.sections.releaseRequests.title')}
         description={t('legalHold.sections.releaseRequests.description')}
       >
@@ -235,7 +235,7 @@ export function ReleaseRequestsSection({
             />
           </div>
         </Stack>
-      </PageSection>
+      </SettingsSection>
 
       <ApproveReleaseDialog
         open={approveTarget !== null}
