@@ -4155,6 +4155,10 @@
       "title": "Fournisseurs",
       "description": "Gère les fournisseurs LLM et leurs modèles."
     },
+    "tokenSources": {
+      "title": "Sources de jetons",
+      "description": "Pools d'identifiants récupérés via un courtier qui tournent entre tes agents."
+    },
     "logs": {
       "title": "Journaux",
       "description": "Consulte les journaux système et l'activité."
@@ -4266,6 +4270,7 @@
     "integrations": "Intégrations",
     "mcp": "MCP",
     "providers": "Fournisseurs IA",
+    "tokenSources": "Sources de jetons",
     "apiKeys": "Clés API",
     "api": "API",
     "apiRest": "REST",
@@ -4866,6 +4871,9 @@
       "providers": {
         "description": "Utilise tes propres clés API pour OpenAI, Anthropic et d'autres."
       },
+      "tokenSources": {
+        "description": "Courtiers externes qui fournissent à tes agents un pool d'identifiants rotatif."
+      },
       "skills": {
         "description": "Skills que tes agents peuvent charger pour gérer des types de fichiers ou des tâches spécifiques."
       },
@@ -4881,6 +4889,43 @@
       "sandboxes": {
         "description": "Gérer les sandboxes d’agent distant toujours actives."
       }
+    },
+    "tokenSources": {
+      "editTitle": "Modifier la source de jetons",
+      "newTitle": "Nouvelle source de jetons",
+      "new": "Nouvelle source de jetons",
+      "slug": "Identifiant",
+      "displayName": "Nom affiché",
+      "endpoint": "URL du point de terminaison",
+      "method": "Méthode HTTP",
+      "authMethod": "Authentification du courtier",
+      "authNone": "Aucune",
+      "authBearer": "Jeton Bearer",
+      "authHeader": "En-tête personnalisé",
+      "headerName": "Nom de l'en-tête",
+      "secret": "Secret du courtier",
+      "secretPlaceholder": "Saisis le secret du courtier",
+      "secretSetPlaceholder": "Laisse vide pour conserver le secret actuel",
+      "mappingHint": "Associe la réponse JSON du courtier à un pool de jetons. Les chemins utilisent une syntaxe JSONPath simple (ex. $.tokens).",
+      "tokensPath": "Chemin des jetons",
+      "tokenField": "Champ du jeton",
+      "statusField": "Champ de statut (facultatif)",
+      "statusActiveValue": "Valeur de statut actif (facultatif)",
+      "expiryField": "Champ d'expiration (facultatif)",
+      "targetEnvVar": "Variable d'environnement cible",
+      "selection": "Stratégie de sélection",
+      "selectionRandom": "Aléatoire",
+      "selectionFirst": "Première",
+      "cancel": "Annuler",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "Source de jetons enregistrée",
+      "saveError": "Impossible d'enregistrer la source de jetons",
+      "deleted": "Source de jetons supprimée",
+      "loadError": "Impossible de charger la source de jetons",
+      "empty": "Aucune source de jetons pour l'instant. Ajoutes-en une pour donner aux agents un pool d'identifiants rotatif.",
+      "edit": "Modifier",
+      "delete": "Supprimer"
     },
     "account": {
       "profile": {

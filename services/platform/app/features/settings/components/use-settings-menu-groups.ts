@@ -86,6 +86,12 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
+        key: 'tokenSources',
+        icon: Variable,
+        path: 'token-sources',
+        can: ['read', 'developerSettings'],
+      },
+      {
         key: 'integrations',
         icon: Plug,
         path: 'integrations',

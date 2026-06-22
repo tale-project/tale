@@ -4154,6 +4154,10 @@
       "title": "Anbieter",
       "description": "LLM-Anbieter und deren Modelle verwalten."
     },
+    "tokenSources": {
+      "title": "Token-Quellen",
+      "description": "Über einen Broker bezogene Anmeldedaten-Pools, die zwischen deinen Agenten rotieren."
+    },
     "logs": {
       "title": "Protokolle",
       "description": "Systemprotokolle und Aktivitäten anzeigen."
@@ -4265,6 +4269,7 @@
     "integrations": "Integrationen",
     "mcp": "MCP",
     "providers": "KI-Anbieter",
+    "tokenSources": "Token-Quellen",
     "apiKeys": "API-Schlüssel",
     "api": "API",
     "apiRest": "REST",
@@ -4865,6 +4870,9 @@
       "providers": {
         "description": "Eigene API-Schlüssel für OpenAI, Anthropic und andere mitbringen."
       },
+      "tokenSources": {
+        "description": "Externe Broker, die deinen Agenten einen rotierenden Anmeldedaten-Pool bereitstellen."
+      },
       "skills": {
         "description": "Skills, die deine Agenten für bestimmte Dateitypen oder Aufgaben laden können."
       },
@@ -4880,6 +4888,43 @@
       "sandboxes": {
         "description": "Always-on Remote-Agent-Sandboxes verwalten."
       }
+    },
+    "tokenSources": {
+      "editTitle": "Token-Quelle bearbeiten",
+      "newTitle": "Neue Token-Quelle",
+      "new": "Neue Token-Quelle",
+      "slug": "Slug",
+      "displayName": "Anzeigename",
+      "endpoint": "Endpunkt-URL",
+      "method": "HTTP-Methode",
+      "authMethod": "Broker-Authentifizierung",
+      "authNone": "Keine",
+      "authBearer": "Bearer-Token",
+      "authHeader": "Eigener Header",
+      "headerName": "Header-Name",
+      "secret": "Broker-Geheimnis",
+      "secretPlaceholder": "Broker-Geheimnis eingeben",
+      "secretSetPlaceholder": "Leer lassen, um das aktuelle Geheimnis beizubehalten",
+      "mappingHint": "Ordne die JSON-Antwort des Brokers einem Token-Pool zu. Pfade verwenden einfaches JSONPath (z. B. $.tokens).",
+      "tokensPath": "Tokens-Pfad",
+      "tokenField": "Token-Feld",
+      "statusField": "Statusfeld (optional)",
+      "statusActiveValue": "Aktiver Statuswert (optional)",
+      "expiryField": "Ablauffeld (optional)",
+      "targetEnvVar": "Ziel-Umgebungsvariable",
+      "selection": "Auswahlstrategie",
+      "selectionRandom": "Zufällig",
+      "selectionFirst": "Erste",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "saved": "Token-Quelle gespeichert",
+      "saveError": "Token-Quelle konnte nicht gespeichert werden",
+      "deleted": "Token-Quelle gelöscht",
+      "loadError": "Token-Quelle konnte nicht geladen werden",
+      "empty": "Noch keine Token-Quellen. Füge eine hinzu, um Agenten einen rotierenden Anmeldedaten-Pool zu geben.",
+      "edit": "Bearbeiten",
+      "delete": "Löschen"
     },
     "account": {
       "profile": {

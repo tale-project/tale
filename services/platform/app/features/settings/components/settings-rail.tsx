@@ -118,6 +118,13 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
+        labelKey: 'tokenSources',
+        path: 'token-sources',
+        matchMode: 'startsWith',
+        can: ['read', 'developerSettings'],
+      },
+      {
+        kind: 'leaf',
         labelKey: 'skills',
         path: 'skills',
         matchMode: 'startsWith',
