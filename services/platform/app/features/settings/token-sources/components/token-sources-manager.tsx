@@ -511,49 +511,38 @@ function TokenSourceFormSheet({
               onChange={(e) => set({ endpoint: e.target.value })}
             />
 
-            <Stack gap={1}>
-              <Text className="text-sm font-medium">
-                {t('tokenSources.method')}
-              </Text>
-              <Select
-                value={form.method}
-                disabled={saving}
-                options={[
-                  { value: 'GET', label: 'GET' },
-                  { value: 'POST', label: 'POST' },
-                ]}
-                onValueChange={(v) => {
-                  const m = narrowStringUnion<'GET' | 'POST'>(v, [
-                    'GET',
-                    'POST',
-                  ]);
-                  if (m) set({ method: m });
-                }}
-              />
-            </Stack>
+            <Select
+              label={t('tokenSources.method')}
+              value={form.method}
+              disabled={saving}
+              options={[
+                { value: 'GET', label: 'GET' },
+                { value: 'POST', label: 'POST' },
+              ]}
+              onValueChange={(v) => {
+                const m = narrowStringUnion<'GET' | 'POST'>(v, ['GET', 'POST']);
+                if (m) set({ method: m });
+              }}
+            />
 
-            <Stack gap={1}>
-              <Text className="text-sm font-medium">
-                {t('tokenSources.authMethod')}
-              </Text>
-              <Select
-                value={form.authMethod}
-                disabled={saving}
-                options={[
-                  { value: 'none', label: t('tokenSources.authNone') },
-                  { value: 'bearer', label: t('tokenSources.authBearer') },
-                  { value: 'header', label: t('tokenSources.authHeader') },
-                ]}
-                onValueChange={(v) => {
-                  const m = narrowStringUnion<AuthMethod>(v, [
-                    'none',
-                    'bearer',
-                    'header',
-                  ]);
-                  if (m) set({ authMethod: m });
-                }}
-              />
-            </Stack>
+            <Select
+              label={t('tokenSources.authMethod')}
+              value={form.authMethod}
+              disabled={saving}
+              options={[
+                { value: 'none', label: t('tokenSources.authNone') },
+                { value: 'bearer', label: t('tokenSources.authBearer') },
+                { value: 'header', label: t('tokenSources.authHeader') },
+              ]}
+              onValueChange={(v) => {
+                const m = narrowStringUnion<AuthMethod>(v, [
+                  'none',
+                  'bearer',
+                  'header',
+                ]);
+                if (m) set({ authMethod: m });
+              }}
+            />
             {form.authMethod === 'header' && (
               <Input
                 label={t('tokenSources.headerName')}
@@ -648,27 +637,23 @@ function TokenSourceFormSheet({
               className="font-mono"
               onChange={(e) => set({ targetEnvVar: e.target.value })}
             />
-            <Stack gap={1}>
-              <Text className="text-sm font-medium">
-                {t('tokenSources.selection')}
-              </Text>
-              <Select
-                value={form.selection}
-                disabled={saving}
-                options={[
-                  { value: 'random', label: t('tokenSources.selectionRandom') },
-                  { value: 'first', label: t('tokenSources.selectionFirst') },
-                ]}
-                onValueChange={(v) => {
-                  const s = narrowStringUnion<Selection>(v, [
-                    'random',
-                    'round-robin',
-                    'first',
-                  ]);
-                  if (s) set({ selection: s });
-                }}
-              />
-            </Stack>
+            <Select
+              label={t('tokenSources.selection')}
+              value={form.selection}
+              disabled={saving}
+              options={[
+                { value: 'random', label: t('tokenSources.selectionRandom') },
+                { value: 'first', label: t('tokenSources.selectionFirst') },
+              ]}
+              onValueChange={(v) => {
+                const s = narrowStringUnion<Selection>(v, [
+                  'random',
+                  'round-robin',
+                  'first',
+                ]);
+                if (s) set({ selection: s });
+              }}
+            />
           </Stack>
         ) : (
           <Text variant="muted" className="text-sm">

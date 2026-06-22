@@ -14,9 +14,10 @@ import { z } from 'zod/v4';
  */
 
 /** Reserved env-var namespace for a token source's broker auth secret. */
-export const TOKEN_SOURCE_SECRET_ENV_PREFIX = 'TALE_TOKEN_SOURCE_';
-export const TOKEN_SOURCE_SECRET_ENV_REGEX =
-  /^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$/;
+const TOKEN_SOURCE_SECRET_ENV_PREFIX = 'TALE_TOKEN_SOURCE_';
+const TOKEN_SOURCE_SECRET_ENV_REGEX = new RegExp(
+  `^${TOKEN_SOURCE_SECRET_ENV_PREFIX}[A-Za-z0-9_]+$`,
+);
 
 const TOKEN_SOURCE_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,99}$/;
 const ENV_VAR_NAME_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
