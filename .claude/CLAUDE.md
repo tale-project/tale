@@ -10,7 +10,7 @@ Claude-Code-specific delta on top of it — not a replacement.
 - **Skills live in [`.claude/skills/`](skills/).** Load the relevant guide before working in
   an area (e.g. `convex`, `react`, `testing`); the index is in `AGENTS.md`. Don't reinvent what a
   skill already documents.
-- **Commands:** `/qa <area>`, `/verify`, `/ship`. **MCP servers:** Playwright (frontend
+- **Commands:** `/qa <area>`, `/verify`, `/ship`, `/release [version]`. **MCP servers:** Playwright (frontend
   verification), Convex (backend verification), Pencil (design). See [`.mcp.json`](../.mcp.json).
 - A PostToolUse hook formats every file you edit; don't hand-format or re-run a formatter.
 

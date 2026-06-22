@@ -311,6 +311,7 @@ file or the generated adapters are out of sync.
 | [`verify`](.claude/skills/verify/SKILL.md) | confirming a change works (the `/verify` command) |
 | [`review`](.claude/skills/review/SKILL.md) | reviewing a diff or PR |
 | [`ship`](.claude/skills/ship/SKILL.md) | opening a PR (the `/ship` command) |
+| [`release`](.claude/skills/release/SKILL.md) | tagging a new version (the `/release` command) |
 | [`debug`](.claude/skills/debug/SKILL.md) | chasing a bug to root cause |
 | [`handoff`](.claude/skills/handoff/SKILL.md) | persisting learnings / continuing a long task |
 | [`write-skill`](.claude/skills/write-skill/SKILL.md) | adding or editing a skill |
