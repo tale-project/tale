@@ -11,8 +11,14 @@
  * when `$TALE_CONFIG_BUILTIN_DIR` is unset (dev-engine/prod/E2E all set it).
  *
  * `scaffoldNewOrganization`:
- *   - org-create path (`override:false`, default): idempotent per-domain
- *     skip if the target dir already has files.
+ *   - org-create path (`cleanFirst:true`, scheduled from
+ *     `auth.afterCreateOrganization`): purge any leftover `<orgSlug>/` subtree
+ *     first — the slug is provably new at that hook, so anything there is an
+ *     orphan from a deleted org or a dev wipe — then seed every domain into the
+ *     now-empty dir. The result is a faithful, complete copy of the catalog
+ *     with no stale/renamed orphans and no cross-tenant secret inheritance.
+ *   - bare org-create / retry (`override:false`, default, no `cleanFirst`):
+ *     idempotent per-domain skip if the target dir already has files.
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
  *     overwrites builtin-named files in place while always preserving
  *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
@@ -481,6 +487,104 @@ async function sweepStaleCondemnedDirs(root: string): Promise<void> {
 }
 
 /**
+ * Guarded removal of one org's entire `<orgSlug>/` subtree under `root`.
+ * Extracted so both org-delete (`cleanupOrgFilesystem`) and the exact-mirror
+ * org-create path (`scaffoldNewOrganization({cleanFirst:true})`) share a single
+ * audited deletion. Safety — all preserved from the former inline cleanup body:
+ * - refuses the literal `default` slug (the historical shared template name).
+ * - validates slug shape via `validateOrgSlug` (a NULL / `..` / cased slug from
+ *   a misbehaving caller can't slip through).
+ * - refuses `orgDir === root`.
+ * - `verifyPathWithinBase` enforces strict descendant-of-root containment.
+ * - `lstat`-refuses a symlink at the org dir itself: `verifyPathWithinBase`
+ *   only realpath's the dirname, so a pre-placed symlink at `<root>/<orgSlug>`
+ *   would otherwise be followed by `rm -rf` to arbitrary locations.
+ * - two-phase rename-then-delete: rename to a `.deleted-<slug>-<ts>` sibling
+ *   (atomic) then `rm -rf`, so concurrent writers fail ENOENT instead of racing.
+ * - drops `{ force: true }` so EACCES/EBUSY surface instead of being masked.
+ *
+ * ENOENT at the org dir is an idempotent no-op (nothing to remove). All
+ * failures log and are non-fatal: the caller decides what happens next
+ * (cleanup returns regardless; cleanFirst proceeds to seed, where the
+ * `override:false` per-domain skip is the safe fallback if removal was refused).
+ */
+async function removeOrgSubtree(root: string, orgSlug: string): Promise<void> {
+  if (orgSlug === 'default') {
+    console.warn(
+      '[removeOrgSubtree] refusing to delete the default org filesystem',
+    );
+    return;
+  }
+
+  if (!validateOrgSlug(orgSlug)) {
+    console.warn(`[removeOrgSubtree] refusing invalid slug "${orgSlug}"`);
+    return;
+  }
+
+  const orgDir = path.join(root, orgSlug);
+  if (path.resolve(orgDir) === path.resolve(root)) {
+    console.warn('[removeOrgSubtree] computed orgDir equals root, refusing');
+    return;
+  }
+
+  try {
+    await verifyPathWithinBase(orgDir, root);
+  } catch (err) {
+    console.warn(
+      `[removeOrgSubtree] path traversal guard tripped for "${orgSlug}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  // Symlink hijack defense: verifyPathWithinBase leaves the basename
+  // unresolved. If <root>/<orgSlug> is itself a symlink, rm -rf would follow
+  // it and delete arbitrary filesystem locations. Refuse explicitly here.
+  const info = await lstat(orgDir).catch((err) => {
+    if (errnoCode(err) === 'ENOENT') return null;
+    console.warn(
+      `[removeOrgSubtree] lstat failed for "${orgDir}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  });
+  if (!info) return;
+  if (info.isSymbolicLink()) {
+    console.error(
+      `[removeOrgSubtree] refusing to delete symlinked org dir at "${orgDir}"`,
+    );
+    return;
+  }
+
+  // Two-phase rename-then-delete. The rename is atomic within a filesystem;
+  // any concurrent writer of the original path fails with ENOENT instead of
+  // racing the recursive delete. UUID suffix avoids collisions.
+  const condemned = path.join(
+    root,
+    `.deleted-${orgSlug}-${Date.now()}-${randomUUID().slice(0, 8)}`,
+  );
+  try {
+    await rename(orgDir, condemned);
+  } catch (err) {
+    if (errnoCode(err) === 'ENOENT') return;
+    console.error(
+      `[removeOrgSubtree] rename failed for "${orgDir}" → "${condemned}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  try {
+    await rm(condemned, { recursive: true });
+  } catch (err) {
+    console.error(
+      `[removeOrgSubtree] rm failed for "${condemned}" (org dir was renamed but not fully removed; manual cleanup required):`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/**
  * Remove a deleted org's entire `<orgSlug>/` subtree under
  * `${TALE_CONFIG_DIR}`. Safety:
  * - TALE_CONFIG_DIR must be set + absolute.
@@ -520,85 +624,10 @@ export const cleanupOrgFilesystem = internalAction({
       console.warn('[cleanupOrgFilesystem] janitor sweep failed:', err);
     });
 
-    if (args.orgSlug === 'default') {
-      console.warn(
-        '[cleanupOrgFilesystem] refusing to delete the default org filesystem',
-      );
-      return null;
-    }
-
-    if (!validateOrgSlug(args.orgSlug)) {
-      console.warn(
-        `[cleanupOrgFilesystem] refusing invalid slug "${args.orgSlug}"`,
-      );
-      return null;
-    }
-
-    const orgDir = path.join(root, args.orgSlug);
-    if (path.resolve(orgDir) === path.resolve(root)) {
-      console.warn(
-        `[cleanupOrgFilesystem] computed orgDir equals root, refusing`,
-      );
-      return null;
-    }
-
-    try {
-      await verifyPathWithinBase(orgDir, root);
-    } catch (err) {
-      console.warn(
-        `[cleanupOrgFilesystem] path traversal guard tripped for "${args.orgSlug}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }
-
-    // Symlink hijack defense: verifyPathWithinBase leaves the basename
-    // unresolved. If <root>/<orgSlug> is itself a symlink (placed by an
-    // attacker or a misconfigured operator), rm -rf would follow it and
-    // delete arbitrary filesystem locations. Refuse explicitly here.
-    const info = await lstat(orgDir).catch((err) => {
-      if (errnoCode(err) === 'ENOENT') return null;
-      console.warn(
-        `[cleanupOrgFilesystem] lstat failed for "${orgDir}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    });
-    if (!info) return null;
-    if (info.isSymbolicLink()) {
-      console.error(
-        `[cleanupOrgFilesystem] refusing to delete symlinked org dir at "${orgDir}"`,
-      );
-      return null;
-    }
-
-    // Two-phase rename-then-delete. The rename is atomic within a
-    // filesystem; any concurrent writer of the original path fails with
-    // ENOENT instead of racing the recursive delete. UUID suffix avoids
-    // collisions if two cleanups land in the same millisecond.
-    const condemned = path.join(
-      root,
-      `.deleted-${args.orgSlug}-${Date.now()}-${randomUUID().slice(0, 8)}`,
-    );
-    try {
-      await rename(orgDir, condemned);
-    } catch (err) {
-      if (errnoCode(err) === 'ENOENT') return null;
-      console.error(
-        `[cleanupOrgFilesystem] rename failed for "${orgDir}" → "${condemned}":`,
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }
-
-    try {
-      await rm(condemned, { recursive: true });
-    } catch (err) {
-      console.error(
-        `[cleanupOrgFilesystem] rm failed for "${condemned}" (org dir was renamed but not fully removed; manual cleanup required):`,
-        err instanceof Error ? err.message : err,
-      );
-    }
+    // Guarded two-phase removal. The slug / path-containment / symlink
+    // defenses live in the shared helper that org-create's cleanFirst path
+    // also uses, so both deletion entry points stay in lockstep.
+    await removeOrgSubtree(root, args.orgSlug);
 
     return null;
   },
@@ -625,6 +654,19 @@ export const scaffoldNewOrganization = internalAction({
      * UX.
      */
     strict: v.optional(v.boolean()),
+    /**
+     * When true (the org-create path), remove any leftover `<orgSlug>/`
+     * subtree before seeding so the result is a faithful copy of the catalog
+     * with no stale/renamed orphans. Safe because Better Auth's
+     * `afterCreateOrganization` fires only for a genuinely new slug — anything
+     * already on disk is an orphan from a deleted org or a dev wipe, and would
+     * otherwise trip the per-domain `override:false` skip (stranding e.g. a
+     * renamed agent permanently missing). It also prevents a new org from
+     * inheriting a prior tenant's `*.secrets.json` if delete-time cleanup never
+     * ran. NOT set by `reseedAllOrgsFromBuiltin`, which reseeds LIVE orgs and
+     * must preserve their secrets/customizations (that path uses `override`).
+     */
+    cleanFirst: v.optional(v.boolean()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -681,6 +723,14 @@ export const scaffoldNewOrganization = internalAction({
       return { ok: false, skipped: true, results: [] };
     }
     const override = args.override ?? false;
+
+    // Exact-mirror org-create: purge any leftover subtree for this (new) slug
+    // before seeding, so renamed/removed catalog files don't survive as
+    // orphans and the per-domain `override:false` skip can't strand a domain a
+    // prior org left files in. Guarded + idempotent (a no-op when absent).
+    if (args.cleanFirst) {
+      await removeOrgSubtree(configRoot, args.orgSlug);
+    }
 
     const results: DomainResult[] = [];
     for (const domain of CONFIG_DOMAINS) {
