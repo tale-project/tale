@@ -22,6 +22,7 @@ import {
   staleLifetimeCutoffMs,
 } from './k8s-backend.ts';
 import { podNameFor } from './k8s-pod-spec.ts';
+import { formatResultLine } from './k8s-protocol.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -227,7 +228,7 @@ function stubClient(behavior: {
   createSecret?: () => Promise<unknown>;
   createPod?: () => Promise<unknown>;
   readPod?: () => Promise<V1Pod>;
-  readLog?: () => Promise<string>;
+  readLog?: (p: { container: string }) => Promise<string>;
 }): { core: CoreV1Api; namespace: string; calls: StubCalls } {
   const calls: StubCalls = { deletes: [], replaces: 0 };
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
@@ -238,7 +239,8 @@ function stubClient(behavior: {
     readNamespacedPod:
       behavior.readPod ??
       (() => Promise.reject(Object.assign(new Error('404'), { code: 404 }))),
-    readNamespacedPodLog: behavior.readLog ?? (() => Promise.resolve('')),
+    readNamespacedPodLog: (p: { container: string }) =>
+      behavior.readLog?.(p) ?? Promise.resolve(''),
     replaceNamespacedSecret: () => {
       calls.replaces += 1;
       return Promise.resolve({});
@@ -332,5 +334,97 @@ describe('duplicate-executionId safety', () => {
     expect(stub.calls.deletes).toContain(
       `secret:${secretNameFor(req.executionId)}`,
     );
+  });
+});
+
+// ---- stdout kubelet log rotation ------------------------------------------
+
+describe('stdout log-rotation pinning', () => {
+  test('kubelet log rotation: canonical stdout is the pre-rotation head, not the new-file window', async () => {
+    // Runner emits PRE then kubelet rotates — the new file only contains
+    // ROTATED (shorter). Without the fix the final readPodLog returns ROTATED
+    // (a mid-stream window). With the fix the spawner-side accumulation
+    // retains PRE_HEAD (the deterministic head of the original log).
+    const PRE_HEAD = 'pre-rotation-head\n'; // 19 chars
+    const ROTATED = 'r\n'; // 2 chars — shorter, triggers shrink detection
+
+    const harvestLog = formatResultLine({
+      exitCode: 0,
+      stderr: '',
+      stderrTruncated: false,
+      outputFiles: [],
+      truncatedFiles: 0,
+      uploadStats: { attempted: 0, succeeded: 0, failures: [] },
+      quotaExhausted: false,
+      uploadFailed: false,
+      reportFailed: false,
+      readFailed: false,
+      stageMs: 0,
+      harvestMs: 0,
+      uploadMs: 0,
+    });
+
+    let runnerLogIdx = 0;
+    const runnerLogs = [PRE_HEAD, ROTATED];
+
+    let podCallIdx = 0;
+
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+    const client = {
+      namespace: 'tale-sandbox',
+      core: {
+        createNamespacedSecret: () => Promise.resolve({}),
+        createNamespacedPod: () => Promise.resolve({}),
+        readNamespacedPod: () => {
+          podCallIdx += 1;
+          if (podCallIdx === 1) {
+            // waitForRunnerStart: runner container is Running
+            return Promise.resolve({
+              metadata: {},
+              status: {
+                containerStatuses: [
+                  {
+                    name: 'runner',
+                    state: { running: { startedAt: new Date() } },
+                  },
+                ],
+              },
+            } as V1Pod);
+          }
+          // Main loop: pod Succeeded with harvest terminated
+          return Promise.resolve({
+            metadata: {},
+            status: {
+              phase: 'Succeeded',
+              containerStatuses: [
+                { name: 'harvest', state: { terminated: { exitCode: 0 } } },
+              ],
+            },
+          } as V1Pod);
+        },
+        readNamespacedPodLog: ({ container }: { container: string }) => {
+          if (container === 'harvest') return Promise.resolve(harvestLog);
+          // Runner: serve logs in sequence; cap at last entry
+          const log =
+            runnerLogs[runnerLogIdx] ?? runnerLogs[runnerLogs.length - 1];
+          runnerLogIdx += 1;
+          return Promise.resolve(log ?? '');
+        },
+        replaceNamespacedSecret: () => Promise.resolve({}),
+        deleteNamespacedPod: () => Promise.resolve({}),
+        deleteNamespacedSecret: () => Promise.resolve({}),
+        listNamespacedPod: () => Promise.resolve({ items: [] }),
+        listNamespacedSecret: () => Promise.resolve({ items: [] }),
+      } as unknown as CoreV1Api,
+    };
+
+    const backend = new KubernetesBackend(cfg, client);
+    const res = await backend.execute(cfg, req, execOpts());
+
+    expect(res.status).toBe('completed');
+    // The canonical stdout must be the pre-rotation head, not the rotated window.
+    expect(Buffer.from(res.stdoutBase64, 'base64').toString()).toBe('pre-rotation-head\n');
+    // The rotation must be flagged as truncation.
+    expect(res.truncated.stdout).toBe(true);
   });
 });

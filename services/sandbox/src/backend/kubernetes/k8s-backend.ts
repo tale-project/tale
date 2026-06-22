@@ -427,6 +427,12 @@ export class KubernetesBackend implements ExecutionBackend {
       let lastLogLen = 0;
       let logShrunk = false;
       let loggedPollError = false;
+      // Spawner-side canonical stdout buffer: accumulated from polled deltas
+      // so that a kubelet log rotation never gives us a mid-stream window.
+      // After rotation logs.length resets to 0; a final readPodLog would then
+      // return only the new file's content — the head of the original stream
+      // is gone. By accumulating here we always retain the deterministic head.
+      let logBuf = '';
       const pollRunnerStdout = async (): Promise<void> => {
         let logs: string;
         try {
@@ -446,12 +452,18 @@ export class KubernetesBackend implements ExecutionBackend {
           return;
         }
         if (logs.length > lastLogLen) {
-          scanner.onStdoutChunk?.(Buffer.from(logs.slice(lastLogLen), 'utf8'));
+          const delta = logs.slice(lastLogLen);
+          scanner.onStdoutChunk?.(Buffer.from(delta, 'utf8'));
           lastLogLen = logs.length;
+          if (Buffer.byteLength(logBuf, 'utf8') < cfg.stdoutMaxBytes) {
+            ({ text: logBuf } = capText(logBuf + delta, cfg.stdoutMaxBytes));
+          }
         } else if (logs.length < lastLogLen) {
-          // The kubelet rotated the container log out from under us — the
-          // canonical head is gone, so the final read is a partial window.
+          // Kubelet rotated the container log out from under us — the
+          // canonical head is already captured in logBuf. Reset the length
+          // cursor so we continue accumulating from the new file's beginning.
           logShrunk = true;
+          lastLogLen = 0;
         }
       };
 
@@ -540,19 +552,14 @@ export class KubernetesBackend implements ExecutionBackend {
         await sleep(POLL_INTERVAL_MS, opts.signal);
       }
 
-      // Final stdout read (the runner may have emitted more between the last
-      // poll and exit) → feed the residual to the scanner, then drain it. The
-      // canonical buffer is the full (capped) runner log.
+      // Final stdout poll (the runner may have emitted more between the last
+      // loop iteration and exit) → feed the residual to the scanner, then
+      // drain it. Use the spawner-side accumulation (logBuf) as the canonical
+      // stdout — it always holds the deterministic head of the stream even
+      // across kubelet log rotations.
       await pollRunnerStdout();
       scanner.finalize();
-      let stdout = '';
-      try {
-        stdout = await readPodLog(this.client, podName, 'runner', {
-          limitBytes: cfg.stdoutMaxBytes,
-        });
-      } catch (err) {
-        console.warn('[sandbox.k8s] final runner log read failed:', err);
-      }
+      const stdout = logBuf;
       const stdoutStreamTruncated =
         Buffer.byteLength(stdout, 'utf8') >= cfg.stdoutMaxBytes || logShrunk;
 
