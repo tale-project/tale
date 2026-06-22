@@ -39,32 +39,34 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright (platform ${{ matrix.shard }}/8)
+    name: Playwright (platform ${{ matrix.shard }}/16)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # The suite outgrew a single serial 30-min run (workers:1 against one
-    # backend). Shard the specs across parallel runners so each shard finishes
-    # well inside the timeout instead of being cancelled mid-run. Each shard is
-    # an independent job: it boots its own hermetic stack and runs the `setup`
-    # auth project before its slice. fail-fast:false so one shard's failure
-    # doesn't cancel the others — we want every shard's result.
+    timeout-minutes: 30
+    # The suite outgrew a single serial run (workers:1 against one backend).
+    # Shard the specs across parallel runners so each shard finishes well inside
+    # the timeout instead of being cancelled mid-run. Each shard is an
+    # independent job: it boots its own hermetic stack and runs the `setup` auth
+    # project before its slice. fail-fast:false so one shard's failure doesn't
+    # cancel the others — we want every shard's result, and a re-run of just the
+    # red shards (`gh run rerun --failed`) converges to green.
     #
-    # Shard count: 8. Each shard's cost is the FIXED per-shard boot (Chromium +
+    # Shard count: 16. Each shard's cost is the FIXED per-shard boot (Chromium +
     # Convex + Vite preview + @tale/mocks) plus its serial test slice; a single
     # worker per shard is mandatory (two starve the local Convex backend on the
     # 4-vCPU runner — see the run step). Parallelism therefore comes only from
-    # shards, so the lever for wall-clock is the test slice: 8 shards puts ~9 of
-    # the ~74 tests per job (vs ~18 at 4) and halves the serial test time. We stop
-    # at 8 rather than going higher because the boot floor dominates below ~9
-    # tests — more shards would multiply CI minutes for a negligible wall-clock
-    # gain. The prod build that used to sit on every shard's critical path is now
-    # cached across shards/re-runs (see the dist cache step), so test-only e2e PRs
-    # skip it entirely.
+    # shards, so the lever for wall-clock is the test slice: 16 shards puts ~5 of
+    # the ~74 tests per job. The boot floor dominates at this slice size, so this
+    # trades extra CI minutes for the shortest serial test time per shard —
+    # chosen deliberately so a shard is far less likely to hit the 30-min timeout
+    # when the local Convex backend runs slow under runner CPU contention. The
+    # prod build that used to sit on every shard's critical path is now cached
+    # across shards/re-runs (see the dist cache step), so test-only e2e PRs skip
+    # it entirely.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     permissions:
       contents: read
 
@@ -130,14 +132,14 @@ jobs:
         working-directory: services/platform
         run: bun run build
 
-      - name: Run E2E suite (shard ${{ matrix.shard }}/8)
+      - name: Run E2E suite (shard ${{ matrix.shard }}/16)
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
         # (Vite + Convex + mock + the browser workers all share it): the local
         # Convex backend starved and queries blew its hard 1s function-execution
         # timeout in floods (100s+ per shard), stranding the WS unauthenticated
-        # and failing tests non-deterministically. Parallelism comes from the 4
-        # shards; each single-worker shard still finishes well inside the 25-min
+        # and failing tests non-deterministically. Parallelism comes from the 16
+        # shards; each single-worker shard still finishes well inside the 30-min
         # budget. Tune via E2E_WORKERS.
         env:
           E2E_WORKERS: '1'
@@ -149,7 +151,7 @@ jobs:
           # starve interactive queries past the backend's hard 1s timeout
           # mid-test. Passed through to the deployment env by sync-convex-env.
           TALE_E2E: '1'
-        run: bunx playwright test --shard=${{ matrix.shard }}/8
+        run: bunx playwright test --shard=${{ matrix.shard }}/16
 
       - name: Upload Playwright report
         if: failure()
