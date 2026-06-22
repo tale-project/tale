@@ -3,7 +3,7 @@
 // forever-hung execute()) and withRetry's retryability gate.
 
 import { describe, expect, test } from 'bun:test';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, rmSync } from 'node:fs';
 import type { AgentOptions } from 'node:https';
 
 import {
@@ -185,8 +185,9 @@ describe('kubeconfig TLS knobs under Bun', () => {
       const agentOpts = getAgentOpts(ctx);
       expect(agentOpts?.ca).toBeDefined();
       expect(Buffer.isBuffer(agentOpts?.ca)).toBe(true);
+      expect(agentOpts?.ca).toEqual(Buffer.from('placeholder-pem-content'));
     } finally {
-      unlinkSync(caPath);
+      rmSync(caPath, { force: true });
     }
   });
 
@@ -198,7 +199,21 @@ describe('kubeconfig TLS knobs under Bun', () => {
     );
     await kc.applySecurityAuthentication(ctx);
     const agentOpts = getAgentOpts(ctx);
+    expect(agentOpts).toBeDefined();
     expect(agentOpts?.rejectUnauthorized).toBeUndefined();
     expect(agentOpts?.ca).toBeUndefined();
+  });
+
+  test('caData → ca buffer present on the per-request https.Agent', async () => {
+    const caData = Buffer.from('placeholder-pem-content').toString('base64');
+    const kc = makeKc({ caData });
+    const ctx = new RequestContext(
+      'https://k8s.local:6443/api/v1/pods',
+      HttpMethod.GET,
+    );
+    await kc.applySecurityAuthentication(ctx);
+    const agentOpts = getAgentOpts(ctx);
+    expect(agentOpts?.ca).toBeDefined();
+    expect(Buffer.isBuffer(agentOpts?.ca)).toBe(true);
   });
 });

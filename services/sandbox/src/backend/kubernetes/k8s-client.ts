@@ -84,6 +84,11 @@ export function makeK8sClient(namespace: string): K8sClient {
     // Explicit bearer-token config (dev / Bun-friendly). Bun can't use a
     // client-cert kubeconfig, so point at the apiserver with an SA token; CA
     // trust via SANDBOX_K8S_CAFILE + NODE_EXTRA_CA_CERTS, or skipTLSVerify.
+    if (!process.env.SANDBOX_K8S_CAFILE) {
+      console.warn(
+        '[sandbox.k8s] SANDBOX_K8S_CAFILE not set — TLS certificate verification DISABLED (skipTLSVerify: true). Do not use in production.',
+      );
+    }
     kc.loadFromOptions({
       clusters: [
         {
