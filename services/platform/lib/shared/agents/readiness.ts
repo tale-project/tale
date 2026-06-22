@@ -13,21 +13,21 @@
  */
 import { parseModelRef } from '../utils/model-ref';
 
-export type ParsedModelRef = ReturnType<typeof parseModelRef>;
+type ParsedModelRef = ReturnType<typeof parseModelRef>;
 
-export type AgentReadinessMode =
+type AgentReadinessMode =
   | 'internal'
   | 'image'
   | 'external-managed'
   | 'external-byo';
 
-export interface RequiredEnvKey {
+interface RequiredEnvKey {
   key: string;
   secret: boolean;
   description?: string;
 }
 
-export interface AgentReadinessNeeds {
+interface AgentReadinessNeeds {
   mode: AgentReadinessMode;
   /** Provider+model must be configured (provider key present, model resolvable). */
   needsProviderModel: boolean;

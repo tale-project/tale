@@ -21,7 +21,6 @@
       "uninstall": "Uninstall",
       "notInstalledTitle": "Not installed yet",
       "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
-      "chooseProjectTitle": "Install {name}",
       "chooseProjectDescription": "This app runs inside a project. Choose where its tasks and pages live.",
       "projectLabel": "Project",
       "projectPlaceholder": "Select a project",
