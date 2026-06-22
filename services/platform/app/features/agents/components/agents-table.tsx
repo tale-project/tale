@@ -18,7 +18,7 @@ import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { buildFolderView, isInFolder } from '@/lib/utils/folder-tree';
 
 import { useDeleteAgent } from '../hooks/mutations';
-import { useListAgents } from '../hooks/queries';
+import { useAgentInstallations, useListAgents } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
 import { toConfigurableAgent } from '../utils/agent-list-item';
 import { AgentsActionMenu } from './agents-action-menu';
@@ -68,11 +68,29 @@ export function AgentsTable({
   const navigate = useNavigate();
   const preloadRoute = usePreloadRoute();
   const queryClient = useQueryClient();
-  const { agents: rawAgents, isLoading } = useListAgents(organizationId);
+  const { agents: rawAgents, isLoading: agentsLoading } =
+    useListAgents(organizationId);
+  // The List shows only INSTALLED + enabled agents (DB install records), never
+  // the raw filesystem roster — the Catalog tab is where un-installed agents are
+  // browsed and installed. The agent config files are the install SOURCE; this
+  // table is the "what's active in this org" view.
+  const installs = useAgentInstallations(organizationId);
+  const isLoading = agentsLoading || installs.isLoading;
   const { i18n: i18nCtx } = useTranslation();
   const locale = i18nCtx.language;
   const [searchQuery, setSearchQuery] = useState('');
   const isSearching = searchQuery.trim().length > 0;
+
+  const enabledSlugs = useMemo(() => {
+    const set = new Set<string>();
+    const states = installs.data as
+      | ReadonlyArray<{ agentSlug: string; enabled: boolean }>
+      | undefined;
+    for (const s of states ?? []) {
+      if (s.enabled) set.add(s.agentSlug);
+    }
+    return set;
+  }, [installs.data]);
 
   const agents = useMemo<AgentRow[]>(() => {
     if (!rawAgents) return [];
@@ -81,6 +99,9 @@ export function AgentsTable({
       // Drops read-error rows + system-managed agents (the Auto router etc.).
       const agent = toConfigurableAgent(raw);
       if (!agent) continue;
+      // Installed + enabled only — `agent.name` is the slug; install state keys
+      // on `agentSlug` (see internal_actions' `name: slug` projection).
+      if (!enabledSlugs.has(agent.name)) continue;
       const resolved = resolveAgentLocale(agent, locale);
       if (!resolved.displayName) continue;
       validAgents.push({
@@ -97,7 +118,7 @@ export function AgentsTable({
       });
     }
     return validAgents;
-  }, [rawAgents, locale]);
+  }, [rawAgents, locale, enabledSlugs]);
 
   // Top-level folders whose name is an installed app — surfaced from the rows
   // that carry `appSlug` (app agents have folderPath === appSlug). Used to mark

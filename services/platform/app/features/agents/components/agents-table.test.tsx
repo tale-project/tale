@@ -52,6 +52,7 @@ vi.mock('@/app/components/branding/branding-provider', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useListAgents: () => ({ agents: [], isLoading: false }),
+  useAgentInstallations: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('../hooks/mutations', () => ({

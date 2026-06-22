@@ -77,7 +77,13 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const { workflows: rawWorkflows } = useListWorkflows(organizationId);
+  // Only INSTALLED workflows are valid event-trigger targets — an event routed
+  // to an un-installed workflow would be silently skipped at dispatch
+  // (process_event requires a wfInstallations row). Never offer the FS roster.
+  const { workflows: rawWorkflows } = useListWorkflows(
+    organizationId,
+    'installed',
+  );
   const workflows = useMemo(() => {
     const result: { _id: string; name: string }[] = [];
     for (const w of rawWorkflows ?? []) {
