@@ -80,6 +80,8 @@ Si les deux clés age ne sont pas définies, Tale stocke `providers/*.secrets.js
 
 La source de clé par variable d'environnement ne nécessite aucun commutateur de déploiement : un fournisseur peut lire sa clé depuis une variable d'environnement plutôt que depuis un fichier de secrets, tant que la variable est nommée avec le préfixe réservé `TALE_PROVIDER_KEY_` (tout autre nom est rejeté). Le mécanisme — la barrière de préfixe, l'ordre de résolution, le plafond de 40 caractères, l'exigence de redémarrage — est documenté dans [Fournisseurs](/fr/self-hosted/configuration/providers#environment-variable-key-source).
 
+Une [source de jetons](/fr/platform/admin/token-sources) suit le même schéma pour le secret d'auth du courtier qu'elle lui envoie : elle lit depuis un sidecar chiffré `token-sources/<slug>.secrets.json`, ou depuis une variable d'environnement nommée avec le préfixe réservé `TALE_TOKEN_SOURCE_` (tout autre nom est rejeté, donc le champ ne peut jamais pointer sur un secret de déploiement). La variable est par source ; définis-la ici ou dans ton gestionnaire de secrets pour que la plateforme et le backend Convex puissent tous deux la lire.
+
 ## Drapeaux de fonctionnalité
 
 Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaque drapeau active ou désactive une fonctionnalité au boot ; basculer demande un redémarrage du conteneur plateforme.
