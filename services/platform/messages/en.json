@@ -37,7 +37,14 @@
       "uninstallDescription": "This removes the app and everything it installed from your organization.",
       "uninstallWarning": "Its agents, workflows, pages, and their environment variables and secrets are deleted. Connected integrations stay.",
       "uninstalled": "App uninstalled",
-      "uninstallFailed": "Couldn't uninstall the app"
+      "uninstallFailed": "Couldn't uninstall the app",
+      "removeFromProject": "Remove from project",
+      "removedFromProject": "Removed from project",
+      "removeFromProjectFailed": "Couldn't remove the app from this project",
+      "removeFromProjectTitle": "Remove from this project?",
+      "removeFromProjectDescription": "{name} will no longer appear in this project. Its agents, workflows, and any other projects are unaffected — you can add it back anytime.",
+      "uninstallBlocked": "Still in use by: {projects}. Remove the app from those projects before uninstalling.",
+      "uninstallBlockedCount": "Remove the app from its {count} project(s) before uninstalling."
     },
     "readiness": {
       "title": "Finish setup",
@@ -151,6 +158,15 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live"
+    },
+    "membership": {
+      "title": "Projects",
+      "addProject": "Add to a project",
+      "emptyTitle": "Not in any project yet",
+      "emptyDescription": "Add this app to a project to start using it there.",
+      "notInProjectTitle": "Not added to this project",
+      "notInProjectDescription": "Add this app to this project to use it here.",
+      "addToThisProject": "Add to this project"
     }
   },
   "operator": {

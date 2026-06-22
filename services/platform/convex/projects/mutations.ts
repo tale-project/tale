@@ -1245,16 +1245,29 @@ export const deleteProject = mutation({
 
     // A project-scoped app bound here would be orphaned (its tasks/runs + nav
     // entry point reference this project). Block the delete and name the app(s)
-    // so the operator uninstalls or re-binds first. appInstallations has no
-    // delete cascade, so this must be an explicit guard.
-    const boundApps = await ctx.db
-      .query('appInstallations')
-      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
-      .collect();
-    if (boundApps.length > 0) {
+    // so the operator removes the app from this project first. appProjectBindings
+    // has no delete cascade, so this must be an explicit guard.
+    const boundAppNames: string[] = [];
+    const seenAppSlugs = new Set<string>();
+    for await (const binding of ctx.db
+      .query('appProjectBindings')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
+      if (seenAppSlugs.has(binding.appSlug)) continue;
+      seenAppSlugs.add(binding.appSlug);
+      const org = await ctx.db
+        .query('appInstallations')
+        .withIndex('by_org_slug', (q) =>
+          q
+            .eq('organizationId', binding.organizationId)
+            .eq('appSlug', binding.appSlug),
+        )
+        .first();
+      boundAppNames.push(org?.appName ?? binding.appSlug);
+    }
+    if (boundAppNames.length > 0) {
       throw new ConvexError({
         code: 'PROJECT_HAS_BOUND_APPS',
-        apps: boundApps.map((a) => a.appName ?? a.appSlug),
+        apps: boundAppNames,
       });
     }
 

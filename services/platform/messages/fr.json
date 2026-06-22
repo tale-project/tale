@@ -37,7 +37,14 @@
       "uninstallDescription": "Cette action supprime l'application et tout ce qu'elle a installé de votre organisation.",
       "uninstallWarning": "Ses agents, workflows, pages ainsi que leurs variables d'environnement et secrets sont supprimés. Les intégrations connectées sont conservées.",
       "uninstalled": "Application désinstallée",
-      "uninstallFailed": "Impossible de désinstaller l'application"
+      "uninstallFailed": "Impossible de désinstaller l'application",
+      "removeFromProject": "Retirer du projet",
+      "removedFromProject": "Retirée du projet",
+      "removeFromProjectFailed": "Impossible de retirer l'application de ce projet",
+      "removeFromProjectTitle": "Retirer de ce projet ?",
+      "removeFromProjectDescription": "{name} n'apparaîtra plus dans ce projet. Ses agents, workflows et les autres projets ne sont pas affectés — vous pouvez la rajouter à tout moment.",
+      "uninstallBlocked": "Encore utilisée par : {projects}. Retirez l’application de ces projets avant de la désinstaller.",
+      "uninstallBlockedCount": "Retirez l'application de ses {count} projet(s) avant de la désinstaller."
     },
     "readiness": {
       "title": "Terminer la configuration",
@@ -151,6 +158,15 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct"
+    },
+    "membership": {
+      "title": "Projets",
+      "addProject": "Ajouter à un projet",
+      "emptyTitle": "Dans aucun projet pour l'instant",
+      "emptyDescription": "Ajoutez cette application à un projet pour l'utiliser.",
+      "notInProjectTitle": "Pas ajoutée à ce projet",
+      "notInProjectDescription": "Ajoutez cette application à ce projet pour l'utiliser ici.",
+      "addToThisProject": "Ajouter à ce projet"
     }
   },
   "operator": {

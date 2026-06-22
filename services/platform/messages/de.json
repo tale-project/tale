@@ -37,7 +37,14 @@
       "uninstallDescription": "Dadurch werden die App und alles, was sie installiert hat, aus deiner Organisation entfernt.",
       "uninstallWarning": "Ihre Agenten, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets werden gelöscht. Verbundene Integrationen bleiben erhalten.",
       "uninstalled": "App deinstalliert",
-      "uninstallFailed": "App konnte nicht deinstalliert werden"
+      "uninstallFailed": "App konnte nicht deinstalliert werden",
+      "removeFromProject": "Aus Projekt entfernen",
+      "removedFromProject": "Aus dem Projekt entfernt",
+      "removeFromProjectFailed": "Die App konnte nicht aus diesem Projekt entfernt werden",
+      "removeFromProjectTitle": "Aus diesem Projekt entfernen?",
+      "removeFromProjectDescription": "{name} wird in diesem Projekt nicht mehr angezeigt. Die Agenten, Workflows und andere Projekte bleiben unberührt – du kannst die App jederzeit wieder hinzufügen.",
+      "uninstallBlocked": "Noch in Verwendung von: {projects}. Entferne die App aus diesen Projekten, bevor du sie deinstallierst.",
+      "uninstallBlockedCount": "Entferne die App aus ihren {count} Projekten, bevor du sie deinstallierst."
     },
     "readiness": {
       "title": "Einrichtung abschließen",
@@ -151,6 +158,15 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen"
+    },
+    "membership": {
+      "title": "Projekte",
+      "addProject": "Zu einem Projekt hinzufügen",
+      "emptyTitle": "Noch in keinem Projekt",
+      "emptyDescription": "Füge diese App zu einem Projekt hinzu, um sie dort zu nutzen.",
+      "notInProjectTitle": "Nicht zu diesem Projekt hinzugefügt",
+      "notInProjectDescription": "Füge diese App zu diesem Projekt hinzu, um sie hier zu nutzen.",
+      "addToThisProject": "Zu diesem Projekt hinzufügen"
     }
   },
   "operator": {

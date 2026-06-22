@@ -62,22 +62,14 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
     <Grid className="grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {apps.map((app) => {
         const state = bySlug.get(app.slug);
-        // A project-scoped installed app opens inside its bound project; org apps
-        // (and not-yet-installed apps) use the org-level app page.
-        const cardLink =
-          state?.projectId !== undefined
-            ? ({
-                to: '/dashboard/$id/projects/$projectId/apps/$appSlug',
-                params: {
-                  id: organizationId,
-                  projectId: state.projectId,
-                  appSlug: app.slug,
-                },
-              } as const)
-            : ({
-                to: '/dashboard/$id/apps/$appSlug',
-                params: { id: organizationId, appSlug: app.slug },
-              } as const);
+        // Every card opens the org-level app page. For a project-scoped app that
+        // page is its membership hub (the list of bound projects + Add); we never
+        // deep-link a single project from the hub, so the card behaves identically
+        // whether the app is in 0, 1, or N projects.
+        const cardLink = {
+          to: '/dashboard/$id/apps/$appSlug',
+          params: { id: organizationId, appSlug: app.slug },
+        } as const;
         return (
           <div key={app.slug} className="relative h-full">
             <Link {...cardLink} aria-label={app.name} className="block h-full">
@@ -113,7 +105,7 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                   appSlug={app.slug}
                   appName={app.name}
                   organizationId={organizationId}
-                  projectId={state.projectId}
+                  context="org"
                 />
               </div>
             ) : (
