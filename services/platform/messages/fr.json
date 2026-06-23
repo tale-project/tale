@@ -530,6 +530,7 @@
         "done": "Compris"
       },
       "helpFeedback": "Aide et retours",
+      "helpLearning": "Centre d'aide et d'apprentissage",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
       "updateAvailable": "Mise à jour disponible",
@@ -1042,6 +1043,89 @@
       "viewOnGitHub": "Voir sur GitHub ↗",
       "viewAllOnGitHub": "Voir les versions plus anciennes sur GitHub ↗",
       "githubLink": "Ouvrir les notes de version sur GitHub"
+    }
+  },
+  "help": {
+    "title": "Centre d'aide et d'apprentissage",
+    "subtitle": "Prise en main, culture de l'IA et guides pas à pas — intégrés directement dans Tale.",
+    "empty": "Sélectionnez une leçon dans la liste pour commencer.",
+    "navLabel": "Thèmes du centre d'apprentissage",
+    "minutes": "{count, plural, one {# min de lecture} other {# min de lecture}}",
+    "video": {
+      "label": "Tutoriel vidéo : {title}",
+      "unavailable": "Un tutoriel vidéo pour cette leçon arrive bientôt. En attendant, lisez le guide ci-dessous.",
+      "unsupported": "Votre navigateur ne peut pas lire cette vidéo. Le guide ci-dessous couvre le même contenu."
+    },
+    "contact": {
+      "title": "Encore une question ?",
+      "description": "Vous ne trouvez pas ce que vous cherchez ici ? Contactez-nous, notre équipe vous aidera.",
+      "action": "Nous contacter"
+    },
+    "categories": {
+      "fundamentals": {
+        "title": "Fondamentaux de l'IA",
+        "description": "Ce que sont les grands modèles de langage, comment ils fonctionnent et où sont leurs limites."
+      },
+      "platform": {
+        "title": "Utiliser Tale",
+        "description": "Des guides pratiques pour les fonctionnalités du quotidien de la plateforme."
+      },
+      "responsibleAi": {
+        "title": "Opportunités et risques de l'IA",
+        "description": "Tirez le meilleur de l'IA tout en l'utilisant de façon sûre et responsable."
+      }
+    },
+    "lessons": {
+      "whatAreLlms": {
+        "title": "Qu'est-ce qu'un grand modèle de langage ?",
+        "summary": "Une introduction en langage clair à la technologie derrière Tale.",
+        "body": "Un **grand modèle de langage** (LLM) est un système d'IA entraîné sur une très grande quantité de texte. De cet entraînement, il apprend les schémas statistiques du langage — quels mots et quelles idées ont tendance à se suivre — et s'en sert pour générer un nouveau texte, fragment par fragment.\n\nLorsque vous saisissez un message, le modèle ne consulte pas une base de \"bonnes réponses\". Il prédit la suite la plus probable de votre texte, token par token, à partir de ce qu'il a appris et du contexte que vous fournissez.\n\n**Pourquoi cela compte pour vous :**\n\n- Le modèle est un puissant détecteur de schémas, pas un moteur de recherche ni une calculatrice.\n- Il donne le meilleur lorsque vous fournissez des instructions claires et un contexte pertinent.\n- Une même question peut produire une réponse légèrement différente à chaque fois — c'est un comportement attendu, pas un défaut."
+      },
+      "howLlmsWork": {
+        "title": "Comment les modèles génèrent leurs réponses",
+        "summary": "Prompts, contexte, et pourquoi la formulation change le résultat.",
+        "body": "Chaque réponse part de votre **prompt** — le message que vous envoyez — ainsi que du **contexte** visible par le modèle : les messages précédents, les instructions d'un projet ou des documents de la base de connaissances.\n\nLe modèle lit tout cela et produit une réponse qui poursuit naturellement la conversation. Quelques principes pour des résultats régulièrement bons :\n\n- **Soyez précis.** \"Résume ce contrat en cinq points pour un non-juriste\" vaut mieux que \"résume ça\".\n- **Donnez du contexte.** Collez le texte pertinent ou pointez l'agent vers la bonne source, plutôt que de supposer qu'il sait déjà.\n- **Itérez.** Si la première réponse ne convient pas, dites quoi changer. Le modèle garde la conversation en mémoire.\n- **Définissez le rôle.** Indiquer au modèle en quelle qualité il agit (\"tu es un relecteur technique rigoureux\") façonne le ton et la profondeur."
+      },
+      "limitations": {
+        "title": "Limites et hallucinations",
+        "summary": "Où les modèles se trompent et comment garder le contrôle.",
+        "body": "Les modèles de langage sont utiles, mais pas infaillibles. Connaître leurs limites est la compétence la plus importante en matière de culture de l'IA.\n\n- **Hallucinations.** Un modèle peut affirmer une fausseté avec une assurance totale. Il génère un texte plausible, ce qui n'est pas la même chose qu'un fait vérifié.\n- **Date de connaissance.** Un modèle ne connaît que ce qui figurait dans ses données d'entraînement, sauf si vous lui fournissez des informations plus récentes.\n- **Pas de réelle compréhension.** Il manipule des schémas de langage ; il ne \"sait\" pas les choses comme un humain.\n- **Sensibilité à la formulation.** De petits changements de prompt peuvent changer la réponse.\n\n**Pour rester prudent :** traitez la sortie de l'IA comme un brouillon bien informé, pas comme une autorité finale. Vérifiez faits, chiffres, noms et citations avant de vous y fier — surtout pour tout ce qui a des conséquences."
+      },
+      "gettingStarted": {
+        "title": "Premiers pas avec Tale",
+        "summary": "Repérez-vous dans l'espace de travail.",
+        "body": "Tale réunit le chat, les connaissances, les agents et les automatisations dans un seul espace de travail. Voici le chemin le plus rapide vers la valeur :\n\n1. **Démarrez un chat.** Ouvrez l'interface de chat et posez une question en langage clair — comme à un collègue compétent.\n2. **Choisissez le bon agent.** Différents agents sont réglés pour différentes tâches. Choisissez celui dont la vocation correspond à la vôtre.\n3. **Ajoutez des connaissances.** Connectez documents, sites web et données structurées pour que les agents répondent à partir de *vos* informations, et non seulement de leur entraînement général.\n4. **Explorez la navigation latérale.** Conversations, connaissances, agents et automatisations ont chacun leur espace — passez de l'un à l'autre depuis le rail de gauche.\n\nVous pouvez revenir à tout moment à ce centre d'apprentissage depuis le menu du compte, dans le coin de l'application."
+      },
+      "chattingWithAgents": {
+        "title": "Discuter avec les agents",
+        "summary": "Tirez de meilleurs résultats de chaque conversation.",
+        "body": "Le chat est au cœur de Tale. Quelques habitudes font une grande différence :\n\n- **Une tâche par fil.** Gardez une conversation centrée sur un seul objectif pour que le contexte reste pertinent.\n- **Joignez l'essentiel.** Glissez un fichier ou référencez une source de connaissances pour que l'agent travaille sur du matériel réel.\n- **Affinez sur place.** Répondez par des corrections — \"plus court\", \"plus formel\", \"ajoute les chiffres du T2\" — au lieu de recommencer.\n- **Vérifiez avant d'agir.** Lisez la réponse d'un œil critique et contrôlez tout ce sur quoi vous comptez.\n\nLorsqu'un agent propose une action sensible, Tale peut s'arrêter pour obtenir votre approbation — vous gardez le contrôle de ce qui se produit réellement."
+      },
+      "knowledgeBase": {
+        "title": "Construire votre base de connaissances",
+        "summary": "Ancrez les réponses dans vos propres informations.",
+        "body": "Par défaut, un agent ne connaît que son entraînement général. La **base de connaissances** lui permet de répondre à partir de vos documents, sites web, produits, clients et autres données structurées.\n\n- **Ajoutez des sources** dans l'espace Connaissances — importez des documents, depuis des applications connectées, ou ajoutez un site web à explorer.\n- **Gardez-les à jour.** Resynchronisez ou réimportez quand l'information sous-jacente change, pour que les réponses ne deviennent pas obsolètes.\n- **Délimitez selon le besoin.** Associez la bonne connaissance au bon agent ou projet, plutôt que tout, partout.\n\nAncrer les réponses dans vos propres sources est le moyen le plus efficace de réduire les hallucinations et d'obtenir des réponses qui reflètent le fonctionnement réel de *votre* organisation."
+      },
+      "automations": {
+        "title": "Automatiser le travail répétitif",
+        "summary": "Transformez une tâche manuelle en flux reproductible.",
+        "body": "Les **automatisations** permettent à Tale d'exécuter une suite d'étapes pour vous — selon un calendrier, sur déclencheur ou à la demande — afin que le travail de routine se fasse sans que vous pilotiez chaque étape.\n\n1. **Décrivez le résultat.** Partez de ce que vous voulez obtenir, pas des clics individuels.\n2. **Choisissez un déclencheur.** Selon une minuterie, en réaction à un événement, ou manuellement.\n3. **Ajoutez des étapes d'approbation** pour toute action qui ne doit pas s'exécuter sans surveillance — Tale s'arrête et consulte d'abord un humain.\n4. **Suivez les indicateurs.** Chaque automatisation rapporte ses exécutions, pour voir ce qui a tourné et intervenir si quelque chose cloche.\n\nCommencez petit avec un flux fiable, confirmez le comportement attendu, puis élargissez."
+      },
+      "opportunities": {
+        "title": "Les opportunités de l'IA",
+        "summary": "Là où l'IA aide vraiment.",
+        "body": "Bien utilisée, l'IA est un multiplicateur de force. Les gains les plus nets sont généralement :\n\n- **Rédaction et synthèse.** Premiers jets, résumés et reformulations en quelques secondes, vous laissant éditer plutôt que partir d'une page blanche.\n- **Trouver et relier l'information.** Extraire le détail pertinent de longs documents ou de sources éparses.\n- **Travail répétitif.** Classer, extraire et router à une échelle fastidieuse à la main.\n- **Abaisser la barrière d'entrée.** Poser des questions en langage clair au lieu d'apprendre une syntaxe de requête ou un nouvel outil.\n\nLe fil conducteur : l'IA assure le gros œuvre d'un premier passage, et un humain apporte le jugement, le contexte et la décision finale."
+      },
+      "risks": {
+        "title": "Les risques de l'IA — et comment les maîtriser",
+        "summary": "Utiliser l'IA de façon responsable et éviter les pièges courants.",
+        "body": "La puissance même qui rend l'IA utile s'accompagne de risques réels. Les connaître est ce qui rend l'usage *responsable*.\n\n- **Sorties erronées.** Les modèles peuvent se tromper avec assurance. Vérifiez tout ce qui a des conséquences avant d'agir.\n- **Données sensibles.** Soyez attentif à ce que vous partagez et respectez les règles de traitement des données de votre organisation.\n- **Dépendance excessive.** L'IA assiste les décisions ; elle ne doit pas prendre en silence celles qui exigent jugement, équité ou responsabilité humaine.\n- **Biais.** Les données d'entraînement portent les biais de leur source. Restez vigilant face aux sorties partiales ou injustes.\n- **Vie privée et conformité.** Traitez l'IA comme tout autre système touchant à des données personnelles ou réglementées.\n\nTale fournit des garde-fous — étapes d'approbation, connaissances délimitées et journaux d'audit —, mais la protection la plus importante reste un humain informé dans la boucle."
+      },
+      "bestPractices": {
+        "title": "Bonnes pratiques d'un usage responsable",
+        "summary": "Une courte liste de contrôle pour le quotidien.",
+        "body": "Gardez ces habitudes et vous profiterez des atouts de l'IA tout en gardant le contrôle :\n\n- **Vérifiez avant de faire confiance.** Contrôlez faits, chiffres, noms et citations — surtout pour ce qui quitte vos mains.\n- **Gardez un humain dans la boucle** pour les décisions à réelles conséquences.\n- **Faites attention aux données.** Ne partagez que ce que vous avez le droit de partager, et privilégiez l'ancrage dans des sources approuvées.\n- **Soyez transparent.** Faites savoir aux personnes concernées quand l'IA est intervenue dans un travail qui les affecte.\n- **Utilisez des étapes d'approbation** pour les actions sensibles ou irréversibles.\n- **Donnez votre avis.** Corrigez une réponse erronée — de meilleurs prompts et des connaissances mieux délimitées s'additionnent avec le temps.\n\nL'IA responsable n'est pas un réglage ponctuel, c'est une manière de travailler."
+      }
     }
   },
   "chat": {
@@ -4185,6 +4269,10 @@
     "changelog": {
       "title": "Nouveautés",
       "description": "Notes de version pour les récentes mises à jour de Tale."
+    },
+    "help": {
+      "title": "Centre d'aide et d'apprentissage",
+      "description": "Prise en main, culture de l'IA et guides intégrés à Tale."
     },
     "login": {
       "title": "Connexion",

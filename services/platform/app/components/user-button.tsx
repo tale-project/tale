@@ -14,6 +14,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
   HelpCircle,
+  GraduationCap,
   Monitor,
   Sun,
   Moon,
@@ -550,6 +551,15 @@ export function UserButton({
       });
     }
     helpGroup.push(
+      {
+        type: 'item',
+        label: t('userButton.helpLearning'),
+        icon: GraduationCap,
+        onClick: () => {
+          void navigate({ to: '/dashboard/help' });
+        },
+        className: 'py-2.5',
+      },
       {
         type: 'item',
         label: t('userButton.helpFeedback'),

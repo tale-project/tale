@@ -529,6 +529,7 @@
         "done": "Got it"
       },
       "helpFeedback": "Help & feedback",
+      "helpLearning": "Help & learning center",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
       "updateAvailable": "Update available",
@@ -1041,6 +1042,89 @@
       "viewOnGitHub": "View on GitHub ↗",
       "viewAllOnGitHub": "View older releases on GitHub ↗",
       "githubLink": "Open releases on GitHub"
+    }
+  },
+  "help": {
+    "title": "Help & learning center",
+    "subtitle": "Onboarding, AI literacy, and step-by-step how-to guides — built right into Tale.",
+    "empty": "Select a lesson from the list to get started.",
+    "navLabel": "Learning center topics",
+    "minutes": "{count, plural, one {# min read} other {# min read}}",
+    "video": {
+      "label": "Video walkthrough: {title}",
+      "unavailable": "A video walkthrough for this lesson is coming soon. Read the guide below in the meantime.",
+      "unsupported": "Your browser can't play this video. The written guide below covers the same material."
+    },
+    "contact": {
+      "title": "Still have a question?",
+      "description": "Can't find what you're looking for here? Reach out and our team will help.",
+      "action": "Contact us"
+    },
+    "categories": {
+      "fundamentals": {
+        "title": "AI fundamentals",
+        "description": "What large language models are, how they work, and where their limits lie."
+      },
+      "platform": {
+        "title": "Using Tale",
+        "description": "Practical how-to guides for the everyday features of the platform."
+      },
+      "responsibleAi": {
+        "title": "Opportunities & risks of AI",
+        "description": "Get the most out of AI while using it safely and responsibly."
+      }
+    },
+    "lessons": {
+      "whatAreLlms": {
+        "title": "What is a large language model?",
+        "summary": "A plain-language introduction to the technology behind Tale.",
+        "body": "A **large language model** (LLM) is an AI system trained on a very large amount of text. From that training it learns the statistical patterns of language — which words and ideas tend to follow others — and uses those patterns to generate new text one piece at a time.\n\nWhen you type a message, the model doesn't look anything up in a database of \"correct answers\". Instead it predicts the most likely continuation of your text, token by token, based on everything it learned during training plus the context you provide.\n\n**Why this matters for you:**\n\n- The model is a powerful pattern-matcher, not a search engine or a calculator.\n- It is at its best when you give it clear instructions and relevant context.\n- The same question can produce slightly different answers each time — that is expected behaviour, not a bug."
+      },
+      "howLlmsWork": {
+        "title": "How language models generate answers",
+        "summary": "Prompts, context, and why phrasing changes the result.",
+        "body": "Every response starts from your **prompt** — the message you send — together with any **context** the model can see, such as earlier messages in the conversation, a project's instructions, or documents from the knowledge base.\n\nThe model reads all of that and produces a reply that continues the conversation naturally. A few ideas help you get consistently good results:\n\n- **Be specific.** \"Summarise this contract in five bullet points for a non-lawyer\" beats \"summarise this\".\n- **Give context.** Paste the relevant text, or point the agent at the right knowledge source, rather than assuming it already knows.\n- **Iterate.** If the first answer isn't quite right, say what to change. The model keeps the conversation in mind.\n- **Set the role.** Telling the model who it is acting as (\"you are a careful technical reviewer\") shapes tone and depth."
+      },
+      "limitations": {
+        "title": "Limitations and hallucinations",
+        "summary": "Where models go wrong and how to stay in control.",
+        "body": "Language models are useful, but they are not infallible. Knowing their limits is the single most important AI-literacy skill.\n\n- **Hallucinations.** A model can state something false with complete confidence. It generates plausible-sounding text, which is not the same as verified fact.\n- **Knowledge cut-off.** A model only knows what was in its training data unless you supply newer information directly.\n- **No true understanding.** It manipulates patterns in language; it does not \"know\" things the way a person does.\n- **Sensitivity to wording.** Small changes to a prompt can change the answer.\n\n**How to stay safe:** treat AI output as a well-informed draft, not a final authority. Verify facts, figures, names, and quotes before you rely on them — especially for anything consequential."
+      },
+      "gettingStarted": {
+        "title": "Getting started with Tale",
+        "summary": "Find your way around the workspace.",
+        "body": "Tale brings chat, knowledge, agents, and automations together in one workspace. Here is the quickest path to value:\n\n1. **Start a chat.** Open the chat surface and ask a question in plain language — just like messaging a knowledgeable colleague.\n2. **Pick the right agent.** Different agents are tuned for different jobs. Choose one whose purpose matches your task.\n3. **Add knowledge.** Connect documents, websites, and structured data so agents can answer from *your* information, not just their general training.\n4. **Explore the side navigation.** Conversations, knowledge, agents, and automations each have their own area — switch between them from the left rail.\n\nYou can always return to this learning center from the account menu in the corner of the app."
+      },
+      "chattingWithAgents": {
+        "title": "Chatting with agents",
+        "summary": "Get better results from every conversation.",
+        "body": "Chatting is the heart of Tale. A few habits make a big difference:\n\n- **One task per thread.** Keep a conversation focused on a single goal so the context stays relevant.\n- **Attach what matters.** Drag in a file or reference a knowledge source so the agent works from real material.\n- **Refine in place.** Reply with corrections — \"shorter\", \"more formal\", \"add the figures from Q2\" — instead of starting over.\n- **Review before you act.** Read the answer critically and check anything you'll rely on.\n\nWhen an agent proposes a sensitive action, Tale can pause for your approval first — you stay in control of what actually happens."
+      },
+      "knowledgeBase": {
+        "title": "Building your knowledge base",
+        "summary": "Ground answers in your own information.",
+        "body": "Out of the box an agent only knows its general training. The **knowledge base** lets it answer from your documents, websites, products, customers, and other structured data.\n\n- **Add sources** under the Knowledge area — upload documents, import from connected apps, or add a website to crawl.\n- **Keep them current.** Re-sync or re-upload when the underlying information changes, so answers don't drift out of date.\n- **Scope by need.** Attach the right knowledge to the right agent or project, rather than everything everywhere.\n\nGrounding answers in your own sources is the most effective way to reduce hallucinations and get responses that reflect how *your* organisation actually works."
+      },
+      "automations": {
+        "title": "Automating repetitive work",
+        "summary": "Turn a manual task into a repeatable workflow.",
+        "body": "**Automations** let Tale run a sequence of steps for you — on a schedule, on a trigger, or on demand — so routine work happens without you driving every step.\n\n1. **Describe the outcome.** Start from what you want to happen, not the individual clicks.\n2. **Choose a trigger.** Run on a timer, in response to an event, or manually.\n3. **Add approval gates** for any step that should not run unattended — Tale will pause and ask a human first.\n4. **Watch the metrics.** Each automation reports its executions so you can see what ran and step in if something looks off.\n\nStart small with one reliable workflow, confirm it behaves as expected, then expand."
+      },
+      "opportunities": {
+        "title": "The opportunities of AI",
+        "summary": "Where AI genuinely helps.",
+        "body": "Used well, AI is a force multiplier. The biggest wins tend to be:\n\n- **Drafting and summarising.** First drafts, summaries, and rewrites in seconds, leaving you to edit rather than start from a blank page.\n- **Finding and connecting information.** Pulling the relevant detail out of long documents or scattered sources.\n- **Repetitive work.** Classifying, extracting, and routing at a scale that would be tedious by hand.\n- **Lowering the barrier to entry.** Asking questions in plain language instead of learning a query syntax or a new tool.\n\nThe common thread: AI handles the heavy lifting of a first pass, and a person provides judgement, context, and the final decision."
+      },
+      "risks": {
+        "title": "The risks of AI — and how to manage them",
+        "summary": "Use AI responsibly and avoid common pitfalls.",
+        "body": "The same power that makes AI useful brings real risks. Knowing them is what makes use *responsible*.\n\n- **Incorrect output.** Models can be confidently wrong. Verify anything consequential before acting on it.\n- **Sensitive data.** Be deliberate about what information you share, and follow your organisation's data-handling rules.\n- **Over-reliance.** AI assists decisions; it should not silently make the ones that need human judgement, fairness, or accountability.\n- **Bias.** Training data carries the biases of its source. Stay alert to skewed or unfair output.\n- **Privacy and compliance.** Treat AI like any other system that touches personal or regulated data.\n\nTale provides guardrails — approval gates, scoped knowledge, and audit trails — but the most important safeguard is an informed human in the loop."
+      },
+      "bestPractices": {
+        "title": "Responsible-use best practices",
+        "summary": "A short checklist for everyday use.",
+        "body": "Keep these habits and you'll get the upside of AI while staying in control:\n\n- **Verify before you trust.** Check facts, figures, names, and quotes — especially for anything that leaves your hands.\n- **Keep a human in the loop** for decisions that carry real consequences.\n- **Mind the data.** Only share information you're permitted to, and prefer grounding answers in approved knowledge sources.\n- **Be transparent.** Let people know when AI was involved in work that affects them.\n- **Use approval gates** for sensitive or irreversible actions.\n- **Give feedback.** When an answer is wrong, correct it — better prompts and better-scoped knowledge compound over time.\n\nResponsible AI isn't a one-time setting; it's a way of working."
+      }
     }
   },
   "chat": {
@@ -4184,6 +4268,10 @@
     "changelog": {
       "title": "What's new",
       "description": "Release notes for recent Tale updates."
+    },
+    "help": {
+      "title": "Help & learning center",
+      "description": "Onboarding, AI literacy, and how-to guides built into Tale."
     },
     "login": {
       "title": "Log in",

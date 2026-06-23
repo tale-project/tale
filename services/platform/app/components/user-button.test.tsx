@@ -16,6 +16,7 @@ vi.mock('@/lib/i18n/client', () => ({
       const translations: Record<string, string> = {
         // auth.userButton.*
         'userButton.defaultName': 'User',
+        'userButton.helpLearning': 'Help & learning center',
         'userButton.helpFeedback': 'Help & feedback',
         'userButton.logOut': 'Log out',
         'userButton.manageAccount': 'Manage account',
@@ -344,7 +345,11 @@ describe('UserButton', () => {
         within(menu).getByRole('menuitem', { name: 'Language' }),
       ).toBeInTheDocument();
 
-      // Session items: asserted present, never activated.
+      // Session items: asserted present, never activated. The in-app learning
+      // center sits alongside the external feedback link.
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Help & learning center' }),
+      ).toBeInTheDocument();
       expect(
         within(menu).getByRole('menuitem', { name: 'Help & feedback' }),
       ).toBeInTheDocument();

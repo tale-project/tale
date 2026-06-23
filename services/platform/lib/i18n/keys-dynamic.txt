@@ -10,6 +10,13 @@
 # --- dynamic prefixes ---
 metadata
 
+# `t(`categories.${category.id}.title`)` / `t(`lessons.${lessonId}.body`)` in
+# the Help & learning center (app/routes/dashboard/help.tsx) — the lesson and
+# category ids come from the curriculum table in app/features/help/content.ts,
+# so the scanner sees a runtime template and can't tie the literals back.
+help.categories
+help.lessons
+
 # `roles.${role.toLowerCase()}` in member-table.tsx — the `owner` role is
 # never referenced as a string literal because it can't be assigned through
 # the UI (only inherited from the org creator), so the regex scanner can't

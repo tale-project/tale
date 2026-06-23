@@ -529,6 +529,7 @@
         "done": "Verstanden"
       },
       "helpFeedback": "Hilfe & Feedback",
+      "helpLearning": "Hilfe- & Lernzentrum",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
       "updateAvailable": "Update verfügbar",
@@ -1041,6 +1042,89 @@
       "viewOnGitHub": "Auf GitHub ansehen ↗",
       "viewAllOnGitHub": "Ältere Releases auf GitHub ansehen ↗",
       "githubLink": "Releases auf GitHub öffnen"
+    }
+  },
+  "help": {
+    "title": "Hilfe- & Lernzentrum",
+    "subtitle": "Einführung, KI-Kompetenz und Schritt-für-Schritt-Anleitungen – direkt in Tale integriert.",
+    "empty": "Wählen Sie links eine Lektion aus, um zu beginnen.",
+    "navLabel": "Themen des Lernzentrums",
+    "minutes": "{count, plural, one {# Min. Lesezeit} other {# Min. Lesezeit}}",
+    "video": {
+      "label": "Video-Anleitung: {title}",
+      "unavailable": "Eine Video-Anleitung für diese Lektion folgt in Kürze. Lesen Sie in der Zwischenzeit den Leitfaden unten.",
+      "unsupported": "Ihr Browser kann dieses Video nicht abspielen. Der Leitfaden unten behandelt dieselben Inhalte."
+    },
+    "contact": {
+      "title": "Noch eine Frage?",
+      "description": "Sie finden hier nicht, wonach Sie suchen? Melden Sie sich – unser Team hilft Ihnen weiter.",
+      "action": "Kontakt aufnehmen"
+    },
+    "categories": {
+      "fundamentals": {
+        "title": "KI-Grundlagen",
+        "description": "Was große Sprachmodelle sind, wie sie funktionieren und wo ihre Grenzen liegen."
+      },
+      "platform": {
+        "title": "Tale nutzen",
+        "description": "Praktische Anleitungen für die alltäglichen Funktionen der Plattform."
+      },
+      "responsibleAi": {
+        "title": "Chancen & Risiken von KI",
+        "description": "Holen Sie das Beste aus KI heraus und nutzen Sie sie sicher und verantwortungsvoll."
+      }
+    },
+    "lessons": {
+      "whatAreLlms": {
+        "title": "Was ist ein großes Sprachmodell?",
+        "summary": "Eine verständliche Einführung in die Technologie hinter Tale.",
+        "body": "Ein **großes Sprachmodell** (LLM) ist ein KI-System, das mit sehr großen Textmengen trainiert wurde. Aus diesem Training lernt es die statistischen Muster der Sprache – welche Wörter und Ideen typischerweise aufeinanderfolgen – und erzeugt damit Stück für Stück neuen Text.\n\nWenn Sie eine Nachricht eingeben, schlägt das Modell nichts in einer Datenbank \"richtiger Antworten\" nach. Stattdessen sagt es die wahrscheinlichste Fortsetzung Ihres Textes voraus – Token für Token – auf Basis des Gelernten und des Kontexts, den Sie bereitstellen.\n\n**Warum das für Sie wichtig ist:**\n\n- Das Modell ist ein leistungsfähiger Mustererkenner, keine Suchmaschine und kein Taschenrechner.\n- Es liefert die besten Ergebnisse, wenn Sie klare Anweisungen und relevanten Kontext geben.\n- Dieselbe Frage kann jedes Mal eine leicht andere Antwort liefern – das ist erwartetes Verhalten, kein Fehler."
+      },
+      "howLlmsWork": {
+        "title": "Wie Sprachmodelle Antworten erzeugen",
+        "summary": "Prompts, Kontext und warum die Formulierung das Ergebnis beeinflusst.",
+        "body": "Jede Antwort beginnt mit Ihrem **Prompt** – der Nachricht, die Sie senden – zusammen mit dem **Kontext**, den das Modell sehen kann, etwa frühere Nachrichten im Gespräch, die Anweisungen eines Projekts oder Dokumente aus der Wissensdatenbank.\n\nDas Modell liest all das und erzeugt eine Antwort, die das Gespräch natürlich fortsetzt. Ein paar Ideen helfen Ihnen zu durchgängig guten Ergebnissen:\n\n- **Seien Sie konkret.** \"Fasse diesen Vertrag in fünf Stichpunkten für Laien zusammen\" ist besser als \"fasse das zusammen\".\n- **Geben Sie Kontext.** Fügen Sie den relevanten Text ein oder verweisen Sie auf die passende Wissensquelle, statt vorauszusetzen, dass das Modell es bereits weiß.\n- **Iterieren Sie.** Stimmt die erste Antwort noch nicht, sagen Sie, was zu ändern ist. Das Modell behält das Gespräch im Blick.\n- **Legen Sie die Rolle fest.** Wenn Sie dem Modell sagen, in welcher Rolle es handelt (\"du bist ein sorgfältiger technischer Prüfer\"), prägt das Ton und Tiefe."
+      },
+      "limitations": {
+        "title": "Grenzen und Halluzinationen",
+        "summary": "Wo Modelle irren und wie Sie die Kontrolle behalten.",
+        "body": "Sprachmodelle sind nützlich, aber nicht unfehlbar. Ihre Grenzen zu kennen ist die wichtigste Kompetenz im Umgang mit KI.\n\n- **Halluzinationen.** Ein Modell kann etwas Falsches mit voller Überzeugung behaupten. Es erzeugt plausibel klingenden Text – das ist nicht dasselbe wie eine geprüfte Tatsache.\n- **Wissensstand.** Ein Modell kennt nur das, was in seinen Trainingsdaten enthalten war, sofern Sie ihm keine neueren Informationen liefern.\n- **Kein echtes Verständnis.** Es verarbeitet sprachliche Muster; es \"weiß\" Dinge nicht so wie ein Mensch.\n- **Empfindlichkeit gegenüber Formulierungen.** Kleine Änderungen am Prompt können die Antwort verändern.\n\n**So bleiben Sie sicher:** Behandeln Sie KI-Ausgaben als gut informierten Entwurf, nicht als letzte Instanz. Prüfen Sie Fakten, Zahlen, Namen und Zitate, bevor Sie sich darauf verlassen – besonders bei allem Folgenreichen."
+      },
+      "gettingStarted": {
+        "title": "Erste Schritte mit Tale",
+        "summary": "Finden Sie sich im Arbeitsbereich zurecht.",
+        "body": "Tale vereint Chat, Wissen, Agenten und Automatisierungen in einem Arbeitsbereich. Hier der schnellste Weg zum Nutzen:\n\n1. **Starten Sie einen Chat.** Öffnen Sie die Chat-Oberfläche und stellen Sie eine Frage in einfacher Sprache – wie bei einer kompetenten Kollegin oder einem Kollegen.\n2. **Wählen Sie den richtigen Agenten.** Verschiedene Agenten sind auf verschiedene Aufgaben abgestimmt. Wählen Sie den, dessen Zweck zu Ihrer Aufgabe passt.\n3. **Fügen Sie Wissen hinzu.** Verbinden Sie Dokumente, Websites und strukturierte Daten, damit Agenten aus *Ihren* Informationen antworten, nicht nur aus ihrem allgemeinen Training.\n4. **Erkunden Sie die Seitennavigation.** Unterhaltungen, Wissen, Agenten und Automatisierungen haben jeweils einen eigenen Bereich – wechseln Sie über die linke Leiste.\n\nSie können jederzeit über das Kontomenü in der Ecke der App zu diesem Lernzentrum zurückkehren."
+      },
+      "chattingWithAgents": {
+        "title": "Mit Agenten chatten",
+        "summary": "Holen Sie aus jedem Gespräch bessere Ergebnisse.",
+        "body": "Der Chat ist das Herzstück von Tale. Ein paar Gewohnheiten machen einen großen Unterschied:\n\n- **Eine Aufgabe pro Thread.** Halten Sie ein Gespräch auf ein einziges Ziel fokussiert, damit der Kontext relevant bleibt.\n- **Hängen Sie Relevantes an.** Ziehen Sie eine Datei hinein oder verweisen Sie auf eine Wissensquelle, damit der Agent mit echtem Material arbeitet.\n- **Verfeinern Sie direkt.** Antworten Sie mit Korrekturen – \"kürzer\", \"förmlicher\", \"ergänze die Zahlen aus Q2\" – statt neu zu beginnen.\n- **Prüfen Sie vor dem Handeln.** Lesen Sie die Antwort kritisch und überprüfen Sie alles, worauf Sie sich verlassen.\n\nWenn ein Agent eine heikle Aktion vorschlägt, kann Tale zunächst für Ihre Freigabe pausieren – Sie behalten die Kontrolle darüber, was tatsächlich passiert."
+      },
+      "knowledgeBase": {
+        "title": "Ihre Wissensdatenbank aufbauen",
+        "summary": "Verankern Sie Antworten in Ihren eigenen Informationen.",
+        "body": "Von Haus aus kennt ein Agent nur sein allgemeines Training. Die **Wissensdatenbank** ermöglicht es ihm, aus Ihren Dokumenten, Websites, Produkten, Kunden und anderen strukturierten Daten zu antworten.\n\n- **Quellen hinzufügen** im Bereich Wissen – Dokumente hochladen, aus verbundenen Apps importieren oder eine Website zum Crawlen hinzufügen.\n- **Aktuell halten.** Synchronisieren oder laden Sie neu, wenn sich die zugrunde liegenden Informationen ändern, damit Antworten nicht veralten.\n- **Nach Bedarf eingrenzen.** Verknüpfen Sie das passende Wissen mit dem passenden Agenten oder Projekt, statt alles überall.\n\nAntworten in eigenen Quellen zu verankern ist der wirksamste Weg, Halluzinationen zu verringern und Antworten zu erhalten, die widerspiegeln, wie *Ihre* Organisation tatsächlich arbeitet."
+      },
+      "automations": {
+        "title": "Wiederkehrende Arbeit automatisieren",
+        "summary": "Machen Sie aus einer manuellen Aufgabe einen wiederholbaren Ablauf.",
+        "body": "**Automatisierungen** lassen Tale eine Abfolge von Schritten für Sie ausführen – nach Zeitplan, ausgelöst durch ein Ereignis oder auf Abruf –, sodass Routinearbeit geschieht, ohne dass Sie jeden Schritt steuern.\n\n1. **Beschreiben Sie das Ergebnis.** Beginnen Sie mit dem, was passieren soll, nicht mit den einzelnen Klicks.\n2. **Wählen Sie einen Auslöser.** Per Timer, als Reaktion auf ein Ereignis oder manuell.\n3. **Fügen Sie Freigabeschritte hinzu** für alles, was nicht unbeaufsichtigt laufen soll – Tale pausiert und fragt zuerst einen Menschen.\n4. **Beobachten Sie die Kennzahlen.** Jede Automatisierung meldet ihre Ausführungen, sodass Sie sehen, was lief, und eingreifen können, wenn etwas nicht stimmt.\n\nFangen Sie klein mit einem zuverlässigen Ablauf an, bestätigen Sie das erwartete Verhalten und bauen Sie dann aus."
+      },
+      "opportunities": {
+        "title": "Die Chancen von KI",
+        "summary": "Wo KI wirklich hilft.",
+        "body": "Gut eingesetzt ist KI ein Kraftverstärker. Die größten Gewinne sind meist:\n\n- **Entwerfen und Zusammenfassen.** Erste Entwürfe, Zusammenfassungen und Umformulierungen in Sekunden, sodass Sie bearbeiten statt vor einem leeren Blatt zu sitzen.\n- **Informationen finden und verknüpfen.** Das Relevante aus langen Dokumenten oder verstreuten Quellen herausziehen.\n- **Wiederkehrende Arbeit.** Klassifizieren, Extrahieren und Weiterleiten in einem Umfang, der von Hand mühsam wäre.\n- **Niedrigere Einstiegshürde.** Fragen in einfacher Sprache stellen, statt eine Abfragesyntax oder ein neues Werkzeug zu lernen.\n\nDer rote Faden: KI übernimmt die Schwerarbeit eines ersten Durchgangs, und ein Mensch liefert Urteilsvermögen, Kontext und die endgültige Entscheidung."
+      },
+      "risks": {
+        "title": "Die Risiken von KI – und wie Sie sie beherrschen",
+        "summary": "KI verantwortungsvoll nutzen und typische Fallstricke vermeiden.",
+        "body": "Dieselbe Stärke, die KI nützlich macht, bringt echte Risiken mit sich. Sie zu kennen macht den Umgang erst *verantwortungsvoll*.\n\n- **Falsche Ausgaben.** Modelle können überzeugend falsch liegen. Prüfen Sie alles Folgenreiche, bevor Sie danach handeln.\n- **Sensible Daten.** Überlegen Sie genau, welche Informationen Sie teilen, und halten Sie sich an die Datenschutzregeln Ihrer Organisation.\n- **Übermäßiges Vertrauen.** KI unterstützt Entscheidungen; sie sollte nicht stillschweigend jene treffen, die menschliches Urteil, Fairness oder Verantwortung erfordern.\n- **Verzerrungen.** Trainingsdaten tragen die Verzerrungen ihrer Quelle. Bleiben Sie wachsam gegenüber einseitigen oder unfairen Ausgaben.\n- **Datenschutz und Compliance.** Behandeln Sie KI wie jedes andere System, das personenbezogene oder regulierte Daten berührt.\n\nTale bietet Leitplanken – Freigabeschritte, eingegrenztes Wissen und Prüfprotokolle –, doch die wichtigste Absicherung ist ein informierter Mensch im Prozess."
+      },
+      "bestPractices": {
+        "title": "Best Practices für verantwortungsvolle Nutzung",
+        "summary": "Eine kurze Checkliste für den Alltag.",
+        "body": "Behalten Sie diese Gewohnheiten bei, und Sie nutzen die Vorteile von KI, ohne die Kontrolle zu verlieren:\n\n- **Prüfen, bevor Sie vertrauen.** Kontrollieren Sie Fakten, Zahlen, Namen und Zitate – besonders bei allem, was Ihr Haus verlässt.\n- **Halten Sie einen Menschen im Prozess** für Entscheidungen mit echten Folgen.\n- **Achten Sie auf die Daten.** Teilen Sie nur Informationen, die Sie teilen dürfen, und verankern Sie Antworten möglichst in freigegebenen Wissensquellen.\n- **Seien Sie transparent.** Lassen Sie Menschen wissen, wenn KI an Arbeit beteiligt war, die sie betrifft.\n- **Nutzen Sie Freigabeschritte** für heikle oder unumkehrbare Aktionen.\n- **Geben Sie Feedback.** Korrigieren Sie falsche Antworten – bessere Prompts und besser eingegrenztes Wissen summieren sich mit der Zeit.\n\nVerantwortungsvolle KI ist keine einmalige Einstellung, sondern eine Arbeitsweise."
+      }
     }
   },
   "chat": {
@@ -4184,6 +4268,10 @@
     "changelog": {
       "title": "Was ist neu",
       "description": "Release Notes für aktuelle Tale-Updates."
+    },
+    "help": {
+      "title": "Hilfe- & Lernzentrum",
+      "description": "Einführung, KI-Kompetenz und Anleitungen – direkt in Tale integriert."
     },
     "login": {
       "title": "Anmelden",

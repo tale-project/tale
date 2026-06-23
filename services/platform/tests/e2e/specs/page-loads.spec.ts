@@ -94,6 +94,14 @@ function routeCases(): readonly RouteCase[] {
       path: () => '/docs',
       anchor: (page) => page.locator('main.swagger-ui-standalone').first(),
     },
+    {
+      // The in-app Help & learning center (issue #1922). Org-independent like
+      // changelog; its <h1> renders immediately from static i18n content.
+      key: 'help',
+      path: () => '/dashboard/help',
+      anchor: (page) =>
+        page.getByRole('heading', { name: t('help.title'), level: 1 }).first(),
+    },
   ];
 }
 
