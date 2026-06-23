@@ -25,7 +25,7 @@ Jede Release-Seite ist dieselbe geordnete Abschnitts-Liste. Leere Abschnitte wer
 - **Breaking Changes** — jede Änderung, die verlangt, dass der Operator vor oder nach dem Upgrade etwas tut. Jede Zeile nennt das Symptom, das du treffen würdest, wenn du sie überspringst, und die Aktion, die das vermeidet.
 - **Deprecations** — Features, die in diesem Release noch laufen, aber zur Entfernung markiert sind. Jede Zeile nennt die Removal-Version, damit du den Cutover planen kannst.
 - **Security** — Einträge im CVE-Format für Fixes, die eine Schwachstelle schließen. Der vollständige Feed lebt unter [Security-Advisories](/de/self-hosted/operate/security/advisories); die Release-Notes tragen die Ein-Zeilen-Zusammenfassung plus den Link auf das Advisory.
-- **Features und Fixes** — die lange Liste. Gruppiert nach Bereich (Platform, RAG, Crawler, CLI, Docs); jede Zeile liest sich als ein Satz.
+- **Features und Fixes** — die lange Liste. Gruppiert nach Bereich (Platform, CLI, Docs); jede Zeile liest sich als ein Satz.
 - **Migrations-Notes** _(Major-Versionen und manche Minors)_ — der verlinkte Walk durch Schema-Migrationen, Config-Datei-Änderungen oder operatorseitige Umbenennungen. Bei Majors immer lesen.
 
 ## Wie du ein Release scannst

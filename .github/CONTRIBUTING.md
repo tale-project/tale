@@ -17,7 +17,7 @@ bun run dev            # boot Convex + Vite (wait for the READY banner)
 You do **not** need Docker for source development; `bun run dev` runs Convex
 directly. The `web` and `docs` sites need neither Docker nor Convex — run just
 one with `bun run --filter @tale/web dev` (or `@tale/docs`). The full guide,
-including port conflicts, hybrid Convex mode, and the Python services, is
+including port conflicts and hybrid Convex mode, is
 [Contributor setup](../docs/en/develop/contributor-setup.md).
 
 ## Before you open a PR

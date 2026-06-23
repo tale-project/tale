@@ -397,8 +397,8 @@ export const SECRETS_ENV_REGEX = /^TALE_PROVIDER_KEY_[A-Za-z0-9_]+$/;
  * Lives in the PUBLIC provider config (a var name is not a secret). The
  * resolution path prefers this over the file `apiKey`. The name must start with
  * `SECRETS_ENV_PREFIX` (see above). The 40-char cap matches the platform→Convex
- * env-name sync limit in `docker-entrypoint.sh` — a longer name would resolve
- * in the Python services but silently never reach the Node action chat path.
+ * env-name sync limit in `docker-entrypoint.sh` — a longer name would silently
+ * never reach the Node action chat path.
  */
 const secretsEnvSchema = z
   .string()

@@ -41,7 +41,7 @@ const stringWithDefault = (fallback: string) =>
 /**
  * The shared base settings schema. Services compose it with `.extend(...)`.
  * Field names use snake_case env-style keys so the same `process.env` mapping
- * works as in the Python services.
+ * works consistently across services.
  */
 export const baseServiceSettingsSchema = z.object({
   host: stringWithDefault('0.0.0.0'),

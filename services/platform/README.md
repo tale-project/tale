@@ -22,7 +22,8 @@ Notable variables (canonical list in `compose.yml`, which is local-dev only — 
 
 - `HOST`, `PORT`, `LOG_LEVEL`
 - `CONVEX_URL`, `CONVEX_DEPLOY_KEY` — point at the `convex` service
-- `DB_URL`, `RAG_URL`, `CRAWLER_URL` — internal DNS to sibling services
+- `SANDBOX_URL` — internal DNS to the sandbox spawner
+- `KNOWLEDGE_DATABASE_URL` — knowledge corpus (ParadeDB) used by the in-process RAG/crawler path
 - `INSTANCE_NAME`, `INSTANCE_SECRET` — used when generating Convex admin keys
 
 ## Development
@@ -35,7 +36,7 @@ CONVEX_EXTERNAL=true bun run dev     # connects Vite to the convex container (do
 bun run check                        # format + lint + typecheck + tests
 ```
 
-For prerequisites, the pre-flight check, port-conflict handling, and the Python services, see the [contributor setup guide](../../docs/en/develop/contributor-setup.md).
+For prerequisites, the pre-flight check, and port-conflict handling, see the [contributor setup guide](../../docs/en/develop/contributor-setup.md).
 
 ## Layout
 

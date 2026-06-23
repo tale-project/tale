@@ -61,7 +61,7 @@ rules:
       from source.
     pattern-regex: -----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----
 
-  # ---- Python (rag, crawler) ---------------------------------------------------
+  # ---- Python (bundled skill scripts) ------------------------------------------
   - id: py-no-eval-exec
     languages: [python]
     severity: ERROR

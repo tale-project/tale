@@ -140,7 +140,7 @@ For local development (non-Docker):
 ### Prerequisites
 
 - **Bun**: 1.3.x or higher ([installation instructions](https://bun.sh/docs/installation))
-- **Python**: 3.12.x (required for Python services: rag, crawler)
+- **Python**: 3.12.x (for the bundled Python skill scripts, e.g. the PPTX skill)
 - **uv**: Python package manager ([installation instructions](https://github.com/astral-sh/uv))
 
 ### Development commands
@@ -225,7 +225,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 <details>
 <summary><strong>For developers</strong></summary>
 
-- **[API reference](docs/en/develop/api-reference.md)** — REST API for RAG, Crawler, and Platform
+- **[API reference](docs/en/develop/api-reference.md)** — REST API for agents, chat, knowledge, and workflows
 - **[Webhooks](docs/en/develop/webhooks.md)** — workflow and agent webhooks with signature verification
 - **[Develop overview](docs/en/develop/overview.md)** — the developer surface end to end
 
@@ -241,7 +241,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 
 ## Contributing
 
-New to the repo? [Contributor setup](docs/en/develop/contributor-setup.md) is the single source of truth for getting the source running locally — prerequisites, `bun install`, the `bun run setup:check` pre-flight, `bun run dev`, and the Python services. Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
+New to the repo? [Contributor setup](docs/en/develop/contributor-setup.md) is the single source of truth for getting the source running locally — prerequisites, `bun install`, the `bun run setup:check` pre-flight, and `bun run dev`. Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 

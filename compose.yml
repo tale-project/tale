@@ -571,7 +571,8 @@ services:
       # so the spawner and the daemon must agree on the path).
       - /var/lib/tale-sandbox:/var/lib/tale-sandbox
       # Read-only deployment config so loadConfig can read the sandboxRuntime
-      # tier from deployment.json (same convex-data volume as rag/platform).
+      # tier from deployment.json (same convex-data volume the convex/platform
+      # services share).
       - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
     restart: unless-stopped
     # Resource caps mirror the CLI compose generator

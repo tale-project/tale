@@ -44,10 +44,11 @@ env_normalize_common() {
 	  # Cross-service URLs (inside Docker)
 	  # These defaults use Docker service names for inter-service communication.
 	  # They can be overridden via environment variables in .env when needed.
-	  export RAG_URL="${RAG_URL:-http://rag:8001}"
-	  export CRAWLER_URL="${CRAWLER_URL:-http://crawler:8002}"
+	  # NOTE: RAG, crawler and search no longer run as standalone HTTP services —
+	  # that logic is in-process in the Convex backend, which talks to the
+	  # knowledge DB directly (KNOWLEDGE_DATABASE_URL / RAG_DATABASE_URL). So
+	  # there is no RAG_URL / CRAWLER_URL / SEARCH_SERVICE_URL service to point at.
 	  export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
-	  export SEARCH_SERVICE_URL="${SEARCH_SERVICE_URL:-http://search:8080}"
 
 	  # Convex instance configuration
 	  # INSTANCE_NAME is hardcoded to tale_platform for safety and consistency

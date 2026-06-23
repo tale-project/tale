@@ -25,7 +25,7 @@ Chaque page de release est la même liste ordonnée de sections. Les sections vi
 - **Changements breaking** — chaque changement qui demande à l'opérateur de faire quelque chose avant ou après la montée de version. Chaque ligne nomme le symptôme que tu rencontrerais si tu sautais, et l'action qui l'évite.
 - **Obsolescences** — fonctionnalités qui marchent encore dans cette release mais marquées pour suppression. Chaque ligne nomme la version de suppression pour que tu planifies la bascule.
 - **Sécurité** — entrées au format CVE pour les fixes qui ferment une vulnérabilité. Le flux complet vit sous [Avis de sécurité](/fr/self-hosted/operate/security/advisories) ; les notes de version portent le résumé d'une ligne plus le lien vers l'avis.
-- **Fonctionnalités et corrections** — la longue liste. Groupée par domaine (Platform, RAG, Crawler, CLI, Docs) ; chaque ligne se lit comme une phrase.
+- **Fonctionnalités et corrections** — la longue liste. Groupée par domaine (Platform, CLI, Docs) ; chaque ligne se lit comme une phrase.
 - **Notes de migration** _(versions majeures et certaines mineures)_ — le parcours lié à travers les migrations de schéma, les changements de fichier de config ou les renommages côté opérateur. À lire systématiquement pour les majeures.
 
 ## Comment scanner une release

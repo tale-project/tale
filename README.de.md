@@ -140,7 +140,7 @@ Für lokale Entwicklung (ohne Docker):
 ### Voraussetzungen
 
 - **Bun**: 1.3.x oder höher ([Installationsanleitung](https://bun.sh/docs/installation))
-- **Python**: 3.12.x (für die Python-Dienste rag und crawler)
+- **Python**: 3.12.x (für die mitgelieferten Python-Skill-Skripte, z. B. den PPTX-Skill)
 - **uv**: Python-Paketmanager ([Installationsanleitung](https://github.com/astral-sh/uv))
 
 ### Entwicklungs-Befehle
@@ -225,7 +225,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 <details>
 <summary><strong>Für Developer</strong></summary>
 
-- **[API-Referenz](docs/de/develop/api-reference.md)** — REST-API für RAG, Crawler und Platform
+- **[API-Referenz](docs/de/develop/api-reference.md)** — REST-API für Agenten, Chat, Wissen und Workflows
 - **[Webhooks](docs/de/develop/webhooks.md)** — Workflow- und Agent-Webhooks mit Signaturprüfung
 - **[Develop-Übersicht](docs/de/develop/overview.md)** — die Entwickler-Oberfläche von Anfang bis Ende
 
@@ -241,7 +241,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 
 ## Mitwirken
 
-Neu im Repo? [Contributor-Setup](docs/de/develop/contributor-setup.md) ist die zentrale Quelle der Wahrheit, um den Quellcode lokal zum Laufen zu bringen — Voraussetzungen, `bun install`, der `bun run setup:check`-Pre-flight, `bun run dev` und die Python-Dienste. Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/translation/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
+Neu im Repo? [Contributor-Setup](docs/de/develop/contributor-setup.md) ist die zentrale Quelle der Wahrheit, um den Quellcode lokal zum Laufen zu bringen — Voraussetzungen, `bun install`, der `bun run setup:check`-Pre-flight und `bun run dev`. Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/docs/AGENTS.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/translation/AGENTS.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
 
 ---
 

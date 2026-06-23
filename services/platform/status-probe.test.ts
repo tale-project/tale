@@ -20,20 +20,16 @@ function downResponse() {
   return new Response('boom', { status: 503 });
 }
 
+// RAG + crawler now run in-process inside Convex, so the only backend the
+// platform server can reach is Convex ("Application"). The probe set is a
+// single component; the wider OverallStatus vocabulary is kept for a future
+// per-subsystem probe.
 function allUpComponents(): ComponentResult[] {
-  return [
-    { id: 'convex', up: true },
-    { id: 'rag', up: true },
-    { id: 'crawler', up: true },
-  ];
+  return [{ id: 'convex', up: true }];
 }
 
 function allOperationalFeedComponents(): StatusFeedComponent[] {
-  return [
-    { id: 'convex', status: 'operational' },
-    { id: 'rag', status: 'operational' },
-    { id: 'crawler', status: 'operational' },
-  ];
+  return [{ id: 'convex', status: 'operational' }];
 }
 
 afterEach(() => {
@@ -42,37 +38,21 @@ afterEach(() => {
 });
 
 describe('probeServices', () => {
-  test('returns operational with all components up when every probe returns 2xx', async () => {
+  test('returns operational with the application up when the probe returns 2xx', async () => {
     const doFetch = vi.fn(() => Promise.resolve(okResponse()));
     const result = await probeServices(doFetch as unknown as typeof fetch);
     expect(result.overall).toBe('operational');
-    expect(result.components.map((c) => c.id)).toEqual([
-      'convex',
-      'rag',
-      'crawler',
-    ]);
+    expect(result.components.map((c) => c.id)).toEqual(['convex']);
     expect(result.components.every((c) => c.up)).toBe(true);
-    expect(doFetch).toHaveBeenCalledTimes(3);
+    // One backend probe (Convex /version) — rag/crawler are in-process.
+    expect(doFetch).toHaveBeenCalledTimes(1);
   });
 
-  test('returns degraded with the failing component marked down', async () => {
-    // Match RAG by port (8001) rather than substring — RAG_URL defaults to
-    // http://localhost:8001 in dev, which has no 'rag' substring.
-    const doFetch = vi.fn((url: string) =>
-      Promise.resolve(url.includes(':8001') ? downResponse() : okResponse()),
-    );
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.overall).toBe('degraded');
-    expect(result.components.find((c) => c.id === 'rag')?.up).toBe(false);
-    expect(result.components.find((c) => c.id === 'convex')?.up).toBe(true);
-    expect(result.components.find((c) => c.id === 'crawler')?.up).toBe(true);
-  });
-
-  test('returns outage with every component marked down when every probe fails', async () => {
+  test('returns outage with the application down when the probe returns non-2xx', async () => {
     const doFetch = vi.fn(() => Promise.resolve(downResponse()));
     const result = await probeServices(doFetch as unknown as typeof fetch);
     expect(result.overall).toBe('outage');
-    expect(result.components.every((c) => !c.up)).toBe(true);
+    expect(result.components.find((c) => c.id === 'convex')?.up).toBe(false);
   });
 
   test('treats fetch rejection (timeout, ECONNREFUSED) as down', async () => {
@@ -100,11 +80,11 @@ describe('probeServices', () => {
     const clock = () => now;
 
     await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(3);
+    expect(doFetch).toHaveBeenCalledTimes(1);
 
     now = 2000; // 1s later — still inside the 5s TTL
     await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(3);
+    expect(doFetch).toHaveBeenCalledTimes(1);
   });
 
   test('re-probes after TTL expires', async () => {
@@ -113,11 +93,11 @@ describe('probeServices', () => {
     const clock = () => now;
 
     await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(3);
+    expect(doFetch).toHaveBeenCalledTimes(1);
 
     now = 7000; // 6s later — past the 5s TTL
     await probeServices(doFetch as unknown as typeof fetch, clock);
-    expect(doFetch).toHaveBeenCalledTimes(6);
+    expect(doFetch).toHaveBeenCalledTimes(2);
   });
 
   test('caches success and failure independently — recovery after TTL', async () => {
@@ -157,8 +137,8 @@ describe('probeServices', () => {
     const c = probeServices(doFetch as unknown as typeof fetch);
 
     // All three callers should be waiting on the same probe round —
-    // exactly 3 fetches (one per backend), not 9.
-    expect(doFetch).toHaveBeenCalledTimes(3);
+    // exactly one fetch (the single backend), not three.
+    expect(doFetch).toHaveBeenCalledTimes(1);
 
     for (const r of resolvers) r(okResponse());
     const [ra, rb, rc] = await Promise.all([a, b, c]);
@@ -170,7 +150,7 @@ describe('probeServices', () => {
 describe('buildStatusFeed', () => {
   const checkedAt = '2026-05-11T13:45:07.123Z';
 
-  test('all up → operational, each component operational', () => {
+  test('up → operational, component operational', () => {
     const raw: StatusResult = {
       overall: 'operational',
       components: allUpComponents(),
@@ -183,37 +163,17 @@ describe('buildStatusFeed', () => {
     });
   });
 
-  test('one down → degraded overall, that component outage', () => {
-    const raw: StatusResult = {
-      overall: 'degraded',
-      components: [
-        { id: 'convex', up: true },
-        { id: 'rag', up: false },
-        { id: 'crawler', up: true },
-      ],
-      checkedAt,
-    };
-    const feed = buildStatusFeed(raw);
-    expect(feed.status).toBe('degraded');
-    expect(feed.components.find((c) => c.id === 'rag')?.status).toBe('outage');
-    expect(feed.components.find((c) => c.id === 'convex')?.status).toBe(
-      'operational',
-    );
-  });
-
-  test('all down → outage overall, every component outage', () => {
+  test('down → outage overall, component outage', () => {
     const raw: StatusResult = {
       overall: 'outage',
-      components: [
-        { id: 'convex', up: false },
-        { id: 'rag', up: false },
-        { id: 'crawler', up: false },
-      ],
+      components: [{ id: 'convex', up: false }],
       checkedAt,
     };
     const feed = buildStatusFeed(raw);
     expect(feed.status).toBe('outage');
-    expect(feed.components.every((c) => c.status === 'outage')).toBe(true);
+    expect(feed.components.find((c) => c.id === 'convex')?.status).toBe(
+      'outage',
+    );
   });
 });
 
@@ -234,31 +194,11 @@ describe('renderStatusJson', () => {
     expect(raw).toContain('"status":"operational"');
   });
 
-  test('serialises a degraded feed with mixed component statuses', () => {
-    const feed: StatusFeed = {
-      status: 'degraded',
-      checkedAt,
-      components: [
-        { id: 'convex', status: 'operational' },
-        { id: 'rag', status: 'outage' },
-        { id: 'crawler', status: 'operational' },
-      ],
-    };
-    const raw = renderStatusJson(feed);
-    expect(JSON.parse(raw)).toEqual(feed);
-    expect(raw).toContain('"status":"degraded"');
-    expect(raw).toContain('"status":"outage"');
-  });
-
-  test('serialises a full outage feed', () => {
+  test('serialises an outage feed', () => {
     const feed: StatusFeed = {
       status: 'outage',
       checkedAt,
-      components: [
-        { id: 'convex', status: 'outage' },
-        { id: 'rag', status: 'outage' },
-        { id: 'crawler', status: 'outage' },
-      ],
+      components: [{ id: 'convex', status: 'outage' }],
     };
     const raw = renderStatusJson(feed);
     expect(JSON.parse(raw)).toEqual(feed);
@@ -272,6 +212,12 @@ describe('renderStatusPage', () => {
     status: 'operational',
     components: allOperationalFeedComponents(),
     checkedAt: '2026-05-11T13:45:07.123Z',
+  };
+
+  const outageFeed: StatusFeed = {
+    status: 'outage',
+    components: [{ id: 'convex', status: 'outage' }],
+    checkedAt: baseFeed.checkedAt,
   };
 
   test('renders English by default', () => {
@@ -301,36 +247,8 @@ describe('renderStatusPage', () => {
     expect(html).not.toContain('Alle Systeme');
   });
 
-  test('renders degraded copy + amber banner', () => {
-    const html = renderStatusPage(
-      {
-        status: 'degraded',
-        components: [
-          { id: 'convex', status: 'operational' },
-          { id: 'rag', status: 'outage' },
-          { id: 'crawler', status: 'operational' },
-        ],
-        checkedAt: baseFeed.checkedAt,
-      },
-      '',
-    );
-    expect(html).toContain('Partial degradation');
-    expect(html).toContain('#fef3c7');
-  });
-
   test('renders outage copy + red banner', () => {
-    const html = renderStatusPage(
-      {
-        status: 'outage',
-        components: [
-          { id: 'convex', status: 'outage' },
-          { id: 'rag', status: 'outage' },
-          { id: 'crawler', status: 'outage' },
-        ],
-        checkedAt: baseFeed.checkedAt,
-      },
-      '',
-    );
+    const html = renderStatusPage(outageFeed, '');
     expect(html).toContain('Service outage');
     expect(html).toContain('#fee2e2');
   });
@@ -351,80 +269,37 @@ describe('renderStatusPage', () => {
     expect(html).toContain('<meta name="robots" content="noindex">');
   });
 
-  test('renders neutral English component labels — no stack names leaked', () => {
+  test('renders the neutral English component label — no stack names leaked', () => {
     const html = renderStatusPage(baseFeed, '');
     expect(html).toContain('Application');
-    expect(html).toContain('Knowledge base');
-    expect(html).toContain('Web &amp; document services');
     expect(html).not.toContain('Convex');
     expect(html).not.toContain('RAG');
     expect(html).not.toContain('Crawler');
   });
 
-  test('renders German component labels for de locale', () => {
+  test('renders the German component label for de locale', () => {
     const html = renderStatusPage(baseFeed, 'de');
     expect(html).toContain('Anwendung');
-    expect(html).toContain('Wissensdatenbank');
-    expect(html).toContain('Web- &amp; Dokumentendienste');
   });
 
-  test('renders French component labels for fr locale', () => {
-    const html = renderStatusPage(baseFeed, 'fr');
-    expect(html).toContain('Base de connaissances');
-    expect(html).toContain('Services web et documents');
-  });
+  test('shows the status word for the component (not color alone)', () => {
+    const upHtml = renderStatusPage(baseFeed, '');
+    expect(upHtml).toContain('>Operational<');
 
-  test('shows status word per component (not color alone)', () => {
-    const html = renderStatusPage(
-      {
-        status: 'degraded',
-        components: [
-          { id: 'convex', status: 'operational' },
-          { id: 'rag', status: 'outage' },
-          { id: 'crawler', status: 'operational' },
-        ],
-        checkedAt: baseFeed.checkedAt,
-      },
-      '',
-    );
-    // Two operational, one unavailable.
-    const operationalMatches = html.match(/>Operational</g) ?? [];
-    expect(operationalMatches.length).toBe(2);
-    expect(html).toContain('>Unavailable<');
+    const downHtml = renderStatusPage(outageFeed, '');
+    expect(downHtml).toContain('>Unavailable<');
   });
 
   test('uses German status words for de locale', () => {
-    const html = renderStatusPage(
-      {
-        status: 'degraded',
-        components: [
-          { id: 'convex', status: 'operational' },
-          { id: 'rag', status: 'outage' },
-          { id: 'crawler', status: 'operational' },
-        ],
-        checkedAt: baseFeed.checkedAt,
-      },
-      'de-DE',
+    expect(renderStatusPage(baseFeed, 'de-DE')).toContain('>Verfügbar<');
+    expect(renderStatusPage(outageFeed, 'de-DE')).toContain(
+      '>Nicht verfügbar<',
     );
-    expect(html).toContain('>Verfügbar<');
-    expect(html).toContain('>Nicht verfügbar<');
   });
 
   test('uses French status words for fr locale', () => {
-    const html = renderStatusPage(
-      {
-        status: 'degraded',
-        components: [
-          { id: 'convex', status: 'operational' },
-          { id: 'rag', status: 'outage' },
-          { id: 'crawler', status: 'operational' },
-        ],
-        checkedAt: baseFeed.checkedAt,
-      },
-      'fr-FR',
-    );
-    expect(html).toContain('>Opérationnel<');
-    expect(html).toContain('>Indisponible<');
+    expect(renderStatusPage(baseFeed, 'fr-FR')).toContain('>Opérationnel<');
+    expect(renderStatusPage(outageFeed, 'fr-FR')).toContain('>Indisponible<');
   });
 
   test('marks status dots aria-hidden so screen readers rely on the text label', () => {
@@ -432,7 +307,7 @@ describe('renderStatusPage', () => {
     // Every dot element carries aria-hidden so the visible status text is
     // the canonical signal for assistive tech.
     const dots = html.match(/<span class="dot"[^>]*>/g) ?? [];
-    expect(dots.length).toBe(3);
+    expect(dots.length).toBe(1);
     for (const dot of dots) expect(dot).toContain('aria-hidden="true"');
   });
 });

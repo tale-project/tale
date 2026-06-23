@@ -14,18 +14,18 @@
 const CACHE_TTL_MS = 5000;
 const PROBE_TIMEOUT_MS = 2000;
 
-// Default to loopback so `bun run dev` works without env overrides when the
-// developer runs RAG / Crawler on the standard ports. Docker compose sets
-// the env vars to the in-network DNS names (rag / crawler / convex), which
-// take precedence. Matches the convention in vite.config.ts, dev.ts,
-// convex/lib/helpers/rag_config.ts, convex/agent_tools/web/helpers/
-// get_crawler_service_url.ts.
+// Default to loopback so `bun run dev` works without env overrides; docker
+// compose sets CONVEX_URL to the in-network DNS name (convex), which takes
+// precedence. Knowledge-base (RAG) and web/document (crawler) work now runs
+// IN-PROCESS inside the Convex backend — there are no separate rag/crawler
+// HTTP services to probe, so Convex liveness is the single backend signal.
 const CONVEX_URL = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
-const RAG_URL = process.env.RAG_URL || 'http://localhost:8001';
-const CRAWLER_URL = process.env.CRAWLER_URL || 'http://localhost:8002';
 
 export type OverallStatus = 'operational' | 'degraded' | 'outage';
-export type ComponentId = 'convex' | 'rag' | 'crawler';
+// One backend today (the Convex application, which subsumes RAG + crawler).
+// The wider vocabulary is kept so a future per-subsystem probe can re-add ids
+// without breaking consumers.
+export type ComponentId = 'convex';
 
 // Binary today because each probe is just `fetch.ok`. The wider
 // `OverallStatus` vocabulary leaves room for a future `'degraded'`
@@ -64,8 +64,6 @@ interface Probe {
 // container's own healthcheck). Body is plain text — do NOT call .json().
 const PROBES: readonly Probe[] = [
   { id: 'convex', url: `${CONVEX_URL}/version` },
-  { id: 'rag', url: `${RAG_URL}/health` },
-  { id: 'crawler', url: `${CRAWLER_URL}/health` },
 ];
 
 let cache: { at: number; result: StatusResult } | null = null;
@@ -170,13 +168,12 @@ export function renderStatusJson(feed: StatusFeed): string {
 // Public page rendering
 //
 // Server-rendered HTML for `/status` — no JavaScript, no React shell, no
-// auto-refresh. The user reloads if they want a fresh state. Component
-// labels are deliberately nouns ("Application" / "Knowledge base" / "Web
-// & document services") rather than action verbs, so each label covers
-// every failure mode of that subsystem (e.g. "Knowledge base" covers both
-// indexing new docs and querying existing ones — neither aspect needs its
-// own line). This also keeps the public surface free of stack names
-// (Convex / RAG / Crawler).
+// auto-refresh. The user reloads if they want a fresh state. The component
+// label is a deliberate noun ("Application") rather than an action verb, so
+// it covers every failure mode of the backend — knowledge-base and
+// web/document work now run inside the application (Convex), so a single
+// row reflects them all. This also keeps the public surface free of stack
+// names (Convex / RAG / Crawler).
 // Locale picked from Accept-Language prefix: de → German, fr → French,
 // else English. Matches the locale bundles already shipped at
 // services/platform/messages/{en,de,fr}.json.
@@ -194,8 +191,6 @@ const STRINGS = {
     statusDown: 'Unavailable',
     components: {
       convex: 'Application',
-      rag: 'Knowledge base',
-      crawler: 'Web & document services',
     },
   },
   de: {
@@ -209,8 +204,6 @@ const STRINGS = {
     statusDown: 'Nicht verfügbar',
     components: {
       convex: 'Anwendung',
-      rag: 'Wissensdatenbank',
-      crawler: 'Web- & Dokumentendienste',
     },
   },
   fr: {
@@ -224,8 +217,6 @@ const STRINGS = {
     statusDown: 'Indisponible',
     components: {
       convex: 'Application',
-      rag: 'Base de connaissances',
-      crawler: 'Services web et documents',
     },
   },
 } as const;

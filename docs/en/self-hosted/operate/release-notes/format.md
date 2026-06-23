@@ -25,7 +25,7 @@ Each release page is the same ordered list of sections. Empty sections are omitt
 - **Breaking changes** — every change that requires the operator to do something before or after the upgrade. Each row names the symptom you would hit if you skipped, and the action that avoids it.
 - **Deprecations** — features still working in this release but flagged for removal. Each row names the removal version so you can plan the cutover.
 - **Security** — CVE-format entries for fixes that close a vulnerability. The full feed lives under [Security advisories](/self-hosted/operate/security/advisories); the release notes carry the one-line summary plus the advisory link.
-- **Features and fixes** — the long list. Grouped by area (Platform, RAG, Crawler, CLI, Docs); each row reads as one sentence.
+- **Features and fixes** — the long list. Grouped by area (Platform, CLI, Docs); each row reads as one sentence.
 - **Migration notes** _(major versions and some minors)_ — the linked walk through schema migrations, config-file changes, or operator-facing renames. Always read for majors.
 
 ## How to scan a release
