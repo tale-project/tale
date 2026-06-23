@@ -44,7 +44,7 @@ vi.mock('../../_generated/api', () => ({
   },
 }));
 
-vi.mock('../../node_only/sandbox/bifrost_admin', () => ({
+vi.mock('../../node_only/sandbox/llm_gateway_admin', () => ({
   getVirtualKeySpendCents: vi.fn().mockResolvedValue(0),
   revokeVirtualKey: vi.fn().mockResolvedValue(undefined),
 }));

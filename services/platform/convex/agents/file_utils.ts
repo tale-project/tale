@@ -78,6 +78,13 @@ export interface AgentJsonConfig {
    * there is no separate org-level gate.
    */
   authMode?: 'managed' | 'byo';
+  /**
+   * For `primaryBehavior: 'external-agent'` only — opt into the runtime's native
+   * web tools (Claude Code WebSearch/WebFetch). Managed runs force-disable these
+   * by default (governed routing through a search integration); `true` lifts the
+   * denial. Absent/`false` keeps the governed default; BYO is unaffected.
+   */
+  nativeWebTools?: boolean;
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];

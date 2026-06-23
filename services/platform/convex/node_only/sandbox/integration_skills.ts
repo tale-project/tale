@@ -75,9 +75,54 @@ function yamlInline(value: string): string {
   return value.replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 280);
 }
 
-/** Build one CC-native SKILL.md for an integration (readiness-independent). */
+/** Web-access guidance when the agent's native web tools are FORCE-DISABLED
+ * (managed default). Routes all web access through a connected integration. */
+const WEB_ACCESS_DISABLED = `The built-in WebSearch and WebFetch tools are DISABLED — route ALL web access
+through a connected integration: search the web via a search integration's
+\`search\` operation, and read a specific page via its \`extract\`/fetch
+operation. Never use the browser to scrape a search engine or fetch pages as a
+substitute; if no suitable integration is connected, guide the user to add one.`;
+
+/** Web-access guidance when the agent HAS native web tools (BYO, or a managed
+ * agent that opted in via nativeWebTools). Integrations are for authenticated /
+ * governed data sources, NOT ordinary public-web lookups. */
+const WEB_ACCESS_NATIVE = `You have native WebSearch and WebFetch for general web reading and search —
+use them directly for open-web facts, docs, and public pages. Use an integration
+ONLY for AUTHENTICATED or governed data sources: a private API, or your own
+accounts and their data. Do NOT push the user to connect a web-search
+integration for ordinary public-web lookups.`;
+
+/** Per-integration extra guidance, appended after the generic "If it is not
+ * available" section. Keyed by slug; absent ⇒ no appendix. Lives here (not in
+ * the integration-agnostic body) for integrations whose perception of a missing
+ * capability differs from the standard bridge-tool blocker flow. */
+const SLUG_APPENDIX: Record<string, string> = {
+  // GitHub is a BROKER GRANT: git access uses an injected token, not the
+  // bridge tool, so a clone/push auth failure surfaces as a RAW git error
+  // rather than a structured blocker. Teach the agent to recognize that and
+  // route into the same perceive→guide flow (integration_status + connectUrl).
+  github: `
+## Cloning or pushing a repo
+
+GitHub also backs \`git\` here: when this agent has github both enabled AND
+connected, a token is injected so \`git clone\`/\`fetch\`/\`push\` over HTTPS just
+works. Public repos clone without a token.
+
+If a \`git\` operation fails with an auth error ("could not read Username",
+"Authentication failed", or an unexpected "Repository not found" on a repo you
+expect to exist), do NOT retry blindly or give up — that almost always means
+GitHub is not enabled for this agent or has no connected credential. Call
+\`integration_status\`, then relay github's \`not_bound\`/\`not_configured\`
+guidance and its \`connectUrl\` to the user in ONE message and stop until they
+fix it.
+`,
+};
+
+/** Build one CC-native SKILL.md for an integration (readiness-independent). The
+ * web-access guidance varies with whether the agent has native web tools. */
 export function buildIntegrationSkillMd(
   entry: IntegrationCatalogEntry,
+  opts: { nativeWebTools: boolean },
 ): string {
   const title = entry.title ?? entry.slug;
   const summary = entry.description ?? `The ${title} integration.`;
@@ -121,12 +166,8 @@ in a single message rather than one at a time:
   \`connectUrl\`).
 
 Call \`integration_status\` anytime to see which integrations are usable now.
-The built-in WebSearch and WebFetch tools are DISABLED — route ALL web access
-through a connected integration: search the web via a search integration's
-\`search\` operation, and read a specific page via its \`extract\`/fetch
-operation. Never use the browser to scrape a search engine or fetch pages as a
-substitute; if no suitable integration is connected, guide the user to add one.
-`;
+${opts.nativeWebTools ? WEB_ACCESS_NATIVE : WEB_ACCESS_DISABLED}
+${SLUG_APPENDIX[entry.slug] ?? ''}`;
 }
 
 /**
@@ -137,7 +178,13 @@ substitute; if no suitable integration is connected, guide the user to add one.
  */
 export async function stageIntegrationSkills(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** Whether the agent has native web tools — selects the skill's web-access
+     * guidance so it never contradicts the agent's actual toolset. */
+    nativeWebTools: boolean;
+  },
 ): Promise<void> {
   const orgSlug = await orgSlugFromId(ctx, args.organizationId);
   const catalog: IntegrationCatalogEntry[] = await ctx.runAction(
@@ -170,9 +217,10 @@ export async function stageIntegrationSkills(
   if (catalog.length === 0) return;
   const files: SessionStageFile[] = catalog.map((entry) => ({
     path: `${SKILLS_DIR}/${INTEGRATION_SKILL_PREFIX}${entry.slug}/SKILL.md`,
-    contentBase64: Buffer.from(buildIntegrationSkillMd(entry), 'utf8').toString(
-      'base64',
-    ),
+    contentBase64: Buffer.from(
+      buildIntegrationSkillMd(entry, { nativeWebTools: args.nativeWebTools }),
+      'utf8',
+    ).toString('base64'),
   }));
   const result = await sessionStageFiles(args.sessionId, files);
   if (result.skipped.length > 0) {

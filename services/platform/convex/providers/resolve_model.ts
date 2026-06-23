@@ -40,7 +40,7 @@ export interface ResolvedModelData {
    * factory is OpenAI-compatible-only today, so this is informational for the
    * chat path (an 'anthropic' provider falls back to the OpenAI client and
    * errors at the wire level); the external-agent gateway uses it to pick the
-   * Bifrost base_provider_type. See `apiFormatSchema` in shared/schemas.
+   * gateway base_provider_type. See `apiFormatSchema` in shared/schemas.
    */
   apiFormat: 'openai' | 'anthropic';
   tags: string[];

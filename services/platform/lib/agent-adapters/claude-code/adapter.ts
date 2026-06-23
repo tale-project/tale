@@ -162,8 +162,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // BYO opts out of platform governance, so this governance-motivated denial
     // is lifted — the agent runs with its native toolset (web tools work on the
     // user's own credential). The container + egress policy stay the isolation
-    // boundary.
-    if (!byo) {
+    // boundary. A managed agent can also opt in explicitly (spec.nativeWebTools)
+    // — e.g. on a gateway model that supports native web tools (OpenRouter) where
+    // ungoverned web access is acceptable; then the deny is lifted for it too.
+    if (!byo && spec.nativeWebTools !== true) {
       disallowedTools.push('WebSearch', 'WebFetch');
     }
     if (disallowedTools.length > 0) {

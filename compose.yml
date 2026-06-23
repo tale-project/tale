@@ -261,7 +261,7 @@ services:
 
     # Also on the sandbox network so the in-sandbox MCP integration bridge can
     # reach convex http actions directly (http://convex:3211/api/integrations),
-    # mirroring how `bifrost` is dual-homed for the gateway. Safe: convex is
+    # mirroring how `llm-gateway` is dual-homed for the gateway. Safe: convex is
     # single-instance/stateful (no LB) and the dispatch route is VK-authed.
     networks:
       - internal
@@ -606,50 +606,53 @@ services:
       - sandbox
 
   # ============================================================================
-  # Tale LLM Gateway — Bifrost (OSS, Apache-2.0) for sandbox AGENT SESSIONS
+  # Tale LLM Gateway (maximhq/bifrost core, OSS Apache-2.0) for sandbox AGENT SESSIONS
   # ----------------------------------------------------------------------------
   # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
   # LLM. Dual-homed onto `internal` (platform provisions providers + mints
   # session virtual keys via the governance API) and `sandbox` (agents reach it
-  # at http://bifrost:8080 over the internal bridge — NOT through tinyproxy).
+  # at http://llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
   #
   # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
   # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
   # session destroy. The platform is the source of truth for providers/models;
-  # it provisions Bifrost via the governance API on session create
-  # (convex/node_only/sandbox/bifrost_admin.ts: provisionProviders +
+  # it provisions the gateway via the governance API on session create
+  # (convex/node_only/sandbox/llm_gateway_admin.ts: provisionProviders +
   # applyGatewayConfig).
   #
-  # SECURITY: Bifrost auth is config-store driven (NOT env vars — v1.4.8 never
-  # read the old BIFROST_MANAGEMENT_TOKEN / BIFROST_ENFORCE_VIRTUAL_KEYS).
-  # applyGatewayConfig() pushes, idempotently on session create:
+  # SECURITY: gateway auth is config-store driven (NOT env vars — the upstream
+  # maximhq/bifrost core never read its old management-token / enforce-virtual-keys
+  # env knobs). applyGatewayConfig() pushes, idempotently on session create:
   #   - client.enforce_auth_on_inference=true → inference rejects anything but a
   #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) when BIFROST_ADMIN_PASSWORD is
-  #     set → the management plane stops being anonymous on the internal network.
-  # No published port (loopback publish lives in compose.bifrost.dev.yml for the
-  # host bun-dev path). PINNED image — the project has had VK auth regressions.
+  #   - auth_config (admin basic-auth over /api/*) when LLM_GATEWAY_ADMIN_PASSWORD
+  #     is set → the management plane stops being anonymous on the internal network.
+  # No published port (loopback publish lives in compose.llm-gateway.dev.yml for
+  # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
+  # — the project has had VK auth regressions.
   # ============================================================================
-  bifrost:
-    image: maximhq/bifrost:${BIFROST_VERSION:-v1.5.13}
-    # External image (no build: block here), so the repo-wide `build` default is
-    # invalid for this service — pull the pinned tag when absent instead.
-    pull_policy: ${PULL_POLICY:-missing}
-    container_name: tale-bifrost
+  llm-gateway:
+    image: ghcr.io/tale-project/tale/tale-llm-gateway:${VERSION:-latest}
+    build:
+      context: .
+      dockerfile: services/llm-gateway/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    container_name: tale-llm-gateway
     env_file:
       - .env
-    # No bifrost-read env knobs: auth + VK enforcement are config-store fields
+    # No gateway-read env knobs: auth + VK enforcement are config-store fields
     # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD, never set on
-    # the bifrost container itself).
+    # platform's LLM_GATEWAY_ADMIN_USERNAME / LLM_GATEWAY_ADMIN_PASSWORD, never
+    # set on the gateway container itself).
     volumes:
       # SQLite config/log store (providers + minted keys + auth config survive
       # restarts). Wipe this volume to re-bootstrap auth from scratch.
-      - bifrost-data:/app/data
+      - llm-gateway-data:/app/data
     restart: unless-stopped
     mem_limit: 512m
     healthcheck:
-      # The bifrost image ships busybox wget but no curl.
+      # The gateway image ships busybox wget but no curl.
       test:
         [
           'CMD-SHELL',
@@ -770,9 +773,9 @@ volumes:
   caddy-config:
     driver: local
 
-  # Bifrost LLM gateway SQLite store (provisioned providers + minted session
-  # virtual keys). Survives restarts so in-flight sessions keep working.
-  bifrost-data:
+  # LLM gateway SQLite store (provisioned providers + minted session virtual
+  # keys). Survives restarts so in-flight sessions keep working.
+  llm-gateway-data:
     driver: local
 
 # ============================================================================

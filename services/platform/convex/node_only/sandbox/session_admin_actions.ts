@@ -12,13 +12,13 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { action, type ActionCtx } from '../../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../../lib/auth/require_org_admin_or_developer';
-import { revokeVirtualKey } from './bifrost_admin';
 import {
   sessionCancelExec,
   sessionDestroy,
   sessionIsAlive,
   sessionSetPinned,
 } from './helpers/session_client';
+import { revokeVirtualKey } from './llm_gateway_admin';
 
 /** Assert the session exists AND belongs to the caller's org before any spawner
  * call touches it (the spawner id travels through the browser). */
@@ -96,14 +96,14 @@ export const destroySandbox = action({
       { organizationId: args.organizationId, sessionId: args.sessionId },
     );
     try {
-      const { bifrostKeyIds } = await ctx.runMutation(
+      const { llmGatewayKeyIds } = await ctx.runMutation(
         internal.sandbox.session_mutations.revokeTokensForSession,
         { sessionId: args.sessionId },
       );
-      // Delete the live Bifrost VK(s), not just the bookkeeping mark — a destroy
+      // Delete the live gateway VK(s), not just the bookkeeping mark — a destroy
       // racing a live turn deletes the op row the per-turn finalize + recovery
       // watchdog key on, so this is the only path that revokes a mid-turn VK.
-      for (const keyId of bifrostKeyIds) {
+      for (const keyId of llmGatewayKeyIds) {
         await revokeVirtualKey(keyId).catch((err) =>
           console.warn(`[destroySandbox] revoke VK ${keyId}:`, err),
         );

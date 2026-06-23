@@ -18,11 +18,11 @@ import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
+import { sessionListFiles } from '../../node_only/sandbox/helpers/session_client';
 import {
   getVirtualKeySpendCents,
   revokeVirtualKey,
-} from '../../node_only/sandbox/bifrost_admin';
-import { sessionListFiles } from '../../node_only/sandbox/helpers/session_client';
+} from '../../node_only/sandbox/llm_gateway_admin';
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 import {
   matchConsumedSteerFiles,
@@ -135,7 +135,7 @@ export async function finalizeTurnSideEffects(
 
   if (turn.mintedKeyId) {
     try {
-      // Bifrost aggregates per-VK spend asynchronously (~seconds); poll briefly.
+      // The gateway aggregates per-VK spend asynchronously (~seconds); poll briefly.
       let costCents: number | null = null;
       for (let attempt = 0; attempt < 5; attempt++) {
         costCents = await getVirtualKeySpendCents(turn.mintedKeyId);
@@ -167,7 +167,7 @@ export async function finalizeTurnSideEffects(
       // cumulative Spend column reflects this turn — the seam writes only cover
       // multi-segment turns; a single-segment turn lands its spend here. Same
       // `> 0` guard as the ledger write above (never stamp a misleading $0.00
-      // before Bifrost has aggregated). Own try/catch so a stamp failure can't
+      // before the gateway has aggregated). Own try/catch so a stamp failure can't
       // block the VK revoke below.
       const finalSpendCents = costCents ?? 0;
       if (finalSpendCents > 0) {

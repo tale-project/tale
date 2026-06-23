@@ -1,0 +1,65 @@
+// Unit tests for the integration SKILL.md builder. The web-access guidance MUST
+// match the agent's actual toolset (native vs. governed) so the agent never gets
+// told its working tools are disabled, and the github appendix must route a git
+// auth failure into the perceive→guide flow.
+
+import { describe, expect, it } from 'vitest';
+
+import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
+import { buildIntegrationSkillMd } from './integration_skills';
+
+const tavily: IntegrationCatalogEntry = {
+  slug: 'tavily',
+  title: 'Tavily Search',
+  description: 'Web search and page extraction',
+  operations: [
+    { name: 'search', description: 'Search the web', operationType: 'read' },
+  ],
+};
+
+const github: IntegrationCatalogEntry = {
+  slug: 'github',
+  title: 'GitHub',
+  description: 'Repos, issues, and pull requests',
+  operations: [{ name: 'list_issues', operationType: 'read' }],
+};
+
+describe('buildIntegrationSkillMd — web-access guidance', () => {
+  it('says web tools are DISABLED when the agent has no native web tools (governed default)', () => {
+    const md = buildIntegrationSkillMd(tavily, { nativeWebTools: false });
+    expect(md).toContain('WebSearch and WebFetch tools are DISABLED');
+    expect(md).not.toContain('You have native WebSearch and WebFetch');
+  });
+
+  it('says native web tools are available (and not "disabled") when the agent has them', () => {
+    const md = buildIntegrationSkillMd(tavily, { nativeWebTools: true });
+    expect(md).toContain('You have native WebSearch and WebFetch');
+    expect(md).not.toContain('DISABLED');
+    // Native agents must not be told to connect a search integration for
+    // ordinary public-web lookups.
+    expect(md).toContain('public-web lookups');
+  });
+
+  it('always carries the not_bound / not_configured perceive→guide guidance regardless of web-tool mode', () => {
+    for (const nativeWebTools of [true, false]) {
+      const md = buildIntegrationSkillMd(tavily, { nativeWebTools });
+      expect(md).toContain('not_bound');
+      expect(md).toContain('not_configured');
+      expect(md).toContain('integration_status');
+    }
+  });
+});
+
+describe('buildIntegrationSkillMd — github appendix', () => {
+  it('appends the git-clone/auth-failure guidance only for github', () => {
+    const md = buildIntegrationSkillMd(github, { nativeWebTools: true });
+    expect(md).toContain('## Cloning or pushing a repo');
+    expect(md).toContain('git clone');
+    expect(md).toContain('integration_status');
+  });
+
+  it('omits the github appendix for other integrations', () => {
+    const md = buildIntegrationSkillMd(tavily, { nativeWebTools: true });
+    expect(md).not.toContain('## Cloning or pushing a repo');
+  });
+});

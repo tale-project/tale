@@ -35,6 +35,7 @@ jobs:
             controller,
             platform,
             proxy,
+            llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-runtime,

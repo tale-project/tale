@@ -47,8 +47,8 @@ export const sandboxSessionsTable = defineTable({
   ownerId: v.string(),
   createdBy: v.string(),
   agentKind: v.optional(v.string()), // 'claude-code' | 'opencode' | …
-  /** Bifrost virtual-key id (NOT the plaintext key). */
-  bifrostKeyId: v.optional(v.string()),
+  /** Gateway virtual-key id (NOT the plaintext key). */
+  llmGatewayKeyId: v.optional(v.string()),
   createdAt: v.number(),
   expiresAt: v.number(),
   lastActivityAt: v.optional(v.number()),
@@ -75,7 +75,7 @@ export const sandboxSessionsTable = defineTable({
   .index('by_sessionId', ['sessionId']);
 
 /**
- * Session-scoped LLM gateway token (the Bifrost virtual key) — only the
+ * Session-scoped LLM gateway token (the gateway virtual key) — only the
  * sha256 hash is persisted. Scope bounds what the in-sandbox agent can do;
  * revoked on session destroy / watchdog reap.
  */
@@ -83,7 +83,7 @@ export const sandboxSessionTokensTable = defineTable({
   organizationId: v.string(),
   sessionId: v.string(),
   tokenHash: v.string(),
-  bifrostKeyId: v.optional(v.string()),
+  llmGatewayKeyId: v.optional(v.string()),
   scope: v.object({
     agentKind: v.string(),
     allowedModels: v.array(v.string()),
@@ -158,7 +158,7 @@ export const sandboxSessionOpsTable = defineTable({
   // + additive (existing rows validate; non-agent execs leave them unset).
   /** The streaming assistant message this turn patches/finalizes. */
   assistantMessageId: v.optional(v.string()),
-  /** Bifrost virtual-key id to revoke on finalize (spend attribution). */
+  /** Gateway virtual-key id to revoke on finalize (spend attribution). */
   mintedKeyId: v.optional(v.string()),
   /** Usage-attribution + finalize context for a recovery-path finalize. */
   userId: v.optional(v.string()),
@@ -196,7 +196,7 @@ export const sandboxSessionOpsTable = defineTable({
   finalizedAt: v.optional(v.number()),
   /** How many cross-action handoffs this turn has done (runaway cap). */
   continuationCount: v.optional(v.number()),
-  /** Cumulative in-task LLM spend (cents) polled from the turn's Bifrost VK,
+  /** Cumulative in-task LLM spend (cents) polled from the turn's gateway VK,
    * stamped at each continuation seam so the management page can show live
    * rolling spend without polling the gateway from a reactive query. */
   spentCents: v.optional(v.number()),

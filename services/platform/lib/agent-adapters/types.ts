@@ -2,11 +2,11 @@
 
 import type { AgentEventParser, AgentSlug } from './events';
 
-/** The platform LLM gateway (Bifrost) endpoint + the session-scoped key. The
+/** The platform LLM gateway endpoint + the session-scoped key. The
  * adapter appends its own protocol route (Claude → /anthropic, OpenCode →
  * /openai/v1) so callers pass one base. */
 export interface GatewayTarget {
-  /** Gateway root, no trailing slash, e.g. http://bifrost:8080 */
+  /** Gateway root, no trailing slash, e.g. http://llm-gateway:8080 */
   baseUrl: string;
   /** Session virtual key minted at session create. */
   token: string;
@@ -41,6 +41,12 @@ export interface AgentRunSpec {
    * passthrough and native web tools enabled.
    */
   authMode?: 'managed' | 'byo';
+  /** Managed only: opt in to the runtime's NATIVE web tools (Claude Code
+   * WebSearch/WebFetch). Managed runs force-disable these by default and route
+   * web access through a connected integration (governed: audit + metering +
+   * untrusted-source wrapping); `true` lifts that denial. Absent/false keeps the
+   * deny. BYO already runs with native web tools, so this is ignored for byo. */
+  nativeWebTools?: boolean;
   /** Platform LLM gateway. Present for managed runs; ABSENT for byo. */
   gateway?: GatewayTarget;
   /** Platform base URL for the integration-dispatch bridge (/api/integrations).

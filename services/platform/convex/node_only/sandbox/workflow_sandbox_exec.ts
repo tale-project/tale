@@ -27,7 +27,7 @@
  * session orchestration mirroring `run_external_agent`: create → provision →
  * inject creds/VK → run autonomous → harvest `output/summary.md` → teardown).
  * Behavioral correctness of the agent path is gated on live e2e verification
- * (real sandbox + Bifrost); the type/dispatch surface is exercised by units.
+ * (real sandbox + the LLM gateway); the type/dispatch surface is exercised by units.
  */
 import { readFile } from 'node:fs/promises';
 
@@ -53,14 +53,6 @@ import {
   isRotatableApiError,
 } from './agent_run_outcome';
 import {
-  applyGatewayConfig,
-  hashVirtualKey,
-  mintVirtualKey,
-  provisionProviders,
-  resolveGatewayRoutingFromRef,
-  revokeVirtualKey,
-} from './bifrost_admin';
-import {
   type SessionStageFile,
   SessionDuplicateError,
   SessionNotFoundError,
@@ -72,6 +64,14 @@ import {
   sessionStageFiles,
 } from './helpers/session_client';
 import { stageIntegrationSkills } from './integration_skills';
+import {
+  applyGatewayConfig,
+  hashVirtualKey,
+  mintVirtualKey,
+  provisionProviders,
+  resolveGatewayRoutingFromRef,
+  revokeVirtualKey,
+} from './llm_gateway_admin';
 import { runAgentInSessionImpl } from './run_agent';
 import {
   shouldForceSummaryReentry,
@@ -89,7 +89,7 @@ import {
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
 // can be brokered into the container env (gated per-run by the agent's bindings).
 const EXTERNAL_AGENT_GATEWAY_URL =
-  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://bifrost:8080';
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://llm-gateway:8080';
 const INTEGRATIONS_BASE_URL = (
   process.env.EXTERNAL_AGENT_INTEGRATIONS_URL || 'http://convex:3211'
 ).replace(/\/$/, '');
@@ -177,11 +177,11 @@ async function reapStaleWorkflowRunSessions(
       console.warn('[reapStaleWorkflowRunSessions] destroy failed:', e);
     }
     try {
-      const { bifrostKeyIds } = await ctx.runMutation(
+      const { llmGatewayKeyIds } = await ctx.runMutation(
         internal.sandbox.session_mutations.revokeTokensForSession,
         { sessionId },
       );
-      for (const keyId of bifrostKeyIds) {
+      for (const keyId of llmGatewayKeyIds) {
         await revokeVirtualKey(keyId).catch((e) =>
           console.warn('[reapStaleWorkflowRunSessions] VK revoke failed:', e),
         );
@@ -280,11 +280,11 @@ async function teardownAgentSession(
     console.warn('[runSandboxAgent] session destroy failed:', e);
   }
   try {
-    const { bifrostKeyIds } = await ctx.runMutation(
+    const { llmGatewayKeyIds } = await ctx.runMutation(
       internal.sandbox.session_mutations.revokeTokensForSession,
       { sessionId },
     );
-    for (const keyId of bifrostKeyIds) {
+    for (const keyId of llmGatewayKeyIds) {
       await revokeVirtualKey(keyId).catch((e) =>
         console.warn('[runSandboxAgent] VK revoke failed:', e),
       );
@@ -569,6 +569,10 @@ export const runSandboxAgent = internalAction({
     const agentConfig = delegate.agentConfig;
     const agentKind = agentConfig.agentKind ?? 'claude-code';
     const byo = agentConfig.authMode === 'byo';
+    // Native web tools: the raw per-agent opt-in (managed agents deny WebSearch/
+    // WebFetch by default; this lifts it). Passed to the adapter as-is; the skill
+    // guidance uses `byo || === true` (the agent's ACTUAL native-tool state).
+    const nativeWebTools = agentConfig.nativeWebTools;
     const modelRef = args.model ?? delegate.model;
     const integrationBindings = agentConfig.integrationBindings ?? [];
     const brokerGrants = BROKERABLE_GRANTS.filter((g) =>
@@ -912,6 +916,7 @@ export const runSandboxAgent = internalAction({
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
             sessionId,
+            nativeWebTools: byo || nativeWebTools === true,
           });
         } catch (skillErr) {
           console.warn(
@@ -965,7 +970,7 @@ export const runSandboxAgent = internalAction({
               organizationId: args.organizationId,
               sessionId,
               tokenHash: hashVirtualKey(vk.key),
-              bifrostKeyId: vk.keyId,
+              llmGatewayKeyId: vk.keyId,
               scope: {
                 agentKind,
                 allowedModels: [modelRef],
@@ -1092,6 +1097,7 @@ export const runSandboxAgent = internalAction({
           prompt,
           ...(useModel !== undefined && { model: useModel }),
           authMode: byo ? 'byo' : 'managed',
+          ...(nativeWebTools !== undefined && { nativeWebTools }),
           interactionMode: 'autonomous',
           captureLiveTimeline: true,
           systemPromptAppend,
@@ -1294,6 +1300,7 @@ export const runSandboxAgent = internalAction({
             }),
             ...(useModel !== undefined && { model: useModel }),
             authMode: byo ? 'byo' : 'managed',
+            ...(nativeWebTools !== undefined && { nativeWebTools }),
             interactionMode: 'autonomous',
             captureLiveTimeline: true,
             maxTurns: SUMMARY_REENTRY_MAX_TURNS,

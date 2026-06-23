@@ -440,15 +440,15 @@ describe('recoverStuckSessions', () => {
 describe('revokeTokensForSession', () => {
   async function insertToken(
     t: T,
-    overrides: { bifrostKeyId?: string; revokedAt?: number },
+    overrides: { llmGatewayKeyId?: string; revokedAt?: number },
   ) {
     return t.run((ctx) =>
       ctx.db.insert('sandboxSessionTokens', {
         organizationId: ORG,
         sessionId: SID,
-        tokenHash: `hash_${overrides.bifrostKeyId ?? 'none'}`,
-        ...(overrides.bifrostKeyId !== undefined && {
-          bifrostKeyId: overrides.bifrostKeyId,
+        tokenHash: `hash_${overrides.llmGatewayKeyId ?? 'none'}`,
+        ...(overrides.llmGatewayKeyId !== undefined && {
+          llmGatewayKeyId: overrides.llmGatewayKeyId,
         }),
         scope: {
           agentKind: 'claude-code',
@@ -465,17 +465,17 @@ describe('revokeTokensForSession', () => {
     );
   }
 
-  it('marks unrevoked tokens revoked and returns their bifrostKeyIds (the gateway DELETE list)', async () => {
+  it('marks unrevoked tokens revoked and returns their llmGatewayKeyIds (the gateway DELETE list)', async () => {
     const t = convexTest(schema, modules);
-    await insertToken(t, { bifrostKeyId: 'vk_1' });
-    await insertToken(t, { bifrostKeyId: 'vk_2' });
+    await insertToken(t, { llmGatewayKeyId: 'vk_1' });
+    await insertToken(t, { llmGatewayKeyId: 'vk_2' });
 
     const res = await t.mutation(
       internal.sandbox.session_mutations.revokeTokensForSession,
       { sessionId: SID },
     );
     expect(res.revoked).toBe(2);
-    expect([...res.bifrostKeyIds].sort()).toEqual(['vk_1', 'vk_2']);
+    expect([...res.llmGatewayKeyIds].sort()).toEqual(['vk_1', 'vk_2']);
     const tokens = await t.run((ctx) =>
       ctx.db.query('sandboxSessionTokens').collect(),
     );
@@ -484,18 +484,18 @@ describe('revokeTokensForSession', () => {
 
   it('skips already-revoked tokens and omits keyless tokens from the DELETE list', async () => {
     const t = convexTest(schema, modules);
-    await insertToken(t, { bifrostKeyId: 'vk_live' });
-    await insertToken(t, { bifrostKeyId: 'vk_already', revokedAt: 5 });
-    await insertToken(t, {}); // a token row with no bifrostKeyId
+    await insertToken(t, { llmGatewayKeyId: 'vk_live' });
+    await insertToken(t, { llmGatewayKeyId: 'vk_already', revokedAt: 5 });
+    await insertToken(t, {}); // a token row with no llmGatewayKeyId
 
     const res = await t.mutation(
       internal.sandbox.session_mutations.revokeTokensForSession,
       { sessionId: SID },
     );
     // The keyless live token is still marked revoked (count 2), but only the one
-    // carrying a bifrostKeyId is returned for the gateway DELETE; the
+    // carrying a llmGatewayKeyId is returned for the gateway DELETE; the
     // already-revoked one is untouched.
     expect(res.revoked).toBe(2);
-    expect(res.bifrostKeyIds).toEqual(['vk_live']);
+    expect(res.llmGatewayKeyIds).toEqual(['vk_live']);
   });
 });

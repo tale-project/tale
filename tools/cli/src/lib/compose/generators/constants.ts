@@ -14,6 +14,7 @@ export const DEV_VOLUME_NAMES = [
   'convex-data',
   'caddy-data',
   'caddy-config',
+  'llm-gateway-data',
 ] as const;
 
 // All volumes that must exist before any `docker compose up` in production.
@@ -27,6 +28,7 @@ export const REQUIRED_VOLUMES = [
   'caddy-config',
   'db-data',
   'db-backup',
+  'llm-gateway-data',
 ] as const;
 
 // Enables containers to reach host services (e.g. Ollama on localhost:11434)

@@ -109,7 +109,7 @@ const IDLE_EOF_GRACE_MS = Number(
   process.env.EXTERNAL_AGENT_IDLE_EOF_MS ?? 60_000,
 );
 // Stalled-turn watchdog (claude-code stdin-hold). A mid-stream API failure — the
-// gateway injecting an error into the open SSE (e.g. Bifrost's stream-idle abort),
+// gateway injecting an error into the open SSE (e.g. the gateway's stream-idle abort),
 // a connection drop, an upstream 5xx — surfaces in the CLI's stream as an
 // "API Error" and ends the turn WITHOUT a terminal `result` and WITHOUT exiting
 // (the CLI keeps its held-open stdin, waiting for the next message; Claude Code
@@ -185,7 +185,11 @@ export interface RunAgentInSessionArgs {
   systemPromptAppend?: string;
   /** Credential mode (default 'managed'). 'byo' skips the gateway entirely. */
   authMode?: 'managed' | 'byo';
-  /** Bifrost gateway root + the session virtual key. Present for managed runs;
+  /** Managed only: opt into the runtime's native web tools (WebSearch/WebFetch),
+   * lifting the governed deny. Absent/false keeps the governed default; BYO is
+   * native regardless. */
+  nativeWebTools?: boolean;
+  /** LLM gateway root + the session virtual key. Present for managed runs;
    * omitted for byo (the agent uses user-injected session credentials). */
   gatewayBaseUrl?: string;
   gatewayToken?: string;
@@ -267,7 +271,7 @@ export interface RunAgentInSessionResult {
   agentSessionId?: string;
   finalText?: string;
   /** Token/cost totals the agent reported in its `result` event — the
-   * authoritative per-turn usage (Bifrost v1.4.8 has no per-VK usage endpoint).
+   * authoritative per-turn usage (the gateway core v1.4.8 has no per-VK usage endpoint).
    * Absent if the run errored before producing a result. */
   usage?: {
     inputTokens: number;
@@ -376,6 +380,9 @@ export async function runAgentInSessionImpl(
           systemPromptAppend: args.systemPromptAppend,
         }),
         ...(args.authMode !== undefined && { authMode: args.authMode }),
+        ...(args.nativeWebTools !== undefined && {
+          nativeWebTools: args.nativeWebTools,
+        }),
         ...(args.gatewayBaseUrl !== undefined &&
           args.gatewayToken !== undefined && {
             gateway: {
@@ -1582,7 +1589,8 @@ export const runAgentInSession = internalAction({
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),
     authMode: v.optional(v.union(v.literal('managed'), v.literal('byo'))),
-    /** Bifrost gateway root + the session virtual key. Present for managed
+    nativeWebTools: v.optional(v.boolean()),
+    /** LLM gateway root + the session virtual key. Present for managed
      * runs; omitted for byo. */
     gatewayBaseUrl: v.optional(v.string()),
     gatewayToken: v.optional(v.string()),

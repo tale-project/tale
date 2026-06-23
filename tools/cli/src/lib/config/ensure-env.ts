@@ -275,6 +275,12 @@ export async function ensureEnv(
       // "Audit log integrity check failed" alert on an otherwise-clean stack.
       // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
       'TALE_AUDIT_SIGNING_KEY',
+      // Admin password for the LLM gateway's management API (the platform
+      // pushes provider keys / mints virtual keys through it). Auto-generated
+      // so the gateway is locked by default and the credential is STABLE
+      // across deploys; the matching LLM_GATEWAY_ADMIN_USERNAME=admin is a
+      // static line written by generateEnvContent.
+      'LLM_GATEWAY_ADMIN_PASSWORD',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -337,6 +343,7 @@ async function runHeadlessAutoSecretFill(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
+    LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
   };
 
   const updates: Record<string, string> = {};
@@ -461,6 +468,7 @@ async function runPartialEnvSetup(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
+    LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
   };
 
   let generatedCount = 0;
@@ -530,6 +538,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sopsAgeKey: ageKeypair.secretKey,
     sandboxToken: generateHexSecret(),
     auditSigningKey: generateHexSecret(),
+    llmGatewayAdminPassword: generatePassword(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -552,6 +561,7 @@ interface EnvConfig {
   sopsAgeKey: string;
   sandboxToken: string;
   auditSigningKey: string;
+  llmGatewayAdminPassword: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -643,6 +653,16 @@ function generateEnvContent(config: EnvConfig): string {
     '#     previous key on the next rotation.',
     `TALE_AUDIT_SIGNING_KEY=${config.auditSigningKey}`,
     '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
+    '',
+    '# ============================================================================',
+    '# LLM Gateway (model-routing proxy)',
+    '# ============================================================================',
+    '# Admin credentials for the LLM gateway management API. The platform uses',
+    '# these to push provider keys and mint per-session virtual keys. The',
+    '# username is fixed; the password is auto-generated and must stay STABLE',
+    '# across deploys (a changed password locks the platform out of the gateway).',
+    'LLM_GATEWAY_ADMIN_USERNAME=admin',
+    `LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
     '# host and registered with dockerd). gVisor provides',

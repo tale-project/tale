@@ -110,13 +110,14 @@ export const setSessionStatus = internalMutation({
       v.literal('expired'),
       v.literal('failed'),
     ),
-    bifrostKeyId: v.optional(v.string()),
+    llmGatewayKeyId: v.optional(v.string()),
     lastActivityAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = { status: args.status };
-    if (args.bifrostKeyId !== undefined) patch.bifrostKeyId = args.bifrostKeyId;
+    if (args.llmGatewayKeyId !== undefined)
+      patch.llmGatewayKeyId = args.llmGatewayKeyId;
     if (args.lastActivityAt !== undefined) {
       patch.lastActivityAt = args.lastActivityAt;
     }
@@ -174,7 +175,7 @@ export const setSessionPinned = internalMutation({
  * Watchdog: mark sessions past their hard lifetime as `expired` so a leaked
  * row (a throw between reserve and the spawner create returning) can't pin the
  * owner/org cap forever. The actual container teardown + token revoke is the
- * caller's job (an action that reads these and calls the spawner + Bifrost).
+ * caller's job (an action that reads these and calls the spawner + the gateway).
  *
  * `stopped` rows are EXEMPT: a hibernated session's workspace is preserved
  * indefinitely until an explicit Destroy (it holds no compute and doesn't pin
@@ -345,7 +346,7 @@ export const insertSessionToken = internalMutation({
     organizationId: v.string(),
     sessionId: v.string(),
     tokenHash: v.string(),
-    bifrostKeyId: v.optional(v.string()),
+    llmGatewayKeyId: v.optional(v.string()),
     scope: v.object({
       agentKind: v.string(),
       allowedModels: v.array(v.string()),
@@ -360,8 +361,8 @@ export const insertSessionToken = internalMutation({
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       tokenHash: args.tokenHash,
-      ...(args.bifrostKeyId !== undefined && {
-        bifrostKeyId: args.bifrostKeyId,
+      ...(args.llmGatewayKeyId !== undefined && {
+        llmGatewayKeyId: args.llmGatewayKeyId,
       }),
       scope: args.scope,
       createdAt: Date.now(),
@@ -371,8 +372,8 @@ export const insertSessionToken = internalMutation({
 
 /**
  * Revoke every token for a session (on destroy / watchdog reap). Marks each
- * unrevoked row `revokedAt` and returns the `bifrostKeyId`s it just revoked so
- * the caller (a `'use node'` teardown action) can also delete the live Bifrost
+ * unrevoked row `revokedAt` and returns the `llmGatewayKeyId`s it just revoked so
+ * the caller (a `'use node'` teardown action) can also delete the live gateway
  * VK. This mark alone is bookkeeping — the VK stays a spendable credential on
  * the gateway until that API delete runs. Teardown deletes the op rows that the
  * per-turn finalize + recovery watchdog key on, so without this the destroy-
@@ -382,23 +383,23 @@ export const revokeTokensForSession = internalMutation({
   args: { sessionId: v.string() },
   returns: v.object({
     revoked: v.number(),
-    bifrostKeyIds: v.array(v.string()),
+    llmGatewayKeyIds: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
     let revoked = 0;
-    const bifrostKeyIds: string[] = [];
+    const llmGatewayKeyIds: string[] = [];
     for await (const row of ctx.db
       .query('sandboxSessionTokens')
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
       if (row.revokedAt === undefined) {
         await ctx.db.patch(row._id, { revokedAt: now });
         revoked += 1;
-        if (row.bifrostKeyId !== undefined)
-          bifrostKeyIds.push(row.bifrostKeyId);
+        if (row.llmGatewayKeyId !== undefined)
+          llmGatewayKeyIds.push(row.llmGatewayKeyId);
       }
     }
-    return { revoked, bifrostKeyIds };
+    return { revoked, llmGatewayKeyIds };
   },
 });
 

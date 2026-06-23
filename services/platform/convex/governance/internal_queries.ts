@@ -150,7 +150,7 @@ export const checkBudgetForRequest = internalQuery({
  *    counts toward the cap at each continuation seam — not just retrospective
  *    ledger rows. Over budget → the caller pauses the turn cleanly at the seam.
  *  - `rollingRemainingCents`: the tightest remaining cost headroom, for sizing
- *    the per-turn Bifrost VK so the gateway's hard cap == the rolling cap
+ *    the per-turn gateway VK so the gateway's hard cap == the rolling cap
  *    (null = uncapped → caller uses its flat default).
  */
 export const evaluateExternalAgentBudget = internalQuery({

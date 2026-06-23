@@ -63,6 +63,7 @@ const AGENT_TAB_DIRTY_KEYS = {
     'supportedModels',
     'provider',
     'authMode',
+    'nativeWebTools',
     'structuredResponsesEnabled',
     'maxSteps',
     'timeoutMs',

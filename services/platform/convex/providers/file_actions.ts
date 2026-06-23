@@ -50,7 +50,7 @@ import {
   isStandardGatewayProvider,
   reprovisionProvider,
   resolveGatewayRouting,
-} from '../node_only/sandbox/bifrost_admin';
+} from '../node_only/sandbox/llm_gateway_admin';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import {
   requireDeveloperSettingsAccess,
@@ -929,7 +929,7 @@ export const saveProvider = action({
     for (const model of config.models) {
       if (model.baseUrl !== undefined) checkProviderHostPolicy(model.baseUrl);
     }
-    // `apiFormat` only governs CUSTOM (non-standard) providers — Bifrost owns
+    // `apiFormat` only governs CUSTOM (non-standard) providers — the gateway owns
     // the wire format for its standard names and would ignore (or 400 on) a
     // custom_provider_config. Reject it on a standard slug so the field never
     // silently misleads (e.g. `anthropic` on `openrouter`).
@@ -967,7 +967,7 @@ export const saveProvider = action({
     const content = serializeProviderJson(config);
     const filePath = resolveProviderFilePath(orgSlug, args.providerName);
     await atomicWrite(filePath, content);
-    // Model-list changes must reach the gateway too — the Bifrost provider
+    // Model-list changes must reach the gateway too — the gateway provider
     // record freezes keys[].models at provision time.
     await syncProviderToGateway(ctx, args.organizationId, args.providerName);
     return { hash: sha256(content) };
@@ -1188,31 +1188,31 @@ export async function resolveModelDataInline(
   });
 }
 
-/** One upstream provider, ready to push into the Bifrost gateway. */
+/** One upstream provider, ready to push into the LLM gateway. */
 export interface GatewayProvider {
-  /** Bifrost provider record name: the slug for a standard provider, or the
+  /** Gateway provider record name: the slug for a standard provider, or the
    * per-model gateway name (`resolveGatewayRouting`) for a custom one. */
   name: string;
   baseUrl?: string;
-  /** Wire format for a custom record → Bifrost base_provider_type. */
+  /** Wire format for a custom record → the gateway base_provider_type. */
   apiFormat?: 'openai' | 'anthropic';
   apiKey: string;
   models: string[];
 }
 
 /**
- * Load the org's configured providers as Bifrost gateway records. Reuses the
+ * Load the org's configured providers as LLM gateway records. Reuses the
  * same loader + key-resolution the chat path uses (`loadAllProviders` +
  * `resolveModelApiKeyOrNull`) so the gateway tracks exactly what the platform
  * would call directly. Returns [] when the org has no usable providers.
  *
  * Grouping follows the gateway resolution rule (see resolveGatewayRouting):
  *   - STANDARD slug → ONE native record per provider, exposing every model with
- *     a resolvable key (Bifrost owns the base URL + wire format).
+ *     a resolvable key (the gateway owns the base URL + wire format).
  *   - CUSTOM slug → ONE record PER MODEL, named `<slug>__<modelId>`, carrying
  *     that model's effective (baseUrl ?? provider.baseUrl, apiFormat, key) — so
- *     model-level overrides actually route on the agent path (Bifrost holds one
- *     base_url + base_provider_type per record).
+ *     model-level overrides actually route on the agent path (the gateway holds
+ *     one base_url + base_provider_type per record).
  */
 export async function loadOrgGatewayProviders(
   ctx: ActionCtx,
@@ -1261,12 +1261,12 @@ export async function loadOrgGatewayProviders(
 }
 
 /**
- * Best-effort push of one provider's current key + model list into the Bifrost
+ * Best-effort push of one provider's current key + model list into the LLM
  * gateway. The gateway's provider record is a derived cache: without this
- * write-time hook, a rotated key would reach Bifrost only via the
+ * write-time hook, a rotated key would reach the gateway only via the
  * session-create reconcile — and running sandbox sessions would keep the stale
- * key until then. Never throws — a deployment without Bifrost just hits a fast
- * connection error here, and the operator's save must succeed regardless (same
+ * key until then. Never throws — a deployment without the gateway just hits a
+ * fast connection error here, and the operator's save must succeed regardless (same
  * degrade posture as the session-create provisioning in run_external_agent.ts).
  * Known follow-up: deleteProvider leaves the gateway record orphaned.
  */

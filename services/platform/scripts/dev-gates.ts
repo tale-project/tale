@@ -29,7 +29,7 @@ export const DEV_GATES = {
     timeoutMs: 180_000,
   },
   /** LLM gateway is best-effort — pure frontend/Convex work survives without it. */
-  bifrost: { name: 'bifrost gateway', severity: 'soft', timeoutMs: 30_000 },
+  llmGateway: { name: 'llm-gateway', severity: 'soft', timeoutMs: 30_000 },
   /** Auth HTTP readiness — SOFT on purpose: the client retries; a hard fail here
    *  would abort the boot and strand the WS (cold-start-auth-recovery). */
   authOk: { name: '/api/auth/ok', severity: 'soft', timeoutMs: 90_000 },

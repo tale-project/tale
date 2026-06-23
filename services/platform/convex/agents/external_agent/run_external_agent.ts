@@ -10,7 +10,7 @@
  * same conversation across turns). The agent's tool-use/text stream lands in
  * `sandboxSessionOps` live (via run_agent); this module saves the final
  * assistant text into the thread so the chat UI renders the reply, and owns
- * session lifecycle + the per-turn Bifrost virtual key.
+ * session lifecycle + the per-turn gateway virtual key.
  *
  * v1: empty `/workspace/repo` workspace (no repo attach); the agent clones with
  * the injected GITHUB_TOKEN if it needs a repo. The session is reused across
@@ -27,14 +27,6 @@ import { createDebugLog } from '../../lib/debug_log';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
 import {
-  applyGatewayConfig,
-  hashVirtualKey,
-  mintVirtualKey,
-  provisionProviders,
-  resolveGatewayRoutingFromRef,
-  revokeVirtualKey,
-} from '../../node_only/sandbox/bifrost_admin';
-import {
   SessionDuplicateError,
   SessionNotFoundError,
   sessionCreate,
@@ -47,6 +39,14 @@ import {
   stageBrowserControlSkill,
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
+import {
+  applyGatewayConfig,
+  hashVirtualKey,
+  mintVirtualKey,
+  provisionProviders,
+  resolveGatewayRoutingFromRef,
+  revokeVirtualKey,
+} from '../../node_only/sandbox/llm_gateway_admin';
 import { runAgentInSessionImpl } from '../../node_only/sandbox/run_agent';
 import {
   pickToken,
@@ -79,18 +79,18 @@ const debugLog = createDebugLog(
 // (system/rare). See [[sandbox-agent-sessions-e2e-2026-06-11]].
 const OWNER_TYPE_USER = 'user';
 const OWNER_TYPE_THREAD = 'thread';
-// Data plane — Bifrost as seen from INSIDE the session container. (The
-// management plane URL, BIFROST_URL, is read in bifrost_admin.ts.) Always the
-// sandbox-network alias (it's hardcoded in the runtime NO_PROXY); kept
-// separate from BIFROST_URL so host-run convex doesn't leak a host-only URL
-// into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
+// Data plane — the LLM gateway as seen from INSIDE the session container. (The
+// management plane URL, LLM_GATEWAY_URL, is read in llm_gateway_admin.ts.)
+// Always the sandbox-network alias (it's hardcoded in the runtime NO_PROXY);
+// kept separate from LLM_GATEWAY_URL so host-run convex doesn't leak a host-only
+// URL into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
 const EXTERNAL_AGENT_GATEWAY_URL =
-  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://bifrost:8080';
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://llm-gateway:8080';
 // Convex HTTP-ACTIONS base the in-sandbox MCP bridge calls for integration
 // dispatch (/api/integrations/*). Resolved on the SANDBOX network, so it must
 // be an on-net alias — the `--internal`, SSRF-locked agent container can reach
 // neither the host (host.docker.internal) nor :3210; only on-net dual-homed
-// aliases (like `bifrost`) work. Default `convex:3211` (the convex http-actions
+// aliases (like `llm-gateway`) work. Default `convex:3211` (the convex http-actions
 // port): in prod the convex container is dual-homed onto the sandbox net; in
 // dev a `convex` relay alias on the sandbox net forwards to the host-run convex.
 // Override per environment with EXTERNAL_AGENT_INTEGRATIONS_URL.
@@ -183,6 +183,10 @@ export const runExternalAgentTurn = internalAction({
      * uses the user-injected sandbox credentials. The per-agent authMode is the
      * sole control; there is no separate org-level gate. */
     authMode: v.optional(v.union(v.literal('managed'), v.literal('byo'))),
+    /** Opt the managed run into the runtime's native web tools (Claude Code
+     * WebSearch/WebFetch), lifting the governed deny. Absent/false keeps the
+     * governed default; BYO is native regardless. */
+    nativeWebTools: v.optional(v.boolean()),
     /** Turn posture from the thread's plan/act toggle ('execute' when absent). */
     permissionMode: v.optional(
       v.union(v.literal('plan'), v.literal('execute')),
@@ -608,6 +612,10 @@ export const runExternalAgentTurn = internalAction({
         await stageIntegrationSkills(ctx, {
           organizationId: args.organizationId,
           sessionId,
+          // The skill's web-access guidance must match the agent's actual tools:
+          // BYO is always native; managed is native only when opted in. Otherwise
+          // managed force-denies WebSearch/WebFetch (governed via integrations).
+          nativeWebTools: byo || args.nativeWebTools === true,
         });
         // The browser-human-control skill only applies when the live headed
         // browser is on (the request_human_control tool is wired in that mode).
@@ -628,7 +636,7 @@ export const runExternalAgentTurn = internalAction({
       let gatewayToken: string | null = null;
       if (!byo) {
         // Size its hard budget to the org's rolling-remaining cost (when a cost
-        // cap applies) so Bifrost's own ceiling can't exceed the rolling cap
+        // cap applies) so the gateway's own ceiling can't exceed the rolling cap
         // even between the seam-level budget checks; fall back to the flat
         // per-turn default when the org is uncapped. The turn-start gate in
         // start_agent_chat.ts already blocked a fully-exhausted budget, so a
@@ -667,7 +675,7 @@ export const runExternalAgentTurn = internalAction({
             organizationId: args.organizationId,
             sessionId,
             tokenHash: hashVirtualKey(vk.key),
-            bifrostKeyId: vk.keyId,
+            llmGatewayKeyId: vk.keyId,
             scope: {
               agentKind: args.agentKind,
               allowedModels: [args.modelRef],
@@ -789,7 +797,7 @@ export const runExternalAgentTurn = internalAction({
           // stays byte-identical to today otherwise.
           ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
           // MANAGED: send the canonical gateway routing so the request hits the
-          // SAME Bifrost record the VK is bound to (per-model
+          // SAME gateway record the VK is bound to (per-model
           // `<slug>__<modelId>` for custom providers; `<slug>/<modelId>` for
           // standard) — must match mintVirtualKey's resolver. BYO: pass the raw
           // model id straight through to the provider (no slug / catalog).
@@ -802,6 +810,9 @@ export const runExternalAgentTurn = internalAction({
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           authMode: byo ? 'byo' : 'managed',
+          ...(args.nativeWebTools !== undefined && {
+            nativeWebTools: args.nativeWebTools,
+          }),
           // Raise the browser-handoff card the moment the agent calls
           // request_human_control — mid-stream, not at turn end (a lingering
           // session may not terminate for a while). Idempotent on the mutation

@@ -6,7 +6,7 @@ const ALL_RUNNING = () => true;
 const NONE_RUNNING = () => false;
 
 describe('selectDefaultServices', () => {
-  test('always rolls platform + the always-roll tier (convex); sandbox flips separately', () => {
+  test('always rolls platform + the always-roll tier (convex, llm-gateway); sandbox flips separately', () => {
     const sel = selectDefaultServices({
       isFirstDeploy: false,
       stop: false,
@@ -14,7 +14,7 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.rotatable).toEqual(['platform']);
     // sandbox / sandbox-egress are NOT here — they roll via the blue-green flip.
-    expect(sel.stateful).toEqual(['convex']);
+    expect(sel.stateful).toEqual(['convex', 'llm-gateway']);
   });
 
   test('running db/proxy are left untouched without --stop', () => {
@@ -35,7 +35,7 @@ describe('selectDefaultServices', () => {
       isStopGatedRunning: ALL_RUNNING,
     });
     expect(sel.leftRunning).toEqual([]);
-    expect(sel.stateful).toEqual(['convex', 'db', 'proxy']);
+    expect(sel.stateful).toEqual(['convex', 'llm-gateway', 'db', 'proxy']);
   });
 
   test('stopped db/proxy are updated without --stop', () => {
@@ -67,6 +67,6 @@ describe('selectDefaultServices', () => {
       isStopGatedRunning: ALL_RUNNING,
     });
     expect(sel.leftRunning).toEqual([]);
-    expect(sel.stateful).toEqual(['convex', 'db', 'proxy']);
+    expect(sel.stateful).toEqual(['convex', 'llm-gateway', 'db', 'proxy']);
   });
 });

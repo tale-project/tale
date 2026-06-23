@@ -6,7 +6,7 @@
  *   POST /api/integrations/execute  body {slug, operation, args}
  *   POST /api/integrations/status   (no body)
  *
- * Auth: the bridge presents the per-session Bifrost virtual key (already in the
+ * Auth: the bridge presents the per-session gateway virtual key (already in the
  * container env) as `Authorization: Bearer <vk>`. We hash it (sha256, matching
  * `hashVirtualKey`) and look it up in sandboxSessionTokens; organizationId and
  * the dispatch grant set (scope.integrationGrants = the agent's

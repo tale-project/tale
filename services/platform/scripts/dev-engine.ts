@@ -80,21 +80,21 @@ const sinceBoot = (): string =>
 
 // Docker backing services the HOST `bun dev` depends on (Convex + Vite run on
 // the host; these run in docker). Excludes the host-run convex/platform and the
-// dev-irrelevant proxy/docs/controller. `bifrost` is the one with no published
-// port in base compose.yml — see DEV_COMPOSE_FILES.
+// dev-irrelevant proxy/docs/controller. `llm-gateway` is the one with no
+// published port in base compose.yml — see DEV_COMPOSE_FILES.
 //
 // Note: knowledge-db `depends_on convex` in base compose.yml only to wait for it
-// to seed the shared convex-data config volume. compose.bifrost.dev.yml (host
-// bun-dev only) drops that edge via `!override` — the host backend owns config
-// here, not the docker convex — so this bring-up does NOT pull up a redundant
-// convex container alongside the host one.
+// to seed the shared convex-data config volume. compose.llm-gateway.dev.yml
+// (host bun-dev only) drops that edge via `!override` — the host backend owns
+// config here, not the docker convex — so this bring-up does NOT pull up a
+// redundant convex container alongside the host one.
 const DEV_DOCKER_SERVICES = [
   'db',
   // ParadeDB for the knowledge base / RAG search corpus (formerly the separate
   // rag + crawler services, consolidated into the tale-db image — see the
   // knowledge-db migration wiring).
   'knowledge-db',
-  'bifrost',
+  'llm-gateway',
   'sandbox',
   'sandbox-egress',
   // socat relay aliased `convex` on the sandbox net → host-run convex :3211,
@@ -103,18 +103,18 @@ const DEV_DOCKER_SERVICES = [
   'convex-relay',
 ];
 // Overlay chain for local dev (matches docs/.../docker-compose-reference): base
-// + source-mounts/debug/extra_hosts (dev) + the loopback bifrost port publish
-// (bifrost.dev). compose.docs.yml is required because compose.dev.yml carries a
-// `docs` override whose base service lives only in compose.docs.yml — omit it
-// and compose rejects the whole project ("docs has neither an image nor a build
-// context"), even though we never start the docs service here. The base file
-// alone leaves bifrost unreachable from the host, which kills every
+// + source-mounts/debug/extra_hosts (dev) + the loopback gateway port publish
+// (llm-gateway.dev). compose.docs.yml is required because compose.dev.yml
+// carries a `docs` override whose base service lives only in compose.docs.yml —
+// omit it and compose rejects the whole project ("docs has neither an image nor
+// a build context"), even though we never start the docs service here. The base
+// file alone leaves the LLM gateway unreachable from the host, which kills every
 // external-agent turn.
 const DEV_COMPOSE_FILES = [
   'compose.yml',
   'compose.dev.yml',
   'compose.docs.yml',
-  'compose.bifrost.dev.yml',
+  'compose.llm-gateway.dev.yml',
 ];
 
 function parseDotEnv(filePath: string): Record<string, string> {
@@ -516,15 +516,15 @@ async function startDockerDaemon(): Promise<'ok' | 'no-daemon'> {
   return ready ? 'ok' : 'no-daemon';
 }
 
-/** Probe the bifrost gateway on its host-published loopback port until it
- *  accepts connections — this is the axis that breaks when the dev overlay's
- *  port binding is missing. Honours BIFROST_URL; warn-and-continue on timeout. */
-async function waitForBifrostGateway(
-  timeoutMs = DEV_GATES.bifrost.timeoutMs,
+/** Probe the LLM gateway on its host-published loopback port until it accepts
+ *  connections — this is the axis that breaks when the dev overlay's port
+ *  binding is missing. Honours LLM_GATEWAY_URL; warn-and-continue on timeout. */
+async function waitForLlmGateway(
+  timeoutMs = DEV_GATES.llmGateway.timeoutMs,
 ): Promise<void> {
   let host = '127.0.0.1';
   let port = 8080;
-  const raw = process.env.BIFROST_URL;
+  const raw = process.env.LLM_GATEWAY_URL;
   if (raw) {
     try {
       const u = new URL(raw);
@@ -532,7 +532,7 @@ async function waitForBifrostGateway(
       port = u.port ? Number(u.port) : port;
     } catch {
       warnLine(
-        `BIFROST_URL=${raw} is not a valid URL; probing ${host}:${port}`,
+        `LLM_GATEWAY_URL=${raw} is not a valid URL; probing ${host}:${port}`,
       );
     }
   }
@@ -543,23 +543,24 @@ async function waitForBifrostGateway(
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   warnLine(
-    `Bifrost gateway not reachable at ${host}:${port} within ${timeoutMs / 1000}s — external-agent turns may fail with "fetch failed".`,
+    `LLM gateway not reachable at ${host}:${port} within ${timeoutMs / 1000}s — external-agent turns may fail with "fetch failed".`,
   );
 }
 
 /** Bring up the docker backing services the host `bun dev` depends on, WITH the
  *  dev overlays. Host bun dev runs Convex + Vite on the host, but the LLM
- *  gateway (bifrost), sandbox spawner, db and knowledge-db run in docker. The
- *  base compose.yml publishes NO bifrost port (prod posture) — only
- *  compose.bifrost.dev.yml maps 127.0.0.1:8080 — so a plain `docker compose up`
- *  silently drops the loopback binding and the host Convex action can't reach
- *  the gateway (every external-agent turn then dies with "fetch failed"). Doing
- *  the bring-up here, with the overlay chain, makes `bun dev` self-sufficient
- *  and keeps the port from drifting.
+ *  gateway, sandbox spawner, db and knowledge-db run in docker. The base
+ *  compose.yml publishes NO gateway port (prod posture) — only
+ *  compose.llm-gateway.dev.yml maps 127.0.0.1:8080 — so a plain `docker compose
+ *  up` silently drops the loopback binding and the host Convex action can't
+ *  reach the gateway (every external-agent turn then dies with "fetch failed").
+ *  Doing the bring-up here, with the overlay chain, makes `bun dev`
+ *  self-sufficient and keeps the port from drifting.
  *
  *  Idempotent: an already-overlay stack recreates nothing; after a prior bare
- *  `up` it recreates whatever config drifted (bifrost gains its port, the rest
- *  gain source mounts / extra_hosts) — the intended convergence to dev config.
+ *  `up` it recreates whatever config drifted (the gateway gains its port, the
+ *  rest gain source mounts / extra_hosts) — the intended convergence to dev
+ *  config.
  *
  *  A stopped engine is auto-started first (Docker Desktop / systemd) so a dev
  *  machine where Docker simply isn't running doesn't have to start it by hand.
@@ -585,8 +586,8 @@ async function ensureDockerDependencies(): Promise<void> {
   // even a 100%-cached build re-exports a NEW image manifest digest. compose
   // then sees the service image no longer matches the running container's image
   // and recreates the container — every single run. (External-image services
-  // like bifrost/convex-relay are never built, so they stay put — which is why
-  // only the build-services churned.) Disabling the default attestation makes
+  // like llm-gateway/convex-relay are never built, so they stay put — which is
+  // why only the build-services churned.) Disabling the default attestation makes
   // the cached build reproduce a stable image ID, so an already-up stack
   // converges to a no-op. Scoped to dev: CI/release builds run in their own
   // processes and keep provenance for supply-chain integrity. Explicit override
@@ -662,7 +663,7 @@ async function ensureDockerDependencies(): Promise<void> {
     },
   );
 
-  if (dockerUp) await waitForBifrostGateway();
+  if (dockerUp) await waitForLlmGateway();
 }
 
 /** Probe the Better Auth HTTP surface (served by the Convex site proxy on
@@ -848,7 +849,7 @@ export async function runDevFleet() {
 
     // Bring up the docker backing stack (gateway, sandbox, db, knowledge-db)
     // WITH the dev overlays before Convex/Vite. Host bun dev runs Convex+Vite on
-    // the host but depends on these in docker; the bifrost gateway in particular
+    // the host but depends on these in docker; the LLM gateway in particular
     // has no published port in base compose.yml, so without this an external
     // agent turn dies with "fetch failed". Runs in BOTH local and external
     // Convex modes; non-fatal if docker is absent (warns + continues).

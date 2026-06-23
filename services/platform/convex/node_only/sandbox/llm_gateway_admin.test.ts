@@ -23,7 +23,7 @@ interface RecordedCall {
  *   PUT  /api/providers/:p/keys/* → rotate key (200)
  * Returns the recorded calls, in order.
  */
-function stubBifrost(opts: {
+function stubGateway(opts: {
   keyExists?: boolean;
   writeStatus?: number;
 }): RecordedCall[] {
@@ -68,7 +68,7 @@ function stubBifrost(opts: {
  * (the "new Node process" state). */
 async function loadModule() {
   vi.resetModules();
-  return import('./bifrost_admin');
+  return import('./llm_gateway_admin');
 }
 
 function writes(calls: RecordedCall[]): RecordedCall[] {
@@ -84,7 +84,7 @@ afterEach(() => {
 describe('provisionProviders', () => {
   it('creates an absent org key: config PUT + key POST, stable per-org name, models translated', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
     const w = writes(calls);
     expect(w.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
@@ -93,7 +93,7 @@ describe('provisionProviders', () => {
     ]);
     // provider config PUT carries no keys[] (keys are a sub-resource now) and,
     // for a standard provider, no base_url override + no custom_provider_config
-    // (Bifrost would 400 the latter) — the proven native path is unchanged.
+    // (the gateway would 400 the latter) — the proven native path is unchanged.
     expect(w[0]?.body?.keys).toBeUndefined();
     expect(w[0]?.body?.custom_provider_config).toBeUndefined();
     const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
@@ -115,7 +115,7 @@ describe('provisionProviders', () => {
   it('rotates a present org key with PUT to /keys/:id (not POST)', async () => {
     const mod = await loadModule();
     // Present key, but fresh memo → rewrite once.
-    const calls = stubBifrost({ keyExists: true });
+    const calls = stubGateway({ keyExists: true });
     await mod.provisionProviders(ORG, [PROVIDER]);
     const w = writes(calls);
     expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
@@ -126,9 +126,9 @@ describe('provisionProviders', () => {
 
   it('skips entirely when the key exists and the fingerprint matches (one GET, no writes)', async () => {
     const mod = await loadModule();
-    stubBifrost({ keyExists: false });
+    stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]); // first push
-    const calls = stubBifrost({ keyExists: true });
+    const calls = stubGateway({ keyExists: true });
     await mod.provisionProviders(ORG, [PROVIDER]); // memo + key present
     expect(writes(calls)).toEqual([]);
     expect(calls.map((c) => c.method)).toEqual(['GET']);
@@ -136,19 +136,19 @@ describe('provisionProviders', () => {
 
   it('rewrites when the gateway lost the key even though the memo matches', async () => {
     const mod = await loadModule();
-    stubBifrost({ keyExists: false });
+    stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
-    // e.g. bifrost-data volume wiped while this process stayed alive
-    const calls = stubBifrost({ keyExists: false });
+    // e.g. llm-gateway-data volume wiped while this process stayed alive
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
     expect(writes(calls).map((c) => c.method)).toEqual(['PUT', 'POST']);
   });
 
   it('rewrites when the key rotates', async () => {
     const mod = await loadModule();
-    stubBifrost({ keyExists: false });
+    stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
-    const calls = stubBifrost({ keyExists: true });
+    const calls = stubGateway({ keyExists: true });
     await mod.provisionProviders(ORG, [{ ...PROVIDER, apiKey: 'key-B' }]);
     const w = writes(calls);
     expect(w.map((c) => c.method)).toEqual(['PUT', 'PUT']);
@@ -158,7 +158,7 @@ describe('provisionProviders', () => {
   it('a failed write warns + leaves no memo (no throw), so the next provision retries', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await loadModule();
-    stubBifrost({ keyExists: false, writeStatus: 500 });
+    stubGateway({ keyExists: false, writeStatus: 500 });
     // provisionProviders is per-provider resilient: warns + continues, never throws.
     await expect(
       mod.provisionProviders(ORG, [PROVIDER]),
@@ -168,17 +168,17 @@ describe('provisionProviders', () => {
       expect.anything(),
     );
     // memo unset on failure → next provision retries the full write.
-    const retry = stubBifrost({ keyExists: false });
+    const retry = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [PROVIDER]);
     expect(writes(retry).map((c) => c.method)).toEqual(['PUT', 'POST']);
-    const third = stubBifrost({ keyExists: true });
+    const third = stubGateway({ keyExists: true });
     await mod.provisionProviders(ORG, [PROVIDER]);
     expect(writes(third)).toEqual([]);
   });
 
   it('sends no attribution extra_headers for a non-OpenRouter provider', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [
       {
         name: 'anthropic',
@@ -194,9 +194,9 @@ describe('provisionProviders', () => {
 
   it('two orgs coexist under one provider (distinct per-org key names)', async () => {
     const mod = await loadModule();
-    const a = stubBifrost({ keyExists: false });
+    const a = stubGateway({ keyExists: false });
     await mod.provisionProviders('orgA', [PROVIDER]);
-    const b = stubBifrost({ keyExists: false });
+    const b = stubGateway({ keyExists: false });
     await mod.provisionProviders('orgB', [PROVIDER]);
     expect(writes(a)[1]?.body?.name).toBe('tale-orgA-openrouter');
     expect(writes(b)[1]?.body?.name).toBe('tale-orgB-openrouter');
@@ -211,7 +211,7 @@ describe('provisionProviders', () => {
 
   it('provisions a custom (non-standard) provider as OpenAI-compatible with base_url + custom_provider_config', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [CUSTOM]);
     const w = writes(calls);
     expect(w.map((c) => `${c.method} ${new URL(c.url).pathname}`)).toEqual([
@@ -219,7 +219,7 @@ describe('provisionProviders', () => {
       'POST /api/providers/deepseek/keys',
     ]);
     const networkConfig = w[0]?.body?.network_config as Record<string, unknown>;
-    // Trailing /v1 stripped — Bifrost's openai handler appends it itself.
+    // Trailing /v1 stripped — the gateway's openai handler appends it itself.
     expect(networkConfig.base_url).toBe('https://api.deepseek.com');
     expect(w[0]?.body?.custom_provider_config).toEqual({
       base_provider_type: 'openai',
@@ -239,7 +239,7 @@ describe('provisionProviders', () => {
 
   it('leaves a custom base_url without a trailing /v1 unchanged', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [
       { ...CUSTOM, baseUrl: 'https://api.deepseek.com' },
     ]);
@@ -252,7 +252,7 @@ describe('provisionProviders', () => {
 
   it('provisions an apiFormat:"anthropic" custom provider with base_provider_type anthropic, no allowed_requests, un-stripped base_url', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [
       {
         ...CUSTOM,
@@ -394,9 +394,9 @@ describe('provisionProviders', () => {
     warn.mockRestore();
   });
 
-  it('treats a Bifrost standard provider (fireworks) natively — no base_url, no custom_provider_config', async () => {
+  it('treats a gateway standard provider (fireworks) natively — no base_url, no custom_provider_config', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.provisionProviders(ORG, [
       {
         name: 'fireworks',
@@ -521,7 +521,7 @@ describe('provisionProviders', () => {
 describe('reprovisionProvider', () => {
   it('creates the org key on a fresh process', async () => {
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.reprovisionProvider(ORG, PROVIDER);
     expect(writes(calls).map((c) => c.method)).toEqual(['PUT', 'POST']);
     expect(writes(calls)[1]?.body?.name).toBe(KEY_NAME);
@@ -530,7 +530,7 @@ describe('reprovisionProvider', () => {
   it('skips a custom provider with no base URL (warns, no gateway calls)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await loadModule();
-    const calls = stubBifrost({});
+    const calls = stubGateway({});
     // Non-standard name + no baseUrl → nothing to point a custom provider at.
     await mod.reprovisionProvider(ORG, { ...PROVIDER, name: 'my-custom-llm' });
     expect(calls).toEqual([]);
@@ -539,10 +539,10 @@ describe('reprovisionProvider', () => {
     );
   });
 
-  it('sends Basic auth when BIFROST_ADMIN_PASSWORD is set', async () => {
-    vi.stubEnv('BIFROST_ADMIN_PASSWORD', 'hunter2');
+  it('sends Basic auth when LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'hunter2');
     const mod = await loadModule();
-    const calls = stubBifrost({ keyExists: false });
+    const calls = stubGateway({ keyExists: false });
     await mod.reprovisionProvider(ORG, PROVIDER);
     expect(calls[0]?.headers.authorization).toBe(
       `Basic ${Buffer.from('admin:hunter2').toString('base64')}`,
@@ -551,7 +551,7 @@ describe('reprovisionProvider', () => {
 
   it('throws on a failed write (eager push owns the degrade posture)', async () => {
     const mod = await loadModule();
-    stubBifrost({ keyExists: false, writeStatus: 500 });
+    stubGateway({ keyExists: false, writeStatus: 500 });
     // Unlike provisionProviders (resilient), reprovisionProvider surfaces the
     // failure to its caller — the provider-save action decides how to degrade.
     await expect(mod.reprovisionProvider(ORG, PROVIDER)).rejects.toThrow(

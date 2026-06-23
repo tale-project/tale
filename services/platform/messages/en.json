@@ -5531,6 +5531,12 @@
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
           "openCode": "OpenCode"
+        },
+        "webTools": {
+          "sectionTitle": "Web tools",
+          "sectionDescription": "How this agent accesses the web.",
+          "nativeLabel": "Use native web search and fetch",
+          "nativeDescription": "Let the agent use its runtime's built-in WebSearch and WebFetch tools directly — best when the model supports them (e.g. OpenRouter). When off, the native web tools are disabled and web access must go through a connected search integration (audited and metered)."
         }
       },
       "delegation": {
