@@ -117,7 +117,10 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
       title={t('enrollment.title')}
       description={t('enrollment.description')}
       action={
-        <Button onClick={() => setState({ step: 'password' })}>
+        <Button
+          variant="secondary"
+          onClick={() => setState({ step: 'password' })}
+        >
           {t('enrollment.enableButton')}
         </Button>
       }
