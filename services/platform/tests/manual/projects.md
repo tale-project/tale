@@ -1,81 +1,112 @@
 # Projects & tasks — Manual Test Plan
 
-> **Purpose**: Exercise projects (identity, sharing/visibility, mode), their tabs
-> (files, threads, agents, instructions, secrets, metrics), and the task
-> board/list with the task detail sheet and review flow.
+> **Purpose**: Exercise projects (identity edit, sharing/visibility), their tabs
+> (files, threads, agents, instructions, secrets, metrics, discussions, apps),
+> and the task board/list with the task detail sheet and the cascade-delete
+> confirmation. Mock-LLM stack; no real provider needed for these flows.
 
 ## Scope & routes
 
-| Surface     | Route                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| List        | `/dashboard/{org}/projects`                                                                      |
-| Overview    | `/dashboard/{org}/projects/{projectId}`                                                          |
-| Tabs        | `/dashboard/{org}/projects/{projectId}/{files\|threads\|agents\|instructions\|secrets\|metrics}` |
-| Tasks       | `/dashboard/{org}/projects/{projectId}/tasks/{board\|list}`                                      |
-| Task detail | `…/tasks/board?task={taskId}` (deep link)                                                        |
+Every per-project route below was render-smoked (HTTP 200, no console/page
+errors, no error boundary) against a seeded org on 2026-06-23.
+
+| Surface         | Route                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| List            | `/dashboard/{org}/projects`                                                                    |
+| Overview        | `/dashboard/{org}/projects/{projectId}` (identity edit + Sharing live here)                    |
+| Files           | `/dashboard/{org}/projects/{projectId}/files`                                                  |
+| Threads         | `/dashboard/{org}/projects/{projectId}/threads`                                                |
+| Agents          | `/dashboard/{org}/projects/{projectId}/agents`                                                 |
+| Instructions    | `/dashboard/{org}/projects/{projectId}/instructions`                                           |
+| Secrets         | `/dashboard/{org}/projects/{projectId}/secrets`                                                |
+| Metrics         | `/dashboard/{org}/projects/{projectId}/metrics`                                                |
+| Discussions     | `/dashboard/{org}/projects/{projectId}/discussions`                                            |
+| Apps            | `/dashboard/{org}/projects/{projectId}/apps/{appSlug}` (and `…/apps/{appSlug}/runs/{execId}`)  |
+| Tasks (board)   | `/dashboard/{org}/projects/{projectId}/tasks` → redirects to `…/tasks/board`                   |
+| Tasks (list)    | `/dashboard/{org}/projects/{projectId}/tasks/list`                                             |
+| Task detail     | `…/tasks/board?task={taskId}` (deep link)                                                      |
+| Settings (gone) | `…/{projectId}/settings` 301-redirects to the Overview (identity/Sharing merged into Overview) |
 
 ## Prerequisites
 
-Stack up + signed in per [SETUP.md](SETUP.md). Create a throwaway project for
-the run and cascade-delete it at the end.
+Bring the stack up and sign in per [SETUP.md](SETUP.md). Create a throwaway
+project for the run with the **Create project** action and cascade-delete it at
+the end (F15). The merged Overview replaces the old Settings tab: rename +
+Sharing are in the Overview body (with a global **Save** / **Discard** bar),
+Archive/Delete are in the projects-list row ⋯ menu.
 
-> **Agent note**: cascade delete is gated — it requires ticking a checkbox AND
-> typing the exact confirmation phrase before the destructive submit enables.
+> **Agent note**: the Overview identity form uses a GLOBAL save bar, not
+> blur-to-save — edit the field, then click **Save** (`common.actions.save`) and
+> reload to assert persistence; do not rely on Tab/blur. Cascade delete is gated:
+> the destructive submit stays disabled until you type the exact project name
+> into the confirmation field.
 
 ## Automated coverage
 
-| Case(s)                            | Status         | e2e spec                 |
-| ---------------------------------- | -------------- | ------------------------ |
-| F1, F9, F16                        | ✅ automated   | `projects.spec.ts`       |
-| F2, F6, F7, F13                    | ✅ automated   | `projects-depth.spec.ts` |
-| B1, B2                             | ✅ automated   | `validation.spec.ts`     |
-| F3, F4, F5, F8, F10, F12, F14, F15 | ⛔ manual-only | —                        |
+| Case(s)                            | Status         | e2e spec                                                 |
+| ---------------------------------- | -------------- | -------------------------------------------------------- |
+| F1, F9, F12, F16                   | ✅ automated   | `projects.spec.ts` (create→task in both views→delete)    |
+| F2, F6                             | ✅ automated   | `projects-depth.spec.ts` (rename + instructions persist) |
+| F7                                 | ✅ automated   | `projects-depth.spec.ts` (secret create then delete)     |
+| F10, F12                           | ✅ automated   | `projects-depth.spec.ts` (status/priority/label persist) |
+| B2                                 | ✅ automated   | `validation.spec.ts` (delete-confirm phrase gating)      |
+| B1                                 | 🔶 partial     | `project-create-dialog.test.tsx` (unit, not e2e)         |
+| B4                                 | 🔶 partial     | `task-create` unit/component coverage (not e2e)          |
+| F3, F4, F5, F8, F11, F13, F14, F15 | ⛔ manual-only | —                                                        |
+| B3                                 | ⛔ manual-only | —                                                        |
+
+Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
+
+> Coverage notes (verified 2026-06-23): `validation.spec.ts` covers ONLY the
+> delete-confirmation gating (B2), not empty-name (B1 lives in a unit test).
+> `projects-depth.spec.ts` has NO review-flow test, so F13 is manual-only.
+> Its task live-edit test DOES cover F10 + F12.
 
 ## Functional tests
 
-| ID  | Test                 | Steps (route + control)                                                                                                                                                                                                                              | Expected                                                                                             |
-| --- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| F1  | Create project       | **New** (`projects.list.createButton`) → name (`projects.create.nameLabel`) → **Create** (`projects.create.submit`)                                                                                                                                  | Project created and opens                                                                            |
-| F2  | Overview edit        | Overview → rename (`projects.settings.name`) → save                                                                                                                                                                                                  | Saved (`projects.settings.saveSuccess`); persists on reload                                          |
-| F3  | Sharing / visibility | Overview → **Sharing** (`projects.settings.sharing`) → set **Visibility** (`projects.settings.visibility`) to Team-only / Specific teams / Org-wide (`projects.settings.visibilityTeam` / `visibilityShared` / `visibilityOrgWide`)                  | Narrowing access shows the warning (`projects.settings.sharingNarrowingWarning`); selection persists |
-| F4  | Files                | Files tab → upload a file; download; delete                                                                                                                                                                                                          | File appears, downloads, removes                                                                     |
-| F5  | Threads / agents     | Threads tab → start a chat in project context; Agents tab → bind an agent                                                                                                                                                                            | Thread scoped to the project; agent binding persists                                                 |
-| F6  | Instructions         | Instructions tab (`projects.instructions.label`) → edit → save                                                                                                                                                                                       | Persists on reload                                                                                   |
-| F7  | Secrets              | Secrets tab → **Add** (`projectSecrets.addButton`) → name (`projectSecrets.nameLabel`) + value (`projectSecrets.apiKeyValueLabel`)                                                                                                                   | Value stored masked; edit/delete work                                                                |
-| F8  | Metrics              | Metrics tab                                                                                                                                                                                                                                          | Usage stats render                                                                                   |
-| F9  | Create task          | Tasks → **Create** (`tasks.actions.create`) → title (`tasks.fields.title`)                                                                                                                                                                           | Task on board and list                                                                               |
-| F10 | Task fields          | Open task → status (`tasks.fields.status` → `tasks.status.in_progress`), priority (`tasks.fields.priority` → `tasks.priority.p1`), label (`tasks.labels.add`) → **Change color** (`tasks.labels.changeColor`)                                        | Fields + label color update and persist                                                              |
-| F11 | Task deep link       | Open `…/tasks/board?task={id}` directly                                                                                                                                                                                                              | Task detail sheet opens for that task                                                                |
-| F12 | Board ↔ list         | Edit a task on the board, switch to list                                                                                                                                                                                                             | Edit reflected in both views                                                                         |
-| F13 | Review flow          | Request review on a task                                                                                                                                                                                                                             | Review notification raised                                                                           |
-| F14 | Archive              | Archive a project; toggle archived view; unarchive                                                                                                                                                                                                   | Moves between active/archived                                                                        |
-| F15 | Cascade delete       | Row **⋯** (`common.actions.openMenu`) → **Delete** (`projects.rowActions.delete`) → tick cascade (`projects.settings.deleteCascadeCheckbox`) + type phrase (`projects.settings.deleteConfirmPhrase`) → **Delete** (`projects.settings.deleteSubmit`) | Project and its tasks removed                                                                        |
-| F16 | List + board basics  | Create a project + task, view board & list, then delete                                                                                                                                                                                              | Mirrors the automated happy path                                                                     |
+| ID  | Test                 | Steps (route + control)                                                                                                                                                                                                                                                                                                                                                                                                       | Expected (verifiable)                                                                                                                                              |
+| --- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1  | Create project       | `/dashboard/{org}/projects` → **Create project** (`projects.list.createButton`) → in the **Create project** dialog (`projects.create.title`) fill **Project name** (`projects.create.nameLabel`) → **Create project** (`projects.create.submit`)                                                                                                                                                                              | URL changes to `/dashboard/{org}/projects/{16+charId}` (the Overview)                                                                                              |
+| F2  | Overview rename      | Overview → edit **Name** (`projects.settings.name`, id `project-overview-name`) → **Save** (`common.actions.save`)                                                                                                                                                                                                                                                                                                            | Toast "Saved" (`projects.settings.saveSuccess`); after reload the Name field rehydrates to the new value                                                           |
+| F3  | Sharing / visibility | Overview → **Sharing** section (`projects.overview.sharingHeading`) → set **Visibility** (`projects.settings.visibility`) to **Team-only** / **Specific teams** / **Org-wide** (`projects.settings.visibilityTeam` / `visibilityShared` / `visibilityOrgWide`) → **Save**                                                                                                                                                     | Narrowing access shows the warning text "This change narrows access…" (`projects.settings.sharingNarrowingWarning`); after reload the selected visibility persists |
+| F4  | Files                | Files tab → upload a file; download it; delete it                                                                                                                                                                                                                                                                                                                                                                             | Uploaded file row becomes visible by name; after delete + reload the row is gone                                                                                   |
+| F5  | Threads / agents     | Threads tab → **New chat in this project** → send `hello`, wait for Send to re-enable; Agents tab → bind an agent                                                                                                                                                                                                                                                                                                             | The new thread is listed in the Threads tab after reload; the bound agent row is present in the Agents tab after reload                                            |
+| F6  | Instructions         | Instructions tab (`projects.instructions.label`, textbox id `project-instructions`) → edit text → save                                                                                                                                                                                                                                                                                                                        | After reload the Instructions textarea rehydrates the saved text                                                                                                   |
+| F7  | Secrets              | Secrets tab (`projectSecrets.title`) → **Add secret** (`projectSecrets.addButton`) → **Name** (`projectSecrets.nameLabel`) + **API key** (`projectSecrets.apiKeyValueLabel`) → save                                                                                                                                                                                                                                           | The secret row appears by name; the value is shown masked; after reload the row persists; edit/delete work                                                         |
+| F8  | Metrics              | Metrics tab                                                                                                                                                                                                                                                                                                                                                                                                                   | The metrics page renders (HTTP 200, no error boundary); at least one usage stat card is visible (zeros are acceptable)                                             |
+| F9  | Create task          | `…/tasks/board` → **Create task** (`tasks.actions.create`) → **Title** (`tasks.fields.title`) → **Create task** (`tasks.actions.create`, dialog submit)                                                                                                                                                                                                                                                                       | After reload the task card is visible on the board by its title                                                                                                    |
+| F10 | Task fields          | Open a task → **Status** (`tasks.fields.status` → **In progress** `tasks.status.in_progress`), **Priority** (`tasks.fields.priority` → **High** `tasks.priority.p1`), **Add label…** (`tasks.labels.add`) → **Change color** (`tasks.labels.changeColor`)                                                                                                                                                                     | After reload the task shows the updated status, priority, and label color                                                                                          |
+| F11 | Task deep link       | Navigate directly to `…/tasks/board?task={taskId}`                                                                                                                                                                                                                                                                                                                                                                            | The task detail sheet opens for that task (its title is visible in the sheet)                                                                                      |
+| F12 | Board ↔ list         | Create/edit a task on `…/tasks/board`, then open `…/tasks/list`                                                                                                                                                                                                                                                                                                                                                               | The same task title is visible in the list view (edit reflected in both views)                                                                                     |
+| F13 | Review flow          | Open a task → request review on it                                                                                                                                                                                                                                                                                                                                                                                            | A review request is recorded on the task (review state visible on the task after reload)                                                                           |
+| F14 | Archive              | Projects list → row ⋯ (`common.actions.openMenu`) → **Archive**; toggle the archived view; **Unarchive**                                                                                                                                                                                                                                                                                                                      | Archived project leaves the active list and appears under archived; unarchive returns it to the active list (survives reload)                                      |
+| F15 | Cascade delete       | Projects list → row ⋯ (`common.actions.openMenu`) → **Delete** (`projects.rowActions.delete`) → in the **Delete project** dialog (`projects.settings.deleteDialogTitle`) tick **Also delete attached files…** (`projects.settings.deleteCascadeCheckbox`) + type the project name into **Type the project name to confirm** (`projects.settings.deleteConfirmPhrase`) → **Delete project** (`projects.settings.deleteSubmit`) | The project row is gone from the list after the dialog closes and survives a reload; its tasks are also removed                                                    |
+| F16 | List + board basics  | Create a project + task, view board & list, then cascade-delete                                                                                                                                                                                                                                                                                                                                                               | Mirrors the automated happy path in `projects.spec.ts`                                                                                                             |
 
 ## Boundary & error tests
 
-| ID  | Test             | Input                                      | Expected                            |
-| --- | ---------------- | ------------------------------------------ | ----------------------------------- |
-| B1  | Empty name       | Create with empty name                     | Required validation; submit blocked |
-| B2  | Delete gating    | Open delete, leave phrase empty / unticked | Destructive submit stays disabled   |
-| B3  | Duplicate secret | Add two secrets with the same name         | Second rejected                     |
-| B4  | Empty task title | Create task with no title                  | Required validation                 |
+| ID  | Test             | Input                                                                 | Expected                                                                                                               |
+| --- | ---------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| B1  | Empty name       | Create-project dialog → leave **Project name** empty → submit         | Required validation; submit blocked, dialog stays open (NOTE: validation fires on first keystroke — known issue #1943) |
+| B2  | Delete gating    | Open Delete dialog, leave the confirm-phrase field empty / mismatched | **Delete project** submit stays disabled until the typed phrase matches the project name exactly                       |
+| B3  | Duplicate secret | Add two secrets with the same name                                    | Second submit rejected with an inline/toast error; only one secret with that name persists                             |
+| B4  | Empty task title | Create-task dialog → leave **Title** empty → submit                   | Required validation; task not created (dialog stays open or shows the field error)                                     |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check          | Expected                                                      |
-| --- | -------------- | ------------------------------------------------------------- |
-| A1  | Board DnD      | A keyboard path exists to move/reorder a task (not drag-only) |
-| A2  | Task sheet     | Dialog has a title, traps focus, returns it on close          |
-| A3  | Secret masking | Stored value masked; reveal control labelled                  |
-| A4  | Tabs           | Project tabs labelled and keyboard reachable                  |
+| ID  | Check          | Expected                                                                               |
+| --- | -------------- | -------------------------------------------------------------------------------------- |
+| A1  | Board DnD      | A keyboard path exists to move/reorder a task (not drag-only)                          |
+| A2  | Task sheet     | The task detail dialog has an accessible name, traps focus, returns focus on close     |
+| A3  | Secret masking | Stored secret value is masked; the reveal control has an accessible name               |
+| A4  | Tabs           | Project tabs (Files/Threads/Agents/…) are labelled as a tablist and keyboard reachable |
 
 ## Performance
 
-| ID  | Metric       | Target                    |
-| --- | ------------ | ------------------------- |
-| P1  | Project open | < 1.5 s                   |
-| P2  | Board render | < 1.5 s with seeded tasks |
+| ID  | Metric                | Target                                                      |
+| --- | --------------------- | ----------------------------------------------------------- |
+| P1  | Project Overview open | First paint < 1.5 s (warm route, mock stack, local backend) |
+| P2  | Task board render     | < 1.5 s with a seeded project of ≤ 20 tasks (mock stack)    |
 
 ## Issues Found
 

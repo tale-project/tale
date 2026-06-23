@@ -1,78 +1,112 @@
 # Notifications & inbox — Manual Test Plan
 
-> **Purpose**: Exercise the notification center (the header bell + panel) and the
-> inbox of pending reviews (task approval/rejection). No automated spec covers
-> this — treat every case as manual-only.
+> **Purpose**: Exercise the notification center (the global header **bell** +
+> its popover panel) and the inline review inbox (task approval / request-changes
+> answered straight from a notification row). No automated spec covers this area —
+> every case is manual-only. Mock-LLM mode is fine; review items come from a task
+> flow that requests a review (see Prerequisites).
 
 ## Scope & routes
 
-Notifications are a global header control on every dashboard route; the inbox
-surfaces pending review items. There is no dedicated top-level URL — drive it
-from any `/dashboard/{org}/…` page.
+The bell has **no dedicated URL**. It is mounted in the global dashboard
+navigation (`app/components/ui/navigation/navigation.tsx`) and therefore appears
+on **every** `/dashboard/{org}/…` route. Drive the panel from any dashboard page.
+One related route is concrete:
+
+| Surface                         | Route                                        |
+| ------------------------------- | -------------------------------------------- |
+| Any dashboard page (hosts bell) | `/dashboard/{org}/chat`                      |
+| Any dashboard page (hosts bell) | `/dashboard/{org}/projects`                  |
+| Governance Trash (memory audit) | `/dashboard/{org}/settings/governance/trash` |
 
 ## Prerequisites
 
-Stack up + signed in per [SETUP.md](SETUP.md). To generate review items, run a
-flow that requests a review (e.g. a chat write-op approval, or a task review from
-[projects.md](projects.md) F13), then return to the bell/inbox.
+Bring the stack up and sign in per [SETUP.md](SETUP.md). The bell + empty states
+need no seed data. To exercise **review** items (F7) and the **unread badge /
+Mark-all-read** path (F1, F4), first generate a personal `task_review_requested`
+notification: run a flow that requests a review (e.g. a chat write-op approval, or
+a task review per [projects.md](projects.md)), then reopen the bell. A fresh
+seeded org starts with an **empty** notification stream.
 
-> **Agent note**: ⛔ no e2e spec. Notifications update in real time — assert the
-> count/list changes without a manual reload. The memory-proposal audit trail is
-> separately visible under Governance → Trash → **Memory audit**
-> (`governance.trash.tab.memoryAudit`).
+> **Agent note**: ⛔ no e2e spec. The bell's accessible name is **Notifications**
+> (`navigation.notifications`), NOT a `notifications.*` key. The unread **count
+> badge is `aria-hidden`** (decorative) — the per-row `sr-only` "Unread"
+> (`notifications.ariaUnread`) is the only announced unread signal. The panel's
+> **default filter is _Unread_**, so the first empty state you see is
+> **"You're all caught up"** (`notifications.emptyCaughtUpTitle`); the
+> **All** tab shows **"No notifications yet"** (`notifications.emptyAllTitle`).
+> **Mark all as read** (`notifications.markAllAsRead`) only renders when the
+> unread count is > 0. The memory-proposal audit trail lives under Governance →
+> **Trash** → the **Category** filter option **Memory audit**
+> (`governance.trash.tab.memoryAudit`) — it is a filter option, not a tab, and
+> only appears once memory-audit rows have been retention-trashed.
 
 ## Automated coverage
 
 | Case(s) | Status         | e2e spec |
 | ------- | -------------- | -------- |
 | F1–F8   | ⛔ manual-only | —        |
+| B1–B3   | ⛔ manual-only | —        |
+| A1–A3   | ⛔ manual-only | —        |
+
+Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
+There is **no** `notifications.spec.ts`; no other spec touches the bell/panel.
 
 ## Functional tests
 
-| ID  | Test              | Steps (control)                                                   | Expected                                                                        |
-| --- | ----------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| F1  | Unread badge      | Generate a notification, observe the bell                         | Unread count exposed (`notifications.ariaUnread`)                               |
-| F2  | Open panel        | Click the bell                                                    | Panel (`notifications.title`) lists notifications, newest first                 |
-| F3  | Action button     | Click an actionable notification (e.g. a review)                  | Navigates to the relevant item (task / approval / conversation)                 |
-| F4  | Mark read / clear | **Mark all as read** (`notifications.markAllAsRead`)              | Count clears; read state persists                                               |
-| F5  | Load more         | With many notifications, **Load more** (`notifications.loadMore`) | Older notifications paginate in                                                 |
-| F6  | Empty state       | With none, open the panel                                         | Empty state (`notifications.emptyAllTitle` — "No notifications yet")            |
-| F7  | Inbox reviews     | Open the inbox of pending reviews; approve one, reject another    | The underlying task/write proceeds or is declined; item leaves the pending list |
-| F8  | Real-time         | Trigger a notification in another tab/session                     | It appears in this session's bell without a reload                              |
+| ID  | Test             | Steps (route + control)                                                                                                                          | Expected (verifiable)                                                                                                                                                                             |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Unread badge     | Generate ≥1 unread notification, load any `/dashboard/{org}/…` page                                                                              | A numeric badge (or `99+`) renders on the **Notifications** bell button (`navigation.notifications`). Badge is decorative (`aria-hidden`)                                                         |
+| F2  | Open panel       | Click the **Notifications** bell button (`navigation.notifications`)                                                                             | Popover opens; header shows **Notifications** (`notifications.title`) and two tabs **Unread** (`notifications.filterUnread`) + **All** (`notifications.filterAll`); default selected tab = Unread |
+| F3  | Deep-link a row  | With a notification that has a target, click its body                                                                                            | URL changes to the linked item (task / approval / conversation); panel closes; row becomes read                                                                                                   |
+| F4  | Mark all as read | With unread > 0, click **Mark all as read** (`notifications.markAllAsRead`)                                                                      | Badge clears to 0; button disappears (only renders when unread > 0); read state survives a reload (reopen bell → those rows no longer under **Unread**)                                           |
+| F5  | Mark one read    | On an unread row, click the trailing check **Mark as read** (`notifications.markAsRead`) icon button                                             | Row leaves the **Unread** tab and remains visible under **All** as read; badge decrements by 1; survives reload                                                                                   |
+| F6  | Load more        | With > 25 notifications under **All**, click **Load more** (`notifications.loadMore`)                                                            | Older notifications append below; button shows **Loading…** (`notifications.loading`) while fetching, then disables when exhausted                                                                |
+| F7  | Inline review    | On a `task_review_requested` row, click **Approve** (`tasks.review.approve`)                                                                     | Success toast **Task approved and completed** (`tasks.review.approvedToast`); the review controls vanish from the row; the task's status reflects approval after reload                           |
+| F7b | Request changes  | On a review row, click **Request changes** (`tasks.review.requestChanges`), type feedback, click **Send feedback** (`tasks.review.sendFeedback`) | **Send feedback** is disabled until feedback is non-empty; on submit, toast **Changes requested — the agent is on it** (`tasks.review.changesRequestedToast`); controls vanish from the row       |
+| F8  | Real-time update | Open the panel; in another tab/session trigger a notification for this org                                                                       | The new row appears in the open panel (and the badge increments) **without a manual reload** (Convex live query)                                                                                  |
 
 ## Boundary & error tests
 
-| ID  | Test         | Input                                     | Expected                                     |
-| --- | ------------ | ----------------------------------------- | -------------------------------------------- |
-| B1  | Empty state  | No notifications / no pending reviews     | Real empty state, not a blank panel          |
-| B2  | Stale action | Act on a review already handled elsewhere | Friendly "already handled" message, no error |
+| ID  | Test                   | Input                                                                                  | Expected                                                                                                                                           |
+| --- | ---------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Empty Unread (default) | Fresh org / nothing unread; open the bell (default Unread tab)                         | Empty state **You're all caught up** (`notifications.emptyCaughtUpTitle`) + subtext (`notifications.emptyCaughtUpDescription`) — NOT a blank panel |
+| B2  | Empty All tab          | No notifications at all; open the bell and switch to the **All** tab                   | Empty state **No notifications yet** (`notifications.emptyAllTitle`) + subtext (`notifications.emptyAllDescription`)                               |
+| B3  | Stale review action    | On a review row already resolved elsewhere, click **Approve** (`tasks.review.approve`) | No crash; generic error toast (`common.errors.generic`) is shown and the row's review controls collapse — never a thrown page error                |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check        | Expected                                                                    |
-| --- | ------------ | --------------------------------------------------------------------------- |
-| A1  | Bell button  | Has an accessible name; unread count announced (`notifications.ariaUnread`) |
-| A2  | Panel focus  | Opening moves focus into the panel; Esc closes and returns focus            |
-| A3  | Live updates | New notifications announced via an `aria-live` region                       |
+| ID  | Check            | Expected                                                                                                                           |
+| --- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Bell button name | The bell exposes the accessible name **Notifications** (`navigation.notifications`). The count badge is `aria-hidden` (decorative) |
+| A2  | Panel keyboard   | Esc closes the popover and returns focus to the bell trigger (Radix Popover behaviour)                                             |
+| A3  | Loading status   | While the first page loads, a `role="status"` `aria-live="polite"` region announces **Loading…** (`notifications.loading`)         |
+
+> **A11y note**: there is **no** dedicated `aria-live` region announcing _new_
+> notifications after first load — only the initial loading spinner is a live
+> region. Unread rows expose an `sr-only` **Unread** (`notifications.ariaUnread`)
+> label. Flag any expectation of spoken new-notification announcements as an
+> IMPROVEMENT, not a pass.
 
 ## Performance
 
-| ID  | Metric     | Target                                                    |
-| --- | ---------- | --------------------------------------------------------- |
-| P1  | Panel open | < 0.5 s                                                   |
-| P2  | Real-time  | New notification appears < 2 s after the triggering event |
+| ID  | Metric              | Target                                                                                       |
+| --- | ------------------- | -------------------------------------------------------------------------------------------- |
+| P1  | Panel open          | Popover content visible < 300 ms after the bell click (warm route, mock mode, local backend) |
+| P2  | First page of items | Notifications list painted < 1 s after open (warm route, mock mode, local backend)           |
+| P3  | Real-time delivery  | A notification triggered elsewhere appears in an open panel < 2 s (mock mode, local backend) |
 
 ## Issues Found
 
-| #   | Test ID | Route / URL | Severity | Description | Screenshot |
-| --- | ------- | ----------- | -------- | ----------- | ---------- |
-|     |         |             |          |             |            |
+| #   | Test ID | Route / URL | Severity (crit/high/med/low) | Description | Screenshot |
+| --- | ------- | ----------- | ---------------------------- | ----------- | ---------- |
+|     |         |             |                              |             |            |
 
 ## Test summary
 
 ```
 Area: Notifications & inbox
-Functional: ___/8   Boundary: ___/2   A11y: ___/3   Perf: ___/2
+Functional: ___/9   Boundary: ___/3   A11y: ___/3   Perf: ___/3
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

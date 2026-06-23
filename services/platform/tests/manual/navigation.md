@@ -1,85 +1,110 @@
 # Navigation & shell — Manual Test Plan
 
-> **Purpose**: Exercise cross-app navigation — the side nav, breadcrumbs,
-> browser back/forward, the command palette, org switcher and team filter, the
-> changelog, render-only pages (metrics, embedded Swagger, redirects), and the
-> shared DataTable behaviours (search-filter, pagination, bulk select).
+> **Purpose**: Exercise cross-app navigation — the primary side-nav rail, the
+> breadcrumb trail, browser back/forward, the chat command palette
+> (Cmd/Ctrl+K), the org switcher and team filter, the changelog viewer, the
+> render-only pages (workforce/automation metrics, embedded Swagger, the
+> `custom-agents` redirect), and the shared DataTable behaviours
+> (search-filter, pagination, bulk select). No provider needed — every route
+> here renders offline in the deterministic stack.
 
 ## Scope & routes
 
-| Surface     | Route                                                                                        |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| Any section | `/dashboard/{org}/{chat\|projects\|conversations\|documents\|agents\|automations\|settings}` |
-| Changelog   | `/dashboard/changelog` (`?from=…&to=…`)                                                      |
-| Metrics     | `/dashboard/{org}/agents/metrics` · `…/automations/metrics`                                  |
-| Swagger     | `/docs`                                                                                      |
-| Redirect    | `/dashboard/{org}/custom-agents` → `…/agents`                                                |
+| Surface              | Route                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| Primary nav sections | `/dashboard/{org}/{chat\|apps\|projects\|conversations\|documents\|agents\|automations\|settings}` |
+| Conversations        | `/dashboard/{org}/conversations` → redirects to `…/conversations/open`                             |
+| Knowledge            | `/dashboard/{org}/documents` (the "Knowledge" rail item)                                           |
+| Settings landing     | `/dashboard/{org}/settings` → redirects to `…/settings/account`                                    |
+| Governance group     | `/dashboard/{org}/settings/governance` → redirects to `…/governance/content-models`                |
+| Governance sub-page  | `/dashboard/{org}/settings/governance/policies-limits`                                             |
+| Org-switch staging   | `/dashboard/switching?to={otherOrg}` → redirects to `/dashboard/{otherOrg}`                        |
+| Changelog            | `/dashboard/changelog` (`?from=…&to=…`)                                                            |
+| Workforce metrics    | `/dashboard/{org}/agents/metrics`                                                                  |
+| Automation metrics   | `/dashboard/{org}/automations/metrics`                                                             |
+| Swagger              | `/docs`                                                                                            |
+| Redirect             | `/dashboard/{org}/custom-agents` → `…/agents/all`                                                  |
 
 ## Prerequisites
 
-Stack up + signed in per [SETUP.md](SETUP.md). For the command-palette test,
-have at least one chat thread with searchable content.
+Bring the stack up and sign in per [SETUP.md](SETUP.md). For F4 (command
+palette) have at least one chat thread with searchable content. F5 (org
+switcher) needs the signed-in account to belong to **two or more** orgs — a
+freshly-seeded single-org account cannot switch. F6 (team filter) needs the org
+to have **at least one team** (Settings → Teams); the filter row is hidden when
+the org has no teams.
+
+> **Agent note**: smoke every route once (navigate + check it renders), then drive F4/F8/A1
+> by hand. The chat palette (Cmd/Ctrl+K) is wired only on the **chat** route's
+> header — open `/dashboard/{org}/chat` first. The changelog fetches GitHub
+> releases; offline it lands on the "up to date" state, not a crash.
 
 ## Automated coverage
 
-| Case(s)        | Status            | e2e spec                             |
-| -------------- | ----------------- | ------------------------------------ |
-| F1, F2, F3, F7 | ✅ automated      | `navigation.spec.ts`                 |
-| F9             | ✅ automated      | `page-loads.spec.ts`                 |
-| F4             | ✅ automated      | `search.spec.ts`, `keyboard.spec.ts` |
-| F10            | ✅ automated      | `list-behaviors.spec.ts`             |
-| F5, F6, F8     | 🔶/⛔ manual-only | —                                    |
+| Case(s)        | Status         | e2e spec                                   |
+| -------------- | -------------- | ------------------------------------------ |
+| F1, F2, F3, F7 | ✅ automated   | `navigation.spec.ts`                       |
+| F4             | ✅ automated   | `search.spec.ts`                           |
+| F9             | ✅ automated   | `page-loads.spec.ts` (render-only anchors) |
+| F5, F6, F8     | ⛔ manual-only | —                                          |
+| F10            | ⛔ manual-only | — (no DataTable bulk-action spec exists)   |
+| B1             | ✅ automated   | `navigation.spec.ts` (not-found shell)     |
+
+Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
+(`keyboard.spec.ts` only covers wizard focus order — NOT the Cmd+K palette.
+`list-behaviors.spec.ts` does not exist.)
 
 ## Functional tests
 
-| ID  | Test                  | Steps (route + control)                                                                                                                                                    | Expected                                                         |
-| --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| F1  | Side nav              | Use the main nav (`common.aria.mainNavigation`) to visit chat / projects / conversations / knowledge / agents / automations / settings                                     | Each section loads; active item marked                           |
-| F2  | Breadcrumbs           | Navigate into a nested page (e.g. an agent editor)                                                                                                                         | Breadcrumbs reflect the path and are clickable                   |
-| F3  | Back/forward          | Use browser back/forward across several pages                                                                                                                              | State restores; no broken view                                   |
-| F4  | Command palette       | Cmd/Ctrl+K → type thread content (`dialogs.searchChat.placeholder`)                                                                                                        | Palette finds and opens the matching thread                      |
-| F5  | Org switcher          | Open the org switcher (`navigation.orgSwitcher.label`), pick another org                                                                                                   | Switches via `/dashboard/switching`; data scoped to the new org  |
-| F6  | Team filter           | Apply a team filter (`navigation.teamFilter.label`)                                                                                                                        | Lists scope to the team                                          |
-| F7  | Governance disclosure | Settings → **Governance** (`navigation.governance`) → a sub-page (`governance.groups.policiesAndLimits`)                                                                   | Disclosure expands; sub-page loads                               |
-| F8  | Changelog             | `/dashboard/changelog` (`changelog.viewer.heading`); apply `?from=&to=`; observe the new-version badge                                                                     | Releases render; version range filters; badge clears once viewed |
-| F9  | Render-only pages     | Visit metrics (`workforce.title`, `automations.metrics.title`), `/docs` (Swagger), and a redirect (`/custom-agents` → `/agents`)                                           | All render / redirect without error                              |
-| F10 | DataTable behaviours  | On a list, search-filter; paginate (`common.aria.previousPage` / `nextPage`); select-all (`common.aria.selectAll`) → **Delete selected** (`common.actions.deleteSelected`) | Filter narrows; pages change; bulk action affects the selection  |
+| ID  | Test                  | Steps (route + control)                                                                                                                                                                                                                                                                                                                                                                                                  | Expected (verifiable)                                                                                                                                                                                                                                                                                                                     |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Side nav              | In the rail (`<nav aria-label>` = **Main navigation**, `common.aria.mainNavigation`) click each item: **New chat** (`navigation.newChat`), **Apps** (`navigation.apps`), **Projects** (`projects.title`), **Conversations** (`navigation.conversations`), **Knowledge** (`navigation.knowledge`), **Agents** (`navigation.agents`), **Automations** (`navigation.automations`), **Settings** (`navigation.userSettings`) | Each click commits the matching URL: `/chat`, `/apps`, `/projects`, `/conversations/open`, `/documents`, `/agents/all`, `/automations`, `/settings/account`. The clicked rail item gets `aria-current`/active styling; the rail persists across navigations                                                                               |
+| F2  | Breadcrumbs           | Open `/dashboard/{org}/agents/all`, click an agent row to open its editor (`/dashboard/{org}/agents/{agentId}`)                                                                                                                                                                                                                                                                                                          | The adaptive header shows a breadcrumb trail (e.g. **Agents** → agent name); clicking the parent **Agents** crumb returns to `/dashboard/{org}/agents/all`                                                                                                                                                                                |
+| F3  | Back/forward          | Visit chat → projects → agents, then browser Back twice, then Forward once                                                                                                                                                                                                                                                                                                                                               | The URL and the visible section content track each history entry; no error boundary; no blank view                                                                                                                                                                                                                                        |
+| F4  | Command palette       | On `/dashboard/{org}/chat` press **Cmd/Ctrl+K**; type thread content into the **Search chat** field (`dialogs.searchChat.placeholder`)                                                                                                                                                                                                                                                                                   | A `role="dialog"` palette opens with the **Search chat** input; typing matches a thread; selecting it navigates to that thread; **Esc** closes the dialog                                                                                                                                                                                 |
+| F5  | Org switcher          | Open the **Organization** switcher (`navigation.orgSwitcher.label`) in the org button; pick a second org (needs ≥2 orgs)                                                                                                                                                                                                                                                                                                 | URL passes through `/dashboard/switching?to={otherOrg}` (shows the switching spinner), then lands on `/dashboard/{otherOrg}/…`; data is scoped to the new org                                                                                                                                                                             |
+| F6  | Team filter           | In the user/avatar menu (bottom-left), expand the **Team** row (`navigation.teamFilter.label`) and pick a team (needs ≥1 team)                                                                                                                                                                                                                                                                                           | The selected team name shows as the row badge; lists scope to that team (verify a list count/contents changes)                                                                                                                                                                                                                            |
+| F7  | Governance disclosure | **Settings** → in the settings rail (`<nav aria-label>` = **Settings**, `navigation.userSettings`) expand **Governance** (`navigation.governance`) → click **Policies & Limits** (`governance.groups.policiesAndLimits`)                                                                                                                                                                                                 | The Governance group expands; URL commits `/dashboard/{org}/settings/governance/policies-limits` and the page renders                                                                                                                                                                                                                     |
+| F8  | Changelog             | Open `/dashboard/changelog`                                                                                                                                                                                                                                                                                                                                                                                              | Heading **What's new** (`changelog.viewer.heading`) is visible. Offline/up-to-date stack: shows **You're up to date.** (`changelog.viewer.upToDate`) + **View older releases on GitHub ↗** link (`changelog.viewer.viewAllOnGitHub`). Online with newer releases: release entries render and the range filters (`?from=&to=`) narrow them |
+| F9  | Render-only pages     | Visit `/dashboard/{org}/agents/metrics` (heading **Metrics**, `settings.agents.tabs.metrics`), `/dashboard/{org}/automations/metrics` (heading **Automation Metrics**, `automations.metrics.title`), `/docs` (Swagger), and `/dashboard/{org}/custom-agents`                                                                                                                                                             | Metrics pages render their heading + period switcher; `/docs` mounts `main.swagger-ui-standalone`; `/custom-agents` redirects to `/dashboard/{org}/agents/all`. None throw a console/page error                                                                                                                                           |
+| F10 | DataTable behaviours  | On a list with a DataTable (e.g. Knowledge → Documents), use the search/filter; paginate (`common.aria.previousPage` / `common.aria.nextPage`); **Select all** (`common.aria.selectAll`) → **Delete selected** (`common.actions.deleteSelected`)                                                                                                                                                                         | Filter narrows the rows; page controls change the visible page; the bulk action affects only the selected rows; **reload** to confirm the delete persisted                                                                                                                                                                                |
 
 ## Boundary & error tests
 
-| ID  | Test              | Input                                         | Expected                             |
-| --- | ----------------- | --------------------------------------------- | ------------------------------------ |
-| B1  | Bad deep link     | Open `/dashboard/{org}/agents/does-not-exist` | Graceful 404 / redirect, not a crash |
-| B2  | Back after delete | Delete a row, press back                      | No stale/ghost row; list consistent  |
-| B3  | Bad version range | Changelog `?from=zzz&to=000`                  | Handled gracefully (no blank screen) |
+| ID  | Test              | Input                                         | Expected                                                                                                                                                     |
+| --- | ----------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B1  | Bad deep link     | Open `/dashboard/{org}/agents/does-not-exist` | Inside the shell, renders the graceful message **Agent not found or you don't have access.** (`settings.agents.agentNotFound`) — no crash, no error boundary |
+| B2  | Unknown route     | Open `/dashboard/{org}/nope-not-a-route`      | The not-found shell renders inside the dashboard layout (rail still present); no white-screen crash                                                          |
+| B3  | Back after delete | Delete a list row, press browser Back         | No stale/ghost row reappears; the list stays consistent with the persisted state                                                                             |
+| B4  | Bad version range | Open `/dashboard/changelog?from=zzz&to=000`   | Handled gracefully — heading **What's new** still renders; no blank screen, no console/page error                                                            |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check      | Expected                                                  |
-| --- | ---------- | --------------------------------------------------------- |
-| A1  | Landmarks  | One `<main>`, one `<h1>`; nav is `<nav aria-label>`       |
-| A2  | Skip link  | First focusable element skips to main content             |
-| A3  | Palette    | Command palette traps focus; Esc closes and returns focus |
-| A4  | Breadcrumb | Ordered, labelled navigation; current page marked         |
+| ID  | Check      | Expected                                                                                                                 |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| A1  | Landmarks  | Exactly one `role="main"` and one `<nav aria-label="Main navigation">` (`common.aria.mainNavigation`) per dashboard page |
+| A2  | Skip link  | A focusable **Skip to main content** link (`common.aria.skipToContent`) is present as an early focus target              |
+| A3  | Palette    | The Cmd/Ctrl+K palette is a `role="dialog"`; **Esc** closes it and focus returns to the page                             |
+| A4  | Breadcrumb | The breadcrumb is an ordered, labelled navigation; the current page is marked (`aria-current`)                           |
 
 ## Performance
 
-| ID  | Metric     | Target                                                                |
-| --- | ---------- | --------------------------------------------------------------------- |
-| P1  | In-app nav | Warm route commit < 1 s (prefetch makes hovered targets near-instant) |
-| P2  | Palette    | Opens < 0.5 s                                                         |
+| ID  | Metric          | Target                                                                                                                                            |
+| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Warm in-app nav | A rail-click route commit (`waitForURL`) settles in **< 1 s** on the warm deterministic stack; hovered targets prefetch so they feel near-instant |
+| P2  | Palette open    | Cmd/Ctrl+K → the **Search chat** input is visible in **< 0.5 s** on the warm deterministic stack                                                  |
 
 ## Issues Found
 
-| #   | Test ID | Route / URL | Severity | Description | Screenshot |
-| --- | ------- | ----------- | -------- | ----------- | ---------- |
-|     |         |             |          |             |            |
+| #   | Test ID | Route / URL | Severity (crit/high/med/low) | Description | Screenshot |
+| --- | ------- | ----------- | ---------------------------- | ----------- | ---------- |
+|     |         |             |                              |             |            |
 
 ## Test summary
 
 ```
 Area: Navigation & shell
-Functional: ___/10   Boundary: ___/3   A11y: ___/4   Perf: ___/2
+Functional: ___/10   Boundary: ___/4   A11y: ___/4   Perf: ___/2
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

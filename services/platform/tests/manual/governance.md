@@ -1,87 +1,114 @@
 # Governance — Manual Test Plan
 
-> **Purpose**: Exercise the governance controls — content models / model
-> defaults, guardrails (content safety), policies & limits, run-code policy,
-> feedback, legal hold, data-subject requests (DSAR), security monitoring,
-> usage, logs, and trash. Most are admin/owner-gated, save-and-restore toggles.
+> **Purpose**: Exercise the org-wide governance controls — content/model
+> defaults, guardrails (content-safety / PII / moderation), policies & limits
+> (budgets, upload, retention), run-code package policy, security & monitoring
+> (login / password / 2FA / session), legal hold, data-subject requests (DSAR),
+> and the read-only surfaces (feedback metrics, usage metrics, logs, trash).
+> Most write controls are admin/owner-gated. **Restore every toggle you flip** —
+> these are org-wide settings.
+>
+> Mock-LLM mode is fine for everything except F3's actual content-safety
+> filtering, which exercises a local chat-filter (no LLM needed) but requires
+> you to configure a word-list category first.
 
 ## Scope & routes
 
-| Surface             | Route (`/dashboard/{org}/settings/governance/…`)                         |
-| ------------------- | ------------------------------------------------------------------------ |
-| Index →             | redirects to `content-models`                                            |
-| Content models      | `content-models` (group: `governance.groups.contentAndModels`)           |
-| Guardrails          | `guardrails`                                                             |
-| Policies & limits   | `policies-limits`                                                        |
-| Run-code policy     | `run-code-policy`                                                        |
-| Feedback            | `feedback`                                                               |
-| Legal hold          | `legal-hold`                                                             |
-| DSAR                | `data-subject-requests` · `…/{requestId}`                                |
-| Security monitoring | `security-monitoring` (group: `governance.groups.securityAndMonitoring`) |
-| Usage               | `usage`                                                                  |
-| Logs                | `logs`                                                                   |
-| Trash               | `trash`                                                                  |
+All routes are under `/dashboard/{org}/settings/governance/…`. The bare
+`…/governance` index redirects to `content-models`.
+
+| Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
+| Content & Models      | `content-models`                          | System Prompt (prefix/suffix), Default Models, Model access                                 |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output |
+| Run-code packages     | `run-code-policy`                         | Default-mode radiogroup + Python/Node allow/deny lists + a built-in policy tester           |
+| Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
+| Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
+| Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
+| Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
+| Legal hold            | `legal-hold`                              | Active holds + Release requests; **Place legal hold**                                       |
+| DSAR                  | `data-subject-requests` · `…/{requestId}` | DSAR governance policy + request list; **File request**                                     |
+| Trash                 | `trash`                                   | Filterable list of retention-trashed rows; per-row **Restore** (no manual permanent delete) |
+| Feedback              | `feedback`                                | **Read-only** Feedback Metrics dashboard (thumbs up/down + arena verdicts)                  |
+| Audit-logs (legacy)   | `audit-logs` (+ `?category=`)             | 307 → `logs` (preserves `category`)                                                         |
+
+Group labels in the settings rail: **Content & Models**
+(`governance.groups.contentAndModels`) and **Security & Monitoring**
+(`governance.groups.securityAndMonitoring`).
 
 ## Prerequisites
 
-Stack up + signed in per [SETUP.md](SETUP.md) as owner/admin. **Restore every
-toggle you flip** — these are org-wide settings.
+Stack up + signed in per [SETUP.md](SETUP.md) as owner/admin. Mock mode (A) is
+sufficient.
 
-> **Agent note**: save → reload → assert the persisted control state, never the
-> toast. Some governance effects (e.g. retention cleanup) need an admin Save to
-> seed bounds before they run — a file value alone won't trigger them.
+> **Agent note**: save → reload → assert the **persisted control state**, never
+> the toast. Voice output autosaves on toggle (no Save button); the other
+> editors have an explicit **Save** (`common.actions.save`). On a freshly
+> bootstrapped org the `policies-limits` page logs a benign
+> `RETENTION_CONFIG_MISSING` console error (the retention config file isn't
+> seeded) — the page still renders; that's an environment seam, not a page bug.
 
 ## Automated coverage
 
-| Case(s)              | Status         | e2e spec                                                                     |
-| -------------------- | -------------- | ---------------------------------------------------------------------------- |
-| F2, F3, F5           | ✅ automated   | `governance.spec.ts` (voice/system-prompt, content-safety, run-code toggles) |
-| F7, F8               | 🔶 partial     | `governance.spec.ts` (dialogs open; full lifecycle manual)                   |
-| F11                  | ✅ automated   | `governance.spec.ts` (logs tabs)                                             |
-| F1                   | ✅ automated   | `navigation.spec.ts` (governance redirect)                                   |
-| F4, F6, F9, F10, F12 | ⛔ manual-only | —                                                                            |
+| Case(s)     | Status         | e2e spec                                                                                       |
+| ----------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| F1          | ✅ automated   | `navigation.spec.ts` (governance redirect + settings-rail → governance nav)                    |
+| F2          | ✅ automated   | `governance.spec.ts` (voice-output toggle persist/restore; system-prompt edit persist/restore) |
+| F3 (toggle) | 🔶 partial     | `governance.spec.ts` (content-safety **enable** toggle persists/restores — filtering manual)   |
+| F5          | ✅ automated   | `governance.spec.ts` (run-code default-mode flip persist/restore)                              |
+| F4, F6–F12  | ⛔ manual-only | —                                                                                              |
+
+Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
+`governance.spec.ts` contains exactly four tests (voice-output, system-prompt,
+run-code default-mode, content-safety toggle). It does **not** cover logs,
+legal-hold, or DSAR dialogs.
 
 ## Functional tests
 
-| ID  | Test                | Steps (route + control)                                                                                                                                                                         | Expected                                                                                                             |
-| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| F1  | Index redirect      | Open `…/governance`                                                                                                                                                                             | Redirects to `…/content-models`                                                                                      |
-| F2  | Content models      | Toggle voice output (`governance.voiceOutput.enabledLabel`); set system-prompt prefix (`governance.systemPrompt.prefixLabel`); set **Default Models** (`governance.defaultModels.title`) → save | `…voiceOutput.saved` / `…systemPrompt.saved`; default model reflected in new chats; persists on reload               |
-| F3  | Guardrails          | Enable content safety (`governance.contentSafety.enableLabel`) → save; then in chat send a prompt with clearly disallowed content                                                               | `governance.contentSafety.saved`; the disallowed prompt is blocked/filtered with a safety message (not a raw answer) |
-| F4  | Policies & limits   | Set rate limit / token / cost caps → save                                                                                                                                                       | Persists; hitting a cap surfaces the documented error                                                                |
-| F5  | Run-code policy     | Choose denylist (`governance.runCodePolicy.modeDenylistLabel`) or allowlist (`…modeAllowlistLabel`) → **Save** (`…save`)                                                                        | `governance.runCodePolicy.saved`; persists                                                                           |
-| F6  | Feedback            | Configure feedback collection → save                                                                                                                                                            | Persists                                                                                                             |
-| F7  | Legal hold          | `legal-hold` → **Place hold** (`governance.legalHold.actions.placeHold`); view active holds (`…sections.activeHolds.title`); request + approve release                                          | Hold appears; release flow gated by approval                                                                         |
-| F8  | DSAR                | `data-subject-requests` → **File request** (`governance.dataSubjectRequests.actions.fileRequest`) → `…dialogs.fileRequest.title`; open a request (`…/{requestId}`); fulfill / deny / extend     | Request created; status transitions; audit trail recorded                                                            |
-| F9  | Security monitoring | Configure alert/anomaly rules → save                                                                                                                                                            | Persists; the monitoring view lists configured rules                                                                 |
-| F10 | Usage               | `usage`                                                                                                                                                                                         | Org-wide consumption + cost render                                                                                   |
-| F11 | Logs                | `logs` → switch **Audit** (`settings.logs.auditLogs`) ↔ **Activity** (`settings.logs.activityLogs`)                                                                                             | Both tabs render; audit table has a caption (`settings.logs.audit.tableCaption`)                                     |
-| F12 | Trash               | `trash` → restore an item; permanently delete another; check the **Memory audit** tab (`governance.trash.tab.memoryAudit`)                                                                      | Restore returns it; permanent delete removes it for good (confirmed)                                                 |
+| ID  | Test                  | Steps (route + control)                                                                                                                                                                                                                                                                                                | Expected (verifiable)                                                                                                                                                                                                                             |
+| --- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Index redirect        | Open `…/governance`                                                                                                                                                                                                                                                                                                    | URL becomes `…/governance/content-models`                                                                                                                                                                                                         |
+| F2  | System prompt persist | `content-models` → type into **Mandatory prefix** (`governance.systemPrompt.prefixLabel`) → **Save** (`common.actions.save`) → reload                                                                                                                                                                                  | After reload the **Mandatory prefix** textarea still holds the typed text                                                                                                                                                                         |
+| F2b | Voice-output toggle   | `policies-limits` → flip **Voice output enabled for this organization** (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast `governance.voiceOutput.saved`, no Save button) → reload                                                                                                                     | After reload the switch's `aria-checked` reflects the new state; toggle it back to restore                                                                                                                                                        |
+| F3  | Content-safety filter | `guardrails` → enable **Enable content safety** (`governance.contentSafety.enableLabel`); add a category (**Add category** `governance.contentSafety.addCategory`) with a banned word in **block** mode → Save; then in chat send that exact word                                                                      | The chat message containing the banned word is blocked/masked (a guardrail audit event appears under **Recent events**); enabling the toggle **alone** does nothing (there is no built-in disallowed-content list)                                |
+| F4  | Budget rule           | `policies-limits` → **Budget rules** (`governance.budgets.title`) → **Add rule** (`governance.budgets.addRule`) → set Period + **Max tokens** (`governance.budgets.tokenLimit`) / **Max cost (USD)** (`governance.budgets.costLimitUsd`) / **Max requests** (`governance.budgets.maxRequests`) → confirm → reload      | The new rule row appears in the Budget rules table and survives reload                                                                                                                                                                            |
+| F5  | Run-code policy       | `run-code-policy` → pick **Allowlist** (`governance.runCodePolicy.modeAllowlistLabel`) / **Denylist** (`governance.runCodePolicy.modeDenylistLabel`); fill **Python allow list** (`governance.runCodePolicy.pythonAllowLabel`) → **Save** (`governance.runCodePolicy.save`) → reload                                   | After reload the radio reflects the chosen mode AND the **Python allow list** textarea holds the saved packages (verified live: `requests\nnumpy` survives reload)                                                                                |
+| F5b | Run-code tester       | On `run-code-policy` under Allowlist with `requests` allowed → in **Specs to test** (`governance.runCodePolicy.testerInputLabel`) enter `requests, evilpkg` → **Test** (`governance.runCodePolicy.testerButton`)                                                                                                       | One row reads **Allowed** (`…testerAllowed`) for `requests`, one reads **Denied** (`…testerDenied`) for `evilpkg` (verified live: 1 Allowed / 1 Denied)                                                                                           |
+| F6  | Feedback metrics      | `feedback`                                                                                                                                                                                                                                                                                                             | Read-only **Feedback Metrics** dashboard renders (`analytics.feedback.title`); with no feedback it shows the empty state **No feedback collected yet** (`analytics.feedback.empty.title`). **There is nothing to configure/save here.**           |
+| F7  | Legal hold            | `legal-hold` → **Place legal hold** (`governance.legalHold.actions.placeHold`) opens a dialog; place a hold; view **Active holds** (`governance.legalHold.sections.activeHolds.title`); request release; a different admin approves under **Release requests** (`governance.legalHold.sections.releaseRequests.title`) | The placed hold appears in the Active holds table; the release request appears under Release requests and requires a **different** admin to approve                                                                                               |
+| F8  | DSAR                  | `data-subject-requests` → **File request** (`governance.dataSubjectRequests.actions.fileRequest`) opens **File erasure request** (`governance.dataSubjectRequests.dialogs.fileRequest.title`); file one; open it (`…/{requestId}`); fulfill / deny / extend                                                            | The request appears in the list with a Status; opening `…/{requestId}` renders the detail; status transitions persist on reload                                                                                                                   |
+| F9  | Security & monitoring | `security-monitoring` → flip **Enable login attempt limits** (`governance.loginPolicy.enabled`); set **Failures before lockout** (`governance.loginPolicy.maxAttempts`) and **Password policy → Minimum length** (`governance.passwordPolicy.minLength`) → **Save** → reload                                           | Each editor's value survives reload (the page is login/password/2FA/session policy, **not** alert/anomaly rules)                                                                                                                                  |
+| F10 | Usage                 | `usage`                                                                                                                                                                                                                                                                                                                | Org-wide usage metrics (cards + chart + tables) render read-only; empty org shows zeroed cards, no error                                                                                                                                          |
+| F11 | Logs tabs             | `logs` → click each tab: **Audit logs** (`settings.logs.auditLogs`), **Sign-in blocks** (`settings.logs.blockCounters.tabLabel`), **Activity logs** (`settings.logs.activityLogs`), **Error logs** (`settings.logs.errorLogs`)                                                                                         | All four tabs render their table/empty-state; the Audit-logs table has caption **Audit logs data table** (`settings.logs.audit.tableCaption`); a seeded org shows ≥1 audit row                                                                    |
+| F12 | Trash restore         | `trash` → if a trashed row exists, click **Restore** (`governance.trash.restore.label`) and confirm (`governance.trash.restore.confirm`); use **Filter** (`governance.trash.filterTitle` = "Category") to filter by resource type → reload                                                                             | The restored row leaves the trash list after reload. **NOTE:** there is **no manual "permanently delete"** action and **no "Memory audit" tab** — rows are auto-purged at the end of their grace window (`governance.trash.empty` describes this) |
 
 ## Boundary & error tests
 
-| ID  | Test                 | Input                                     | Expected                                                     |
-| --- | -------------------- | ----------------------------------------- | ------------------------------------------------------------ |
-| B1  | Bad limit            | Negative / non-numeric cap                | Validation; save blocked                                     |
-| B2  | DSAR required fields | File a request with empty required fields | Validation; submit blocked                                   |
-| B3  | Trash safety         | Permanent delete                          | Requires explicit confirmation before removal                |
-| B4  | Restore toggles      | After F2–F5, reload                       | Toggles are back to their original state (you restored them) |
+| ID  | Test                        | Input                                                                                                                              | Expected                                                                                                                                            |
+| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | DSAR cooling-off bounds     | `data-subject-requests` → **Cooling-off window (hours)** (`governance.dsarPolicy.coolingOffHours.label`) → enter `99` (>72) → Save | Validation message **"Cooling-off window must be a whole number between 0 and 72."** (`governance.dsarPolicy.invalidCoolingOffHours`); save blocked |
+| B2  | DSAR daily-limit bounds     | **Daily limit per admin** (`governance.dsarPolicy.dailyLimitPerAdmin.label`) → enter `0` or `99` (valid range 1–50) → Save         | Validation; save blocked (field documents range 1–50)                                                                                               |
+| B3  | Login-policy attempt bounds | `security-monitoring` → **Failures before lockout** (`governance.loginPolicy.maxAttempts`) → enter `0` or `99` (valid 1–50) → Save | Validation message **"Failure threshold must be an integer between 1 and 50."** (`governance.loginPolicy.invalidAttempts`); save blocked            |
+| B4  | Run-code allowlist deny-all | `run-code-policy` → Allowlist mode with an **empty** Python allow list → tester (`requests`)                                       | Tester returns **Denied** for every spec (empty allowlist denies all) — confirms allowlist semantics                                                |
+| B5  | Restore toggles             | After F2/F2b/F5/F9, reload                                                                                                         | Every flipped toggle/field is back to its original value (you restored them)                                                                        |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check      | Expected                                                                            |
-| --- | ---------- | ----------------------------------------------------------------------------------- |
-| A1  | Toggles    | Each switch labelled; on/off state announced                                        |
-| A2  | Tables     | Logs/usage tables have caption + `scope="col"`                                      |
-| A3  | Dialogs    | DSAR / legal-hold dialogs trap focus; **Close** (`common.aria.close`) returns focus |
-| A4  | Radiogroup | Run-code mode is arrow-key navigable                                                |
+| ID  | Check         | Expected                                                                                                                                           |
+| --- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Toggles       | Each governance switch (voice output, content safety, login limits) is reachable by role `switch` with a name; on/off announced via `aria-checked` |
+| A2  | Logs table    | The Audit-logs table exposes a caption (`settings.logs.audit.tableCaption` = "Audit logs data table") and `scope="col"` headers                    |
+| A3  | Dialogs       | DSAR **File erasure request** and legal-hold **Place legal hold** dialogs trap focus; **Close** (`common.aria.close`) returns focus to the trigger |
+| A4  | Run-code mode | The default-mode group is a `radiogroup` navigable by arrow keys; each option (`…modeDenylistLabel`/`…modeAllowlistLabel`) is reachable            |
 
 ## Performance
 
-| ID  | Metric     | Target                         |
-| --- | ---------- | ------------------------------ |
-| P1  | Tab switch | < 1 s between governance pages |
-| P2  | Logs load  | First page of logs < 2 s       |
+| ID  | Metric               | Target (mock mode, local dev backend)                                                                                        |
+| --- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Governance tab nav   | Warm in-app navigation between two governance sub-pages commits in **< 1 s** (loader-prefetched policies; no skeleton flash) |
+| P2  | Logs first page      | `logs` Audit-logs first page renders in **< 2 s** on a freshly seeded org (≤ a few dozen rows)                               |
+| P3  | Run-code save→reload | Save on `run-code-policy` then reload rehydrates the persisted lists in **< 2 s**                                            |
 
 ## Issues Found
 
@@ -93,7 +120,7 @@ toggle you flip** — these are org-wide settings.
 
 ```
 Area: Governance
-Functional: ___/12   Boundary: ___/4   A11y: ___/4   Perf: ___/2
+Functional: ___/14   Boundary: ___/5   A11y: ___/4   Perf: ___/3
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

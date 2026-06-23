@@ -8,11 +8,14 @@
 
 ## Scope & routes
 
-| Surface                   | Route                                       |
-| ------------------------- | ------------------------------------------- |
-| New chat                  | `/dashboard/{org}/chat`                     |
-| Thread                    | `/dashboard/{org}/chat/{threadId}`          |
-| Shared (public read-only) | `/dashboard/{org}/chat/shared/{shareToken}` |
+| Surface                   | Route                                       | Backing file                  |
+| ------------------------- | ------------------------------------------- | ----------------------------- |
+| New chat                  | `/dashboard/{org}/chat`                     | `chat/index.tsx`              |
+| Thread                    | `/dashboard/{org}/chat/{threadId}`          | `chat/$threadId.tsx`          |
+| Shared (public read-only) | `/dashboard/{org}/chat/shared/{shareToken}` | `chat/shared/$shareToken.tsx` |
+
+(`{threadId}` and `{shareToken}` are produced at runtime by sending a first
+message / enabling sharing — there is no static URL for them.)
 
 ## Prerequisites
 
@@ -23,100 +26,118 @@ keyword triggers (`e2e:reasoning` / `e2e:nextsteps` / `e2e:humaninput` /
 seeded knowledge), so they're best run in **mode B**.
 
 > **Agent note**: a chat turn is done when **Send** re-enables (the Send⇄Stop
-> toggle), not when text appears — wait on that. Delete threads by id, never by
-> position. Mock canned reply lives in `packages/mocks/src/overrides/canned.ts`.
+> toggle), not when text appears — poll for the **Stop** button to disappear.
+> Sending the first message redirects to `/chat/{threadId}` (a 16+ char id); key
+> all later selectors on that id, never the auto-generated title. Delete threads
+> by id, never by position. Mock canned reply lives in
+> `packages/mocks/src/overrides/canned.ts`. `e2e:error` deliberately logs
+> `E2E induced provider error` to the console — that is the designed 500 path,
+> not a chat bug.
 
 ## Automated coverage
 
-| Case(s)                              | Status                   | e2e spec                 |
-| ------------------------------------ | ------------------------ | ------------------------ |
-| F1–F4, F12                           | ✅ automated             | `chat-threads.spec.ts`   |
-| F7–F10                               | ✅ automated             | `chat-advanced.spec.ts`  |
-| F11, F13, F14, F15                   | ✅ automated             | `chat-features.spec.ts`  |
-| AT1, F16                             | ✅ automated             | `chat-depth.spec.ts`     |
-| F18–F22                              | ✅ automated (mock-only) | `chat-scenarios.spec.ts` |
-| F17                                  | ✅ automated             | `search.spec.ts`         |
-| F5, F6, F23, TL1–TL6, AT2–AT6, V1–V2 | ⛔ manual-only           | —                        |
+| Case(s)                          | Status         | e2e spec                 | Notes                                                                             |
+| -------------------------------- | -------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| F1, F2, F3, F12                  | ✅ automated   | `chat-threads.spec.ts`   | Starts/reopens/deletes a thread by **id**; lists the seeded prompt in the library |
+| F7, F8, F9                       | ✅ automated   | `chat-advanced.spec.ts`  | Edit-branch, stop, regenerate, multi-turn render                                  |
+| F11, F14                         | ✅ automated   | `chat-features.spec.ts`  | Thumbs feedback latch; save-draft→library→delete                                  |
+| F5, F6, F16, AT1                 | ✅ automated   | `chat-depth.spec.ts`     | Picker lists seeded agent + shows model; share create/open/revoke; text-file chip |
+| F18–F22                          | ✅ automated   | `chat-scenarios.spec.ts` | reasoning / next-steps / human-input / arena / error (mock-only)                  |
+| F17                              | ✅ automated   | `search.spec.ts`         | Command-palette chat search                                                       |
+| F10, F13, F15                    | 🔶 component   | — (no e2e)               | Copy / quote / export are vitest component tests, not Playwright specs            |
+| F4, F23, TL1–TL6, AT2–AT6, V1–V2 | ⛔ manual-only | —                        | Title auto-gen, memory proposal, live tools, image/limits attachments, voice      |
+
+Legend: ✅ fully automated · 🔶 covered by a component test only (no e2e spec) ·
+⛔ manual-only (no spec).
+
+> **Grading provenance** (verified 2026-06-23 against the 29 specs):
+> `chat-threads` keys on the captured thread **id**, "never the title" — so F4
+> (title auto-gen) is **not** asserted there and stays manual-only. `chat-advanced`
+> moved the assistant-copy assertion to a `message-bubble.test.tsx` component test,
+> and `chat-features` moved quote/export to `selection-quote.browser.test.tsx` /
+> `export-chat-dialog.test.tsx` — so F10/F13/F15 are 🔶 component-only, **not**
+> automated by an e2e spec. The `conversations`, `integrations`, and
+> `token-sources` specs cover other areas and do not touch chat.
 
 ## Functional tests
 
-| ID  | Test            | Steps (route + control)                                                                                                                                 | Expected                                                                                                                                                              |
-| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | Chat loads      | Open `/dashboard/{org}/chat`                                                                                                                            | Composer, agent picker (`chat.agentSelector.label`), model picker, conversation starters                                                                              |
-| F2  | Send a message  | Type a prompt, send                                                                                                                                     | Reply streams (canned in mode A); send disabled while composer empty                                                                                                  |
-| F3  | New chat        | Side-nav **New chat** rail link (`navigation.newChat`), or the `⌥⌘N` / `Alt+Ctrl+N` global shortcut                                                     | Fresh thread; prior thread under history (`chat.showHistory` → `chat.chatsSection`)                                                                                   |
-| F4  | Title auto-gen  | First message in a new thread                                                                                                                           | Concise AI title (not "New Chat", not raw metadata)                                                                                                                   |
-| F5  | Agent picker    | Open `chat.agentSelector.label`, pick another agent                                                                                                     | Selected agent drives the next turn                                                                                                                                   |
-| F6  | Model picker    | Open the model selector, pick a model                                                                                                                   | Next turn uses it; **Auto** routes to the agent default                                                                                                               |
-| F7  | Edit message    | Hover a sent message → `chat.moreActions` → edit (`chat.editMessage`) → **Send** (`chat.editSend`)                                                      | New branch; branch navigator appears (`chat.branchNavigator.next`)                                                                                                    |
-| F8  | Stop generation | Send, then **Stop**                                                                                                                                     | Streaming halts; partial reply retained                                                                                                                               |
-| F9  | Regenerate      | `chat.moreActions` → **Try again** (`chat.tryAgain`)                                                                                                    | New response branch on the same turn                                                                                                                                  |
-| F10 | Copy reply      | Message actions → copy                                                                                                                                  | Text on clipboard; copied tooltip (`common.actions.copied`)                                                                                                           |
-| F11 | Save as prompt  | `chat.savePromptMenu` → `chat.savePromptDraft` → fill (`prompts.form.contentLabel`) → **Save** (`prompts.form.save`)                                    | Prompt saved to library                                                                                                                                               |
-| F12 | Prompt library  | `chat.savePromptMenu` → **Prompt library** (`chat.promptLibrary`)                                                                                       | Library lists the seeded `Summarize Text` prompt                                                                                                                      |
-| F13 | Quote selection | Select assistant text → **Quote** (`chat.quote.button`)                                                                                                 | Quote chip in composer (`chat.quote.label`); removable (`chat.quote.remove`)                                                                                          |
-| F14 | Feedback        | `chat.feedback.thumbsUp` / `thumbsDown` (+ comment `commentPlaceholder`)                                                                                | Feedback recorded                                                                                                                                                     |
-| F15 | Export          | `chat.moreActions` → **Export** (`chat.export.button`) → `chat.export.title` → **Download markdown** / **PDF**                                          | File downloads; deselect-all (`chat.export.deselectAll`) works                                                                                                        |
-| F16 | Share link      | `chat.share.button` → `chat.share.title` → enable (`chat.share.enableSharing`) → copy link (`chat.share.linkLabel`); **Preview** (`chat.share.preview`) | Read-only public view at `…/chat/shared/{token}`; **Fork** (`chat.share.forkChat`) clones it; disabling sharing revokes the link (404)                                |
-| F17 | Search chats    | `chat.searchChat` → type message content (`dialogs.searchChat.placeholder`)                                                                             | Matching thread listed; selecting opens it                                                                                                                            |
-| F18 | Reasoning       | Send a message containing `e2e:reasoning` (mode A)                                                                                                      | Thinking timeline discloses reasoning; collapsed by default, user-controlled                                                                                          |
-| F19 | Next steps      | Send `e2e:nextsteps`                                                                                                                                    | `[[NEXT_STEPS]]` suggestion buttons render (`chat.structured.nextSteps`); clicking one sends it                                                                       |
-| F20 | Human input     | Send `e2e:humaninput`                                                                                                                                   | `request_human_input` card (`humanInputRequest.questionTitle`); answer → **Submit** (`humanInputRequest.submit`) → `statusResponded`                                  |
-| F21 | Provider error  | Send `e2e:error`                                                                                                                                        | Friendly error (`chat.errorGenerating`) + Retry — not a crash                                                                                                         |
-| F22 | Arena           | `composer.openMenu` → **Arena** (`chat.arena.label`); pick model A/B; send                                                                              | Two columns respond; verdict bar (`chat.arena.verdictLabel`); **A is better** (`chat.arena.aBetter`) → `chat.arena.verdictRecorded`                                   |
-| F23 | Memory proposal | In mode B, say something worth remembering ("remember that I prefer metric units")                                                                      | An inline memory-proposal card appears; accept/dismiss it. The decision is auditable under Governance → Trash → **Memory audit** (`governance.trash.tab.memoryAudit`) |
+| ID  | Test            | Steps (route + control)                                                                                                                                                                                                                | Expected (verifiable)                                                                                                                                                                                                                                                                                                                                              |
+| --- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1  | Chat loads      | Open `/dashboard/{org}/chat`                                                                                                                                                                                                           | Status 200; heading **How can I assist you?** (`chat.welcomeEmpty`); composer textbox; agent picker showing **E2E Assistant** (`chat.agentSelector.label` = "Select agent"); model picker showing **Auto**. (Conversation starters render **only if the active agent defines them**; the seeded E2E Assistant has none, so the empty state shows no starter list.) |
+| F2  | Send a message  | Type a prompt, press **Enter** (or click send)                                                                                                                                                                                         | URL becomes `/dashboard/{org}/chat/{threadId}`; an assistant reply renders (canned in mode A); **Stop** disappears and Send re-enables; Send is disabled while the composer is empty                                                                                                                                                                               |
+| F3  | New chat        | Rail **New chat** link (`navigation.newChat` = "New chat"), or the `⌥⌘N` (Mac) / `Alt+Ctrl+N` global shortcut                                                                                                                          | URL returns to `/dashboard/{org}/chat` (no thread id); the prior thread appears under history — open the chats panel (`chat.showHistory` = "Show chats") → **Chats** section (`chat.chatsSection`)                                                                                                                                                                 |
+| F4  | Title auto-gen  | Send the first message in a new thread, then reload                                                                                                                                                                                    | The thread's history entry shows a concise AI-generated title — not "New Chat" and not raw metadata; the title persists after reload                                                                                                                                                                                                                               |
+| F5  | Agent picker    | Open the agent picker (`chat.agentSelector.label` = "Select agent"), pick another agent                                                                                                                                                | The picker trigger now shows the chosen agent's name; the next turn is attributed to that agent                                                                                                                                                                                                                                                                    |
+| F6  | Model picker    | Open the model selector (trigger shows **Auto**), pick a specific model                                                                                                                                                                | The trigger shows the chosen model; the next turn uses it; selecting **Auto** routes to the agent default                                                                                                                                                                                                                                                          |
+| F7  | Edit message    | Hover a sent message → **More actions** (`chat.moreActions`) → **Edit message** (`chat.editMessage`) → edit text → **Send** (`chat.editSend`)                                                                                          | A new branch is created; the branch navigator appears with **Next branch** (`chat.branchNavigator.next`)                                                                                                                                                                                                                                                           |
+| F8  | Stop generation | Send, then click **Stop** while it streams                                                                                                                                                                                             | Streaming halts; the partial reply is retained; Send re-enables                                                                                                                                                                                                                                                                                                    |
+| F9  | Regenerate      | **More actions** (`chat.moreActions`) → **Try again** (`chat.tryAgain`)                                                                                                                                                                | A new response branch is added to the same turn; the branch navigator shows >1 branch                                                                                                                                                                                                                                                                              |
+| F10 | Copy reply      | Message actions → copy                                                                                                                                                                                                                 | Text is on the clipboard; the **Copied!** tooltip (`common.actions.copied`) appears                                                                                                                                                                                                                                                                                |
+| F11 | Save as prompt  | **Save options** (`chat.savePromptMenu`) → **Save prompt draft** (`chat.savePromptDraft`) → fill **Content** (`prompts.form.contentLabel`) → **Save** (`prompts.form.save`)                                                            | The prompt is saved; reopening **Prompt library** lists it                                                                                                                                                                                                                                                                                                         |
+| F12 | Prompt library  | **Save options** (`chat.savePromptMenu`) → **Prompt library** (`chat.promptLibrary`)                                                                                                                                                   | The library lists the seeded **Summarize Text** prompt                                                                                                                                                                                                                                                                                                             |
+| F13 | Quote selection | Select assistant text → **Quote** (`chat.quote.button`)                                                                                                                                                                                | A **Quoted** chip (`chat.quote.label`) appears in the composer; **Remove quote** (`chat.quote.remove`) clears it                                                                                                                                                                                                                                                   |
+| F14 | Feedback        | **Helpful** (`chat.feedback.thumbsUp`) / **Not helpful** (`chat.feedback.thumbsDown`) → optional comment (placeholder `chat.feedback.commentPlaceholder` = "What could be improved?")                                                  | The chosen control latches (pressed); the choice survives a reload of the thread                                                                                                                                                                                                                                                                                   |
+| F15 | Export          | **More actions** (`chat.moreActions`) → **Export** (`chat.export.button`) → dialog **Export chat** (`chat.export.title`) → **Download markdown** / **PDF**                                                                             | The dialog opens; **Deselect all** (`chat.export.deselectAll`) clears the per-message checkboxes; a file downloads                                                                                                                                                                                                                                                 |
+| F16 | Share link      | **Share** (`chat.share.button`) → dialog **Share chat** (`chat.share.title`) → toggle **Enable sharing** (`chat.share.enableSharing`, a **switch**) → copy **Share link** (`chat.share.linkLabel`); **Preview** (`chat.share.preview`) | A read-only public view opens at `/dashboard/{org}/chat/shared/{token}`; **Fork this chat** (`chat.share.forkChat`) clones it into a new thread; toggling sharing off makes the link 404                                                                                                                                                                           |
+| F17 | Search chats    | **Search chat** (`chat.searchChat`) → type message content (placeholder `dialogs.searchChat.placeholder` = "Search chat")                                                                                                              | The matching thread is listed; selecting it navigates to `/dashboard/{org}/chat/{threadId}`                                                                                                                                                                                                                                                                        |
+| F18 | Reasoning       | Send a message containing `e2e:reasoning` (mode A)                                                                                                                                                                                     | A thinking timeline discloses reasoning; collapsed by default; expands on click (user-controlled)                                                                                                                                                                                                                                                                  |
+| F19 | Next steps      | Send `e2e:nextsteps`                                                                                                                                                                                                                   | A **Suggested follow-ups** block (`chat.structured.nextSteps`) renders `[[NEXT_STEPS]]` buttons; clicking one sends it as a new turn                                                                                                                                                                                                                               |
+| F20 | Human input     | Send `e2e:humaninput`                                                                                                                                                                                                                  | A `request_human_input` card titled **Question** (`humanInputRequest.questionTitle`) appears; answer → **Submit response** (`humanInputRequest.submit`) → status **Responded** (`humanInputRequest.statusResponded`)                                                                                                                                               |
+| F21 | Provider error  | Send `e2e:error`                                                                                                                                                                                                                       | A friendly **Something went wrong** error (`chat.errorGenerating`) + a retry affordance render — the app does not crash (a console `E2E induced provider error` line is expected)                                                                                                                                                                                  |
+| F22 | Arena           | **Open composer menu** (`composer.openMenu`) → **Arena Mode** (`chat.arena.label`); pick model A/B; send                                                                                                                               | Two columns respond; the verdict bar shows **Choose a verdict** (`chat.arena.verdictLabel`); clicking **A is better** (`chat.arena.aBetter`) shows **Verdict recorded** (`chat.arena.verdictRecorded`)                                                                                                                                                             |
+| F23 | Memory proposal | In mode B, say something worth remembering ("remember that I prefer metric units")                                                                                                                                                     | An inline memory-proposal card appears; accept/dismiss it. The decision is auditable at `/dashboard/{org}/settings/governance/trash` under **Memory audit** (`governance.trash.tab.memoryAudit`)                                                                                                                                                                   |
 
 ### Attachments
 
-| ID  | Test               | Input                                     | Expected                                                           |
-| --- | ------------------ | ----------------------------------------- | ------------------------------------------------------------------ |
-| AT1 | PDF/DOCX           | Attach a small doc, ask about it          | File chip in the bubble (no raw `(fileId: …)` leak); agent uses it |
-| AT2 | Image              | Attach a PNG/JPEG                         | Preview renders; vision model can describe it                      |
-| AT3 | Duplicate in batch | Attach the same file twice before sending | Second rejected with a duplicate toast                             |
-| AT4 | Too many files     | Attach 11 files                           | Rejected — max 10 per message                                      |
-| AT5 | Oversized          | Attach a file > 100 MB                    | Rejected with a size toast                                         |
-| AT6 | Attachment-only    | Attach a file, send with no text          | Sends; thread title derives from the file name                     |
+| ID  | Test               | Input                                     | Expected                                                                              |
+| --- | ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| AT1 | PDF/DOCX           | Attach a small doc, ask about it          | A file chip renders in the sent bubble (no raw `(fileId: …)` leak); the agent uses it |
+| AT2 | Image              | Attach a PNG/JPEG                         | An inline image preview renders; a vision model can describe it                       |
+| AT3 | Duplicate in batch | Attach the same file twice before sending | The second is rejected with a duplicate toast; only one chip remains                  |
+| AT4 | Too many files     | Attach 11 files                           | Rejected — the composer caps at 10 attachments per message                            |
+| AT5 | Oversized          | Attach a file > 100 MB                    | Rejected with a size-limit toast; no chip added                                       |
+| AT6 | Attachment-only    | Attach a file, send with no text          | The message sends; the thread title derives from the file name                        |
 
-### Tool surface & approvals
+### Tool surface & approvals (mode B)
 
-| ID  | Test                 | Prompt                                               | Expected                                                                 |
-| --- | -------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| TL1 | Knowledge read       | Ask about a seeded product/customer                  | `product_read`/`customer_read` runs; tool card shows the call            |
-| TL2 | RAG                  | Ask about an uploaded document                       | `rag_search` runs; answer cites the document                             |
-| TL3 | Web scope            | Ask something only on a crawled org website          | `web_assistant` searches org sites, not the open web                     |
-| TL4 | Doc generation       | "Generate a one-page PDF of …"                       | `pdf` tool returns a downloadable file part                              |
-| TL5 | Write needs approval | Ask the agent to create/update a record              | Approval card raised; write does NOT apply until approved (then it does) |
-| TL6 | Feature flag         | Disable web search for your role, ask a web question | Tool refused server-side; no web call                                    |
+| ID  | Test                 | Prompt                                               | Expected                                                                                                                                 |
+| --- | -------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| TL1 | Knowledge read       | Ask about a seeded product/customer                  | A `product_read`/`customer_read` tool card shows the call; the answer uses the record                                                    |
+| TL2 | RAG                  | Ask about an uploaded document                       | A `rag_search` tool card runs; the answer cites the document                                                                             |
+| TL3 | Web scope            | Ask something only on a crawled org website          | `web_assistant` searches org sites, not the open web                                                                                     |
+| TL4 | Doc generation       | "Generate a one-page PDF of …"                       | A `pdf` tool returns a downloadable file part                                                                                            |
+| TL5 | Write needs approval | Ask the agent to create/update a record              | An approval card is raised; the write does **not** apply until approved — verify by reloading the target list before vs. after approving |
+| TL6 | Feature flag         | Disable web search for your role, ask a web question | The tool is refused server-side; no web call is made                                                                                     |
 
 ### Voice
 
-| ID  | Test          | Steps                      | Expected                                    |
-| --- | ------------- | -------------------------- | ------------------------------------------- |
-| V1  | Dictation     | Mic → speak → stop         | Transcript inserted into the composer       |
-| V2  | Stops on send | Start dictation, then send | Mic stops on send — does not keep listening |
+| ID  | Test          | Steps                      | Expected                                           |
+| --- | ------------- | -------------------------- | -------------------------------------------------- |
+| V1  | Dictation     | Mic → speak → stop         | The transcript is inserted into the composer       |
+| V2  | Stops on send | Start dictation, then send | The mic stops on send — it does not keep listening |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check               | Expected                                                 |
-| --- | ------------------- | -------------------------------------------------------- |
-| A1  | Keyboard send       | Enter sends; Shift+Enter newlines                        |
-| A2  | Streaming announced | New assistant text exposed via `aria-live`               |
-| A3  | Focus order         | composer → attach → pickers → send, sensibly             |
-| A4  | Mic labelled        | Dictation button has an accessible name + `aria-pressed` |
+| ID  | Check               | Expected                                                     |
+| --- | ------------------- | ------------------------------------------------------------ |
+| A1  | Keyboard send       | Enter sends; Shift+Enter inserts a newline                   |
+| A2  | Streaming announced | New assistant text is exposed via an `aria-live` region      |
+| A3  | Focus order         | composer → attach → pickers → send, in a sensible order      |
+| A4  | Mic labelled        | The dictation button has an accessible name + `aria-pressed` |
 
 ## Performance
 
-| ID  | Metric            | Target                                        |
-| --- | ----------------- | --------------------------------------------- |
-| P1  | TTFT              | First token < 3 s warm (live); ~150 ms (mock) |
-| P2  | Attachment upload | Small PDF uploads + chips in < 3 s            |
-| P3  | Thread switch     | Opening a history thread renders < 1 s        |
+| ID  | Metric             | Target                                                                                        |
+| --- | ------------------ | --------------------------------------------------------------------------------------------- |
+| P1  | TTFT (first token) | < 3 s warm on a live provider (mode B); ≤ ~500 ms in mode A (the mock streams a canned reply) |
+| P2  | Attachment upload  | A small PDF uploads and shows its chip in < 3 s                                               |
+| P3  | Thread switch      | Opening a history thread renders its messages in < 1 s (warm)                                 |
 
 ## Issues Found
 
-| #   | Test ID | Route / URL | Severity | Description | Screenshot |
-| --- | ------- | ----------- | -------- | ----------- | ---------- |
-|     |         |             |          |             |            |
+| #   | Test ID | Route / URL                                 | Severity | Description                                                                                                                                                                                                                                    | Screenshot             |
+| --- | ------- | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 1   | F15     | `/dashboard/{org}/chat/{threadId}` (Export) | low      | Opening the **Export chat** dialog logs a React "`<button>` cannot be a descendant of `<button>`" hydration warning — `export-chat-dialog.tsx` wraps the per-message `<Checkbox>` (renders its own `<button>`) inside an outer row `<button>`. | export-chat-dialog.png |
 
 ## Test summary
 

@@ -25,7 +25,7 @@ here.
 
 An AI agent can run a whole guide with the `/qa <area>` command, which loads the
 guide and drives it through the Playwright MCP — see the
-[qa-browser](../../.claude/skills/qa-browser/SKILL.md) skill. New guides copy
+[browser-qa](../../.claude/skills/browser-qa/SKILL.md) skill. New guides copy
 [TEMPLATE.md](TEMPLATE.md) (which documents the authoring conventions).
 
 ## Guides
@@ -35,11 +35,13 @@ guide and drives it through the Playwright MCP — see the
 | [auth.md](auth.md)                   | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
 | [chat.md](chat.md)                   | messages, attachments, tools + approvals, arena, share, reasoning                    |
 | [agents.md](agents.md)               | agent list + editor tabs, organigram/delegation, metrics                             |
+| [apps.md](apps.md)                   | app marketplace: catalog/empty, install, run, app-scoped agents/workflows            |
 | [projects.md](projects.md)           | projects, tasks, files, secrets, instructions, threads                               |
 | [knowledge.md](knowledge.md)         | documents, knowledge entries, products, customers, vendors, websites                 |
 | [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
 | [automations.md](automations.md)     | list, editor, configuration, triggers, executions                                    |
 | [settings.md](settings.md)           | account, personalization, org, teams, branding, integrations, API, providers, skills |
+| [integrations.md](integrations.md)   | connect/disconnect API-key, token & OAuth integrations; offline `testConnection`     |
 | [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
 | [notifications.md](notifications.md) | notification center, inbox reviews                                                   |
 | [navigation.md](navigation.md)       | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
@@ -58,11 +60,13 @@ _Automated coverage_ table is case-by-case.
 | auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                            |
 | chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                              |
 | agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                |
+| apps          | ⛔ manual-only | — (no spec; marketplace #1911 untested in e2e)                                                                          |
 | projects      | ✅ strong      | `projects`, `projects-depth`                                                                                            |
 | knowledge     | ✅ strong      | `knowledge`                                                                                                             |
-| conversations | ⛔ manual-only | — (no spec)                                                                                                             |
+| conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered)                      |
 | automations   | ✅ strong      | `automation`, `automation-editor`                                                                                       |
-| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`                                                                             |
+| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                            |
+| integrations  | ✅ strong      | `integrations` (connect + offline `testConnection`)                                                                     |
 | governance    | 🔶 partial     | `governance` (toggles + DSAR/legal-hold dialogs + logs; content-models / security-monitoring / usage / trash uncovered) |
 | notifications | ⛔ manual-only | — (no spec)                                                                                                             |
 | navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                        |
@@ -72,5 +76,6 @@ _Automated coverage_ table is case-by-case.
 
 Negative paths (invalid slugs, empty names, cascade-delete typed-phrase gating)
 are automated by `validation.spec.ts` and live in each guide's _Boundary &
-error_ section. List behaviours (search-filter, pagination) are automated by
-`list-behaviors.spec.ts`.
+error_ section. List behaviours (search-filter, pagination) have no dedicated
+spec; they are exercised piecemeal by the per-area specs and otherwise live in
+the manual guides.

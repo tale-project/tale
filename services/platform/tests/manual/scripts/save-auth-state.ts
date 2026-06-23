@@ -21,7 +21,6 @@ import { chromium } from '@playwright/test';
 
 import {
   createOrgViaWizard,
-  signUpViaApi,
   uniqueCredentials,
   waitForSeededOrg,
 } from '../../e2e/helpers/auth';
@@ -36,9 +35,30 @@ async function main(): Promise<void> {
   const page = await context.newPage();
 
   const credentials = uniqueCredentials('qa-owner');
-  // page.request shares the context cookie jar, so the session the sign-up
-  // endpoint creates authenticates the wizard navigation that follows.
-  await signUpViaApi(context.request, credentials);
+  // Sign up via the BROWSER's own fetch rather than Playwright's
+  // APIRequestContext: under the Bun runtime the latter crashes parsing the
+  // Set-Cookie response ("/api/... cannot be parsed as a URL"). The in-page
+  // fetch sets the session cookie in the browser context natively and sends a
+  // same-origin Origin header (Better Auth CSRF defence), authenticating the
+  // wizard navigation that follows.
+  await page.goto('/log-in');
+  const signup = await page.evaluate(async (creds) => {
+    const res = await fetch('/api/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: creds.email,
+        email: creds.email,
+        password: creds.password,
+      }),
+    });
+    return { status: res.status, body: await res.text() };
+  }, credentials);
+  if (signup.status >= 400) {
+    throw new Error(
+      `Sign-up failed for ${credentials.email}: ${signup.status} ${signup.body}`,
+    );
+  }
   const organizationId = await createOrgViaWizard(page);
   await waitForSeededOrg(page, organizationId);
 

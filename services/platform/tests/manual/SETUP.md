@@ -75,7 +75,7 @@ dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
 mints an authenticated owner + org and writes a Playwright `storageState` file so
-the browser starts signed in (see the [qa-browser](../../.claude/skills/qa-browser/SKILL.md)
+the browser starts signed in (see the [browser-qa](../../.claude/skills/browser-qa/SKILL.md)
 skill). Otherwise sign in at `/log-in` with an existing local account.
 
 `{org}` throughout the guides is the 16+ character organization id in the
@@ -133,9 +133,10 @@ quick pass; deep coverage lives in the per-area guides.
 | `/log-in`                                             | login form renders                        |
 | `/dashboard/{org}`                                    | redirects into `/chat`                    |
 | `/dashboard/{org}/chat`                               | composer + agent/model pickers + starters |
+| `/dashboard/{org}/apps`                               | app catalog or empty state                |
 | `/dashboard/{org}/projects`                           | list or empty state                       |
 | `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)   |
-| `/dashboard/{org}/agents/organigram`                  | org chart canvas                          |
+| `/dashboard/{org}/agents/overview`                    | org chart canvas (organigram)             |
 | `/dashboard/{org}/agents/metrics`                     | workforce dashboard                       |
 | `/dashboard/{org}/automations`                        | list or empty state                       |
 | `/dashboard/{org}/automations/metrics`                | metrics                                   |
@@ -160,5 +161,5 @@ quick pass; deep coverage lives in the per-area guides.
 | `/docs`                                               | embedded Swagger API docs                 |
 
 ```
-Smoke: ___/27 routes load   Console errors: ___   Status: PASS / FAIL
+Smoke: ___/28 routes load   Console errors: ___   Status: PASS / FAIL
 ```
