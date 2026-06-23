@@ -23,7 +23,6 @@ import {
   FolderOpen,
   MoonStar,
   RefreshCw,
-  X,
 } from 'lucide-react';
 import {
   memo,
@@ -33,9 +32,15 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { ChatPaneDescriptor } from '@/app/features/chat/components/chat-panel/types';
+import {
+  useAutoOpen,
+  useRegisterPane,
+} from '@/app/features/chat/components/chat-panel/use-register-pane';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -48,13 +53,6 @@ import { CodeViewer } from '../viewers/code-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
 import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
 import { useWorkspaceFiles } from './workspace-files-context';
-
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 720;
-// Wider default than a single-column pane: the body is a two-column tree+viewer
-// split on desktop, so give both columns room.
-const DEFAULT_WIDTH = 560;
-const STRIP_WIDTH = 48;
 
 /** The agent's working area — the explorer root (matches the backend). Rooted
  * at `/user/workspace`, not the `/user` data root, so the panel shows only the
@@ -914,156 +912,80 @@ function SessionStoppedState() {
   );
 }
 
-/** The full open-pane body: header + tree (left) + viewer (below). Shared by
- *  the desktop resizable pane and the mobile sheet. */
-function WorkspaceFilesBody({ threadId }: { threadId: string }) {
+interface WorkspaceFilesBodyProps {
+  threadId: string;
+  showHidden: boolean;
+  refreshNonce: number;
+}
+
+/** The open-pane body: tree (left) + viewer (right). The Show-hidden / Refresh
+ *  controls are lifted to the registrar so they can also live in the shell's
+ *  tab-bar header actions; this body just consumes the resulting props. */
+function WorkspaceFilesBody({
+  threadId,
+  showHidden,
+  refreshNonce,
+}: WorkspaceFilesBodyProps) {
   const { t } = useT('chat');
-  const { close } = useWorkspaceFiles();
-  const [showHidden, setShowHidden] = useState(false);
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [sessionRunning, setSessionRunning] = useState(true);
 
   const handleSelectFile = useCallback((p: string) => setSelectedPath(p), []);
 
-  return (
-    <>
-      <Row gap={2} justify="between" className="border-border border-b p-3">
-        <Row gap={2} className="min-w-0">
-          <Folder
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden
-          />
-          <span className="truncate text-sm font-medium">
-            {t('workspaceFiles.title', { defaultValue: 'Workspace files' })}
-          </span>
-        </Row>
-        <Row gap={1} className="shrink-0">
-          <Tooltip
-            content={t('workspaceFiles.showHidden', {
-              defaultValue: 'Show hidden files',
-            })}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => setShowHidden((v) => !v)}
-              aria-pressed={showHidden}
-              aria-label={t('workspaceFiles.showHidden', {
-                defaultValue: 'Show hidden files',
-              })}
-            >
-              {showHidden ? (
-                <Eye className="size-3.5" />
-              ) : (
-                <EyeOff className="size-3.5" />
-              )}
-            </Button>
-          </Tooltip>
-          <Tooltip
-            content={t('workspaceFiles.refresh', { defaultValue: 'Refresh' })}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => setRefreshNonce((n) => n + 1)}
-              aria-label={t('workspaceFiles.refresh', {
-                defaultValue: 'Refresh',
-              })}
-            >
-              <RefreshCw className="size-3.5" />
-            </Button>
-          </Tooltip>
-          {/* Rendered in every variant. On desktop it's the pane's close; in
-              the mobile Sheet (`embedded`) it replaces the Sheet's own absolute
-              top-right close (suppressed via `hideClose`) so it can't collide
-              with the Show-hidden / Refresh actions in this same row. */}
-          <Tooltip
-            content={t('workspaceFiles.paneClose', {
-              defaultValue: 'Close files panel',
-            })}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={close}
-              aria-label={t('workspaceFiles.paneClose', {
-                defaultValue: 'Close files panel',
-              })}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </Tooltip>
-        </Row>
-      </Row>
+  if (!sessionRunning) {
+    return <SessionStoppedState />;
+  }
 
-      {!sessionRunning ? (
-        <SessionStoppedState />
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
-              (the conventional file-explorer left/right layout). */}
-          <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
-            <WorkspaceFileTree
-              threadId={threadId}
-              showHidden={showHidden}
-              refreshNonce={refreshNonce}
-              selectedPath={selectedPath}
-              onSelectFile={handleSelectFile}
-              onSessionRunningChange={setSessionRunning}
-            />
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {selectedPath ? (
-              <WorkspaceFileViewer
-                key={selectedPath}
-                threadId={threadId}
-                path={selectedPath}
-              />
-            ) : (
-              <Stack
-                gap={2}
-                className="h-full items-center justify-center p-8 text-center"
-              >
-                <Text variant="muted" className="text-sm">
-                  {t('workspaceFiles.selectFile', {
-                    defaultValue: 'Select a file to preview.',
-                  })}
-                </Text>
-              </Stack>
-            )}
-          </div>
-        </div>
-      )}
-    </>
+  return (
+    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
+          (the conventional file-explorer left/right layout). */}
+      <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
+        <WorkspaceFileTree
+          threadId={threadId}
+          showHidden={showHidden}
+          refreshNonce={refreshNonce}
+          selectedPath={selectedPath}
+          onSelectFile={handleSelectFile}
+          onSessionRunningChange={setSessionRunning}
+        />
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {selectedPath ? (
+          <WorkspaceFileViewer
+            key={selectedPath}
+            threadId={threadId}
+            path={selectedPath}
+          />
+        ) : (
+          <Stack
+            gap={2}
+            className="h-full items-center justify-center p-8 text-center"
+          >
+            <Text variant="muted" className="text-sm">
+              {t('workspaceFiles.selectFile', {
+                defaultValue: 'Select a file to preview.',
+              })}
+            </Text>
+          </Stack>
+        )}
+      </div>
+    </div>
   );
 }
 
-/** Mobile/embedded variant — renders just the body (no resizable shell). The
- *  caller (the chat Sheet) supplies the panel chrome. */
-export function WorkspaceFilesMobileBody({ threadId }: { threadId: string }) {
-  return (
-    <Stack gap={0} className="h-full min-h-0">
-      <WorkspaceFilesBody threadId={threadId} />
-    </Stack>
-  );
+interface WorkspaceFilesPaneProps {
+  /** True on external-agent threads with a session — the content signal. */
+  available: boolean;
 }
 
 /**
- * Read-only right-side pane listing the live external-agent session workspace.
- * Clones the CanvasPane shell: resizable 320–720px (default ~480), a
- * collapse-to-48px strip with a vertical label, a `border-l` left edge, a drag
- * handle, and `React.memo`. Renders only on external-agent threads with a live
- * (or recoverable) session — it is the SOLE right pane on those threads, so no
- * mutual-exclusion with Canvas/Plan is needed (those never mount here).
+ * Read-only workspace-files pane. A registrar: it publishes a descriptor (tree
+ * + viewer body, Show-hidden / Refresh header actions) to the unified right
+ * panel. Availability is the content signal — `chat.tsx` passes
+ * `useSandboxPanesAvailable`. Renders nothing itself.
  */
-function WorkspaceFilesPaneComponent() {
+function WorkspaceFilesPaneComponent({ available }: WorkspaceFilesPaneProps) {
   const { t } = useT('chat');
   const threadMatch = useMatch({
     from: '/dashboard/$id/chat/$threadId',
@@ -1071,87 +993,92 @@ function WorkspaceFilesPaneComponent() {
   });
   const threadId = threadMatch?.params?.threadId;
 
-  const { isOpen, open } = useWorkspaceFiles();
+  const { isOpen } = useWorkspaceFiles();
+  const [showHidden, setShowHidden] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
+  const hasContent = !!threadId && available;
+  // Sandbox panes don't auto-open on bare availability — open only when the
+  // user asks (the `+`-menu flips the context `isOpen`). Bridge that to the
+  // shell so opening Files from the menu maximizes its tab.
+  useAutoOpen('files', hasContent && isOpen);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const startX = e.clientX;
-    const startWidth =
-      resizeRef.current?.parentElement?.offsetWidth ?? DEFAULT_WIDTH;
+  const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
+    if (!hasContent || !threadId) return null;
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, startWidth + delta),
-      );
-      setWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
-
-  // Gating lives at the mount site: chat.tsx only mounts this pane when
-  // `useSandboxPanesAvailable` is true (external-agent thread with a session).
-  // With no threadId there's nothing to browse.
-  if (!threadId) return null;
-
-  // Collapsed: hidden on mobile (the Sheet takes over below `md`), a vertical
-  // strip on desktop so the pane is one click away after the user closes it.
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={open}
-        aria-label={t('workspaceFiles.toggleLabel', {
-          defaultValue: 'Workspace files',
-        })}
-        className="border-border bg-background hover:bg-muted/50 group hidden h-full shrink-0 cursor-pointer flex-col items-center gap-3 border-l py-4 transition-colors md:flex"
-        style={{ width: STRIP_WIDTH }}
-      >
-        <Folder className="text-muted-foreground group-hover:text-foreground size-4" />
-        <span className="text-muted-foreground group-hover:text-foreground rotate-180 text-[10px] [writing-mode:vertical-rl]">
-          {t('workspaceFiles.title', { defaultValue: 'Workspace files' })}
-        </span>
-      </button>
+    const headerActions: ReactNode = (
+      <>
+        <Tooltip
+          content={t('workspaceFiles.showHidden', {
+            defaultValue: 'Show hidden files',
+          })}
+          side="bottom"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setShowHidden((v) => !v)}
+            aria-pressed={showHidden}
+            aria-label={t('workspaceFiles.showHidden', {
+              defaultValue: 'Show hidden files',
+            })}
+          >
+            {showHidden ? (
+              <Eye className="size-3.5" />
+            ) : (
+              <EyeOff className="size-3.5" />
+            )}
+          </Button>
+        </Tooltip>
+        <Tooltip
+          content={t('workspaceFiles.refresh', { defaultValue: 'Refresh' })}
+          side="bottom"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setRefreshNonce((n) => n + 1)}
+            aria-label={t('workspaceFiles.refresh', {
+              defaultValue: 'Refresh',
+            })}
+          >
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </Tooltip>
+      </>
     );
-  }
 
-  return (
-    <div
-      className="border-border bg-background relative hidden h-full shrink-0 flex-col border-l md:flex"
-      style={{ width }}
-      role="complementary"
-      aria-label={t('workspaceFiles.title', {
+    return {
+      id: 'files',
+      icon: Folder,
+      label: t('workspaceFiles.title', { defaultValue: 'Workspace files' }),
+      ariaLabel: t('workspaceFiles.toggleLabel', {
         defaultValue: 'Workspace files',
-      })}
-    >
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('workspaceFiles.paneClose', {
-          defaultValue: 'Resize files panel',
-        })}
-      />
-      <WorkspaceFilesBody threadId={threadId} />
-    </div>
-  );
+      }),
+      hasContent: true,
+      headerActions,
+      body: (
+        // Key by threadId + refreshNonce so the body remounts — resetting
+        // `selectedPath` and `sessionRunning` to their fresh defaults — both on
+        // a thread switch (else the previous thread's file shows) and on an
+        // explicit Refresh. The Refresh remount is what lets a STOPPED session
+        // recover: once `sessionRunning` is false the tree unmounts and can no
+        // longer report itself running, so only a remount re-checks it.
+        <WorkspaceFilesBody
+          key={`${threadId}:${refreshNonce}`}
+          threadId={threadId}
+          showHidden={showHidden}
+          refreshNonce={refreshNonce}
+        />
+      ),
+    };
+  }, [hasContent, threadId, t, showHidden, refreshNonce]);
+
+  useRegisterPane(descriptor);
+
+  return null;
 }
 
 export const WorkspaceFilesPane = memo(WorkspaceFilesPaneComponent);

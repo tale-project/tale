@@ -9,7 +9,7 @@ Der Canvas ist kein separater Dokumentbereich und kein reichhaltigerer Composer.
 
 ## Was der Canvas ist
 
-Der Canvas öffnet automatisch beim ersten Mal, wenn eine Antwort canvas-würdigen Inhalt produziert. Der Thread behält einen kurzen Verweis („Source", „Preview") an der Stelle der Konversation, wo der Canvas-Inhalt erzeugt wurde; der rechte Bereich hält den eigentlichen Inhalt. Wechsle oben im Canvas zwischen **Source** und **Preview**, um rohen Code zu lesen oder das gerenderte Ergebnis zu sehen; **Download** speichert den aktuellen Canvas-Inhalt in eine Datei.
+Der Canvas öffnet automatisch beim ersten Mal, wenn eine Antwort canvas-würdigen Inhalt produziert. Der Thread behält einen kurzen Verweis („Source", „Preview") an der Stelle der Konversation, wo der Canvas-Inhalt erzeugt wurde; der rechte Bereich hält den eigentlichen Inhalt. Wechsle im Canvas zwischen **Source** und **Preview**, um rohen Code zu lesen oder das gerenderte Ergebnis zu sehen; **Download** speichert den aktuellen Canvas-Inhalt in eine Datei.
 
 ## Wann er automatisch öffnet
 

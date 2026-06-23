@@ -7,11 +7,24 @@ import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useMatch } from '@tanstack/react-router';
 import { useAction } from 'convex/react';
-import { MonitorPlay, MonitorOff, RefreshCw, RotateCcw, X } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { MonitorPlay, MonitorOff, RefreshCw, RotateCcw } from 'lucide-react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { ChatPaneDescriptor } from '@/app/features/chat/components/chat-panel/types';
+import {
+  useAutoOpen,
+  useRegisterPane,
+} from '@/app/features/chat/components/chat-panel/use-register-pane';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,11 +33,6 @@ import {
   useThreadSandboxState,
 } from '../../chat/hooks/queries';
 import { useLiveBrowser } from './live-browser-context';
-
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 720;
-const DEFAULT_WIDTH = 480;
-const STRIP_WIDTH = 48;
 
 /** RFB connection lifecycle, driven by the noVNC `RFB` events. */
 type StreamStatus = 'connecting' | 'streaming' | 'disconnected' | 'error';
@@ -160,9 +168,14 @@ function ScreencastViewport({
   }, []);
 
   useEffect(() => {
-    // Never construct RFB during SSR or before the host node mounts.
+    // Never construct RFB during SSR or before the host node mounts. Also bail
+    // when the session is inactive — the host div is unmounted in that state
+    // (see the `!sessionActive` early-return below), so a live socket would be
+    // orphaned. Depending on `sessionActive` makes the cleanup below run (and
+    // disconnect) the moment a running session stops.
     const container = containerRef.current;
-    if (!container || typeof window === 'undefined') return undefined;
+    if (!container || typeof window === 'undefined' || !sessionActive)
+      return undefined;
 
     setStatus('connecting');
 
@@ -223,9 +236,10 @@ function ScreencastViewport({
       rfbRef.current = null;
     };
     // `control` is a dep: flipping take/return control must reconnect the WS to
-    // the right (writable vs read-only) endpoint.
+    // the right (writable vs read-only) endpoint. `sessionActive` is a dep so
+    // the socket is torn down when a running session stops.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, connectNonce, control]);
+  }, [threadId, connectNonce, control, sessionActive]);
 
   // Gated empty state: nothing is being driven, so don't even open a socket —
   // tell the user to start a turn.
@@ -331,11 +345,92 @@ function ScreencastViewport({
   );
 }
 
-/** The full open-pane body: header (with the "View only" badge) + the live
- *  stream surface. Shared by the desktop resizable pane and the mobile sheet. */
-function LiveBrowserBody({ threadId }: { threadId: string }) {
+/** The control badge ("View only" / "You're in control") shown in the shell
+ *  tab-bar header while the live-browser tab is active. */
+function ControlBadge({ control }: { control: boolean }) {
   const { t } = useT('chat');
-  const { close, control } = useLiveBrowser();
+  return control ? (
+    <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+      {t('liveBrowser.controlling', { defaultValue: 'You’re in control' })}
+    </span>
+  ) : (
+    <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+      {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
+    </span>
+  );
+}
+
+/** The open-pane body: the live stream surface + the reset confirm dialog. The
+ *  control badge and Reset button are lifted to the registrar's header actions;
+ *  this body owns only the RFB host (which must stay mounted) and the dialog. */
+function LiveBrowserBody({
+  threadId,
+  sessionActive,
+  control,
+  confirmOpen,
+  onConfirmOpenChange,
+  resetting,
+  onReset,
+}: {
+  threadId: string;
+  sessionActive: boolean;
+  control: boolean;
+  confirmOpen: boolean;
+  onConfirmOpenChange: (open: boolean) => void;
+  resetting: boolean;
+  onReset: () => void;
+}) {
+  const { t } = useT('chat');
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ScreencastViewport
+        threadId={threadId}
+        sessionActive={sessionActive}
+        control={control}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={onConfirmOpenChange}
+        variant="destructive"
+        title={t('liveBrowser.resetConfirmTitle', {
+          defaultValue: 'Reset browser?',
+        })}
+        description={t('liveBrowser.resetConfirmBody', {
+          defaultValue:
+            'Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.',
+        })}
+        confirmText={t('liveBrowser.resetConfirmAction', {
+          defaultValue: 'Reset browser',
+        })}
+        isLoading={resetting}
+        onConfirm={onReset}
+      />
+    </div>
+  );
+}
+
+interface LiveBrowserPaneProps {
+  /** True on external-agent threads with a session — the content signal. */
+  available: boolean;
+}
+
+/**
+ * Live-browser pane. A registrar: it owns the session/reset state and publishes
+ * a descriptor (the RFB stream body + a control badge / Reset header action) to
+ * the unified right panel. The RFB WebSocket lives in `ScreencastViewport`,
+ * which the shell keeps mounted across tab switches. The `control` mode is
+ * still driven through `LiveBrowserProvider` (the take-control card flips it),
+ * and `useAutoOpen` opens the tab when `control` is requested or content lands.
+ */
+function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
+  const { t } = useT('chat');
+  const threadMatch = useMatch({
+    from: '/dashboard/$id/chat/$threadId',
+    shouldThrow: false,
+  });
+  const threadId = threadMatch?.params?.threadId;
+
+  const { control, isOpen } = useLiveBrowser();
 
   // "Active" = there's something worth streaming: a turn is actively running,
   // or the sandbox is warm (`active`). A `stopped`/`creating`/`degraded`
@@ -360,7 +455,7 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
   const handleReset = useCallback(async () => {
     setResetting(true);
     try {
-      await resetBrowser({ threadId });
+      await resetBrowser({ threadId: threadId ?? '' });
       setConfirmOpen(false);
     } catch (err) {
       // Surface, don't swallow — the dialog stays open so the user can retry.
@@ -370,59 +465,27 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
     }
   }, [resetBrowser, threadId]);
 
-  return (
-    <>
-      <Row gap={2} justify="between" className="border-border border-b p-3">
-        <Row gap={2} className="min-w-0">
-          <MonitorPlay
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden
-          />
-          <span className="truncate text-sm font-medium">
-            {t('liveBrowser.title', { defaultValue: 'Live browser' })}
-          </span>
-          {control ? (
-            <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-              {t('liveBrowser.controlling', {
-                defaultValue: 'You’re in control',
-              })}
-            </span>
-          ) : (
-            <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-              {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
-            </span>
-          )}
-        </Row>
-        {/* Rendered in every variant. On desktop it's the pane's close; in the
-            mobile Sheet (`embedded`) it replaces the Sheet's own absolute
-            top-right close (suppressed via `hideClose`) so the close affordance
-            stays aligned with this header row. */}
-        <Row gap={1} className="shrink-0">
-          {/* Reset browser — only while a session is live (nothing to reset
-              otherwise). Recovery of last resort; wipes saved logins. */}
-          {sessionActive && (
-            <Tooltip
-              content={t('liveBrowser.reset', {
-                defaultValue: 'Reset browser (clears logins)',
-              })}
-              side="bottom"
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={() => setConfirmOpen(true)}
-                aria-label={t('liveBrowser.reset', {
-                  defaultValue: 'Reset browser (clears logins)',
-                })}
-              >
-                <RotateCcw className="size-3.5" />
-              </Button>
-            </Tooltip>
-          )}
+  const hasContent = !!threadId && available;
+  // Unlike Plan/Canvas, the sandbox panes don't auto-open on mere availability
+  // (that's true for the whole sandbox thread and would fight Files↔Browser).
+  // They open on an explicit signal: the `+`-menu flipping the context `isOpen`,
+  // or a take-control request flipping `control`. Track the two edges
+  // SEPARATELY — a single `isOpen || control` boolean only fires once, so a
+  // control request after the menu was already opened (then minimized) would
+  // never re-surface the pane. Each call owns its own rising-edge detection.
+  useAutoOpen('browser', hasContent && isOpen);
+  useAutoOpen('browser', hasContent && control);
+
+  const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
+    if (!hasContent || !threadId) return null;
+
+    const headerActions: ReactNode = (
+      <>
+        <ControlBadge control={control} />
+        {sessionActive && (
           <Tooltip
-            content={t('liveBrowser.paneClose', {
-              defaultValue: 'Close live browser',
+            content={t('liveBrowser.reset', {
+              defaultValue: 'Reset browser (clears logins)',
             })}
             side="bottom"
           >
@@ -430,151 +493,51 @@ function LiveBrowserBody({ threadId }: { threadId: string }) {
               variant="ghost"
               size="icon"
               className="size-7"
-              onClick={close}
-              aria-label={t('liveBrowser.paneClose', {
-                defaultValue: 'Close live browser',
+              onClick={() => setConfirmOpen(true)}
+              aria-label={t('liveBrowser.reset', {
+                defaultValue: 'Reset browser (clears logins)',
               })}
             >
-              <X className="size-3.5" />
+              <RotateCcw className="size-3.5" />
             </Button>
           </Tooltip>
-        </Row>
-      </Row>
+        )}
+      </>
+    );
 
-      <Stack gap={0} className="min-h-0 flex-1">
-        <ScreencastViewport
+    return {
+      id: 'browser',
+      icon: MonitorPlay,
+      label: t('liveBrowser.title', { defaultValue: 'Live browser' }),
+      ariaLabel: t('liveBrowser.toggleLabel', { defaultValue: 'Live browser' }),
+      hasContent: true,
+      headerActions,
+      body: (
+        <LiveBrowserBody
           threadId={threadId}
           sessionActive={sessionActive}
           control={control}
+          confirmOpen={confirmOpen}
+          onConfirmOpenChange={setConfirmOpen}
+          resetting={resetting}
+          onReset={() => void handleReset()}
         />
-      </Stack>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        variant="destructive"
-        title={t('liveBrowser.resetConfirmTitle', {
-          defaultValue: 'Reset browser?',
-        })}
-        description={t('liveBrowser.resetConfirmBody', {
-          defaultValue:
-            'Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.',
-        })}
-        confirmText={t('liveBrowser.resetConfirmAction', {
-          defaultValue: 'Reset browser',
-        })}
-        isLoading={resetting}
-        onConfirm={handleReset}
-      />
-    </>
-  );
-}
-
-/** Mobile/embedded variant — renders just the body (no resizable shell). The
- *  caller (the chat Sheet) supplies the panel chrome. Shares one RFB host →
- *  only one WebSocket. */
-export function LiveBrowserMobileBody({ threadId }: { threadId: string }) {
-  return (
-    <Stack gap={0} className="h-full min-h-0">
-      <LiveBrowserBody threadId={threadId} />
-    </Stack>
-  );
-}
-
-/**
- * Read-only right-side pane streaming the live external-agent browser over
- * noVNC. Clones the WorkspaceFilesPane shell: resizable 320–720px (default
- * ~480), a collapse-to-48px strip with a vertical label, a `border-l` left
- * edge, a drag handle, and `React.memo`. Gated at the mount site: chat.tsx only
- * mounts this when `useSandboxPanesAvailable` is true (external-agent thread
- * with a session). The noVNC bundle is code-split via `lazyComponent` at the
- * import site.
- */
-function LiveBrowserPaneComponent() {
-  const { t } = useT('chat');
-  const threadMatch = useMatch({
-    from: '/dashboard/$id/chat/$threadId',
-    shouldThrow: false,
-  });
-  const threadId = threadMatch?.params?.threadId;
-
-  const { isOpen, open } = useLiveBrowser();
-
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const startX = e.clientX;
-    const startWidth =
-      resizeRef.current?.parentElement?.offsetWidth ?? DEFAULT_WIDTH;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, startWidth + delta),
-      );
-      setWidth(newWidth);
+      ),
     };
+  }, [
+    hasContent,
+    threadId,
+    t,
+    control,
+    sessionActive,
+    confirmOpen,
+    resetting,
+    handleReset,
+  ]);
 
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+  useRegisterPane(descriptor);
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
-
-  // No threadId → nothing to stream (the mount site also gates availability).
-  if (!threadId) return null;
-
-  // Collapsed: hidden on mobile (the Sheet takes over below `md`), a vertical
-  // strip on desktop so the pane is one click away after the user closes it.
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={() => open()}
-        aria-label={t('liveBrowser.toggleLabel', {
-          defaultValue: 'Live browser',
-        })}
-        className="border-border bg-background hover:bg-muted/50 group hidden h-full shrink-0 cursor-pointer flex-col items-center gap-3 border-l py-4 transition-colors md:flex"
-        style={{ width: STRIP_WIDTH }}
-      >
-        <MonitorPlay className="text-muted-foreground group-hover:text-foreground size-4" />
-        <span className="text-muted-foreground group-hover:text-foreground rotate-180 text-[10px] [writing-mode:vertical-rl]">
-          {t('liveBrowser.title', { defaultValue: 'Live browser' })}
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <div
-      className="border-border bg-background relative hidden h-full shrink-0 flex-col border-l md:flex"
-      style={{ width }}
-      role="complementary"
-      aria-label={t('liveBrowser.title', { defaultValue: 'Live browser' })}
-    >
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('liveBrowser.paneClose', {
-          defaultValue: 'Resize live browser panel',
-        })}
-      />
-      <LiveBrowserBody threadId={threadId} />
-    </div>
-  );
+  return null;
 }
 
 export const LiveBrowserPane = memo(LiveBrowserPaneComponent);

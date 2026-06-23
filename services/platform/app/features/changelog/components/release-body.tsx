@@ -32,7 +32,7 @@ export function ReleaseBody({ html, className }: ReleaseBodyProps) {
         '[&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5',
         '[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5',
         '[&_li]:leading-relaxed [&_li>p]:my-0',
-        '[&_a]:text-fg-base [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:no-underline',
+        '[&_a]:text-fg-base [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:no-underline',
         '[&_strong]:text-fg-base [&_strong]:font-semibold',
         '[&_em]:italic',
         '[&_code]:bg-bg-elevated [&_code]:text-fg-base [&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em]',

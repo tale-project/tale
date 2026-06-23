@@ -1,11 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
 import { Code, Eye } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { formatFileSize } from '@/lib/utils/format/file';
 
 import { CodeViewer } from './code-viewer';
 import { HtmlViewer } from './html-viewer';
@@ -49,25 +49,64 @@ function RenderableFileViewerComponent({
   defaultMode = 'source',
 }: RenderableFileViewerProps) {
   const { t } = useT('chat');
-  const [viewMode, setViewMode] = useState<'source' | 'preview'>(defaultMode);
-
-  useEffect(() => {
-    setViewMode(defaultMode);
-  }, [path, defaultMode]);
+  // Remember the chosen mode per file path. The canvas keeps a single
+  // RenderableFileViewer mounted and only swaps `path` when you switch tabs;
+  // resetting to `defaultMode` on every swap flipped source⇄preview and shifted
+  // the layout. Keying by path makes the mode sticky per file, so re-selecting a
+  // tab restores exactly what you last viewed — no jump.
+  const [modeByPath, setModeByPath] = useState<
+    Record<string, 'source' | 'preview'>
+  >({});
+  const viewMode = modeByPath[path] ?? defaultMode;
+  const setViewMode = (mode: 'source' | 'preview') =>
+    setModeByPath((prev) => ({ ...prev, [path]: mode }));
 
   const effectiveMode: 'source' | 'preview' = isStreaming ? 'source' : viewMode;
 
+  // Byte size of the displayed content. UTF-8 length matches what's rendered
+  // and grows live during a streaming `file_write`.
+  const sizeLabel = useMemo(
+    () => formatFileSize(new TextEncoder().encode(content).length),
+    [content],
+  );
+
   return (
-    <Stack gap={0} className="h-full min-h-0">
-      <Row
-        gap={1}
-        justify="end"
-        className="border-border bg-muted/30 shrink-0 border-b px-2 py-1"
+    <div className="relative flex h-full min-h-0 flex-col">
+      {/* `pb-14` reserves a gutter the height of the floating control so the
+          last line of content can scroll clear of it instead of hiding behind
+          it. */}
+      <div className="min-h-0 flex-1 overflow-hidden pb-14">
+        {effectiveMode === 'source' ? (
+          <CodeViewer path={path} content={content} />
+        ) : kind === 'html' ? (
+          <HtmlViewer html={content} />
+        ) : kind === 'svg' ? (
+          <SvgViewer svg={content} />
+        ) : kind === 'mermaid' ? (
+          <MermaidViewer code={content} />
+        ) : (
+          <MarkdownViewer content={content} />
+        )}
+      </div>
+
+      {/* Floating control: the Source/Preview toggle plus the file size, docked
+          bottom-right above the content as a raised card rather than a
+          full-width top bar. */}
+      <div
+        className="border-border bg-background/95 absolute right-3 bottom-3 z-10 flex items-center gap-1 rounded-lg border p-1 shadow-md backdrop-blur"
         role="group"
         aria-label={t('canvas.viewToggleAriaLabel', {
           defaultValue: 'Toggle source / preview',
         })}
       >
+        <span
+          className="text-muted-foreground px-2 text-xs tabular-nums"
+          aria-label={t('canvas.fileSizeAriaLabel', {
+            defaultValue: 'File size',
+          })}
+        >
+          {sizeLabel}
+        </span>
         <Button
           variant={effectiveMode === 'source' ? 'secondary' : 'ghost'}
           size="sm"
@@ -87,21 +126,8 @@ function RenderableFileViewerComponent({
         >
           {t('canvas.viewPreview', { defaultValue: 'Preview' })}
         </Button>
-      </Row>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {effectiveMode === 'source' ? (
-          <CodeViewer path={path} content={content} />
-        ) : kind === 'html' ? (
-          <HtmlViewer html={content} />
-        ) : kind === 'svg' ? (
-          <SvgViewer svg={content} />
-        ) : kind === 'mermaid' ? (
-          <MermaidViewer code={content} />
-        ) : (
-          <MarkdownViewer content={content} />
-        )}
       </div>
-    </Stack>
+    </div>
   );
 }
 

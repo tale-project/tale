@@ -33,6 +33,14 @@ import React, {
 
 import { useT } from '@/lib/i18n/client';
 
+// The pdfjs viewer entrypoint reads its core API from `globalThis.pdfjsLib` on
+// load (see the bootstrap effect below). Declaring it on the global type lets
+// us assign it without an unsafe type assertion.
+declare global {
+  // eslint-disable-next-line no-var
+  var pdfjsLib: typeof import('pdfjs-dist') | undefined;
+}
+
 import './pdf-layers.css';
 import { PdfLinkPopup, type PdfLinkPopupState } from './pdf-link-popup';
 import { PreviewPane } from './preview-pane';
@@ -291,10 +299,13 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [lib, viewer] = await Promise.all([
-        import('pdfjs-dist'),
-        import('pdfjs-dist/web/pdf_viewer.mjs'),
-      ]);
+      // The viewer entrypoint reads its core API from `globalThis.pdfjsLib`
+      // when it loads, so pin the core lib there before importing it. Loading
+      // both in parallel leaves the global unset and the viewer crashes.
+      const lib = await import('pdfjs-dist');
+      if (cancelled) return;
+      globalThis.pdfjsLib = lib;
+      const viewer = await import('pdfjs-dist/web/pdf_viewer.mjs');
       if (cancelled) return;
       pdfLibRef.current = lib;
       pdfViewerRef.current = viewer;

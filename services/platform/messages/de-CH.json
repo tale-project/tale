@@ -83,10 +83,6 @@
       }
     }
   },
-  "todoList": {
-    "paneClose": "Plan schliessen",
-    "paneResizeHandle": "Planbereich vergrössern"
-  },
   "documents": {
     "preview": {
       "closePreview": "Vorschau schliessen",

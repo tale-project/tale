@@ -4,7 +4,13 @@ import { Button } from '@tale/ui/button';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Bot, Box, ChevronDown, Plus, SlidersHorizontal } from 'lucide-react';
+import {
+  Bot,
+  Box,
+  ChevronDown,
+  LayoutGrid,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { memo, type ReactNode, useCallback, useMemo, useState } from 'react';
 
 import {
@@ -12,11 +18,9 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
 import { useT } from '@/lib/i18n/client';
 import {
   AUTO_AGENT_SLUG,
@@ -57,9 +61,6 @@ export const AgentSelector = memo(function AgentSelector({
   const readiness = useIntegrationReadiness(organizationId);
   const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);
-  const createAgentDialog = useDialogSearchParam({
-    paramValue: 'create-agent',
-  });
 
   const options = useMemo(() => {
     if (!allAgents) return [];
@@ -185,15 +186,21 @@ export const AgentSelector = memo(function AgentSelector({
     [allAgents, readiness, navigate, organizationId, setSelectedAgent],
   );
 
+  // The footer "Catalog" button sends the user to the agent catalog — the
+  // browse-and-install surface — rather than a bare create-agent dialog, so
+  // they can pick from the available agents (or create a new one from there).
   const handleAddAgentClick = useCallback(() => {
     setOpen(false);
-    createAgentDialog.open();
-  }, [createAgentDialog]);
+    void navigate({
+      to: '/dashboard/$id/agents/catalog',
+      params: { id: organizationId },
+    });
+  }, [navigate, organizationId]);
 
   // Right-side action per row: a link to that agent's detail page, mirroring
   // the model selector's provider link. Skipped for the "Auto" pseudo-option
   // (no agent to view) and only shown to users who can manage agents — the
-  // detail page is the same `agents` write gate as the Add agent footer.
+  // detail page is the same `agents` write gate as the Catalog footer button.
   const renderOptionAction = useCallback(
     (option: SearchableSelectOption): ReactNode => {
       if (!canManageAgents || option.value === AUTO_AGENT_SLUG) return null;
@@ -217,79 +224,69 @@ export const AgentSelector = memo(function AgentSelector({
   );
 
   return (
-    <>
-      <SearchableSelect
-        value={currentValue}
-        onValueChange={handleSelect}
-        options={options}
-        open={open}
-        onOpenChange={setOpen}
-        align="start"
-        side="top"
-        sideOffset={8}
-        contentClassName="w-[16.25rem]"
-        tooltip={t('agentSelector.label')}
-        tooltipSide="top"
-        searchPlaceholder={t('agentSelector.searchPlaceholder')}
-        emptyText={t('agentSelector.noResults')}
-        aria-label={t('agentSelector.label')}
-        // Surface each agent's description on hover/keyboard-highlight rather
-        // than inline — keeps the row height consistent and the list
-        // scannable when there are many agents.
-        descriptionMode="tooltip"
-        optionAction={renderOptionAction}
-        showRadio
-        trigger={
-          // min-w-32 (128 px) pins the trigger so the loading→loaded swap
-          // doesn't reflow for common labels. Names longer than ~128 px
-          // still grow on resolve. On narrow mobile viewports the pin is
-          // dropped so the composer toolbar fits without overflowing the
-          // send/mic cluster.
-          <Button
-            type="button"
-            className="gap-1.5 sm:min-w-32"
-            variant="ghost"
-            size="sm"
-            aria-label={t('agentSelector.label')}
-            disabled={isAgentLoading}
+    <SearchableSelect
+      value={currentValue}
+      onValueChange={handleSelect}
+      options={options}
+      open={open}
+      onOpenChange={setOpen}
+      align="start"
+      side="top"
+      sideOffset={8}
+      contentClassName="w-[16.25rem]"
+      tooltip={t('agentSelector.label')}
+      tooltipSide="top"
+      searchPlaceholder={t('agentSelector.searchPlaceholder')}
+      emptyText={t('agentSelector.noResults')}
+      aria-label={t('agentSelector.label')}
+      // Surface each agent's description on hover/keyboard-highlight rather
+      // than inline — keeps the row height consistent and the list
+      // scannable when there are many agents.
+      descriptionMode="tooltip"
+      optionAction={renderOptionAction}
+      showRadio
+      trigger={
+        // min-w-32 (128 px) pins the trigger so the loading→loaded swap
+        // doesn't reflow for common labels. Names longer than ~128 px
+        // still grow on resolve. On narrow mobile viewports the pin is
+        // dropped so the composer toolbar fits without overflowing the
+        // send/mic cluster.
+        <Button
+          type="button"
+          className="gap-1.5 sm:min-w-32"
+          variant="ghost"
+          size="sm"
+          aria-label={t('agentSelector.label')}
+          disabled={isAgentLoading}
+        >
+          <Bot className="size-3.5" aria-hidden="true" />
+          <Skeletonize
+            loading={isAgentLoading}
+            label={t('agentSelector.label')}
           >
-            <Bot className="size-3.5" aria-hidden="true" />
-            <Skeletonize
-              loading={isAgentLoading}
-              label={t('agentSelector.label')}
-            >
-              <SkeletonBox>
-                <span
-                  className={hasNoAgents ? 'text-muted-foreground' : undefined}
-                >
-                  {currentLabel}
-                </span>
-              </SkeletonBox>
-            </Skeletonize>
-            <ChevronDown className="size-3" aria-hidden="true" />
+            <SkeletonBox>
+              <span
+                className={hasNoAgents ? 'text-muted-foreground' : undefined}
+              >
+                {currentLabel}
+              </span>
+            </SkeletonBox>
+          </Skeletonize>
+          <ChevronDown className="size-3" aria-hidden="true" />
+        </Button>
+      }
+      footer={
+        canManageAgents ? (
+          <Button
+            variant="ghost"
+            className="w-full"
+            icon={LayoutGrid}
+            onClick={handleAddAgentClick}
+          >
+            {t('agentSelector.addAgent')}
           </Button>
-        }
-        footer={
-          canManageAgents ? (
-            <Button
-              variant="ghost"
-              className="w-full"
-              icon={Plus}
-              onClick={handleAddAgentClick}
-            >
-              {t('agentSelector.addAgent')}
-            </Button>
-          ) : undefined
-        }
-      />
-
-      {canManageAgents && (
-        <CreateAgentDialog
-          open={createAgentDialog.isOpen}
-          onOpenChange={createAgentDialog.onOpenChange}
-          organizationId={organizationId}
-        />
-      )}
-    </>
+        ) : undefined
+      }
+    />
   );
 });

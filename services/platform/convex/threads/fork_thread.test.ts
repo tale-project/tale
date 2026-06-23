@@ -9,6 +9,16 @@ vi.mock('@convex-dev/agent', () => ({
 
 vi.mock('../_generated/api', () => ({
   components: { agent: { threads: { getThread: 'getThread' } } },
+  internal: {
+    threads: {
+      snapshot_thread_files: { snapshotThreadFiles: 'snapshotThreadFiles' },
+    },
+  },
+}));
+
+const mockCopyThreadTodos = vi.fn();
+vi.mock('./snapshot_thread_todos', () => ({
+  copyThreadTodos: (...args: unknown[]) => mockCopyThreadTodos(...args),
 }));
 
 vi.mock('../_generated/server', async (importOriginal) => {
@@ -48,6 +58,7 @@ const VALID_TOKEN = '550e8400-e29b-41d4-a716-446655440000';
 
 function createMockCtx(metadata?: Record<string, unknown> | null) {
   const insertFn = vi.fn();
+  const runAfterFn = vi.fn().mockResolvedValue(undefined);
   return {
     ctx: {
       db: {
@@ -67,6 +78,7 @@ function createMockCtx(metadata?: Record<string, unknown> | null) {
         }),
         insert: insertFn,
       },
+      scheduler: { runAfter: runAfterFn },
       runQuery: vi.fn().mockResolvedValue({ _creationTime: 1000 }),
       auth: {
         getUserIdentity: vi.fn(async () => {
@@ -76,6 +88,7 @@ function createMockCtx(metadata?: Record<string, unknown> | null) {
       },
     },
     insertFn,
+    runAfterFn,
   };
 }
 
@@ -244,5 +257,54 @@ describe('forkThread', () => {
       'threadMetadata',
       expect.objectContaining({ forkedMessageCount: 2 }),
     );
+  });
+
+  it('snapshots the source workspace files + todos onto the fork', async () => {
+    const { ctx, runAfterFn } = createMockCtx({
+      isShared: true,
+      organizationId: 'org_1',
+    });
+    await forkThread(ctx, { shareToken: VALID_TOKEN });
+
+    expect(runAfterFn).toHaveBeenCalledWith(0, 'snapshotThreadFiles', {
+      sourceThreadId: 'thread_1',
+      newThreadId: 'new_thread_1',
+      organizationId: 'org_1',
+      userId: 'user_2',
+    });
+    expect(mockCopyThreadTodos).toHaveBeenCalledWith(ctx, {
+      sourceThreadId: 'thread_1',
+      newThreadId: 'new_thread_1',
+      organizationId: 'org_1',
+    });
+  });
+
+  it('skips the snapshot for a legacy thread with no organizationId', async () => {
+    const { ctx, runAfterFn } = createMockCtx({ isShared: true, title: 'T' });
+    await forkThread(ctx, { shareToken: VALID_TOKEN });
+
+    expect(runAfterFn).not.toHaveBeenCalled();
+    expect(mockCopyThreadTodos).not.toHaveBeenCalled();
+  });
+
+  it('cuts the file snapshot at sharedAt and skips the plan when sharedAt is set', async () => {
+    const { ctx, runAfterFn } = createMockCtx({
+      isShared: true,
+      organizationId: 'org_1',
+      sharedAt: 3000,
+    });
+    await forkThread(ctx, { shareToken: VALID_TOKEN });
+
+    // Files are cut at the share boundary so the fork can't inherit files the
+    // owner wrote after sharing.
+    expect(runAfterFn).toHaveBeenCalledWith(0, 'snapshotThreadFiles', {
+      sourceThreadId: 'thread_1',
+      newThreadId: 'new_thread_1',
+      organizationId: 'org_1',
+      userId: 'user_2',
+      createdAtCutoff: 3000,
+    });
+    // The plan can't be reconstructed as-of-share, so it is not copied.
+    expect(mockCopyThreadTodos).not.toHaveBeenCalled();
   });
 });

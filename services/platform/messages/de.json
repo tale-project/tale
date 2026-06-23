@@ -1192,7 +1192,7 @@
       "defaultAgent": "Assistent",
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
-      "addAgent": "Agent hinzufügen"
+      "addAgent": "Katalog"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -1625,15 +1625,19 @@
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
     "canvas": {
+      "title": "Canvas",
+      "stripOpen": "Canvas öffnen",
       "download": "Herunterladen",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
       "viewSource": "Quelltext",
       "viewPreview": "Vorschau",
       "viewToggleAriaLabel": "Quelltext / Vorschau umschalten",
+      "fileSizeAriaLabel": "Dateigröße",
       "sourceRunOutput": "Code-Ausgabe",
       "sourceAgentWrite": "KI-Dateien",
       "sourceUserUpload": "Hochgeladen",
       "noFilesYet": "Noch keine Dateien",
+      "writing": "Schreibt …",
       "runStatus": {
         "queued": "In Warteschlange",
         "installing": "Abhängigkeiten installieren",
@@ -1733,8 +1737,7 @@
       "error": "Diese Datei konnte nicht geladen werden.",
       "retry": "Erneut versuchen",
       "truncated": "… weitere Einträge ausgeblendet (Liste gekürzt)",
-      "ariaTree": "Arbeitsbereichsdateien",
-      "paneClose": "Dateibereich schließen"
+      "ariaTree": "Arbeitsbereichsdateien"
     },
     "liveBrowser": {
       "title": "Live-Browser",
@@ -1748,12 +1751,17 @@
       "retry": "Erneut versuchen",
       "emptyTitle": "Der Agent surft gerade nicht",
       "emptyHint": "Starte eine Anfrage — sobald der Agent einen Browser öffnet, siehst du es hier live.",
-      "paneClose": "Live-Browser schließen",
       "ariaLabel": "Live-Ansicht des Browsers des Agents (schreibgeschützt)",
       "reset": "Browser zurücksetzen (meldet von allen Seiten ab)",
       "resetConfirmTitle": "Browser zurücksetzen?",
       "resetConfirmBody": "Startet den Browser mit einem leeren Profil neu und meldet dich von allen Seiten ab, bei denen der Agent angemeldet war. Nutze dies nur, wenn der Browser hängt und sich nicht von selbst erholt.",
       "resetConfirmAction": "Browser zurücksetzen"
+    },
+    "chatPanel": {
+      "stripAria": "Chat-Bereich",
+      "ariaLabel": "Chat-Bereich",
+      "minimize": "Chat-Bereich minimieren",
+      "resizeAria": "Chat-Bereich vergrößern"
     }
   },
   "common": {
@@ -6868,9 +6876,6 @@
     "failedCount": "{count} fehlgeschlagen",
     "collapse": "Einklappen",
     "expand": "Ausklappen",
-    "paneClose": "Plan schließen",
-    "paneMinimize": "Plan minimieren",
-    "paneResizeHandle": "Planbereich vergrößern",
     "stripOpen": "Recherche-Plan öffnen",
     "showMoreSources": "{count} weitere Quellen anzeigen",
     "hideSources": "Zusätzliche Quellen ausblenden",

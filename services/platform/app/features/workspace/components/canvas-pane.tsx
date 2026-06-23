@@ -1,13 +1,24 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
 import { useMatch } from '@tanstack/react-router';
 import { parsePartialJson } from 'ai';
-import { Download, PanelRightOpen, X } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Palette } from 'lucide-react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { ChatPaneDescriptor } from '@/app/features/chat/components/chat-panel/types';
+import {
+  useAutoOpen,
+  useRegisterPane,
+} from '@/app/features/chat/components/chat-panel/use-register-pane';
 import { useBranchContext } from '@/app/features/chat/context/branch-context';
 import { useStreamingTools } from '@/app/features/chat/context/streaming-tool-context';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -17,7 +28,11 @@ import { useT } from '@/lib/i18n/client';
 import type { ThreadFileItem } from '../types';
 import { FileViewerRouter } from './file-viewer-router';
 import { useWorkspace } from './workspace-context';
-import { WorkspaceFileSidebar } from './workspace-file-sidebar';
+import { WorkspaceFileTabs, WorkspaceOutputDock } from './workspace-file-tabs';
+
+/** id of the file viewer container — the tab strip + output dock point their
+ *  `aria-controls` at it. */
+const CANVAS_VIEWER_ID = 'canvas-file-viewer';
 
 interface CanvasPaneProps {
   organizationId: string;
@@ -30,11 +45,13 @@ interface LiveFile {
   encoding: 'utf-8' | 'base64';
 }
 
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 720;
-const DEFAULT_WIDTH = 480;
-const STRIP_WIDTH = 48;
-
+/**
+ * Canvas (workspace files) pane. A registrar: it owns the file list + the
+ * streaming `file_write` merge and publishes a descriptor to the unified right
+ * panel. The active-file path still persists per-thread via `WorkspaceProvider`
+ * (`setActiveFilePath`); open/close of the pane is now governed by the shell's
+ * active tab, so this no longer calls `openWorkspace`/`closeWorkspace`.
+ */
 function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   const { t } = useT('chat');
   const threadMatch = useMatch({
@@ -50,13 +67,7 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   const { activeBranchThreadId } = useBranchContext();
   const threadId = activeBranchThreadId ?? routeThreadId;
 
-  const {
-    isOpen,
-    activeFilePath,
-    openWorkspace,
-    closeWorkspace,
-    setActiveFilePath,
-  } = useWorkspace();
+  const { activeFilePath, setActiveFilePath } = useWorkspace();
 
   const { data: filesData } = useConvexQuery(
     api.thread_files.queries.listThreadFilesForUser,
@@ -123,24 +134,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     return [...live, ...landed];
   }, [liveFiles, threadFiles, livePaths]);
 
-  // ── UI state ─────────────────────────────────────────────────────────────
-  const [userDismissed, setUserDismissed] = useState(false);
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-
-  useEffect(() => {
-    setUserDismissed(false);
-  }, [threadId]);
-
-  // Auto-open trigger: fires on the first file path (landed or live).
-  const firstFilePath = mergedFiles[0]?.path;
-  useEffect(() => {
-    if (firstFilePath && !userDismissed && !isOpen) {
-      openWorkspace(firstFilePath);
-    }
-  }, [firstFilePath, userDismissed, isOpen, openWorkspace]);
-
   // While a file is streaming, focus the viewer on it so the user sees the
   // live content even if a previously-landed file was active.
   const newestLivePath = liveFiles[0]?.path;
@@ -152,43 +145,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     // to the previously-active file when streaming ends is handled below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newestLivePath]);
-
-  const handleClose = useCallback(() => {
-    closeWorkspace();
-    setUserDismissed(true);
-  }, [closeWorkspace]);
-
-  const handleStripOpen = useCallback(() => {
-    setUserDismissed(false);
-    openWorkspace(firstFilePath);
-  }, [openWorkspace, firstFilePath]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const startX = e.clientX;
-    const startWidth =
-      resizeRef.current?.parentElement?.offsetWidth ?? DEFAULT_WIDTH;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, startWidth + delta),
-      );
-      setWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
 
   // Resolve the active path against the current file list; fall back to the
   // first file if the previously-active path was deleted or doesn't exist.
@@ -233,115 +189,47 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     }
   }, [downloadUrl, resolvedPath, isDownloading]);
 
-  if (!threadId || mergedFiles.length === 0) return null;
+  const hasContent = !!threadId && mergedFiles.length > 0;
+  useAutoOpen('canvas', hasContent);
 
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={handleStripOpen}
-        aria-label={t('canvas.stripOpen', { defaultValue: 'Open canvas' })}
-        className="border-border bg-background hover:bg-muted/50 group flex h-full shrink-0 cursor-pointer flex-col items-center gap-3 border-l py-4 transition-colors"
-        style={{ width: STRIP_WIDTH }}
+  const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
+    if (!hasContent || !threadId) return null;
+
+    const headerActions: ReactNode = (
+      <Tooltip
+        content={t('canvas.download', { defaultValue: 'Download' })}
+        side="bottom"
       >
-        <PanelRightOpen className="text-muted-foreground group-hover:text-foreground size-4" />
-        <span className="text-muted-foreground group-hover:text-foreground rotate-180 text-[10px] [writing-mode:vertical-rl]">
-          {t('canvas.title', { defaultValue: 'Canvas' })} · {mergedFiles.length}
-        </span>
-      </button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          onClick={() => void handleDownload()}
+          disabled={!downloadUrl || isDownloading || isActiveStreaming}
+          aria-label={t('canvas.download', { defaultValue: 'Download' })}
+        >
+          <Download className="size-3.5" />
+        </Button>
+      </Tooltip>
     );
-  }
 
-  const activeFile = mergedFiles.find((f) => f.path === resolvedPath);
-  const filename = resolvedPath?.split('/').pop() ?? '';
+    // Active-file meta, pinned to the right of the tab strip. Only the
+    // streaming indicator rides here now — the file size was dropped.
+    const activeMeta: ReactNode = isActiveStreaming
+      ? t('canvas.writing', { defaultValue: 'Writing…' })
+      : null;
 
-  return (
-    <Stack
-      gap={0}
-      className="border-border bg-background relative h-full shrink-0 border-l"
-      style={{ width }}
-      role="complementary"
-      aria-label={t('canvas.ariaLabel', { defaultValue: 'Canvas panel' })}
-    >
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('canvas.paneResizeHandle', {
-          defaultValue: 'Resize canvas panel',
-        })}
-      />
-
-      <Row gap={2} justify="between" className="border-border border-b p-3">
-        <Row gap={2} className="min-w-0">
-          {isActiveStreaming && (
-            <span
-              className="bg-primary inline-block size-1.5 shrink-0 animate-pulse rounded-full"
-              aria-hidden="true"
-            />
-          )}
-          <span
-            className="truncate font-mono text-xs"
-            title={resolvedPath ?? ''}
-          >
-            {filename}
-          </span>
-          {activeFile && !isActiveStreaming && (
-            <span className="text-muted-foreground shrink-0 text-[10px]">
-              {Math.max(1, Math.round(activeFile.size / 1024))} KB
-            </span>
-          )}
-          {isActiveStreaming && (
-            <span className="text-muted-foreground shrink-0 text-[10px]">
-              {t('canvas.writing', { defaultValue: 'Writing…' })}
-            </span>
-          )}
-        </Row>
-        <Row gap={1} className="shrink-0">
-          <Tooltip
-            content={t('canvas.download', { defaultValue: 'Download' })}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => void handleDownload()}
-              disabled={!downloadUrl || isDownloading || isActiveStreaming}
-              aria-label={t('canvas.download', { defaultValue: 'Download' })}
-            >
-              <Download className="size-3.5" />
-            </Button>
-          </Tooltip>
-          <Tooltip
-            content={t('canvas.paneClose', { defaultValue: 'Close canvas' })}
-            side="bottom"
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={handleClose}
-              aria-label={t('canvas.paneClose', {
-                defaultValue: 'Close canvas',
-              })}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </Tooltip>
-        </Row>
-      </Row>
-
-      <Row gap={0} align="stretch" className="min-h-0 flex-1">
-        <WorkspaceFileSidebar
+    const body: ReactNode = (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <WorkspaceFileTabs
           files={mergedFiles}
           activePath={resolvedPath}
           onSelect={setActiveFilePath}
           streamingPaths={livePaths}
+          viewerId={CANVAS_VIEWER_ID}
+          meta={activeMeta}
         />
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div id={CANVAS_VIEWER_ID} className="min-h-0 flex-1 overflow-hidden">
           <FileViewerRouter
             threadId={threadId}
             organizationId={organizationId}
@@ -352,9 +240,43 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
             liveEncoding={activeLive?.encoding}
           />
         </div>
-      </Row>
-    </Stack>
-  );
+        <WorkspaceOutputDock
+          files={mergedFiles}
+          activePath={resolvedPath}
+          onSelect={setActiveFilePath}
+          viewerId={CANVAS_VIEWER_ID}
+        />
+      </div>
+    );
+
+    return {
+      id: 'canvas',
+      icon: Palette,
+      label: t('canvas.title', { defaultValue: 'Canvas' }),
+      ariaLabel: t('canvas.stripOpen', { defaultValue: 'Open canvas' }),
+      hasContent: true,
+      headerActions,
+      body,
+    };
+  }, [
+    hasContent,
+    threadId,
+    organizationId,
+    t,
+    resolvedPath,
+    isActiveStreaming,
+    mergedFiles,
+    livePaths,
+    activeLive,
+    setActiveFilePath,
+    handleDownload,
+    downloadUrl,
+    isDownloading,
+  ]);
+
+  useRegisterPane(descriptor);
+
+  return null;
 }
 
 function equalLiveFiles(a: LiveFile[], b: LiveFile[]): boolean {

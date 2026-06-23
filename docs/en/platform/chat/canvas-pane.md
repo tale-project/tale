@@ -9,7 +9,7 @@ The Canvas is not a separate document area or a richer composer. It is a render 
 
 ## What the Canvas is
 
-The Canvas opens automatically the first time a reply produces Canvas-worthy content. The thread keeps a short pointer ("Source", "Preview") at the spot in the conversation where the Canvas content was generated; the right-hand pane holds the actual content. Toggle between **Source** and **Preview** at the top of the Canvas to read raw code or see the rendered result; **Download** saves the current Canvas content to a file.
+The Canvas opens automatically the first time a reply produces Canvas-worthy content. The thread keeps a short pointer ("Source", "Preview") at the spot in the conversation where the Canvas content was generated; the right-hand pane holds the actual content. Toggle between **Source** and **Preview** on the Canvas to read raw code or see the rendered result; **Download** saves the current Canvas content to a file.
 
 ## When it auto-opens
 
