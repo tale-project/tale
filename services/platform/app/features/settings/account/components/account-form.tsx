@@ -1,10 +1,12 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -30,6 +32,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
@@ -308,6 +311,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     handleSubmit,
     formState: { errors, isSubmitting, isDirty, isValid },
     reset,
+    setError,
     watch,
   } = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
@@ -327,7 +331,18 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
-    } catch {
+    } catch (error) {
+      // A wrong current password is an expected, recoverable failure — surface
+      // it as an inline field error on the current-password input (mirroring
+      // the 2FA / add-member flows) rather than a generic destructive toast
+      // (#1945). The backend raises a structured ConvexError for this case.
+      if (convexErrorCode(error) === 'INVALID_CURRENT_PASSWORD') {
+        setError('currentPassword', {
+          type: 'manual',
+          message: tAuth('changePassword.validation.currentIncorrect'),
+        });
+        return;
+      }
       toast({
         title: tToast('error.passwordChangeFailed.title'),
         description: tToast('error.passwordChangeFailed.description'),
@@ -370,6 +385,13 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
+      <Alert
+        variant="warning"
+        icon={AlertTriangle}
+        title={tAuth('changePassword.warning.title')}
+        description={tAuth('changePassword.warning.description')}
+      />
+
       <Input
         id="current-password"
         type="password"

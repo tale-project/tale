@@ -652,8 +652,13 @@
       },
       "validation": {
         "currentRequired": "Le mot de passe actuel est requis",
+        "currentIncorrect": "Le mot de passe actuel est incorrect",
         "confirmRequired": "Confirme ton nouveau mot de passe",
         "mismatch": "Les mots de passe ne correspondent pas"
+      },
+      "warning": {
+        "title": "Tu seras déconnecté partout",
+        "description": "Changer ton mot de passe te déconnecte de tous les appareils. Tu devras te reconnecter avec ton nouveau mot de passe."
       }
     },
     "forcedChange": {
