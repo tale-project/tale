@@ -54,6 +54,51 @@ describe('security headers', () => {
     expect(pp).toContain('clipboard-write=(self)');
   });
 
+  // Regression guard for issue #1925 — "Verify the web client passes the
+  // Mozilla Observatory check". The live HTTPS deployment (demo.tale.dev) was
+  // scanned with the MDN HTTP Observatory on 2026-06-23 and graded **A+**
+  // (score 115, algorithm v5, 10/10 tests passed, 0 failed):
+  //   https://developer.mozilla.org/en-US/observatory/analyze?host=demo.tale.dev
+  // The A+ grade hinges on the specific header shape asserted below — most of
+  // all a strict, nonce-based CSP with NO `unsafe-inline`/`unsafe-eval` in
+  // `script-src`. This test locks that contract so a future change that would
+  // drop the grade fails CI instead of being noticed only on the next manual
+  // scan.
+  test('emits the Observatory A+ header contract (issue #1925)', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+
+    const csp = res.headers.get('content-security-policy') ?? '';
+    // Observatory's CSP test awards its best score only when `script-src`
+    // neither falls back to a permissive `default-src` nor allows inline /
+    // eval execution. A per-request nonce plus `'self'` is what earns it.
+    const scriptSrc = csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith('script-src'));
+    expect(scriptSrc).toBeDefined();
+    expect(scriptSrc).toMatch(/'nonce-[^']+'/);
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+    expect(scriptSrc).not.toContain("'unsafe-eval'");
+    // Directives Observatory checks for clickjacking / injection hardening.
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+
+    // The remaining Observatory tests map one-to-one onto these headers.
+    expect(res.headers.get('strict-transport-security')).toBe(
+      'max-age=15552000',
+    );
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('referrer-policy')).toBe(
+      'strict-origin-when-cross-origin',
+    );
+    // CORS test: the document must NOT advertise itself as cross-origin
+    // readable. A wide-open `Access-Control-Allow-Origin: *` would fail it.
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   test('HSTS is omitted when SITE_URL is HTTP loopback', async () => {
     const app = createApp({ ...baseEnv, SITE_URL: 'http://localhost:3000' });
     const res = await app.fetch(new Request('http://localhost/api/health'));
