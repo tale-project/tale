@@ -1199,6 +1199,7 @@
       "label": "Sélectionner un modèle",
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
+      "addModel": "Ajouter un modèle",
       "auto": "Auto",
       "autoDescription": "Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.",
       "byoDefault": "Modèle par défaut",
@@ -2553,17 +2554,10 @@
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
     "steps": {
-      "preferences": "Préférences",
       "account": "Compte",
       "workspace": "Espace de travail",
       "provider": "OpenRouter",
       "finish": "Terminer"
-    },
-    "preferences": {
-      "heading": "Personnalise",
-      "why": "Choisis ta langue et ton thème. Tu peux les changer à tout moment.",
-      "languageLabel": "Langue",
-      "themeLabel": "Thème"
     },
     "account": {
       "heading": "Crée ton compte propriétaire",
@@ -4855,12 +4849,13 @@
     "menu": {
       "groups": {
         "you": "Toi",
-        "workspace": "Espace de travail",
-        "governance": "Gouvernance"
+        "organization": "Organisation",
+        "development": "Développement"
       },
       "railSections": {
         "personal": "Personnel",
-        "organization": "Organisation"
+        "organization": "Organisation",
+        "development": "Développement"
       },
       "account": {
         "description": "Ton profil, ta connexion et ta sécurité."
@@ -4906,6 +4901,12 @@
       },
       "sandboxes": {
         "description": "Gérer les sandboxes d’agent distant toujours actives."
+      },
+      "enterpriseSso": {
+        "description": "Authentification unique et synchronisation d’annuaire pour ton personnel."
+      },
+      "dataResidency": {
+        "description": "Où tes données sont stockées et traitées."
       }
     },
     "tokenSources": {
@@ -5113,7 +5114,7 @@
       },
       "navigation": {
         "general": "Général",
-        "instructionsModel": "Instructions et modèle",
+        "instructionsModel": "Instructions et modèles",
         "tools": "Outils",
         "skills": "Skills",
         "knowledge": "Base de connaissances",
@@ -5177,7 +5178,7 @@
         "sectionInstructionsDescription": "Définis le comportement et la personnalité de l'agent",
         "templateVariablesLabel": "Variables de modèle disponibles",
         "templateVariablesDescription": "Utilise ces variables dans tes instructions — elles seront résolues à l'exécution.",
-        "sectionModel": "Modèle",
+        "sectionModel": "Modèles",
         "sectionModelDescription": "Configure les modèles IA pour cet agent. Le premier modèle est le modèle principal utilisé pour la génération. Les modèles supplémentaires servent de modèles de secours ordonnés — si le modèle principal est indisponible, l'agent essaie automatiquement le modèle suivant dans la liste.",
         "sectionTools": "Outils",
         "sectionToolsDescription": "Sélectionne les outils que cet agent peut utiliser",
@@ -5653,8 +5654,7 @@
         "disconnectConfirmDescription": "Es-tu sûr de vouloir déconnecter cette intégration ? Tu pourras la reconnecter ultérieurement.",
         "deleteConfirmTitle": "Supprimer l'intégration",
         "deleteConfirmDescription": "Es-tu sûr de vouloir supprimer cette intégration ? Cette action est irréversible.",
-        "deleteIntegration": "Supprimer l'intégration",
-        "saveChanges": "Enregistrer les modifications"
+        "deleteIntegration": "Supprimer l'intégration"
       },
       "authMethods": {
         "api_key": "Clé API",
@@ -5663,9 +5663,7 @@
         "oauth2": "OAuth2"
       },
       "enterpriseSso": {
-        "name": "SSO d'entreprise et provisionnement",
         "description": "Authentification unique (OIDC, OAuth2, SAML) et provisionnement SCIM des utilisateurs et des groupes.",
-        "title": "SSO d'entreprise et provisionnement",
         "connected": "La connexion est activée.",
         "copied": "Copié dans le presse-papiers",
         "copy": "Copier",
@@ -5723,11 +5721,16 @@
         "disable": "Désactiver la connexion",
         "remove": "Supprimer",
         "test": "Tester la connexion",
-        "save": "Enregistrer",
         "saved": "Enregistré",
         "saveFailed": "Échec de l'enregistrement",
         "testOk": "La connexion semble correcte",
         "testFailed": "Échec du test de connexion",
+        "testMissingFields": "Renseignez les champs requis avant de tester.",
+        "formHint": "Configurez la manière dont les membres se connectent, puis enregistrez vos modifications depuis l'en-tête.",
+        "validation": {
+          "required": "Ce champ est requis.",
+          "url": "Saisissez une URL valide (avec https://)."
+        },
         "guide": {
           "title": "Guide de configuration",
           "redirectLabel": "URL de redirection / de rappel",

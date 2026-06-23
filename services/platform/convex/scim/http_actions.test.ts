@@ -44,15 +44,10 @@ async function seedConnection(
   const tokenHash = enabled ? await hashScimToken(token) : '';
   const now = 1_700_000_000_000;
   await t.run(async (ctx) => {
+    // The connection CONFIG lives in files now; this DB row holds only SCIM
+    // token state (the slice these endpoints resolve the org from).
     await ctx.db.insert('ssoConnections', {
       organizationId,
-      displayName: 'Enterprise SSO',
-      enabled: false,
-      autoProvisionRole: false,
-      defaultRole: 'member',
-      roleMappingRules: [],
-      autoProvisionTeam: false,
-      excludeGroups: [],
       scimEnabled: enabled,
       scimTokenHash: tokenHash,
       scimTokenPrefix: enabled ? 'scim_testto…' : '',

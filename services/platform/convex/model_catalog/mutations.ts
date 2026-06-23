@@ -62,38 +62,6 @@ export const upsertCapabilities = internalMutation({
   },
 });
 
-/** Upsert the per-org auto-sync toggle. Called by the developer-gated setter
- *  action; absent row means "enabled" so we only write when toggling. */
-export const setAutoSyncEnabled = internalMutation({
-  args: {
-    organizationId: v.string(),
-    enabled: v.boolean(),
-    updatedAt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query('modelSyncSettings')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        autoSyncEnabled: args.enabled,
-        updatedAt: args.updatedAt,
-      });
-    } else {
-      await ctx.db.insert('modelSyncSettings', {
-        organizationId: args.organizationId,
-        autoSyncEnabled: args.enabled,
-        updatedAt: args.updatedAt,
-      });
-    }
-    return null;
-  },
-});
-
 /** Record a sync run's outcome for the UI status readout. */
 export const recordSync = internalMutation({
   args: {

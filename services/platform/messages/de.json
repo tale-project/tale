@@ -1198,6 +1198,7 @@
       "label": "Modell auswählen",
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
+      "addModel": "Modell hinzufügen",
       "auto": "Auto",
       "autoDescription": "Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.",
       "byoDefault": "Standardmodell",
@@ -2552,17 +2553,10 @@
     "stepsAriaLabel": "Onboarding-Schritte",
     "progress": "Schritt {current} von {total}: {label}",
     "steps": {
-      "preferences": "Einstellungen",
       "account": "Konto",
       "workspace": "Arbeitsbereich",
       "provider": "OpenRouter",
       "finish": "Fertig"
-    },
-    "preferences": {
-      "heading": "Mach es zu deinem",
-      "why": "Wähle deine Sprache und dein Design. Du kannst beides jederzeit ändern.",
-      "languageLabel": "Sprache",
-      "themeLabel": "Design"
     },
     "account": {
       "heading": "Erstelle dein Inhaberkonto",
@@ -4854,12 +4848,13 @@
     "menu": {
       "groups": {
         "you": "Du",
-        "workspace": "Arbeitsbereich",
-        "governance": "Governance"
+        "organization": "Organisation",
+        "development": "Entwicklung"
       },
       "railSections": {
         "personal": "Persönlich",
-        "organization": "Organisation"
+        "organization": "Organisation",
+        "development": "Entwicklung"
       },
       "account": {
         "description": "Profil, Anmeldung und Sicherheit."
@@ -4905,6 +4900,12 @@
       },
       "sandboxes": {
         "description": "Always-on Remote-Agent-Sandboxes verwalten."
+      },
+      "enterpriseSso": {
+        "description": "Single Sign-on und Verzeichnissynchronisation für deine Belegschaft."
+      },
+      "dataResidency": {
+        "description": "Wo deine Daten gespeichert und verarbeitet werden."
       }
     },
     "tokenSources": {
@@ -5112,7 +5113,7 @@
       },
       "navigation": {
         "general": "Allgemein",
-        "instructionsModel": "Anweisungen & Modell",
+        "instructionsModel": "Anweisungen & Modelle",
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Wissen",
@@ -5176,7 +5177,7 @@
         "sectionInstructionsDescription": "Verhalten und Persönlichkeit des Agents definieren",
         "templateVariablesLabel": "Verfügbare Vorlagenvariablen",
         "templateVariablesDescription": "Verwende diese Variablen in deinen Anweisungen – sie werden zur Laufzeit aufgelöst.",
-        "sectionModel": "Modell",
+        "sectionModel": "Modelle",
         "sectionModelDescription": "Konfiguriere die KI-Modelle für diesen Agent. Das erste Modell ist das primäre Modell für die Generierung. Zusätzliche Modelle dienen als geordnete Fallbacks — wenn das primäre Modell nicht verfügbar ist, versucht der Agent automatisch das nächste Modell in der Liste.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Auswählen, welche Tools dieser Agent verwenden kann",
@@ -5652,8 +5653,7 @@
         "disconnectConfirmDescription": "Möchtest du diese Integration wirklich trennen? Du kannst sie später erneut verbinden.",
         "deleteConfirmTitle": "Integration löschen",
         "deleteConfirmDescription": "Möchtest du diese Integration wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-        "deleteIntegration": "Integration löschen",
-        "saveChanges": "Änderungen speichern"
+        "deleteIntegration": "Integration löschen"
       },
       "authMethods": {
         "api_key": "API-Schlüssel",
@@ -5662,9 +5662,7 @@
         "oauth2": "OAuth2"
       },
       "enterpriseSso": {
-        "name": "Enterprise-SSO & Bereitstellung",
         "description": "Single Sign-On (OIDC, OAuth2, SAML) und SCIM-Bereitstellung von Benutzern und Gruppen.",
-        "title": "Enterprise-SSO & Bereitstellung",
         "connected": "Die Anmeldung ist aktiviert.",
         "copied": "In die Zwischenablage kopiert",
         "copy": "Kopieren",
@@ -5722,11 +5720,16 @@
         "disable": "Anmeldung deaktivieren",
         "remove": "Entfernen",
         "test": "Verbindung testen",
-        "save": "Speichern",
         "saved": "Gespeichert",
         "saveFailed": "Speichern fehlgeschlagen",
         "testOk": "Verbindung sieht gut aus",
         "testFailed": "Verbindungstest fehlgeschlagen",
+        "testMissingFields": "Bitte fülle die erforderlichen Felder aus, bevor du testest.",
+        "formHint": "Lege fest, wie sich Mitglieder anmelden, und speichere deine Änderungen oben in der Kopfzeile.",
+        "validation": {
+          "required": "Dieses Feld ist erforderlich.",
+          "url": "Gib eine gültige URL ein (inklusive https://)."
+        },
         "guide": {
           "title": "Einrichtungsleitfaden",
           "redirectLabel": "Weiterleitungs-/Callback-URL",

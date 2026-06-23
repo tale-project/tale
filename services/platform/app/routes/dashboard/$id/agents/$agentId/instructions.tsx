@@ -513,6 +513,7 @@ function InstructionsTab() {
       )}
 
       <PageSection
+        id="models"
         title={t('agents.form.sectionModel')}
         description={
           isByo

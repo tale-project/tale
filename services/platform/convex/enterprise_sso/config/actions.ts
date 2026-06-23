@@ -2,8 +2,6 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action, type ActionCtx } from '../../_generated/server';
-import { decryptString } from '../../lib/crypto/decrypt_string';
-import { encryptString } from '../../lib/crypto/encrypt_string';
 import { isAdmin } from '../../lib/rls/helpers/role_helpers';
 import { getAdapter } from '../registry';
 import {
@@ -12,6 +10,13 @@ import {
   roleMappingRuleValidator,
   ssoProviderIdValidator,
 } from '../validators';
+
+/**
+ * Admin-gated public actions for the file-backed SSO connection. Each one
+ * authenticates the caller, then delegates the file write (and the
+ * `configCache` mirror) to the `'use node'` `config/file_actions.ts`. The
+ * connection config lives in per-org JSON files — no DB row carries it.
+ */
 
 interface Caller {
   userId: string;
@@ -69,27 +74,8 @@ export const upsertOidc = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const caller = await requireAdmin(ctx, args.organizationId);
-
-    let clientIdEncrypted: string;
-    let clientSecretEncrypted: string;
-    if (args.clientSecret) {
-      clientIdEncrypted = await encryptString(args.clientId);
-      clientSecretEncrypted = await encryptString(args.clientSecret);
-    } else {
-      const existing = await ctx.runQuery(
-        internal.enterprise_sso.config.internal_queries.getConnectionSecrets,
-        { organizationId: args.organizationId },
-      );
-      if (!existing?.clientSecretEncrypted) {
-        throw new Error('Client secret is required for a new configuration');
-      }
-      // Re-encrypt the (possibly changed) clientId; reuse the stored secret.
-      clientIdEncrypted = await encryptString(args.clientId);
-      clientSecretEncrypted = existing.clientSecretEncrypted;
-    }
-
-    await ctx.runMutation(
-      internal.enterprise_sso.config.internal_mutations.writeOidc,
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.writeOidcConnection,
       {
         organizationId: args.organizationId,
         actorId: caller.userId,
@@ -102,8 +88,8 @@ export const upsertOidc = action({
         authorizationEndpoint: args.authorizationEndpoint,
         tokenEndpoint: args.tokenEndpoint,
         userinfoEndpoint: args.userinfoEndpoint,
-        clientIdEncrypted,
-        clientSecretEncrypted,
+        clientId: args.clientId,
+        clientSecret: args.clientSecret,
         scopes: args.scopes,
         pkce: args.pkce,
         claimMappings: args.claimMappings,
@@ -139,20 +125,8 @@ export const upsertSaml = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const caller = await requireAdmin(ctx, args.organizationId);
-
-    let spPrivateKeyEncrypted: string | undefined;
-    if (args.spPrivateKey) {
-      spPrivateKeyEncrypted = await encryptString(args.spPrivateKey);
-    } else {
-      const existing = await ctx.runQuery(
-        internal.enterprise_sso.config.internal_queries.getConnectionSecrets,
-        { organizationId: args.organizationId },
-      );
-      spPrivateKeyEncrypted = existing?.spPrivateKeyEncrypted;
-    }
-
-    await ctx.runMutation(
-      internal.enterprise_sso.config.internal_mutations.writeSaml,
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.writeSamlConnection,
       {
         organizationId: args.organizationId,
         actorId: caller.userId,
@@ -163,7 +137,7 @@ export const upsertSaml = action({
         idpEntityId: args.idpEntityId,
         idpSsoUrl: args.idpSsoUrl,
         idpCertificate: args.idpCertificate,
-        spPrivateKeyEncrypted,
+        spPrivateKey: args.spPrivateKey,
         spCertificate: args.spCertificate,
         wantAssertionsSigned: args.wantAssertionsSigned,
         wantAssertionsEncrypted: args.wantAssertionsEncrypted,
@@ -185,8 +159,8 @@ export const setProvisioning = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const caller = await requireAdmin(ctx, args.organizationId);
-    await ctx.runMutation(
-      internal.enterprise_sso.config.internal_mutations.writeProvisioning,
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.writeProvisioning,
       {
         organizationId: args.organizationId,
         actorId: caller.userId,
@@ -238,12 +212,10 @@ export const revealOidcClientId = action({
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
     await requireAdmin(ctx, args.organizationId);
-    const secrets = await ctx.runQuery(
-      internal.enterprise_sso.config.internal_queries.getConnectionSecrets,
+    return ctx.runAction(
+      internal.enterprise_sso.config.file_actions.revealClientId,
       { organizationId: args.organizationId },
     );
-    if (!secrets?.clientIdEncrypted) return null;
-    return decryptString(secrets.clientIdEncrypted);
   },
 });
 
@@ -253,8 +225,8 @@ export const disableSso = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const caller = await requireAdmin(ctx, args.organizationId);
-    await ctx.runMutation(
-      internal.enterprise_sso.config.internal_mutations.setSsoEnabled,
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.setEnabled,
       {
         organizationId: args.organizationId,
         actorId: caller.userId,
@@ -267,14 +239,14 @@ export const disableSso = action({
   },
 });
 
-/** Remove the entire connection (SSO + SCIM). */
+/** Remove the entire sign-in connection (config + secrets; SCIM token separate). */
 export const remove = action({
   args: { organizationId: v.string() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const caller = await requireAdmin(ctx, args.organizationId);
-    await ctx.runMutation(
-      internal.enterprise_sso.config.internal_mutations.removeConnection,
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.removeConnection,
       {
         organizationId: args.organizationId,
         actorId: caller.userId,

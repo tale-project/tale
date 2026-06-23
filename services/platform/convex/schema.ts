@@ -50,7 +50,6 @@ import {
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
   legalMattersTable,
-  orgPackagePolicyTable,
   policyAcknowledgementsTable,
   retentionAppliedBoundsTable,
   retentionPolicyPendingChangesTable,
@@ -83,7 +82,6 @@ import {
 import {
   modelCapabilityCacheTable,
   modelCatalogSyncTable,
-  modelSyncSettingsTable,
 } from './model_catalog/schema';
 import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
@@ -229,7 +227,6 @@ export default defineSchema({
   messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
-  orgPackagePolicy: orgPackagePolicyTable,
   threadBranches: threadBranchesTable,
   threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
@@ -265,7 +262,6 @@ export default defineSchema({
   reasoningProfiles: reasoningProfilesTable,
   modelCapabilityCache: modelCapabilityCacheTable,
   modelCatalogSync: modelCatalogSyncTable,
-  modelSyncSettings: modelSyncSettingsTable,
   ssoProviders: ssoProvidersTable,
   // Unified Enterprise SSO + Provisioning. One connection per org carrying the
   // OIDC/OAuth2/SAML sign-in config, the role/team provisioning policy, and the

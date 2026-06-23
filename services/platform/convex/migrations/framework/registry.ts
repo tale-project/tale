@@ -30,8 +30,15 @@ import { migration as gov02 } from '../versions/v0_2_85/02_dsar_pending_table_sp
 import { meta as gov02Meta } from '../versions/v0_2_85/02_dsar_pending_table_split/meta';
 import { migration as gov03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables';
 import { meta as gov03Meta } from '../versions/v0_2_85/03_drop_legacy_governance_tables/meta';
-import { migration as ssoUnify } from '../versions/v0_2_86/01_enterprise_sso_unify';
-import { meta as ssoUnifyMeta } from '../versions/v0_2_86/01_enterprise_sso_unify/meta';
+import { meta as ssoUnifyMeta } from '../versions/v0_2_87/01_enterprise_sso_unify/meta';
+// 02/03 are `node` export migrations — only their meta lives here (handlers in
+// registry.node.ts); 04/05 are `db` drops — meta + handler both here.
+import { meta as runCodeExportMeta } from '../versions/v0_2_87/02_run_code_policy_db_to_json/meta';
+import { meta as modelSyncExportMeta } from '../versions/v0_2_87/03_model_sync_db_to_json/meta';
+import { migration as dropOrgPackagePolicy } from '../versions/v0_2_87/04_drop_org_package_policy';
+import { meta as dropOrgPackagePolicyMeta } from '../versions/v0_2_87/04_drop_org_package_policy/meta';
+import { migration as dropModelSyncSettings } from '../versions/v0_2_87/05_drop_model_sync_settings';
+import { meta as dropModelSyncSettingsMeta } from '../versions/v0_2_87/05_drop_model_sync_settings/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -55,11 +62,16 @@ export const ALL_META: readonly MigrationMeta[] = [
   gov02Meta,
   gov03Meta,
   ssoUnifyMeta,
+  runCodeExportMeta,
+  modelSyncExportMeta,
+  dropOrgPackagePolicyMeta,
+  dropModelSyncSettingsMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [gov02.meta.id]: gov02,
   [gov03.meta.id]: gov03,
-  [ssoUnify.meta.id]: ssoUnify,
+  [dropOrgPackagePolicy.meta.id]: dropOrgPackagePolicy,
+  [dropModelSyncSettings.meta.id]: dropModelSyncSettings,
 };

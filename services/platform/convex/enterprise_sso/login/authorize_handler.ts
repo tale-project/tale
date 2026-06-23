@@ -1,6 +1,5 @@
 import { internal } from '../../_generated/api';
 import { ActionCtx } from '../../_generated/server';
-import { decryptString } from '../../lib/crypto/decrypt_string';
 import { encryptString } from '../../lib/crypto/encrypt_string';
 import { ONEDRIVE_SCOPES } from '../entra_id/adapter';
 import { generatePkcePair } from '../pkce';
@@ -69,7 +68,14 @@ export async function ssoAuthorizeHandler(
     if (promptParam) prompt = parsePrompt(promptParam);
     if (!prompt && seamlessParam === 'true') prompt = 'none';
 
-    const clientId = await decryptString(config.clientIdEncrypted);
+    const secrets = await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.getConnectionSecrets,
+      { organizationId: config.organizationId },
+    );
+    const clientId = secrets.clientId;
+    if (!clientId) {
+      return new Response('No SSO configuration found', { status: 404 });
+    }
 
     let codeChallenge: string | undefined;
     let encryptedPkceVerifier: string | undefined;

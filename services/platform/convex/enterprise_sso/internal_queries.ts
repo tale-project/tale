@@ -1,6 +1,13 @@
 import { v } from 'convex/values';
 
-import { internalQuery } from '../_generated/server';
+import {
+  SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+  type SsoConnectionFile,
+  ssoConnectionFileSchema,
+} from '../../lib/shared/schemas/enterprise_sso';
+import { type QueryCtx, internalQuery } from '../_generated/server';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import {
   attributeMappingValidator,
   platformRoleValidator,
@@ -10,10 +17,55 @@ import {
 } from './validators';
 
 /**
- * Internal reads for the unified SSO sign-in flow. The login handlers resolve
- * the org's connection here (the single enabled one) and operate entirely on
- * the returned shape — the connection row IS the source of truth.
+ * Internal reads for the unified SSO sign-in flow.
+ *
+ * The connection config is file-based (source of truth on disk), mirrored into
+ * `configCache` (domain `sso`, key `connection`); these V8 reads return the
+ * NON-SECRET config from that mirror. Secrets (client secret, SP private key)
+ * live in the `connection.secrets.json` sidecar and are read by the `'use node'`
+ * sign-in adapters via `config/file_actions.getConnectionSecrets`.
  */
+
+interface LoadedConnection {
+  organizationId: string;
+  config: SsoConnectionFile;
+}
+
+/** Load + validate one org's connection from the cache mirror. */
+async function loadConnection(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<LoadedConnection | null> {
+  const row = await readConfigCacheRow(
+    ctx.db,
+    organizationId,
+    SSO_CONFIG_DOMAIN,
+    SSO_CONNECTION_KEY,
+  );
+  if (!row) return null;
+  const parsed = ssoConnectionFileSchema.safeParse(row.config);
+  if (!parsed.success) return null;
+  return { organizationId, config: parsed.data };
+}
+
+/** First ENABLED connection across orgs (single-org deployments / email-first
+ *  discovery). Ranges the `(domain, key)` slice of `configCache`. */
+async function loadSingleEnabled(
+  ctx: QueryCtx,
+): Promise<LoadedConnection | null> {
+  for await (const row of ctx.db
+    .query('configCache')
+    .withIndex('by_domain_key', (q) =>
+      q.eq('domain', SSO_CONFIG_DOMAIN).eq('key', SSO_CONNECTION_KEY),
+    )) {
+    if (row.enabled !== true) continue;
+    const parsed = ssoConnectionFileSchema.safeParse(row.config);
+    if (parsed.success && parsed.data.enabled) {
+      return { organizationId: row.organizationId, config: parsed.data };
+    }
+  }
+  return null;
+}
 
 const resolvedSignInConfigValidator = v.object({
   organizationId: v.string(),
@@ -22,8 +74,6 @@ const resolvedSignInConfigValidator = v.object({
   authorizationEndpoint: v.optional(v.string()),
   tokenEndpoint: v.optional(v.string()),
   userinfoEndpoint: v.optional(v.string()),
-  clientIdEncrypted: v.string(),
-  clientSecretEncrypted: v.string(),
   scopes: v.array(v.string()),
   pkce: v.boolean(),
   claimMappings: v.optional(attributeMappingValidator),
@@ -37,47 +87,38 @@ const resolvedSignInConfigValidator = v.object({
 });
 
 /**
- * Resolve the org's OIDC/OAuth2 sign-in config (decryptable secrets returned as
- * ciphertext). Returns null when no enabled OIDC/OAuth2 connection exists.
- * When `organizationId` is omitted, resolves the single enabled connection
- * (single-org deployments / email-first discovery).
+ * Resolve the org's OIDC/OAuth2 sign-in config (NON-secret). Returns null when
+ * no enabled OIDC/OAuth2 connection exists. When `organizationId` is omitted,
+ * resolves the single enabled connection. The caller fetches the client id /
+ * secret separately from the secrets sidecar.
  */
 export const resolveSignInConfig = internalQuery({
   args: { organizationId: v.optional(v.string()) },
   returns: v.union(resolvedSignInConfigValidator, v.null()),
   handler: async (ctx, args) => {
-    const orgId = args.organizationId;
-    const row = orgId
-      ? await ctx.db
-          .query('ssoConnections')
-          .withIndex('by_org', (q) => q.eq('organizationId', orgId))
-          .first()
-      : await ctx.db
-          .query('ssoConnections')
-          .filter((q) => q.eq(q.field('enabled'), true))
-          .first();
-
-    if (!row || !row.enabled || !row.oidcConfig) return null;
-    const c = row.oidcConfig;
+    const conn = args.organizationId
+      ? await loadConnection(ctx, args.organizationId)
+      : await loadSingleEnabled(ctx);
+    if (!conn || !conn.config.enabled || !conn.config.oidc) return null;
+    const c = conn.config.oidc;
+    const p = conn.config.provisioning;
     return {
-      organizationId: row.organizationId,
+      organizationId: conn.organizationId,
       providerId: c.providerId,
       issuer: c.issuer,
       authorizationEndpoint: c.authorizationEndpoint,
       tokenEndpoint: c.tokenEndpoint,
       userinfoEndpoint: c.userinfoEndpoint,
-      clientIdEncrypted: c.clientIdEncrypted,
-      clientSecretEncrypted: c.clientSecretEncrypted,
       scopes: c.scopes,
       pkce: c.pkce ?? false,
       claimMappings: c.claimMappings,
       domainHint: c.domainHint,
       enableOneDriveAccess: c.enableOneDriveAccess,
-      autoProvisionRole: row.autoProvisionRole,
-      roleMappingRules: row.roleMappingRules,
-      defaultRole: row.defaultRole,
-      autoProvisionTeam: row.autoProvisionTeam,
-      excludeGroups: row.excludeGroups,
+      autoProvisionRole: p.autoProvisionRole,
+      roleMappingRules: p.roleMappingRules,
+      defaultRole: p.defaultRole,
+      autoProvisionTeam: p.autoProvisionTeam,
+      excludeGroups: p.excludeGroups,
     };
   },
 });
@@ -101,24 +142,23 @@ export const resolveProvisioning = internalQuery({
   args: { organizationId: v.string() },
   returns: provisioningValidator,
   handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query('ssoConnections')
-      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
-      .first();
+    const conn = await loadConnection(ctx, args.organizationId);
+    const p = conn?.config.provisioning;
     return {
       organizationId: args.organizationId,
-      autoProvisionRole: row?.autoProvisionRole ?? false,
-      defaultRole: row?.defaultRole ?? 'member',
-      roleMappingRules: row?.roleMappingRules ?? [],
-      autoProvisionTeam: row?.autoProvisionTeam ?? false,
-      excludeGroups: row?.excludeGroups ?? [],
+      autoProvisionRole: p?.autoProvisionRole ?? false,
+      defaultRole: p?.defaultRole ?? 'member',
+      roleMappingRules: p?.roleMappingRules ?? [],
+      autoProvisionTeam: p?.autoProvisionTeam ?? false,
+      excludeGroups: p?.excludeGroups ?? [],
     };
   },
 });
 
 /**
- * Resolve the SAML config (with decryptable SP key as ciphertext) for the ACS
- * handler. Returns null when no enabled SAML connection exists.
+ * Resolve the SAML config (NON-secret) for the ACS / metadata handlers. Returns
+ * null when no enabled SAML connection exists. The SP private key is fetched
+ * separately from the secrets sidecar by the ACS handler.
  */
 export const resolveSamlConfig = internalQuery({
   args: { organizationId: v.optional(v.string()) },
@@ -128,7 +168,6 @@ export const resolveSamlConfig = internalQuery({
       idpEntityId: v.string(),
       idpSsoUrl: v.string(),
       idpCertificate: v.string(),
-      spPrivateKeyEncrypted: v.optional(v.string()),
       spCertificate: v.optional(v.string()),
       wantAssertionsSigned: v.optional(v.boolean()),
       wantAssertionsEncrypted: v.optional(v.boolean()),
@@ -137,24 +176,16 @@ export const resolveSamlConfig = internalQuery({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    const orgId = args.organizationId;
-    const row = orgId
-      ? await ctx.db
-          .query('ssoConnections')
-          .withIndex('by_org', (q) => q.eq('organizationId', orgId))
-          .first()
-      : await ctx.db
-          .query('ssoConnections')
-          .filter((q) => q.eq(q.field('enabled'), true))
-          .first();
-    if (!row || !row.enabled || !row.samlConfig) return null;
-    const s = row.samlConfig;
+    const conn = args.organizationId
+      ? await loadConnection(ctx, args.organizationId)
+      : await loadSingleEnabled(ctx);
+    if (!conn || !conn.config.enabled || !conn.config.saml) return null;
+    const s = conn.config.saml;
     return {
-      organizationId: row.organizationId,
+      organizationId: conn.organizationId,
       idpEntityId: s.idpEntityId,
       idpSsoUrl: s.idpSsoUrl,
       idpCertificate: s.idpCertificate,
-      spPrivateKeyEncrypted: s.spPrivateKeyEncrypted,
       spCertificate: s.spCertificate,
       wantAssertionsSigned: s.wantAssertionsSigned,
       wantAssertionsEncrypted: s.wantAssertionsEncrypted,
@@ -179,20 +210,30 @@ export const discoverByEmail = internalQuery({
   ),
   handler: async (ctx, args) => {
     const domain = args.email.split('@')[1]?.toLowerCase();
-    let row = null;
-    if (domain) {
-      row = await ctx.db
-        .query('ssoConnections')
-        .withIndex('by_domain', (q) => q.eq('domain', domain))
-        .first();
+    let firstEnabled: LoadedConnection | null = null;
+    let domainMatch: LoadedConnection | null = null;
+    for await (const row of ctx.db
+      .query('configCache')
+      .withIndex('by_domain_key', (q) =>
+        q.eq('domain', SSO_CONFIG_DOMAIN).eq('key', SSO_CONNECTION_KEY),
+      )) {
+      if (row.enabled !== true) continue;
+      const parsed = ssoConnectionFileSchema.safeParse(row.config);
+      if (!parsed.success || !parsed.data.enabled || !parsed.data.protocol) {
+        continue;
+      }
+      const conn = { organizationId: row.organizationId, config: parsed.data };
+      if (!firstEnabled) firstEnabled = conn;
+      if (domain && parsed.data.domain?.toLowerCase() === domain) {
+        domainMatch = conn;
+        break;
+      }
     }
-    if (!row || !row.enabled) {
-      row = await ctx.db
-        .query('ssoConnections')
-        .filter((q) => q.eq(q.field('enabled'), true))
-        .first();
-    }
-    if (!row || !row.enabled || !row.protocol) return null;
-    return { organizationId: row.organizationId, protocol: row.protocol };
+    const chosen = domainMatch ?? firstEnabled;
+    if (!chosen || !chosen.config.protocol) return null;
+    return {
+      organizationId: chosen.organizationId,
+      protocol: chosen.config.protocol,
+    };
   },
 });

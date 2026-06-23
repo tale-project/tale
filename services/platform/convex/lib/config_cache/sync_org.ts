@@ -3,10 +3,11 @@
 /**
  * The single entry point for refreshing an org's `configCache` from files.
  *
- * Iterates the registry's `v8-sync` domains and re-syncs each. Wired into
- * org-create (`auth.afterCreateOrganization`), reseed-all, governance writes,
- * the dev file watcher, and a periodic cron reconcile — so the cache is kept in
- * lockstep with the files (the source of truth) from every angle.
+ * Iterates the registry's `v8-sync` domains and re-syncs each, then re-derives
+ * the file-backed Enterprise SSO mirror (a bespoke non-registry domain). Wired
+ * into org-create (`auth.afterCreateOrganization`), reseed-all, governance
+ * writes, the dev file watcher, and a periodic cron reconcile — so the cache is
+ * kept in lockstep with the files (the source of truth) from every angle.
  */
 
 import { v } from 'convex/values';
@@ -26,6 +27,20 @@ export const syncOrgConfigCaches = internalAction({
         { organizationId: args.organizationId, domain: domain.name },
       );
     }
+    // Enterprise SSO is file-backed and V8-read (login + auth hooks read the
+    // `sso` configCache mirror), but is intentionally NOT a registry v8-sync
+    // domain — it has no seeded default and lives nested under governance/sso/,
+    // so the generic loop above skips it. Re-derive it here, through the same
+    // single entry point, so EVERY rebuild path (org-create, reseed-all, the
+    // dev file watcher, the periodic cron reconcile) keeps the SSO mirror in
+    // lockstep with `connection.json` (the source of truth). Without this a
+    // configCache loss — fresh DB over existing files, a partial restore —
+    // would strand SSO sign-in until an admin re-saved. Idempotent; a no-op for
+    // an org with no connection file.
+    await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.syncConnectionCache,
+      { organizationId: args.organizationId },
+    );
     return null;
   },
 });

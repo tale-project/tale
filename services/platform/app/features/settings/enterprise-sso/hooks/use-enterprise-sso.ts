@@ -43,13 +43,9 @@ export function useRemoveSso() {
   return useConvexAction(api.enterprise_sso.config.actions.remove);
 }
 
-// SCIM token management (mutations on the same connection row).
+// SCIM token management (mutations on the SCIM token row).
 export function useRegenerateScimToken() {
   return useConvexMutation(api.scim.mutations.regenerateToken);
-}
-
-export function useSetScimDefaultRole() {
-  return useConvexMutation(api.scim.mutations.setDefaultRole);
 }
 
 export function useDisableScim() {

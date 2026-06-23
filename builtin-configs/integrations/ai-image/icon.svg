@@ -1,6 +1,0 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="24" height="24" rx="6" fill="#FFFFFF"/>
-  <g transform="translate(3.500 3.500) scale(0.70833)">
-    <path d="M10 2.5l1.7 5.3a3 3 0 0 0 1.9 1.9l5.3 1.7-5.3 1.7a3 3 0 0 0-1.9 1.9L10 20.3l-1.7-5.3a3 3 0 0 0-1.9-1.9L1.1 11.4l5.3-1.7a3 3 0 0 0 1.9-1.9z" fill="#8B5CF6"/><path d="M19 2.5l.55 1.7a1.5 1.5 0 0 0 .95.95l1.7.55-1.7.55a1.5 1.5 0 0 0-.95.95L19 9.9l-.55-1.7a1.5 1.5 0 0 0-.95-.95L15.8 6.7l1.7-.55a1.5 1.5 0 0 0 .95-.95z" fill="#C4B5FD"/>
-  </g>
-</svg>

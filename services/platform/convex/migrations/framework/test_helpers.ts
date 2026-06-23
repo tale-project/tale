@@ -45,6 +45,29 @@ export const legacyGovernancePoliciesTable = defineTable({
 }).index('by_organizationId', ['organizationId']);
 
 /**
+ * The legacy `orgPackagePolicy` / `modelSyncSettings` tables as they existed at
+ * v0.2.86, before the `run_code` / `model_sync` governance policies became
+ * file-based. Declared here so the 0.2.87 cutover migrations can be round-trip
+ * tested.
+ */
+export const legacyOrgPackagePolicyTable = defineTable({
+  organizationId: v.string(),
+  defaultMode: v.union(v.literal('allowlist'), v.literal('denylist')),
+  pythonAllow: v.array(v.string()),
+  pythonDeny: v.array(v.string()),
+  nodeAllow: v.array(v.string()),
+  nodeDeny: v.array(v.string()),
+  updatedAt: v.optional(v.number()),
+  updatedByUserId: v.optional(v.string()),
+}).index('by_organizationId', ['organizationId']);
+
+export const legacyModelSyncSettingsTable = defineTable({
+  organizationId: v.string(),
+  autoSyncEnabled: v.boolean(),
+  updatedAt: v.optional(v.number()),
+}).index('by_organizationId', ['organizationId']);
+
+/**
  * The minimal schema the v0.2.85 governance migrations touch: the framework's
  * own ledger/snapshot tables, the configCache mirror, the new
  * dsarPolicyPendingChanges table, and the legacy governancePolicies table.
@@ -63,6 +86,9 @@ export const historicalSchema = defineSchema({
   ssoProviders: ssoProvidersTable,
   ssoConnections: ssoConnectionsTable,
   ssoProvisioningLinks: ssoProvisioningLinksTable,
+  // Legacy tables for the 0.2.87 run_code / model_sync file-cutover migrations.
+  orgPackagePolicy: legacyOrgPackagePolicyTable,
+  modelSyncSettings: legacyModelSyncSettingsTable,
 });
 
 /** Normalize one glob key relative to the convex root, resolving `..`. */

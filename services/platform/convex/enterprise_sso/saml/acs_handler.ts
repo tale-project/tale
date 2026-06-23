@@ -1,7 +1,6 @@
 import { internal } from '../../_generated/api';
 import { ActionCtx } from '../../_generated/server';
 import { createAuth } from '../../auth';
-import { decryptString } from '../../lib/crypto/decrypt_string';
 import { signCookieValue } from '../sign_cookie_value';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
@@ -48,9 +47,11 @@ export async function samlAcsHandler(
     }
 
     const { spEntityId, acsUrl } = samlEndpoints();
-    const spPrivateKey = config.spPrivateKeyEncrypted
-      ? await decryptString(config.spPrivateKeyEncrypted)
-      : undefined;
+    const secrets = await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.getConnectionSecrets,
+      { organizationId: config.organizationId },
+    );
+    const spPrivateKey = secrets.spPrivateKey;
 
     const validation = await ctx.runAction(
       internal.enterprise_sso.saml.validate_assertion.validateSamlResponse,

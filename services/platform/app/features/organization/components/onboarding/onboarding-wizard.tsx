@@ -26,19 +26,22 @@ import { useT } from '@/lib/i18n/client';
 import { AccountStep } from './steps/account-step';
 import { FinishStep, type FinishTarget } from './steps/finish-step';
 import { OpenRouterStep } from './steps/openrouter-step';
-import { PreferencesStep } from './steps/preferences-step';
 import { WorkspaceStep } from './steps/workspace-step';
 
 /**
  * Setup wizard. Two modes share one flow:
  *
  *  - `first-run` (the `/setup` route, unauthenticated): the very first install.
- *    Walks language/theme → owner account → workspace → OpenRouter → finish.
- *    Account creation signs the user in mid-flow; subsequent steps run on the
- *    now-authenticated websocket without leaving the wizard.
+ *    Walks owner account → workspace → OpenRouter → finish. Account creation
+ *    signs the user in mid-flow; subsequent steps run on the now-authenticated
+ *    websocket without leaving the wizard.
  *  - `add-org` (the `/dashboard/create-organization` route, authenticated): an
  *    existing user spinning up another organization — just workspace →
  *    OpenRouter → finish.
+ *
+ * Language and theme aren't asked for: both are inferred from the client
+ * (browser locale + OS color-scheme) by the locale/theme providers, and stay
+ * changeable later in settings.
  */
 export function OnboardingWizard({
   mode = 'add-org',
@@ -83,12 +86,7 @@ export function OnboardingWizard({
   const isFirstRun = mode === 'first-run';
 
   const steps: WizardStepMeta[] = [
-    ...(isFirstRun
-      ? [
-          { id: 'preferences', label: t('steps.preferences') },
-          { id: 'account', label: t('steps.account') },
-        ]
-      : []),
+    ...(isFirstRun ? [{ id: 'account', label: t('steps.account') }] : []),
     { id: 'workspace', label: t('steps.workspace') },
     // Optional: the step shows an explicit Skip alongside the primary
     // Next/Connect button. The primary stays the forward action; Skip is the
@@ -204,7 +202,6 @@ export function OnboardingWizard({
             <StepHero />
           </Stack>
 
-          {isFirstRun && <PreferencesStep />}
           {isFirstRun && <AccountStep />}
 
           <WorkspaceStep
@@ -240,10 +237,6 @@ function StepHero() {
   const { activeStep } = useWizard();
 
   const copy: Record<string, { title: string; subtitle: string }> = {
-    preferences: {
-      title: t('preferences.heading'),
-      subtitle: t('preferences.why'),
-    },
     account: { title: t('account.heading'), subtitle: t('account.why') },
     workspace: { title: t('title'), subtitle: t('subtitle') },
     provider: { title: t('provider.heading'), subtitle: t('provider.why') },

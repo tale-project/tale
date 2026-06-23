@@ -295,6 +295,9 @@
           },
           "type": "object"
         },
+        "nativeWebTools": {
+          "type": "boolean"
+        },
         "outputReserve": {
           "maximum": 9007199254740991,
           "minimum": -9007199254740991,
@@ -1186,6 +1189,758 @@
       "required": ["host", "port", "database", "user", "sslmode"],
       "type": "object"
     },
+    "enterprise_sso.attributeMappingSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "groups": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "enterprise_sso.platformRoleSchema": {
+      "enum": ["admin", "developer", "editor", "member", "disabled"],
+      "type": "string"
+    },
+    "enterprise_sso.provisioningPolicySchema": {
+      "additionalProperties": false,
+      "properties": {
+        "autoProvisionRole": {
+          "type": "boolean"
+        },
+        "autoProvisionTeam": {
+          "type": "boolean"
+        },
+        "defaultRole": {
+          "enum": ["admin", "developer", "editor", "member", "disabled"],
+          "type": "string"
+        },
+        "excludeGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "roleMappingRules": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "claim": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "source": {
+                "enum": ["jobTitle", "appRole", "group", "claim"],
+                "type": "string"
+              },
+              "targetRole": {
+                "enum": ["admin", "developer", "editor", "member", "disabled"],
+                "type": "string"
+              }
+            },
+            "required": ["source", "pattern", "targetRole"],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "autoProvisionRole",
+        "defaultRole",
+        "roleMappingRules",
+        "autoProvisionTeam",
+        "excludeGroups"
+      ],
+      "type": "object"
+    },
+    "enterprise_sso.roleMappingRuleSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        },
+        "source": {
+          "enum": ["jobTitle", "appRole", "group", "claim"],
+          "type": "string"
+        },
+        "targetRole": {
+          "enum": ["admin", "developer", "editor", "member", "disabled"],
+          "type": "string"
+        }
+      },
+      "required": ["source", "pattern", "targetRole"],
+      "type": "object"
+    },
+    "enterprise_sso.ssoAuthContextSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "authContextClassRef": {
+          "type": "string"
+        },
+        "authMethodsRef": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mfaCompleted": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "enterprise_sso.ssoConnectionFileSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "oidc": {
+          "additionalProperties": false,
+          "properties": {
+            "authorizationEndpoint": {
+              "type": "string"
+            },
+            "claimMappings": {
+              "additionalProperties": false,
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "groups": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "domainHint": {
+              "type": "string"
+            },
+            "enableOneDriveAccess": {
+              "type": "boolean"
+            },
+            "issuer": {
+              "type": "string"
+            },
+            "pkce": {
+              "type": "boolean"
+            },
+            "providerId": {
+              "enum": ["entra-id", "generic-oidc", "oauth2"],
+              "type": "string"
+            },
+            "scopes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "tokenEndpoint": {
+              "type": "string"
+            },
+            "userinfoEndpoint": {
+              "type": "string"
+            }
+          },
+          "required": ["providerId", "issuer", "scopes"],
+          "type": "object"
+        },
+        "protocol": {
+          "enum": ["oidc", "oauth2", "saml"],
+          "type": "string"
+        },
+        "provisioning": {
+          "additionalProperties": false,
+          "properties": {
+            "autoProvisionRole": {
+              "type": "boolean"
+            },
+            "autoProvisionTeam": {
+              "type": "boolean"
+            },
+            "defaultRole": {
+              "enum": ["admin", "developer", "editor", "member", "disabled"],
+              "type": "string"
+            },
+            "excludeGroups": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "roleMappingRules": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "claim": {
+                    "type": "string"
+                  },
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": ["jobTitle", "appRole", "group", "claim"],
+                    "type": "string"
+                  },
+                  "targetRole": {
+                    "enum": [
+                      "admin",
+                      "developer",
+                      "editor",
+                      "member",
+                      "disabled"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": ["source", "pattern", "targetRole"],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "autoProvisionRole",
+            "defaultRole",
+            "roleMappingRules",
+            "autoProvisionTeam",
+            "excludeGroups"
+          ],
+          "type": "object"
+        },
+        "saml": {
+          "additionalProperties": false,
+          "properties": {
+            "attributeMappings": {
+              "additionalProperties": false,
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "groups": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "idpCertificate": {
+              "type": "string"
+            },
+            "idpEntityId": {
+              "type": "string"
+            },
+            "idpSsoUrl": {
+              "type": "string"
+            },
+            "spCertificate": {
+              "type": "string"
+            },
+            "wantAssertionsEncrypted": {
+              "type": "boolean"
+            },
+            "wantAssertionsSigned": {
+              "type": "boolean"
+            }
+          },
+          "required": ["idpEntityId", "idpSsoUrl", "idpCertificate"],
+          "type": "object"
+        }
+      },
+      "required": ["enabled", "displayName", "provisioning"],
+      "type": "object"
+    },
+    "enterprise_sso.ssoConnectionSecretsSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "clientId": {
+          "type": "string"
+        },
+        "clientSecret": {
+          "type": "string"
+        },
+        "spPrivateKey": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "enterprise_sso.ssoConnectionViewSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "configured": {
+          "type": "boolean"
+        },
+        "displayName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "oidc": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "authorizationEndpoint": {
+                  "type": "string"
+                },
+                "claimMappings": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "groups": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "domainHint": {
+                  "type": "string"
+                },
+                "enableOneDriveAccess": {
+                  "type": "boolean"
+                },
+                "issuer": {
+                  "type": "string"
+                },
+                "pkce": {
+                  "type": "boolean"
+                },
+                "providerId": {
+                  "enum": ["entra-id", "generic-oidc", "oauth2"],
+                  "type": "string"
+                },
+                "scopes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "tokenEndpoint": {
+                  "type": "string"
+                },
+                "userinfoEndpoint": {
+                  "type": "string"
+                }
+              },
+              "required": ["providerId", "issuer", "scopes"],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "oidcCallbackUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "enum": ["oidc", "oauth2", "saml"],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provisioning": {
+          "additionalProperties": false,
+          "properties": {
+            "autoProvisionRole": {
+              "type": "boolean"
+            },
+            "autoProvisionTeam": {
+              "type": "boolean"
+            },
+            "defaultRole": {
+              "enum": ["admin", "developer", "editor", "member", "disabled"],
+              "type": "string"
+            },
+            "excludeGroups": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "roleMappingRules": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "claim": {
+                    "type": "string"
+                  },
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": ["jobTitle", "appRole", "group", "claim"],
+                    "type": "string"
+                  },
+                  "targetRole": {
+                    "enum": [
+                      "admin",
+                      "developer",
+                      "editor",
+                      "member",
+                      "disabled"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": ["source", "pattern", "targetRole"],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "autoProvisionRole",
+            "defaultRole",
+            "roleMappingRules",
+            "autoProvisionTeam",
+            "excludeGroups"
+          ],
+          "type": "object"
+        },
+        "saml": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "attributeMappings": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "groups": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "hasSpKeypair": {
+                  "type": "boolean"
+                },
+                "idpCertificate": {
+                  "type": "string"
+                },
+                "idpEntityId": {
+                  "type": "string"
+                },
+                "idpSsoUrl": {
+                  "type": "string"
+                },
+                "spCertificate": {
+                  "type": "string"
+                },
+                "wantAssertionsEncrypted": {
+                  "type": "boolean"
+                },
+                "wantAssertionsSigned": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "idpEntityId",
+                "idpSsoUrl",
+                "idpCertificate",
+                "hasSpKeypair"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "samlAcsUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "samlSpMetadataUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scim": {
+          "additionalProperties": false,
+          "properties": {
+            "baseUrl": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "lastUsedAt": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tokenGeneratedAt": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tokenPrefix": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "enabled",
+            "tokenPrefix",
+            "tokenGeneratedAt",
+            "lastUsedAt",
+            "baseUrl"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "configured",
+        "enabled",
+        "protocol",
+        "displayName",
+        "domain",
+        "oidc",
+        "saml",
+        "provisioning",
+        "scim",
+        "samlSpMetadataUrl",
+        "samlAcsUrl",
+        "oidcCallbackUrl"
+      ],
+      "type": "object"
+    },
+    "enterprise_sso.ssoGroupSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name"],
+      "type": "object"
+    },
+    "enterprise_sso.ssoProviderCapabilitiesSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "supportsGoogleDriveAccess": {
+          "type": "boolean"
+        },
+        "supportsGroupSync": {
+          "type": "boolean"
+        },
+        "supportsOneDriveAccess": {
+          "type": "boolean"
+        },
+        "supportsPkce": {
+          "type": "boolean"
+        },
+        "supportsRoleMapping": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "supportsGroupSync",
+        "supportsRoleMapping",
+        "supportsOneDriveAccess",
+        "supportsGoogleDriveAccess",
+        "supportsPkce"
+      ],
+      "type": "object"
+    },
+    "enterprise_sso.ssoTokensSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "accessToken": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "idToken": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        }
+      },
+      "required": ["accessToken"],
+      "type": "object"
+    },
+    "enterprise_sso.ssoUserInfoSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "appRoles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "authContext": {
+          "additionalProperties": false,
+          "properties": {
+            "authContextClassRef": {
+              "type": "string"
+            },
+            "authMethodsRef": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "mfaCompleted": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "city": {
+          "type": "string"
+        },
+        "companyName": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string"
+        },
+        "customAttributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "department": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "externalId": {
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jobTitle": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rawClaims": {
+          "additionalProperties": {},
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": ["externalId", "email", "name"],
+      "type": "object"
+    },
     "governance.agentWorkforceConfigSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1741,6 +2496,16 @@
       "required": ["scope", "allowedModels"],
       "type": "object"
     },
+    "governance.modelSyncConfigSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "autoSyncEnabled": {
+          "type": "boolean"
+        }
+      },
+      "required": ["autoSyncEnabled"],
+      "type": "object"
+    },
     "governance.moderationCategoryMappingSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2263,6 +3028,47 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "governance.runCodePolicyConfigSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultMode": {
+          "enum": ["allowlist", "denylist"],
+          "type": "string"
+        },
+        "nodeAllow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "nodeDeny": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pythonAllow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pythonDeny": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "defaultMode",
+        "pythonAllow",
+        "pythonDeny",
+        "nodeAllow",
+        "nodeDeny"
+      ],
       "type": "object"
     },
     "governance.sessionIdleTimeoutConfigSchema": {
@@ -3942,374 +4748,243 @@
       },
       "type": "object"
     },
-    "sso_providers.platformRoleSchema": {
-      "enum": ["admin", "developer", "editor", "member", "disabled"],
-      "type": "string"
-    },
-    "sso_providers.providerFeaturesSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "entraId": {
+    "token_sources.tokenSourceAuthSchema": {
+      "oneOf": [
+        {
           "additionalProperties": false,
           "properties": {
-            "autoProvisionTeam": {
-              "type": "boolean"
-            },
-            "domainHint": {
+            "method": {
+              "const": "none",
+              "type": "string"
+            }
+          },
+          "required": ["method"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "const": "bearer",
               "type": "string"
             },
-            "enableOneDriveAccess": {
-              "type": "boolean"
+            "secretEnv": {
+              "maxLength": 60,
+              "pattern": "^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$",
+              "type": "string"
+            }
+          },
+          "required": ["method"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "headerName": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
             },
-            "excludeGroups": {
-              "items": {
-                "type": "string"
+            "method": {
+              "const": "header",
+              "type": "string"
+            },
+            "secretEnv": {
+              "maxLength": 60,
+              "pattern": "^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$",
+              "type": "string"
+            }
+          },
+          "required": ["method", "headerName"],
+          "type": "object"
+        }
+      ]
+    },
+    "token_sources.tokenSourceResponseMappingSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "expiryField": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "statusActiveValue": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "statusField": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "tokenField": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "tokensPath": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["tokensPath", "tokenField"],
+      "type": "object"
+    },
+    "token_sources.tokenSourceSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "method": {
+                  "const": "none",
+                  "type": "string"
+                }
               },
-              "type": "array"
+              "required": ["method"],
+              "type": "object"
             },
-            "seamlessSsoEnabled": {
-              "type": "boolean"
-            }
-          },
-          "type": "object"
-        },
-        "genericOidc": {
-          "additionalProperties": false,
-          "properties": {
-            "autoProvisionTeam": {
-              "type": "boolean"
-            },
-            "emailClaim": {
-              "type": "string"
-            },
-            "excludeGroups": {
-              "items": {
-                "type": "string"
+            {
+              "additionalProperties": false,
+              "properties": {
+                "method": {
+                  "const": "bearer",
+                  "type": "string"
+                },
+                "secretEnv": {
+                  "maxLength": 60,
+                  "pattern": "^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$",
+                  "type": "string"
+                }
               },
-              "type": "array"
+              "required": ["method"],
+              "type": "object"
             },
-            "groupsClaim": {
-              "type": "string"
-            },
-            "nameClaim": {
-              "type": "string"
+            {
+              "additionalProperties": false,
+              "properties": {
+                "headerName": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "method": {
+                  "const": "header",
+                  "type": "string"
+                },
+                "secretEnv": {
+                  "maxLength": 60,
+                  "pattern": "^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$",
+                  "type": "string"
+                }
+              },
+              "required": ["method", "headerName"],
+              "type": "object"
             }
-          },
-          "type": "object"
+          ]
         },
-        "googleWorkspace": {
+        "displayName": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "endpoint": {
+          "format": "uri",
+          "type": "string"
+        },
+        "expirySkewMs": {
+          "maximum": 3600000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxResponseBytes": {
+          "maximum": 1048576,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "method": {
+          "enum": ["GET", "POST"],
+          "type": "string"
+        },
+        "responseMapping": {
           "additionalProperties": false,
           "properties": {
-            "enableGoogleDriveAccess": {
-              "type": "boolean"
+            "expiryField": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "statusActiveValue": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "statusField": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "tokenField": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "tokensPath": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
             }
           },
+          "required": ["tokensPath", "tokenField"],
           "type": "object"
-        }
-      },
-      "type": "object"
-    },
-    "sso_providers.roleMappingRuleSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "claim": {
+        },
+        "selection": {
+          "enum": ["random", "round-robin", "first"],
           "type": "string"
         },
-        "pattern": {
+        "slug": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,99}$",
           "type": "string"
         },
-        "source": {
-          "enum": ["jobTitle", "appRole", "group", "claim"],
+        "targetEnvVar": {
+          "maxLength": 80,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
           "type": "string"
         },
-        "targetRole": {
-          "enum": ["admin", "developer", "editor", "member", "disabled"],
-          "type": "string"
-        }
-      },
-      "required": ["source", "pattern", "targetRole"],
-      "type": "object"
-    },
-    "sso_providers.ssoAuthContextSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "authContextClassRef": {
-          "type": "string"
-        },
-        "authMethodsRef": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "mfaCompleted": {
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
-    "sso_providers.ssoGroupSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": ["id", "name"],
-      "type": "object"
-    },
-    "sso_providers.ssoProviderCapabilitiesSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "supportsGoogleDriveAccess": {
-          "type": "boolean"
-        },
-        "supportsGroupSync": {
-          "type": "boolean"
-        },
-        "supportsOneDriveAccess": {
-          "type": "boolean"
-        },
-        "supportsPkce": {
-          "type": "boolean"
-        },
-        "supportsRoleMapping": {
-          "type": "boolean"
+        "timeoutMs": {
+          "maximum": 30000,
+          "minimum": 500,
+          "type": "integer"
         }
       },
       "required": [
-        "supportsGroupSync",
-        "supportsRoleMapping",
-        "supportsOneDriveAccess",
-        "supportsGoogleDriveAccess",
-        "supportsPkce"
+        "slug",
+        "displayName",
+        "endpoint",
+        "method",
+        "auth",
+        "responseMapping",
+        "targetEnvVar",
+        "selection",
+        "timeoutMs",
+        "maxResponseBytes",
+        "expirySkewMs"
       ],
       "type": "object"
     },
-    "sso_providers.ssoProviderSchema": {
+    "token_sources.tokenSourceSecretsSchema": {
       "additionalProperties": false,
       "properties": {
-        "_id": {
-          "type": "string"
-        },
-        "autoProvisionRole": {
-          "type": "boolean"
-        },
-        "clientId": {
-          "type": "string"
-        },
-        "defaultRole": {
-          "enum": ["admin", "developer", "editor", "member", "disabled"],
-          "type": "string"
-        },
-        "issuer": {
-          "type": "string"
-        },
-        "providerFeatures": {
-          "additionalProperties": false,
-          "properties": {
-            "entraId": {
-              "additionalProperties": false,
-              "properties": {
-                "autoProvisionTeam": {
-                  "type": "boolean"
-                },
-                "domainHint": {
-                  "type": "string"
-                },
-                "enableOneDriveAccess": {
-                  "type": "boolean"
-                },
-                "excludeGroups": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "seamlessSsoEnabled": {
-                  "type": "boolean"
-                }
-              },
-              "type": "object"
-            },
-            "genericOidc": {
-              "additionalProperties": false,
-              "properties": {
-                "autoProvisionTeam": {
-                  "type": "boolean"
-                },
-                "emailClaim": {
-                  "type": "string"
-                },
-                "excludeGroups": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "groupsClaim": {
-                  "type": "string"
-                },
-                "nameClaim": {
-                  "type": "string"
-                }
-              },
-              "type": "object"
-            },
-            "googleWorkspace": {
-              "additionalProperties": false,
-              "properties": {
-                "enableGoogleDriveAccess": {
-                  "type": "boolean"
-                }
-              },
-              "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "providerId": {
-          "type": "string"
-        },
-        "roleMappingRules": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "claim": {
-                "type": "string"
-              },
-              "pattern": {
-                "type": "string"
-              },
-              "source": {
-                "enum": ["jobTitle", "appRole", "group", "claim"],
-                "type": "string"
-              },
-              "targetRole": {
-                "enum": ["admin", "developer", "editor", "member", "disabled"],
-                "type": "string"
-              }
-            },
-            "required": ["source", "pattern", "targetRole"],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "scopes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "_id",
-        "providerId",
-        "issuer",
-        "scopes",
-        "autoProvisionRole",
-        "roleMappingRules",
-        "defaultRole"
-      ],
-      "type": "object"
-    },
-    "sso_providers.ssoTokensSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "accessToken": {
-          "type": "string"
-        },
-        "expiresAt": {
-          "type": "number"
-        },
-        "idToken": {
-          "type": "string"
-        },
-        "refreshToken": {
+        "authSecret": {
+          "minLength": 1,
           "type": "string"
         }
       },
-      "required": ["accessToken"],
-      "type": "object"
-    },
-    "sso_providers.ssoUserInfoSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "appRoles": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "authContext": {
-          "additionalProperties": false,
-          "properties": {
-            "authContextClassRef": {
-              "type": "string"
-            },
-            "authMethodsRef": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "mfaCompleted": {
-              "type": "boolean"
-            }
-          },
-          "type": "object"
-        },
-        "city": {
-          "type": "string"
-        },
-        "companyName": {
-          "type": "string"
-        },
-        "country": {
-          "type": "string"
-        },
-        "customAttributes": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "propertyNames": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "department": {
-          "type": "string"
-        },
-        "email": {
-          "type": "string"
-        },
-        "externalId": {
-          "type": "string"
-        },
-        "groups": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "jobTitle": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "rawClaims": {
-          "additionalProperties": {},
-          "propertyNames": {
-            "type": "string"
-          },
-          "type": "object"
-        }
-      },
-      "required": ["externalId", "email", "name"],
+      "required": ["authSecret"],
       "type": "object"
     },
     "users.roleSchema": {

@@ -182,8 +182,15 @@ export async function ssoCallbackHandler(
       );
     }
 
-    const clientId = await decryptString(config.clientIdEncrypted);
-    const clientSecret = await decryptString(config.clientSecretEncrypted);
+    const secrets = await ctx.runAction(
+      internal.enterprise_sso.config.file_actions.getConnectionSecrets,
+      { organizationId: config.organizationId },
+    );
+    const clientId = secrets.clientId;
+    const clientSecret = secrets.clientSecret;
+    if (!clientId || !clientSecret) {
+      return redirectWithError(frontendOrigin, 'SSO configuration not found');
+    }
 
     const ssoConfig = {
       providerId: config.providerId,

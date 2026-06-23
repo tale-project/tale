@@ -1,47 +1,24 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import {
-  oidcStoredConfigValidator,
-  platformRoleValidator,
-  roleMappingRuleValidator,
-  samlStoredConfigValidator,
-  ssoProtocolValidator,
-  ssoResourceTypeValidator,
-} from './validators';
+import { ssoResourceTypeValidator } from './validators';
 
 /**
- * Unified Enterprise SSO + Provisioning — at most ONE connection per org.
+ * Inbound SCIM token state — at most ONE row per org.
  *
- * Replaces `ssoProviders`, `scimProvisioning`, and `scimLinks`. Holds the
- * sign-in config (OIDC / OAuth2 / SAML, protocol-discriminated), the shared
- * provisioning policy (role mapping + group→team sync), and the inbound SCIM
- * bearer token. Secrets are encrypted; the SCIM token is stored only as a
- * SHA-256 hash and resolves the org for inbound SCIM requests.
+ * The org's sign-in + provisioning CONFIGURATION lives in per-org JSON files
+ * (`<orgSlug>/governance/sso/connection.json`, mirrored into `configCache`),
+ * NOT here. This DB row holds only the inbound SCIM bearer token (stored as a
+ * SHA-256 hash) plus its runtime state, because resolving an inbound SCIM
+ * request to its org is a reverse lookup by token hash — which needs a DB
+ * index and cannot be served from per-org files.
  */
 export const ssoConnectionsTable = defineTable({
   organizationId: v.string(),
-  // Optional: a connection may provision via SCIM with no sign-in protocol
-  // configured yet (and vice-versa). Set once a sign-in protocol is chosen.
-  protocol: v.optional(ssoProtocolValidator),
-  displayName: v.string(),
-  // Sign-in (SSO) enabled. SCIM has its own `scimEnabled` flag.
-  enabled: v.boolean(),
-  // Optional email-domain routing (sign-in by domain).
-  domain: v.optional(v.string()),
 
-  // Exactly one of these is set, matching `protocol`.
-  oidcConfig: v.optional(oidcStoredConfigValidator),
-  samlConfig: v.optional(samlStoredConfigValidator),
-
-  // Shared provisioning policy (applies to SSO login + SCIM).
-  autoProvisionRole: v.boolean(),
-  defaultRole: platformRoleValidator,
-  roleMappingRules: v.array(roleMappingRuleValidator),
-  autoProvisionTeam: v.boolean(),
-  excludeGroups: v.array(v.string()),
-
-  // SCIM provisioning (inbound). Token stored as a SHA-256 hash only.
+  // SCIM provisioning (inbound). Token stored as a SHA-256 hash only; the hash
+  // resolves the org for inbound SCIM requests. Provisioning POLICY (default
+  // role, role mapping, team sync) lives in the connection config file.
   scimEnabled: v.boolean(),
   scimTokenHash: v.string(),
   scimTokenPrefix: v.string(),
@@ -53,8 +30,7 @@ export const ssoConnectionsTable = defineTable({
   updatedAt: v.number(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_scimTokenHash', ['scimTokenHash'])
-  .index('by_domain', ['domain']);
+  .index('by_scimTokenHash', ['scimTokenHash']);
 
 /**
  * Per-resource provisioning state (was `scimLinks`). Keeps Better Auth's

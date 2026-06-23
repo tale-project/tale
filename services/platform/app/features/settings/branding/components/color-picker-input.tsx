@@ -46,7 +46,10 @@ export function ColorPickerInput({
   const handleTextChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 8);
-      normalizeHex(`#${raw}`);
+      // Clearing the field must emit '' (a valid "unset" per the optional hex
+      // schema), not a bare '#' — '#' fails validation and leaves the form
+      // invalid, so the Save bar can never re-enable to clear the color.
+      normalizeHex(raw ? `#${raw}` : '');
     },
     [normalizeHex],
   );

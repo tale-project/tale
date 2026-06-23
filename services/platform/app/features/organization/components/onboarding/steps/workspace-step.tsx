@@ -6,7 +6,6 @@ import { useMutation } from 'convex/react';
 import { useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useInitializeDefaultWorkflows } from '@/app/features/organization/hooks/actions';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -35,15 +34,6 @@ function deriveOrgSlug(name: string): string {
 
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _-]*$/;
 
-// Language autonyms (each in its own language) — the convention for a language
-// picker, so they need no translation namespace. Mirrors the first-run
-// preferences picker.
-const ORG_LOCALES: { value: string; label: string }[] = [
-  { value: 'en', label: 'English' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'fr', label: 'Français' },
-];
-
 /** Base language subtag of a locale (e.g. `en-US` → `en`). */
 function baseLanguage(locale: string): string {
   try {
@@ -64,7 +54,6 @@ interface WorkspaceStepProps {
 
 export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
   const { user } = useAuth();
-  const { t } = useT('onboarding');
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
@@ -77,12 +66,12 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
-  // Default to the user's current UI language (English by default), clamped to
-  // a supported locale. Persisted as the org's `defaultLocale` and used to
-  // seed the prompt library in that language.
-  const [orgLocale, setOrgLocale] = useState(() =>
-    clampToSupportedLocale(baseLanguage(locale)),
-  );
+  // We don't ask for an organization language: assume the owner shares a
+  // language with the organization, so adopt their detected client/browser
+  // locale (clamped to a supported one). Persisted as the org's `defaultLocale`
+  // and used to seed the prompt library in that language; changeable later in
+  // organization settings.
+  const orgLocale = clampToSupportedLocale(baseLanguage(locale));
 
   const trimmed = name.trim();
   const slug = deriveOrgSlug(name);
@@ -155,13 +144,6 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
         onChange={(e) => setName(e.target.value)}
         placeholder={tSettings('organization.enterCompanyName')}
         errorMessage={nameError}
-        disabled={Boolean(createdOrgId)}
-      />
-      <Select
-        label={t('preferences.languageLabel')}
-        options={ORG_LOCALES}
-        value={orgLocale}
-        onValueChange={setOrgLocale}
         disabled={Boolean(createdOrgId)}
       />
     </WizardStep>

@@ -5,7 +5,6 @@ import { v } from 'convex/values';
 import { mutation, type MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { getCallerRole } from '../enterprise_sso/get_caller_role';
-import { platformRoleValidator } from '../enterprise_sso/validators';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import {
@@ -43,18 +42,12 @@ function getConnection(ctx: MutationCtx, organizationId: string) {
     .first();
 }
 
-/** Defaults for a fresh connection row created via a SCIM-only action. */
+/** Defaults for a fresh SCIM token row. The connection CONFIG lives in files;
+ *  this row holds only the inbound SCIM token state. */
 function newConnectionDefaults(organizationId: string, createdBy: string) {
   const now = Date.now();
   return {
     organizationId,
-    displayName: 'Enterprise SSO',
-    enabled: false,
-    autoProvisionRole: false,
-    defaultRole: 'member' as const,
-    roleMappingRules: [],
-    autoProvisionTeam: false,
-    excludeGroups: [],
     scimEnabled: false,
     scimTokenHash: '',
     scimTokenPrefix: '',
@@ -115,43 +108,6 @@ export const regenerateToken = mutation({
     });
 
     return { token, tokenPrefix };
-  },
-});
-
-/** Set the role newly provisioned active users receive. */
-export const setDefaultRole = mutation({
-  args: { organizationId: v.string(), role: platformRoleValidator },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const caller = await requireAdmin(ctx, args.organizationId);
-    const now = Date.now();
-    const row = await getConnection(ctx, args.organizationId);
-    if (row) {
-      await ctx.db.patch(row._id, { defaultRole: args.role, updatedAt: now });
-    } else {
-      await ctx.db.insert('ssoConnections', {
-        ...newConnectionDefaults(args.organizationId, caller.userId),
-        defaultRole: args.role,
-      });
-    }
-
-    await AuditLogHelpers.logSuccess(ctx, {
-      auditCtx: {
-        organizationId: args.organizationId,
-        actor: {
-          id: caller.userId,
-          email: caller.email,
-          role: caller.role,
-          type: 'user',
-        },
-      },
-      action: 'scim_set_default_role',
-      category: 'security',
-      resourceType: 'scim',
-      resourceId: args.organizationId,
-      newState: { defaultRole: args.role },
-    });
-    return null;
   },
 });
 

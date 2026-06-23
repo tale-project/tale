@@ -172,7 +172,7 @@
       }
     },
     "integrations": {
-      "sso": {
+      "enterpriseSso": {
         "excludeGroupsLabel": "Gruppen ausschliessen"
       }
     }

@@ -1198,6 +1198,7 @@
       "label": "Select model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
+      "addModel": "Add model",
       "auto": "Auto",
       "autoDescription": "Let Tale pick the best model for each message — balances quality, speed, and cost.",
       "byoDefault": "Default model",
@@ -2552,17 +2553,10 @@
     "stepsAriaLabel": "Onboarding steps",
     "progress": "Step {current} of {total}: {label}",
     "steps": {
-      "preferences": "Preferences",
       "account": "Account",
       "workspace": "Workspace",
       "provider": "OpenRouter",
       "finish": "Finish"
-    },
-    "preferences": {
-      "heading": "Make it yours",
-      "why": "Pick your language and theme. You can change these anytime.",
-      "languageLabel": "Language",
-      "themeLabel": "Theme"
     },
     "account": {
       "heading": "Create your owner account",
@@ -5116,12 +5110,13 @@
     "menu": {
       "groups": {
         "you": "You",
-        "workspace": "Workspace",
-        "governance": "Governance"
+        "organization": "Organization",
+        "development": "Development"
       },
       "railSections": {
         "personal": "Personal",
-        "organization": "Organization"
+        "organization": "Organization",
+        "development": "Development"
       },
       "account": {
         "description": "Your profile, sign-in, and security."
@@ -5167,6 +5162,12 @@
       },
       "sandboxes": {
         "description": "Manage always-on remote agent sandboxes."
+      },
+      "enterpriseSso": {
+        "description": "Single sign-on and directory sync for your workforce."
+      },
+      "dataResidency": {
+        "description": "Where your data is stored and processed."
       }
     },
     "tokenSources": {
@@ -5374,7 +5375,7 @@
       },
       "navigation": {
         "general": "General",
-        "instructionsModel": "Instructions & model",
+        "instructionsModel": "Instructions & models",
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Knowledge",
@@ -5438,7 +5439,7 @@
         "sectionInstructionsDescription": "Define the agent's behavior and personality",
         "templateVariablesLabel": "Available template variables",
         "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
-        "sectionModel": "Model",
+        "sectionModel": "Models",
         "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
@@ -5914,8 +5915,7 @@
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
         "deleteConfirmTitle": "Delete integration",
         "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
-        "deleteIntegration": "Delete integration",
-        "saveChanges": "Save changes"
+        "deleteIntegration": "Delete integration"
       },
       "authMethods": {
         "api_key": "API key",
@@ -5924,9 +5924,7 @@
         "oauth2": "OAuth2"
       },
       "enterpriseSso": {
-        "name": "Enterprise SSO & provisioning",
         "description": "Single sign-on (OIDC, OAuth2, SAML) and SCIM user & group provisioning.",
-        "title": "Enterprise SSO & provisioning",
         "connected": "Sign-in is enabled.",
         "copied": "Copied to clipboard",
         "copy": "Copy",
@@ -5984,11 +5982,16 @@
         "disable": "Disable sign-in",
         "remove": "Remove",
         "test": "Test connection",
-        "save": "Save",
         "saved": "Saved",
         "saveFailed": "Failed to save",
         "testOk": "Connection looks good",
         "testFailed": "Connection test failed",
+        "testMissingFields": "Fill in the required fields before testing.",
+        "formHint": "Configure how members sign in, then save your changes from the header.",
+        "validation": {
+          "required": "This field is required.",
+          "url": "Enter a valid URL (including https://)."
+        },
         "guide": {
           "title": "Setup guide",
           "redirectLabel": "Redirect / callback URL",

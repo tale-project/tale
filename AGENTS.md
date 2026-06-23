@@ -249,6 +249,7 @@ component. **Build pages by composing components; never hand-roll layout HTML.**
 - **Validate `args` and declare `returns`** with `convex/values`; shared shapes in `convex/lib/validators/`.
 - **Prefer `getAuthUserIdentity`** (0 DB) over `getAuthUser` (2 DB) in read queries. **Delete deprecated functions** — no tombstones.
 - **Never `import 'node:*'` in V8 code** — load file I/O in a `'use node'` module and pass data in.
+- **Org config is files, not tables** — all per-org configuration is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (schemas in `lib/shared/schemas/`); never store org config in a Convex table.
 
 → Full guide: [`convex`](.claude/skills/convex/SKILL.md), [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md)
 
@@ -272,8 +273,11 @@ the live schema, fails on any data-incompatible drift from `convex/migrations/sc
 waves through safe growth. After authoring the migration, run `bun run --filter @tale/platform
 migrations:snapshot` to refresh the baseline (also refresh it when cutting a release).
 
-**File-based config (the other migration track):** per-org config lives in JSON files under
-`$TALE_CONFIG_DIR/<org>/<domain>/`, validated by the Zod schemas in `lib/shared/schemas/`. A change to
+**File-based org config — the source of truth is the file, not the DB.** All per-org configuration
+(governance, branding, providers, agents, workflows, enterprise SSO, …) is stored as JSON files under
+`$TALE_CONFIG_DIR/<org>/<domain>/`, validated by the Zod schemas in `lib/shared/schemas/` — **never as
+a Convex table or DB row.** A new org-config domain adds its schema there and reads/writes those files;
+do not introduce a config table in the Convex schema. This is the other migration track: a change to
 one of those schemas that makes existing on-disk files fail validation needs a **`node` migration** that
 rewrites each org's files first (the `01_governance_db_to_json` migration is the model). `migrations:check`
 guards this too via its **config-snapshot** guard (`check-config-snapshot.ts` → `config.snapshot.json`),
@@ -318,6 +322,7 @@ respect `prefers-reduced-motion`. Every component has an `accessibility` describ
 | -------------------------------------------------------------- | --------------------------------------------------- | ------------------------------ |
 | Update `en.json` only                                          | all base locales + variants, same commit            | i18n parity test · Ripple Map  |
 | Add a Convex field, skip the migration                         | versioned reversible migration + test               | `migrations:check` · DoD       |
+| Store org config in a Convex table                             | file-based JSON under `$TALE_CONFIG_DIR/<org>/…`    | reuse discipline · review      |
 | Hand-roll a skeleton (`h-[200px]`)                             | `<Skeletonize>` + skeleton-aware leaves             | `skeleton-conventions.test.ts` |
 | Build a new Button/Input/Badge                                 | reuse/extend the `packages/ui` primitive            | reuse discipline · review      |
 | Build a 2nd catalog/list/page like an existing one             | extract the shared concept; both render through it  | reuse discipline · review      |

@@ -5,8 +5,8 @@ import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Link } from '@tanstack/react-router';
-import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { AlertTriangle, ChevronDown, Cpu, Plus } from 'lucide-react';
 import {
   memo,
   type ReactNode,
@@ -83,12 +83,17 @@ export const ModelSelector = memo(function ModelSelector({
   const { locale } = useLocale();
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   // Provider/model setup is gated by the `integrations` ability (same gate as
   // the /settings/providers route). Drives whether the no-models hint offers a
   // setup link (admins/devs) or a "ask your admin" message (everyone else).
   const canSetUpProviders = ability.can('write', 'integrations');
+  // Adding a model to an agent edits the agent's config on its Instructions &
+  // models page, which is behind the same `agents` write gate as that route —
+  // so the "Add model" footer is only offered to users who can act on it.
+  const canManageAgents = ability.can('write', 'agents');
 
   const activeAgent = useMemo(
     () => agents?.find((a) => a.name === effectiveAgent?.name),
@@ -345,6 +350,35 @@ export const ModelSelector = memo(function ModelSelector({
     [effectiveAgent?.name, setSelectedModelOverride],
   );
 
+  // "Add model" jumps to the active agent's Instructions & models page, scrolled
+  // to the Models section (its `#models` anchor) — that's where an editor adds a
+  // model to the agent's list. Mirrors the agent selector's "Add agent" footer.
+  const handleAddModelClick = useCallback(() => {
+    if (!effectiveAgent?.name) return;
+    setOpen(false);
+    void navigate({
+      to: '/dashboard/$id/agents/$agentId/instructions',
+      params: { id: organizationId, agentId: effectiveAgent.name },
+      hash: 'models',
+    });
+  }, [navigate, organizationId, effectiveAgent?.name]);
+
+  // Compact "Add model" affordance for the states that don't render the picker
+  // dropdown (single model, or models configured but none reaching this agent).
+  // Same `agents` write gate as the dropdown footer; as a ghost icon button it
+  // keeps the composer row's height and sits beside the static label/warning.
+  const addModelButton =
+    canManageAgents && effectiveAgent?.name ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        icon={Plus}
+        title={t('modelSelector.addModel')}
+        onClick={handleAddModelClick}
+      />
+    ) : null;
+
   const isLoading = agentsLoading || providersLoading;
 
   // While agents/providers load, render the REAL closed-trigger Button (same
@@ -440,39 +474,52 @@ export const ModelSelector = memo(function ModelSelector({
     // not reaching this agent" cases — providers is the right starting point.)
     const adminCanAct =
       !abilityLoading && canSetUpProviders && !projectRestricts;
-    if (adminCanAct) {
-      return (
-        <Tooltip content={tooltipContent} side="top">
-          <Link
-            to="/dashboard/$id/settings/providers"
-            params={{ id: organizationId }}
-            className="cursor-pointer rounded-sm hover:underline"
-            aria-label={
-              noProviderConfigured
-                ? t('modelSelector.noModelsAdminHint')
-                : t('modelSelector.noModelsAgentHint')
-            }
-          >
-            {warningLabel}
-          </Link>
-        </Tooltip>
-      );
-    }
-
-    return (
+    const warningNode = adminCanAct ? (
+      <Tooltip content={tooltipContent} side="top">
+        <Link
+          to="/dashboard/$id/settings/providers"
+          params={{ id: organizationId }}
+          className="cursor-pointer rounded-sm hover:underline"
+          aria-label={
+            noProviderConfigured
+              ? t('modelSelector.noModelsAdminHint')
+              : t('modelSelector.noModelsAgentHint')
+          }
+        >
+          {warningLabel}
+        </Link>
+      </Tooltip>
+    ) : (
       <Tooltip content={tooltipContent} side="top">
         {warningLabel}
       </Tooltip>
     );
+
+    // Offer a direct "add model" jump only when editing the agent's own model
+    // list is what would actually close the gap: the org has models but none
+    // reach this agent. Cold-start (no provider) and project-pinned lists are
+    // fixed elsewhere, so we leave those to the provider-setup affordance above.
+    if (noProviderConfigured || projectRestricts || !addModelButton) {
+      return warningNode;
+    }
+
+    return (
+      <span className="flex items-center gap-1.5">
+        {warningNode}
+        {addModelButton}
+      </span>
+    );
   }
 
   // Single model — show its name as read-only text (not "Auto", since there's
-  // nothing to auto-select between).
+  // nothing to auto-select between). Editors still get the "add model" jump so
+  // they can grow the agent's model list from here.
   if (filteredModels.length === 1) {
     return (
       <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <Cpu className="size-3.5" aria-hidden="true" />
         <span>{getDisplayName(filteredModels[0])}</span>
+        {addModelButton}
       </span>
     );
   }
@@ -549,6 +596,18 @@ export const ModelSelector = memo(function ModelSelector({
       aria-label={t('modelSelector.label')}
       optionAction={renderOptionAction}
       showRadio
+      footer={
+        canManageAgents && effectiveAgent?.name ? (
+          <Button
+            variant="ghost"
+            className="w-full"
+            icon={Plus}
+            onClick={handleAddModelClick}
+          >
+            {t('modelSelector.addModel')}
+          </Button>
+        ) : undefined
+      }
       trigger={
         <Button
           type="button"

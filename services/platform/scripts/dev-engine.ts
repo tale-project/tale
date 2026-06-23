@@ -620,7 +620,7 @@ async function ensureDockerDependencies(): Promise<void> {
       "While the backing services are down: chat and external agents fail (no LLM gateway), agents can't run code (no sandbox), and the knowledge base / RAG is unavailable (no db).",
     );
     infoLine(
-      `Start them with: docker ${dockerComposeArgs(['up', '-d', ...DEV_DOCKER_SERVICES]).join(' ')}`,
+      `Start them with: docker ${dockerComposeArgs(['up', '-d', '--remove-orphans', ...DEV_DOCKER_SERVICES]).join(' ')}`,
     );
     return;
   }
@@ -632,10 +632,25 @@ async function ensureDockerDependencies(): Promise<void> {
       done: 'Docker backing services started',
     },
     async () => {
+      // `--remove-orphans` self-heals the project after a service is RENAMED or
+      // DELETED from the compose files (e.g. bifrost → llm-gateway). The old
+      // container keeps running and holds its published port, so a fresh
+      // `tale-llm-gateway` can't bind :8080 ("port is already allocated") and the
+      // whole bring-up fails. The flag is project-scoped and only removes
+      // containers for services no longer defined ANYWHERE in the compose files —
+      // services defined-but-not-started here (platform/controller/proxy/docs) are
+      // NOT orphans and stay put, and modern blue-green deploys run under their own
+      // `…-blue`/`…-green` projects, so a live deploy is never touched.
       const up = (extra: string[]) =>
         runCommand(
           'docker',
-          dockerComposeArgs(['up', '-d', ...extra, ...DEV_DOCKER_SERVICES]),
+          dockerComposeArgs([
+            'up',
+            '-d',
+            '--remove-orphans',
+            ...extra,
+            ...DEV_DOCKER_SERVICES,
+          ]),
           {},
           repoRoot,
           { label: 'docker', classifier: dockerClassifier },

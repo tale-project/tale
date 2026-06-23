@@ -28,7 +28,8 @@ export function EnterpriseSsoSettings({
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   const { data } = useEnterpriseSso(organizationId);
-  const config: EnterpriseSsoConfig | null = data ?? null;
+  // `undefined` while the query is loading; the form shows its loading state.
+  const config: EnterpriseSsoConfig | undefined = data;
 
   if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccessDenied('enterpriseSso')} />;

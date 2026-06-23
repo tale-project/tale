@@ -58,14 +58,7 @@ export const modelCatalogSyncTable = defineTable({
   error: v.optional(v.string()),
 }).index('by_source', ['source']);
 
-/**
- * Per-org opt-out for the weekly in-instance provider-config auto-sync (the
- * cron that 3-way-merges fresh OpenRouter facts into each org's provider JSON).
- * One row per org; ABSENT ⇒ enabled (default on). Toggled from the providers
- * settings UI.
- */
-export const modelSyncSettingsTable = defineTable({
-  organizationId: v.string(),
-  autoSyncEnabled: v.boolean(),
-  updatedAt: v.number(),
-}).index('by_organizationId', ['organizationId']);
+// The per-org auto-sync opt-out moved to the file-based governance policy
+// `model_sync` (`<org>/governance/model-sync.json`, schema `modelSyncConfigSchema`).
+// The legacy `modelSyncSettings` table was dropped in migration 0.2.87/04;
+// the absence of a file still means "enabled". See `model_catalog/queries.ts`.

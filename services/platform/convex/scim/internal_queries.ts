@@ -1,7 +1,13 @@
 import { v } from 'convex/values';
 
+import {
+  SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+  ssoConnectionFileSchema,
+} from '../../lib/shared/schemas/enterprise_sso';
 import { internalQuery } from '../_generated/server';
 import { platformRoleValidator } from '../enterprise_sso/validators';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import type { BetterAuthMember, BetterAuthUser } from '../members/types';
 import {
   buildOrgUserMap,
@@ -74,8 +80,9 @@ function buildGroupRecord(
 
 /**
  * Resolve the org + default role for an inbound SCIM token by its SHA-256 hash.
- * The matched `ssoConnections` row IS the tenant scope; a disabled connection
- * stores an empty hash so no real token can match it.
+ * The matched `ssoConnections` row IS the tenant scope (token state); a disabled
+ * connection stores an empty hash so no real token can match it. The default
+ * role is part of the file-based provisioning policy, read from `configCache`.
  */
 export const getConfigByTokenHash = internalQuery({
   args: { tokenHash: v.string() },
@@ -97,10 +104,23 @@ export const getConfigByTokenHash = internalQuery({
       )
       .first();
     if (!row) return null;
+    const cacheRow = await readConfigCacheRow(
+      ctx.db,
+      row.organizationId,
+      SSO_CONFIG_DOMAIN,
+      SSO_CONNECTION_KEY,
+    );
+    const parsed = cacheRow
+      ? ssoConnectionFileSchema.safeParse(cacheRow.config)
+      : null;
+    const defaultRole =
+      parsed && parsed.success
+        ? parsed.data.provisioning.defaultRole
+        : 'member';
     return {
       configId: row._id,
       organizationId: row.organizationId,
-      defaultRole: row.defaultRole,
+      defaultRole,
       enabled: row.scimEnabled,
     };
   },

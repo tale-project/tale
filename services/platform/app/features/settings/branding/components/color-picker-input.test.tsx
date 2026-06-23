@@ -70,6 +70,25 @@ describe('ColorPickerInput', () => {
     expect(onChange).toHaveBeenCalledWith('#00');
   });
 
+  it('emits an empty string (not a bare "#") when the field is cleared', () => {
+    const onChange = vi.fn();
+    render(
+      <ColorPickerInput
+        value="#123456"
+        onChange={onChange}
+        label="Color"
+        id="color"
+      />,
+    );
+
+    const input = screen.getByLabelText('Color hex value');
+    fireEvent.change(input, { target: { value: '' } });
+
+    // '' is the valid "unset" value per the optional hex schema; a bare '#'
+    // would fail validation and wedge the Save bar disabled.
+    expect(onChange).toHaveBeenCalledWith('');
+  });
+
   it('accepts up to 8 character hex codes with alpha', () => {
     const onChange = vi.fn();
     render(

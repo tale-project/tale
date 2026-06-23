@@ -22,6 +22,11 @@
 import type { z } from 'zod/v4';
 
 import {
+  ssoConnectionFileSchema,
+  SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+} from '../schemas/enterprise_sso';
+import {
   FILE_POLICY_TYPES,
   isFilePolicyType,
   POLICY_SCHEMAS,
@@ -110,9 +115,11 @@ export interface ConfigDomain {
   readonly dataModel: ConfigDataModel;
   /**
    * Scaffold copy semantics. Present iff this domain is independently
-   * scaffolded from the builtin catalog (every entry below has one today).
+   * scaffolded from the builtin catalog. Absent ⇒ NOT catalog-scaffolded: the
+   * files are created on demand by an admin action (e.g. `sso`), so the
+   * scaffolder skips the domain rather than failing on a missing catalog dir.
    */
-  readonly scaffoldKind: ScaffoldKind;
+  readonly scaffoldKind?: ScaffoldKind;
   /** Present iff `readContext === 'v8-sync'`. */
   readonly v8Sync?: V8SyncSpec;
   /** Present iff dev edits to this domain need a frontend SSE invalidation. */
@@ -241,7 +248,7 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       slugFromRest: () => undefined,
     },
   },
-  // The only v8-sync domain: policies are enforced in V8 queries/mutations/
+  // A v8-sync domain: policies are enforced in V8 queries/mutations/
   // auth-hooks. One `<policyType>.json` per policy (kebab filename for the
   // snake_case type), plus the `retention.json` bounds catalog (read separately
   // via the v8-action path) and `*.secrets.json` sidecars.
@@ -265,6 +272,27 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
         }
         return policyTypeToFileBase(key);
       },
+    },
+  },
+  // Enterprise SSO connection — a `v8-sync` domain like governance (V8 sign-in
+  // hooks/queries read it from `configCache`), but NOT catalog-scaffolded: the
+  // single `connection.json` is created on demand by the admin SSO form, so it
+  // carries no `scaffoldKind` and ships no builtin default. Its on-disk dir is
+  // NESTED under governance (`<org>/governance/sso/`, resolved in Layer B), so
+  // its file never collides with the flat governance policy files. Registering
+  // it here is exactly what folds SSO into the generic file→cache sync, the
+  // cron `reconcileAllConfigCaches`, and org-create/reseed — the same safety
+  // nets every other config domain already has (previously the SSO cache was
+  // only ever refreshed by a bespoke writer on an admin save).
+  {
+    name: SSO_CONFIG_DOMAIN, // 'sso'
+    layout: 'single-file',
+    readContext: 'v8-sync',
+    dataModel: 'config',
+    v8Sync: {
+      keys: [SSO_CONNECTION_KEY], // ['connection']
+      schemaFor: () => ssoConnectionFileSchema,
+      fileBaseFor: () => SSO_CONNECTION_KEY, // 'connection' (no extension)
     },
   },
   // First-class apps: each `apps/<slug>/` is a bundle (manifest + views/

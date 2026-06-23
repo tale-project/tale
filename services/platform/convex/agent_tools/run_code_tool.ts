@@ -16,6 +16,10 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import {
+  type RunCodePolicyConfig,
+  runCodePolicyConfigSchema,
+} from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
 import { toSandboxStorageUrl } from '../lib/helpers/public_storage_url';
 import { inferStepLanguage, refinePackagesObject } from './files/_shared';
@@ -88,17 +92,8 @@ type RunCodeArgs = z.infer<typeof runCodeArgs>;
 
 const SCRIPT_EXT_REGEX = /\.(py|cjs|mjs|js|sh)$/i;
 
-interface PackageRow {
-  organizationId: string;
-  defaultMode: 'allowlist' | 'denylist';
-  pythonAllow: string[];
-  pythonDeny: string[];
-  nodeAllow: string[];
-  nodeDeny: string[];
-}
-
 function checkPackagesAgainstPolicy(
-  policy: PackageRow | null,
+  policy: RunCodePolicyConfig | null,
   packages: { python?: string[]; node?: string[] } | undefined,
 ):
   | { ok: true }
@@ -263,18 +258,26 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         seen.add(p);
       }
 
-      // Org package policy check.
-      const policy = (await ctx
+      // Org package policy check. The `run_code` governance policy is the
+      // source of truth (file-based, mirrored into configCache); a missing
+      // file ⇒ null ⇒ every package allowed.
+      const rawPolicy = await ctx
         .runQuery(
-          internal.governance.run_code_policy.getRunCodePolicyInternal,
+          internal.governance.internal_queries.getPolicyConfigInternal,
           {
             organizationId,
+            policyType: 'run_code',
           },
         )
         .catch((err: unknown) => {
           console.warn('[run_code] policy lookup failed:', err);
           return null;
-        })) as PackageRow | null;
+        });
+      const parsed = rawPolicy
+        ? runCodePolicyConfigSchema.safeParse(rawPolicy)
+        : null;
+      const policy: RunCodePolicyConfig | null =
+        parsed && parsed.success ? parsed.data : null;
       const policyResult = checkPackagesAgainstPolicy(policy, args.packages);
       if (!policyResult.ok) {
         return policyResult;

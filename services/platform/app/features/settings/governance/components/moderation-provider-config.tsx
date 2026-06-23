@@ -471,6 +471,7 @@ export function ModerationProviderConfigView({
         action={
           <Switch
             label={t('moderationProvider.enableLabel')}
+            hideLabelOnMobile
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleToggleEnabled}

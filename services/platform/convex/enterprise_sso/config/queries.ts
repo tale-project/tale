@@ -1,9 +1,16 @@
 import { v } from 'convex/values';
 
-import type { SsoConnectionView } from '../../../lib/shared/schemas/enterprise_sso';
+import {
+  SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+  type SsoConnectionFile,
+  ssoConnectionFileSchema,
+  type SsoConnectionView,
+} from '../../../lib/shared/schemas/enterprise_sso';
 // Raw `query` + explicit membership gate — matches the members/SCIM family
 // (org membership is resolved via Better Auth's cross-component adapter).
 import { query } from '../../_generated/server';
+import { readConfigCacheRow } from '../../lib/config_cache/read';
 import { getPublicHttpApiUrl } from '../../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import { getCallerRole } from '../get_caller_role';
@@ -17,9 +24,13 @@ import {
 
 /**
  * Read-facing view of the org's unified SSO connection for the settings UI.
- * Strips every secret (client secret, SP private key, SCIM token hash) and the
- * decryptable `clientId` (revealed on demand via a separate action). Visible to
- * any org member; the settings route gates edit to developer/admin.
+ *
+ * The non-secret config is read from the file-derived `configCache` (domain
+ * `sso`, key `connection`); SCIM token state is read from the `ssoConnections`
+ * DB row (token hash needs reverse lookup, so it stays in the DB). Every secret
+ * (client secret, SP private key, SCIM token) is excluded; the client id is
+ * revealed on demand via a separate action. Visible to any org member; the
+ * settings route gates edit to developer/admin.
  */
 const connectionViewValidator = v.object({
   configured: v.boolean(),
@@ -31,6 +42,9 @@ const connectionViewValidator = v.object({
     v.object({
       providerId: ssoProviderIdValidator,
       issuer: v.string(),
+      authorizationEndpoint: v.optional(v.string()),
+      tokenEndpoint: v.optional(v.string()),
+      userinfoEndpoint: v.optional(v.string()),
       scopes: v.array(v.string()),
       pkce: v.optional(v.boolean()),
       domainHint: v.optional(v.string()),
@@ -100,12 +114,38 @@ export const get = query({
     const samlAcsUrl = base ? `${base}/api/sso/saml/acs` : null;
     const oidcCallbackUrl = base ? `${base}/api/sso/callback` : null;
 
-    const row = await ctx.db
+    // Non-secret connection config — file-derived mirror.
+    const cacheRow = await readConfigCacheRow(
+      ctx.db,
+      args.organizationId,
+      SSO_CONFIG_DOMAIN,
+      SSO_CONNECTION_KEY,
+    );
+    const parsed = cacheRow
+      ? ssoConnectionFileSchema.safeParse(cacheRow.config)
+      : null;
+    const config: SsoConnectionFile | null =
+      parsed && parsed.success ? parsed.data : null;
+
+    // SCIM token state — DB (reverse lookup by hash needs an index).
+    const scimRow = await ctx.db
       .query('ssoConnections')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .first();
 
-    if (!row) {
+    const scim = {
+      enabled: scimRow?.scimEnabled ?? false,
+      tokenPrefix: scimRow?.scimEnabled
+        ? (scimRow.scimTokenPrefix ?? null)
+        : null,
+      tokenGeneratedAt: scimRow?.scimEnabled
+        ? (scimRow.scimTokenGeneratedAt ?? null)
+        : null,
+      lastUsedAt: scimRow?.scimLastUsedAt ?? null,
+      baseUrl: scimBaseUrl,
+    };
+
+    if (!config) {
       return {
         configured: false,
         enabled: false,
@@ -121,13 +161,7 @@ export const get = query({
           autoProvisionTeam: false,
           excludeGroups: [],
         },
-        scim: {
-          enabled: false,
-          tokenPrefix: null,
-          tokenGeneratedAt: null,
-          lastUsedAt: null,
-          baseUrl: scimBaseUrl,
-        },
+        scim,
         samlSpMetadataUrl,
         samlAcsUrl,
         oidcCallbackUrl,
@@ -136,49 +170,46 @@ export const get = query({
 
     return {
       configured: true,
-      enabled: row.enabled,
-      protocol: row.protocol ?? null,
-      displayName: row.displayName,
-      domain: row.domain ?? null,
-      oidc: row.oidcConfig
+      enabled: config.enabled,
+      protocol: config.protocol ?? null,
+      displayName: config.displayName,
+      domain: config.domain ?? null,
+      oidc: config.oidc
         ? {
-            providerId: row.oidcConfig.providerId,
-            issuer: row.oidcConfig.issuer,
-            scopes: row.oidcConfig.scopes,
-            pkce: row.oidcConfig.pkce,
-            domainHint: row.oidcConfig.domainHint,
-            claimMappings: row.oidcConfig.claimMappings,
-            enableOneDriveAccess: row.oidcConfig.enableOneDriveAccess,
+            providerId: config.oidc.providerId,
+            issuer: config.oidc.issuer,
+            authorizationEndpoint: config.oidc.authorizationEndpoint,
+            tokenEndpoint: config.oidc.tokenEndpoint,
+            userinfoEndpoint: config.oidc.userinfoEndpoint,
+            scopes: config.oidc.scopes,
+            pkce: config.oidc.pkce,
+            domainHint: config.oidc.domainHint,
+            claimMappings: config.oidc.claimMappings,
+            enableOneDriveAccess: config.oidc.enableOneDriveAccess,
           }
         : null,
-      saml: row.samlConfig
+      saml: config.saml
         ? {
-            idpEntityId: row.samlConfig.idpEntityId,
-            idpSsoUrl: row.samlConfig.idpSsoUrl,
-            idpCertificate: row.samlConfig.idpCertificate,
-            wantAssertionsSigned: row.samlConfig.wantAssertionsSigned,
-            wantAssertionsEncrypted: row.samlConfig.wantAssertionsEncrypted,
-            hasSpKeypair: !!row.samlConfig.spPrivateKeyEncrypted,
-            spCertificate: row.samlConfig.spCertificate,
-            attributeMappings: row.samlConfig.attributeMappings,
+            idpEntityId: config.saml.idpEntityId,
+            idpSsoUrl: config.saml.idpSsoUrl,
+            idpCertificate: config.saml.idpCertificate,
+            wantAssertionsSigned: config.saml.wantAssertionsSigned,
+            wantAssertionsEncrypted: config.saml.wantAssertionsEncrypted,
+            // The SP private key lives in the secrets sidecar (not the cache);
+            // a configured public SP certificate signals the keypair exists.
+            hasSpKeypair: !!config.saml.spCertificate,
+            spCertificate: config.saml.spCertificate,
+            attributeMappings: config.saml.attributeMappings,
           }
         : null,
       provisioning: {
-        autoProvisionRole: row.autoProvisionRole,
-        defaultRole: row.defaultRole,
-        roleMappingRules: row.roleMappingRules,
-        autoProvisionTeam: row.autoProvisionTeam,
-        excludeGroups: row.excludeGroups,
+        autoProvisionRole: config.provisioning.autoProvisionRole,
+        defaultRole: config.provisioning.defaultRole,
+        roleMappingRules: config.provisioning.roleMappingRules,
+        autoProvisionTeam: config.provisioning.autoProvisionTeam,
+        excludeGroups: config.provisioning.excludeGroups,
       },
-      scim: {
-        enabled: row.scimEnabled,
-        tokenPrefix: row.scimEnabled ? row.scimTokenPrefix : null,
-        tokenGeneratedAt: row.scimEnabled
-          ? (row.scimTokenGeneratedAt ?? null)
-          : null,
-        lastUsedAt: row.scimLastUsedAt ?? null,
-        baseUrl: scimBaseUrl,
-      },
+      scim,
       samlSpMetadataUrl,
       samlAcsUrl,
       oidcCallbackUrl,

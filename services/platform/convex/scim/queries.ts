@@ -1,11 +1,17 @@
 import { v } from 'convex/values';
 
-// Raw `query` (not the RLS wrapper) to match the members/sso_providers family:
-// org membership is resolved through Better Auth's cross-component adapter and
-// guarded explicitly below, the same way `members/mutations.ts` does.
+import {
+  SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+  ssoConnectionFileSchema,
+} from '../../lib/shared/schemas/enterprise_sso';
+// Raw `query` (not the RLS wrapper) to match the members family: org membership
+// is resolved through Better Auth's cross-component adapter and guarded
+// explicitly below, the same way `members/mutations.ts` does.
 import { query } from '../_generated/server';
 import { getCallerRole } from '../enterprise_sso/get_caller_role';
 import { platformRoleValidator } from '../enterprise_sso/validators';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getPublicHttpApiUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
@@ -49,10 +55,25 @@ export const get = query({
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
       .first();
 
+    // Default role is part of the file-based provisioning policy.
+    const cacheRow = await readConfigCacheRow(
+      ctx.db,
+      args.organizationId,
+      SSO_CONFIG_DOMAIN,
+      SSO_CONNECTION_KEY,
+    );
+    const parsed = cacheRow
+      ? ssoConnectionFileSchema.safeParse(cacheRow.config)
+      : null;
+    const defaultRole =
+      parsed && parsed.success
+        ? parsed.data.provisioning.defaultRole
+        : 'member';
+
     if (!row) {
       return {
         enabled: false,
-        defaultRole: 'member' as const,
+        defaultRole,
         tokenPrefix: null,
         tokenGeneratedAt: null,
         lastUsedAt: null,
@@ -61,7 +82,7 @@ export const get = query({
     }
     return {
       enabled: row.scimEnabled,
-      defaultRole: row.defaultRole,
+      defaultRole,
       tokenPrefix: row.scimEnabled ? row.scimTokenPrefix : null,
       tokenGeneratedAt: row.scimEnabled
         ? (row.scimTokenGeneratedAt ?? null)

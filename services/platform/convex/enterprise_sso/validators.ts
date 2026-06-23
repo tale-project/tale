@@ -46,36 +46,6 @@ export const ssoProviderIdValidator = v.union(
   v.literal('oauth2'),
 );
 
-/** OIDC/OAuth2 config as stored (secrets encrypted). */
-export const oidcStoredConfigValidator = v.object({
-  // Selects the concrete adapter (Entra Graph vs discovery-driven OIDC vs OAuth2).
-  providerId: ssoProviderIdValidator,
-  issuer: v.string(),
-  // Explicit endpoints override OIDC discovery (required for non-OIDC OAuth2).
-  authorizationEndpoint: v.optional(v.string()),
-  tokenEndpoint: v.optional(v.string()),
-  userinfoEndpoint: v.optional(v.string()),
-  clientIdEncrypted: v.string(),
-  clientSecretEncrypted: v.string(),
-  scopes: v.array(v.string()),
-  pkce: v.optional(v.boolean()),
-  domainHint: v.optional(v.string()),
-  claimMappings: v.optional(attributeMappingValidator),
-  enableOneDriveAccess: v.optional(v.boolean()),
-});
-
-/** SAML config as stored (SP private key encrypted). */
-export const samlStoredConfigValidator = v.object({
-  idpEntityId: v.string(),
-  idpSsoUrl: v.string(),
-  idpCertificate: v.string(),
-  spPrivateKeyEncrypted: v.optional(v.string()),
-  spCertificate: v.optional(v.string()),
-  wantAssertionsSigned: v.optional(v.boolean()),
-  wantAssertionsEncrypted: v.optional(v.boolean()),
-  attributeMappings: v.optional(attributeMappingValidator),
-});
-
 export const ssoResourceTypeValidator = v.union(
   v.literal('User'),
   v.literal('Group'),
