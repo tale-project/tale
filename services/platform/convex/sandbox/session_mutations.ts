@@ -13,6 +13,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import { readSandboxQuotaPolicy } from './quota_policy';
 import {
   isLiveSessionStatus,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -20,11 +21,6 @@ import {
   SANDBOX_SESSION_MAX_LIFETIME_MS,
 } from './sessions_schema';
 import { sandboxSessionProfileValidator } from './wire';
-
-// Sessions are per-user (one persistent sandbox per user), so this org cap
-// should not bind before the spawner's host-RAM cap (SANDBOX_MAX_SESSIONS) —
-// keep it high enough that ~one sandbox per active user in an org is allowed.
-const SANDBOX_MAX_SESSIONS_PER_ORG = 50;
 
 /**
  * Atomically check the per-owner + per-org active-session caps and insert a
@@ -45,6 +41,15 @@ export const reserveSessionSlotAndInsert = internalMutation({
   returns: v.id('sandboxSessions'),
   handler: async (ctx, args) => {
     const now = Date.now();
+
+    // Per-org session cap from the `sandbox_quota` governance policy (missing
+    // row → schema default). Defense in depth; the deployment-wide host cap is
+    // the spawner's `SANDBOX_MAX_SESSIONS` env. Sessions are per-owner (cap
+    // below), so this org cap is the per-tenant aggregate slice.
+    const { maxSessionsPerOrg } = await readSandboxQuotaPolicy(
+      ctx.db,
+      args.organizationId,
+    );
 
     // Per-owner cap (default 1 active session per thread/workflow-run/user).
     let ownerActive = 0;
@@ -73,10 +78,10 @@ export const reserveSessionSlotAndInsert = internalMutation({
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
         orgActive += 1;
-        if (orgActive >= SANDBOX_MAX_SESSIONS_PER_ORG) {
+        if (orgActive >= maxSessionsPerOrg) {
           throw new ConvexError({
             code: 'QUOTA_EXCEEDED',
-            message: `At most ${SANDBOX_MAX_SESSIONS_PER_ORG} sandbox sessions can be active for this organization.`,
+            message: `At most ${maxSessionsPerOrg} sandbox sessions can be active for this organization.`,
           });
         }
       }

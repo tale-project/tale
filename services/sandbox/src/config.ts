@@ -306,7 +306,7 @@ export function loadConfig(): SpawnerConfig {
     transparentEgress,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
-    maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 4, { min: 1 }),
+    maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 2, { min: 1 }),
     color: sandboxColor,
     // Per-colour session root so blue/green don't share the `.spawner.lock` or
     // the host-dir sweep (single-colour mode keeps the flat base path).
@@ -352,11 +352,11 @@ export function loadConfig(): SpawnerConfig {
       { min: 4 * 1024 },
     ),
     session: {
-      // Spawner-wide cap = the host-RAM guard (each agent session ≈ 2 cpu / 4 g);
-      // operators size it to the box. Sessions are per-USER now, so the per-org
-      // cap should NOT bind before the host cap — keep it high (effectively
-      // "one sandbox per active user, host RAM is the real limit").
-      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 10, { min: 1 }),
+      // Spawner-wide cap = the GLOBAL host-capacity guard across all orgs (each
+      // agent session ≈ 2 cpu / 4 g). The default is deliberately conservative
+      // (sized for a small box); operators raise SANDBOX_MAX_SESSIONS to match a
+      // bigger host. Per-org quota is governance policy, not this host cap.
+      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 2, { min: 1 }),
       maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',

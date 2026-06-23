@@ -57,6 +57,11 @@ export const POLICY_TYPES = [
   // Per-org opt-out for the weekly in-instance provider-config auto-sync cron.
   // Missing file → enabled. See `modelSyncConfigSchema`.
   'model_sync',
+  // Per-org sandbox concurrency quota (one-shot execs + persistent sessions).
+  // The deployment-wide host-capacity caps are spawner env
+  // (`SANDBOX_MAX_CONCURRENT`, `SANDBOX_MAX_SESSIONS`); this policy is the
+  // per-tenant slice an org admin tunes. See `sandboxQuotaConfigSchema`.
+  'sandbox_quota',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -92,6 +97,25 @@ export const taskAutomationConfigSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
+
+/**
+ * Per-org sandbox concurrency quota. Missing row ⇒ these schema defaults.
+ *
+ * Two-tier model: the GLOBAL host-capacity caps (total across every org) are
+ * spawner env — `SANDBOX_MAX_CONCURRENT` (one-shot) and `SANDBOX_MAX_SESSIONS`
+ * (sessions) — sized to the physical box. THIS policy is the per-tenant slice
+ * an org admin tunes. A per-org value set above the global env cap simply never
+ * binds: the global host cap always wins.
+ */
+export const sandboxQuotaConfigSchema = z.object({
+  /** Max concurrent one-shot executions (run_code / workflow script steps). */
+  maxConcurrentPerOrg: z.number().int().min(1).max(100).default(2),
+  /** Max concurrently-active persistent sandbox sessions (chat / agent steps). */
+  maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+});
+export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
+export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
+  sandboxQuotaConfigSchema.parse({});
 
 // Org-level default for the custom-instructions feature. Per-user
 // `userPreferences.customInstructionsEnabled` may override this default;
@@ -715,6 +739,7 @@ export const POLICY_SCHEMAS = {
   task_automation: taskAutomationConfigSchema,
   run_code: runCodePolicyConfigSchema,
   model_sync: modelSyncConfigSchema,
+  sandbox_quota: sandboxQuotaConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

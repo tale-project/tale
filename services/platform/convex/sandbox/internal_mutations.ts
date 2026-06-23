@@ -7,9 +7,9 @@ import {
   type MutationCtx,
 } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';
+import { readSandboxQuotaPolicy } from './quota_policy';
 import {
   SANDBOX_DAILY_CPU_BUDGET_SECONDS,
-  SANDBOX_MAX_CONCURRENT_PER_ORG,
   SANDBOX_WATCHDOG_CUTOFF_MS,
 } from './schema';
 import {
@@ -167,6 +167,14 @@ export const reserveSlotAndInsert = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
+    // Per-org one-shot concurrency cap from the `sandbox_quota` governance
+    // policy (missing row → schema default). The deployment-wide host cap is
+    // the spawner's `SANDBOX_MAX_CONCURRENT` env; this is the per-tenant slice.
+    const { maxConcurrentPerOrg } = await readSandboxQuotaPolicy(
+      ctx.db,
+      args.organizationId,
+    );
+
     // Concurrent cap. Short-circuit at the cap; never materialise the full set.
     // Both `queued` and `running` rows count: the cap is "in-flight", not
     // "actively executing". This must agree with the watchdog (below) which
@@ -182,10 +190,10 @@ export const reserveSlotAndInsert = internalMutation({
         )) {
         inFlight += 1;
         runningSecondsProjected += row.estimatedSeconds;
-        if (inFlight >= SANDBOX_MAX_CONCURRENT_PER_ORG) {
+        if (inFlight >= maxConcurrentPerOrg) {
           throw new ConvexError({
             code: 'QUOTA_EXCEEDED',
-            message: `At most ${SANDBOX_MAX_CONCURRENT_PER_ORG} sandboxes can run concurrently for this organization.`,
+            message: `At most ${maxConcurrentPerOrg} sandboxes can run concurrently for this organization.`,
           });
         }
       }

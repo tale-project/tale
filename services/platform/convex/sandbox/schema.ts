@@ -196,7 +196,10 @@ export const sandboxExecutionsTable = defineTable({
   // row; this just lets the query be O(k) instead of org-wide scan.
   .index('by_threadId', ['threadId']);
 
-export const SANDBOX_MAX_CONCURRENT_PER_ORG = 4;
+// Per-org concurrency caps moved to the `sandbox_quota` governance policy
+// (lib/shared/schemas/governance.ts → sandboxQuotaConfigSchema), read per-org
+// in reserveSlotAndInsert / reserveSessionSlotAndInsert. The deployment-wide
+// host caps remain spawner env (SANDBOX_MAX_CONCURRENT / SANDBOX_MAX_SESSIONS).
 export const SANDBOX_DAILY_CPU_BUDGET_SECONDS = 1800;
 export const SANDBOX_MAX_TIMEOUT_MS = 300_000;
 export const SANDBOX_DEFAULT_TIMEOUT_MS = 30_000;
