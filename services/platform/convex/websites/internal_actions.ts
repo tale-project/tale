@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../_generated/server';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { orgIdFromSlug, orgSlugFromId } from '../lib/helpers/org_slug';
 import type {
   CrawlerWebsiteInfo,
   FetchChunksResult,
@@ -439,6 +439,40 @@ export const syncSingleWebsite = internalAction({
         },
       });
     }
+  },
+});
+
+/**
+ * Sync the per-org `websites` row for `domain` straight from the corpus, keyed
+ * by `orgSlug` (not org id). Called by the in-process scan scheduler the moment
+ * a crawl finishes: the scheduler is corpus-keyed (`website_org_memberships`
+ * stores `org_slug`), so it resolves the org id here, finds the owning org's
+ * row, and reuses `syncSingleWebsite`'s patch.
+ *
+ * Without this, a cron-driven scan only updated the corpus and never the
+ * Convex `websites` row the UI reads, so a freshly-crawled site showed `Idle`
+ * / `0` indexed until the next hourly frontend poll (debounced by
+ * `lastStatusSyncAt`). No-ops when the slug or row can't be resolved (org
+ * deleted, domain not tracked by that org) — this is a best-effort push.
+ */
+export const syncWebsiteRowForDomain = internalAction({
+  args: {
+    orgSlug: v.string(),
+    domain: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const organizationId = await orgIdFromSlug(ctx, args.orgSlug);
+    if (!organizationId) return;
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsiteByDomain,
+      { organizationId, domain: args.domain },
+    );
+    if (!website) return;
+    await ctx.runAction(internal.websites.internal_actions.syncSingleWebsite, {
+      websiteId: website._id,
+      domain: args.domain,
+      organizationId,
+    });
   },
 });
 
