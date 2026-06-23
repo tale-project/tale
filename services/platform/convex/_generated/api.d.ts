@@ -295,6 +295,7 @@ import type * as crawler_helpers_content_filter from "../crawler/helpers/content
 import type * as crawler_helpers_fetch_rendered_html from "../crawler/helpers/fetch_rendered_html.js";
 import type * as crawler_helpers_structured_data from "../crawler/helpers/structured_data.js";
 import type * as crawler_index_pages from "../crawler/index_pages.js";
+import type * as crawler_scan_scheduler from "../crawler/scan_scheduler.js";
 import type * as crawler_lib_discovery from "../crawler/lib/discovery.js";
 import type * as crawler_lib_document_metadata from "../crawler/lib/document_metadata.js";
 import type * as crawler_lib_docx_generate from "../crawler/lib/docx_generate.js";
@@ -1850,6 +1851,7 @@ declare const fullApi: ApiFromModules<{
   "crawler/helpers/fetch_rendered_html": typeof crawler_helpers_fetch_rendered_html;
   "crawler/helpers/structured_data": typeof crawler_helpers_structured_data;
   "crawler/index_pages": typeof crawler_index_pages;
+  "crawler/scan_scheduler": typeof crawler_scan_scheduler;
   "crawler/lib/discovery": typeof crawler_lib_discovery;
   "crawler/lib/document_metadata": typeof crawler_lib_document_metadata;
   "crawler/lib/docx_generate": typeof crawler_lib_docx_generate;

@@ -20,8 +20,11 @@
  *
  * Timestamps: postgres.js returns `Date` objects for `timestamptz`. The Python
  * return shapes used epoch *seconds* (`.timestamp()`), so `last_crawled_at` is
- * converted to `date ? date.getTime() / 1000 : null`. JSONB params are passed as
- * `JSON.stringify(obj)` with a `::jsonb` cast (mirrors the RAG port).
+ * converted to `date ? date.getTime() / 1000 : null`. JSONB params are passed
+ * via `sql.json(obj)`, NOT `JSON.stringify(obj)`: postgres.js re-encodes a
+ * pre-stringified string into a JSONB *scalar string*, which then breaks
+ * `jsonb_set` / `@>` on the column ("cannot set path in scalar"). `sql.json`
+ * serializes the object to a proper JSONB object.
  */
 
 import type { Sql } from 'postgres';
@@ -201,6 +204,31 @@ export async function getUrlsNeedingRecrawl(
   return rows.map((r) => r.url);
 }
 
+/**
+ * Count not-yet-crawled URLs for `domain` (`content_hash IS NULL`) that are
+ * still within the fail-count budget — i.e. the crawl work remaining. The scan
+ * loop uses this to decide whether to schedule another bounded continuation
+ * (keep filling the site) or stop at `idle` (whole site indexed / only
+ * permanently-failing URLs left). `maxFailCount` MUST match the value passed to
+ * `getUrlsNeedingRecrawl` so a URL excluded from the crawl list is also excluded
+ * from the remaining count — otherwise the loop would never terminate.
+ */
+export async function countUncrawledUrls(
+  domain: string,
+  maxFailCount = 10,
+): Promise<number> {
+  const sql = getKnowledgePool();
+  const rows = await withRetry(() =>
+    sql.unsafe<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM ${SCHEMA}.website_urls
+                   WHERE domain = $1 AND status != 'deleted'
+                     AND content_hash IS NULL AND fail_count < $2`,
+      [domain, maxFailCount],
+    ),
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
 export async function incrementFailCount(
   domain: string,
   urls: string[],
@@ -240,6 +268,12 @@ export async function updateContentHashes(
     return;
   }
   const sql = getKnowledgePool();
+  // `metadata`/`structured_data` are arbitrary crawled JSON (typed `unknown`);
+  // pass them to sql.json (-> a proper JSONB object) at this DB boundary.
+  type JsonParam = Parameters<typeof sql.json>[0];
+  const toJsonParam = (v: unknown) =>
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    v == null ? null : sql.json(v as JsonParam);
   await withRetry(async () => {
     for (const u of updates) {
       await sql.unsafe(
@@ -257,8 +291,8 @@ export async function updateContentHashes(
           u.title ?? null,
           u.content ?? null,
           u.word_count ?? null,
-          u.metadata == null ? null : JSON.stringify(u.metadata),
-          u.structured_data == null ? null : JSON.stringify(u.structured_data),
+          toJsonParam(u.metadata),
+          toJsonParam(u.structured_data),
         ],
       );
     }

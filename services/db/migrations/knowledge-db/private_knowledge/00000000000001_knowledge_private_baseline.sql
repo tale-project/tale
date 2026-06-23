@@ -27,6 +27,28 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Converge columns onto a pre-existing `documents` table.
+-- On deployments created by the old per-service RAG migrations
+-- (services/rag/migrations/*, consolidated into this baseline in #1883) the
+-- table already exists, so the CREATE TABLE IF NOT EXISTS above is a no-op and
+-- never adds columns introduced by later RAG migrations. They must be added
+-- here BEFORE any index/constraint below depends on them — e.g. the GIN index
+-- idx_pk_docs_metadata (added by 20260611000002_add_document_metadata) fails
+-- with `column "metadata" does not exist` (42703) on a DB that had only reached
+-- 20260611000001_add_documents_folder_path. Every column is nullable or carries
+-- a constant DEFAULT, so adding it to a populated table is a safe, metadata-only
+-- change. Mirrors the CHECK-constraint convergence in the public_web baseline.
+ALTER TABLE private_knowledge.documents
+    ADD COLUMN IF NOT EXISTS error              TEXT,
+    ADD COLUMN IF NOT EXISTS org_slug           TEXT        NOT NULL DEFAULT 'default',
+    ADD COLUMN IF NOT EXISTS progress_phase     TEXT,
+    ADD COLUMN IF NOT EXISTS progress_detail    TEXT,
+    ADD COLUMN IF NOT EXISTS source_created_at  TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS source_modified_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ocr_applied        BOOLEAN     NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS folder_path        TEXT,
+    ADD COLUMN IF NOT EXISTS metadata           JSONB       NOT NULL DEFAULT '{}';
+
 -- UNIQUE (id, org_slug) — FK target for chunks composite FK
 DO $$
 BEGIN
@@ -69,6 +91,17 @@ CREATE TABLE IF NOT EXISTS private_knowledge.chunks (
     suffix_overlap TEXT NOT NULL DEFAULT '',
     UNIQUE(document_id, chunk_index)
 );
+
+-- Converge columns onto a pre-existing `chunks` table (see the documents note
+-- above). org_slug was added by 20260528000001_enforce_org_slug; the overlap
+-- columns by 20260424000001_add_chunk_core_overlap_columns. org_slug must exist
+-- before the composite FK and idx_pk_chunks_org_doc below reference it. All are
+-- defaulted, so adding them to a populated table is safe.
+ALTER TABLE private_knowledge.chunks
+    ADD COLUMN IF NOT EXISTS org_slug       TEXT NOT NULL DEFAULT 'default',
+    ADD COLUMN IF NOT EXISTS core_content   TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS prefix_overlap TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS suffix_overlap TEXT NOT NULL DEFAULT '';
 
 -- Composite FK so chunks.org_slug must match documents.org_slug
 DO $$

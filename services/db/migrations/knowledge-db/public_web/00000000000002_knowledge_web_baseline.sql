@@ -103,6 +103,15 @@ CREATE TABLE IF NOT EXISTS public_web.chunks (
     FOREIGN KEY (domain, url) REFERENCES public_web.website_urls(domain, url) ON DELETE CASCADE
 );
 
+-- Converge the overlap columns onto a pre-existing public_web.chunks table.
+-- Added by 20260424000001_add_chunk_core_overlap_columns (consolidated into this
+-- baseline in #1883); CREATE TABLE IF NOT EXISTS above skips them on a crawler
+-- DB that predates that migration. All are defaulted, so the add is safe.
+ALTER TABLE public_web.chunks
+    ADD COLUMN IF NOT EXISTS core_content   TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS prefix_overlap TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS suffix_overlap TEXT NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_domain ON public_web.chunks(domain);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url ON public_web.chunks(url);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url_content_hash ON public_web.chunks(url, content_hash);

@@ -48,6 +48,16 @@ cron(
   {},
 );
 
+// Website crawl scheduler - scan every website whose interval has elapsed (or
+// that is stuck mid-scan). In-process replacement for the former standalone
+// crawler service's poll loop; without this, registered websites never crawl.
+cron(
+  'scan due websites (every 5 min)',
+  '*/5 * * * *',
+  internal.crawler.scan_scheduler.scanDueWebsites,
+  {},
+);
+
 // Central retention cleanup - single entry point that dispatches to all
 // enabled categories (documents, chat history, audit logs, workflow logs,
 // usage ledger, login attempts, temp files) based on each org's
