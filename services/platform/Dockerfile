@@ -111,6 +111,7 @@ WORKDIR /app
 COPY services/platform/server.ts \
      services/platform/telemetry.ts \
      services/platform/convex-metrics.ts \
+     services/platform/sla-targets.ts \
      ./services/platform/
 
 # ============================================================================
