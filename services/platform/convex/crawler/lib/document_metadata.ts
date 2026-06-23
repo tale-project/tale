@@ -30,21 +30,12 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-type PdfjsModule = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
-let pdfjsModulePromise: Promise<PdfjsModule> | undefined;
-/**
- * Lazily load pdfjs so its DOM-global setup (DOMMatrix/OffscreenCanvas, the
- * optional `@napi-rs/canvas` probe) runs only when an action actually parses a
- * PDF — never during Convex's module *analyze* pass, where those globals are
- * undefined and a top-level pdfjs import throws `DOMMatrix is not defined`.
- * pdfjs is bundled (tree-shaken) rather than externalized to keep the module
- * upload under the backend's size limit.
- */
-function loadPdfjs(): Promise<PdfjsModule> {
-  return (pdfjsModulePromise ??= import('pdfjs-dist/legacy/build/pdf.mjs'));
-}
-
 import { GuardedZip } from '../../lib/knowledge/extraction/ooxml';
+// pdfjs must be loaded through the shared loader so its DOM polyfills + fake
+// worker are installed before the first import; a bare `import('pdfjs-dist/…')`
+// here would poison the process-wide module cache with `DOMMatrix is not
+// defined` (see pdfjs_loader.ts).
+import { loadPdfjs } from '../../lib/knowledge/extraction/pdfjs_loader';
 
 const MIN_YEAR = 1970;
 const MAX_YEAR = 2100;
