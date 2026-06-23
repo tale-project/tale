@@ -2,12 +2,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';

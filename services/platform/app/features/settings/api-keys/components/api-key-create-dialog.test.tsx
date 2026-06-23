@@ -44,8 +44,10 @@ describe('ApiKeyCreateDialog', () => {
       const nameField = screen.getByRole('textbox', { name: /Key name/ });
       const submit = screen.getByRole('button', { name: 'Create key' });
 
-      // 33 chars → over the cap → inline message, submit DISABLED, no call.
+      // 33 chars → over the cap. The inline message surfaces only after the
+      // first blur (onTouched, #1943); submit is disabled while over the cap.
       await user.type(nameField, 'a'.repeat(33));
+      await user.tab();
       expect(
         await screen.findByText('Key name must be 32 characters or fewer'),
       ).toBeInTheDocument();

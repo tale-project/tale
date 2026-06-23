@@ -5,13 +5,13 @@ import { Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
@@ -113,7 +113,6 @@ function ForcedChangePasswordPage() {
 
   const form = useForm<ForcedChangeFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: { newPassword: '', confirmPassword: '' },
   });
 

@@ -2,10 +2,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo, useCallback } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import {
   CONTACT_REQUIRED_COLUMNS,
   customerMappers,

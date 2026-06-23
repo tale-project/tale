@@ -6,7 +6,7 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller } from 'react-hook-form';
 import * as z from 'zod';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -16,6 +16,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
@@ -100,7 +101,6 @@ export function EditMemberDialog({
 
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
-    mode: 'onChange',
     defaultValues: {
       displayName: member?.displayName,
       role: isMemberRole(member?.role) ? member.role : undefined,

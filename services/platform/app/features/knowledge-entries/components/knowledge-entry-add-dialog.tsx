@@ -2,12 +2,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
 import {
   CONTENT_MAX_LENGTH,

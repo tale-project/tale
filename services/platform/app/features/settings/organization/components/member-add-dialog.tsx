@@ -5,7 +5,6 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { ConvexError } from 'convex/values';
 import { useState, useMemo, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
@@ -15,6 +14,7 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
@@ -90,7 +90,6 @@ export function AddMemberDialog({
     useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
-    mode: 'onChange',
     defaultValues: {
       email: '',
       password: '',

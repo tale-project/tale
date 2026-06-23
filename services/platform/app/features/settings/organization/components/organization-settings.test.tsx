@@ -144,6 +144,9 @@ describe('OrganizationSettingsView required org name', () => {
       name: 'Organization name',
     });
     fireEvent.change(orgNameField, { target: { value: '' } });
+    // onTouched (#1943): the field error renders only after the first blur,
+    // while `isValid` (Save gating) stays accurate on every change.
+    fireEvent.blur(orgNameField);
 
     // (a) The editor's validity flips false → the global Save button is gated.
     await waitFor(() => expect(holder.current?.isValid).toBe(false));
@@ -163,6 +166,8 @@ describe('OrganizationSettingsView required org name', () => {
       name: 'Organization name',
     });
     fireEvent.change(orgNameField, { target: { value: '   ' } });
+    // onTouched (#1943): blur to surface the field error.
+    fireEvent.blur(orgNameField);
 
     await waitFor(() => expect(holder.current?.isValid).toBe(false));
     await waitFor(() =>
