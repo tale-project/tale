@@ -29,7 +29,7 @@ const roleMappingSourceLiterals = [
   'group',
   'claim',
 ] as const;
-export const roleMappingSourceSchema = z.enum(roleMappingSourceLiterals);
+const roleMappingSourceSchema = z.enum(roleMappingSourceLiterals);
 export type RoleMappingSource = z.infer<typeof roleMappingSourceSchema>;
 
 export const roleMappingRuleSchema = z.object({
@@ -45,7 +45,7 @@ export type RoleMappingRule = z.infer<typeof roleMappingRuleSchema>;
 // Protocol
 // ---------------------------------------------------------------------------
 
-export const ssoProtocolSchema = z.enum(['oidc', 'oauth2', 'saml']);
+const ssoProtocolSchema = z.enum(['oidc', 'oauth2', 'saml']);
 export type SsoProtocol = z.infer<typeof ssoProtocolSchema>;
 
 // ---------------------------------------------------------------------------
@@ -101,11 +101,7 @@ export type SsoProviderCapabilities = z.infer<
 >;
 
 /** Concrete sign-in adapter kind (selects the OIDC/OAuth2 implementation). */
-export const ssoProviderIdSchema = z.enum([
-  'entra-id',
-  'generic-oidc',
-  'oauth2',
-]);
+const ssoProviderIdSchema = z.enum(['entra-id', 'generic-oidc', 'oauth2']);
 export type SsoProviderId = z.infer<typeof ssoProviderIdSchema>;
 
 // ---------------------------------------------------------------------------
@@ -124,7 +120,7 @@ export type AttributeMapping = z.infer<typeof attributeMappingSchema>;
 // `clientSecret`/`spPrivateKey`/`scimToken` are write-only and never returned.
 // ---------------------------------------------------------------------------
 
-export const oidcConfigViewSchema = z.object({
+const oidcConfigViewSchema = z.object({
   providerId: ssoProviderIdSchema,
   issuer: z.string(),
   scopes: z.array(z.string()),
@@ -134,9 +130,9 @@ export const oidcConfigViewSchema = z.object({
   /** Entra/Graph extras (OneDrive scope, etc.). */
   enableOneDriveAccess: z.boolean().optional(),
 });
-export type OidcConfigView = z.infer<typeof oidcConfigViewSchema>;
+type OidcConfigView = z.infer<typeof oidcConfigViewSchema>;
 
-export const samlConfigViewSchema = z.object({
+const samlConfigViewSchema = z.object({
   idpEntityId: z.string(),
   idpSsoUrl: z.string(),
   /** PEM signing certificate; safe to show (public). */
@@ -148,18 +144,18 @@ export const samlConfigViewSchema = z.object({
   spCertificate: z.string().optional(),
   attributeMappings: attributeMappingSchema.optional(),
 });
-export type SamlConfigView = z.infer<typeof samlConfigViewSchema>;
+type SamlConfigView = z.infer<typeof samlConfigViewSchema>;
 
-export const provisioningViewSchema = z.object({
+const provisioningViewSchema = z.object({
   autoProvisionRole: z.boolean(),
   defaultRole: platformRoleSchema,
   roleMappingRules: z.array(roleMappingRuleSchema),
   autoProvisionTeam: z.boolean(),
   excludeGroups: z.array(z.string()),
 });
-export type ProvisioningView = z.infer<typeof provisioningViewSchema>;
+type ProvisioningView = z.infer<typeof provisioningViewSchema>;
 
-export const scimViewSchema = z.object({
+const scimViewSchema = z.object({
   enabled: z.boolean(),
   tokenPrefix: z.string().nullable(),
   tokenGeneratedAt: z.number().nullable(),
@@ -167,7 +163,7 @@ export const scimViewSchema = z.object({
   /** Public SCIM base URL to paste into the IdP. */
   baseUrl: z.string().nullable(),
 });
-export type ScimView = z.infer<typeof scimViewSchema>;
+type ScimView = z.infer<typeof scimViewSchema>;
 
 export const ssoConnectionViewSchema = z.object({
   configured: z.boolean(),

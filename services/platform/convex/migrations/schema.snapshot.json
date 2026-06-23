@@ -241,6 +241,12 @@
         },
         "optional": false
       },
+      "tokenSourceSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "updatedAt": {
         "ft": {
           "type": "number"
@@ -8833,12 +8839,6 @@
       }
     },
     "sandboxSessionTokens": {
-      "bifrostKeyId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
       "createdAt": {
         "ft": {
           "type": "number"
@@ -8850,6 +8850,12 @@
           "type": "number"
         },
         "optional": false
+      },
+      "llmGatewayKeyId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
       },
       "organizationId": {
         "ft": {
@@ -8921,12 +8927,6 @@
         },
         "optional": true
       },
-      "bifrostKeyId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
       "createdAt": {
         "ft": {
           "type": "number"
@@ -8954,6 +8954,12 @@
       "lastActivityAt": {
         "ft": {
           "type": "number"
+        },
+        "optional": true
+      },
+      "llmGatewayKeyId": {
+        "ft": {
+          "type": "string"
         },
         "optional": true
       },
@@ -9276,6 +9282,417 @@
         "optional": false
       }
     },
+    "ssoConnections": {
+      "autoProvisionRole": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "autoProvisionTeam": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "createdBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "defaultRole": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "admin"
+            },
+            {
+              "type": "literal",
+              "value": "developer"
+            },
+            {
+              "type": "literal",
+              "value": "editor"
+            },
+            {
+              "type": "literal",
+              "value": "member"
+            },
+            {
+              "type": "literal",
+              "value": "disabled"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "displayName": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "domain": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "enabled": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "excludeGroups": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "string"
+          }
+        },
+        "optional": false
+      },
+      "oidcConfig": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "authorizationEndpoint": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "claimMappings": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "email": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  },
+                  "groups": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  },
+                  "name": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  }
+                }
+              },
+              "optional": true
+            },
+            "clientIdEncrypted": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "clientSecretEncrypted": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "domainHint": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "enableOneDriveAccess": {
+              "fieldType": {
+                "type": "boolean"
+              },
+              "optional": true
+            },
+            "issuer": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "pkce": {
+              "fieldType": {
+                "type": "boolean"
+              },
+              "optional": true
+            },
+            "providerId": {
+              "fieldType": {
+                "type": "union",
+                "value": [
+                  {
+                    "type": "literal",
+                    "value": "entra-id"
+                  },
+                  {
+                    "type": "literal",
+                    "value": "generic-oidc"
+                  },
+                  {
+                    "type": "literal",
+                    "value": "oauth2"
+                  }
+                ]
+              },
+              "optional": false
+            },
+            "scopes": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "string"
+                }
+              },
+              "optional": false
+            },
+            "tokenEndpoint": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "userinfoEndpoint": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            }
+          }
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "protocol": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "oidc"
+            },
+            {
+              "type": "literal",
+              "value": "oauth2"
+            },
+            {
+              "type": "literal",
+              "value": "saml"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "roleMappingRules": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "claim": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": true
+              },
+              "pattern": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "source": {
+                "fieldType": {
+                  "type": "union",
+                  "value": [
+                    {
+                      "type": "literal",
+                      "value": "jobTitle"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "appRole"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "group"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "claim"
+                    }
+                  ]
+                },
+                "optional": false
+              },
+              "targetRole": {
+                "fieldType": {
+                  "type": "union",
+                  "value": [
+                    {
+                      "type": "literal",
+                      "value": "admin"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "developer"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "editor"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "member"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "disabled"
+                    }
+                  ]
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": false
+      },
+      "samlConfig": {
+        "ft": {
+          "type": "object",
+          "value": {
+            "attributeMappings": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "email": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  },
+                  "groups": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  },
+                  "name": {
+                    "fieldType": {
+                      "type": "string"
+                    },
+                    "optional": true
+                  }
+                }
+              },
+              "optional": true
+            },
+            "idpCertificate": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "idpEntityId": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "idpSsoUrl": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": false
+            },
+            "spCertificate": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "spPrivateKeyEncrypted": {
+              "fieldType": {
+                "type": "string"
+              },
+              "optional": true
+            },
+            "wantAssertionsEncrypted": {
+              "fieldType": {
+                "type": "boolean"
+              },
+              "optional": true
+            },
+            "wantAssertionsSigned": {
+              "fieldType": {
+                "type": "boolean"
+              },
+              "optional": true
+            }
+          }
+        },
+        "optional": true
+      },
+      "scimEnabled": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "scimLastUsedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "scimTokenGeneratedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "scimTokenHash": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "scimTokenPrefix": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "updatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      }
+    },
     "ssoProviders": {
       "autoProvisionRole": {
         "ft": {
@@ -9532,6 +9949,60 @@
           "value": {
             "type": "string"
           }
+        },
+        "optional": false
+      },
+      "updatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      }
+    },
+    "ssoProvisioningLinks": {
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "externalId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "internalId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "lastActiveRole": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "resourceType": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "User"
+            },
+            {
+              "type": "literal",
+              "value": "Group"
+            }
+          ]
         },
         "optional": false
       },

@@ -58,7 +58,7 @@ function asObj(value: unknown): Record<string, unknown> {
 }
 
 /** Recursively drop annotation-only keywords so they never read as drift. */
-export function stripAnnotations(node: unknown): unknown {
+function stripAnnotations(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(stripAnnotations);
   if (node && typeof node === 'object') {
     const out: Record<string, unknown> = {};
@@ -72,7 +72,7 @@ export function stripAnnotations(node: unknown): unknown {
 }
 
 /** Stable JSON (recursively key-sorted) — structural equality + set membership. */
-export function canonical(value: unknown): string {
+function canonical(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 
@@ -106,7 +106,7 @@ export function computeConfigFingerprint(
 // --- type-change classification --------------------------------------------
 
 /** `safe` = every value valid before is still valid; `breaking` = some isn't. */
-export type ConfigVerdict = 'same' | 'safe' | 'breaking';
+type ConfigVerdict = 'same' | 'safe' | 'breaking';
 
 function worst(a: ConfigVerdict, b: ConfigVerdict): ConfigVerdict {
   if (a === 'breaking' || b === 'breaking') return 'breaking';
@@ -292,7 +292,7 @@ function classifyObject(a: JsonSchema, b: JsonSchema): ConfigVerdict {
 
 // --- fingerprint diff -------------------------------------------------------
 
-export interface ConfigSchemaChange {
+interface ConfigSchemaChange {
   readonly schema: string;
   readonly path?: string;
   readonly kind: 'safe' | 'breaking';
