@@ -216,7 +216,7 @@ const oidcFileConfigSchema = z.object({
   claimMappings: attributeMappingSchema.optional(),
   enableOneDriveAccess: z.boolean().optional(),
 });
-export type OidcFileConfig = z.infer<typeof oidcFileConfigSchema>;
+type OidcFileConfig = z.infer<typeof oidcFileConfigSchema>;
 
 const samlFileConfigSchema = z.object({
   idpEntityId: z.string(),
@@ -228,7 +228,7 @@ const samlFileConfigSchema = z.object({
   wantAssertionsEncrypted: z.boolean().optional(),
   attributeMappings: attributeMappingSchema.optional(),
 });
-export type SamlFileConfig = z.infer<typeof samlFileConfigSchema>;
+type SamlFileConfig = z.infer<typeof samlFileConfigSchema>;
 
 export const provisioningPolicySchema = z.object({
   autoProvisionRole: z.boolean().default(false),
@@ -265,7 +265,7 @@ export const ssoConnectionSecretsSchema = z.object({
 export type SsoConnectionSecrets = z.infer<typeof ssoConnectionSecretsSchema>;
 
 /** Effective, defaulted connection used when the org has no `connection.json`. */
-export function emptySsoConnectionFile(): SsoConnectionFile {
+function emptySsoConnectionFile(): SsoConnectionFile {
   return ssoConnectionFileSchema.parse({});
 }
 
