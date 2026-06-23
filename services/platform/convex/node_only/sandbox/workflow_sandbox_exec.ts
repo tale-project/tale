@@ -48,7 +48,10 @@ import {
   workflowRunOwnerId,
 } from '../../sandbox/session_naming';
 import type { UiTimelinePart } from './agent_message_parts';
-import { isRetryableExecutionError } from './agent_run_outcome';
+import {
+  isRetryableExecutionError,
+  isRotatableApiError,
+} from './agent_run_outcome';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -76,6 +79,11 @@ import {
   SUMMARY_REENTRY_PROMPT,
   SUMMARY_REENTRY_WINDOW_MS,
 } from './summary_reentry';
+import {
+  pickToken,
+  type TokenSelection,
+  TokenSourceError,
+} from './token_pool_select';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
@@ -124,6 +132,15 @@ const ACTION_WINDOW_MS = Number(
 // caps a pathological zero-progress loop. At ~480s/segment this is ~26h —
 // far beyond any legitimate run, so it never bites a healthy long task.
 const MAX_AGENT_CONTINUATIONS = 200;
+
+// Token-source rotation: max credential attempts per fresh run (the initial
+// pick + up to 2 failovers) before failing the step. Honors the user's
+// "retry at most 3 times, then throw" contract.
+const MAX_TOKEN_ATTEMPTS = 3;
+// Don't START another rotation attempt unless this much of the action window
+// remains — a single attempt (esp. an auth retry-storm) must fit before the
+// seam, so the cap can't be defeated by burning the window on the last try.
+const TOKEN_ROTATION_MIN_WINDOW_MS = 90 * 1000;
 
 /**
  * Thrown by `runSandboxAgent` for an infrastructure/execution failure (the agent
@@ -561,6 +578,9 @@ export const runSandboxAgent = internalAction({
     const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
     const execId = `${args.executionId}-${args.stepSlug}`;
     const collectDir = args.output?.collectDir ?? 'output';
+    // Token-source bindings from the agent's Environment-tab rows (captured in
+    // the agent-env injection below, consumed by the rotation block at run).
+    let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
 
     // RESUME? A prior segment of THIS step handed off (status 'running') and the
     // durable workflow handler re-entered the step. The exec is STILL RUNNING in
@@ -571,6 +591,14 @@ export const runSandboxAgent = internalAction({
       { sessionId },
     );
     const resuming = checkpoint !== null;
+
+    // The exec that is ACTUALLY running right now. It starts as the canonical
+    // `execId`, but a credential failover re-runs under `${execId}-t<n>` — so a
+    // rotated attempt that itself hands off must checkpoint (and on resume,
+    // re-attach to) the rotated id, NOT the canonical one. On resume we adopt
+    // whatever id the prior segment recorded as live (mirrors the chat path,
+    // which reassigns its `execId` on each rotation).
+    let liveExecId = checkpoint?.execId ?? execId;
 
     // Cumulative budget across ALL segments: `startedAt` is the FIRST segment's
     // start, so `maxWallClockMs` is a hard TOTAL cap independent of any single
@@ -837,6 +865,7 @@ export const runSandboxAgent = internalAction({
             internal.agents.agent_env_actions.resolveAgentEnv,
             { organizationId: args.organizationId, agentSlug: args.agentSlug },
           );
+          agentTokenBindings = agentEnv.tokenBindings;
           if (Object.keys(agentEnv.env).length > 0) {
             const denied = await sessionEnvPatch(sessionId, {
               set: agentEnv.env,
@@ -992,12 +1021,99 @@ export const runSandboxAgent = internalAction({
               { sessionId },
             )) as UiTimelinePart[])
           : [];
-      const result =
+      // --- Token-source credential rotation (BYO + fresh start only) --------
+      // Fetch the broker pool once, inject a random pick, and (in the loop
+      // below) fail over to a different token on a rate-limit/auth error. Only
+      // fresh starts rotate: a resume continues an in-flight conversation, and
+      // swapping its credential mid-stream is the deferred hard case.
+      let tokenPool: {
+        tokens: string[];
+        targetEnvVar: string;
+        selection: TokenSelection;
+      } | null = null;
+      // v1 honors the first Environment-tab token-source binding (warns if more).
+      const tokenBinding = agentTokenBindings[0];
+      const tokenSourceSlug = tokenBinding?.tokenSourceSlug;
+      if (tokenBinding !== undefined && checkpoint === null) {
+        if (agentTokenBindings.length > 1) {
+          console.warn(
+            `[runSandboxAgent] ${agentTokenBindings.length} token-source bindings — v1 honors only the first (${tokenBinding.key}).`,
+          );
+        }
+        if (!byo) {
+          console.warn(
+            `[runSandboxAgent] agent "${args.agentSlug}" binds a token source but is not BYO — the managed gateway key wins; ignoring`,
+          );
+        } else {
+          // Fail-fast: resolveTokenPool throws TokenSourceError on an
+          // unreachable/empty/malformed broker → the catch finalizes + fails
+          // the step (no retry). The binding's env var name wins over the
+          // source's default targetEnvVar.
+          const pool = await ctx.runAction(
+            internal.node_only.sandbox.token_source_pool.resolveTokenPool,
+            {
+              organizationId: args.organizationId,
+              orgSlug,
+              sessionId,
+              slug: tokenBinding.tokenSourceSlug,
+            },
+          );
+          tokenPool = {
+            tokens: pool.tokens,
+            targetEnvVar: tokenBinding.key,
+            selection: pool.selection,
+          };
+        }
+      }
+      const triedTokens = new Set<string>();
+      if (tokenPool !== null) {
+        // resolveTokenPool guarantees a non-empty pool, so `first` is non-null.
+        const first = pickToken(
+          tokenPool.tokens,
+          triedTokens,
+          tokenPool.selection,
+        );
+        if (first !== null) {
+          triedTokens.add(first);
+          await sessionEnvPatch(sessionId, {
+            set: { [tokenPool.targetEnvVar]: first },
+          });
+        }
+      }
+
+      const runFreshSegment = (
+        segExecId: string,
+      ): ReturnType<typeof runAgentInSessionImpl> =>
+        runAgentInSessionImpl(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+          execId: segExecId,
+          agentSlug: agentKind,
+          prompt,
+          ...(useModel !== undefined && { model: useModel }),
+          authMode: byo ? 'byo' : 'managed',
+          interactionMode: 'autonomous',
+          captureLiveTimeline: true,
+          systemPromptAppend,
+          ...(args.budget.maxTurns !== undefined && {
+            maxTurns: args.budget.maxTurns,
+          }),
+          ...(!byo &&
+            gatewayToken !== null && {
+              gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+              gatewayToken,
+              integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+            }),
+          budgetDeadlineMs,
+          timeoutMs: segmentTimeoutMs,
+        });
+
+      let result =
         checkpoint !== null
           ? await runAgentInSessionImpl(ctx, {
               organizationId: args.organizationId,
               sessionId,
-              execId,
+              execId: liveExecId,
               agentSlug: agentKind,
               // Unused on resume — we re-attach to the still-running exec.
               prompt: '',
@@ -1023,29 +1139,61 @@ export const runSandboxAgent = internalAction({
                 }),
               },
             })
-          : await runAgentInSessionImpl(ctx, {
-              organizationId: args.organizationId,
-              sessionId,
-              execId,
-              agentSlug: agentKind,
-              prompt,
-              ...(useModel !== undefined && { model: useModel }),
-              authMode: byo ? 'byo' : 'managed',
-              interactionMode: 'autonomous',
-              captureLiveTimeline: true,
-              systemPromptAppend,
-              ...(args.budget.maxTurns !== undefined && {
-                maxTurns: args.budget.maxTurns,
-              }),
-              ...(!byo &&
-                gatewayToken !== null && {
-                  gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
-                  gatewayToken,
-                  integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
-                }),
-              budgetDeadlineMs,
-              timeoutMs: segmentTimeoutMs,
-            });
+          : await runFreshSegment(execId);
+
+      // Credential failover: on a rate-limit (429/529) or auth (401/403, raised
+      // early as an auth-abort) terminal result, swap to a different token and
+      // re-run — up to MAX_TOKEN_ATTEMPTS total, while enough window remains. A
+      // `running` handoff is NOT a failure and never rotates.
+      let tokenAttempt = 1;
+      if (tokenPool !== null) {
+        const pool = tokenPool; // stable non-null binding for the loop body
+        while (
+          result.status !== 'running' &&
+          tokenAttempt < MAX_TOKEN_ATTEMPTS &&
+          budgetDeadlineMs - Date.now() > TOKEN_ROTATION_MIN_WINDOW_MS &&
+          isRotatableApiError({
+            isError: result.isError,
+            apiErrorStatus: result.apiErrorStatus,
+            terminationReason: result.terminationReason,
+            authAbortStatus: result.authAbortStatus,
+          })
+        ) {
+          const nextToken = pickToken(pool.tokens, triedTokens, pool.selection);
+          if (nextToken === null) break; // no distinct token left → fail below
+          triedTokens.add(nextToken);
+          tokenAttempt += 1;
+          await sessionEnvPatch(sessionId, {
+            set: { [pool.targetEnvVar]: nextToken },
+          });
+          console.warn(
+            `[runSandboxAgent] token rotation: attempt ${tokenAttempt}/${MAX_TOKEN_ATTEMPTS} after status=${result.apiErrorStatus ?? result.authAbortStatus} (step ${args.stepSlug})`,
+          );
+          // Carry the rotated exec id forward so a handoff from THIS attempt
+          // checkpoints/resumes the live exec, not the dead first attempt.
+          liveExecId = `${execId}-t${tokenAttempt}`;
+          result = await runFreshSegment(liveExecId);
+        }
+      }
+
+      // Exhausted the pool / attempt cap and still rate-limited or auth-failed →
+      // fail the step terminally. Throw a NON-retryable TokenSourceError (not the
+      // retryable SandboxAgentExecutionError) so the outer step does NOT re-run
+      // and blow past the 3-attempt contract; the catch finalizes + returns fail.
+      if (
+        tokenPool !== null &&
+        result.status !== 'running' &&
+        isRotatableApiError({
+          isError: result.isError,
+          apiErrorStatus: result.apiErrorStatus,
+          terminationReason: result.terminationReason,
+          authAbortStatus: result.authAbortStatus,
+        })
+      ) {
+        throw new TokenSourceError(
+          `all ${tokenAttempt} token(s) from "${tokenSourceSlug ?? '?'}" failed with rate-limit/auth errors (last status=${result.apiErrorStatus ?? result.authAbortStatus})`,
+        );
+      }
 
       // HANDOFF: the action window elapsed mid-run. Persist the cursor, keep the
       // session alive, and return `running` so the workflow handler re-enters
@@ -1061,7 +1209,7 @@ export const runSandboxAgent = internalAction({
             {
               organizationId: args.organizationId,
               sessionId,
-              execId,
+              execId: liveExecId,
               lastSeq: result.lastSeq ?? 0,
               ...(result.agentSessionId !== undefined && {
                 agentSessionId: result.agentSessionId,

@@ -80,6 +80,8 @@ When both age vars are unset, Tale stores `providers/*.secrets.json` as plaintex
 
 The env-var key source needs no environment-level switch: a provider can read its key from an environment variable instead of a secrets file, as long as the variable is named with the reserved `TALE_PROVIDER_KEY_` prefix (any other name is rejected). The mechanism — the prefix gate, resolution order, the 40-character cap, the restart requirement — is documented in [Providers](/self-hosted/configuration/providers#environment-variable-key-source).
 
+A [token source](/platform/admin/token-sources) follows the same pattern for the broker auth secret it sends _to the broker_: it reads from an encrypted `token-sources/<slug>.secrets.json` sidecar, or from an environment variable named with the reserved `TALE_TOKEN_SOURCE_` prefix (any other name is rejected, so the field can never point at a deployment secret). The variable is per-source; define it here or in your secret manager so both the platform and the Convex backend can read it.
+
 ## Feature flags
 
 Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.

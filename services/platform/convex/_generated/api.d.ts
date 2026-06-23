@@ -728,6 +728,7 @@ import type * as lib_helpers_rag_folder_path from "../lib/helpers/rag_folder_pat
 import type * as lib_helpers_rag_metadata_filters from "../lib/helpers/rag_metadata_filters.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_http_safe_fetch from "../lib/http/safe_fetch.js";
+import type * as lib_json_json_path from "../lib/json/json_path.js";
 import type * as lib_knowledge_chunking_splitter from "../lib/knowledge/chunking/splitter.js";
 import type * as lib_knowledge_config_base from "../lib/knowledge/config/base.js";
 import type * as lib_knowledge_config_org_slug from "../lib/knowledge/config/org_slug.js";
@@ -921,6 +922,8 @@ import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/s
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
+import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
+import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
@@ -1192,6 +1195,9 @@ import type * as threads_truncate_message_content from "../threads/truncate_mess
 import type * as threads_types from "../threads/types.js";
 import type * as threads_update_chat_thread from "../threads/update_chat_thread.js";
 import type * as threads_validators from "../threads/validators.js";
+import type * as token_sources_file_actions from "../token_sources/file_actions.js";
+import type * as token_sources_file_utils from "../token_sources/file_utils.js";
+import type * as token_sources_validators from "../token_sources/validators.js";
 import type * as trusted_headers_auth_authenticate_handler from "../trusted_headers_auth/authenticate_handler.js";
 import type * as trusted_headers_auth_http_handlers from "../trusted_headers_auth/http_handlers.js";
 import type * as trusted_headers_auth_internal_mutations from "../trusted_headers_auth/internal_mutations.js";
@@ -2277,6 +2283,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/rag_metadata_filters": typeof lib_helpers_rag_metadata_filters;
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/http/safe_fetch": typeof lib_http_safe_fetch;
+  "lib/json/json_path": typeof lib_json_json_path;
   "lib/knowledge/chunking/splitter": typeof lib_knowledge_chunking_splitter;
   "lib/knowledge/config/base": typeof lib_knowledge_config_base;
   "lib/knowledge/config/org_slug": typeof lib_knowledge_config_org_slug;
@@ -2470,6 +2477,8 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
+  "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
+  "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
@@ -2741,6 +2750,9 @@ declare const fullApi: ApiFromModules<{
   "threads/types": typeof threads_types;
   "threads/update_chat_thread": typeof threads_update_chat_thread;
   "threads/validators": typeof threads_validators;
+  "token_sources/file_actions": typeof token_sources_file_actions;
+  "token_sources/file_utils": typeof token_sources_file_utils;
+  "token_sources/validators": typeof token_sources_validators;
   "trusted_headers_auth/authenticate_handler": typeof trusted_headers_auth_authenticate_handler;
   "trusted_headers_auth/http_handlers": typeof trusted_headers_auth_http_handlers;
   "trusted_headers_auth/internal_mutations": typeof trusted_headers_auth_internal_mutations;

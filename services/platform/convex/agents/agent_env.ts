@@ -47,6 +47,8 @@ export const upsertAgentEnvInternal = internalMutation({
     value: v.optional(v.string()),
     encryptedValue: v.optional(v.string()),
     maskedPreview: v.optional(v.string()),
+    /** Set ⇒ this row is a token-source binding (see schema). */
+    tokenSourceSlug: v.optional(v.string()),
     updatedBy: v.string(),
   },
   returns: v.null(),
@@ -62,14 +64,18 @@ export const upsertAgentEnvInternal = internalMutation({
       .first();
 
     const now = Date.now();
+    // A token-source binding carries no literal value/cipher; a static var
+    // carries exactly one of value / encryptedValue. Patching a field to
+    // `undefined` clears it, so a binding↔value flip never leaves a stale field.
+    const isBinding = args.tokenSourceSlug !== undefined;
     const fields = {
       isSecret: args.isSecret,
-      // Exactly one of value / encryptedValue is set; clear the other so a
-      // secret↔non-secret flip never leaves a stale field. The masked preview
-      // exists only for secrets.
-      value: args.isSecret ? undefined : args.value,
-      encryptedValue: args.isSecret ? args.encryptedValue : undefined,
-      maskedPreview: args.isSecret ? args.maskedPreview : undefined,
+      value: isBinding || args.isSecret ? undefined : args.value,
+      encryptedValue:
+        !isBinding && args.isSecret ? args.encryptedValue : undefined,
+      maskedPreview:
+        !isBinding && args.isSecret ? args.maskedPreview : undefined,
+      tokenSourceSlug: args.tokenSourceSlug,
       updatedAt: now,
       updatedBy: args.updatedBy,
     };
@@ -118,6 +124,7 @@ export const listAgentEnvForInjection = internalQuery({
       isSecret: v.boolean(),
       value: v.optional(v.string()),
       encryptedValue: v.optional(v.string()),
+      tokenSourceSlug: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -135,10 +142,13 @@ export const listAgentEnvForInjection = internalQuery({
         isSecret: boolean;
         value?: string;
         encryptedValue?: string;
+        tokenSourceSlug?: string;
       } = { key: r.key, isSecret: r.isSecret };
       if (r.value !== undefined) entry.value = r.value;
       if (r.encryptedValue !== undefined)
         entry.encryptedValue = r.encryptedValue;
+      if (r.tokenSourceSlug !== undefined)
+        entry.tokenSourceSlug = r.tokenSourceSlug;
       return entry;
     });
   },
@@ -157,6 +167,7 @@ export const listAgentEnv = query({
       isSecret: v.boolean(),
       value: v.optional(v.string()),
       maskedValue: v.optional(v.string()),
+      tokenSourceSlug: v.optional(v.string()),
       updatedAt: v.number(),
     }),
   ),
@@ -178,12 +189,19 @@ export const listAgentEnv = query({
           isSecret: boolean;
           value?: string;
           maskedValue?: string;
+          tokenSourceSlug?: string;
           updatedAt: number;
         } = { key: r.key, isSecret: r.isSecret, updatedAt: r.updatedAt };
-        // Secrets show a low-leak edge preview (older rows without one fall
-        // back to the full mask); plaintext vars show their value.
-        if (r.isSecret) entry.maskedValue = r.maskedPreview ?? SECRET_MASK;
-        else entry.value = r.value ?? '';
+        // A token-source binding row carries the slug, no literal value.
+        if (r.tokenSourceSlug !== undefined) {
+          entry.tokenSourceSlug = r.tokenSourceSlug;
+        } else if (r.isSecret) {
+          // Secrets show a low-leak edge preview (older rows without one fall
+          // back to the full mask); plaintext vars show their value.
+          entry.maskedValue = r.maskedPreview ?? SECRET_MASK;
+        } else {
+          entry.value = r.value ?? '';
+        }
         return entry;
       });
   },

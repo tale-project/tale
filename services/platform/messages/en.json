@@ -4165,6 +4165,10 @@
       "title": "Providers",
       "description": "Manage LLM providers and their models."
     },
+    "tokenSources": {
+      "title": "Token sources",
+      "description": "Broker-fetched credential pools that rotate across your agents."
+    },
     "logs": {
       "title": "Logs",
       "description": "View system logs and activity."
@@ -4273,6 +4277,7 @@
     "integrations": "Integrations",
     "mcp": "MCP",
     "providers": "AI providers",
+    "tokenSources": "Token sources",
     "apiKeys": "API keys",
     "api": "API",
     "apiRest": "REST",
@@ -5138,6 +5143,9 @@
       "providers": {
         "description": "Bring your own API keys for OpenAI, Anthropic, and others."
       },
+      "tokenSources": {
+        "description": "External brokers that feed a rotating credential pool to your agents."
+      },
       "skills": {
         "description": "Skills your agents can load to handle specific file types or tasks."
       },
@@ -5153,6 +5161,50 @@
       "sandboxes": {
         "description": "Manage always-on remote agent sandboxes."
       }
+    },
+    "tokenSources": {
+      "editTitle": "Edit token source",
+      "newTitle": "New token source",
+      "new": "New token source",
+      "slug": "Slug",
+      "displayName": "Display name",
+      "endpoint": "Endpoint URL",
+      "method": "HTTP method",
+      "authMethod": "Broker authentication",
+      "authNone": "None",
+      "authBearer": "Bearer token",
+      "authHeader": "Custom header",
+      "headerName": "Header name",
+      "secret": "Broker secret",
+      "secretPlaceholder": "Enter the broker secret",
+      "secretSetPlaceholder": "Leave blank to keep the current secret",
+      "mappingHint": "Map the broker's JSON response to a token pool. Paths use simple JSONPath (e.g. $.tokens).",
+      "tokensPath": "Tokens path",
+      "tokenField": "Token field",
+      "statusField": "Status field (optional)",
+      "statusActiveValue": "Active status value (optional)",
+      "expiryField": "Expiry field (optional)",
+      "targetEnvVar": "Target environment variable",
+      "selection": "Selection strategy",
+      "selectionRandom": "Random",
+      "selectionFirst": "First",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Token source saved",
+      "saveError": "Couldn't save token source",
+      "deleted": "Token source deleted",
+      "empty": "No token sources yet. Add one to give agents a rotating credential pool.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "search": "Search token sources…",
+      "entityLabel": "token source",
+      "emptyTitle": "No token sources yet",
+      "actions": "Token source actions",
+      "deleteTitle": "Delete token source",
+      "deleteConfirm": "Delete the token source “{name}”? Agents bound to it will lose their credential pool.",
+      "secretConfigured": "Secret configured",
+      "secretReplace": "Replace secret"
     },
     "account": {
       "profile": {
@@ -7676,6 +7728,9 @@
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "value",
     "secret": "Secret",
+    "valueType": "Type",
+    "typeValue": "Value",
+    "typeTokenSource": "Token source",
     "add": "Add variable",
     "remove": "Remove",
     "save": "Save",

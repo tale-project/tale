@@ -34,7 +34,11 @@ import {
   type AgentAssistantContent,
   type UiTimelinePart,
 } from './agent_message_parts';
-import { errorTextFromEvent, looksLikeApiError } from './api_error_detection';
+import {
+  authRetryFromEvent,
+  errorTextFromEvent,
+  looksLikeApiError,
+} from './api_error_detection';
 import {
   drainSessionExecResilient,
   sessionCancelExec,
@@ -119,6 +123,21 @@ const IDLE_EOF_GRACE_MS = Number(
 const STALLED_AFTER_API_ERROR_MS = Number(
   process.env.EXTERNAL_AGENT_STALLED_AFTER_API_ERROR_MS ?? 20_000,
 );
+
+/**
+ * HTTP statuses on a live `api_retry` event that mean "retrying the SAME
+ * credential cannot help" — auth failures (expired/revoked key). Claude Code
+ * still burns its full SSE-reconnect budget (max_retries=10, backoff growing to
+ * tens of seconds) on these, so once we see one past the first attempt we
+ * SIGTERM the exec early: it fails fast instead of storming for minutes, and a
+ * token-source rotation can swap credentials inside the action window. Rate
+ * limits (429/529) are NOT early-aborted — they can self-heal on retry and the
+ * terminal result already arrives fast. Keep in lockstep with
+ * `ROTATABLE_API_STATUS` (agent_run_outcome.ts): a status aborted here but not
+ * rotatable there pays the abort cost yet never swaps credentials. */
+const AUTH_ABORT_STATUSES: ReadonlySet<number> = new Set([401, 403]);
+/** Let one transient retry self-heal; abort from the second attempt on. */
+const AUTH_ABORT_MIN_ATTEMPT = 2;
 
 export interface RunAgentInSessionArgs {
   organizationId: string;
@@ -308,6 +327,18 @@ export interface RunAgentInSessionResult {
    * keys its retryable-execution-error classification on THIS, not the process
    * exit code — Claude Code can exit 0 while reporting `error` (e.g. a 401). */
   agentResultStatus?: AgentResultStatus;
+  /** From the terminal `result` event: the agent reported a turn-terminating
+   * API error (`is_error`), and the numeric HTTP status (`api_error_status`,
+   * e.g. 429/401; absent for a mid-stream malformed-200). The token-source
+   * rotation loop classifies on these to decide whether to swap credential. */
+  isError?: boolean;
+  apiErrorStatus?: number;
+  /** Why the drain returned. `'auth-abort'` = the live `api_retry` stream
+   * showed a rotatable status (401/429/529) and the drain bailed EARLY rather
+   * than awaiting the ~10-retry storm; `authAbortStatus` carries that status.
+   * The rotation loop treats this like a terminal rotatable error. */
+  terminationReason?: 'auth-abort';
+  authAbortStatus?: number;
 }
 
 /**
@@ -463,6 +494,15 @@ export async function runAgentInSessionImpl(
   let apiErrorSeen = args.resumeFrom?.apiErrorSeen === true;
   let apiErrorText: string | undefined;
   let turnStalled = false;
+  // Token-source rotation signal: a live api_retry showed an auth status
+  // (401/403) past the first attempt → kill early (the storm can't recover).
+  // authAborted flips once the linger tick has issued the kill.
+  let authAbortStatus: number | undefined;
+  let authAborted = false;
+  // Terminal `result` API-error fields (Claude Code leaves subtype:'success'
+  // even on an errored result), surfaced so a caller can rotate credentials.
+  let resultIsError: boolean | undefined;
+  let resultApiErrorStatus: number | undefined;
   const segmentStartedAt = Date.now();
   // Model idle: the per-turn result arrived, OR quiet-idle — background tasks
   // pending and the main loop has gone silent after a completed text block
@@ -689,6 +729,23 @@ export async function runAgentInSessionImpl(
    * wait for the next tick. */
   const lingerTick = async (): Promise<void> => {
     if (!stdinHold || !drainActive || handoff || eofSent || lingerBusy) return;
+    // Token-rotation early-abort: a live api_retry surfaced a non-recoverable
+    // auth status (401/403). SIGTERM the storming exec NOW rather than waiting
+    // out the ~10-retry backoff tail, mark a mechanical error, and let the
+    // terminal return tag terminationReason:'auth-abort' so the orchestrator
+    // can rotate to another token. Not a steer/budget handoff — we kill the
+    // exec (no re-attach), so this never reaches the running-handoff path.
+    if (authAbortStatus !== undefined && !authAborted && !agentResultSeen) {
+      authAborted = true;
+      agentResultStatus = 'error';
+      console.warn(
+        `[run_agent] auth api_retry (status=${authAbortStatus}) — early-killing exec ${args.execId} for token rotation`,
+      );
+      await sessionCancelExec(args.sessionId, args.execId).catch((e) =>
+        console.warn(`[run_agent] sessionCancelExec (auth-abort) failed:`, e),
+      );
+      return;
+    }
     // Stalled-turn watchdog: the stream surfaced a terminal API/stream error, no
     // result has arrived, and NOTHING is in flight (no background tasks / sub-agents
     // / blocking reads / main tools — `inflightToolUses` is the superset, so a
@@ -863,6 +920,20 @@ export async function runAgentInSessionImpl(
           apiErrorText = errText.slice(0, 500);
         }
       }
+      // Early-abort signal: a live api_retry with a non-recoverable auth status
+      // past the first attempt. Captured here (numbers only — no token can
+      // leak); the linger tick issues the actual SIGTERM.
+      if (authAbortStatus === undefined) {
+        const authRetry = authRetryFromEvent(e);
+        if (
+          authRetry &&
+          authRetry.attempt >= AUTH_ABORT_MIN_ATTEMPT &&
+          AUTH_ABORT_STATUSES.has(authRetry.errorStatus)
+        ) {
+          authAbortStatus = authRetry.errorStatus;
+          if (stdinHold) void lingerTick();
+        }
+      }
       // stdin-hold lifecycle: any MAIN-loop activity ends the idle state; a
       // result (re-)enters it (quiet-idle re-enters it from the linger loop).
       // Background task_* chatter must not look like activity — during a
@@ -928,6 +999,10 @@ export async function runAgentInSessionImpl(
         }
         agentResultSeen = true;
         agentResultStatus = e.status;
+        if (e.isError !== undefined) resultIsError = e.isError;
+        if (e.apiErrorStatus !== undefined) {
+          resultApiErrorStatus = e.apiErrorStatus;
+        }
         setAgentIdle(true);
         // Stdin confirmation rides the awaiting flag (handled above); here
         // only the close evaluation needs to run.
@@ -1442,6 +1517,17 @@ export async function runAgentInSessionImpl(
     ...(humanControlReason !== undefined && { humanControlReason }),
     ...(usage !== undefined && { usage }),
     ...(agentResultStatus !== undefined && { agentResultStatus }),
+    ...(resultIsError !== undefined && { isError: resultIsError }),
+    ...(resultApiErrorStatus !== undefined && {
+      apiErrorStatus: resultApiErrorStatus,
+    }),
+    // Ternary (not &&): authAborted/authAbortStatus are assigned only inside the
+    // recordEvents/lingerTick closures, so TS narrows the `let`s to their
+    // initializers here (same as steerSeam above) — `&&` would spread `false`.
+    ...(authAborted ? { terminationReason: 'auth-abort' as const } : {}),
+    ...(authAborted && authAbortStatus !== undefined
+      ? { authAbortStatus }
+      : {}),
     assistantContent,
   };
 }

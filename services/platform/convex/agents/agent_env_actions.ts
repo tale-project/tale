@@ -24,6 +24,7 @@ import {
   validateEnvKey,
   validateEnvValue,
 } from '../sandbox/user_env_constants';
+import { validateTokenSourceSlug } from '../token_sources/validators';
 
 export const setAgentEnvVar = action({
   args: {
@@ -32,6 +33,10 @@ export const setAgentEnvVar = action({
     key: v.string(),
     value: v.string(),
     isSecret: v.boolean(),
+    /** When set, write a TOKEN-SOURCE BINDING row instead of a literal value:
+     *  `key` is the env var the rotation engine fills from this `token-sources`
+     *  slug. `value`/`isSecret` are ignored for a binding. */
+    tokenSourceSlug: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -47,6 +52,29 @@ export const setAgentEnvVar = action({
     const keyCheck = validateEnvKey(args.key);
     if (!keyCheck.ok) {
       throw new ConvexError({ code: 'invalid', message: keyCheck.reason });
+    }
+
+    // Token-source binding: no literal value/cipher; the row names the env var
+    // (`key`) and the source slug. The injected token is itself a secret.
+    if (args.tokenSourceSlug !== undefined) {
+      // Validate the slug at this client-trusted write boundary (mirrors the
+      // `key` check above) so a bad binding fails fast here, not cryptically at
+      // run time when the config file can't be resolved.
+      if (!validateTokenSourceSlug(args.tokenSourceSlug)) {
+        throw new ConvexError({
+          code: 'invalid',
+          message: 'Token source slug must match ^[a-z0-9][a-z0-9_-]{0,99}$',
+        });
+      }
+      await ctx.runMutation(internal.agents.agent_env.upsertAgentEnvInternal, {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+        key: args.key,
+        isSecret: true,
+        tokenSourceSlug: args.tokenSourceSlug,
+        updatedBy: authUser.userId,
+      });
+      return null;
     }
     // Trim surrounding whitespace — a pasted token commonly carries a trailing
     // newline that silently corrupts it. Interior whitespace is left intact.
@@ -83,15 +111,37 @@ export const setAgentEnvVar = action({
 
 export const resolveAgentEnv = internalAction({
   args: { organizationId: v.string(), agentSlug: v.string() },
-  returns: v.object({ env: v.record(v.string(), v.string()) }),
-  handler: async (ctx, args): Promise<{ env: Record<string, string> }> => {
+  returns: v.object({
+    env: v.record(v.string(), v.string()),
+    /** Token-source bindings (env var name → source slug). NOT resolved here —
+     * the run-path rotation engine fetches the pool, picks one, and injects it
+     * under `key`, then rotates on rate-limit/expiry. */
+    tokenBindings: v.array(
+      v.object({ key: v.string(), tokenSourceSlug: v.string() }),
+    ),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    env: Record<string, string>;
+    tokenBindings: { key: string; tokenSourceSlug: string }[];
+  }> => {
     const rows = await ctx.runQuery(
       internal.agents.agent_env.listAgentEnvForInjection,
       { organizationId: args.organizationId, agentSlug: args.agentSlug },
     );
 
     const env: Record<string, string> = {};
+    const tokenBindings: { key: string; tokenSourceSlug: string }[] = [];
     for (const row of rows) {
+      if (row.tokenSourceSlug !== undefined) {
+        tokenBindings.push({
+          key: row.key,
+          tokenSourceSlug: row.tokenSourceSlug,
+        });
+        continue;
+      }
       if (row.isSecret) {
         if (row.encryptedValue === undefined) continue;
         try {
@@ -107,6 +157,6 @@ export const resolveAgentEnv = internalAction({
         env[row.key] = row.value ?? '';
       }
     }
-    return { env };
+    return { env, tokenBindings };
   },
 });

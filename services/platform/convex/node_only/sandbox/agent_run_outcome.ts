@@ -56,3 +56,46 @@ export function isRetryableExecutionError(input: {
   }
   return false;
 }
+
+/**
+ * HTTP statuses that mean "this credential is healthy but throttled, or
+ * forbidden/expired/revoked" — i.e. swapping to a DIFFERENT token may succeed.
+ * 429 (rate limit) + 529 (overloaded) + 401/403 (auth: expired/revoked, or this
+ * specific key forbidden — a sibling token from the pool may not share that
+ * restriction). Must stay in lockstep with `AUTH_ABORT_STATUSES` (run_agent.ts):
+ * every status we SIGTERM early "so a rotation can swap credentials" has to be
+ * rotatable here, else the early-abort just degrades to a full-step retry.
+ * 502/503/504 are upstream blips that rotating tokens won't fix, so they are
+ * intentionally excluded. Local copy (not imported from `providers/errors.ts`)
+ * to keep this sandbox classifier decoupled from the gateway-provider module.
+ */
+const ROTATABLE_API_STATUS: ReadonlySet<number> = new Set([401, 403, 429, 529]);
+
+/**
+ * True when a finished turn carries a token-rotation-worthy API error — the
+ * gate for the token-source failover loop. Reads the terminal result's
+ * `is_error` + `api_error_status` (Claude Code leaves `subtype:'success'` on an
+ * errored result, so the status enum can't be trusted here), OR an early
+ * `auth-abort` raised when the live `api_retry` stream showed a rotatable code
+ * before the internal retry-storm finished.
+ */
+export function isRotatableApiError(input: {
+  isError: boolean | undefined;
+  apiErrorStatus: number | undefined;
+  terminationReason?: string;
+  /** The status captured by the early api_retry abort, when terminationReason is 'auth-abort'. */
+  authAbortStatus?: number;
+}): boolean {
+  if (
+    input.terminationReason === 'auth-abort' &&
+    input.authAbortStatus !== undefined &&
+    ROTATABLE_API_STATUS.has(input.authAbortStatus)
+  ) {
+    return true;
+  }
+  return (
+    input.isError === true &&
+    input.apiErrorStatus !== undefined &&
+    ROTATABLE_API_STATUS.has(input.apiErrorStatus)
+  );
+}

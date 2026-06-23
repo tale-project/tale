@@ -80,6 +80,8 @@ Wenn beide age-Vars unset sind, speichert Tale `providers/*.secrets.json` als Kl
 
 Die Umgebungsvariablen-Schlüsselquelle braucht keinen Deployment-Schalter: ein Anbieter kann seinen Schlüssel aus einer Umgebungsvariable statt aus einer Secrets-Datei lesen, solange die Variable mit dem reservierten Präfix `TALE_PROVIDER_KEY_` benannt ist (jeder andere Name wird abgelehnt). Der Mechanismus — die Präfix-Schranke, Auflösungs-Reihenfolge, die 40-Zeichen-Grenze, die Neustart-Anforderung — ist in [Anbieter](/de/self-hosted/configuration/providers#environment-variable-key-source) dokumentiert.
 
+Eine [Token-Quelle](/de/platform/admin/token-sources) folgt demselben Muster für das Auth-Geheimnis, das sie _an den Broker_ sendet: Sie liest aus einem verschlüsselten `token-sources/<slug>.secrets.json`-Sidecar oder aus einer Umgebungsvariable, die mit dem reservierten Präfix `TALE_TOKEN_SOURCE_` benannt ist (jeder andere Name wird abgelehnt, sodass das Feld nie auf ein Deployment-Geheimnis zeigen kann). Die Variable gilt pro Quelle; definier sie hier oder in deinem Secret-Manager, damit sowohl die Plattform als auch das Convex-Backend sie lesen können.
+
 ## Feature-Flags
 
 Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jeder Flag schaltet ein Feature beim Boot ein oder aus; das Umschalten braucht einen Neustart des Plattform-Containers.

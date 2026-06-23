@@ -11,6 +11,8 @@ import {
   EnvVarListEditor,
   type LoadedEnvVar,
 } from '@/app/components/env/env-var-list-editor';
+import { configKeys } from '@/app/hooks/config-query-keys';
+import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -32,6 +34,14 @@ export function AgentEnvEditor({
       agentSlug,
     },
   );
+  // The org's token sources drive the per-row binding dropdown (a row can draw
+  // its value from a rotating broker pool instead of a literal secret).
+  const { data: tokenSources } = useActionQuery(
+    configKeys.list('token-sources', organizationId),
+    api.token_sources.file_actions.listTokenSources,
+    { organizationId },
+    { enabled: !!organizationId },
+  );
   const { mutateAsync: setVar } = useConvexAction(
     api.agents.agent_env_actions.setAgentEnvVar,
   );
@@ -43,8 +53,16 @@ export function AgentEnvEditor({
     <EnvVarListEditor
       rows={data as LoadedEnvVar[] | undefined}
       isLoading={isLoading}
-      onSet={async ({ key, value, isSecret }) => {
-        await setVar({ organizationId, agentSlug, key, value, isSecret });
+      tokenSources={tokenSources}
+      onSet={async ({ key, value, isSecret, tokenSourceSlug }) => {
+        await setVar({
+          organizationId,
+          agentSlug,
+          key,
+          value,
+          isSecret,
+          ...(tokenSourceSlug !== undefined && { tokenSourceSlug }),
+        });
       }}
       onDelete={async (key) => {
         await deleteVar({ organizationId, agentSlug, key });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isRetryableExecutionError } from './agent_run_outcome';
+import {
+  isRetryableExecutionError,
+  isRotatableApiError,
+} from './agent_run_outcome';
 
 describe('isRetryableExecutionError', () => {
   describe('throws (retryable execution error)', () => {
@@ -85,5 +88,71 @@ describe('isRetryableExecutionError', () => {
         }),
       ).toBe(false);
     });
+  });
+});
+
+describe('isRotatableApiError', () => {
+  it('true for rate-limit / overloaded / auth on the terminal result', () => {
+    for (const status of [429, 529, 401, 403]) {
+      expect(
+        isRotatableApiError({ isError: true, apiErrorStatus: status }),
+      ).toBe(true);
+    }
+  });
+
+  it('false for non-rotatable statuses and clean completions', () => {
+    expect(isRotatableApiError({ isError: true, apiErrorStatus: 400 })).toBe(
+      false,
+    );
+    expect(isRotatableApiError({ isError: true, apiErrorStatus: 500 })).toBe(
+      false,
+    );
+    expect(isRotatableApiError({ isError: false, apiErrorStatus: 429 })).toBe(
+      false,
+    );
+    expect(
+      isRotatableApiError({ isError: undefined, apiErrorStatus: undefined }),
+    ).toBe(false);
+    expect(
+      isRotatableApiError({ isError: true, apiErrorStatus: undefined }),
+    ).toBe(false);
+  });
+
+  it('true on an early auth-abort with a rotatable status (no terminal fields)', () => {
+    expect(
+      isRotatableApiError({
+        isError: undefined,
+        apiErrorStatus: undefined,
+        terminationReason: 'auth-abort',
+        authAbortStatus: 401,
+      }),
+    ).toBe(true);
+  });
+
+  it('rotates every status that triggers an early auth-abort (401 + 403 in lockstep)', () => {
+    // AUTH_ABORT_STATUSES (run_agent.ts) SIGTERMs these early so a rotation can
+    // swap credentials — so each MUST be rotatable here, else the abort just
+    // degrades to a full-step retry.
+    for (const authAbortStatus of [401, 403]) {
+      expect(
+        isRotatableApiError({
+          isError: undefined,
+          apiErrorStatus: undefined,
+          terminationReason: 'auth-abort',
+          authAbortStatus,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it('false on auth-abort carrying a non-rotatable status', () => {
+    expect(
+      isRotatableApiError({
+        isError: undefined,
+        apiErrorStatus: undefined,
+        terminationReason: 'auth-abort',
+        authAbortStatus: 400,
+      }),
+    ).toBe(false);
   });
 });

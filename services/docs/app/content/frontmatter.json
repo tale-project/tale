@@ -3358,5 +3358,29 @@
       "description": "The third-party processors Tale Cloud uses to deliver the service, what each one processes, and where the processing happens.",
       "noindex": true
     }
+  },
+  "en:platform/admin/token-sources": {
+    "slug": "platform/admin/token-sources",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Token sources",
+      "description": "Settings > Token Sources is where Admins point a bring-your-own-key agent at an external broker that hands out a pool of LLM credentials. The agent draws one token per run and fails over to another on a rate-limit or auth error, so a single throttled or expired key never stalls the run."
+    }
+  },
+  "de:platform/admin/token-sources": {
+    "slug": "platform/admin/token-sources",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Token-Quellen",
+      "description": "Einstellungen > Token-Quellen ist der Ort, an dem Admins einen Bring-your-own-key-Agenten auf einen externen Broker richten, der einen Pool aus LLM-Anmeldedaten ausgibt. Der Agent zieht pro Lauf ein Token und fällt bei einem Rate-Limit- oder Auth-Fehler auf ein anderes zurück, sodass ein einzelner gedrosselter oder abgelaufener Schlüssel den Lauf nie blockiert."
+    }
+  },
+  "fr:platform/admin/token-sources": {
+    "slug": "platform/admin/token-sources",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Sources de jetons",
+      "description": "Paramètres > Sources de jetons est l'endroit où les Administrateurs branchent un agent bring-your-own-key sur un courtier externe qui distribue un pool d'identifiants LLM. L'agent tire un jeton par run et bascule sur un autre en cas d'erreur de débit ou d'auth, pour qu'une clé bridée ou expirée ne bloque jamais le run."
+    }
   }
 }
