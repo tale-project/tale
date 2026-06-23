@@ -39,6 +39,14 @@ describe('metricsResponse', () => {
       body.includes('nodejs_');
     expect(hasProcessMetrics).toBe(true);
   });
+
+  test('body exposes the response-time SLA target gauges', async () => {
+    initTelemetry();
+    const response = await metricsResponse();
+    const body = await response.text();
+
+    expect(body).toContain('tale_sla_target_seconds');
+  });
 });
 
 describe('shutdownTelemetry', () => {
