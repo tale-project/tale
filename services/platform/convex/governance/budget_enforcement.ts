@@ -599,7 +599,7 @@ export async function checkBudget(
 
 /**
  * The tightest remaining COST headroom (cents) across every applicable budget
- * period/scope — for sizing a per-task hard ceiling (the external-agent Bifrost
+ * period/scope — for sizing a per-task hard ceiling (the external-agent gateway
  * VK budget) so the gateway's own cap can't exceed the rolling cap, even
  * between the seam-level budget checks.
  *

@@ -188,7 +188,7 @@ export const agentJsonSchema = z
     agentKind: agentKindSchema.optional(),
     /**
      * For `primaryBehavior: 'external-agent'` only — credential / auth mode.
-     * 'managed' (default): the platform mints a Bifrost virtual key, routes the
+     * 'managed' (default): the platform mints a gateway virtual key, routes the
      * agent through the gateway, and enforces allowed_models + usage metering +
      * the budget gate. 'byo': the platform injects no virtual key or gateway;
      * the agent authenticates with whatever credentials the user injected into
@@ -198,6 +198,17 @@ export const agentJsonSchema = z
      * already a privileged action, so there is no separate org-level gate.
      */
     authMode: z.enum(['managed', 'byo']).optional(),
+    /**
+     * For `primaryBehavior: 'external-agent'` only — opt the agent into its
+     * runtime's NATIVE web tools (Claude Code `WebSearch`/`WebFetch`). Managed
+     * runs force-disable these by default and route web access through a
+     * connected search integration (governed: audit + metering + untrusted-source
+     * wrapping). `true` lifts that denial so the agent uses its native web tools
+     * directly — appropriate when the gateway model supports them (e.g. OpenRouter)
+     * and ungoverned web access is acceptable. Absent/`false` keeps the governed
+     * default. BYO is unaffected (already native).
+     */
+    nativeWebTools: z.boolean().optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string().min(1)).optional(),
@@ -432,6 +443,19 @@ export const agentJsonSchema = z
         path: ['authMode'],
         message:
           'authMode is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // nativeWebTools only applies to external-agent.
+    if (
+      data.nativeWebTools !== undefined &&
+      data.primaryBehavior !== 'external-agent'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nativeWebTools'],
+        message:
+          'nativeWebTools is only valid when primaryBehavior is "external-agent".',
       });
     }
 

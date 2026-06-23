@@ -12,6 +12,7 @@ import {
 } from '../../project/org-dirs';
 import { createConvexService } from '../services/create-convex-service';
 import { createDbService } from '../services/create-db-service';
+import { createLlmGatewayService } from '../services/create-llm-gateway-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
@@ -161,6 +162,7 @@ export function generateDevCompose(
       proxy,
       convex,
       platform,
+      'llm-gateway': createLlmGatewayService(config),
       'sandbox-egress': createSandboxEgressService(config),
       sandbox,
     },

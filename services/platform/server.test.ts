@@ -347,13 +347,13 @@ describe('GET /status.json', () => {
     expect(body).toMatchObject({
       status: expect.stringMatching(/^(operational|degraded|outage)$/),
       checkedAt: expect.any(String),
+      // RAG + crawler are in-process in Convex now, so the only probed
+      // backend is the Convex application.
       components: expect.arrayContaining([
         expect.objectContaining({
           id: 'convex',
           status: expect.stringMatching(/^(operational|outage)$/),
         }),
-        expect.objectContaining({ id: 'rag' }),
-        expect.objectContaining({ id: 'crawler' }),
       ]),
     });
   });

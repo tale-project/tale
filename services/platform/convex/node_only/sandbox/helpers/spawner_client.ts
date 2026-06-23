@@ -235,9 +235,9 @@ function signRequest(
 }
 
 function spawnerBaseUrl(): string {
-  // Mirrors RAG_URL / CRAWLER_URL convention: default to host loopback
-  // so `bun dev`'s local convex-local-backend (running on the host) can
-  // reach the spawner via the published port. Docker compose sets
+  // Default to host loopback so `bun dev`'s local convex-local-backend
+  // (running on the host) can reach the spawner via the published port.
+  // Docker compose sets
   // SANDBOX_URL=http://sandbox:8003 on the tale-convex container so the
   // dockerized convex resolves through Docker DNS instead. In blue-green
   // mode `sandbox` is the bare alias that the deploy flip points at the

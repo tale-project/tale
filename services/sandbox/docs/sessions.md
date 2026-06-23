@@ -50,10 +50,10 @@ from the reaper entirely.
 
 Secrets entering a sandbox is a graded decision, documented and enforced:
 
-- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, Bifrost management
+- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, LLM gateway management
   token, SOPS age key, raw provider API keys): **never enter a sandbox**, ever.
 - **Tier 1 — proxiable credentials** (LLM provider keys): stay outside. The
-  sandbox holds only a session-scoped Bifrost virtual key (`sk-bf-*`); LLM
+  sandbox holds only a session-scoped gateway virtual key (`sk-bf-*`); LLM
   traffic transits the gateway, which attaches the real key. Bought: per-key
   budget, model allowlist, instant revoke, server-side usage metering.
 - **Tier 2 — managed-entry credentials** (integration secrets — git tokens,
@@ -114,7 +114,7 @@ The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
 ### NetworkPolicy
 
 - Session Pods (`tale.sandbox/role: session`): egress to the egress proxy, the
-  Bifrost gateway Service (`:8080`), and DNS only — same shape as the one-shot
+  LLM gateway Service (`:8080`), and DNS only — same shape as the one-shot
   runtime egress allowance plus the gateway.
 - Ingress to session Pods on `:8200` (runnerd) is allowed **from the spawner
   Deployment only**.
@@ -129,5 +129,5 @@ The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
   deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the
   built agent image.)
-- Live agent smoke (secret-gated, needs real provider creds via Bifrost):
+- Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
   one real `claude -p` + `opencode run` turn end-to-end. (Pending.)

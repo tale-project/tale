@@ -656,6 +656,9 @@ export async function startAgentChat(
         ...(enforcedConfig.authMode !== undefined && {
           authMode: enforcedConfig.authMode,
         }),
+        ...(enforcedConfig.nativeWebTools !== undefined && {
+          nativeWebTools: enforcedConfig.nativeWebTools,
+        }),
         // Single mode-resolution point: every turn entry (composer send, queue
         // drain, plan approval) re-enters here and reads the thread's sticky
         // plan/act posture fresh.

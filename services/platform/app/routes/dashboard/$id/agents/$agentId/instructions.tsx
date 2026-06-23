@@ -496,6 +496,22 @@ function InstructionsTab() {
         </PageSection>
       )}
 
+      {isExternalAgent && !isByo && (
+        <PageSection
+          title={t('agents.form.webTools.sectionTitle')}
+          description={t('agents.form.webTools.sectionDescription')}
+        >
+          <Switch
+            checked={config.nativeWebTools ?? false}
+            onCheckedChange={(checked) =>
+              updateConfig({ nativeWebTools: checked })
+            }
+            label={t('agents.form.webTools.nativeLabel')}
+            description={t('agents.form.webTools.nativeDescription')}
+          />
+        </PageSection>
+      )}
+
       <PageSection
         title={t('agents.form.sectionModel')}
         description={

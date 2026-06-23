@@ -95,6 +95,8 @@ jobs:
               - 'services/convex/**'
             controller:
               - 'services/controller/**'
+            llm-gateway:
+              - 'services/llm-gateway/**'
             web:
               - 'services/web/**'
               - 'packages/ui/**'
@@ -123,6 +125,7 @@ jobs:
               - 'services/convex/**'
               - 'services/platform/**'
               - 'services/proxy/**'
+              - 'services/llm-gateway/**'
               - 'services/sandbox/**'
               - 'services/sandbox-egress/**'
               - 'services/sandbox-runtime/**'
@@ -139,7 +142,7 @@ jobs:
           # trio that `build` actually pushes to GHCR. Web and docs use their
           # own compose stacks and are reachable via security.yml's
           # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "platform" or . == "proxy" or . == "llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -196,6 +199,7 @@ jobs:
             controller,
             platform,
             proxy,
+            llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-runtime,
@@ -341,7 +345,7 @@ jobs:
           # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy sandbox sandbox-egress sandbox-runtime; do
+          for svc in db convex controller platform proxy llm-gateway sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -351,17 +355,6 @@ jobs:
           # defaults to the unscoped `tale-sandbox-runtime:latest`.
           docker tag "ghcr.io/tale-project/tale/tale-sandbox-runtime:latest" \
             "tale-sandbox-runtime:latest"
-
-      # bifrost is an external Docker Hub image (not built by us, not on GHCR).
-      # Its compose `pull_policy: ${PULL_POLICY:-missing}` collapses to `never`
-      # under the smoke stack's PULL_POLICY=never, so compose won't fetch it and
-      # `up` aborts with "No such image". Pre-pull the pinned tag (resolved from
-      # compose.yml's default) so it's present locally before the stack starts.
-      - name: Pull bifrost image (third-party)
-        run: |
-          BIFROST_VERSION="$(grep -oP 'maximhq/bifrost:\$\{BIFROST_VERSION:-\K[^}]+' compose.yml)"
-          echo "Pulling maximhq/bifrost:${BIFROST_VERSION}..."
-          docker pull "maximhq/bifrost:${BIFROST_VERSION}"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -573,7 +566,7 @@ jobs:
           # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy sandbox sandbox-egress sandbox-runtime; do
+          for svc in db convex controller platform proxy llm-gateway sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"

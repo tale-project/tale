@@ -21,10 +21,10 @@ interface DefaultServiceSelection {
  * touches, per the three-tier policy:
  *
  *  - rotatable (`platform`) → always, blue-green.
- *  - always-roll (`convex`) → always, in-place via the stateful compose. The
- *    sandbox tier (`sandbox`, `sandbox-egress`) also rolls every deploy, but
- *    through its own zero-gap blue-green flip (`flipSandboxTier`), not here —
- *    so it is deliberately absent from the returned `stateful` list.
+ *  - always-roll (`convex`, `llm-gateway`) → always, in-place via the stateful
+ *    compose. The sandbox tier (`sandbox`, `sandbox-egress`) also rolls every
+ *    deploy, but through its own zero-gap blue-green flip (`flipSandboxTier`),
+ *    not here — so it is deliberately absent from the returned `stateful` list.
  *  - stop-gated (`db`, `proxy`) → only when already stopped, on a first deploy,
  *    or when the operator opts into the downtime with `--stop`; otherwise left
  *    running and surfaced in `leftRunning` so the caller can warn.

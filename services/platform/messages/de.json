@@ -5269,6 +5269,12 @@
           "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
           "claudeCode": "Claude Code",
           "openCode": "OpenCode"
+        },
+        "webTools": {
+          "sectionTitle": "Web-Tools",
+          "sectionDescription": "Wie dieser Agent auf das Web zugreift.",
+          "nativeLabel": "Native Websuche und -abruf verwenden",
+          "nativeDescription": "Lass den Agenten die in seiner Laufzeit integrierten WebSearch- und WebFetch-Tools direkt nutzen — am besten, wenn das Modell sie unterstützt (z. B. OpenRouter). Wenn deaktiviert, sind die nativen Web-Tools gesperrt und der Webzugriff muss über eine verbundene Such-Integration laufen (auditiert und abgerechnet)."
         }
       },
       "delegation": {

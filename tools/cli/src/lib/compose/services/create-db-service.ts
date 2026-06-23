@@ -34,6 +34,17 @@ export function createDbService(config: ServiceConfig): ComposeService {
       start_period: '120s',
     },
     logging: DEFAULT_LOGGING,
-    networks: ['internal'],
+    // The single-node CLI stack folds the knowledge corpus (`tale_knowledge`)
+    // into this one Postgres: the tale-db image creates that DB + the
+    // pg_search/pgvector schemas on init, and applies the knowledge-corpus
+    // migrations because `TALE_DB_ROLE` defaults to `knowledge` (no override
+    // is set here or in .env). The split `compose.yml` runs a SEPARATE
+    // `knowledge-db` service, so the in-process RAG/crawler code resolves its
+    // datastore at host `knowledge-db` by default
+    // (convex/lib/knowledge/db/knowledge_db.ts → getKnowledgeDatabaseUrl). We
+    // alias this service to `knowledge-db` so that same default URL resolves
+    // here, with no extra env wiring — keeping the runtime identical across
+    // both topologies.
+    networks: { internal: { aliases: ['knowledge-db'] } },
   };
 }

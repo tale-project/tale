@@ -101,6 +101,7 @@ export function toSerializableConfig(
     primaryBehavior: config.primaryBehavior,
     agentKind: config.agentKind,
     authMode: config.authMode,
+    nativeWebTools: config.nativeWebTools,
     instructions: resolveInstructions(config, locale),
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated on file read; always valid ToolName values
     convexToolNames: config.toolNames as ToolName[],

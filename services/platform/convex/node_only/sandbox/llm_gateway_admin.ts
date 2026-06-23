@@ -1,8 +1,8 @@
 'use node';
 
-// Bifrost governance-API client. The platform is the source of truth for
-// providers + models; Bifrost is a derived cache. This module:
-//   - provisions/reconciles the org's providers + upstream keys into Bifrost,
+// LLM gateway governance-API client. The platform is the source of truth for
+// providers + models; the gateway is a derived cache. This module:
+//   - provisions/reconciles the org's providers + upstream keys into the gateway,
 //   - mints a session-scoped virtual key (budget + model allowlist) at session
 //     create, returning the plaintext `sk-bf-*` (injected into the sandbox)
 //     plus the key id (stored, with the key's sha256, in sandboxSessionTokens),
@@ -10,7 +10,7 @@
 //   - pulls per-key usage for the watchdog → usageLedger sync.
 //
 // Raw provider API keys + the management token are Tier-0 secrets — they live
-// only here (Convex) and in Bifrost, never in the sandbox.
+// only here (Convex) and in the gateway, never in the sandbox.
 //
 // NOTE: endpoint paths + field names are verified against the pinned
 // maximhq/bifrost:v1.5.13 (spike 2026-06-13; see
@@ -30,28 +30,28 @@ import { createHash } from 'node:crypto';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import { providerAttributionHeaders } from '../../providers/provider_attribution';
 
-function bifrostUrl(): string {
-  return process.env.BIFROST_URL ?? 'http://bifrost:8080';
+function llmGatewayUrl(): string {
+  return process.env.LLM_GATEWAY_URL ?? 'http://llm-gateway:8080';
 }
 
-/** Admin username for the Bifrost management plane (auth_config). */
+/** Admin username for the gateway management plane (auth_config). */
 function adminUsername(): string {
-  return process.env.BIFROST_ADMIN_USERNAME ?? 'admin';
+  return process.env.LLM_GATEWAY_ADMIN_USERNAME ?? 'admin';
 }
 
 /** Plaintext admin password, or '' when management auth is not configured
  * (dev). When set, applyGatewayConfig enables auth_config and every /api/*
  * call must carry HTTP Basic auth. */
 function adminPassword(): string {
-  return process.env.BIFROST_ADMIN_PASSWORD ?? '';
+  return process.env.LLM_GATEWAY_ADMIN_PASSWORD ?? '';
 }
 
 /** Total per-request timeout pushed to every provider's `network_config`. */
 const REQUEST_TIMEOUT_SECONDS = 600;
-/** Per-stream IDLE timeout (Bifrost `stream_idle_timeout_in_seconds`): how long
- * Bifrost waits for ANY byte from the upstream mid-stream before it aborts with
+/** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how long
+ * the gateway waits for ANY byte from the upstream mid-stream before it aborts with
  * `ErrStreamIdleTimeout` ("stream idle timeout: no data received within
- * configured window"). Bifrost defaults this to 60s. That 60s is fine for a
+ * configured window"). The gateway defaults this to 60s. That 60s is fine for a
  * native Anthropic upstream (it pings every ~15-30s), but a CUSTOM
  * OpenAI-compatible upstream (e.g. an Anthropic↔OpenAI translation gateway) sends
  * NO keepalive during a long prefill or a silent reasoning gap — so a large-context
@@ -60,7 +60,7 @@ const REQUEST_TIMEOUT_SECONDS = 600;
  * request budget so a silent gap is bounded only by the total timeout, never a
  * premature idle abort. Operator-tunable. */
 const STREAM_IDLE_TIMEOUT_SECONDS = Number(
-  process.env.BIFROST_STREAM_IDLE_TIMEOUT_SECONDS ??
+  process.env.LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS ??
     String(REQUEST_TIMEOUT_SECONDS),
 );
 
@@ -68,9 +68,9 @@ function managementHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
-  // Bifrost v1.4.8's APIMiddleware authenticates /api/* with HTTP Basic
-  // (admin_username/admin_password) — NOT a bearer token (the old
-  // BIFROST_MANAGEMENT_TOKEN env was never read by bifrost). Send Basic when a
+  // The gateway (maximhq/bifrost v1.4.8) APIMiddleware authenticates /api/*
+  // with HTTP Basic (admin_username/admin_password) — NOT a bearer token (the
+  // old management-token env was never read by the gateway). Send Basic when a
   // password is configured; harmless before auth_config is enabled, required
   // after. Omit entirely in dev (no password → management plane open).
   const pw = adminPassword();
@@ -83,7 +83,7 @@ function managementHeaders(): Record<string, string> {
 
 /**
  * Tale model refs are colon-qualified (`openrouter:anthropic/claude-sonnet-4.6`,
- * optionally with a quantization qualifier like `@fp8`) but Bifrost routes on
+ * optionally with a quantization qualifier like `@fp8`) but the gateway routes on
  * the first slash (`provider/model`) and rejects the colon form as an invalid
  * model ID (verified against v1.4.8). Upstreams don't understand the Tale
  * quantization qualifier either (the in-platform chat path strips it before
@@ -94,19 +94,19 @@ export function toGatewayModelRef(taleModelRef: string): string {
   return taleModelRef.replace(':', '/').replace(/@[^@/]+$/, '');
 }
 
-/** Whether Bifrost has a built-in provider implementation for this name (and so
+/** Whether the gateway has a built-in provider implementation for this name (and so
  * owns its wire format + rejects custom_provider_config). Exported so the
  * gateway loader can group standard providers (one native record per slug) vs
  * custom ones (per-model upstreams). */
 export function isStandardGatewayProvider(name: string): boolean {
-  return BIFROST_STANDARD_PROVIDERS.has(name);
+  return LLM_GATEWAY_STANDARD_PROVIDERS.has(name);
 }
 
-/** Bifrost provider name for a CUSTOM model's per-model upstream. The model's
+/** Gateway provider name for a CUSTOM model's per-model upstream. The model's
  * effective (baseUrl, apiFormat, key) lives on its own provider record so that
- * model-level overrides actually route (Bifrost holds one base_url +
+ * model-level overrides actually route (the gateway holds one base_url +
  * base_provider_type per record). Sanitize `/` out of the NAME segment —
- * Bifrost routes on the FIRST `/`, so the provider-name part must contain none;
+ * the gateway routes on the FIRST `/`, so the provider-name part must contain none;
  * the model id keeps its own form (matched against the key catalog after the
  * prefix is stripped). */
 function customGatewayProviderName(slug: string, modelId: string): string {
@@ -114,7 +114,7 @@ function customGatewayProviderName(slug: string, modelId: string): string {
 }
 
 export interface GatewayRouting {
-  /** Bifrost provider name the request routes to. */
+  /** Gateway provider name the request routes to. */
   gatewayProvider: string;
   /** Full gateway model ref (`<gatewayProvider>/<modelId>`) for ANTHROPIC_MODEL
    * + the VK allowed_models. */
@@ -122,7 +122,7 @@ export interface GatewayRouting {
 }
 
 /**
- * Map a Tale (providerSlug, modelId) onto Bifrost routing. Standard slug → the
+ * Map a Tale (providerSlug, modelId) onto gateway routing. Standard slug → the
  * native provider record (`<slug>/<modelId>`); custom slug → the model's own
  * per-model upstream (`<slug>__<modelId>/<modelId>`). Single source of truth
  * shared by the adapter (ANTHROPIC_MODEL), the mint (VK provider binding), and
@@ -154,7 +154,7 @@ export function resolveGatewayRoutingFromRef(
 }
 
 export interface MintVirtualKeyArgs {
-  /** Hard spend cap; Bifrost rejects inference once exhausted. */
+  /** Hard spend cap; the gateway rejects inference once exhausted. */
   budgetCents: number;
   /** Models the key may call (org allowlist). */
   allowedModels: string[];
@@ -235,8 +235,8 @@ export async function mintVirtualKey(
     });
   }
   const body = {
-    // team_id/customer_id are mutually-exclusive FK references in Bifrost;
-    // we anchor attribution in the (required) name instead. Bifrost has no
+    // team_id/customer_id are mutually-exclusive FK references in the gateway;
+    // we anchor attribution in the (required) name instead. The gateway has no
     // native TTL; the session watchdog revokes on expiry.
     name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
     provider_configs: providerConfigs,
@@ -248,14 +248,14 @@ export async function mintVirtualKey(
     },
     is_active: true,
   };
-  const res = await fetch(`${bifrostUrl()}/api/governance/virtual-keys`, {
+  const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
     method: 'POST',
     headers: managementHeaders(),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
-    throw new Error(`bifrost mint key failed (${res.status})`);
+    throw new Error(`llm-gateway mint key failed (${res.status})`);
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
@@ -264,7 +264,7 @@ export async function mintVirtualKey(
   const key = parsed.virtual_key?.value;
   const keyId = parsed.virtual_key?.id;
   if (!key || !keyId) {
-    throw new Error('bifrost mint key returned no key/id');
+    throw new Error('llm-gateway mint key returned no key/id');
   }
   return { key, keyId };
 }
@@ -273,7 +273,7 @@ export async function mintVirtualKey(
  * watchdog). Best-effort: a 404 means it's already gone. */
 export async function revokeVirtualKey(keyId: string): Promise<void> {
   const res = await fetch(
-    `${bifrostUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
     {
       method: 'DELETE',
       headers: managementHeaders(),
@@ -281,7 +281,7 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
     },
   );
   if (!res.ok && res.status !== 404) {
-    throw new Error(`bifrost revoke key failed (${res.status})`);
+    throw new Error(`llm-gateway revoke key failed (${res.status})`);
   }
 }
 
@@ -297,7 +297,7 @@ export async function getVirtualKeySpendCents(
   keyId: string,
 ): Promise<number | null> {
   const res = await fetch(
-    `${bifrostUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
     {
       method: 'GET',
       headers: managementHeaders(),
@@ -309,7 +309,7 @@ export async function getVirtualKeySpendCents(
     // a down gateway is otherwise indistinguishable from "key not found" and
     // would silently stamp costEstimateCents:0. keyId is an id, not a secret.
     console.warn(
-      `[bifrost] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
+      `[llm-gateway] spend read failed (${res.status}) for key ${keyId}; degrading to agent-stream spend`,
     );
     return null;
   }
@@ -327,17 +327,17 @@ export async function getVirtualKeySpendCents(
   return dollars === null ? null : dollars * 100;
 }
 
-/** Provider names Bifrost handles with a built-in implementation (its own base
- * URL + request shaping). Mirrors Bifrost's `StandardProviders`
- * (core/schemas/bifrost.go @ core/v1.5.13). This is NOT a Tale allowlist of
- * "permitted" providers — users may add ANY provider (the chat path treats
- * every provider as OpenAI-compatible against its own base URL). It is the set
- * Bifrost RESERVES: it rejects `custom_provider_config` on these names with a
- * 400 ("cannot be created on standard providers"), and overriding their
+/** Provider names the gateway handles with a built-in implementation (its own base
+ * URL + request shaping). Mirrors the gateway's `StandardProviders`
+ * (maximhq/bifrost core/schemas/bifrost.go @ core/v1.5.13). This is NOT a Tale
+ * allowlist of "permitted" providers — users may add ANY provider (the chat path
+ * treats every provider as OpenAI-compatible against its own base URL). It is the
+ * set the gateway RESERVES: it rejects `custom_provider_config` on these names with
+ * a 400 ("cannot be created on standard providers"), and overriding their
  * `network_config.base_url` breaks the built-in URL construction. So a standard
  * provider keeps native dispatch; every OTHER provider is provisioned as a
  * custom OpenAI-compatible upstream (see ensureProviderConfig). */
-const BIFROST_STANDARD_PROVIDERS = new Set([
+const LLM_GATEWAY_STANDARD_PROVIDERS = new Set([
   'openai',
   'azure',
   'anthropic',
@@ -364,14 +364,14 @@ const BIFROST_STANDARD_PROVIDERS = new Set([
 ]);
 
 export interface ProviderProvision {
-  /** Bifrost provider name. A standard Bifrost name (see
-   * BIFROST_STANDARD_PROVIDERS) uses native dispatch; any other name is
+  /** Gateway provider name. A standard gateway name (see
+   * LLM_GATEWAY_STANDARD_PROVIDERS) uses native dispatch; any other name is
    * provisioned as a custom upstream (see resolveGatewayRouting / per-model
    * naming) and so requires a `baseUrl`. */
   name: string;
   baseUrl?: string;
-  /** Wire format for a CUSTOM upstream → Bifrost `base_provider_type`. Absent ⇒
-   * 'openai'. Ignored for standard providers (Bifrost owns their format). */
+  /** Wire format for a CUSTOM upstream → gateway `base_provider_type`. Absent ⇒
+   * 'openai'. Ignored for standard providers (the gateway owns their format). */
   apiFormat?: 'openai' | 'anthropic';
   apiKey: string;
   /** Tale model refs the key may serve; translated to the gateway spelling. */
@@ -407,7 +407,7 @@ function providerFingerprint(p: ProviderProvision): string {
     .digest('hex');
 }
 
-/** Whether Bifrost has a built-in implementation for this provider name (and so
+/** Whether the gateway has a built-in implementation for this provider name (and so
  * rejects custom_provider_config / a base_url override on it). Standard names
  * keep native dispatch; everything else is provisioned as a custom
  * OpenAI-compatible upstream. */
@@ -416,23 +416,23 @@ function isStandardProvider(p: ProviderProvision): boolean {
 }
 
 /** True when a provider cannot be provisioned at all: a non-standard (custom)
- * upstream with no base URL. Bifrost requires `network_config.base_url` for a
+ * upstream with no base URL. The gateway requires `network_config.base_url` for a
  * custom provider, so there is nothing to point it at — warn + skip. Standard
  * providers (no base_url needed) and custom providers WITH a base_url both
  * proceed. */
 function skipUnprovisionable(p: ProviderProvision): boolean {
   if (isStandardProvider(p) || p.baseUrl) return false;
   console.warn(
-    `[bifrost] skipping custom provider '${p.name}' (no base URL to route to)`,
+    `[llm-gateway] skipping custom provider '${p.name}' (no base URL to route to)`,
   );
   return true;
 }
 
-/** Bifrost's OpenAI handler always appends `/v1/chat/completions` to a custom
+/** The gateway's OpenAI handler always appends `/v1/chat/completions` to a custom
  * provider's base_url, but Tale provider configs store the base URL WITH a
  * `/v1` (the chat path appends only `/chat/completions`). Strip a trailing
  * `/v1` (or `/v1/`) before pushing so the gateway builds `<base>/v1/chat/
- * completions`, not `<base>/v1/v1/chat/completions` (Bifrost issue #2356).
+ * completions`, not `<base>/v1/v1/chat/completions` (maximhq/bifrost issue #2356).
  * Assumes the upstream exposes chat at `<base>/v1/chat/completions` — the
  * DeepSeek/Together/standard OpenAI-compatible convention. */
 function stripTrailingV1(url: string): string {
@@ -447,7 +447,7 @@ function stripTrailingV1(url: string): string {
  * and the provider: `tale-<orgId>-<provider>`. This lets each org's key
  * coexist under one shared provider record (no last-writer-wins clobber) AND
  * keeps one org's per-provider keys from colliding with each other. The id is
- * bifrost-side state (changes if its store is reset); the NAME is the durable
+ * gateway-side state (changes if its store is reset); the NAME is the durable
  * handle the mint path resolves by.
  */
 function gatewayKeyName(organizationId: string, provider: string): string {
@@ -465,7 +465,7 @@ interface GatewayKey {
  * absent. */
 async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
   const res = await fetch(
-    `${bifrostUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
+    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
     {
       method: 'GET',
       headers: managementHeaders(),
@@ -477,7 +477,7 @@ async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
     // otherwise look like a clean empty set (e.g. the mint path's fail-closed
     // resolve), masking the real cause.
     console.warn(
-      `[bifrost] list keys for provider ${provider} failed (${res.status}); treating as none`,
+      `[llm-gateway] list keys for provider ${provider} failed (${res.status}); treating as none`,
     );
     return [];
   }
@@ -500,11 +500,11 @@ async function resolveOrgProviderKeyId(
 /** DELETE /api/providers/:name — remove a provider RECORD (and its key
  * sub-resources). v1.5.13 actually deletes the record (verified: GET 404s
  * after). Used to recreate a custom provider whose immutable
- * `base_provider_type` must change (openai↔anthropic) — Bifrost forbids
+ * `base_provider_type` must change (openai↔anthropic) — the gateway forbids
  * mutating it in place. Tolerates 404 (already gone). */
 async function deleteGatewayProvider(name: string): Promise<void> {
   const res = await fetch(
-    `${bifrostUrl()}/api/providers/${encodeURIComponent(name)}`,
+    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(name)}`,
     {
       method: 'DELETE',
       headers: managementHeaders(),
@@ -513,7 +513,7 @@ async function deleteGatewayProvider(name: string): Promise<void> {
   );
   if (!res.ok && res.status !== 404) {
     throw new Error(
-      `bifrost delete provider ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
+      `llm-gateway delete provider ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
     );
   }
 }
@@ -524,8 +524,8 @@ async function deleteGatewayProvider(name: string): Promise<void> {
  * be > 0 or the config validator 400s. Idempotent; safe to call every
  * provision.
  *
- * A STANDARD Bifrost provider carries its own base URL — overriding it breaks
- * the built-in URL construction, and Bifrost rejects custom_provider_config on
+ * A STANDARD gateway provider carries its own base URL — overriding it breaks
+ * the built-in URL construction, and the gateway rejects custom_provider_config on
  * it (400) — so we only widen the timeout and, for OpenRouter, add the Tale
  * attribution headers: `extra_headers` ride every upstream request the gateway
  * makes (v1.5.13 NetworkConfig.ExtraHeaders), so sandbox-agent traffic shows up
@@ -561,7 +561,7 @@ async function ensureProviderConfig(
     network_config: {
       default_request_timeout_in_seconds: REQUEST_TIMEOUT_SECONDS,
       // Don't let a custom OpenAI-compatible upstream's silent prefill / reasoning
-      // gap trip Bifrost's 60s default idle abort mid-stream (see the constant).
+      // gap trip the gateway's 60s default idle abort mid-stream (see the constant).
       stream_idle_timeout_in_seconds: STREAM_IDLE_TIMEOUT_SECONDS,
       ...(baseUrl ? { base_url: baseUrl } : {}),
       ...(Object.keys(attribution).length > 0
@@ -590,7 +590,7 @@ async function ensureProviderConfig(
       : {}),
   };
   const putConfig = () =>
-    fetch(`${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}`, {
+    fetch(`${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}`, {
       method: 'PUT',
       headers: managementHeaders(),
       body: JSON.stringify(body),
@@ -601,26 +601,26 @@ async function ensureProviderConfig(
   if (res.ok) return { recreated: false };
 
   // `base_provider_type` and the presence of `custom_provider_config` are
-  // IMMUTABLE in Bifrost — a PUT that changes them 400s ("base_provider_type
+  // IMMUTABLE in the gateway — a PUT that changes them 400s ("base_provider_type
   // cannot be changed from X to Y after creation"). This happens when a custom
   // provider's apiFormat flips (openai↔anthropic). Recreate: delete the record
   // (its keys go too — caller re-POSTs) then PUT fresh.
   const errBody = sanitizeError(await res.text());
   if (res.status === 400 && /cannot be (changed|removed)/i.test(errBody)) {
     console.warn(
-      `[bifrost] provider '${p.name}' base type is immutable; recreating: ${errBody}`,
+      `[llm-gateway] provider '${p.name}' base type is immutable; recreating: ${errBody}`,
     );
     await deleteGatewayProvider(p.name);
     const retry = await putConfig();
     if (!retry.ok) {
       throw new Error(
-        `bifrost provider config ${p.name} failed after recreate (${retry.status}): ${sanitizeError(await retry.text())}`,
+        `llm-gateway provider config ${p.name} failed after recreate (${retry.status}): ${sanitizeError(await retry.text())}`,
       );
     }
     return { recreated: true };
   }
   throw new Error(
-    `bifrost provider config ${p.name} failed (${res.status}): ${errBody}`,
+    `llm-gateway provider config ${p.name} failed (${res.status}): ${errBody}`,
   );
 }
 
@@ -641,8 +641,8 @@ async function writeProviderKey(
     weight: 1,
   };
   const url = existing
-    ? `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
-    : `${bifrostUrl()}/api/providers/${encodeURIComponent(p.name)}/keys`;
+    ? `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
+    : `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys`;
   const res = await fetch(url, {
     method: existing ? 'PUT' : 'POST',
     headers: managementHeaders(),
@@ -651,7 +651,7 @@ async function writeProviderKey(
   });
   if (!res.ok) {
     throw new Error(
-      `bifrost ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,
+      `llm-gateway ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,
     );
   }
 }
@@ -704,7 +704,7 @@ export async function reprovisionProvider(
 }
 
 /**
- * Reconcile the org's providers into Bifrost: ensure each provider's record
+ * Reconcile the org's providers into the gateway: ensure each provider's record
  * config + this org's upstream key (per-org key sub-resource — see
  * ensureProviderKey). Called once per session create so a fresh gateway (or a
  * rotated key) is in place before the first mint; the provider-save actions
@@ -733,7 +733,7 @@ export async function provisionProviders(
       await provisionOne(organizationId, p);
     } catch (err) {
       console.warn(
-        `[bifrost] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
+        `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
         err,
       );
     }
@@ -743,11 +743,11 @@ export async function provisionProviders(
 /**
  * Harden the gateway's auth posture (idempotent; safe to call every provision).
  *   - client_config.enforce_auth_on_inference = true → inference REQUIRES a
- *     minted virtual key (the env BIFROST_ENFORCE_VIRTUAL_KEYS never did this;
- *     bifrost only reads this config field). Closes the open-inference hole.
- *   - auth_config (admin basic-auth over /api/*) when BIFROST_ADMIN_PASSWORD is
+ *     minted virtual key (a legacy enforce-virtual-keys env never did this;
+ *     the gateway only reads this config field). Closes the open-inference hole.
+ *   - auth_config (admin basic-auth over /api/*) when LLM_GATEWAY_ADMIN_PASSWORD is
  *     set → the management plane stops being anonymous. The stored password is
- *     a bcrypt hash (bifrost compares with bcrypt.CompareHashAndPassword);
+ *     a bcrypt hash (the gateway compares with bcrypt.CompareHashAndPassword);
  *     managementHeaders() sends the plaintext as Basic auth.
  *
  * GET-merge-PUT: `PUT /api/config` reads several client_config fields directly
@@ -755,13 +755,13 @@ export async function provisionProviders(
  * the FULL current client_config with only enforce flipped, never a partial.
  */
 export async function applyGatewayConfig(): Promise<void> {
-  const getRes = await fetch(`${bifrostUrl()}/api/config`, {
+  const getRes = await fetch(`${llmGatewayUrl()}/api/config`, {
     method: 'GET',
     headers: managementHeaders(),
     signal: AbortSignal.timeout(15_000),
   });
   if (!getRes.ok) {
-    throw new Error(`bifrost get config failed (${getRes.status})`);
+    throw new Error(`llm-gateway get config failed (${getRes.status})`);
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const cfg = (await getRes.json()) as {
@@ -790,7 +790,7 @@ export async function applyGatewayConfig(): Promise<void> {
   const body: Record<string, unknown> = { client_config: clientConfig };
   const pw = adminPassword();
   if (pw) {
-    // Send the PLAINTEXT password — bifrost hashes it itself (encrypt.Hash) on
+    // Send the PLAINTEXT password — the gateway hashes it itself (encrypt.Hash) on
     // store and compares with bcrypt at request time. Pre-hashing would
     // double-hash and every Basic-auth call would 401.
     body.auth_config = {
@@ -801,14 +801,14 @@ export async function applyGatewayConfig(): Promise<void> {
       disable_auth_on_inference: true,
     };
   }
-  const putRes = await fetch(`${bifrostUrl()}/api/config`, {
+  const putRes = await fetch(`${llmGatewayUrl()}/api/config`, {
     method: 'PUT',
     headers: managementHeaders(),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
   });
   if (!putRes.ok) {
-    throw new Error(`bifrost apply config failed (${putRes.status})`);
+    throw new Error(`llm-gateway apply config failed (${putRes.status})`);
   }
 }
 

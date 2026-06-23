@@ -14,7 +14,7 @@ set -e
 #   unset or empty => open egress: no hostname filtering at all.
 # The IP-layer SSRF firewall (IMDS + link-local + RFC1918 REJECT, installed
 # by docker-entrypoint.sh) applies in BOTH modes. LLM traffic never transits
-# this proxy either way (NO_PROXY=bifrost on the runtime containers).
+# this proxy either way (NO_PROXY=llm-gateway on the runtime containers).
 if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ]; then
   echo "$SANDBOX_EGRESS_ALLOWLIST" | tr '|' '\n' > /etc/tinyproxy/allowlist
   FILTER_BLOCK='# Host-name allow-list (default-deny), rendered from SANDBOX_EGRESS_ALLOWLIST.
@@ -52,7 +52,7 @@ sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 # DNS forwarder for the internal sandbox network. The runtime session and its
 # nested DinD containers live on `tale-sandbox-net` (internal-only) and cannot
 # resolve external hostnames — their embedded DNS forwards to public resolvers
-# that the internal bridge can't reach, so things like `getbifrost.ai` or
+# that the internal bridge can't reach, so things like `example.com` or
 # `deb.debian.org` fail to resolve. This proxy is dual-homed (also on a network
 # with real egress), so its own resolver (`/etc/resolv.conf` -> 127.0.0.11)
 # resolves the public internet. Run dnsmasq forwarding to it, listening on all

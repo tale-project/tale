@@ -30,6 +30,7 @@ const externalAgentConfig: AgentJsonConfig = {
   primaryBehavior: 'external-agent',
   agentKind: 'claude-code',
   authMode: 'managed',
+  nativeWebTools: true,
   integrationBindings: ['github'],
   supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
 };
@@ -63,13 +64,16 @@ describe('nextConfigForBehavior', () => {
     expect(applyPatch(opencode, patch).agentKind).toBe('opencode');
   });
 
-  it('external-agent → chat clears agentKind/authMode and stays valid', () => {
+  it('external-agent → chat clears agentKind/authMode/nativeWebTools and stays valid', () => {
     const patch = nextConfigForBehavior(externalAgentConfig, 'chat');
     const merged = applyPatch(externalAgentConfig, patch);
 
     expect(merged.primaryBehavior).toBe('chat');
     expect(merged.agentKind).toBeUndefined();
     expect(merged.authMode).toBeUndefined();
+    // nativeWebTools is external-agent-only (superRefine); leaving it set would
+    // fail validation on the now-chat agent.
+    expect(merged.nativeWebTools).toBeUndefined();
     expect(agentJsonSchema.safeParse(merged).success).toBe(true);
   });
 

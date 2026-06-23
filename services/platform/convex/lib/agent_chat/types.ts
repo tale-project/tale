@@ -37,6 +37,13 @@ export interface SerializableAgentConfig {
    * there is no separate org-level gate.
    */
   authMode?: 'managed' | 'byo';
+  /**
+   * For `primaryBehavior: 'external-agent'` only — opt into the runtime's native
+   * web tools (Claude Code WebSearch/WebFetch). Managed runs force-disable these
+   * by default; `true` lifts the denial. Absent/`false` keeps the governed
+   * default; BYO is unaffected.
+   */
+  nativeWebTools?: boolean;
   /** System instructions for the agent (empty for image-generation agents with no style prefix) */
   instructions: string;
   /** List of Convex tool names to enable */

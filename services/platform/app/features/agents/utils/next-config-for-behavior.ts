@@ -17,7 +17,8 @@ export type AgentPrimaryBehavior = NonNullable<
  *    `toolNames` / `workflows` must be empty (hard error otherwise).
  *    `image-generation` additionally forbids `integrationBindings`;
  *    `external-agent` KEEPS them (they are the sandbox MCP grant set).
- *  - `agentKind` / `authMode` are valid ONLY for `external-agent`.
+ *  - `agentKind` / `authMode` / `nativeWebTools` are valid ONLY for
+ *    `external-agent`.
  *
  * Tool-loop-only retrieval/tuning fields (`webSearchMode`, `knowledgeMode`,
  * `responseTuning`, `skillBindings`, `structuredResponsesEnabled`, …) are NOT
@@ -39,6 +40,7 @@ export function nextConfigForBehavior(
         primaryBehavior: 'chat',
         agentKind: undefined,
         authMode: undefined,
+        nativeWebTools: undefined,
       };
     case 'external-agent':
       return {
@@ -57,6 +59,7 @@ export function nextConfigForBehavior(
         integrationBindings: undefined,
         agentKind: undefined,
         authMode: undefined,
+        nativeWebTools: undefined,
       };
     default: {
       const _exhaustive: never = target;

@@ -253,7 +253,7 @@ _ensure_default_route() {
 # reach its upstream ExtServers (8.8.8.8 …) — external lookups time out. The
 # egress sidecar's dnsmasq CAN resolve external names. DNAT the embedded
 # resolver's FORWARDED queries (anything to :53 that isn't the embedded resolver
-# itself) to the egress dnsmasq, so: Docker service names (bifrost, convex) are
+# itself) to the egress dnsmasq, so: Docker service names (llm-gateway, convex) are
 # still answered LOCALLY by 127.0.0.11 with their correct on-network IPs, while
 # only external names get forwarded to the egress resolver. Gated on 127.0.0.11
 # being the resolver — on k8s (kube-dns) external DNS already works and DNAT'ing

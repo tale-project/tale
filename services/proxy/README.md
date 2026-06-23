@@ -4,7 +4,7 @@
 
 ## Overview
 
-Routes traffic to the platform, Convex, and Python services using the `platform` DNS alias for blue-green failover. TLS mode and base path are templated into the `Caddyfile` at startup by `docker-entrypoint.sh`.
+Routes traffic to the platform and Convex using the `platform` DNS alias for blue-green failover. TLS mode and base path are templated into the `Caddyfile` at startup by `docker-entrypoint.sh`.
 
 ## Interface
 

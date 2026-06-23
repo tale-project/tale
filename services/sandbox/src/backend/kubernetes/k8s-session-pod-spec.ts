@@ -259,7 +259,7 @@ export function buildSessionPod(
             { name: 'HTTPS_PROXY', value: cfg.egressProxy },
             { name: 'HTTP_PROXY', value: cfg.egressProxy },
             // Gateway reached directly on the cluster network, not via proxy.
-            { name: 'NO_PROXY', value: '127.0.0.1,localhost,bifrost' },
+            { name: 'NO_PROXY', value: '127.0.0.1,localhost,llm-gateway' },
             // DinD signal + tier for the entrypoint (sysbox/kata only).
             ...(dind
               ? [

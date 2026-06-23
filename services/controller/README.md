@@ -8,7 +8,7 @@ It mounts `/var/run/docker.sock` (host root — the same accepted threat boundar
 as the sandbox spawner) but is far more constrained:
 
 - **HMAC-signed requests only** (timestamp + nonce replay guard).
-- **Hard service allowlist** — `{rag, convex, sandbox}`.
+- **Hard service allowlist** — `{convex, sandbox}`.
 - **list + restart only** — never `run`/`exec`.
 - Reachable only on the internal network.
 
