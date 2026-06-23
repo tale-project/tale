@@ -112,10 +112,26 @@ export const scanWebsite = internalAction({
       //    page is indexed individually (chunk + embed) right after fetch — O(new
       //    pages) and resilient: if the action is killed mid-loop, the next
       //    continuation simply re-selects whatever is still uncrawled.
-      while (Date.now() < deadline) {
-        if ((await countUncrawledUrls(domain, MAX_FETCH_FAIL_COUNT)) === 0) {
-          break;
-        }
+      //
+      //    A batch that crawls successfully but reduces the uncrawled count by
+      //    zero means those URLs can't be marked crawled — e.g. locale-variant
+      //    URLs (`/en/…`, `/fr/…`) whose page canonicalizes to a different,
+      //    already-crawled URL, so the fetched content is stored under the
+      //    canonical row and the discovered row stays `content_hash IS NULL`.
+      //    Without a guard the loop re-selects the same unmarkable URLs forever
+      //    and the chain never goes idle. Bail after STAGNANT_BATCH_LIMIT
+      //    consecutive no-progress batches.
+      const STAGNANT_BATCH_LIMIT = 2;
+      let prevUncrawled = await countUncrawledUrls(
+        domain,
+        MAX_FETCH_FAIL_COUNT,
+      );
+      let stagnantBatches = 0;
+      while (
+        Date.now() < deadline &&
+        prevUncrawled > 0 &&
+        stagnantBatches < STAGNANT_BATCH_LIMIT
+      ) {
         // Uncrawled / never-attempted URLs sort first (NULLS FIRST), so failed
         // pages are retried only after fresh ones and drop out past the budget.
         const batch = await getUrlsNeedingRecrawl(
@@ -145,12 +161,26 @@ export const scanWebsite = internalAction({
         await updateLastScanned(domain);
         // Surface progress to the UI after each batch (crawled_count just grew).
         await pushRowSync();
+
+        const nowUncrawled = await countUncrawledUrls(
+          domain,
+          MAX_FETCH_FAIL_COUNT,
+        );
+        stagnantBatches =
+          nowUncrawled < prevUncrawled ? 0 : stagnantBatches + 1;
+        prevUncrawled = nowUncrawled;
       }
 
       // 3. More to crawl? Continue in a fresh action (resets the budget) until
-      //    the whole site is indexed or the continuation cap is hit; else idle.
+      //    the whole site is indexed or the continuation cap is hit. Don't
+      //    reschedule if we stalled on unmarkable URLs (the remainder can never
+      //    be crawled — going idle is correct).
       const remaining = await countUncrawledUrls(domain, MAX_FETCH_FAIL_COUNT);
-      if (remaining > 0 && continuation < MAX_SCAN_CONTINUATIONS) {
+      if (
+        remaining > 0 &&
+        stagnantBatches < STAGNANT_BATCH_LIMIT &&
+        continuation < MAX_SCAN_CONTINUATIONS
+      ) {
         await ctx.scheduler.runAfter(
           0,
           internal.crawler.scan_scheduler.scanWebsite,
