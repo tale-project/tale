@@ -98,6 +98,7 @@
     "list": {
       "refresh": "Refresh",
       "error": "Couldn't load data: {error}",
+      "notConnected": "This integration isn't connected yet. Connect it to load data.",
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page}",
@@ -254,7 +255,8 @@
     "disabled": "Your account has been disabled. Contact support for assistance.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
     "unauthenticated": "Your session expired. Sign in again to continue.",
-    "deployment": "You need Admin permissions to access deployment settings."
+    "deployment": "You need Admin permissions to access deployment settings.",
+    "enterpriseSso": "You need Admin permissions to access Enterprise SSO settings."
   },
   "analytics": {
     "usage": {
@@ -1196,6 +1198,7 @@
       "label": "Select model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
+      "addModel": "Add model",
       "auto": "Auto",
       "autoDescription": "Let Tale pick the best model for each message — balances quality, speed, and cost.",
       "byoDefault": "Default model",
@@ -2550,17 +2553,10 @@
     "stepsAriaLabel": "Onboarding steps",
     "progress": "Step {current} of {total}: {label}",
     "steps": {
-      "preferences": "Preferences",
       "account": "Account",
       "workspace": "Workspace",
       "provider": "OpenRouter",
       "finish": "Finish"
-    },
-    "preferences": {
-      "heading": "Make it yours",
-      "why": "Pick your language and theme. You can change these anytime.",
-      "languageLabel": "Language",
-      "themeLabel": "Theme"
     },
     "account": {
       "heading": "Create your owner account",
@@ -4260,6 +4256,10 @@
     "sandboxes": {
       "title": "Sandboxes",
       "description": "Manage your organization's remote agent sandboxes."
+    },
+    "enterpriseSso": {
+      "title": "Enterprise SSO",
+      "description": "Configure single sign-on and SCIM provisioning."
     }
   },
   "navigation": {
@@ -4301,7 +4301,8 @@
     },
     "dataResidency": "Data residency",
     "runtimes": "Runtimes",
-    "sandboxes": "Sandboxes"
+    "sandboxes": "Sandboxes",
+    "enterpriseSso": "Enterprise SSO"
   },
   "notifications": {
     "title": "Notifications",
@@ -5109,12 +5110,13 @@
     "menu": {
       "groups": {
         "you": "You",
-        "workspace": "Workspace",
-        "governance": "Governance"
+        "organization": "Organization",
+        "development": "Development"
       },
       "railSections": {
         "personal": "Personal",
-        "organization": "Organization"
+        "organization": "Organization",
+        "development": "Development"
       },
       "account": {
         "description": "Your profile, sign-in, and security."
@@ -5160,6 +5162,12 @@
       },
       "sandboxes": {
         "description": "Manage always-on remote agent sandboxes."
+      },
+      "enterpriseSso": {
+        "description": "Single sign-on and directory sync for your workforce."
+      },
+      "dataResidency": {
+        "description": "Where your data is stored and processed."
       }
     },
     "tokenSources": {
@@ -5367,7 +5375,7 @@
       },
       "navigation": {
         "general": "General",
-        "instructionsModel": "Instructions & model",
+        "instructionsModel": "Instructions & models",
         "tools": "Tools",
         "skills": "Skills",
         "knowledge": "Knowledge",
@@ -5431,7 +5439,7 @@
         "sectionInstructionsDescription": "Define the agent's behavior and personality",
         "templateVariablesLabel": "Available template variables",
         "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
-        "sectionModel": "Model",
+        "sectionModel": "Models",
         "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
@@ -5907,8 +5915,7 @@
         "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
         "deleteConfirmTitle": "Delete integration",
         "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
-        "deleteIntegration": "Delete integration",
-        "saveChanges": "Save changes"
+        "deleteIntegration": "Delete integration"
       },
       "authMethods": {
         "api_key": "API key",
@@ -5916,85 +5923,114 @@
         "basic_auth": "Basic authentication",
         "oauth2": "OAuth2"
       },
-      "sso": {
-        "name": "Single Sign-On",
-        "description": "Auto-provision teams and roles via Microsoft Entra ID SSO.",
-        "validationError": "Validation error",
-        "allFieldsRequired": "All fields are required",
-        "configureSuccessful": "Configuration successful",
-        "updateSuccessful": "Update successful",
-        "ssoConfigured": "SSO provider has been configured successfully",
-        "configureFailed": "Configuration failed",
-        "configureError": "Failed to configure SSO provider",
-        "disconnected": "Disconnected",
-        "ssoDisconnected": "SSO provider has been removed",
-        "disconnectFailed": "Disconnect failed",
-        "disconnectError": "Failed to remove SSO provider",
-        "roleMappingRulesLabel": "Role mapping rules",
-        "roleMappingRulesHelp": "Define rules to map job titles or app roles to platform roles. Use * as wildcard (e.g., *developer*).",
-        "sourceJobTitle": "Job title",
-        "sourceAppRole": "App role",
-        "addRule": "Add rule",
-        "testSuccessful": "Connection successful",
-        "testSuccessfulDescription": "SSO credentials have been validated successfully",
-        "testFailed": "Connection failed",
-        "testFailedDescription": "Failed to validate SSO credentials",
-        "testError": "An error occurred while testing the connection",
-        "roleAdmin": "Admin",
-        "roleDeveloper": "Developer",
-        "roleEditor": "Editor",
-        "roleMember": "Member",
-        "roleDisabled": "Disabled",
-        "autoProvisionRoleHelp": "Automatically assign roles based on job title or app roles from Entra ID",
-        "autoProvisionRoleLabel": "Auto-provision roles",
-        "autoProvisionTeamHelp": "Automatically sync team memberships from Entra ID groups",
-        "autoProvisionTeamLabel": "Auto-provision teams",
-        "clientIdHelp": "The Application (client) ID from Azure App Registration",
-        "clientIdLabel": "Client ID",
-        "clientSecretHelp": "The client secret from Azure App Registration",
-        "clientSecretLabel": "Client secret",
-        "configuring": "Configuring...",
-        "connectedToEntra": "Connected to Microsoft Entra ID",
-        "defaultRoleHelp": "Role assigned when no mapping rules match",
-        "defaultRoleHelpNoAutoProvision": "Role assigned to all SSO users",
-        "defaultRoleLabel": "Default role",
-        "excludeGroupsHelp": "Comma-separated list of Entra groups to exclude from team sync",
-        "excludeGroupsLabel": "Exclude groups",
-        "issuerHelp": "The OIDC issuer URL for your Entra ID tenant",
+      "enterpriseSso": {
+        "description": "Single sign-on (OIDC, OAuth2, SAML) and SCIM user & group provisioning.",
+        "connected": "Sign-in is enabled.",
+        "copied": "Copied to clipboard",
+        "copy": "Copy",
+        "protocolLabel": "Protocol",
+        "protocolHelp": "Choose how users sign in. OIDC endpoints are discovered automatically.",
+        "protocol": {
+          "entra": "Microsoft Entra ID",
+          "oidc": "Generic OIDC",
+          "oauth2": "OAuth2",
+          "saml": "SAML 2.0"
+        },
+        "displayNameLabel": "Display name",
+        "domainLabel": "Email domain",
+        "domainHelp": "Optional — route users with this email domain to this connection.",
+        "signInSection": "Sign-in",
         "issuerLabel": "Issuer URL",
-        "oneDriveAccessHelp": "Allow users to access OneDrive and SharePoint files using their SSO credentials",
-        "oneDriveAccessLabel": "Enable OneDrive/SharePoint access",
-        "testConnection": "Test connection",
-        "testPassed": "Valid",
-        "testing": "Testing...",
-        "title": "SSO configuration",
-        "updating": "Updating...",
-        "providerTypeLabel": "Provider type",
-        "providerTypeHelp": "Microsoft Entra ID uses Microsoft Graph for team and OneDrive sync. Generic OIDC works with any OpenID Connect provider and reads its endpoints from the configuration the issuer publishes.",
-        "providerTypeEntra": "Microsoft Entra ID",
-        "providerTypeGeneric": "Generic OIDC",
-        "descriptionGeneric": "Sign in with any OpenID Connect identity provider, such as Keycloak, Auth0, Okta, or Google.",
-        "issuerHelpGeneric": "The OIDC issuer URL. Tale reads the authorization, token, and userinfo endpoints from the issuer's .well-known/openid-configuration document.",
-        "clientIdHelpGeneric": "The client ID issued by your OIDC provider",
-        "clientSecretHelpGeneric": "The client secret issued by your OIDC provider",
-        "connectedToGeneric": "Connected to your OIDC provider",
-        "autoProvisionRoleHelpGeneric": "Automatically assign roles based on claims returned by your OIDC provider",
-        "sourceGroup": "Group",
-        "sourceClaim": "Claim",
-        "ruleSourceLabel": "Rule source",
-        "rulePatternLabel": "Pattern",
-        "ruleTargetRoleLabel": "Target role",
-        "removeRule": "Remove rule",
-        "claimPathLabel": "Claim path",
-        "roleMappingRulesHelpGeneric": "Define rules to map groups or claim values to platform roles. Use * as wildcard (e.g., *admin*). Claim rules take a dot path into the userinfo claims (e.g., realm_access.roles).",
-        "emailClaimLabel": "Email claim",
-        "emailClaimHelp": "Userinfo claim that carries the user's email. Leave empty to use the standard email claim.",
-        "nameClaimLabel": "Name claim",
-        "nameClaimHelp": "Userinfo claim that carries the user's display name. Leave empty to use the standard name claim.",
-        "groupsClaimLabel": "Groups claim",
-        "groupsClaimHelp": "Userinfo claim that carries the user's groups, as a dot path (e.g., realm_access.roles). Leave empty to use the groups claim.",
-        "autoProvisionTeamHelpGeneric": "Automatically sync team memberships from the groups your OIDC provider returns",
-        "excludeGroupsHelpGeneric": "Comma-separated list of groups to exclude from team sync"
+        "authzEndpointLabel": "Authorization endpoint",
+        "tokenEndpointLabel": "Token endpoint",
+        "userinfoEndpointLabel": "Userinfo endpoint",
+        "clientIdLabel": "Client ID",
+        "clientSecretLabel": "Client secret",
+        "clientSecretKeep": "Leave blank to keep the current secret.",
+        "scopesLabel": "Scopes",
+        "pkceLabel": "Use PKCE",
+        "idpEntityIdLabel": "IdP entity ID",
+        "idpSsoUrlLabel": "IdP sign-on URL",
+        "idpCertLabel": "IdP signing certificate (PEM)",
+        "idpCertHelp": "The X.509 certificate the IdP signs assertions with.",
+        "spMetadataLabel": "SP metadata URL",
+        "acsUrlLabel": "ACS (reply) URL",
+        "provisioningSection": "Provisioning",
+        "defaultRoleLabel": "Default role",
+        "role": {
+          "admin": "Admin",
+          "developer": "Developer",
+          "editor": "Editor",
+          "member": "Member"
+        },
+        "autoRoleLabel": "Auto-assign roles from the IdP",
+        "autoTeamLabel": "Sync IdP groups to teams",
+        "excludeGroupsLabel": "Exclude groups",
+        "excludeGroupsHelp": "Comma-separated group names to skip during team sync.",
+        "scim": {
+          "section": "SCIM provisioning",
+          "help": "Let your IdP push users and groups automatically (create, update, deactivate).",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "tokenCreatedHelp": "Copy this token now — you won't be able to see it again.",
+          "regenerate": "Regenerate token",
+          "generate": "Generate token",
+          "disable": "Disable",
+          "baseUrlLabel": "SCIM base URL",
+          "tokenFailed": "Failed to generate SCIM token"
+        },
+        "disable": "Disable sign-in",
+        "remove": "Remove",
+        "test": "Test connection",
+        "saved": "Saved",
+        "saveFailed": "Failed to save",
+        "testOk": "Connection looks good",
+        "testFailed": "Connection test failed",
+        "testMissingFields": "Fill in the required fields before testing.",
+        "formHint": "Configure how members sign in, then save your changes from the header.",
+        "validation": {
+          "required": "This field is required.",
+          "url": "Enter a valid URL (including https://)."
+        },
+        "guide": {
+          "title": "Setup guide",
+          "redirectLabel": "Redirect / callback URL",
+          "samlIntro": "Create a SAML app in your IdP using the SP metadata URL and ACS URL shown in the sign-in section above.",
+          "entra": {
+            "intro": "Register an app in the Microsoft Entra admin center, then paste its details below.",
+            "s1": "Sign in to the Microsoft Entra admin center (entra.microsoft.com) as at least an Application Developer.",
+            "s2": "Go to Entra ID › App registrations › New registration; name it and choose \"Single tenant\".",
+            "s3": "Under Redirect URI, select the \"Web\" platform and paste the Redirect URL shown above, then Register.",
+            "s4": "On the Overview page, copy the Application (client) ID and Directory (tenant) ID. The Issuer URL is https://login.microsoftonline.com/{tenant-id}/v2.0.",
+            "s5": "Go to Certificates & secrets › New client secret and copy the secret Value (not the Secret ID).",
+            "s6": "Enter the client ID, client secret, and issuer URL in the fields above.",
+            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent."
+          },
+          "google": {
+            "intro": "Create an OAuth client in the Google Cloud Console, then paste its details below.",
+            "s1": "In the Google Cloud Console, open APIs & Services › Credentials › Create credentials › OAuth client ID.",
+            "s2": "Choose the application type \"Web application\".",
+            "s3": "Under Authorized redirect URIs, add the Redirect URL shown above and save.",
+            "s4": "Copy the Client ID and Client secret shown at the top of the client page.",
+            "s5": "Enter them above with the Issuer URL https://accounts.google.com — the endpoints are discovered automatically.",
+            "groupsNote": "Note: Google's standard OIDC does not return group memberships — group→team sync needs the Admin SDK / Cloud Identity API with a Workspace admin. Other OIDC providers (Okta, Auth0, Keycloak) work the same way: enter the issuer URL and client credentials."
+          },
+          "oauth2": {
+            "intro": "For providers without OIDC discovery, configure the endpoints manually.",
+            "s1": "Register a web/OAuth2 application with your provider and add the Redirect URL shown above.",
+            "s2": "Copy the client ID and client secret.",
+            "s3": "Enter the authorization, token, and userinfo endpoint URLs from your provider's documentation.",
+            "s4": "If your provider uses non-standard claim names, map email/name/groups under Advanced."
+          },
+          "saml": {
+            "intro": "Configure a SAML 2.0 application in your IdP, then paste its details below.",
+            "s1": "In your IdP, create a new SAML 2.0 application.",
+            "s2": "Set the ACS (Assertion Consumer Service) URL and the Entity ID / Audience to the SP values shown above, or upload the SP metadata URL.",
+            "s3": "Set the Name ID format to email address.",
+            "s4": "Copy the IdP entity ID, the IdP single sign-on URL, and the IdP signing certificate (PEM) into the fields above.",
+            "s5": "Map the email, name, and group attributes in your IdP; if their names differ, set the matching attribute names under Advanced."
+          }
+        }
       }
     },
     "providers": {
@@ -6662,24 +6698,17 @@
       }
     },
     "branding": {
-      "appName": "App name",
-      "appNamePlaceholder": "e.g, Acme corp",
-      "textLogo": "Text logo",
-      "textLogoPlaceholder": "e.g, Acme",
       "logo": "Logo",
       "logoDescription": "Upload your organization logo",
       "favicon": "Favicon",
-      "faviconDescription": "64 x 64 pixels",
+      "faviconDescription": "Generated from your logo if left empty. 64 x 64 pixels.",
       "light": "Light",
       "dark": "Dark",
       "brandColor": "Brand color",
       "accentColor": "Accent color",
       "uploadLogo": "Upload logo",
       "uploadFavicon": "Upload favicon",
-      "preview": "Branding preview",
-      "validation": {
-        "appNameRequired": "App name is required"
-      }
+      "preview": "Branding preview"
     },
     "dataResidency": {
       "readOnly": {
@@ -7079,7 +7108,8 @@
       "existingUserAdded": "Existing user added to organization",
       "automationDuplicated": "Automation duplicated successfully",
       "automationRenamed": "Automation renamed successfully",
-      "brandingUpdated": "Branding updated successfully"
+      "brandingUpdated": "Branding updated successfully",
+      "faviconGenerated": "Favicon generated from your logo"
     },
     "error": {
       "saveFailed": "Failed to save changes",
@@ -7582,7 +7612,8 @@
       "generic": "Could not update the organigram."
     },
     "empty": {
-      "noAgents": "No agents yet — create agents first, then arrange them here."
+      "title": "No agents yet",
+      "description": "Add agents to your workforce, then arrange how they delegate work here."
     },
     "humans": {
       "title": "Humans",

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTheme } from '@tale/ui/theme';
 import {
   createContext,
   useContext,
@@ -11,11 +12,10 @@ import {
 
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useActiveOrganizationId } from '@/app/lib/active-organization';
-import { hexToHsl, isLightColor } from '@/lib/utils/color';
+import { adjustColorForTheme, hexToHsl, isLightColor } from '@/lib/utils/color';
 
 interface BrandingState {
   appName?: string;
-  textLogo?: string;
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
@@ -53,12 +53,12 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   // default — keeping the login/shell branding intact.
   const activeOrganizationId = useActiveOrganizationId();
   const { data, refetch } = useBranding(activeOrganizationId);
+  const { resolvedTheme } = useTheme();
 
   const branding = useMemo<BrandingState | undefined>(() => {
     if (!data) return undefined;
     return {
       appName: data.appName,
-      textLogo: data.textLogo,
       logoUrl: data.logoUrl,
       faviconLightUrl: data.faviconLightUrl,
       faviconDarkUrl: data.faviconDarkUrl,
@@ -67,6 +67,21 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
       isLoaded: true,
     };
   }, [data]);
+
+  // A color is picked once but applied to both themes; adapt each for the
+  // active theme so a brand/accent that's illegible against this theme's
+  // background is nudged into contrast (the other theme keeps the original).
+  const adjustedColors = useMemo(
+    () => ({
+      brandColor: branding?.brandColor
+        ? adjustColorForTheme(branding.brandColor, resolvedTheme)
+        : undefined,
+      accentColor: branding?.accentColor
+        ? adjustColorForTheme(branding.accentColor, resolvedTheme)
+        : undefined,
+    }),
+    [branding?.brandColor, branding?.accentColor, resolvedTheme],
+  );
 
   const originalFaviconHrefRef = useRef<string | null>(null);
 
@@ -146,10 +161,10 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     };
   }, [branding?.faviconLightUrl, branding?.faviconDarkUrl]);
 
-  // CSS variable injection for brand/accent colors
+  // CSS variable injection for the brand color (theme-adjusted)
   useEffect(() => {
     const root = document.documentElement;
-    const brandColor = branding?.brandColor;
+    const brandColor = adjustedColors.brandColor;
 
     if (brandColor) {
       root.style.setProperty('--primary', hexToHsl(brandColor));
@@ -164,16 +179,20 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
         root.style.removeProperty(`--${prop}`);
       }
     };
-  }, [branding?.brandColor]);
+  }, [adjustedColors.brandColor]);
 
+  // Expose the theme-adjusted colors as the context `brandColor`/`accentColor`
+  // so every consumer (sidebar, tabs, mobile nav) gets the legible variant.
   const value = useMemo<BrandingContextValue>(
     () => ({
       ...(branding ?? { isLoaded: false }),
+      brandColor: adjustedColors.brandColor,
+      accentColor: adjustedColors.accentColor,
       refetch: async () => {
         await refetch();
       },
     }),
-    [branding, refetch],
+    [branding, adjustedColors, refetch],
   );
 
   return (

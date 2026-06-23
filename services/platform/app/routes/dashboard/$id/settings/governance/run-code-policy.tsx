@@ -12,13 +12,13 @@ import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
+import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { packageBaseName } from '@/convex/agent_tools/files/_shared';
 import { useT } from '@/lib/i18n/client';
+import { runCodePolicyConfigSchema } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
 
 export const Route = createFileRoute(
@@ -112,22 +112,23 @@ function RunCodePolicyRoute() {
   const ability = useAbility();
   const cannotManage = ability.cannot('write', 'orgSettings');
 
-  const { data: policy, isLoading } = useConvexQuery(
-    api.governance.run_code_policy.getRunCodePolicy,
-    { organizationId },
+  const { data: policy, isLoading } = useGovernancePolicy(
+    organizationId,
+    'run_code',
   );
-  const upsertMutation = useConvexMutation(
-    api.governance.run_code_policy.upsertRunCodePolicy,
-  );
+  const upsertMutation = useUpsertGovernancePolicy();
 
   const savedDraft = useMemo<PolicyDraft>(() => {
-    if (!policy) return EMPTY_DRAFT;
+    // `config` is the file-derived governance policy; parse it through the
+    // schema so defaults (denylist + empty lists) apply when absent/invalid.
+    const parsed = runCodePolicyConfigSchema.safeParse(policy?.config ?? {});
+    if (!parsed.success) return EMPTY_DRAFT;
     return {
-      defaultMode: policy.defaultMode,
-      pythonAllow: policy.pythonAllow,
-      pythonDeny: policy.pythonDeny,
-      nodeAllow: policy.nodeAllow,
-      nodeDeny: policy.nodeDeny,
+      defaultMode: parsed.data.defaultMode,
+      pythonAllow: parsed.data.pythonAllow,
+      pythonDeny: parsed.data.pythonDeny,
+      nodeAllow: parsed.data.nodeAllow,
+      nodeDeny: parsed.data.nodeDeny,
     };
   }, [policy]);
 
@@ -161,11 +162,14 @@ function RunCodePolicyRoute() {
     try {
       await upsertMutation.mutateAsync({
         organizationId,
-        defaultMode: liveDraft.defaultMode,
-        pythonAllow: liveDraft.pythonAllow,
-        pythonDeny: liveDraft.pythonDeny,
-        nodeAllow: liveDraft.nodeAllow,
-        nodeDeny: liveDraft.nodeDeny,
+        policyType: 'run_code' as const,
+        config: {
+          defaultMode: liveDraft.defaultMode,
+          pythonAllow: liveDraft.pythonAllow,
+          pythonDeny: liveDraft.pythonDeny,
+          nodeAllow: liveDraft.nodeAllow,
+          nodeDeny: liveDraft.nodeDeny,
+        },
       });
       toast({
         title: t('toastSavedTitle'),

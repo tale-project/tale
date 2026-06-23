@@ -74,7 +74,7 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       expect(result.stdout).toContain(
         'Tale CLI - deployment and management tools',
       );
-      for (const command of ['init', 'start', 'deploy', 'config', 'status']) {
+      for (const command of ['init', 'dev', 'deploy', 'config', 'status']) {
         expect(result.stdout).toContain(command);
       }
       // Grouped overview headings (the "clear overview" requirement).
@@ -107,16 +107,16 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
     SMOKE_TIMEOUT,
   );
 
-  // `start` and `deploy` are the two launch commands but were never exercised
+  // `dev` and `deploy` are the two launch commands but were never exercised
   // in the compiled binary — a crash in their import graph (or a SIGKILL on
   // load) would slip past the grep-only bundle check. Parsing `--help` proves
   // the command and its whole dependency tree load and run without dying.
   test(
-    'start --help loads and documents the launch surface',
+    'dev --help loads and documents the launch surface',
     async () => {
-      const result = await run(['start', '--help'], dir);
+      const result = await run(['dev', '--help'], dir);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Start Tale platform');
+      expect(result.stdout).toContain('Run Tale locally');
       expect(result.stdout).toContain('--detach');
     },
     SMOKE_TIMEOUT,
@@ -164,15 +164,15 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
   );
 
   test(
-    'start from a parent dir points at the child project, not a re-init',
+    'dev from a parent dir points at the child project, not a re-init',
     async () => {
-      // init scaffolds into ./proj; running `tale start` from the parent must
+      // init scaffolds into ./proj; running `tale dev` from the parent must
       // guide the user to cd into it — NOT silently initialize a second
       // project on top (the "No Tale project found. Initializing…" footgun).
       const init = await run(['init', 'proj', '--force', '--no-env'], dir);
       expect(init.exitCode).toBe(0);
 
-      const result = await run(['start'], dir);
+      const result = await run(['dev'], dir);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('cd proj');
       expect(`${result.stdout}${result.stderr}`).not.toContain(

@@ -23,7 +23,7 @@ export async function convexAdmin(): Promise<void> {
  * `tale convex admin` via its `--key-only` mode, so both stay in lockstep.
  *
  * Throws if no platform container is running or the key cannot be derived —
- * callers that surface the key opportunistically (e.g. `tale start`) should
+ * callers that surface the key opportunistically (e.g. `tale dev`) should
  * catch and degrade gracefully rather than fail the whole command.
  */
 export async function getAdminKey(): Promise<string> {

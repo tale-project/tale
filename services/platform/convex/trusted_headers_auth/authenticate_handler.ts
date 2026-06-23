@@ -16,7 +16,7 @@ import { makeFunctionReference } from 'convex/server';
 
 import type { ActionCtx } from '../_generated/server';
 import { createAuth } from '../auth';
-import { signCookieValue } from '../sso_providers/sign_cookie_value';
+import { signCookieValue } from '../enterprise_sso/sign_cookie_value';
 
 // Use makeFunctionReference to avoid dependency on generated types.
 // The referenced mutation is defined in ./internal_mutations.ts.

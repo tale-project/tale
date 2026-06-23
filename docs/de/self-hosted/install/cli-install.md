@@ -3,7 +3,7 @@ title: Die tale-CLI installieren
 description: Die tale-CLI auf macOS, Linux oder Windows installieren — und sie gegen deine self-hosted Instanz für Deploys und Upgrades konfigurieren.
 ---
 
-Die `tale`-CLI ist der empfohlene Weg, Tale zu betreiben und zu bedienen. Der [Quickstart](/de/self-hosted/install/quickstart) nutzt sie bereits, um eine Instanz lokal mit `tale init` und `tale start` aufzustellen; diese Seite ist die andere Hälfte — die CLI auf einer Workstation installieren, damit sie eine _entfernte_ Instanz fahren kann: neue Versionen deployen, Migrationen ausführen und Diagnostiken einfangen, ohne dass du dir jede `docker compose`-Invokation merken musst.
+Die `tale`-CLI ist der empfohlene Weg, Tale zu betreiben und zu bedienen. Der [Quickstart](/de/self-hosted/install/quickstart) nutzt sie bereits, um eine Instanz lokal mit `tale init` und `tale dev` aufzustellen; diese Seite ist die andere Hälfte — die CLI auf einer Workstation installieren, damit sie eine _entfernte_ Instanz fahren kann: neue Versionen deployen, Migrationen ausführen und Diagnostiken einfangen, ohne dass du dir jede `docker compose`-Invokation merken musst.
 
 Alles, was die CLI macht, lässt sich auch direkt mit `docker compose` und `ssh` machen, sodass ein Team, das schon tief in der eigenen Automatisierung steckt, bei Compose bleiben kann. Für alle anderen ist die CLI der kürzere Weg, und der Rest der self-hosted Docs setzt voraus, dass sie installiert ist.
 
@@ -55,7 +55,7 @@ Es gibt kein `tale config set` — alles, was die CLI braucht, liegt im Projekt,
 tale config show
 ```
 
-Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale start` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
+Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale dev` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
 
 Der einmalige Admin-Key, der bei der Anmeldung das erste **Owner**-Konto beansprucht, ist von der CLI-Konfiguration getrennt — erzeug ihn bei Bedarf mit `tale convex admin` (siehe [Erster Admin](/de/self-hosted/install/first-admin)).
 
@@ -96,7 +96,7 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `-f, --force` — eine vorhandene `tale.json` überschreiben statt abzubrechen.
 - `--no-env` — das Projekt anlegen, aber die `.env`-Generierung überspringen.
 
-`tale start` — alle Dienste lokal mit selbstsigniertem Zertifikat starten.
+`tale dev` — alle Dienste lokal mit selbstsigniertem Zertifikat starten.
 
 - `-d, --detach` — im Hintergrund laufen statt Logs zu streamen.
 - `-p, --port <port>` — auszugebender HTTPS-Port (Standard `443`).

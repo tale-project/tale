@@ -1,4 +1,4 @@
-import type { SsoUserInfo } from '../../lib/shared/schemas/sso_providers';
+import type { SsoUserInfo } from '../../lib/shared/schemas/enterprise_sso';
 
 /**
  * Match Entra ID user attributes against a scope value.

@@ -7,6 +7,7 @@
  * Convex V8 boundary); a boundary test enforces that.
  */
 
+export { openUrl, type OpenUrlOptions } from './open-url';
 export { pipeLines, pipeNodeStream } from './pipe-lines';
 export { RingBuffer } from './ring-buffer';
 export {

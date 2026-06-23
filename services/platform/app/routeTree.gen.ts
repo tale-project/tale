@@ -55,6 +55,7 @@ import { Route as DashboardIdSettingsMcpRouteImport } from './routes/dashboard/$
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations';
 import { Route as DashboardIdSettingsEnvironmentRouteImport } from './routes/dashboard/$id/settings/environment';
+import { Route as DashboardIdSettingsEnterpriseSsoRouteImport } from './routes/dashboard/$id/settings/enterprise-sso';
 import { Route as DashboardIdSettingsDeploymentRouteImport } from './routes/dashboard/$id/settings/deployment';
 import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding';
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys';
@@ -378,6 +379,12 @@ const DashboardIdSettingsEnvironmentRoute =
   DashboardIdSettingsEnvironmentRouteImport.update({
     id: '/environment',
     path: '/environment',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsEnterpriseSsoRoute =
+  DashboardIdSettingsEnterpriseSsoRouteImport.update({
+    id: '/enterprise-sso',
+    path: '/enterprise-sso',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsDeploymentRoute =
@@ -896,6 +903,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
+  '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
@@ -1008,6 +1016,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
+  '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
@@ -1132,6 +1141,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute;
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute;
   '/dashboard/$id/settings/deployment': typeof DashboardIdSettingsDeploymentRoute;
+  '/dashboard/$id/settings/enterprise-sso': typeof DashboardIdSettingsEnterpriseSsoRoute;
   '/dashboard/$id/settings/environment': typeof DashboardIdSettingsEnvironmentRoute;
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute;
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
@@ -1258,6 +1268,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/deployment'
+    | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -1370,6 +1381,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/deployment'
+    | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -1493,6 +1505,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/deployment'
+    | '/dashboard/$id/settings/enterprise-sso'
     | '/dashboard/$id/settings/environment'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -1902,6 +1915,13 @@ declare module '@tanstack/react-router' {
       path: '/environment';
       fullPath: '/dashboard/$id/settings/environment';
       preLoaderRoute: typeof DashboardIdSettingsEnvironmentRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/enterprise-sso': {
+      id: '/dashboard/$id/settings/enterprise-sso';
+      path: '/enterprise-sso';
+      fullPath: '/dashboard/$id/settings/enterprise-sso';
+      preLoaderRoute: typeof DashboardIdSettingsEnterpriseSsoRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/deployment': {
@@ -2778,6 +2798,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute;
   DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute;
   DashboardIdSettingsDeploymentRoute: typeof DashboardIdSettingsDeploymentRoute;
+  DashboardIdSettingsEnterpriseSsoRoute: typeof DashboardIdSettingsEnterpriseSsoRoute;
   DashboardIdSettingsEnvironmentRoute: typeof DashboardIdSettingsEnvironmentRoute;
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute;
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
@@ -2806,6 +2827,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
   DashboardIdSettingsDeploymentRoute: DashboardIdSettingsDeploymentRoute,
+  DashboardIdSettingsEnterpriseSsoRoute: DashboardIdSettingsEnterpriseSsoRoute,
   DashboardIdSettingsEnvironmentRoute: DashboardIdSettingsEnvironmentRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,

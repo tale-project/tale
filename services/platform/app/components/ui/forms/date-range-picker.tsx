@@ -215,7 +215,6 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
     <div className="ring-border flex divide-x rounded-lg ring-1">
       <Button
         ref={ref}
-        size="sm"
         type="button"
         variant="secondary"
         disabled={isLoading || disabled}
@@ -245,7 +244,6 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       <DropdownMenu
         trigger={
           <Button
-            size="sm"
             type="button"
             variant="secondary"
             disabled={isLoading || disabled}

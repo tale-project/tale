@@ -376,17 +376,24 @@ export const refreshProviderConfigsCron = internalAction({
   },
 });
 
-/** Developer-gated toggle for the weekly provider-config auto-sync (UI). */
+/**
+ * Developer-gated toggle for the weekly provider-config auto-sync (UI).
+ * Persists to the file-based `model_sync` governance policy (the source of
+ * truth), which re-syncs the `configCache` mirror the reads consult.
+ */
 export const setModelAutoSync = action({
   args: { organizationId: v.string(), enabled: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     await requireDeveloperSettingsAccessById(ctx, args.organizationId);
-    await ctx.runMutation(internal.model_catalog.mutations.setAutoSyncEnabled, {
-      organizationId: args.organizationId,
-      enabled: args.enabled,
-      updatedAt: Date.now(),
-    });
+    await ctx.runAction(
+      internal.governance.file_actions.persistGovernancePolicyFile,
+      {
+        organizationId: args.organizationId,
+        policyType: 'model_sync',
+        config: { autoSyncEnabled: args.enabled },
+      },
+    );
     return null;
   },
 });

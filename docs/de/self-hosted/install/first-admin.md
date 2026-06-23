@@ -37,7 +37,7 @@ Der Admin-Key spielt in den obigen Schritten keine Rolle — er schaltet nur das
 
 Hol ihn so, wie es zu deiner Installation passt:
 
-- Mit der CLI: `tale convex admin` findet den Platform-Container und gibt den Key aus. `tale start` gibt ihn ebenfalls aus, sobald die Services gesund sind.
+- Mit der CLI: `tale convex admin` findet den Platform-Container und gibt den Key aus. `tale dev` gibt ihn ebenfalls aus, sobald die Services gesund sind.
 - Aus einem Git-Klon: `./scripts/get-admin-key.sh` aus dem Repo-Root.
 
 Öffne `SITE_URL/convex-dashboard`, gib `SITE_URL` als Deployment-URL ein und füg den Key ein, wenn du danach gefragt wirst.

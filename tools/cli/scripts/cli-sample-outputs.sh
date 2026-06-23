@@ -99,7 +99,7 @@ DEFAULT_COMMANDS=(
   "tale --version"
   "tale --help"
   "tale init --help"
-  "tale start --help"
+  "tale dev --help"
   "tale deploy --help"
 )
 

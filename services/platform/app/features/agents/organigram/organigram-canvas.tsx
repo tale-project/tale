@@ -236,8 +236,39 @@ export function OrganigramCanvas({
     t,
   ]);
 
+  // Rendered in both the empty state and the populated canvas, so define it
+  // once. Pulls the chart (action-backed, non-reactive) and lands on the new
+  // agent so its delegation can be wired up immediately.
+  const createDialog = canEdit && (
+    <CreateAgentDialog
+      open={createOpen}
+      onOpenChange={setCreateOpen}
+      organizationId={organizationId}
+      onCreated={(agentName) => {
+        setCreateOpen(false);
+        void refetch().then(() => setSelectedSlug(agentName));
+      }}
+    />
+  );
+
   if (!isLoading && (chart?.nodes.length ?? 0) === 0) {
-    return <EmptyState icon={Network} title={t('empty.noAgents')} />;
+    return (
+      <>
+        <EmptyState
+          icon={Network}
+          title={t('empty.title')}
+          description={t('empty.description')}
+          action={
+            canEdit ? (
+              <Button icon={Plus} onClick={() => setCreateOpen(true)}>
+                {t('addAgent')}
+              </Button>
+            ) : undefined
+          }
+        />
+        {createDialog}
+      </>
+    );
   }
 
   return (
@@ -336,19 +367,7 @@ export function OrganigramCanvas({
         />
       )}
 
-      {canEdit && (
-        <CreateAgentDialog
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          organizationId={organizationId}
-          onCreated={(agentName) => {
-            setCreateOpen(false);
-            // Pull the chart (action-backed, non-reactive) and land on the
-            // new agent so its delegation can be wired up immediately.
-            void refetch().then(() => setSelectedSlug(agentName));
-          }}
-        />
-      )}
+      {createDialog}
     </Row>
   );
 }

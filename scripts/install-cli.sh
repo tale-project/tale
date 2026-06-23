@@ -238,9 +238,9 @@ main() {
     verify_installation
 
     # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
-    # `tale start` then installs/starts Docker on demand and launches locally.
+    # `tale dev` then installs/starts Docker on demand and launches locally.
     echo
-    success "Next: run 'tale init' to create your project, then 'tale start' to launch it."
+    success "Next: run 'tale init' to create your project, then 'tale dev' to launch it."
 }
 
 main

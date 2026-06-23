@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: Enterprise SSO IdP (OIDC) mock
+  version: 1.0.0
+  description: >-
+    Deterministic OpenID Connect identity-provider mock for offline SSO e2e.
+    Covers the three endpoints the Tale SSO sign-in flow calls: discovery,
+    token exchange, and userinfo. Point an SSO connection's issuer (OIDC) or
+    explicit endpoints (OAuth2) at this mount (e.g. `<gateway>/mock/sso-idp`).
+servers:
+  - url: /mock/sso-idp
+paths:
+  /.well-known/openid-configuration:
+    get:
+      operationId: discovery
+      summary: OIDC discovery document
+      responses:
+        '200':
+          description: Discovery metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - issuer
+                  - authorization_endpoint
+                  - token_endpoint
+                  - userinfo_endpoint
+                properties:
+                  issuer:
+                    type: string
+                  authorization_endpoint:
+                    type: string
+                  token_endpoint:
+                    type: string
+                  userinfo_endpoint:
+                    type: string
+                  jwks_uri:
+                    type: string
+                  response_types_supported:
+                    type: array
+                    items:
+                      type: string
+                  scopes_supported:
+                    type: array
+                    items:
+                      type: string
+              example:
+                issuer: https://mock-idp.test/mock/sso-idp
+                authorization_endpoint: https://mock-idp.test/mock/sso-idp/authorize
+                token_endpoint: https://mock-idp.test/mock/sso-idp/token
+                userinfo_endpoint: https://mock-idp.test/mock/sso-idp/userinfo
+                jwks_uri: https://mock-idp.test/mock/sso-idp/jwks
+                response_types_supported: ['code']
+                scopes_supported: ['openid', 'email', 'profile', 'groups']
+  /token:
+    post:
+      operationId: token
+      summary: Exchange an authorization code for tokens
+      requestBody:
+        required: false
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                code:
+                  type: string
+                redirect_uri:
+                  type: string
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                code_verifier:
+                  type: string
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - access_token
+                  - token_type
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                  expires_in:
+                    type: integer
+                  refresh_token:
+                    type: string
+                  id_token:
+                    type: string
+                  scope:
+                    type: string
+              example:
+                access_token: mock-access-token
+                token_type: Bearer
+                expires_in: 3600
+                refresh_token: mock-refresh-token
+                scope: openid email profile groups
+  /userinfo:
+    get:
+      operationId: userinfo
+      summary: OIDC userinfo
+      responses:
+        '200':
+          description: Userinfo claims
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sub
+                  - email
+                properties:
+                  sub:
+                    type: string
+                  email:
+                    type: string
+                  email_verified:
+                    type: boolean
+                  name:
+                    type: string
+                  given_name:
+                    type: string
+                  family_name:
+                    type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+              example:
+                sub: mock-user-1
+                email: ada@example.com
+                email_verified: true
+                name: Ada Lovelace
+                given_name: Ada
+                family_name: Lovelace
+                groups: ['Engineering', 'Admins']

@@ -161,9 +161,27 @@ const INTEGRATION_SPECS: readonly MockSpec[] = [
   },
 ];
 
+/**
+ * Enterprise-SSO IdP specs. Like the AI provider spec, these are redirected via
+ * config (an SSO connection's issuer / explicit endpoints point at the mount),
+ * not host rewrite — so `upstreamHosts` is empty. Lets the SSO sign-in flow
+ * (OIDC discovery → token → userinfo) run fully offline in e2e.
+ */
+const AUTH_SPECS: readonly MockSpec[] = [
+  {
+    name: 'sso-idp',
+    label: 'Enterprise SSO IdP (OIDC)',
+    specPath: spec('auth/oidc-idp.openapi.yaml'),
+    mountPrefix: '/mock/sso-idp',
+    upstreamHosts: [],
+    category: 'provider',
+  },
+];
+
 /** Every spec the gateway serves. */
 export const MOCK_SPECS: readonly MockSpec[] = [
   ...PROVIDER_SPECS,
+  ...AUTH_SPECS,
   ...INTEGRATION_SPECS,
 ];
 

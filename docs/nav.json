@@ -204,6 +204,7 @@
             "platform/admin/providers",
             "platform/admin/token-sources",
             "platform/admin/integrations",
+            "platform/admin/enterprise-sso",
             "platform/admin/api-keys",
             "platform/admin/branding",
             "platform/admin/two-factor-authentication",

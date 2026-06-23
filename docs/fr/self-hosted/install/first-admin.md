@@ -37,7 +37,7 @@ La clé admin ne joue aucun rôle dans les étapes ci-dessus — elle ne débloq
 
 Obtiens-la de la façon qui correspond à ton installation :
 
-- Avec la CLI : `tale convex admin` trouve le conteneur platform et imprime la clé. `tale start` l'imprime aussi une fois les services en bonne santé.
+- Avec la CLI : `tale convex admin` trouve le conteneur platform et imprime la clé. `tale dev` l'imprime aussi une fois les services en bonne santé.
 - Depuis un clone git : `./scripts/get-admin-key.sh` à la racine du dépôt.
 
 Ouvre `SITE_URL/convex-dashboard`, saisis `SITE_URL` comme URL de déploiement, et colle la clé quand on te la demande.

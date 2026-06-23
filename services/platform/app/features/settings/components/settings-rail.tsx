@@ -51,17 +51,17 @@ interface RailSection {
   /** Stable React key for the section. */
   key: string;
   /** i18n key under `settings.menu.railSections`. */
-  labelKey: 'personal' | 'organization';
+  labelKey: 'personal' | 'organization' | 'development';
   items: RailItem[];
 }
 
 /**
  * Left-rail settings navigation (replaces the horizontal tab strip). Renders
- * grouped sections — PERSONAL / ORGANIZATION — with indented rows. The two
- * sections that own sub-routes (API, Governance) are expandable rows: their
- * children render inline and indented while the current path is within that
- * section, and collapse to a single chevroned row otherwise. This mirrors the
- * Pencil `SettingsRailGovExpanded` component.
+ * grouped sections — PERSONAL / ORGANIZATION / DEVELOPMENT — with indented
+ * rows. The two rows that own sub-routes (Governance, API) are expandable:
+ * their children render inline and indented while the current path is within
+ * that section, and collapse to a single chevroned row otherwise. This mirrors
+ * the Pencil `SettingsRailGovExpanded` component.
  */
 export function SettingsRail({
   organizationId,
@@ -99,14 +99,8 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'branding',
-        path: 'branding',
-        can: ['read', 'orgSettings'],
-      },
-      {
-        kind: 'leaf',
-        labelKey: 'integrations',
-        path: 'integrations',
+        labelKey: 'skills',
+        path: 'skills',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },
@@ -126,10 +120,16 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
-        labelKey: 'skills',
-        path: 'skills',
+        labelKey: 'integrations',
+        path: 'integrations',
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
+      },
+      {
+        kind: 'leaf',
+        labelKey: 'branding',
+        path: 'branding',
+        can: ['read', 'orgSettings'],
       },
       {
         kind: 'leaf',
@@ -138,6 +138,26 @@ export function SettingsRail({
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },
+      {
+        kind: 'group',
+        labelKey: 'governance',
+        path: 'governance',
+        can: ['read', 'orgSettings'],
+        children: GOVERNANCE_NAV_ITEMS.map((item) => ({
+          slug: item.slug,
+          label: tGov(`groups.${item.labelKey}`),
+        })),
+      },
+      {
+        kind: 'leaf',
+        labelKey: 'enterpriseSso',
+        path: 'enterprise-sso',
+        matchMode: 'startsWith',
+        can: ['read', 'orgSettings'],
+      },
+    ];
+
+    const development: RailItem[] = [
       {
         kind: 'group',
         labelKey: 'api',
@@ -155,21 +175,12 @@ export function SettingsRail({
         matchMode: 'startsWith',
         can: ['read', 'orgSettings'],
       },
-      {
-        kind: 'group',
-        labelKey: 'governance',
-        path: 'governance',
-        can: ['read', 'orgSettings'],
-        children: GOVERNANCE_NAV_ITEMS.map((item) => ({
-          slug: item.slug,
-          label: tGov(`groups.${item.labelKey}`),
-        })),
-      },
     ];
 
     return [
       { key: 'personal', labelKey: 'personal', items: personal },
       { key: 'organization', labelKey: 'organization', items: organization },
+      { key: 'development', labelKey: 'development', items: development },
     ];
   }, [showAccountTab, tNav, tGov]);
 

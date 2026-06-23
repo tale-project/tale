@@ -5,6 +5,7 @@ import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
 import { Download, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useConvexConnectionState } from '@/app/hooks/use-convex-connection-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -101,6 +102,7 @@ interface OfflineOverlayProps {
 
 function OfflineOverlay({ reason }: OfflineOverlayProps) {
   const { t } = useT('connectivity');
+  const { appName } = useBrandingContext();
   const { canInstall, promptInstall } = useInstallPrompt();
   // Bumping the nonce remounts the indicator so the pulse animation restarts
   // on "Try again" — a small visual ack that the gesture registered, without
@@ -108,16 +110,17 @@ function OfflineOverlay({ reason }: OfflineOverlayProps) {
   const [retryNonce, setRetryNonce] = useState(0);
 
   // Surface the reconnect state in the tab title so a glance at a window
-  // chooser / tab strip shows which tab dropped — and so "Tale" stays in
-  // the title even on routes whose own title strips the suffix. Restore the
-  // prior title on dismiss so we don't permanently overwrite it.
+  // chooser / tab strip shows which tab dropped — and so the org name (or the
+  // platform default pre-auth) stays in the title even on routes whose own
+  // title strips the suffix. Restore the prior title on dismiss so we don't
+  // permanently overwrite it.
   useEffect(() => {
     const previous = document.title;
-    document.title = `${t('tabTitle')} — Tale`;
+    document.title = `${t('tabTitle')} — ${appName ?? 'Tale'}`;
     return () => {
       document.title = previous;
     };
-  }, [t]);
+  }, [t, appName]);
 
   const heading = reason === 'device' ? t('deviceTitle') : t('backendTitle');
   const description =

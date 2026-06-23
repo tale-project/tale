@@ -136,7 +136,7 @@ function ensureDevSecrets(): void {
     '# ----------------------------------------------------------------------------',
     '# Auto-generated dev secrets (bun run dev). Random + machine-local + gitignored.',
     '# Delete a line to have it regenerated; set your own to override. The container',
-    '# path (`tale init`/`tale start`) reuses these same keys from this .env.',
+    '# path (`tale init`/`tale dev`) reuses these same keys from this .env.',
     '# ----------------------------------------------------------------------------',
     ...Object.entries(generated).map(([k, v]) => `${k}=${v}`),
     '',

@@ -86,7 +86,7 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          'h-8 gap-1.5 px-2 text-sm font-normal ring-0',
+          'h-9 gap-1.5 px-2 text-sm font-normal ring-0',
           !value && 'text-muted-foreground',
         )}
       >

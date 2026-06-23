@@ -6,7 +6,7 @@ export async function findPlatformContainer(): Promise<string> {
   const projectId = getProjectId();
   const blue = `${projectId}-platform-blue`;
   const green = `${projectId}-platform-green`;
-  // `tale start` (dev compose) names the platform container without a
+  // `tale dev` (dev compose) names the platform container without a
   // blue/green color suffix; deploy (blue-green) uses the colored names.
   const dev = `${projectId}-platform`;
   if (await isContainerRunning(blue)) {
@@ -34,6 +34,6 @@ export async function findPlatformContainer(): Promise<string> {
   }
 
   throw new Error(
-    'No platform container is running. Start the platform first with: tale start (local) or tale deploy.',
+    'No platform container is running. Start the platform first with: tale dev (local) or tale deploy.',
   );
 }

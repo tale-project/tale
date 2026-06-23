@@ -1,6 +1,8 @@
 import {
   Box,
   Building2,
+  Globe,
+  IdCard,
   KeyRound,
   Palette,
   Plug,
@@ -10,6 +12,7 @@ import {
   User,
   Users,
   Variable,
+  Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -34,8 +37,8 @@ interface SectionConfig {
 /**
  * Shared section catalog for the mobile settings overviews. The personal
  * scope shows only `you`-group entries (account, personalization); the
- * workspace scope shows the workspace + governance groups. Permission gates
- * filter each list against the current member's ability before render.
+ * workspace scope shows the organization + development groups. Permission
+ * gates filter each list against the current member's ability before render.
  */
 export function useSettingsMenuGroups(
   organizationId: string,
@@ -60,7 +63,7 @@ export function useSettingsMenuGroups(
       },
     ];
 
-    const workspaceConfig: SectionConfig[] = [
+    const organizationConfig: SectionConfig[] = [
       {
         key: 'organization',
         icon: Building2,
@@ -74,10 +77,10 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
-        key: 'branding',
-        icon: Palette,
-        path: 'branding',
-        can: ['read', 'orgSettings'],
+        key: 'skills',
+        icon: Wand2,
+        path: 'skills',
+        can: ['read', 'developerSettings'],
       },
       {
         key: 'providers',
@@ -98,24 +101,42 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
+        key: 'branding',
+        icon: Palette,
+        path: 'branding',
+        can: ['read', 'orgSettings'],
+      },
+      {
         key: 'sandboxes',
         icon: Box,
         path: 'sandboxes',
         can: ['read', 'developerSettings'],
       },
       {
+        key: 'governance',
+        icon: Shield,
+        path: 'governance',
+        can: ['read', 'orgSettings'],
+      },
+      {
+        key: 'enterpriseSso',
+        icon: IdCard,
+        path: 'enterprise-sso',
+        can: ['read', 'orgSettings'],
+      },
+    ];
+
+    const developmentConfig: SectionConfig[] = [
+      {
         key: 'api',
         icon: KeyRound,
         path: 'api',
         can: ['read', 'developerSettings'],
       },
-    ];
-
-    const governanceConfig: SectionConfig[] = [
       {
-        key: 'governance',
-        icon: Shield,
-        path: 'governance',
+        key: 'dataResidency',
+        icon: Globe,
+        path: 'deployment',
         can: ['read', 'orgSettings'],
       },
     ];
@@ -146,14 +167,14 @@ export function useSettingsMenuGroups(
         : [
             youGroup,
             {
-              key: 'workspace',
-              label: tSettings('menu.groups.workspace'),
-              items: filter(workspaceConfig),
+              key: 'organization',
+              label: tSettings('menu.groups.organization'),
+              items: filter(organizationConfig),
             },
             {
-              key: 'governance',
-              label: tSettings('menu.groups.governance'),
-              items: filter(governanceConfig),
+              key: 'development',
+              label: tSettings('menu.groups.development'),
+              items: filter(developmentConfig),
             },
           ];
 

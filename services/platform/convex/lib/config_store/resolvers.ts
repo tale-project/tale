@@ -15,6 +15,7 @@
 import { resolveAgentsDir } from '../../agents/file_utils';
 import { resolveAppsDir } from '../../apps/file_utils';
 import { resolveBrandingDir } from '../../branding/file_utils';
+import { resolveSsoDir } from '../../enterprise_sso/file_utils';
 import { resolveGovernanceDir } from '../../governance/file_utils';
 import { resolveIntegrationsDir } from '../../integrations/file_utils';
 import { resolvePromptsDir } from '../../prompts/file_utils';
@@ -36,6 +37,8 @@ export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   skills: resolveSkillsDir,
   branding: resolveBrandingDir,
   governance: resolveGovernanceDir,
+  // `sso` is nested under governance — `resolveSsoDir` returns `<org>/governance/sso/`.
+  sso: resolveSsoDir,
   apps: resolveAppsDir,
 };
 

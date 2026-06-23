@@ -32,6 +32,10 @@ import {
 } from './conversations/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
+import {
+  ssoConnectionsTable,
+  ssoProvisioningLinksTable,
+} from './enterprise_sso/schema';
 import { externalRunsTable } from './external_runs/schema';
 import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
@@ -46,7 +50,6 @@ import {
   legalHoldReleaseRequestsTable,
   legalHoldsTable,
   legalMattersTable,
-  orgPackagePolicyTable,
   policyAcknowledgementsTable,
   retentionAppliedBoundsTable,
   retentionPolicyPendingChangesTable,
@@ -79,7 +82,6 @@ import {
 import {
   modelCapabilityCacheTable,
   modelCatalogSyncTable,
-  modelSyncSettingsTable,
 } from './model_catalog/schema';
 import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
@@ -225,7 +227,6 @@ export default defineSchema({
   messageMetadata: messageMetadataTable,
   notifications: notificationsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
-  orgPackagePolicy: orgPackagePolicyTable,
   threadBranches: threadBranchesTable,
   threadFiles: threadFilesTable,
   threadMetadata: threadMetadataTable,
@@ -261,8 +262,14 @@ export default defineSchema({
   reasoningProfiles: reasoningProfilesTable,
   modelCapabilityCache: modelCapabilityCacheTable,
   modelCatalogSync: modelCatalogSyncTable,
-  modelSyncSettings: modelSyncSettingsTable,
   ssoProviders: ssoProvidersTable,
+  // Unified Enterprise SSO + Provisioning. One connection per org carrying the
+  // OIDC/OAuth2/SAML sign-in config, the role/team provisioning policy, and the
+  // inbound SCIM token; `ssoProvisioningLinks` holds per-resource externalId /
+  // restore-role. Replaces the legacy `ssoProviders` + standalone SCIM tables
+  // (migrated by versions/.../enterprise_sso_unify).
+  ssoConnections: ssoConnectionsTable,
+  ssoProvisioningLinks: ssoProvisioningLinksTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,
   sandboxSessions: sandboxSessionsTable,

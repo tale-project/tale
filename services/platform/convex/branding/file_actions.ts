@@ -38,7 +38,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { orgIdentityFromId } from '../lib/helpers/org_slug';
 import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
 import {
   buildBrandingImageUrl,
@@ -95,7 +95,6 @@ async function readBrandingFile(orgSlug: string): Promise<BrandingReadResult> {
 
 interface BrandingResult {
   appName?: string;
-  textLogo?: string;
   brandColor?: string;
   accentColor?: string;
   logoUrl: string | null;
@@ -115,7 +114,6 @@ export const readBranding = action({
   args: { organizationId: v.optional(v.string()) },
   returns: v.object({
     appName: v.optional(v.string()),
-    textLogo: v.optional(v.string()),
     brandColor: v.optional(v.string()),
     accentColor: v.optional(v.string()),
     logoUrl: v.union(v.string(), v.null()),
@@ -127,16 +125,19 @@ export const readBranding = action({
     hash: v.string(),
   }),
   handler: async (ctx, args): Promise<BrandingResult> => {
-    const orgSlug = args.organizationId
-      ? await resolveOrgSlug(ctx, args.organizationId)
-      : DEFAULT_ORG_SLUG;
+    // The app name is the organization's own name (resolved here), not a
+    // stored branding field — one source of truth for "what the org is
+    // called". The pre-auth `default` bucket has no org, so no app name.
+    const identity = args.organizationId
+      ? await orgIdentityFromId(ctx, args.organizationId)
+      : null;
+    const orgSlug = identity?.slug ?? DEFAULT_ORG_SLUG;
     const fileResult = await readBrandingFile(orgSlug);
 
     if (fileResult.ok) {
       const config = fileResult.config;
       return {
-        appName: config.appName,
-        textLogo: config.textLogo,
+        appName: identity?.name,
         brandColor: config.brandColor,
         accentColor: config.accentColor,
         logoUrl: buildBrandingImageUrl(orgSlug, config.logoFilename),
@@ -163,6 +164,7 @@ export const readBranding = action({
     }
 
     return {
+      appName: identity?.name,
       logoUrl: null,
       faviconLightUrl: null,
       faviconDarkUrl: null,
@@ -175,8 +177,6 @@ export const saveBranding = action({
   args: {
     organizationId: v.string(),
     config: v.object({
-      appName: v.optional(v.string()),
-      textLogo: v.optional(v.string()),
       brandColor: v.optional(v.string()),
       accentColor: v.optional(v.string()),
       logoFilename: v.optional(v.string()),

@@ -9,7 +9,7 @@
  * must stay self-contained static SVGs — this script is a build-time tool, not
  * a runtime dependency.
  *
- * Brands absent from the `logos` set (outlook, tavily, ai-image) are authored by
+ * Brands absent from the `logos` set (outlook, tavily) are authored by
  * hand and intentionally left untouched here.
  *
  * Run: bun scripts/generate-integration-icons.ts

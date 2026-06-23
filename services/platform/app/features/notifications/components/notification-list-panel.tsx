@@ -210,6 +210,11 @@ export function NotificationListPanel({
           onValueChange={(v) => {
             if (v === 'unread' || v === 'all') handleFilterChange(v);
           }}
+          // The host popover surface is itself `dark:bg-muted`, so the pill
+          // track's default `bg-muted` vanishes into the panel in dark mode.
+          // Recess the track to the base surface so the segmented control
+          // reads as a proper well with the active pill raised on top.
+          listClassName="dark:bg-bg-base"
           items={[
             {
               value: 'unread',

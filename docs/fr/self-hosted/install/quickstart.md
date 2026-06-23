@@ -1,6 +1,6 @@
 ---
 title: Démarrage rapide auto-hébergé
-description: Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale start, puis se connecter.
+description: Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale dev, puis se connecter.
 ---
 
 C'est le chemin le plus rapide vers un Tale qui tourne : installe la CLI `tale`, puis deux commandes. Le résultat est ta propre organisation qui tourne sur ta propre machine, joignable dans le navigateur. C'est pensé pour un laptop ou un hôte unique sur lequel tu veux essayer Tale ; quand tu es prêt à le faire tourner pour de vrai, le parcours [Linux serveur](/fr/self-hosted/install/linux-server) couvre une installation de production durcie.
@@ -42,14 +42,14 @@ cd my-project
 ## Étape 3 — Démarrer Tale
 
 ```bash
-tale start
+tale dev
 ```
 
-Le premier passage récupère les images et construit le graphe de conteneurs — compte cinq à dix minutes sur une machine neuve. Dès que la plateforme se signale prête (`Tale Platform is running`), `tale start` ouvre ton navigateur automatiquement. S'il ne peut pas, il imprime l'URL à visiter.
+Le premier passage récupère les images et construit le graphe de conteneurs — compte cinq à dix minutes sur une machine neuve. Dès que la plateforme se signale prête (`Tale Platform is running`), `tale dev` ouvre ton navigateur automatiquement. S'il ne peut pas, il imprime l'URL à visiter.
 
 > Ton navigateur affiche un avertissement de certificat pour le certificat auto-signé local. C'est attendu — accepte-le pour continuer.
 
-Ta configuration sous `default/` est montée dans l'instance en marche, donc les édits aux agents, workflows et intégrations rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale start --detach` pour la faire tourner en arrière-plan).
+Ta configuration sous `default/` est montée dans l'instance en marche, donc les édits aux agents, workflows et intégrations rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale dev --detach` pour la faire tourner en arrière-plan).
 
 ## Étape 4 — Créer ton compte
 
@@ -73,9 +73,9 @@ La CLI enveloppe `docker compose` pour que tu n'aies pas à le faire. Si tu pré
 ## Dépannage
 
 - **`tale` introuvable après l'installation.** L'installateur nomme le répertoire de destination dans sa sortie ; assure-toi que ce répertoire est sur ton `PATH` (sous Linux, c'est généralement `/usr/local/bin`).
-- **`tale start` se termine sur un conflit de port.** Un autre service lie déjà 443 sur l'hôte. Libère-le, ou démarre sur un autre port avec `tale start --port 8443`.
-- **Docker ne tourne pas.** `tale start` a besoin du démon Docker en route. Démarre Docker Desktop (ou `sudo systemctl start docker` sous Linux) et réessaie.
-- **Un conteneur crash-loope au premier démarrage.** Presque toujours un secret manquant — relance `tale start`, qui relance la configuration d'environnement, ou inspecte les logs avec `tale logs platform`.
+- **`tale dev` se termine sur un conflit de port.** Un autre service lie déjà 443 sur l'hôte. Libère-le, ou démarre sur un autre port avec `tale dev --port 8443`.
+- **Docker ne tourne pas.** `tale dev` a besoin du démon Docker en route. Démarre Docker Desktop (ou `sudo systemctl start docker` sous Linux) et réessaie.
+- **Un conteneur crash-loope au premier démarrage.** Presque toujours un secret manquant — relance `tale dev`, qui relance la configuration d'environnement, ou inspecte les logs avec `tale logs platform`.
 
 ## Où ça s'utilise
 

@@ -1,6 +1,6 @@
 /**
  * Dev-orchestrator output: the classifiers + child-capture, layered on the
- * shared `@tale/shared/reporter` (the SAME reporter `tale start` uses, so both
+ * shared `@tale/shared/reporter` (the SAME reporter `tale dev` uses, so both
  * commands render identically).
  *
  * `pipeChild` swaps child `stdio:'inherit'` for capture, with two modes:
@@ -31,7 +31,7 @@ import { pipeNodeStream } from '@tale/shared/process';
 import { sourceLine } from '@tale/shared/tux';
 
 // Re-export the shared reporter UI so the orchestrator pulls its output from one
-// place (and `tale start` imports the identical functions).
+// place (and `tale dev` imports the identical functions).
 export {
   detailLines,
   doneLine,

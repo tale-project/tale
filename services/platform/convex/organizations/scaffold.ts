@@ -247,6 +247,13 @@ async function seedDomain(
   orgSlug: string,
   override: boolean,
 ): Promise<DomainResult> {
+  // Domains without a `scaffoldKind` are not catalog-scaffolded (e.g. `sso`,
+  // whose single connection.json is created on demand by the admin form). They
+  // ship no builtin catalog dir, so skip them here — otherwise the missing
+  // `<catalogRoot>/<domain>` would be reported as a deploy misconfig below.
+  if (!domain.scaffoldKind) {
+    return { domain: domain.name, ok: true };
+  }
   const sourceDir = path.join(catalogRoot, domain.name);
   const targetDir = resolveDomainDir(domain.name, orgSlug);
 

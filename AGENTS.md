@@ -69,7 +69,7 @@ If you didn't verify it, it isn't done — say so rather than claiming it. Paste
 
 - [ ] Ran `bun run check` (format, lint, typecheck, all tests).
 - [ ] Ran `bun run lint:sast` (Opengrep, a required CI gate): clean, or a true false-positive narrowly suppressed with a justified `nosemgrep`.
-- [ ] Data-model change ships its migration in the same PR, verified on a fresh stack — Convex shape changes under `convex/migrations/versions/` with `bun run --filter @tale/platform migrations:check` green; knowledge-DB (Postgres) schema under `services/db/migrations/` (dbmate) — or N/A.
+- [ ] Data-model change ships its migration in the same PR, verified on a fresh stack — Convex shape changes under `convex/migrations/versions/` with `bun run --filter @tale/platform migrations:check` green (it fingerprints the schema and FAILS on any data-incompatible change lacking a migration; run `migrations:snapshot` to refresh the baseline once the migration exists); knowledge-DB (Postgres) schema under `services/db/migrations/` (dbmate) — or N/A.
 - [ ] Ran `bun run test:e2e` for any touched frontend service (`platform`/`web`/`docs`) — or N/A.
 - [ ] Loading uses `<Skeletonize>` + skeleton-aware leaves — no hand-rolled skeletons or magic `h-[…]` — or N/A.
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` (+ `de-CH` overrides where the value differs) — or N/A.
@@ -83,21 +83,22 @@ If you didn't verify it, it isn't done — say so rather than claiming it. Paste
 
 A change is rarely one file. Expand a local edit into its blast radius:
 
-| You changed…                                             | You must also…                                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| A user-visible string                                    | `en/de/fr.json` (+`de-CH` if differs) · glossary · docs(3) · manual guide · e2e                  |
-| A translation key (add/rename/remove)                    | all base locales same commit · remove dead keys everywhere                                       |
-| A new interactive UI element                             | i18n label · a11y (HTML/keyboard/aria/contrast/24px) · docs · manual guide · e2e                 |
-| A new `components/ui/` primitive                         | Storybook story (all variants) · a11y block · Skeletonize support                                |
-| A feature page / route                                   | compose `@tale/ui` + layout primitives (no raw layout HTML) · button-size policy · one gap scale |
-| A Convex field/table (rename/retype/split/drop/backfill) | migration + up/down + `migration.test.ts` + registry + `migrations:check`                        |
-| A knowledge-DB schema                                    | dbmate migration under `migrations/knowledge-db/<schema>/` · verify a fresh `compose up`         |
-| Env var / CLI flag / config key / API field              | docs(3) · `.env.example` · `README{,.de,.fr}.md` · setup                                         |
-| Error wording / validation / rate limit                  | docs(3) · tests · i18n                                                                           |
-| A date display                                           | `useFormatDate()` — never `toLocale*`                                                            |
-| A new query/mutation                                     | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader          |
-| A path/command/pattern a skill or `AGENTS.md` documents  | update that guide + the skill index · run `bun .claude/check-skill-links.mjs`                    |
-| A skill added/renamed/rescoped                           | set globs in `.claude/skill-globs.json` · `bun .claude/gen-skill-adapters.mjs` (Cursor/Copilot)  |
+| You changed…                                                                                                                                                                                                                                                                                                                              | You must also…                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A user-visible string                                                                                                                                                                                                                                                                                                                     | `en/de/fr.json` (+`de-CH` if differs) · glossary · docs(3) · manual guide · e2e                                                                                                                                                                |
+| A translation key (add/rename/remove)                                                                                                                                                                                                                                                                                                     | all base locales same commit · remove dead keys everywhere                                                                                                                                                                                     |
+| A new interactive UI element                                                                                                                                                                                                                                                                                                              | i18n label · a11y (HTML/keyboard/aria/contrast/24px) · docs · manual guide · e2e                                                                                                                                                               |
+| A new `components/ui/` primitive                                                                                                                                                                                                                                                                                                          | Storybook story (all variants) · a11y block · Skeletonize support                                                                                                                                                                              |
+| A feature page / route                                                                                                                                                                                                                                                                                                                    | compose `@tale/ui` + layout primitives (no raw layout HTML) · button-size policy · one gap scale                                                                                                                                               |
+| A Convex schema change that can invalidate existing rows — **add a _required_ field, rename, retype, narrow a union, optional→required, split, or drop** (a new _optional_ field / new table / _widened_ union needs none)                                                                                                                | reversible migration + up/down + `migration.test.ts` + registry + `migrations:check` (its schema-snapshot guard fails the build otherwise) · `migrations:snapshot` to refresh the baseline                                                     |
+| A **file-based config** Zod schema (`lib/shared/schemas/*` — agents/providers/governance/branding/workflows/…) changed so existing on-disk org files break — **new required field, real retype, narrowed enum/literal, or optional→required** (a new _optional_ field, a _removed_ field [Zod strips it], or a _widened_ enum needs none) | a `node` config migration (fs-tree snapshot) that rewrites each org's files + test — the `01_governance_db_to_json` migration is the model. Caught by `migrations:check`'s config-snapshot guard; `migrations:snapshot` refreshes the baseline |
+| A knowledge-DB schema                                                                                                                                                                                                                                                                                                                     | dbmate migration under `migrations/knowledge-db/<schema>/` · verify a fresh `compose up`                                                                                                                                                       |
+| Env var / CLI flag / config key / API field                                                                                                                                                                                                                                                                                               | docs(3) · `.env.example` · `README{,.de,.fr}.md` · setup                                                                                                                                                                                       |
+| Error wording / validation / rate limit                                                                                                                                                                                                                                                                                                   | docs(3) · tests · i18n                                                                                                                                                                                                                         |
+| A date display                                                                                                                                                                                                                                                                                                                            | `useFormatDate()` — never `toLocale*`                                                                                                                                                                                                          |
+| A new query/mutation                                                                                                                                                                                                                                                                                                                      | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader                                                                                                                                                        |
+| A path/command/pattern a skill or `AGENTS.md` documents                                                                                                                                                                                                                                                                                   | update that guide + the skill index · run `bun .claude/check-skill-links.mjs`                                                                                                                                                                  |
+| A skill added/renamed/rescoped                                                                                                                                                                                                                                                                                                            | set globs in `.claude/skill-globs.json` · `bun .claude/gen-skill-adapters.mjs` (Cursor/Copilot)                                                                                                                                                |
 
 → Full guide: [`definition-of-done`](.claude/skills/definition-of-done/SKILL.md), [`ship`](.claude/skills/ship/SKILL.md)
 
@@ -248,6 +249,7 @@ component. **Build pages by composing components; never hand-roll layout HTML.**
 - **Validate `args` and declare `returns`** with `convex/values`; shared shapes in `convex/lib/validators/`.
 - **Prefer `getAuthUserIdentity`** (0 DB) over `getAuthUser` (2 DB) in read queries. **Delete deprecated functions** — no tombstones.
 - **Never `import 'node:*'` in V8 code** — load file I/O in a `'use node'` module and pass data in.
+- **Org config is files, not tables** — all per-org configuration is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (schemas in `lib/shared/schemas/`); never store org config in a Convex table.
 
 → Full guide: [`convex`](.claude/skills/convex/SKILL.md), [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md)
 
@@ -260,6 +262,30 @@ applied by `docker-entrypoint.sh` per the `TALE_DB_ROLE` env var. Timestamped, i
 `-- migrate:up`/`-- migrate:down`. **A schema change ships its migration in the same PR and you verify
 a clean `docker compose up` leaves both knowledge schemas populated** — orphaned migrations fail every
 query with `undefined_table`.
+
+**Convex schema (the platform DB):** Convex runs `schemaValidation: true`, so at push time every
+existing row must validate against the new schema. A change that can invalidate stored rows — **adding
+a required field, renaming, retyping, narrowing a union, optional→required, splitting, or dropping** —
+needs a reversible, tested data migration under `convex/migrations/versions/<v0_2_xx>/<NN_slug>/` FIRST,
+or the deploy fails on real data. A new _optional_ field, a new table, or a _widened_ union is
+data-safe and needs none. The schema-snapshot guard in `migrations:check` enforces this: it fingerprints
+the live schema, fails on any data-incompatible drift from `convex/migrations/schema.snapshot.json`, and
+waves through safe growth. After authoring the migration, run `bun run --filter @tale/platform
+migrations:snapshot` to refresh the baseline (also refresh it when cutting a release).
+
+**File-based org config — the source of truth is the file, not the DB.** All per-org configuration
+(governance, branding, providers, agents, workflows, enterprise SSO, …) is stored as JSON files under
+`$TALE_CONFIG_DIR/<org>/<domain>/`, validated by the Zod schemas in `lib/shared/schemas/` — **never as
+a Convex table or DB row.** A new org-config domain adds its schema there and reads/writes those files;
+do not introduce a config table in the Convex schema. This is the other migration track: a change to
+one of those schemas that makes existing on-disk files fail validation needs a **`node` migration** that
+rewrites each org's files first (the `01_governance_db_to_json` migration is the model). `migrations:check`
+guards this too via its **config-snapshot** guard (`check-config-snapshot.ts` → `config.snapshot.json`),
+which renders each schema to JSON Schema and fails on breaking drift. The Zod rules differ from Convex:
+`z.object` STRIPS unknown keys by default, so a _removed_ field and a _widened_ enum are safe, but a
+**new required field, a real retype, a narrowed enum/literal, or optional→required** breaks existing files
+and needs the migration. (Limitation: strip vs `.strict()` is indistinguishable in JSON Schema and
+`.refine()` rules aren't representable, so judge those two by hand.)
 → Full guide: [`docker`](.claude/skills/docker/SKILL.md), [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md)
 
 ## Internationalization
@@ -296,6 +322,7 @@ respect `prefers-reduced-motion`. Every component has an `accessibility` describ
 | -------------------------------------------------------------- | --------------------------------------------------- | ------------------------------ |
 | Update `en.json` only                                          | all base locales + variants, same commit            | i18n parity test · Ripple Map  |
 | Add a Convex field, skip the migration                         | versioned reversible migration + test               | `migrations:check` · DoD       |
+| Store org config in a Convex table                             | file-based JSON under `$TALE_CONFIG_DIR/<org>/…`    | reuse discipline · review      |
 | Hand-roll a skeleton (`h-[200px]`)                             | `<Skeletonize>` + skeleton-aware leaves             | `skeleton-conventions.test.ts` |
 | Build a new Button/Input/Badge                                 | reuse/extend the `packages/ui` primitive            | reuse discipline · review      |
 | Build a 2nd catalog/list/page like an existing one             | extract the shared concept; both render through it  | reuse discipline · review      |

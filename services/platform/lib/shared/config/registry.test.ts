@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+  ssoConnectionFileSchema,
+  SSO_CONNECTION_KEY,
+} from '../schemas/enterprise_sso';
 import { FILE_POLICY_TYPES, POLICY_SCHEMAS } from '../schemas/governance';
 import {
   CONFIG_DOMAINS,
@@ -28,8 +32,19 @@ describe('config-domain registry', () => {
     }
   });
 
-  it('governance is the only v8-sync domain today', () => {
-    expect(V8_SYNC_DOMAINS.map((d) => d.name)).toEqual(['governance']);
+  it('governance and sso are the v8-sync domains', () => {
+    expect(V8_SYNC_DOMAINS.map((d) => d.name)).toEqual(['governance', 'sso']);
+  });
+
+  it('sso v8Sync resolves the connection schema + file base', () => {
+    const spec = getV8SyncSpec('sso');
+    expect([...spec.keys]).toEqual([SSO_CONNECTION_KEY]);
+    expect(spec.schemaFor(SSO_CONNECTION_KEY)).toBe(ssoConnectionFileSchema);
+    expect(spec.fileBaseFor(SSO_CONNECTION_KEY)).toBe('connection');
+  });
+
+  it('sso is not catalog-scaffolded (no scaffoldKind)', () => {
+    expect(getConfigDomain('sso').scaffoldKind).toBeUndefined();
   });
 
   it('governance v8Sync keys exactly match FILE_POLICY_TYPES (no drift)', () => {

@@ -8,7 +8,7 @@ import * as logger from '../../utils/logger';
  *
  * Users can drop `compose.override.yml` (or `.yaml`) in their project root
  * to customize the generated compose config. This is currently dev-only
- * (tale start) — prod deploys ignore it because service names differ.
+ * (tale dev) — prod deploys ignore it because service names differ.
  *
  * Returns the absolute path to the override file, or null if none exists.
  * When both extensions are present, prefers `.yml` and warns about the ignored `.yaml`.

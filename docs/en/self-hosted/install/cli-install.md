@@ -3,7 +3,7 @@ title: Install the tale CLI
 description: Install the tale CLI on macOS, Linux, or Windows — and configure it against your self-hosted instance for deploys and upgrades.
 ---
 
-The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale start`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
+The `tale` CLI is the recommended way to run and operate Tale. The [quickstart](/self-hosted/install/quickstart) already uses it to stand an instance up locally with `tale init` and `tale dev`; this page is the other half — installing the CLI on a workstation so it can drive a _remote_ instance: deploying new versions, running migrations, and capturing diagnostics without you remembering every `docker compose` invocation.
 
 Everything the CLI does can also be done with `docker compose` and `ssh` directly, so a team already deep in its own automation can stay on compose. For everyone else the CLI is the shorter path, and the rest of the self-hosted docs assume it is installed.
 
@@ -55,7 +55,7 @@ There is no `tale config set` — everything the CLI needs lives in the project 
 tale config show
 ```
 
-The host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale start` / `tale deploy`. To operate a remote host, point your shell's Docker context (or `DOCKER_HOST`) at it — the CLI talks to the same Docker endpoint every `docker` command does.
+The host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote host, point your shell's Docker context (or `DOCKER_HOST`) at it — the CLI talks to the same Docker endpoint every `docker` command does.
 
 The one-time admin key that claims the first **Owner** account at sign-up is separate from CLI configuration — generate it with `tale convex admin` when you need it (see [First admin](/self-hosted/install/first-admin)).
 
@@ -96,7 +96,7 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `-f, --force` — overwrite an existing `tale.json` instead of aborting.
 - `--no-env` — scaffold the project but skip `.env` generation.
 
-`tale start` — launch all services locally with a self-signed certificate.
+`tale dev` — launch all services locally with a self-signed certificate.
 
 - `-d, --detach` — run in the background instead of streaming logs.
 - `-p, --port <port>` — HTTPS port to expose (default `443`).

@@ -20,7 +20,7 @@ export function useHasAnyUsers() {
 
 export function useIsSsoConfigured() {
   return useConvexQuery(
-    api.sso_providers.queries.isSsoConfigured,
+    api.enterprise_sso.queries.isConfigured,
     {},
     { requireAuth: false },
   );

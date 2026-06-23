@@ -9,8 +9,9 @@
  *
  * This is a `flat`-kind domain (one file per item, like agents/providers).
  * The retention *bounds catalog* (`retention.json`) and per-policy secrets
- * sidecars (`<name>.secrets.json`) live alongside the policy files; SSO
- * provider configs live in the `sso/` subdir.
+ * sidecars (`<name>.secrets.json`) live alongside the policy files; the
+ * Enterprise SSO connection lives in the `sso/` subdir (paths owned by
+ * `enterprise_sso/file_utils.ts`).
  *
  * Pure path + (de)serialization helpers. No Convex dependencies — usable in
  * any Node.js context. Reads/writes themselves live in `file_actions.ts`.
@@ -41,7 +42,7 @@ export { sha256 };
 const MAX_FILE_SIZE_BYTES = 256 * 1024; // 256 KB
 const MAX_HISTORY_ENTRIES = 100;
 
-/** SSO provider ids are slug-like; same shape as org slugs / agent names. */
+/** Governance secret sidecar names are slug-like (org-slug / agent-name shape). */
 const SECRET_NAME_REGEX = /^[a-z][a-z0-9_-]*$/;
 
 export function validateSecretName(name: string): boolean {
@@ -94,36 +95,6 @@ export function resolveSecretsFilePath(orgSlug: string, name: string): string {
   return safeJoinWithinDir(
     resolveGovernanceDir(orgSlug),
     `${name}.secrets.json`,
-  );
-}
-
-/** Absolute path to an org's SSO provider config directory. */
-export function resolveSsoDir(orgSlug: string): string {
-  return safeJoinWithinDir(resolveGovernanceDir(orgSlug), 'sso');
-}
-
-/** Path to a single SSO provider config: `<orgSlug>/governance/sso/<providerId>.json`. */
-export function resolveSsoFilePath(
-  orgSlug: string,
-  providerId: string,
-): string {
-  if (!validateSecretName(providerId)) {
-    throw new Error(`Invalid SSO provider id: ${providerId}`);
-  }
-  return safeJoinWithinDir(resolveSsoDir(orgSlug), `${providerId}.json`);
-}
-
-/** Path to an SSO provider's secrets sidecar. */
-export function resolveSsoSecretsFilePath(
-  orgSlug: string,
-  providerId: string,
-): string {
-  if (!validateSecretName(providerId)) {
-    throw new Error(`Invalid SSO provider id: ${providerId}`);
-  }
-  return safeJoinWithinDir(
-    resolveSsoDir(orgSlug),
-    `${providerId}.secrets.json`,
   );
 }
 

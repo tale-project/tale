@@ -293,6 +293,7 @@ export function ChatFilterConfigView({
           <Switch
             id="chat-filter-enabled"
             label={t('contentSafety.enableLabel')}
+            hideLabelOnMobile
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleEnabledChange}

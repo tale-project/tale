@@ -151,6 +151,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
         action={
           <Switch
             label={t('pii.enableLabel')}
+            hideLabelOnMobile
             checked={enabled}
             onCheckedChange={handleEnabledChange}
             disabled={cannotManage || upsertMutation.isPending}

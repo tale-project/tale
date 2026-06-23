@@ -1,8 +1,29 @@
 import { type Infer, v } from 'convex/values';
 
+import { modelSyncConfigSchema } from '../../lib/shared/schemas/governance';
 import type { Doc } from '../_generated/dataModel';
-import { internalQuery, query } from '../_generated/server';
+import { internalQuery, type QueryCtx, query } from '../_generated/server';
+import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getOrganizationMember } from '../lib/rls';
+
+/**
+ * Resolve the org's effective `autoSyncEnabled` from the file-based `model_sync`
+ * governance policy (via `configCache`). A missing/invalid config falls back to
+ * the schema default (enabled). Shared by the UI query + the cron's internal read.
+ */
+async function readAutoSyncEnabled(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<boolean> {
+  const row = await readConfigCacheRow(
+    ctx.db,
+    organizationId,
+    'governance',
+    'model_sync',
+  );
+  const parsed = modelSyncConfigSchema.safeParse(row?.config ?? {});
+  return parsed.success ? parsed.data.autoSyncEnabled : true;
+}
 
 const capabilityShape = {
   reasoning: v.optional(
@@ -114,20 +135,18 @@ export const getModelCapabilities = query({
 
 /**
  * Whether the weekly in-instance provider-config auto-sync is enabled for this
- * org. Absent row ⇒ enabled (default on). Org-gated read for the settings UI.
+ * org. The source of truth is the file-based governance policy `model_sync`
+ * (mirrored into `configCache`); a missing file ⇒ enabled (default on).
+ * Org-gated read for the settings UI.
  */
 export const getModelSyncSettings = query({
   args: { organizationId: v.string() },
   returns: v.object({ autoSyncEnabled: v.boolean() }),
   handler: async (ctx, args) => {
     await getOrganizationMember(ctx, args.organizationId);
-    const row = await ctx.db
-      .query('modelSyncSettings')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return { autoSyncEnabled: row?.autoSyncEnabled ?? true };
+    return {
+      autoSyncEnabled: await readAutoSyncEnabled(ctx, args.organizationId),
+    };
   },
 });
 
@@ -136,13 +155,7 @@ export const isAutoSyncEnabledInternal = internalQuery({
   args: { organizationId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query('modelSyncSettings')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return row?.autoSyncEnabled ?? true;
+    return await readAutoSyncEnabled(ctx, args.organizationId);
   },
 });
 

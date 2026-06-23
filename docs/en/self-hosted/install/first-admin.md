@@ -37,7 +37,7 @@ The admin key plays no part in the steps above — it only unlocks the **Convex 
 
 Get it whichever way fits how you installed:
 
-- With the CLI: `tale convex admin` finds the platform container and prints the key. `tale start` also prints it once services are healthy.
+- With the CLI: `tale convex admin` finds the platform container and prints the key. `tale dev` also prints it once services are healthy.
 - From a git clone: `./scripts/get-admin-key.sh` from the repo root.
 
 Open `SITE_URL/convex-dashboard`, enter `SITE_URL` as the deployment URL, and paste the key when prompted.

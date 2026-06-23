@@ -54,6 +54,14 @@ export const GOVERNANCE_POLICY_TYPES = [
   // and `setTaskAutomationEnabled` flips the pack's trigger rows. Missing
   // row → enabled. Config shape: `taskAutomationConfigSchema`.
   'task_automation',
+  // Org-level package allowlist/denylist for the `run_code` tool (replaces the
+  // former `orgPackagePolicy` DB table). Missing file → all packages allowed.
+  // Config shape: `runCodePolicyConfigSchema`.
+  'run_code',
+  // Per-org opt-out for the weekly provider-config auto-sync cron (replaces the
+  // former `modelSyncSettings` DB table). Missing file → enabled. Config shape:
+  // `modelSyncConfigSchema`.
+  'model_sync',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -748,26 +756,8 @@ export const activeErasureClaimsTable = defineTable({
   claimedAt: v.number(),
 }).index('by_org_target', ['organizationId', 'targetUserId']);
 
-/**
- * Org-level package allowlist policy for the `run_code` tool. Replaces the
- * per-skill `packages` allowlist that the old `skill_run` tool enforced;
- * since `run_code` accepts arbitrary inline files with LLM-declared
- * packages, the gate has to move up to org level.
- *
- * Default state (no row for the org) is interpreted as `defaultMode:
- * 'denylist'` + empty arrays = all packages allowed (backward-compatible
- * with pre-policy behavior). Admins are expected to tighten this via the
- * governance UI; the absence of a row never blocks code execution.
- */
-export const orgPackagePolicyTable = defineTable({
-  organizationId: v.string(),
-  defaultMode: v.union(v.literal('allowlist'), v.literal('denylist')),
-  /** Package names without version constraints (matched against the spec's
-   *  base name — `foo==1.2.3` and `foo>=1.0` both match `foo`). */
-  pythonAllow: v.array(v.string()),
-  pythonDeny: v.array(v.string()),
-  nodeAllow: v.array(v.string()),
-  nodeDeny: v.array(v.string()),
-  updatedAt: v.number(),
-  updatedByUserId: v.optional(v.string()),
-}).index('by_organizationId', ['organizationId']);
+// The org-level `run_code` package allowlist moved to the file-based governance
+// policy `run_code` (`<org>/governance/run-code.json`, schema
+// `runCodePolicyConfigSchema`). The legacy `orgPackagePolicy` table was dropped
+// in migration 0.2.87/03; the absence of a file still means "all packages
+// allowed". See `agent_tools/run_code_tool.ts` for the execution-time gate.

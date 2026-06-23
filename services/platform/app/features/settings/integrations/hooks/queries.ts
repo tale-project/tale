@@ -27,11 +27,3 @@ export function useIntegrationCredentials(organizationId: string) {
     organizationId,
   });
 }
-
-// ---------------------------------------------------------------------------
-// SSO (unchanged)
-// ---------------------------------------------------------------------------
-
-export function useSsoProvider() {
-  return useConvexQuery(api.sso_providers.queries.get, {});
-}

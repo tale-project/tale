@@ -17,10 +17,6 @@ vi.mock('@/app/components/ui/data-display/image', () => ({
   Image: (props: Record<string, unknown>) => <img alt="" {...props} />,
 }));
 
-vi.mock('./sso-card', () => ({
-  SSOCard: () => <div data-testid="sso-card">SSO Card</div>,
-}));
-
 vi.mock('./integration-panel', () => ({
   IntegrationPanel: () => <div data-testid="integration-panel" />,
 }));
@@ -52,7 +48,6 @@ function makeIntegration(
 const defaultProps = {
   organizationId: 'org-1',
   integrations: [] as IntegrationListItem[],
-  ssoProvider: null,
   tab: 'all',
   onTabChange: vi.fn(),
   addDialogOpen: false,
@@ -66,11 +61,6 @@ describe('Integrations', () => {
     render(<Integrations {...defaultProps} />);
     expect(screen.getByText('integrations.tabs.all')).toBeInTheDocument();
     expect(screen.getByText('integrations.tabs.connected')).toBeInTheDocument();
-  });
-
-  it('renders SSO card on "all" tab', () => {
-    render(<Integrations {...defaultProps} tab="all" />);
-    expect(screen.getByTestId('sso-card')).toBeInTheDocument();
   });
 
   it('renders integration cards', () => {

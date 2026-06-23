@@ -49,6 +49,14 @@ export const POLICY_TYPES = [
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
+  // Org-level package allowlist/denylist for the `run_code` tool. Missing file
+  // → denylist + empty lists = every package allowed. See
+  // `runCodePolicyConfigSchema`; the execution gate is in
+  // `agent_tools/run_code_tool.ts`.
+  'run_code',
+  // Per-org opt-out for the weekly in-instance provider-config auto-sync cron.
+  // Missing file → enabled. See `modelSyncConfigSchema`.
+  'model_sync',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -641,6 +649,33 @@ export type DsarGovernanceConfig = z.infer<typeof dsarGovernanceConfigSchema>;
 export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
   dsarGovernanceConfigSchema.parse({});
 
+/**
+ * Org-level package allowlist policy for the `run_code` tool. The on-disk
+ * `<org>/governance/run-code.json` is the source of truth; a missing file means
+ * `denylist` + empty lists = every package allowed (the historical "no DB row"
+ * behaviour). Package names carry no version constraint and are matched against
+ * a spec's base name, case-insensitively. The execution-time gate lives in
+ * `convex/agent_tools/run_code_tool.ts`.
+ */
+export const runCodePolicyConfigSchema = z.object({
+  defaultMode: z.enum(['allowlist', 'denylist']).default('denylist'),
+  pythonAllow: z.array(z.string()).default([]),
+  pythonDeny: z.array(z.string()).default([]),
+  nodeAllow: z.array(z.string()).default([]),
+  nodeDeny: z.array(z.string()).default([]),
+});
+export type RunCodePolicyConfig = z.infer<typeof runCodePolicyConfigSchema>;
+
+/**
+ * Per-org opt-out for the weekly in-instance provider-config auto-sync cron
+ * (the job that 3-way-merges fresh OpenRouter facts into each org's provider
+ * JSON). The on-disk `<org>/governance/model-sync.json` is the source of truth;
+ * a missing file means enabled (default on).
+ */
+export const modelSyncConfigSchema = z.object({
+  autoSyncEnabled: z.boolean().default(true),
+});
+
 // ---------------------------------------------------------------------------
 // Per-policy-type schema registry
 // ---------------------------------------------------------------------------
@@ -678,6 +713,8 @@ export const POLICY_SCHEMAS = {
   dsar_governance: dsarGovernanceConfigSchema,
   agent_workforce: agentWorkforceConfigSchema,
   task_automation: taskAutomationConfigSchema,
+  run_code: runCodePolicyConfigSchema,
+  model_sync: modelSyncConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

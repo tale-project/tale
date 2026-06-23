@@ -3,7 +3,7 @@ title: Installer la CLI tale
 description: Installer la CLI tale sur macOS, Linux ou Windows — et la configurer contre ton instance auto-hébergée pour les déploiements et les mises à jour.
 ---
 
-La CLI `tale` est la façon recommandée de faire tourner et d'exploiter Tale. Le [démarrage rapide](/fr/self-hosted/install/quickstart) l'utilise déjà pour monter une instance en local avec `tale init` et `tale start` ; cette page est l'autre moitié — installer la CLI sur une station de travail pour qu'elle puisse piloter une instance _distante_ : déployer de nouvelles versions, lancer des migrations et capturer des diagnostics sans que tu aies à te souvenir de chaque invocation `docker compose`.
+La CLI `tale` est la façon recommandée de faire tourner et d'exploiter Tale. Le [démarrage rapide](/fr/self-hosted/install/quickstart) l'utilise déjà pour monter une instance en local avec `tale init` et `tale dev` ; cette page est l'autre moitié — installer la CLI sur une station de travail pour qu'elle puisse piloter une instance _distante_ : déployer de nouvelles versions, lancer des migrations et capturer des diagnostics sans que tu aies à te souvenir de chaque invocation `docker compose`.
 
 Tout ce que fait la CLI peut aussi se faire directement avec `docker compose` et `ssh`, donc une équipe déjà profondément dans sa propre automatisation peut rester sur compose. Pour tous les autres, la CLI est le chemin le plus court, et le reste de la doc auto-hébergée suppose qu'elle est installée.
 
@@ -55,7 +55,7 @@ Il n'y a pas de `tale config set` — tout ce dont la CLI a besoin vit dans le p
 tale config show
 ```
 
-L'hôte sur lequel le proxy répond, les réglages TLS et tous les secrets vivent dans le `.env` du projet. Pour changer l'hôte, modifie `HOST` là-bas ou passe `--host` à `tale start` / `tale deploy`. Pour piloter un hôte distant, pointe le contexte Docker de ton shell (ou `DOCKER_HOST`) dessus — la CLI parle au même endpoint Docker que n'importe quelle commande `docker`.
+L'hôte sur lequel le proxy répond, les réglages TLS et tous les secrets vivent dans le `.env` du projet. Pour changer l'hôte, modifie `HOST` là-bas ou passe `--host` à `tale dev` / `tale deploy`. Pour piloter un hôte distant, pointe le contexte Docker de ton shell (ou `DOCKER_HOST`) dessus — la CLI parle au même endpoint Docker que n'importe quelle commande `docker`.
 
 La clé admin à usage unique qui revendique le premier compte **Owner** à l'inscription est séparée de la configuration de la CLI — génère-la avec `tale convex admin` au besoin (voir [Premier admin](/fr/self-hosted/install/first-admin)).
 
@@ -96,7 +96,7 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-f, --force` — écraser un `tale.json` existant au lieu d'abandonner.
 - `--no-env` — échafauder le projet mais ignorer la génération du `.env`.
 
-`tale start` — démarrer tous les services localement avec un certificat auto-signé.
+`tale dev` — démarrer tous les services localement avec un certificat auto-signé.
 
 - `-d, --detach` — s'exécuter en arrière-plan au lieu de diffuser les logs.
 - `-p, --port <port>` — port HTTPS à exposer (par défaut `443`).

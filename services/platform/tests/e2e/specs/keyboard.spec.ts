@@ -14,14 +14,8 @@ import { t } from '../helpers/i18n';
  *  - Wizard — the active `WizardStep` is a `tabIndex={-1}` `role="group"`
  *    labelled by the step name that calls `.focus()` on itself when it becomes
  *    active, so keyboard/SR users land on the new content. The add-org flow's
- *    first step is `workspace` (org name + language).
- *
- * The first-run preferences step exposes an ARIA `radiogroup` with arrow-key
- * nav, but that only renders in `first-run` mode (`/setup` with NO users); the
- * shared backend always already has users, so `/setup` redirects an authed
- * no-org user straight into the add-org wizard. The radiogroup is therefore
- * unreachable here and left to its own component coverage — only the step
- * container auto-focus + Tab-into-first-field path is asserted below.
+ *    first step is `workspace` (org name). Only the step container auto-focus +
+ *    Tab-into-first-field path is asserted below.
  */
 
 /**
@@ -63,10 +57,7 @@ baseTest.describe('keyboard & focus (wizard, throwaway no-org user)', () => {
       await baseExpect(activeStep).toBeFocused({ timeout: TIMEOUT.VISIBLE });
 
       // Keyboard navigation works from there: Tab from the focused step
-      // container moves into its first field, the organization-name input. (The
-      // first-run preferences radiogroup with arrow-key selection is NOT
-      // reachable on this shared backend — see the file header — so only this
-      // Tab path is asserted.)
+      // container moves into its first field, the organization-name input.
       await page.keyboard.press('Tab');
       await baseExpect(
         page.getByLabel(t('settings.organization.organizationName')),

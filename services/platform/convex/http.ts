@@ -36,6 +36,15 @@ import {
   deleteDocument,
   documentSubActions,
 } from './documents/rest_api';
+import {
+  ssoDiscoverHandler,
+  ssoAuthorizeHandler,
+  ssoCallbackHandler,
+  ssoSetSessionHandler,
+  samlMetadataHandler,
+  samlLoginHandler,
+  samlAcsHandler,
+} from './enterprise_sso/http_handlers';
 import { imageProxyHandler } from './images/http_actions';
 import {
   executeIntegrationHandler,
@@ -69,11 +78,15 @@ import {
   recordUploadedAction,
 } from './sandbox/sandbox_http';
 import {
-  ssoDiscoverHandler,
-  ssoAuthorizeHandler,
-  ssoCallbackHandler,
-  ssoSetSessionHandler,
-} from './sso_providers/http_handlers';
+  scimGroupResourceHandler,
+  scimGroupsHandler,
+  scimOptionsHandler,
+  scimResourceTypesHandler,
+  scimSchemasHandler,
+  scimServiceProviderConfigHandler,
+  scimUserResourceHandler,
+  scimUsersHandler,
+} from './scim/http_actions';
 import {
   streamChatHttp,
   streamChatHttpOptions,
@@ -839,6 +852,77 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// SAML 2.0 (SP metadata + SP-initiated login + Assertion Consumer Service)
+http.route({
+  path: '/api/sso/saml/metadata',
+  method: 'GET',
+  handler: samlMetadataHandler,
+});
+http.route({
+  path: '/api/sso/saml/login',
+  method: 'GET',
+  handler: samlLoginHandler,
+});
+http.route({
+  path: '/api/sso/saml/acs',
+  method: 'POST',
+  handler: samlAcsHandler,
+});
+
+// SCIM 2.0 provisioning (RFC 7643/7644). Bearer-token authenticated; the
+// org is resolved from the token row inside each handler. See scim/.
+http.route({
+  path: '/scim/v2/ServiceProviderConfig',
+  method: 'GET',
+  handler: scimServiceProviderConfigHandler,
+});
+http.route({
+  path: '/scim/v2/ResourceTypes',
+  method: 'GET',
+  handler: scimResourceTypesHandler,
+});
+http.route({
+  path: '/scim/v2/Schemas',
+  method: 'GET',
+  handler: scimSchemasHandler,
+});
+for (const method of ['GET', 'POST'] as const) {
+  http.route({ path: '/scim/v2/Users', method, handler: scimUsersHandler });
+  http.route({ path: '/scim/v2/Groups', method, handler: scimGroupsHandler });
+}
+for (const method of ['GET', 'PUT', 'PATCH', 'DELETE'] as const) {
+  http.route({
+    pathPrefix: '/scim/v2/Users/',
+    method,
+    handler: scimUserResourceHandler,
+  });
+  http.route({
+    pathPrefix: '/scim/v2/Groups/',
+    method,
+    handler: scimGroupResourceHandler,
+  });
+}
+http.route({
+  path: '/scim/v2/Users',
+  method: 'OPTIONS',
+  handler: scimOptionsHandler,
+});
+http.route({
+  path: '/scim/v2/Groups',
+  method: 'OPTIONS',
+  handler: scimOptionsHandler,
+});
+http.route({
+  pathPrefix: '/scim/v2/Users/',
+  method: 'OPTIONS',
+  handler: scimOptionsHandler,
+});
+http.route({
+  pathPrefix: '/scim/v2/Groups/',
+  method: 'OPTIONS',
+  handler: scimOptionsHandler,
 });
 
 // Trusted Headers Authentication

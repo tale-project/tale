@@ -8,7 +8,7 @@ Tale is the orchestrator for AI agents. You can chat with models over your own d
 
 The product ships in two editions; every feature, API, and role is identical between them. The only thing that differs is who runs the stack. Pick your edition, then jump to the section indexed by what you do day to day.
 
-New here? The fastest path to a running instance is the [self-hosted quickstart](/self-hosted/install/quickstart) — install the CLI, then `tale init` and `tale start`, and you are signed into your own org in minutes.
+New here? The fastest path to a running instance is the [self-hosted quickstart](/self-hosted/install/quickstart) — install the CLI, then `tale init` and `tale dev`, and you are signed into your own org in minutes.
 
 Pick the entry that matches what you are here to do. A **cloud user** who wants Tale to run the stack starts at [Cloud](/cloud). A **self-hoster** standing up an instance on their own infrastructure starts at [Self-hosted](/self-hosted). A **platform builder** — agents, automations, integrations — lives in [Platform](/platform), the canonical feature reference. An **operator** keeping a self-hosted instance patched and observed goes to [Operate](/self-hosted/operate/container-architecture). A **contributor** changing the source starts with [Contributor setup](/develop/contributor-setup).
 

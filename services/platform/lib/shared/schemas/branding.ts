@@ -9,9 +9,12 @@ const hexColorSchema = z
 
 const imageFilenameSchema = z.string().max(100).optional();
 
+// The display name shown as the "app name" is the organization's own name,
+// resolved server-side on read — it is not a stored branding field. Likewise
+// the wordmark falls back to the org name, so there is no `textLogo`. Both were
+// dropped; legacy `branding.json` files that still carry them are tolerated
+// because `z.object` strips unknown keys.
 export const brandingJsonSchema = z.object({
-  appName: z.string().max(100).optional(),
-  textLogo: z.string().max(50).optional(),
   brandColor: hexColorSchema,
   accentColor: hexColorSchema,
   logoFilename: imageFilenameSchema,
@@ -21,8 +24,6 @@ export const brandingJsonSchema = z.object({
 export type BrandingJsonConfig = z.infer<typeof brandingJsonSchema>;
 
 export const brandingFormSchema = z.object({
-  appName: z.string().min(1).max(100),
-  textLogo: z.string().max(50).optional(),
   brandColor: hexColorSchema,
   accentColor: hexColorSchema,
   logoFilename: imageFilenameSchema,

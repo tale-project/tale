@@ -24,7 +24,7 @@ const DEV_COLOR = 'blue' as const;
 
 interface DevComposeOptions {
   /** Project root, used to verify host bind-mount sources exist before
-   *  emitting them. Defaults to process.cwd() (which is what `tale start`
+   *  emitting them. Defaults to process.cwd() (which is what `tale dev`
    *  passes implicitly via the deploy-compose temp-file location). */
   projectDir?: string;
 }

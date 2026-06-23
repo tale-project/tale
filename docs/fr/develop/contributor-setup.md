@@ -53,7 +53,7 @@ L'orchestrateur de dev génère tout ce dont il a besoin, donc une copie locale 
 
 ## Quand un port est occupé
 
-`bun run dev` lie deux ports : 3000 pour l'app Vite et 3210 pour le backend Convex local. Il échoue tout de suite avec un message actionnable quand l'un est pris, parce qu'un repli silencieux vers un autre port casserait le proxy Convex et chaque lien `localhost:3000`. Le coupable habituel est un `bun run dev` ou `tale start` précédent qui n'a pas complètement quitté.
+`bun run dev` lie deux ports : 3000 pour l'app Vite et 3210 pour le backend Convex local. Il échoue tout de suite avec un message actionnable quand l'un est pris, parce qu'un repli silencieux vers un autre port casserait le proxy Convex et chaque lien `localhost:3000`. Le coupable habituel est un `bun run dev` ou `tale dev` précédent qui n'a pas complètement quitté.
 
 Libère le port et relance. La commande qui trouve et arrête le détenteur est celle que `setup:check` et l'orchestrateur suggèrent :
 

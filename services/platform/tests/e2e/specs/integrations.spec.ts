@@ -10,7 +10,7 @@ import { t } from '../helpers/i18n';
  *
  * Connecting an API-key/token integration runs the connector's `testConnection`
  * in the in-process Convex sandbox; its outbound HTTP is redirected by the
- * sandbox rewrite (`TALE_MOCK_INTEGRATIONS_BASE`) to the `@tale/mocks` gateway,
+ * sandbox rewrite (`TALE_MOCK_INTEGRATIONS_BASE`) to the `lib/mocks` gateway,
  * which serves the spec-backed response. So a successful "Connect" proves the
  * shipped connector talks to its API exactly as the OpenAPI spec describes.
  *

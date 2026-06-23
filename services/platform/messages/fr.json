@@ -98,6 +98,7 @@
     "list": {
       "refresh": "Actualiser",
       "error": "Impossible de charger les données : {error}",
+      "notConnected": "Cette intégration n'est pas encore connectée. Connecte-la pour charger les données.",
       "prev": "Précédent",
       "next": "Suivant",
       "page": "Page {page}",
@@ -254,7 +255,8 @@
     "disabled": "Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.",
     "noMembership": "Tu n'es pas membre de cet espace de travail. Merci de contacter un administrateur pour obtenir l'accès.",
     "unauthenticated": "Ta session a expiré. Reconnecte-toi pour continuer.",
-    "deployment": "Tu dois disposer des permissions Admin pour accéder aux paramètres de déploiement."
+    "deployment": "Tu dois disposer des permissions Admin pour accéder aux paramètres de déploiement.",
+    "enterpriseSso": "Vous devez disposer des autorisations Administrateur pour accéder aux paramètres SSO d'entreprise."
   },
   "analytics": {
     "usage": {
@@ -1197,6 +1199,7 @@
       "label": "Sélectionner un modèle",
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
+      "addModel": "Ajouter un modèle",
       "auto": "Auto",
       "autoDescription": "Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.",
       "byoDefault": "Modèle par défaut",
@@ -2551,17 +2554,10 @@
     "stepsAriaLabel": "Étapes d'intégration",
     "progress": "Étape {current} sur {total} : {label}",
     "steps": {
-      "preferences": "Préférences",
       "account": "Compte",
       "workspace": "Espace de travail",
       "provider": "OpenRouter",
       "finish": "Terminer"
-    },
-    "preferences": {
-      "heading": "Personnalise",
-      "why": "Choisis ta langue et ton thème. Tu peux les changer à tout moment.",
-      "languageLabel": "Langue",
-      "themeLabel": "Thème"
     },
     "account": {
       "heading": "Crée ton compte propriétaire",
@@ -4261,6 +4257,10 @@
     "sandboxes": {
       "title": "Sandboxes",
       "description": "Gérez les sandboxes d’agent distant de votre organisation."
+    },
+    "enterpriseSso": {
+      "title": "SSO d'entreprise",
+      "description": "Configurer l'authentification unique et le provisionnement SCIM."
     }
   },
   "navigation": {
@@ -4302,7 +4302,8 @@
     },
     "dataResidency": "Résidence des données",
     "runtimes": "Runtimes",
-    "sandboxes": "Sandboxes"
+    "sandboxes": "Sandboxes",
+    "enterpriseSso": "SSO d'entreprise"
   },
   "notifications": {
     "title": "Notifications",
@@ -4848,12 +4849,13 @@
     "menu": {
       "groups": {
         "you": "Toi",
-        "workspace": "Espace de travail",
-        "governance": "Gouvernance"
+        "organization": "Organisation",
+        "development": "Développement"
       },
       "railSections": {
         "personal": "Personnel",
-        "organization": "Organisation"
+        "organization": "Organisation",
+        "development": "Développement"
       },
       "account": {
         "description": "Ton profil, ta connexion et ta sécurité."
@@ -4899,6 +4901,12 @@
       },
       "sandboxes": {
         "description": "Gérer les sandboxes d’agent distant toujours actives."
+      },
+      "enterpriseSso": {
+        "description": "Authentification unique et synchronisation d’annuaire pour ton personnel."
+      },
+      "dataResidency": {
+        "description": "Où tes données sont stockées et traitées."
       }
     },
     "tokenSources": {
@@ -5106,7 +5114,7 @@
       },
       "navigation": {
         "general": "Général",
-        "instructionsModel": "Instructions et modèle",
+        "instructionsModel": "Instructions et modèles",
         "tools": "Outils",
         "skills": "Skills",
         "knowledge": "Base de connaissances",
@@ -5170,7 +5178,7 @@
         "sectionInstructionsDescription": "Définis le comportement et la personnalité de l'agent",
         "templateVariablesLabel": "Variables de modèle disponibles",
         "templateVariablesDescription": "Utilise ces variables dans tes instructions — elles seront résolues à l'exécution.",
-        "sectionModel": "Modèle",
+        "sectionModel": "Modèles",
         "sectionModelDescription": "Configure les modèles IA pour cet agent. Le premier modèle est le modèle principal utilisé pour la génération. Les modèles supplémentaires servent de modèles de secours ordonnés — si le modèle principal est indisponible, l'agent essaie automatiquement le modèle suivant dans la liste.",
         "sectionTools": "Outils",
         "sectionToolsDescription": "Sélectionne les outils que cet agent peut utiliser",
@@ -5646,8 +5654,7 @@
         "disconnectConfirmDescription": "Es-tu sûr de vouloir déconnecter cette intégration ? Tu pourras la reconnecter ultérieurement.",
         "deleteConfirmTitle": "Supprimer l'intégration",
         "deleteConfirmDescription": "Es-tu sûr de vouloir supprimer cette intégration ? Cette action est irréversible.",
-        "deleteIntegration": "Supprimer l'intégration",
-        "saveChanges": "Enregistrer les modifications"
+        "deleteIntegration": "Supprimer l'intégration"
       },
       "authMethods": {
         "api_key": "Clé API",
@@ -5655,85 +5662,114 @@
         "basic_auth": "Authentification basique",
         "oauth2": "OAuth2"
       },
-      "sso": {
-        "name": "Authentification unique",
-        "description": "Provisionnement automatique des équipes et des rôles via Microsoft Entra ID SSO.",
-        "validationError": "Erreur de validation",
-        "allFieldsRequired": "Tous les champs sont requis",
-        "configureSuccessful": "Configuration réussie",
-        "updateSuccessful": "Mise à jour réussie",
-        "ssoConfigured": "Le fournisseur SSO a été configuré avec succès",
-        "configureFailed": "Échec de la configuration",
-        "configureError": "Échec de la configuration du fournisseur SSO",
-        "disconnected": "Déconnecté",
-        "ssoDisconnected": "Le fournisseur SSO a été supprimé",
-        "disconnectFailed": "Échec de la déconnexion",
-        "disconnectError": "Échec de la suppression du fournisseur SSO",
-        "roleMappingRulesLabel": "Règles de correspondance des rôles",
-        "roleMappingRulesHelp": "Définis des règles pour associer les intitulés de poste ou rôles d'application aux rôles de la plateforme. Utilise * comme caractère générique (ex., *développeur*).",
-        "sourceJobTitle": "Intitulé de poste",
-        "sourceAppRole": "Rôle d'application",
-        "addRule": "Ajouter une règle",
-        "testSuccessful": "Connexion réussie",
-        "testSuccessfulDescription": "Les identifiants SSO ont été validés avec succès",
-        "testFailed": "Échec de la connexion",
-        "testFailedDescription": "Échec de la validation des identifiants SSO",
-        "testError": "Une erreur s'est produite lors du test de connexion",
-        "roleAdmin": "Admin",
-        "roleDeveloper": "Développeur",
-        "roleEditor": "Éditeur",
-        "roleMember": "Membre",
-        "roleDisabled": "Désactivé",
-        "autoProvisionRoleHelp": "Attribuer automatiquement des rôles en fonction de l'intitulé de poste ou des rôles d'application depuis Entra ID",
-        "autoProvisionRoleLabel": "Provisionnement automatique des rôles",
-        "autoProvisionTeamHelp": "Synchroniser automatiquement les appartenances aux équipes depuis les groupes Entra ID",
-        "autoProvisionTeamLabel": "Provisionnement automatique des équipes",
-        "clientIdHelp": "L'ID d'application (client) depuis l'inscription d'application Azure",
-        "clientIdLabel": "ID client",
-        "clientSecretHelp": "Le secret client depuis l'inscription d'application Azure",
-        "clientSecretLabel": "Secret client",
-        "configuring": "Configuration...",
-        "connectedToEntra": "Connecté à Microsoft Entra ID",
-        "defaultRoleHelp": "Rôle attribué lorsqu'aucune règle de correspondance ne s'applique",
-        "defaultRoleHelpNoAutoProvision": "Rôle attribué à tous les utilisateurs SSO",
-        "defaultRoleLabel": "Rôle par défaut",
-        "excludeGroupsHelp": "Liste de groupes Entra séparés par des virgules à exclure de la synchronisation des équipes",
-        "excludeGroupsLabel": "Exclure des groupes",
-        "issuerHelp": "L'URL de l'émetteur OIDC pour ton locataire Entra ID",
+      "enterpriseSso": {
+        "description": "Authentification unique (OIDC, OAuth2, SAML) et provisionnement SCIM des utilisateurs et des groupes.",
+        "connected": "La connexion est activée.",
+        "copied": "Copié dans le presse-papiers",
+        "copy": "Copier",
+        "protocolLabel": "Protocole",
+        "protocolHelp": "Choisissez le mode de connexion des utilisateurs. Les points de terminaison OIDC sont détectés automatiquement.",
+        "protocol": {
+          "entra": "Microsoft Entra ID",
+          "oidc": "OIDC générique",
+          "oauth2": "OAuth2",
+          "saml": "SAML 2.0"
+        },
+        "displayNameLabel": "Nom affiché",
+        "domainLabel": "Domaine de messagerie",
+        "domainHelp": "Facultatif — orienter les utilisateurs de ce domaine vers cette connexion.",
+        "signInSection": "Connexion",
         "issuerLabel": "URL de l'émetteur",
-        "oneDriveAccessHelp": "Permettre aux utilisateurs d'accéder aux fichiers OneDrive et SharePoint en utilisant leurs identifiants SSO",
-        "oneDriveAccessLabel": "Activer l'accès OneDrive/SharePoint",
-        "testConnection": "Tester la connexion",
-        "testPassed": "Valide",
-        "testing": "Test en cours...",
-        "title": "Configuration SSO",
-        "updating": "Mise à jour...",
-        "providerTypeLabel": "Type de fournisseur",
-        "providerTypeHelp": "Microsoft Entra ID utilise Microsoft Graph pour la synchronisation des équipes et de OneDrive. OIDC générique fonctionne avec n'importe quel fournisseur OpenID Connect et lit ses points de terminaison depuis la configuration publiée par l'émetteur.",
-        "providerTypeEntra": "Microsoft Entra ID",
-        "providerTypeGeneric": "OIDC générique",
-        "descriptionGeneric": "Connecte-toi avec n'importe quel fournisseur d'identité OpenID Connect, comme Keycloak, Auth0, Okta ou Google.",
-        "issuerHelpGeneric": "L'URL de l'émetteur OIDC. Tale lit les points de terminaison d'autorisation, de jeton et userinfo depuis le document .well-known/openid-configuration de l'émetteur.",
-        "clientIdHelpGeneric": "L'ID client fourni par ton fournisseur OIDC",
-        "clientSecretHelpGeneric": "Le secret client fourni par ton fournisseur OIDC",
-        "connectedToGeneric": "Connecté à ton fournisseur OIDC",
-        "autoProvisionRoleHelpGeneric": "Attribuer automatiquement des rôles selon les claims renvoyés par ton fournisseur OIDC",
-        "sourceGroup": "Groupe",
-        "sourceClaim": "Claim",
-        "ruleSourceLabel": "Source de la règle",
-        "rulePatternLabel": "Motif",
-        "ruleTargetRoleLabel": "Rôle cible",
-        "removeRule": "Supprimer la règle",
-        "claimPathLabel": "Chemin du claim",
-        "roleMappingRulesHelpGeneric": "Définis des règles pour associer les groupes ou valeurs de claims aux rôles de la plateforme. Utilise * comme caractère générique (ex., *admin*). Les règles de claim prennent un chemin en notation pointée dans les claims userinfo (ex., realm_access.roles).",
-        "emailClaimLabel": "Claim d'e-mail",
-        "emailClaimHelp": "Claim userinfo qui contient l'e-mail de l'utilisateur. Laisse vide pour utiliser le claim e-mail standard.",
-        "nameClaimLabel": "Claim de nom",
-        "nameClaimHelp": "Claim userinfo qui contient le nom d'affichage de l'utilisateur. Laisse vide pour utiliser le claim de nom standard.",
-        "groupsClaimLabel": "Claim de groupes",
-        "groupsClaimHelp": "Claim userinfo qui contient les groupes de l'utilisateur, en notation pointée (ex., realm_access.roles). Laisse vide pour utiliser le claim groups standard.",
-        "autoProvisionTeamHelpGeneric": "Synchroniser automatiquement les appartenances aux équipes depuis les groupes renvoyés par ton fournisseur OIDC",
-        "excludeGroupsHelpGeneric": "Liste de groupes séparés par des virgules à exclure de la synchronisation des équipes"
+        "authzEndpointLabel": "Point de terminaison d'autorisation",
+        "tokenEndpointLabel": "Point de terminaison du jeton",
+        "userinfoEndpointLabel": "Point de terminaison userinfo",
+        "clientIdLabel": "ID client",
+        "clientSecretLabel": "Secret client",
+        "clientSecretKeep": "Laisser vide pour conserver le secret actuel.",
+        "scopesLabel": "Scopes",
+        "pkceLabel": "Utiliser PKCE",
+        "idpEntityIdLabel": "ID d'entité de l'IdP",
+        "idpSsoUrlLabel": "URL de connexion de l'IdP",
+        "idpCertLabel": "Certificat de signature de l'IdP (PEM)",
+        "idpCertHelp": "Le certificat X.509 avec lequel l'IdP signe les assertions.",
+        "spMetadataLabel": "URL des métadonnées SP",
+        "acsUrlLabel": "URL ACS (réponse)",
+        "provisioningSection": "Provisionnement",
+        "defaultRoleLabel": "Rôle par défaut",
+        "role": {
+          "admin": "Administrateur",
+          "developer": "Développeur",
+          "editor": "Éditeur",
+          "member": "Membre"
+        },
+        "autoRoleLabel": "Attribuer automatiquement les rôles depuis l'IdP",
+        "autoTeamLabel": "Synchroniser les groupes de l'IdP avec les équipes",
+        "excludeGroupsLabel": "Exclure des groupes",
+        "excludeGroupsHelp": "Noms de groupes séparés par des virgules à ignorer lors de la synchronisation.",
+        "scim": {
+          "section": "Provisionnement SCIM",
+          "help": "Laissez votre IdP transmettre automatiquement les utilisateurs et les groupes (création, mise à jour, désactivation).",
+          "enabled": "Activé",
+          "disabled": "Désactivé",
+          "tokenCreatedHelp": "Copiez ce jeton maintenant — il ne sera plus affiché.",
+          "regenerate": "Régénérer le jeton",
+          "generate": "Générer un jeton",
+          "disable": "Désactiver",
+          "baseUrlLabel": "URL de base SCIM",
+          "tokenFailed": "Échec de la génération du jeton SCIM"
+        },
+        "disable": "Désactiver la connexion",
+        "remove": "Supprimer",
+        "test": "Tester la connexion",
+        "saved": "Enregistré",
+        "saveFailed": "Échec de l'enregistrement",
+        "testOk": "La connexion semble correcte",
+        "testFailed": "Échec du test de connexion",
+        "testMissingFields": "Renseignez les champs requis avant de tester.",
+        "formHint": "Configurez la manière dont les membres se connectent, puis enregistrez vos modifications depuis l'en-tête.",
+        "validation": {
+          "required": "Ce champ est requis.",
+          "url": "Saisissez une URL valide (avec https://)."
+        },
+        "guide": {
+          "title": "Guide de configuration",
+          "redirectLabel": "URL de redirection / de rappel",
+          "samlIntro": "Créez une application SAML dans votre IdP à l'aide de l'URL des métadonnées SP et de l'URL ACS affichées dans la section Connexion ci-dessus.",
+          "entra": {
+            "intro": "Enregistrez une application dans le centre d'administration Microsoft Entra, puis saisissez ses informations ci-dessous.",
+            "s1": "Connectez-vous au centre d'administration Microsoft Entra (entra.microsoft.com) en tant que développeur d'applications au minimum.",
+            "s2": "Allez dans Entra ID › Inscriptions d'applications › Nouvelle inscription ; nommez-la et choisissez « Locataire unique ».",
+            "s3": "Sous URI de redirection, sélectionnez la plateforme « Web », collez l'URL de redirection affichée ci-dessus, puis cliquez sur Inscrire.",
+            "s4": "Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de répertoire (locataire). L'URL de l'émetteur est https://login.microsoftonline.com/{tenant-id}/v2.0.",
+            "s5": "Allez dans Certificats et secrets › Nouveau secret client et copiez la Valeur du secret (pas son ID).",
+            "s6": "Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les champs ci-dessus.",
+            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur."
+          },
+          "google": {
+            "intro": "Créez un client OAuth dans la console Google Cloud, puis saisissez ses informations ci-dessous.",
+            "s1": "Dans la console Google Cloud, ouvrez API et services › Identifiants › Créer des identifiants › ID client OAuth.",
+            "s2": "Choisissez le type d'application « Application Web ».",
+            "s3": "Sous URI de redirection autorisés, ajoutez l'URL de redirection affichée ci-dessus et enregistrez.",
+            "s4": "Copiez l'ID client et le secret client affichés en haut de la page du client.",
+            "s5": "Saisissez-les ci-dessus avec l'URL de l'émetteur https://accounts.google.com — les points de terminaison sont détectés automatiquement.",
+            "groupsNote": "Remarque : l'OIDC standard de Google ne renvoie pas les appartenances aux groupes — la synchronisation groupe→équipe nécessite l'Admin SDK / l'API Cloud Identity avec un administrateur Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak) fonctionnent de la même manière : saisissez l'URL de l'émetteur et les identifiants client."
+          },
+          "oauth2": {
+            "intro": "Pour les fournisseurs sans découverte OIDC, configurez les points de terminaison manuellement.",
+            "s1": "Enregistrez une application Web/OAuth2 chez votre fournisseur et ajoutez l'URL de redirection affichée ci-dessus.",
+            "s2": "Copiez l'ID client et le secret client.",
+            "s3": "Saisissez les URL des points de terminaison d'autorisation, de jeton et userinfo depuis la documentation de votre fournisseur.",
+            "s4": "Si votre fournisseur utilise des noms de claims non standard, mappez e-mail/nom/groupes sous « Avancé »."
+          },
+          "saml": {
+            "intro": "Configurez une application SAML 2.0 dans votre IdP, puis saisissez ses informations ci-dessous.",
+            "s1": "Dans votre IdP, créez une nouvelle application SAML 2.0.",
+            "s2": "Définissez l'URL ACS (Assertion Consumer Service) et l'Entity ID / Audience avec les valeurs SP affichées ci-dessus, ou importez l'URL des métadonnées SP.",
+            "s3": "Définissez le format du Name ID sur adresse e-mail.",
+            "s4": "Copiez l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de signature de l'IdP (PEM) dans les champs ci-dessus.",
+            "s5": "Mappez les attributs e-mail, nom et groupe dans votre IdP ; si leurs noms diffèrent, indiquez les noms d'attributs correspondants sous « Avancé »."
+          }
+        }
       }
     },
     "providers": {
@@ -6401,24 +6437,17 @@
       }
     },
     "branding": {
-      "appName": "Nom de l'application",
-      "appNamePlaceholder": "ex., Acme corp",
-      "textLogo": "Logo texte",
-      "textLogoPlaceholder": "ex., Acme",
       "logo": "Logo",
       "logoDescription": "Téléverse le logo de ton organisation",
       "favicon": "Favicon",
-      "faviconDescription": "64 x 64 pixels",
+      "faviconDescription": "Généré à partir de ton logo si laissé vide. 64 x 64 pixels.",
       "light": "Clair",
       "dark": "Sombre",
       "brandColor": "Couleur de marque",
       "accentColor": "Couleur d'accentuation",
       "uploadLogo": "Téléverser le logo",
       "uploadFavicon": "Téléverser le favicon",
-      "preview": "Aperçu de la marque",
-      "validation": {
-        "appNameRequired": "Le nom de l'application est requis"
-      }
+      "preview": "Aperçu de la marque"
     },
     "dataResidency": {
       "readOnly": {
@@ -6818,7 +6847,8 @@
       "existingUserAdded": "Utilisateur existant ajouté à l'organisation",
       "automationDuplicated": "Automatisation dupliquée avec succès",
       "automationRenamed": "Automatisation renommée avec succès",
-      "brandingUpdated": "Image de marque mise à jour avec succès"
+      "brandingUpdated": "Image de marque mise à jour avec succès",
+      "faviconGenerated": "Favicon généré à partir de ton logo"
     },
     "error": {
       "saveFailed": "Échec de l'enregistrement des modifications",
@@ -7583,7 +7613,8 @@
       "generic": "Impossible de mettre à jour l'organigramme."
     },
     "empty": {
-      "noAgents": "Pas encore d'agents — crée des agents, puis organise-les ici."
+      "title": "Aucun agent pour l'instant",
+      "description": "Ajoute des agents à ta main-d'œuvre, puis organise ici la façon dont ils délèguent le travail."
     },
     "humans": {
       "title": "Humains",

@@ -57,7 +57,7 @@ export async function resolveProjectContext(projectDir: string): Promise<void> {
 /**
  * Like `resolveProjectContext`, but if the project has no `id` yet (legacy
  * project pre-dating per-project isolation) auto-assigns one, persists it
- * atomically, and proceeds. This is a UX smoothing for `tale start` /
+ * atomically, and proceeds. This is a UX smoothing for `tale dev` /
  * `tale deploy` so users don't have to run `tale update` as a separate step.
  *
  * An invalid (non-empty but malformed) ID still throws — it signals

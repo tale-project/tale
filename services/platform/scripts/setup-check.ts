@@ -116,7 +116,7 @@ async function checkPort(
     hard: true,
     detail: inUse ? 'in use' : 'free',
     remediation: inUse
-      ? `Free port ${port} — \`lsof -nP -iTCP:${port} -sTCP:LISTEN\` shows the PID, then \`kill <PID>\`. A leftover \`bun run dev\` / \`tale start\` is the usual cause.`
+      ? `Free port ${port} — \`lsof -nP -iTCP:${port} -sTCP:LISTEN\` shows the PID, then \`kill <PID>\`. A leftover \`bun run dev\` / \`tale dev\` is the usual cause.`
       : undefined,
   };
 }
