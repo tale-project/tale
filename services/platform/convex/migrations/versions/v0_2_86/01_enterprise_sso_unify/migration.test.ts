@@ -8,7 +8,7 @@ import {
 } from '../../../framework/test_helpers';
 import { meta } from './meta';
 
-const DIR = 'migrations/versions/v0_2_85/04_enterprise_sso_unify';
+const DIR = 'migrations/versions/v0_2_86/01_enterprise_sso_unify';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
 
 const ORG = 'org_sso_migrate';
@@ -41,7 +41,7 @@ async function seedLegacyProvider(t: ReturnType<typeof convexTest>) {
   });
 }
 
-describe('0.2.85/04 enterprise_sso_unify', () => {
+describe('0.2.86/01 enterprise_sso_unify', () => {
   it('up maps ssoProviders → ssoConnections; down deletes it', async () => {
     const t = convexTest(historicalSchema, modules);
     await seedLegacyProvider(t);
@@ -88,7 +88,7 @@ describe('0.2.85/04 enterprise_sso_unify', () => {
 
     // Down removes the migration-created connection.
     await t.action(internal.migrations.framework.entrypoints.applyDown, {
-      to: '0.2.84',
+      to: '0.2.85',
       only: [meta.id],
     });
     expect(
@@ -112,7 +112,7 @@ describe('0.2.85/04 enterprise_sso_unify', () => {
     expect(row?.status).toBe('applied');
 
     await t.action(internal.migrations.framework.entrypoints.applyDown, {
-      to: '0.2.84',
+      to: '0.2.85',
       only: [meta.id],
     });
     row = await t.run((ctx) =>

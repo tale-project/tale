@@ -63,9 +63,7 @@ function toStringArray(value: unknown): string[] {
     : [];
 }
 
-function toRoleRules(
-  value: unknown,
-): {
+function toRoleRules(value: unknown): {
   source: RoleSource;
   pattern: string;
   targetRole: PlatformRole;

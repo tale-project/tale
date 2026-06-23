@@ -30,8 +30,8 @@ import { migration as gov02 } from '../versions/v0_2_85/02_dsar_pending_table_sp
 import { meta as gov02Meta } from '../versions/v0_2_85/02_dsar_pending_table_split/meta';
 import { migration as gov03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables';
 import { meta as gov03Meta } from '../versions/v0_2_85/03_drop_legacy_governance_tables/meta';
-import { migration as ssoUnify } from '../versions/v0_2_85/04_enterprise_sso_unify';
-import { meta as ssoUnifyMeta } from '../versions/v0_2_85/04_enterprise_sso_unify/meta';
+import { migration as ssoUnify } from '../versions/v0_2_86/01_enterprise_sso_unify';
+import { meta as ssoUnifyMeta } from '../versions/v0_2_86/01_enterprise_sso_unify/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**

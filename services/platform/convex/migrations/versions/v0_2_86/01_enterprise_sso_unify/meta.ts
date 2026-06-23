@@ -1,7 +1,7 @@
 import type { MigrationMeta } from '../../../framework/types';
 
 /**
- * 0.2.85 / 04 — migrate the legacy per-org `ssoProviders` row to the unified
+ * 0.2.86 / 01 — migrate the legacy per-org `ssoProviders` row to the unified
  * `ssoConnections` model.
  *
  * The unified Enterprise SSO feature reads sign-in config from `ssoConnections`
@@ -17,9 +17,9 @@ import type { MigrationMeta } from '../../../framework/types';
  * connection. Reversible — `down` deletes the connection created for the org.
  */
 export const meta: MigrationMeta = {
-  id: '0.2.85/04_enterprise_sso_unify',
-  semver: '0.2.85',
-  numericId: 4,
+  id: '0.2.86/01_enterprise_sso_unify',
+  semver: '0.2.86',
+  numericId: 1,
   slug: 'enterprise_sso_unify',
   title: 'Migrate ssoProviders into the unified ssoConnections model',
   description:
