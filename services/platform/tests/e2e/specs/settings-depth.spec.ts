@@ -172,7 +172,7 @@ test.describe('settings depth — API keys', () => {
 });
 
 test.describe('settings depth — branding', () => {
-  test('sets the app name + brand color, persists across reload, and restores', async ({
+  test('sets the brand color, persists across reload, and restores', async ({
     page,
     org,
   }) => {
@@ -183,26 +183,20 @@ test.describe('settings depth — branding', () => {
       page.getByRole('heading', { name: t('navigation.branding'), level: 2 }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    const appNameField = page.getByLabel(t('settings.branding.appName'));
-    await expect(appNameField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(appNameField).toBeEnabled();
-
-    // Capture originals. A fresh org has no branding file, so the app name is
-    // typically empty; the brand-color hex control holds the value WITHOUT the
-    // leading `#` (see ColorPickerInput) and starts empty too.
-    const originalAppName = await appNameField.inputValue();
+    // The app name is no longer an editable field — the chrome follows the
+    // organization's name. The brand color is the form's editable text field.
     // `${label} hex value` is the composed aria-label of the brand-color text
     // input (a non-i18n composition the control builds from its label prop).
     const brandColorField = page.getByLabel(
       `${t('settings.branding.brandColor')} hex value`,
     );
+    await expect(brandColorField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(brandColorField).toBeEnabled();
+
+    // A fresh org has no branding file, so the brand color starts empty.
     const originalBrandColor = await brandColorField.inputValue();
 
-    // The branding form's schema requires a non-empty app name to save, so the
-    // mutate sets BOTH the app name and the brand color.
-    const newAppName = `E2E Brand ${Date.now().toString(36)}`;
     const newBrandColorHex = '123456'; // 6 hex digits; the control prepends `#`.
-    await appNameField.fill(newAppName);
     await brandColorField.fill(newBrandColorHex);
 
     const save = visibleSaveButton(page);
@@ -210,38 +204,27 @@ test.describe('settings depth — branding', () => {
     await save.click();
 
     // Commit gate: wait for the success toast BEFORE reloading. Reloading
-    // mid-save aborts the in-flight mutation, so the reloaded app name would
-    // still be the original; the toast is the commit signal. Persistence is
-    // asserted off the reloaded FIELD below, not the toast.
+    // mid-save aborts the in-flight mutation; the toast is the commit signal.
+    // Persistence is asserted off the reloaded FIELD below, not the toast.
     await expect(
       page.getByText(t('toast.success.brandingUpdated')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Reload and assert the persisted app name (not the transient toast).
-    await reloadAndSettle(page, appNameField);
-    await expect(appNameField).toHaveValue(newAppName, {
+    await reloadAndSettle(page, brandColorField);
+    await expect(brandColorField).toHaveValue(/123456/i, {
       timeout: TIMEOUT.PERSIST,
     });
 
-    // Restore. The form can only persist a non-empty app name (schema
-    // `min(1)`); when the captured original was empty (the fixture default)
-    // there is no UI path to re-save an empty value, so the field is cleared
-    // back to its original in the form and the brand color reverted — branding
-    // is display-only and read by no other depth spec, so a lingering app name
-    // is inert. When the original was non-empty, the restore is saved end-to-end.
-    await appNameField.fill(originalAppName);
+    // Restore. The brand color is optional, so an empty value is a valid saved
+    // state — the restore always round-trips end-to-end.
     await brandColorField.fill(originalBrandColor.replace('#', ''));
-
-    if (originalAppName !== '') {
-      const restoreSave = visibleSaveButton(page);
-      await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
-      await restoreSave.click();
-      // Commit gate before the restore reload (same race as the initial save).
-      await expect(
-        page.getByText(t('toast.success.brandingUpdated')).first(),
-      ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      await reloadAndSettle(page, appNameField);
-    }
-    await expect(appNameField).toHaveValue(originalAppName, {
+    const restoreSave = visibleSaveButton(page);
+    await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
+    await restoreSave.click();
+    await expect(
+      page.getByText(t('toast.success.brandingUpdated')).first(),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await reloadAndSettle(page, brandColorField);
+    await expect(brandColorField).toHaveValue(originalBrandColor, {
       timeout: TIMEOUT.PERSIST,
     });
   });

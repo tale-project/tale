@@ -12,12 +12,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CatalogGrid } from '@/app/components/catalog/catalog-grid';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 import { IntegrationCard } from './integration-card';
 import { IntegrationPanel } from './integration-panel';
 import { IntegrationUploadDialog } from './integration-upload/integration-upload-dialog';
-import { SSOCard } from './sso-card';
 
 /** Number of placeholder cards rendered while the integration list loads. */
 const PLACEHOLDER_CARD_COUNT = 6;
@@ -68,7 +66,6 @@ export interface IntegrationListItem {
 interface IntegrationsProps {
   organizationId: string;
   integrations: IntegrationListItem[];
-  ssoProvider: SsoProvider | null;
   tab?: string;
   onTabChange: (tab: string) => void;
   /** Deep-link target — opens the matching integration's detail panel once. */
@@ -89,7 +86,6 @@ interface IntegrationsProps {
 export function Integrations({
   organizationId,
   integrations,
-  ssoProvider,
   tab = 'all',
   onTabChange,
   initialSlug,
@@ -130,7 +126,6 @@ export function Integrations({
     return filtered;
   }, [integrations, tab, searchQuery]);
 
-  const isSsoVisible = tab === 'all' || (tab === 'connected' && !!ssoProvider);
   const showSearch = searchQuery.trim().length > 0;
 
   // Nothing to search on the Connected tab when no integration is connected.
@@ -198,14 +193,8 @@ export function Integrations({
             ))}
           </CatalogGrid>
         </Skeletonize>
-      ) : filteredIntegrations.length > 0 || (isSsoVisible && !showSearch) ? (
+      ) : filteredIntegrations.length > 0 ? (
         <CatalogGrid>
-          {isSsoVisible && !showSearch && (
-            <SSOCard
-              organizationId={organizationId}
-              ssoProvider={ssoProvider}
-            />
-          )}
           {filteredIntegrations.map((integration) => (
             <IntegrationCard
               key={integration.slug}

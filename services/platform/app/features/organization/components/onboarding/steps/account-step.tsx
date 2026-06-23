@@ -19,6 +19,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
+import { DEFAULT_PASSWORD_POLICY } from '@/lib/shared/schemas/governance';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 type AccountFormData = {
@@ -47,7 +48,9 @@ export function AccountStep() {
           .min(1, t('validation.emailRequired'))
           .email(tCommon('validation.email')),
         password: createPasswordSchema({
-          minLength: t('validation.passwordMinLength'),
+          minLength: t('validation.passwordMinLength', {
+            n: DEFAULT_PASSWORD_POLICY.minLength,
+          }),
           lowercase: t('validation.passwordLowercase'),
           uppercase: t('validation.passwordUppercase'),
           number: t('validation.passwordNumber'),

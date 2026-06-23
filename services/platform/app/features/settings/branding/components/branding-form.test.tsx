@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import {
@@ -20,10 +26,22 @@ vi.mock('@/app/hooks/use-toast', () => ({
 
 // Mock branding mutations
 const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
+const mockSaveImage = vi
+  .fn()
+  .mockResolvedValue({ filename: 'favicon-light.png' });
 vi.mock('../hooks/mutations', () => ({
   useSaveBranding: () => ({ mutateAsync: mockMutateAsync }),
   useSnapshotBrandingHistory: () => ({ mutateAsync: mockMutateAsync }),
   useDeleteImage: () => ({ mutateAsync: mockMutateAsync }),
+  useSaveImage: () => ({ mutateAsync: mockSaveImage }),
+}));
+
+// Mock favicon derivation (jsdom has no canvas; the predicate is tested
+// directly in derive-favicon.test.ts).
+const mockDerive = vi.fn().mockResolvedValue('BASE64PNG');
+vi.mock('@/lib/utils/image/derive-favicon', () => ({
+  deriveFaviconPngBase64: (file: File) => mockDerive(file),
+  shouldDeriveFavicon: () => true,
 }));
 
 // Mock branding context
@@ -38,10 +56,24 @@ vi.mock('@/app/components/ui/data-display/image', () => ({
   ),
 }));
 
-// Mock ImageUploadField
+// Mock ImageUploadField — clicking fires `onUpload(filename, file)` so the
+// form's upload wiring (incl. favicon derivation) can be exercised.
 vi.mock('./image-upload-field', () => ({
-  ImageUploadField: (props: { ariaLabel?: string; label?: string }) => (
-    <button data-testid={`upload-${props.ariaLabel ?? ''}`}>
+  ImageUploadField: (props: {
+    ariaLabel?: string;
+    label?: string;
+    imageType: string;
+    onUpload: (filename: string, file: File) => void;
+  }) => (
+    <button
+      data-testid={`upload-${props.imageType}`}
+      onClick={() =>
+        props.onUpload(
+          `${props.imageType}.png`,
+          new File(['x'], `${props.imageType}.png`, { type: 'image/png' }),
+        )
+      }
+    >
       {props.label ?? 'upload'}
     </button>
   ),
@@ -62,53 +94,49 @@ describe('BrandingForm', () => {
     onPreviewChange: vi.fn(),
   };
 
-  it('renders all form fields', () => {
+  it('renders the editable branding fields (no app-name / text-logo)', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(
-      screen.getByLabelText('branding.appName', { exact: false }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText('branding.textLogo', { exact: false }),
-    ).toBeInTheDocument();
     expect(screen.getByText('branding.logo')).toBeInTheDocument();
     expect(screen.getByText('branding.favicon')).toBeInTheDocument();
     expect(screen.getByText('branding.brandColor')).toBeInTheDocument();
     expect(screen.getByText('branding.accentColor')).toBeInTheDocument();
+
+    // App name and text logo are no longer editable — the chrome follows the
+    // organization's name.
+    expect(screen.queryByText('branding.appName')).not.toBeInTheDocument();
+    expect(screen.queryByText('branding.textLogo')).not.toBeInTheDocument();
   });
 
-  // Save/Discard are rendered by the parent settings TabNavigation via the
-  // active-editor registry — BrandingForm no longer owns those buttons.
-
-  it('populates form with existing branding data', () => {
+  it('feeds the organization name into the preview', () => {
+    const onPreviewChange = vi.fn();
     render(
       <BrandingForm
         {...defaultProps}
-        branding={{
-          appName: 'Existing App',
-          textLogo: 'EA',
-          brandColor: '#FF0000',
-          accentColor: '#00FF00',
-        }}
+        onPreviewChange={onPreviewChange}
+        branding={{ appName: 'Acme Corp' }}
       />,
     );
 
-    expect(
-      screen.getByLabelText('branding.appName', { exact: false }),
-    ).toHaveValue('Existing App');
-    expect(
-      screen.getByLabelText('branding.textLogo', { exact: false }),
-    ).toHaveValue('EA');
+    expect(onPreviewChange).toHaveBeenCalledWith(
+      expect.objectContaining({ appName: 'Acme Corp' }),
+    );
   });
 
-  it('calls onPreviewChange with form values', () => {
-    const onPreviewChange = vi.fn();
-    render(
-      <BrandingForm {...defaultProps} onPreviewChange={onPreviewChange} />,
-    );
+  it('derives a favicon from the logo when none is set', async () => {
+    render(<BrandingForm {...defaultProps} />);
 
-    // Initial call with default empty values
-    expect(onPreviewChange).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('upload-logo'));
+
+    await waitFor(() => expect(mockDerive).toHaveBeenCalled());
+    expect(mockSaveImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org_test',
+        type: 'favicon-light',
+        base64: 'BASE64PNG',
+        mimeType: 'image/png',
+      }),
+    );
   });
 
   it('renders favicon upload fields with light and dark labels', () => {
@@ -145,10 +173,7 @@ describe('BrandingForm', () => {
   it('marks the active editor dirty when the brand color changes', () => {
     render(
       <ActiveEditorProvider>
-        <BrandingForm
-          {...defaultProps}
-          branding={{ appName: 'App', brandColor: '#FF0000' }}
-        />
+        <BrandingForm {...defaultProps} branding={{ brandColor: '#FF0000' }} />
         <DirtyProbe />
       </ActiveEditorProvider>,
     );
@@ -164,10 +189,7 @@ describe('BrandingForm', () => {
   it('returns the active editor to clean when the color reverts to baseline', () => {
     render(
       <ActiveEditorProvider>
-        <BrandingForm
-          {...defaultProps}
-          branding={{ appName: 'App', brandColor: '#FF0000' }}
-        />
+        <BrandingForm {...defaultProps} branding={{ brandColor: '#FF0000' }} />
         <DirtyProbe />
       </ActiveEditorProvider>,
     );

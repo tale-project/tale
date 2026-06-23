@@ -3,7 +3,7 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { getEnv } from '@/lib/env';
 
 export const TaleLogoText = () => {
-  const { textLogo, logoUrl } = useBrandingContext();
+  const { appName, logoUrl } = useBrandingContext();
   const basePath = getEnv('BASE_PATH');
 
   if (logoUrl) {
@@ -19,10 +19,10 @@ export const TaleLogoText = () => {
     );
   }
 
-  if (textLogo) {
+  if (appName) {
     return (
       <span className="text-foreground text-base font-semibold tracking-tight">
-        {textLogo}
+        {appName}
       </span>
     );
   }

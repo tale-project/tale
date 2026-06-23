@@ -53,7 +53,7 @@ The dev orchestrator generates everything it needs, so a local `.env.example` co
 
 ## When a port is busy
 
-`bun run dev` binds two ports: 3000 for the Vite app and 3210 for the local Convex backend. It fails fast with an actionable message when either is taken, because a silent fallback to another port would break the Convex proxy and every `localhost:3000` link. The usual culprit is a previous `bun run dev` or `tale start` that did not fully exit.
+`bun run dev` binds two ports: 3000 for the Vite app and 3210 for the local Convex backend. It fails fast with an actionable message when either is taken, because a silent fallback to another port would break the Convex proxy and every `localhost:3000` link. The usual culprit is a previous `bun run dev` or `tale dev` that did not fully exit.
 
 Free the port and re-run. The command that finds and stops the holder is the same one `setup:check` and the orchestrator suggest:
 

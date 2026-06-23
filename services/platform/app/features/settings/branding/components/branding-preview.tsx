@@ -1,6 +1,7 @@
 'use client';
 
 import { Row, Stack } from '@tale/ui/layout';
+import { useTheme } from '@tale/ui/theme';
 import {
   MessageCircle,
   Inbox,
@@ -14,10 +15,10 @@ import { memo } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { useT } from '@/lib/i18n/client';
+import { adjustColorForTheme } from '@/lib/utils/color';
 
 export interface BrandingPreviewData {
   appName?: string;
-  textLogo?: string;
   logoUrl?: string | null;
   faviconUrl?: string | null;
   brandColor?: string;
@@ -78,8 +79,15 @@ export const BrandingPreview = memo(function BrandingPreview({
 }: BrandingPreviewProps) {
   const { t } = useT('settings');
   const { t: tConversations } = useT('conversations');
-  const { appName, textLogo, logoUrl, faviconUrl, brandColor, accentColor } =
-    data;
+  const { resolvedTheme } = useTheme();
+  const { appName, logoUrl, faviconUrl } = data;
+  // Mirror the live app: a picked color is adapted per theme for legibility.
+  const brandColor = data.brandColor
+    ? adjustColorForTheme(data.brandColor, resolvedTheme)
+    : undefined;
+  const accentColor = data.accentColor
+    ? adjustColorForTheme(data.accentColor, resolvedTheme)
+    : undefined;
 
   return (
     <Row
@@ -111,12 +119,12 @@ export const BrandingPreview = memo(function BrandingPreview({
                   width={20}
                   height={20}
                 />
-              ) : textLogo ? (
+              ) : appName ? (
                 <span
                   className="truncate text-[9px] font-bold"
                   style={brandColor ? { color: brandColor } : undefined}
                 >
-                  {textLogo}
+                  {appName}
                 </span>
               ) : (
                 <div

@@ -12,7 +12,7 @@ interface BackupOptions {
 }
 
 /**
- * Manual snapshot trigger — the same snapshot `tale deploy`/`tale start`
+ * Manual snapshot trigger — the same snapshot `tale deploy`/`tale dev`
  * take automatically before mutating steps, runnable on demand (e.g.
  * right before a restore drill or ahead of risky host maintenance).
  */
@@ -26,13 +26,13 @@ export async function backup(options: BackupOptions): Promise<void> {
     if (!prefix) {
       throw new Error(
         'No Tale data volumes found for this project — nothing to back up. ' +
-          'Run `tale start` or `tale deploy` first.',
+          'Run `tale dev` or `tale deploy` first.',
       );
     }
     logger.info(`Volume namespace: ${prefix}*`);
 
     // Best-effort platform version for the manifest: the prod color
-    // container first, then the dev container name (`tale start` stacks
+    // container first, then the dev container name (`tale dev` stacks
     // run an uncolored platform container).
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);
     const platformVersion = currentColor

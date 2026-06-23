@@ -22,6 +22,23 @@ Whenever a schema change touches **stored data**, not just types:
   two, or dropping a table/column with live rows. Convex validates _existing_ rows against the new
   schema at push time, so the data must be reshaped first.
 
+### Two migration tracks — DB and config
+
+This framework covers **both** the Convex DB schema **and** file-based config, and they have different
+break rules. Don't audit one and forget the other:
+
+- **Convex DB schema** (`convex/**/schema.ts`) — `db`/`reference` migrations. Caught automatically by
+  the schema-snapshot guard (see below).
+- **File-based config** (`lib/shared/schemas/*` → per-org JSON under `$TALE_CONFIG_DIR/<org>/<domain>/`)
+  — `node` migrations, guarded by the **config-snapshot** guard (below). The Zod rules are the inverse of
+  Convex on one point: `z.object` STRIPS unknown keys, so a _removed_ field and a _widened_ enum are
+  SAFE, but a **new required field, a real retype, a narrowed enum/literal, or optional→required** breaks
+  existing on-disk files and needs a `node` migration to rewrite them. A change to a domain that is
+  _newly_ file-based (no prior files) needs none — the files are created fresh. Two blind spots the guard
+  can't see (judge by hand): strip vs `.strict()` is indistinguishable in JSON Schema (so a field removed
+  from a genuinely-`.strict()` schema isn't flagged), and `.refine()`/`.superRefine()` cross-field rules
+  aren't representable.
+
 ## The rules
 
 - **`up` MUST be idempotent.** The runner paginates in batches and resumes from the last committed
@@ -122,11 +139,30 @@ use the passed `helpers` (`atomicWrite` / `snapshotFsTree` / `restoreFsTree`) �
   `tale migrate up/down`): `status`, `planUp`, `planDown` (queries), `applyUp`, `applyDown`
   (actions) —
   [`framework/entrypoints.ts`](../../../services/platform/convex/migrations/framework/entrypoints.ts).
-- **Before opening a PR, run** `bun run --filter @tale/platform migrations:check`
-  ([`scripts/check-migrations.ts`](../../../services/platform/scripts/check-migrations.ts)). It's a
-  pure static check (no backend) that fails if any folder is unregistered in `ALL_META`, missing a
-  `migration.test.ts`, not `reversible`, destructive+runnable with `snapshot: 'none'`, or a runnable
-  `db` migration absent from `DB_MIGRATIONS`.
+- **Before opening a PR, run** `bun run --filter @tale/platform migrations:check`. It's a pure static
+  check (no backend) with three guards:
+  - [`check-migrations.ts`](../../../services/platform/scripts/check-migrations.ts) — fails if any
+    folder is unregistered in `ALL_META`, missing a `migration.test.ts`, not `reversible`,
+    destructive+runnable with `snapshot: 'none'`, or a runnable `db` migration absent from
+    `DB_MIGRATIONS`.
+  - [`check-schema-snapshot.ts`](../../../services/platform/scripts/check-schema-snapshot.ts) — the
+    **DB missing-migration guard**. It fingerprints the live Convex schema (`schema.export()`) and diffs
+    it against the committed baseline
+    [`convex/migrations/schema.snapshot.json`](../../../services/platform/convex/migrations/schema.snapshot.json).
+    It FAILS on any data-incompatible drift (a field dropped/renamed/retyped, a required field added,
+    optional→required, a union narrowed) and waves through data-safe growth (new tables, new optional
+    fields, widened unions). Classifier:
+    [`framework/schema_fingerprint.ts`](../../../services/platform/convex/migrations/framework/schema_fingerprint.ts).
+  - [`check-config-snapshot.ts`](../../../services/platform/scripts/check-config-snapshot.ts) — the
+    **config missing-migration guard**. It renders every `lib/shared/schemas/*` Zod schema to JSON
+    Schema and diffs against
+    [`convex/migrations/config.snapshot.json`](../../../services/platform/convex/migrations/config.snapshot.json),
+    failing on breaking config drift (using the INVERTED Zod rules — see "Two migration tracks"). Classifier:
+    [`lib/shared/config/config_fingerprint.ts`](../../../services/platform/lib/shared/config/config_fingerprint.ts).
+
+  After authoring the migration for an incompatible change — or making a deliberate safe change —
+  refresh BOTH baselines with `bun run --filter @tale/platform migrations:snapshot` and commit the diff.
+
 - **Verify on the live deployment** too — exercise `applyUp`/`applyDown` and read the ledger via the
   Convex MCP before merging. See [`verify`](../verify/SKILL.md) and
   [`definition-of-done`](../definition-of-done/SKILL.md).

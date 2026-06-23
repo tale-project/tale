@@ -19,7 +19,7 @@ import { createPlaywrightConfig, devices } from '@tale/e2e/config';
  *
  * Determinism: the stack is pointed at `tests/e2e/fixtures/config` (one agent, one
  * provider whose `baseUrl` is the OpenAPI-driven mock gateway in the
- * `@tale/mocks` package), so chat assertions never depend on a live LLM. The
+ * `lib/mocks` package), so chat assertions never depend on a live LLM. The
  * gateway serves the deterministic chat-completions override plus Prism-mocked
  * AI endpoints and third-party integration APIs (all offline). Set
  * `E2E_MOCK_LLM=0` to run the suite against an already-running dev stack with
@@ -44,7 +44,7 @@ const workers = process.env.E2E_WORKERS
 
 // Fixed port — must match the provider fixture's `baseUrl`
 // (`tests/e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
-// verbatim into Convex and cannot interpolate env. The `@tale/mocks` gateway
+// verbatim into Convex and cannot interpolate env. The `lib/mocks` gateway
 // defaults to this port (`MOCKS_PORT`); keep the three in sync.
 const MOCK_LLM_PORT = 4141;
 
@@ -75,7 +75,7 @@ export default createPlaywrightConfig({
     ...(useMockLlm
       ? [
           {
-            // OpenAPI-driven mock gateway (@tale/mocks): the deterministic
+            // OpenAPI-driven mock gateway (lib/mocks): the deterministic
             // chat-completions override + Prism-mocked AI endpoints and
             // third-party integration APIs, all offline.
             command: 'bun lib/mocks/start.ts',
@@ -104,6 +104,10 @@ export default createPlaywrightConfig({
         // the E2E CI job, so the bring-up can only fail and waste the cold-boot
         // budget — skip it. Applies in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',
+        // Never pop a browser when the orchestrator is the e2e webServer — a
+        // local (non-CI) `bun test:e2e` that spawns the stack would otherwise
+        // steal focus on every run. The READY banner still prints the URL.
+        TALE_DEV_OPEN: '0',
         // Deterministic 32-byte (hex) key so the hermetic stack can encrypt
         // secret-box values (project secrets, guardrails) — without it
         // `convex/lib/secret_box.ts` throws and secret-create flows fail. A

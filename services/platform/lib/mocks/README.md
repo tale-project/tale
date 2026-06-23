@@ -1,4 +1,4 @@
-# @tale/mocks
+# lib/mocks
 
 OpenAPI-driven mock gateway for **every third-party API the platform calls** —
 the OpenAI-compatible AI provider endpoints and all the integration connectors
@@ -35,7 +35,7 @@ spec-conformance contract tests never touch a live API.
 ## Running it
 
 ```bash
-bun --filter "@tale/mocks" start     # listens on :4141 (override with MOCKS_PORT)
+bun --filter "lib/mocks" start     # listens on :4141 (override with MOCKS_PORT)
 curl localhost:4141/health
 ```
 

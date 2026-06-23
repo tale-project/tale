@@ -47,26 +47,6 @@ export function useTestIntegration() {
   return { ...base, mutateAsync };
 }
 
-export function useTestSsoConfig() {
-  return useConvexAction(api.sso_providers.actions.testConfig);
-}
-
-export function useTestExistingSsoConfig() {
-  return useConvexAction(api.sso_providers.actions.testExistingConfig);
-}
-
-export function useUpsertSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.upsert);
-}
-
-export function useRemoveSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.remove);
-}
-
-export function useSsoFullConfig() {
-  return useConvexAction(api.sso_providers.actions.getWithClientId);
-}
-
 export function useGenerateIntegrationOAuth2Url() {
   return useConvexAction(api.integrations.actions.generateOAuth2Url);
 }

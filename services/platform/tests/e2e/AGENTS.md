@@ -48,10 +48,10 @@ When a manual case earns automation, bring it here under these rules.
 | [`helpers/seed.ts`](helpers/seed.ts)         | seeded fixture names (agent / prompt / workflow)                                                        |
 | [`helpers/env.ts`](helpers/env.ts)           | `BASE_URL`, `isMockLlmMode()`, `TIMEOUT`                                                                |
 
-The `@tale/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
+The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
 for every third-party API offline: a canned chat reply plus Prism-mocked AI
 endpoints and integration APIs. Keyword triggers in a message exercise specific
-chat paths — see [`@tale/mocks` canned content](../../../packages/mocks/src/overrides/canned.ts):
+chat paths — see [`lib/mocks` canned content](../../../packages/mocks/src/overrides/canned.ts):
 `e2e:reasoning`, `e2e:nextsteps`, `e2e:humaninput`, `e2e:error`. Integration
 specs (`specs/integrations.spec.ts`) drive the real connector → gateway path via
 `TALE_MOCK_INTEGRATIONS_BASE`.

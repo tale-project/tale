@@ -97,7 +97,12 @@ function ApiDocsPage() {
   };
 
   return (
-    <div className="bg-background min-h-dvh" onClickCapture={handleClick}>
+    // The app shell locks document scroll (`#root` is `overflow:clip`), so the
+    // docs page owns its own scroll region instead of unlocking the viewport.
+    <div
+      className="bg-background h-dvh overflow-y-auto"
+      onClickCapture={handleClick}
+    >
       <main className="swagger-ui-standalone">
         <SuspenseBoundary fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />
@@ -105,13 +110,6 @@ function ApiDocsPage() {
       </main>
 
       <style>{`
-        /* Override global overflow:clip so the docs page can scroll */
-        html:has(.swagger-ui-standalone),
-        html:has(.swagger-ui-standalone) body,
-        html:has(.swagger-ui-standalone) #root {
-          overflow: auto !important;
-          height: auto !important;
-        }
         .swagger-ui-standalone .swagger-ui {
           max-width: 1400px;
           margin: 0 auto;

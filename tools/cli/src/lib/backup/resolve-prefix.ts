@@ -5,7 +5,7 @@ import { SNAPSHOT_VOLUMES } from './constants';
 /**
  * Resolve which volume namespace this project's data lives under: the
  * production prefix (`${projectId}_`, created by `tale deploy`) wins over
- * the dev prefix (`${projectId}-dev_`, created by `tale start`) when both
+ * the dev prefix (`${projectId}-dev_`, created by `tale dev`) when both
  * exist. Returns null when neither namespace has any data volume.
  */
 export async function resolveSnapshotPrefix(): Promise<string | null> {

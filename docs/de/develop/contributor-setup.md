@@ -53,7 +53,7 @@ Der Dev-Orchestrator generiert alles, was er braucht, also ist eine lokale Kopie
 
 ## Wenn ein Port belegt ist
 
-`bun run dev` bindet zwei Ports: 3000 für die Vite-App und 3210 für das lokale Convex-Backend. Es scheitert sofort mit einer umsetzbaren Meldung, wenn einer belegt ist, denn ein stiller Fallback auf einen anderen Port würde den Convex-Proxy und jeden `localhost:3000`-Link brechen. Der übliche Verursacher ist ein vorheriges `bun run dev` oder `tale start`, das nicht vollständig beendet wurde.
+`bun run dev` bindet zwei Ports: 3000 für die Vite-App und 3210 für das lokale Convex-Backend. Es scheitert sofort mit einer umsetzbaren Meldung, wenn einer belegt ist, denn ein stiller Fallback auf einen anderen Port würde den Convex-Proxy und jeden `localhost:3000`-Link brechen. Der übliche Verursacher ist ein vorheriges `bun run dev` oder `tale dev`, das nicht vollständig beendet wurde.
 
 Gib den Port frei und lauf erneut. Der Befehl, der den Halter findet und stoppt, ist derselbe, den `setup:check` und der Orchestrator vorschlagen:
 

@@ -64,7 +64,7 @@ Le CLI pose une seule question — **essai local** ou **domaine de production** 
 ### 3. Démarrer Tale
 
 ```bash
-tale start
+tale dev
 ```
 
 Ouvre https://localhost (ou ton domaine configuré) dès que tu vois « Tale Platform is running! »
@@ -94,9 +94,9 @@ Tous les fichiers dans `agents/`, `workflows/` et `integrations/` sont rechargé
 
 ```bash
 tale init [directory]              # Créer un nouveau projet avec des configs d'exemple (sans Docker)
-tale start                         # Démarrer tous les services localement
-tale start --detach                # Démarrer en arrière-plan
-tale start --port 8443             # Utiliser un port HTTPS personnalisé
+tale dev                           # Démarrer tous les services localement
+tale dev --detach                  # Démarrer en arrière-plan
+tale dev --port 8443               # Utiliser un port HTTPS personnalisé
 tale upgrade                       # Mettre à jour le CLI et synchroniser les fichiers du projet
 tale convex admin                  # Générer une clé admin du Convex Dashboard
 tale config                        # Gérer la configuration du CLI

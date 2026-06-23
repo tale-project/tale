@@ -17,7 +17,6 @@ import { BrandingPreview, type BrandingPreviewData } from './branding-preview';
 
 interface BrandingData {
   appName?: string;
-  textLogo?: string;
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
@@ -49,7 +48,6 @@ function BrandingSettingsView({
 
   const [previewData, setPreviewData] = useState<BrandingPreviewData>({
     appName: branding?.appName,
-    textLogo: branding?.textLogo,
     logoUrl: branding?.logoUrl,
     brandColor: branding?.brandColor,
     accentColor: branding?.accentColor,

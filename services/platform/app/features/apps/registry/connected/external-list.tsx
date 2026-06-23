@@ -27,6 +27,7 @@ import { Text } from '@tale/ui/text';
 import { CircleDot } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { convexErrorCode } from '@/app/hooks/use-action-query';
 import { useT } from '@/lib/i18n/client';
 import { excludeExisting } from '@/lib/shared/platform/exclude_by';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
@@ -193,9 +194,15 @@ export function ExternalList({
       ) : query.isLoading && rows.length === 0 ? (
         <SkeletonText lines={3} />
       ) : query.error ? (
-        <Text variant="error">
-          {t('list.error', { error: query.error.message })}
-        </Text>
+        // A not-connected integration is an expected state, not a failure:
+        // render a calm prompt to connect it rather than a red server error.
+        convexErrorCode(query.error) === 'INTEGRATION_NOT_CONNECTED' ? (
+          <Text variant="muted">{t('list.notConnected')}</Text>
+        ) : (
+          <Text variant="error">
+            {t('list.error', { error: query.error.message })}
+          </Text>
+        )
       ) : (
         <>
           {visibleRows.length === 0 ? (

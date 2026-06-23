@@ -63,7 +63,7 @@ function manualStrategy(platform: DockerPlatform): InstallStrategy {
     label: 'Manual install',
     steps: [
       `Install Docker for ${platform} by following ${DOCKER_DOCS_URL}`,
-      'Then re-run `tale start`.',
+      'Then re-run `tale dev`.',
     ],
   };
 }
@@ -491,7 +491,7 @@ export async function ensureDocker(
     if (!consent) {
       return {
         status: 'refused',
-        detail: `Skipped Docker install. Install it yourself from ${DOCKER_DOCS_URL}, then re-run \`tale start\`.`,
+        detail: `Skipped Docker install. Install it yourself from ${DOCKER_DOCS_URL}, then re-run \`tale dev\`.`,
       };
     }
   }

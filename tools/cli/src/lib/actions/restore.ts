@@ -81,7 +81,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
   if (!prefix) {
     throw new Error(
       'No Tale data volumes found for this project — nothing to restore into. ' +
-        'On a fresh host, run `tale deploy` once (or `tale start` for a dev stack) ' +
+        'On a fresh host, run `tale deploy` once (or `tale dev` for a dev stack) ' +
         'to create the volume set, then restore.',
     );
   }
@@ -198,7 +198,7 @@ export async function restore(options: RestoreOptions): Promise<void> {
     logger.blank();
     logger.info('Bring the stack back on the version that matches the data:');
     if (prefix.endsWith('-dev_')) {
-      logger.info('  tale start');
+      logger.info('  tale dev');
     } else {
       logger.info(
         `  tale update --version ${manifest.platformVersion ?? '<version-at-snapshot-time>'}`,

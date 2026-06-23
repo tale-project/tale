@@ -1,6 +1,6 @@
 {
   "displayName": "E2E Mock Provider",
-  "description": "OpenAI-compatible mock provider for the Playwright E2E suite, served by the @tale/mocks gateway (chat override + Prism-mocked AI endpoints).",
+  "description": "OpenAI-compatible mock provider for the Playwright E2E suite, served by the lib/mocks gateway (chat override + Prism-mocked AI endpoints).",
   "baseUrl": "http://127.0.0.1:4141/v1",
   "secretsEnv": "TALE_PROVIDER_KEY_E2E_MOCK",
   "defaults": {
@@ -13,7 +13,7 @@
     {
       "id": "e2e-chat-model",
       "displayName": "E2E Chat Model",
-      "description": "Deterministic canned-reply model served by the @tale/mocks chat override",
+      "description": "Deterministic canned-reply model served by the lib/mocks chat override",
       "tags": ["chat"],
       "contextWindow": 32768,
       "qualityScore": 0.5,

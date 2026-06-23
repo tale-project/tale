@@ -9,13 +9,13 @@ import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
 import { createDaemonCommand } from './commands/daemon';
 import { createDeployCommand } from './commands/deploy';
+import { createDevCommand } from './commands/dev';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createMigrateCommand } from './commands/migrate';
 import { createResetCommand } from './commands/reset';
 import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
-import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
 import { createUninstallCommand } from './commands/uninstall';
 import { createUpdateCommand } from './commands/update';
@@ -80,7 +80,7 @@ const MAINTAIN = 'Maintain:';
 const ADVANCED = 'Advanced:';
 
 program.addCommand(createInitCommand().helpGroup(SETUP));
-program.addCommand(createStartCommand().helpGroup(SETUP));
+program.addCommand(createDevCommand().helpGroup(SETUP));
 program.addCommand(createDeployCommand().helpGroup(SETUP));
 
 program.addCommand(createStatusCommand().helpGroup(OPERATE));
@@ -115,7 +115,7 @@ program.addHelpText(
     '',
     'Examples:',
     '  tale init my-workspace        scaffold a new project',
-    '  tale start                    run it locally (Ctrl-C to stop)',
+    '  tale dev                      run it locally (Ctrl-C to stop)',
     '  tale status --json            machine-readable status',
     '  tale deploy --verbose         deploy with full subprocess output',
     '',

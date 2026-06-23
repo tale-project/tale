@@ -72,6 +72,28 @@ export async function orgSlugFromId(
   ctx: CtxWithRunQuery,
   organizationId: string,
 ): Promise<string> {
+  return (await orgIdentityFromId(ctx, organizationId)).slug;
+}
+
+export interface OrgIdentity {
+  slug: string;
+  /** The org's display name; absent only on legacy rows with no `name`. */
+  name?: string;
+}
+
+/**
+ * Resolve an organizationId to its `{ slug, name }` in a single lookup.
+ *
+ * Same non-membership-gated contract and `OrgSlugUnresolvableError` semantics
+ * as `orgSlugFromId` (see its doc) — callers must have verified membership (or
+ * be reading display-only data). Used where both the on-disk slug and the
+ * human display name are needed at once, e.g. branding reads that surface the
+ * org name as the app name.
+ */
+export async function orgIdentityFromId(
+  ctx: CtxWithRunQuery,
+  organizationId: string,
+): Promise<OrgIdentity> {
   const row = await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: 'organization',
     where: [{ field: '_id', value: organizationId, operator: 'eq' }],
@@ -83,7 +105,7 @@ export async function orgSlugFromId(
   if (!slug) {
     throw new OrgSlugUnresolvableError(organizationId, 'no_slug');
   }
-  return slug;
+  return { slug, name: getString(row, 'name') };
 }
 
 /**

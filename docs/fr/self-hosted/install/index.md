@@ -9,7 +9,7 @@ Les trois chemins atterrissent sur le même produit ; la différence est la part
 
 ## Essayer Tale sur un laptop
 
-Si tu veux une instance qui tourne pour cliquer dedans — sur ta propre machine, sans domaine ni durcissement — le [démarrage rapide](/fr/self-hosted/install/quickstart) est le chemin. Installe la CLI, lance `tale init` puis `tale start`, et tu es connecté à ta propre organisation en quelques minutes. La CLI provisionne Docker s'il manque, génère chaque secret et monte ta configuration de sorte que les édits rechargent à chaud. C'est le bon chemin pour une évaluation, une démo, ou du développement local contre une vraie stack.
+Si tu veux une instance qui tourne pour cliquer dedans — sur ta propre machine, sans domaine ni durcissement — le [démarrage rapide](/fr/self-hosted/install/quickstart) est le chemin. Installe la CLI, lance `tale init` puis `tale dev`, et tu es connecté à ta propre organisation en quelques minutes. La CLI provisionne Docker s'il manque, génère chaque secret et monte ta configuration de sorte que les édits rechargent à chaud. C'est le bon chemin pour une évaluation, une démo, ou du développement local contre une vraie stack.
 
 Quand tu dépasses le laptop et veux le même projet sur un vrai hôte, le projet d'essai se reporte — `tale deploy` l'amène sur un domaine sans réinitialiser.
 

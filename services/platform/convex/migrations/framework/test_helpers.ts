@@ -14,8 +14,13 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import {
+  ssoConnectionsTable,
+  ssoProvisioningLinksTable,
+} from '../../enterprise_sso/schema';
 import { dsarPolicyPendingChangesTable } from '../../governance/schema';
 import { configCacheTable } from '../../lib/config_cache/schema';
+import { ssoProvidersTable } from '../../sso_providers/schema';
 import { migrationLedgerTable, migrationSnapshotsTable } from './schema';
 
 /**
@@ -54,6 +59,10 @@ export const historicalSchema = defineSchema({
   configCache: configCacheTable,
   dsarPolicyPendingChanges: dsarPolicyPendingChangesTable,
   governancePolicies: legacyGovernancePoliciesTable,
+  // Source + target tables for the 0.2.85 enterprise-SSO unification migration.
+  ssoProviders: ssoProvidersTable,
+  ssoConnections: ssoConnectionsTable,
+  ssoProvisioningLinks: ssoProvisioningLinksTable,
 });
 
 /** Normalize one glob key relative to the convex root, resolving `..`. */

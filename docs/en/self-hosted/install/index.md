@@ -9,7 +9,7 @@ All three paths land on the same product; the difference is how much of the stac
 
 ## Trying Tale on a laptop
 
-If you want a running instance to click through — on your own machine, with no domain and no hardening — the [Quickstart](/self-hosted/install/quickstart) is the path. Install the CLI, run `tale init` then `tale start`, and you are signed into your own org in minutes. The CLI provisions Docker if it is missing, generates every secret, and bind-mounts your config so edits reload live. This is the right path for an evaluation, a demo, or local development against a real stack.
+If you want a running instance to click through — on your own machine, with no domain and no hardening — the [Quickstart](/self-hosted/install/quickstart) is the path. Install the CLI, run `tale init` then `tale dev`, and you are signed into your own org in minutes. The CLI provisions Docker if it is missing, generates every secret, and bind-mounts your config so edits reload live. This is the right path for an evaluation, a demo, or local development against a real stack.
 
 When you outgrow the laptop and want the same project on a real host, the trial project carries over — `tale deploy` takes it to a domain without re-initialising.
 

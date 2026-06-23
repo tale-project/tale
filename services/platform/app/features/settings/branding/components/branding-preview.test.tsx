@@ -22,6 +22,11 @@ function lookup(ns: string, key: string): string {
   return typeof cursor === 'string' ? cursor : `${ns}.${key}`;
 }
 
+// Theme drives the per-theme color adjustment; pin it to light for determinism.
+vi.mock('@tale/ui/theme', () => ({
+  useTheme: () => ({ resolvedTheme: 'light' }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, vars?: Record<string, unknown>) => {
@@ -65,17 +70,12 @@ describe('BrandingPreview', () => {
     expect(screen.queryByText('Tale')).not.toBeInTheDocument();
   });
 
-  it('renders custom app name', () => {
+  it('renders the organization name (chrome + sidebar wordmark)', () => {
     render(<BrandingPreview data={{ appName: 'Acme Corp' }} />);
 
-    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    // Shown both in the browser-chrome tab title and the sidebar wordmark.
+    expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
     expect(screen.queryByText('Tale')).not.toBeInTheDocument();
-  });
-
-  it('renders custom text logo', () => {
-    render(<BrandingPreview data={{ textLogo: 'ACME' }} />);
-
-    expect(screen.getByText('ACME')).toBeInTheDocument();
   });
 
   it('renders logo image when URL provided', () => {
@@ -87,18 +87,19 @@ describe('BrandingPreview', () => {
     expect(img).toHaveAttribute('src', 'https://example.com/logo.png');
   });
 
-  it('prefers logo image over text logo', () => {
-    render(
+  it('prefers the logo image over the org-name wordmark in the sidebar', () => {
+    const { container } = render(
       <BrandingPreview
         data={{
           logoUrl: 'https://example.com/logo.png',
-          textLogo: 'ACME',
+          appName: 'ACME',
         }}
       />,
     );
 
     expect(screen.getByTestId('preview-image')).toBeInTheDocument();
-    expect(screen.queryByText('ACME')).not.toBeInTheDocument();
+    // The bold sidebar wordmark is not rendered when a logo image wins.
+    expect(container.querySelector('.font-bold')).toBeNull();
   });
 
   it('applies accent color to tab border', () => {
@@ -109,15 +110,17 @@ describe('BrandingPreview', () => {
   });
 
   it('applies accent color to first nav icon', () => {
+    // #0066CC already clears 3:1 against the (mocked light) background, so the
+    // theme adjustment is a no-op and the exact color is applied.
     const { container } = render(
-      <BrandingPreview data={{ accentColor: '#00AAFF' }} />,
+      <BrandingPreview data={{ accentColor: '#0066CC' }} />,
     );
 
     const navIcons = container.querySelectorAll('svg');
     const firstIcon = navIcons[0];
     expect(firstIcon).toBeDefined();
     if (firstIcon) {
-      expect(firstIcon).toHaveStyle({ color: '#00AAFF' });
+      expect(firstIcon).toHaveStyle({ color: '#0066CC' });
     }
   });
 
@@ -145,13 +148,15 @@ describe('BrandingPreview', () => {
     expect(avatars.length).toBe(4);
   });
 
-  it('applies text logo color from brand color', () => {
-    render(
-      <BrandingPreview data={{ textLogo: 'ACME', brandColor: '#FF0000' }} />,
+  it('applies brand color to the sidebar org-name wordmark', () => {
+    const { container } = render(
+      <BrandingPreview data={{ appName: 'ACME', brandColor: '#FF0000' }} />,
     );
 
-    const textLogo = screen.getByText('ACME');
-    expect(textLogo).toHaveStyle({ color: '#FF0000' });
+    // #FF0000 already clears contrast on the light theme, so it's applied as-is.
+    const wordmark = container.querySelector('.font-bold');
+    expect(wordmark).not.toBeNull();
+    expect(wordmark).toHaveStyle({ color: '#FF0000' });
   });
 
   describe('accessibility', () => {

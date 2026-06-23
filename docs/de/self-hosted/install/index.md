@@ -9,7 +9,7 @@ Alle drei Wege landen auf demselben Produkt; der Unterschied ist, wie viel vom S
 
 ## Tale auf einem Laptop ausprobieren
 
-Willst du eine laufende Instanz zum Durchklicken — auf deiner eigenen Maschine, ohne Domäne und ohne Härtung — ist der [Quickstart](/de/self-hosted/install/quickstart) der Weg. Installier die CLI, lauf `tale init` und dann `tale start`, und du bist in Minuten in deiner eigenen Org angemeldet. Die CLI stellt Docker bereit, falls es fehlt, generiert jedes Secret und mountet deine Konfiguration, sodass Edits live nachladen. Das ist der richtige Weg für eine Evaluierung, eine Demo oder lokale Entwicklung gegen einen echten Stack.
+Willst du eine laufende Instanz zum Durchklicken — auf deiner eigenen Maschine, ohne Domäne und ohne Härtung — ist der [Quickstart](/de/self-hosted/install/quickstart) der Weg. Installier die CLI, lauf `tale init` und dann `tale dev`, und du bist in Minuten in deiner eigenen Org angemeldet. Die CLI stellt Docker bereit, falls es fehlt, generiert jedes Secret und mountet deine Konfiguration, sodass Edits live nachladen. Das ist der richtige Weg für eine Evaluierung, eine Demo oder lokale Entwicklung gegen einen echten Stack.
 
 Wenn du dem Laptop entwächst und dasselbe Projekt auf einem echten Host willst, trägt das Trial-Projekt sich mit — `tale deploy` bringt es auf eine Domäne, ohne neu zu initialisieren.
 

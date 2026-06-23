@@ -19,8 +19,6 @@ vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
 describe('parseBrandingJson', () => {
   it('parses valid branding JSON', () => {
     const input = JSON.stringify({
-      appName: 'Acme',
-      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
     });
@@ -28,16 +26,27 @@ describe('parseBrandingJson', () => {
     const result = parseBrandingJson(input);
 
     expect(result).toEqual({
-      appName: 'Acme',
-      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
     });
   });
 
-  it('parses branding JSON with image filenames', () => {
+  it('strips legacy app-name / text-logo keys (no migration needed)', () => {
     const input = JSON.stringify({
       appName: 'Acme',
+      textLogo: 'A',
+      brandColor: '#FF0000',
+    });
+
+    const result = parseBrandingJson(input);
+
+    expect(result).toEqual({ brandColor: '#FF0000' });
+    expect('appName' in result).toBe(false);
+    expect('textLogo' in result).toBe(false);
+  });
+
+  it('parses branding JSON with image filenames', () => {
+    const input = JSON.stringify({
       logoFilename: 'logo.png',
       faviconLightFilename: 'favicon-light.ico',
       faviconDarkFilename: 'favicon-dark.ico',
@@ -63,15 +72,15 @@ describe('parseBrandingJson', () => {
 describe('serializeBrandingJson', () => {
   it('round-trips through parse', () => {
     const config = {
-      appName: 'Acme',
       brandColor: '#FF0000',
+      accentColor: '#00FF00',
     };
 
     const serialized = serializeBrandingJson(config);
     const parsed = parseBrandingJson(serialized);
 
-    expect(parsed.appName).toBe('Acme');
     expect(parsed.brandColor).toBe('#FF0000');
+    expect(parsed.accentColor).toBe('#00FF00');
   });
 });
 

@@ -64,7 +64,7 @@ The CLI asks one question — **local trial** or **production domain** — and c
 ### 3. Start Tale
 
 ```bash
-tale start
+tale dev
 ```
 
 Visit https://localhost (or your configured domain) when you see "Tale Platform is running!"
@@ -94,9 +94,9 @@ All files in `agents/`, `workflows/`, and `integrations/` are live-reloaded — 
 
 ```bash
 tale init [directory]              # Create a new project with example configs (no Docker needed)
-tale start                         # Start all services locally
-tale start --detach                # Start in background
-tale start --port 8443             # Use a custom HTTPS port
+tale dev                           # Start all services locally
+tale dev --detach                  # Start in background
+tale dev --port 8443               # Use a custom HTTPS port
 tale update                        # Update the CLI + sync project files (then `tale deploy`; CLI self-aligns automatically)
 tale convex admin                  # Generate Convex dashboard admin key
 tale config                        # Manage CLI configuration

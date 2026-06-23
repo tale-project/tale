@@ -14,7 +14,7 @@ const config = {
 } satisfies ServiceConfig;
 
 describe('createDbService healthcheck', () => {
-  // Regression tests for #1411: on a fresh volume the first `tale start` could
+  // Regression tests for #1411: on a fresh volume the first `tale dev` could
   // abort with "dependency failed to start: container ...-db is unhealthy"
   // because the db healthcheck reported ready (pg_isready) before the
   // background init scripts had finished and within too short a window.

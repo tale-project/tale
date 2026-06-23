@@ -8,7 +8,7 @@ Tale est l'orchestrateur pour agents IA. Tu discutes avec des modèles sur tes p
 
 Le produit ship en deux éditions ; chaque fonctionnalité, chaque API et chaque rôle est identique entre les deux. La seule différence : qui exploite la stack. Choisis ton édition, puis va dans la section qui correspond à ton quotidien.
 
-Nouveau ici ? Le chemin le plus rapide vers une instance qui tourne est le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) — installe la CLI, puis `tale init` et `tale start`, et tu es connecté à ta propre organisation en quelques minutes.
+Nouveau ici ? Le chemin le plus rapide vers une instance qui tourne est le [démarrage rapide auto-hébergé](/fr/self-hosted/install/quickstart) — installe la CLI, puis `tale init` et `tale dev`, et tu es connecté à ta propre organisation en quelques minutes.
 
 Choisis l'entrée qui correspond à ce pour quoi tu es là. Un **utilisateur cloud** qui veut que Tale exploite la stack commence à [Cloud](/fr/cloud). Un **auto-hébergeur** qui monte une instance sur sa propre infrastructure commence à [Auto-hébergé](/fr/self-hosted). Un **bâtisseur de plateforme** — agents, automatisations, intégrations — vit dans [Plateforme](/fr/platform), la référence canonique des fonctionnalités. Un **opérateur** qui garde une instance auto-hébergée à jour et observée va à [Exploiter](/fr/self-hosted/operate/container-architecture). Un **contributeur** qui modifie le code source commence par [Configuration contributeur](/fr/develop/contributor-setup).
 

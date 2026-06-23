@@ -296,6 +296,14 @@
       "description": "Einstellungen > Anbieter ist der Ort, an dem Admins OpenAI, Anthropic, Azure OpenAI und ein lokales Ollama anbinden, wählen, welche Modelle jeder davon freigibt, und das Standardmodell der Organisation setzen. Jede Antwort, die Tale streamt, kommt aus einem Modell, das über diese Seite aufgelöst wird."
     }
   },
+  "de:platform/admin/enterprise-sso": {
+    "slug": "platform/admin/enterprise-sso",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Enterprise-SSO und Bereitstellung",
+      "description": "Single Sign-On (OIDC, OAuth2, SAML 2.0) und SCIM-Bereitstellung von Benutzern und Gruppen für Ihre Organisation konfigurieren. Schritt-für-Schritt-Einrichtung für Microsoft Entra ID, Google, generisches OIDC und SAML, plus Rollenzuordnung, Gruppe-zu-Team-Synchronisierung und Deaktivierung. Lesen Sie dies, wenn Sie die Unternehmensidentität für die Organisation einrichten."
+    }
+  },
   "de:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "de",
@@ -325,7 +333,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, Favicon, App-Name und Markenfarben, die deine Organisation ihren Mitgliedern zeigt. Admins lesen das, wenn sie eine selbst gehostete Instanz whitelabeln oder die In-Produkt-Chrome an die Firmenpalette angleichen."
+      "description": "Logo, Favicon und Markenfarben, die deine Organisation ihren Mitgliedern zeigt. Admins lesen das, wenn sie eine selbst gehostete Instanz whitelabeln oder die In-Produkt-Chrome an die Firmenpalette angleichen."
     }
   },
   "de:platform/admin/governance/feedback-analytics": {
@@ -945,7 +953,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Self-hosted Quickstart",
-      "description": "Bring eine funktionierende Tale-Instanz mit der tale-CLI in drei Befehlen auf deine Maschine — installieren, tale init, tale start, dann anmelden."
+      "description": "Bring eine funktionierende Tale-Instanz mit der tale-CLI in drei Befehlen auf deine Maschine — installieren, tale init, tale dev, dann anmelden."
     }
   },
   "de:self-hosted/install/first-admin": {
@@ -1416,6 +1424,14 @@
       "description": "Paramètres > Fournisseurs est l'endroit où les Administrateurs branchent OpenAI, Anthropic, Azure OpenAI et un Ollama local, choisissent quels modèles chacun expose, et fixent le défaut de l'org. Chaque réponse que Tale stream vient d'un modèle résolu par cette page."
     }
   },
+  "fr:platform/admin/enterprise-sso": {
+    "slug": "platform/admin/enterprise-sso",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "SSO d'entreprise et provisionnement",
+      "description": "Configurer l'authentification unique (OIDC, OAuth2, SAML 2.0) et le provisionnement SCIM des utilisateurs et des groupes pour votre organisation. Configuration pas à pas pour Microsoft Entra ID, Google, OIDC générique et SAML, ainsi que le mappage des rôles, la synchronisation groupe-vers-équipe et la désactivation. À lire pour câbler l'identité d'entreprise de l'organisation."
+    }
+  },
   "fr:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "fr",
@@ -1445,7 +1461,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, favicon, nom d'app et couleurs de marque que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l'entreprise."
+      "description": "Logo, favicon et couleurs de marque que ton organisation montre à ses membres. Les Administrateurs lisent ceci quand ils whitelabel une instance auto-hébergée ou alignent le chrome in-produit sur la palette de l'entreprise."
     }
   },
   "fr:platform/admin/governance/feedback-analytics": {
@@ -2065,7 +2081,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrage rapide auto-hébergé",
-      "description": "Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale start, puis se connecter."
+      "description": "Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale dev, puis se connecter."
     }
   },
   "fr:self-hosted/install/first-admin": {
@@ -2536,6 +2552,14 @@
       "description": "Settings > Providers is where Admins connect OpenAI, Anthropic, Azure OpenAI, and local Ollama, choose which models each one exposes, and pick the org's default. Every reply Tale streams comes from a model resolved through this page."
     }
   },
+  "en:platform/admin/enterprise-sso": {
+    "slug": "platform/admin/enterprise-sso",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Enterprise SSO and provisioning",
+      "description": "Configure single sign-on (OIDC, OAuth2, SAML 2.0) and SCIM user and group provisioning for your organisation. Step-by-step setup for Microsoft Entra ID, Google, generic OIDC, and SAML, plus role mapping, group-to-team sync, and deactivation. Read this when wiring enterprise identity for the org."
+    }
+  },
   "en:platform/admin/changelog": {
     "slug": "platform/admin/changelog",
     "locale": "en",
@@ -2565,7 +2589,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Branding",
-      "description": "Logo, favicon, app name, and brand colours your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette."
+      "description": "Logo, favicon, and brand colours your organisation shows to its members. Admins read this when whitelabelling a self-hosted instance or aligning the in-product chrome with the company palette."
     }
   },
   "en:platform/admin/governance/feedback-analytics": {
@@ -3185,7 +3209,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted quickstart",
-      "description": "Get a working Tale instance running on your machine in three commands with the tale CLI — install, tale init, tale start, then sign in."
+      "description": "Get a working Tale instance running on your machine in three commands with the tale CLI — install, tale init, tale dev, then sign in."
     }
   },
   "en:self-hosted/install/first-admin": {

@@ -98,6 +98,7 @@
     "list": {
       "refresh": "Aktualisieren",
       "error": "Daten konnten nicht geladen werden: {error}",
+      "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
       "prev": "Zurück",
       "next": "Weiter",
       "page": "Seite {page}",
@@ -254,7 +255,8 @@
     "disabled": "Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.",
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
     "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
-    "deployment": "Du benötigst Admin-Berechtigungen, um auf die Deployment-Einstellungen zuzugreifen."
+    "deployment": "Du benötigst Admin-Berechtigungen, um auf die Deployment-Einstellungen zuzugreifen.",
+    "enterpriseSso": "Sie benötigen Administratorrechte, um auf die Enterprise-SSO-Einstellungen zuzugreifen."
   },
   "analytics": {
     "usage": {
@@ -4260,6 +4262,10 @@
     "sandboxes": {
       "title": "Sandboxes",
       "description": "Verwalten Sie die Remote-Agent-Sandboxes Ihrer Organisation."
+    },
+    "enterpriseSso": {
+      "title": "Enterprise-SSO",
+      "description": "Single Sign-On und SCIM-Bereitstellung konfigurieren."
     }
   },
   "navigation": {
@@ -4301,7 +4307,8 @@
     },
     "dataResidency": "Datenresidenz",
     "runtimes": "Runtimes",
-    "sandboxes": "Sandboxes"
+    "sandboxes": "Sandboxes",
+    "enterpriseSso": "Enterprise-SSO"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -5654,85 +5661,111 @@
         "basic_auth": "Basis-Authentifizierung",
         "oauth2": "OAuth2"
       },
-      "sso": {
-        "name": "Single Sign-On",
-        "description": "Teams und Rollen automatisch über Microsoft Entra ID SSO bereitstellen.",
-        "validationError": "Validierungsfehler",
-        "allFieldsRequired": "Alle Felder sind erforderlich",
-        "configureSuccessful": "Konfiguration",
-        "updateSuccessful": "Aktualisierung",
-        "ssoConfigured": "SSO-Anbieter wurde konfiguriert",
-        "configureFailed": "Konfiguration fehlgeschlagen",
-        "configureError": "SSO-Anbieter konnte nicht konfiguriert werden",
-        "disconnected": "Getrennt",
-        "ssoDisconnected": "SSO-Anbieter wurde entfernt",
-        "disconnectFailed": "Trennung fehlgeschlagen",
-        "disconnectError": "SSO-Anbieter konnte nicht entfernt werden",
-        "roleMappingRulesLabel": "Rollenzuordnungsregeln",
-        "roleMappingRulesHelp": "Regeln definieren, um Jobtitel oder App-Rollen auf Plattformrollen abzubilden. Verwende * als Platzhalter (z. B. *entwickler*).",
-        "sourceJobTitle": "Jobtitel",
-        "sourceAppRole": "App-Rolle",
-        "addRule": "Regel hinzufügen",
-        "testSuccessful": "Verbindung",
-        "testSuccessfulDescription": "SSO-Zugangsdaten wurden validiert",
-        "testFailed": "Verbindung fehlgeschlagen",
-        "testFailedDescription": "SSO-Zugangsdaten konnten nicht validiert werden",
-        "testError": "Beim Testen der Verbindung ist ein Fehler aufgetreten",
-        "roleAdmin": "Admin",
-        "roleDeveloper": "Entwickler",
-        "roleEditor": "Redakteur",
-        "roleMember": "Mitglied",
-        "roleDisabled": "Deaktiviert",
-        "autoProvisionRoleHelp": "Rollen automatisch basierend auf Jobtitel oder App-Rollen aus Entra ID zuweisen",
-        "autoProvisionRoleLabel": "Rollen automatisch zuweisen",
-        "autoProvisionTeamHelp": "Team-Mitgliedschaften automatisch aus Entra ID-Gruppen synchronisieren",
-        "autoProvisionTeamLabel": "Teams automatisch bereitstellen",
-        "clientIdHelp": "Die Anwendungs-ID (Client-ID) aus der Azure-App-Registrierung",
+      "enterpriseSso": {
+        "name": "Enterprise-SSO & Bereitstellung",
+        "description": "Single Sign-On (OIDC, OAuth2, SAML) und SCIM-Bereitstellung von Benutzern und Gruppen.",
+        "title": "Enterprise-SSO & Bereitstellung",
+        "connected": "Die Anmeldung ist aktiviert.",
+        "copied": "In die Zwischenablage kopiert",
+        "copy": "Kopieren",
+        "protocolLabel": "Protokoll",
+        "protocolHelp": "Legen Sie fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden automatisch erkannt.",
+        "protocol": {
+          "entra": "Microsoft Entra ID",
+          "oidc": "Generisches OIDC",
+          "oauth2": "OAuth2",
+          "saml": "SAML 2.0"
+        },
+        "displayNameLabel": "Anzeigename",
+        "domainLabel": "E-Mail-Domäne",
+        "domainHelp": "Optional – Benutzer mit dieser E-Mail-Domäne dieser Verbindung zuordnen.",
+        "signInSection": "Anmeldung",
+        "issuerLabel": "Issuer-URL",
+        "authzEndpointLabel": "Autorisierungs-Endpunkt",
+        "tokenEndpointLabel": "Token-Endpunkt",
+        "userinfoEndpointLabel": "Userinfo-Endpunkt",
         "clientIdLabel": "Client-ID",
-        "clientSecretHelp": "Das Client-Secret aus der Azure-App-Registrierung",
         "clientSecretLabel": "Client-Secret",
-        "configuring": "Wird konfiguriert...",
-        "connectedToEntra": "Verbunden mit Microsoft Entra ID",
-        "defaultRoleHelp": "Rolle, die zugewiesen wird, wenn keine Zuordnungsregeln zutreffen",
-        "defaultRoleHelpNoAutoProvision": "Rolle, die allen SSO-Benutzern zugewiesen wird",
+        "clientSecretKeep": "Leer lassen, um das aktuelle Secret beizubehalten.",
+        "scopesLabel": "Scopes",
+        "pkceLabel": "PKCE verwenden",
+        "idpEntityIdLabel": "IdP-Entity-ID",
+        "idpSsoUrlLabel": "IdP-Anmelde-URL",
+        "idpCertLabel": "IdP-Signaturzertifikat (PEM)",
+        "idpCertHelp": "Das X.509-Zertifikat, mit dem der IdP Assertions signiert.",
+        "spMetadataLabel": "SP-Metadaten-URL",
+        "acsUrlLabel": "ACS-URL (Antwort)",
+        "provisioningSection": "Bereitstellung",
         "defaultRoleLabel": "Standardrolle",
-        "excludeGroupsHelp": "Kommagetrennte Liste von Entra-Gruppen, die von der Team-Synchronisierung ausgeschlossen werden",
+        "role": {
+          "admin": "Administrator",
+          "developer": "Entwickler",
+          "editor": "Bearbeiter",
+          "member": "Mitglied"
+        },
+        "autoRoleLabel": "Rollen automatisch vom IdP zuweisen",
+        "autoTeamLabel": "IdP-Gruppen mit Teams synchronisieren",
         "excludeGroupsLabel": "Gruppen ausschließen",
-        "issuerHelp": "Die OIDC-Aussteller-URL für deinen Entra ID-Mandanten",
-        "issuerLabel": "Aussteller-URL",
-        "oneDriveAccessHelp": "Benutzern erlauben, mit ihren SSO-Zugangsdaten auf OneDrive- und SharePoint-Dateien zuzugreifen",
-        "oneDriveAccessLabel": "OneDrive/SharePoint-Zugriff aktivieren",
-        "testConnection": "Verbindung testen",
-        "testPassed": "Gültig",
-        "testing": "Wird getestet...",
-        "title": "SSO-Konfiguration",
-        "updating": "Aktualisiere...",
-        "providerTypeLabel": "Anbietertyp",
-        "providerTypeHelp": "Microsoft Entra ID nutzt Microsoft Graph für die Team- und OneDrive-Synchronisierung. Generisches OIDC funktioniert mit jedem OpenID-Connect-Anbieter und liest dessen Endpunkte aus der Konfiguration, die der Aussteller veröffentlicht.",
-        "providerTypeEntra": "Microsoft Entra ID",
-        "providerTypeGeneric": "Generisches OIDC",
-        "descriptionGeneric": "Melde dich mit einem beliebigen OpenID-Connect-Anbieter an, etwa Keycloak, Auth0, Okta oder Google.",
-        "issuerHelpGeneric": "Die OIDC-Aussteller-URL. Tale liest die Authorization-, Token- und Userinfo-Endpunkte aus dem .well-known/openid-configuration-Dokument des Ausstellers.",
-        "clientIdHelpGeneric": "Die Client-ID deines OIDC-Anbieters",
-        "clientSecretHelpGeneric": "Das Client-Secret deines OIDC-Anbieters",
-        "connectedToGeneric": "Mit deinem OIDC-Anbieter verbunden",
-        "autoProvisionRoleHelpGeneric": "Rollen automatisch anhand der Claims deines OIDC-Anbieters zuweisen",
-        "sourceGroup": "Gruppe",
-        "sourceClaim": "Claim",
-        "ruleSourceLabel": "Regelquelle",
-        "rulePatternLabel": "Muster",
-        "ruleTargetRoleLabel": "Zielrolle",
-        "removeRule": "Regel entfernen",
-        "claimPathLabel": "Claim-Pfad",
-        "roleMappingRulesHelpGeneric": "Regeln definieren, um Gruppen oder Claim-Werte auf Plattformrollen abzubilden. Verwende * als Platzhalter (z. B. *admin*). Claim-Regeln nehmen einen Punktpfad in die Userinfo-Claims (z. B. realm_access.roles).",
-        "emailClaimLabel": "E-Mail-Claim",
-        "emailClaimHelp": "Userinfo-Claim mit der E-Mail-Adresse des Benutzers. Leer lassen, um den Standard-E-Mail-Claim zu verwenden.",
-        "nameClaimLabel": "Namens-Claim",
-        "nameClaimHelp": "Userinfo-Claim mit dem Anzeigenamen des Benutzers. Leer lassen, um den Standard-Namens-Claim zu verwenden.",
-        "groupsClaimLabel": "Gruppen-Claim",
-        "groupsClaimHelp": "Userinfo-Claim mit den Gruppen des Benutzers, als Punktpfad (z. B. realm_access.roles). Leer lassen, um den Standard-Gruppen-Claim zu verwenden.",
-        "autoProvisionTeamHelpGeneric": "Team-Mitgliedschaften automatisch aus den Gruppen synchronisieren, die dein OIDC-Anbieter zurückgibt",
-        "excludeGroupsHelpGeneric": "Kommagetrennte Liste von Gruppen, die von der Team-Synchronisierung ausgeschlossen werden"
+        "excludeGroupsHelp": "Kommagetrennte Gruppennamen, die bei der Team-Synchronisierung übersprungen werden.",
+        "scim": {
+          "section": "SCIM-Bereitstellung",
+          "help": "Lassen Sie Ihren IdP Benutzer und Gruppen automatisch übertragen (anlegen, aktualisieren, deaktivieren).",
+          "enabled": "Aktiviert",
+          "disabled": "Deaktiviert",
+          "tokenCreatedHelp": "Kopieren Sie dieses Token jetzt – es wird nicht erneut angezeigt.",
+          "regenerate": "Token neu generieren",
+          "generate": "Token generieren",
+          "disable": "Deaktivieren",
+          "baseUrlLabel": "SCIM-Basis-URL",
+          "tokenFailed": "SCIM-Token konnte nicht generiert werden"
+        },
+        "disable": "Anmeldung deaktivieren",
+        "remove": "Entfernen",
+        "test": "Verbindung testen",
+        "save": "Speichern",
+        "saved": "Gespeichert",
+        "saveFailed": "Speichern fehlgeschlagen",
+        "testOk": "Verbindung sieht gut aus",
+        "testFailed": "Verbindungstest fehlgeschlagen",
+        "guide": {
+          "title": "Einrichtungsleitfaden",
+          "redirectLabel": "Weiterleitungs-/Callback-URL",
+          "samlIntro": "Erstellen Sie in Ihrem IdP eine SAML-App mit der oben im Anmeldebereich angezeigten SP-Metadaten-URL und ACS-URL.",
+          "entra": {
+            "intro": "Registrieren Sie eine App im Microsoft Entra Admin Center und tragen Sie die Daten unten ein.",
+            "s1": "Melden Sie sich im Microsoft Entra Admin Center (entra.microsoft.com) mindestens als Anwendungsentwickler an.",
+            "s2": "Gehen Sie zu Entra ID › App-Registrierungen › Neue Registrierung; benennen Sie sie und wählen Sie „Einzelner Mandant\".",
+            "s3": "Wählen Sie unter Umleitungs-URI die Plattform „Web\", fügen Sie die oben angezeigte Weiterleitungs-URL ein und klicken Sie auf Registrieren.",
+            "s4": "Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet https://login.microsoftonline.com/{tenant-id}/v2.0.",
+            "s5": "Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren Sie den Geheimnis-Wert (nicht die Geheimnis-ID).",
+            "s6": "Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.",
+            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung."
+          },
+          "google": {
+            "intro": "Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen Sie die Daten unten ein.",
+            "s1": "Öffnen Sie in der Google Cloud Console APIs & Dienste › Anmeldedaten › Anmeldedaten erstellen › OAuth-Client-ID.",
+            "s2": "Wählen Sie den Anwendungstyp „Webanwendung\".",
+            "s3": "Fügen Sie unter Autorisierte Weiterleitungs-URIs die oben angezeigte Weiterleitungs-URL hinzu und speichern Sie.",
+            "s4": "Kopieren Sie die Client-ID und das Clientgeheimnis oben auf der Client-Seite.",
+            "s5": "Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die Endpunkte werden automatisch erkannt.",
+            "groupsNote": "Hinweis: Das Standard-OIDC von Google liefert keine Gruppenmitgliedschaften – die Gruppen-zu-Team-Synchronisierung benötigt das Admin SDK / die Cloud Identity API mit einem Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0, Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen."
+          },
+          "oauth2": {
+            "intro": "Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.",
+            "s1": "Registrieren Sie eine Web-/OAuth2-Anwendung bei Ihrem Anbieter und fügen Sie die oben angezeigte Weiterleitungs-URL hinzu.",
+            "s2": "Kopieren Sie Client-ID und Clientgeheimnis.",
+            "s3": "Tragen Sie die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus der Dokumentation Ihres Anbieters ein.",
+            "s4": "Falls Ihr Anbieter abweichende Claim-Namen verwendet, ordnen Sie E-Mail/Name/Gruppen unter „Erweitert\" zu."
+          },
+          "saml": {
+            "intro": "Konfigurieren Sie in Ihrem IdP eine SAML-2.0-Anwendung und tragen Sie die Daten unten ein.",
+            "s1": "Erstellen Sie in Ihrem IdP eine neue SAML-2.0-Anwendung.",
+            "s2": "Setzen Sie die ACS-URL (Assertion Consumer Service) und die Entity-ID/Audience auf die oben angezeigten SP-Werte oder laden Sie die SP-Metadaten-URL hoch.",
+            "s3": "Setzen Sie das Name-ID-Format auf E-Mail-Adresse.",
+            "s4": "Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das IdP-Signaturzertifikat (PEM) in die Felder oben.",
+            "s5": "Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu; weichen die Namen ab, tragen Sie die passenden Attributnamen unter „Erweitert\" ein."
+          }
+        }
       }
     },
     "providers": {
@@ -6400,24 +6433,17 @@
       }
     },
     "branding": {
-      "appName": "App-Name",
-      "appNamePlaceholder": "z. B. Acme GmbH",
-      "textLogo": "Text-Logo",
-      "textLogoPlaceholder": "z. B. Acme",
       "logo": "Logo",
       "logoDescription": "Lade dein Organisationslogo hoch",
       "favicon": "Favicon",
-      "faviconDescription": "64 x 64 Pixel",
+      "faviconDescription": "Wird aus deinem Logo erzeugt, wenn leer. 64 x 64 Pixel.",
       "light": "Hell",
       "dark": "Dunkel",
       "brandColor": "Markenfarbe",
       "accentColor": "Akzentfarbe",
       "uploadLogo": "Logo hochladen",
       "uploadFavicon": "Favicon hochladen",
-      "preview": "Branding-Vorschau",
-      "validation": {
-        "appNameRequired": "App-Name ist erforderlich"
-      }
+      "preview": "Branding-Vorschau"
     },
     "dataResidency": {
       "readOnly": {
@@ -6817,7 +6843,8 @@
       "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
       "automationDuplicated": "Automatisierung dupliziert",
       "automationRenamed": "Automatisierung umbenannt",
-      "brandingUpdated": "Branding aktualisiert"
+      "brandingUpdated": "Branding aktualisiert",
+      "faviconGenerated": "Favicon aus deinem Logo erzeugt"
     },
     "error": {
       "saveFailed": "Änderungen konnten nicht gespeichert werden",
@@ -7582,7 +7609,8 @@
       "generic": "Organigramm konnte nicht aktualisiert werden."
     },
     "empty": {
-      "noAgents": "Noch keine Agenten — erstelle zuerst Agenten und ordne sie dann hier an."
+      "title": "Noch keine Agenten",
+      "description": "Füge Agenten zu deiner Belegschaft hinzu und lege hier fest, wie sie Arbeit delegieren."
     },
     "humans": {
       "title": "Menschen",

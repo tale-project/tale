@@ -1,6 +1,6 @@
 ---
 title: Self-hosted quickstart
-description: Get a working Tale instance running on your machine in three commands with the tale CLI — install, tale init, tale start, then sign in.
+description: Get a working Tale instance running on your machine in three commands with the tale CLI — install, tale init, tale dev, then sign in.
 ---
 
 This is the fastest way to a running Tale: install the `tale` CLI, then two commands. The result is your own org running on your own machine, reachable in the browser. It is meant for a laptop or a single host you want to try Tale on; when you are ready to run it for real, the [Linux server](/self-hosted/install/linux-server) walk covers a hardened production install.
@@ -42,14 +42,14 @@ cd my-project
 ## Step 3 — Start Tale
 
 ```bash
-tale start
+tale dev
 ```
 
-The first run pulls the images and builds the container graph — expect five to ten minutes on a fresh machine. Once the platform reports ready (`Tale Platform is running`), `tale start` opens your browser automatically. If it cannot, it prints the URL to visit.
+The first run pulls the images and builds the container graph — expect five to ten minutes on a fresh machine. Once the platform reports ready (`Tale Platform is running`), `tale dev` opens your browser automatically. If it cannot, it prints the URL to visit.
 
 > Your browser shows a certificate warning for the local self-signed certificate. That is expected — accept it to continue.
 
-Your config under `default/` is bind-mounted into the running instance, so edits to agents, workflows, and integrations reload live. Stop the stack with `Ctrl-C` (or `tale start --detach` to run it in the background).
+Your config under `default/` is bind-mounted into the running instance, so edits to agents, workflows, and integrations reload live. Stop the stack with `Ctrl-C` (or `tale dev --detach` to run it in the background).
 
 ## Step 4 — Create your account
 
@@ -73,9 +73,9 @@ The CLI wraps `docker compose` so you do not have to. If you would rather run th
 ## Troubleshooting
 
 - **`tale` not found after install.** The installer names the destination directory in its output; make sure that directory is on your `PATH` (on Linux it is usually `/usr/local/bin`).
-- **`tale start` exits with a port conflict.** Another service already binds 443 on the host. Free it, or start on a different port with `tale start --port 8443`.
-- **Docker is not running.** `tale start` needs the Docker daemon up. Start Docker Desktop (or `sudo systemctl start docker` on Linux) and retry.
-- **A container crash-loops on first boot.** Almost always a missing secret — re-run `tale start`, which re-runs environment setup, or inspect logs with `tale logs platform`.
+- **`tale dev` exits with a port conflict.** Another service already binds 443 on the host. Free it, or start on a different port with `tale dev --port 8443`.
+- **Docker is not running.** `tale dev` needs the Docker daemon up. Start Docker Desktop (or `sudo systemctl start docker` on Linux) and retry.
+- **A container crash-loops on first boot.** Almost always a missing secret — re-run `tale dev`, which re-runs environment setup, or inspect logs with `tale logs platform`.
 
 ## Where this gets used
 

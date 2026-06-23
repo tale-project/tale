@@ -103,7 +103,7 @@ const PROCESS_ENV_PASSTHROUGH_KEYS = [
   'TALE_ALLOW_PRIVATE_PROVIDER_HOSTS',
   // Offline-test redirect base for the integration sandbox: when set (only by
   // the Playwright E2E webServer / container tests), `mock_rewrite.ts` rewrites
-  // outbound connector calls to the local `@tale/mocks` gateway. It runs inside
+  // outbound connector calls to the local `lib/mocks` gateway. It runs inside
   // a Convex node action, so the value must reach the DEPLOYMENT env — unset in
   // prod/dev, where connectors hit the real upstream.
   'TALE_MOCK_INTEGRATIONS_BASE',

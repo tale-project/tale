@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { Classifier } from '@tale/shared/classify';
+import { openUrl } from '@tale/shared/process';
 import { detectCapabilities } from '@tale/shared/terminal';
 import { configureReporter } from '@tale/shared/tux';
 import kill from 'tree-kill';
@@ -51,6 +52,7 @@ import {
   DEFAULT_CONVEX_PORT,
   isTruthy,
   resolveConvexProbeTarget,
+  shouldOpenBrowser,
 } from './dev-modes';
 import {
   convexClassifier,
@@ -376,7 +378,7 @@ async function assertPortFree(port: number): Promise<void> {
   throw new Error(
     [
       `Port ${port} is already in use, so the app can't start there.`,
-      `   This is usually a previous \`bun run dev\` / \`tale start\` that didn't fully`,
+      `   This is usually a previous \`bun run dev\` / \`tale dev\` that didn't fully`,
       `   exit, or another process holding the port. Find and stop it, then re-run:`,
       ``,
       `     lsof -nP -iTCP:${port} -sTCP:LISTEN     # show the PID holding it`,
@@ -394,7 +396,7 @@ function dockerComposeArgs(rest: string[]): string[] {
 
 /**
  * Ensure the shared `tale-sandbox-net` exists before bringing up the sandbox
- * services, which reference it as an EXTERNAL network. `tale start` creates it
+ * services, which reference it as an EXTERNAL network. `tale dev` creates it
  * via the CLI, but `bun run dev` never did — so the docker bring-up failed with
  * "network tale-sandbox-net declared as external, but could not be found". It's
  * `--internal` (no internet; runtime containers reach pypi/npm only via the
@@ -427,7 +429,7 @@ function ensureSandboxNetwork(): void {
 }
 
 /** Non-fatal docker availability probe. Mirrors the CLI's assertDockerAvailable
- *  (tools/cli/src/lib/actions/start.ts) but resolves a status instead of
+ *  (tools/cli/src/lib/actions/dev.ts) but resolves a status instead of
  *  throwing, so `bun dev` can warn-and-continue when docker is missing. */
 function probeDocker(
   timeoutMs: number,
@@ -732,6 +734,12 @@ async function announceWhenReady(port: number, url: string): Promise<void> {
       rule();
       doneLine(`READY in ${sinceBoot()} — open ${url} in your browser`);
       rule();
+      // Pop the app for an interactive `bun run dev` (skipped under CI / a
+      // TALE_DEV_OPEN opt-out). Best-effort: a failed opener just leaves the URL
+      // printed above, so never block or fail the orchestrator on it.
+      if (shouldOpenBrowser()) {
+        void openUrl(url, { onDebug: (m) => detailLines([m]) });
+      }
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -938,7 +946,7 @@ export async function runDevFleet() {
       if (plan.action === 'noop-external') {
         // We don't own the external backend's process; restart is a no-op.
         warnLine(
-          'External Convex appears unreachable; cannot restart it from here. Check the external backend and re-run `tale start` / `bun run dev` if needed.',
+          'External Convex appears unreachable; cannot restart it from here. Check the external backend and re-run `tale dev` / `bun run dev` if needed.',
         );
         return;
       }

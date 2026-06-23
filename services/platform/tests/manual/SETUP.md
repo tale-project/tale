@@ -15,7 +15,7 @@ Two modes. Pick by what you're testing.
 
 ### A. Deterministic, offline (recommended for chat / AI-driven runs)
 
-Replicates the hermetic stack the e2e suite uses: the **`@tale/mocks` gateway**
+Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
 reply plus Prism-mocked AI endpoints and integration APIs — so chat, AI, and
 integration connectors all work offline with no API keys and no cost. Every new
@@ -24,7 +24,7 @@ org is seeded with the `E2E Assistant` agent, the mock provider, the
 
 ```bash
 # Terminal 1 — the mock gateway (chat SSE + AI + integration APIs on :4141)
-bun --filter "@tale/mocks" start
+bun --filter "lib/mocks" start
 
 # Terminal 2 — platform dev pointed at the hermetic fixtures config
 cd services/platform && \

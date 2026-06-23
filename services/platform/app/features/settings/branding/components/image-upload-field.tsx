@@ -17,7 +17,7 @@ interface ImageUploadFieldProps {
   organizationId: string;
   currentUrl?: string | null;
   imageType: 'logo' | 'favicon-light' | 'favicon-dark';
-  onUpload: (filename: string) => void;
+  onUpload: (filename: string, file: File) => void;
   onRemove?: () => void;
   onPreviewUrlChange?: (url: string | null) => void;
   size?: 'sm' | 'md';
@@ -95,7 +95,7 @@ export function ImageUploadField({
           base64,
           mimeType: file.type,
         });
-        onUpload(result.filename);
+        onUpload(result.filename, file);
       } catch {
         setPreviewUrl(null);
         onPreviewUrlChange?.(null);

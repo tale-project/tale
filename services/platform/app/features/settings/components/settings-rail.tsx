@@ -112,6 +112,13 @@ export function SettingsRail({
       },
       {
         kind: 'leaf',
+        labelKey: 'enterpriseSso',
+        path: 'enterprise-sso',
+        matchMode: 'startsWith',
+        can: ['read', 'orgSettings'],
+      },
+      {
+        kind: 'leaf',
         labelKey: 'providers',
         path: 'providers',
         matchMode: 'startsWith',

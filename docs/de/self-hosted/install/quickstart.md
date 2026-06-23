@@ -1,6 +1,6 @@
 ---
 title: Self-hosted Quickstart
-description: Bring eine funktionierende Tale-Instanz mit der tale-CLI in drei Befehlen auf deine Maschine — installieren, tale init, tale start, dann anmelden.
+description: Bring eine funktionierende Tale-Instanz mit der tale-CLI in drei Befehlen auf deine Maschine — installieren, tale init, tale dev, dann anmelden.
 ---
 
 Das ist der schnellste Weg zu einem laufenden Tale: installier die `tale`-CLI, dann zwei Befehle. Das Ergebnis ist deine eigene Org, die auf deiner eigenen Maschine läuft und im Browser erreichbar ist. Gedacht ist das für einen Laptop oder einen einzelnen Host, auf dem du Tale ausprobieren willst; wenn du es im Ernst betreiben willst, deckt der [Linux-Server](/de/self-hosted/install/linux-server)-Spaziergang eine gehärtete Produktions-Installation ab.
@@ -42,14 +42,14 @@ cd my-project
 ## Schritt 3 — Tale starten
 
 ```bash
-tale start
+tale dev
 ```
 
-Der erste Lauf zieht die Images und baut den Container-Graph — rechne mit fünf bis zehn Minuten auf einer frischen Maschine. Sobald die Plattform bereit meldet (`Tale Platform is running`), öffnet `tale start` automatisch deinen Browser. Kann es das nicht, gibt es die URL zum Besuchen aus.
+Der erste Lauf zieht die Images und baut den Container-Graph — rechne mit fünf bis zehn Minuten auf einer frischen Maschine. Sobald die Plattform bereit meldet (`Tale Platform is running`), öffnet `tale dev` automatisch deinen Browser. Kann es das nicht, gibt es die URL zum Besuchen aus.
 
 > Dein Browser zeigt eine Zertifikatswarnung für das lokale selbstsignierte Zertifikat. Das ist erwartet — akzeptier sie, um fortzufahren.
 
-Deine Konfiguration unter `default/` wird in die laufende Instanz gemountet, sodass Edits an Agents, Workflows und Integrationen live nachladen. Stopp den Stack mit `Ctrl-C` (oder `tale start --detach`, um ihn im Hintergrund laufen zu lassen).
+Deine Konfiguration unter `default/` wird in die laufende Instanz gemountet, sodass Edits an Agents, Workflows und Integrationen live nachladen. Stopp den Stack mit `Ctrl-C` (oder `tale dev --detach`, um ihn im Hintergrund laufen zu lassen).
 
 ## Schritt 4 — Dein Konto erstellen
 
@@ -73,9 +73,9 @@ Die CLI umhüllt `docker compose`, damit du das nicht musst. Willst du den Stack
 ## Fehlersuche
 
 - **`tale` nach der Installation nicht gefunden.** Der Installer benennt das Zielverzeichnis in seiner Ausgabe; stell sicher, dass dieses Verzeichnis auf deinem `PATH` liegt (unter Linux ist es meist `/usr/local/bin`).
-- **`tale start` beendet mit einem Port-Konflikt.** Ein anderer Dienst bindet auf dem Host bereits 443. Gib ihn frei, oder starte auf einem anderen Port mit `tale start --port 8443`.
-- **Docker läuft nicht.** `tale start` braucht den Docker-Daemon oben. Starte Docker Desktop (oder `sudo systemctl start docker` unter Linux) und versuch es erneut.
-- **Ein Container crash-loopt beim ersten Boot.** Fast immer ein fehlendes Secret — lauf `tale start` erneut, was das Environment-Setup erneut ausführt, oder inspizier die Logs mit `tale logs platform`.
+- **`tale dev` beendet mit einem Port-Konflikt.** Ein anderer Dienst bindet auf dem Host bereits 443. Gib ihn frei, oder starte auf einem anderen Port mit `tale dev --port 8443`.
+- **Docker läuft nicht.** `tale dev` braucht den Docker-Daemon oben. Starte Docker Desktop (oder `sudo systemctl start docker` unter Linux) und versuch es erneut.
+- **Ein Container crash-loopt beim ersten Boot.** Fast immer ein fehlendes Secret — lauf `tale dev` erneut, was das Environment-Setup erneut ausführt, oder inspizier die Logs mit `tale logs platform`.
 
 ## Wo das eingesetzt wird
 

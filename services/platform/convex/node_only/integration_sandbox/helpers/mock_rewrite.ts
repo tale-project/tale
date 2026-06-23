@@ -1,6 +1,6 @@
 /**
  * Optional redirect of outbound integration HTTP to the local mock gateway
- * (`@tale/mocks`) for fully-offline e2e / container tests.
+ * (`lib/mocks`) for fully-offline e2e / container tests.
  *
  * Active only when `TALE_MOCK_INTEGRATIONS_BASE` is set (e.g.
  * `http://127.0.0.1:4141`); production and normal dev leave it unset, so

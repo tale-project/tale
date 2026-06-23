@@ -20,7 +20,6 @@ import {
 } from '@/app/components/ui/editor';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Input } from '@/app/components/ui/forms/input';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -28,10 +27,15 @@ import {
   brandingFormSchema,
   type BrandingFormData,
 } from '@/lib/shared/schemas/branding';
+import {
+  deriveFaviconPngBase64,
+  shouldDeriveFavicon,
+} from '@/lib/utils/image/derive-favicon';
 
 import {
   useDeleteImage,
   useSaveBranding,
+  useSaveImage,
   useSnapshotBrandingHistory,
 } from '../hooks/mutations';
 import type { BrandingPreviewData } from './branding-preview';
@@ -40,7 +44,6 @@ import { ImageUploadField } from './image-upload-field';
 
 interface BrandingData {
   appName?: string;
-  textLogo?: string;
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
@@ -86,11 +89,10 @@ export function BrandingForm({
   const saveBranding = useSaveBranding();
   const snapshotHistory = useSnapshotBrandingHistory();
   const deleteImage = useDeleteImage();
+  const saveImage = useSaveImage();
 
   const data = useMemo<BrandingFormData>(
     () => ({
-      appName: branding?.appName ?? '',
-      textLogo: branding?.textLogo ?? '',
       brandColor: branding?.brandColor ?? '',
       accentColor: branding?.accentColor ?? '',
       logoFilename: branding?.logoFilename ?? '',
@@ -104,8 +106,6 @@ export function BrandingForm({
     async (values: BrandingFormData) => {
       try {
         const config = {
-          appName: values.appName || undefined,
-          textLogo: values.textLogo || undefined,
           brandColor: values.brandColor || undefined,
           accentColor: values.accentColor || undefined,
           logoFilename: values.logoFilename || undefined,
@@ -152,7 +152,7 @@ export function BrandingForm({
   useRegisterActiveEditor(editor);
 
   const {
-    form: { handleSubmit, register, watch, setValue, control, formState },
+    form: { handleSubmit, watch, setValue, getValues, control },
   } = editor;
 
   const watchedValues = watch();
@@ -162,18 +162,18 @@ export function BrandingForm({
     null,
   );
 
+  // The app name shown in the preview is the org's name (passed via `branding`)
+  // — it is no longer an editable field, so it stays constant as the user edits.
   useEffect(() => {
     onPreviewChange({
-      appName: watchedValues.appName || undefined,
-      textLogo: watchedValues.textLogo || undefined,
+      appName: branding?.appName,
       logoUrl: logoPreviewUrl ?? branding?.logoUrl,
       faviconUrl: faviconPreviewUrl ?? branding?.faviconLightUrl,
       brandColor: watchedValues.brandColor || undefined,
       accentColor: watchedValues.accentColor || undefined,
     });
   }, [
-    watchedValues.appName,
-    watchedValues.textLogo,
+    branding?.appName,
     watchedValues.brandColor,
     watchedValues.accentColor,
     branding?.logoUrl,
@@ -183,13 +183,56 @@ export function BrandingForm({
     onPreviewChange,
   ]);
 
+  // When a logo is uploaded and no favicon is set yet, derive a square favicon
+  // from the same image so the org gets a tab icon without a second upload.
+  const maybeDeriveFavicon = useCallback(
+    async (file: File) => {
+      const values = getValues();
+      const faviconState = {
+        faviconLightFilename: values.faviconLightFilename || undefined,
+        faviconDarkFilename: values.faviconDarkFilename || undefined,
+        faviconLightUrl: branding?.faviconLightUrl,
+        faviconDarkUrl: branding?.faviconDarkUrl,
+      };
+      if (!shouldDeriveFavicon(faviconState)) return;
+
+      try {
+        const base64 = await deriveFaviconPngBase64(file);
+        const { filename } = await saveImage.mutateAsync({
+          organizationId,
+          type: 'favicon-light',
+          base64,
+          mimeType: 'image/png',
+        });
+        setValue('faviconLightFilename', filename, { shouldDirty: true });
+        setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
+        toast({
+          title: tToast('success.faviconGenerated'),
+          variant: 'success',
+        });
+      } catch (err) {
+        // Non-fatal: the logo still uploaded; the admin can set a favicon
+        // manually. Surface rather than swallow so canvas/upload bugs show up.
+        console.warn('[branding] favicon derivation from logo failed', err);
+      }
+    },
+    [
+      getValues,
+      setValue,
+      branding?.faviconLightUrl,
+      branding?.faviconDarkUrl,
+      organizationId,
+      saveImage,
+      toast,
+      tToast,
+    ],
+  );
+
   // Clear branding wipes the form fields AND deletes the uploaded image
   // blobs. Distinct from the per-row Discard which only reverts unsaved
   // edits — clearing is a destructive, server-mutating action.
   const handleClearBranding = useCallback(async () => {
     const opts = { shouldDirty: true };
-    setValue('appName', '', opts);
-    setValue('textLogo', '', opts);
     setValue('brandColor', '', opts);
     setValue('accentColor', '', opts);
     setValue('logoFilename', '', opts);
@@ -208,8 +251,6 @@ export function BrandingForm({
   }, [organizationId, setValue, deleteImage]);
 
   const hasAnyBranding =
-    !!branding?.appName ||
-    !!branding?.textLogo ||
     !!branding?.brandColor ||
     !!branding?.accentColor ||
     !!branding?.logoUrl ||
@@ -224,28 +265,6 @@ export function BrandingForm({
     >
       <Stack gap={0} justify="between" className="h-full">
         <FormSection>
-          <Input
-            id="branding-app-name"
-            label={t('branding.appName')}
-            placeholder={t('branding.appNamePlaceholder')}
-            required
-            errorMessage={
-              formState.errors.appName
-                ? t('branding.validation.appNameRequired')
-                : undefined
-            }
-            {...register('appName')}
-            wrapperClassName="w-full"
-          />
-
-          <Input
-            id="branding-text-logo"
-            label={t('branding.textLogo')}
-            placeholder={t('branding.textLogoPlaceholder')}
-            {...register('textLogo')}
-            wrapperClassName="w-full"
-          />
-
           <SettingsRow
             label={t('branding.logo')}
             description={t('branding.logoDescription')}
@@ -255,8 +274,9 @@ export function BrandingForm({
                 organizationId={organizationId}
                 currentUrl={branding?.logoUrl}
                 imageType="logo"
-                onUpload={(filename) => {
+                onUpload={(filename, file) => {
                   setValue('logoFilename', filename, { shouldDirty: true });
+                  void maybeDeriveFavicon(file);
                 }}
                 onRemove={() => {
                   setValue('logoFilename', '', { shouldDirty: true });
@@ -276,7 +296,7 @@ export function BrandingForm({
               <MaskWhileLoading>
                 <ImageUploadField
                   organizationId={organizationId}
-                  currentUrl={branding?.faviconLightUrl}
+                  currentUrl={faviconPreviewUrl ?? branding?.faviconLightUrl}
                   imageType="favicon-light"
                   onUpload={(filename) => {
                     setValue('faviconLightFilename', filename, {

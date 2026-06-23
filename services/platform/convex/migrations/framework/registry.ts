@@ -19,6 +19,7 @@ import { meta as ref0_2_1_01Meta } from '../versions/v0_2_1/01_agent_bindings_ag
 import { meta as ref0_2_1_02Meta } from '../versions/v0_2_1/02_agent_webhooks_agent_slug/meta';
 import { meta as ref0_2_14_01Meta } from '../versions/v0_2_14/01_usage_ledger_drop_cost_fields/meta';
 import { meta as ref0_2_48_01Meta } from '../versions/v0_2_48/01_apikey_reference_id/meta';
+import { meta as ref0_2_48_02Meta } from '../versions/v0_2_48/02_merge_audit_retention/meta';
 import { meta as ref0_2_66_01Meta } from '../versions/v0_2_66/01_documents_source_provider_widen/meta';
 import { meta as ref0_2_73_01Meta } from '../versions/v0_2_73/01_artifacts_to_thread_files/meta';
 import { meta as ref0_2_73_02Meta } from '../versions/v0_2_73/02_personalization_split/meta';
@@ -29,6 +30,8 @@ import { migration as gov02 } from '../versions/v0_2_85/02_dsar_pending_table_sp
 import { meta as gov02Meta } from '../versions/v0_2_85/02_dsar_pending_table_split/meta';
 import { migration as gov03 } from '../versions/v0_2_85/03_drop_legacy_governance_tables';
 import { meta as gov03Meta } from '../versions/v0_2_85/03_drop_legacy_governance_tables/meta';
+import { migration as ssoUnify } from '../versions/v0_2_85/04_enterprise_sso_unify';
+import { meta as ssoUnifyMeta } from '../versions/v0_2_85/04_enterprise_sso_unify/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -42,6 +45,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   ref0_2_1_02Meta,
   ref0_2_14_01Meta,
   ref0_2_48_01Meta,
+  ref0_2_48_02Meta,
   ref0_2_66_01Meta,
   ref0_2_73_01Meta,
   ref0_2_73_02Meta,
@@ -50,10 +54,12 @@ export const ALL_META: readonly MigrationMeta[] = [
   gov01Meta,
   gov02Meta,
   gov03Meta,
+  ssoUnifyMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [gov02.meta.id]: gov02,
   [gov03.meta.id]: gov03,
+  [ssoUnify.meta.id]: ssoUnify,
 };

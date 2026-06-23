@@ -9,7 +9,7 @@
  * - Executes the connector operation in sandbox (via Node.js action)
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import { isSqlIntegration } from '../../../integrations/helpers';
@@ -83,9 +83,14 @@ export const integrationAction: ActionDefinition<{
     );
 
     if (!integration) {
-      throw new Error(
-        `Integration not found for name "${name}" in organization "${organizationId}"`,
-      );
+      // Typed so callers can branch (the app's ExternalList renders a friendly
+      // "not connected" state) instead of surfacing a raw server error, and so
+      // the org id never rides along in a client-visible message.
+      throw new ConvexError({
+        code: 'INTEGRATION_NOT_CONNECTED',
+        integration: name,
+        message: `The "${name}" integration is not connected for this organization.`,
+      });
     }
 
     // 2. Check integration type and route accordingly

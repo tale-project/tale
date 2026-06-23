@@ -349,7 +349,7 @@ export async function init(options: InitOptions): Promise<InitResult> {
   if (needsCd) {
     logger.info(`  ${step++}. cd ${relTarget}`);
   }
-  logger.info(`  ${step++}. tale start    (launch locally)`);
+  logger.info(`  ${step++}. tale dev    (launch locally)`);
   logger.info(
     `  ${step++}. Open the app, create the owner account, then add your`,
   );

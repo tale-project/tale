@@ -16,7 +16,6 @@ import {
 import {
   useIntegrationCredentials,
   useIntegrations,
-  useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
 import { mergeIntegrationListItem } from '@/app/features/settings/integrations/lib/merge-integration';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -55,9 +54,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
         organizationId: params.id,
       }),
     );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.sso_providers.queries.get, {}),
-    );
   },
   component: IntegrationsPage,
 });
@@ -80,7 +76,6 @@ function IntegrationsPage() {
   const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: credentials } = useIntegrationCredentials(organizationId);
-  const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
   useEffect(() => {
     if (search.integration_oauth2 === 'success') {
@@ -117,8 +112,7 @@ function IntegrationsPage() {
   // The card grid masks while the ability, org, file list, or SSO read are in
   // flight — the list resolves under stable chrome instead of swapping in from
   // a separate page-level skeleton.
-  const isAppsLoading =
-    abilityLoading || isOrgLoading || isIntegrationsLoading || isSsoLoading;
+  const isAppsLoading = abilityLoading || isOrgLoading || isIntegrationsLoading;
 
   const credentialsBySlug = new Map(
     (credentials ?? []).map(
@@ -172,7 +166,6 @@ function IntegrationsPage() {
         <Integrations
           organizationId={organizationId}
           integrations={allIntegrations}
-          ssoProvider={ssoProvider ?? null}
           tab={search.tab ?? 'connected'}
           onTabChange={handleTabChange}
           initialSlug={search.slug}

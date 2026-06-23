@@ -22,6 +22,23 @@ export function isStructuredConvexError(err: unknown): boolean {
   return data != null && typeof data === 'object';
 }
 
+/**
+ * The `code` string from a structured `ConvexError`'s `data`, if present.
+ * Lets the UI branch on a backend error kind (e.g. an integration that isn't
+ * connected) instead of substring-matching a human message. Returns
+ * `undefined` for a plain error or a `data` without a string `code`.
+ */
+export function convexErrorCode(err: unknown): string | undefined {
+  if (err == null || typeof err !== 'object' || !('data' in err)) {
+    return undefined;
+  }
+  const { data } = err;
+  if (data == null || typeof data !== 'object' || !('code' in data)) {
+    return undefined;
+  }
+  return typeof data.code === 'string' ? data.code : undefined;
+}
+
 export function useActionQuery<Func extends FunctionReference<'action'>>(
   queryKey: readonly unknown[],
   func: Func,

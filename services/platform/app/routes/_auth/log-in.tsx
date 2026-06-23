@@ -258,9 +258,16 @@ export function LogInPage() {
   const handleSsoLogin = useCallback(() => {
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
-    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
-    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-  }, []);
+    const base = `${siteUrl}${basePath}/http_api/api/sso`;
+    // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
+    // authorization-code flow via /authorize.
+    if (ssoConfig?.providerType === 'saml') {
+      window.location.href = `${base}/saml/login`;
+      return;
+    }
+    const callbackUri = `${base}/callback`;
+    window.location.href = `${base}/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+  }, [ssoConfig?.providerType]);
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
   // ceremony; on success the session is live, so refresh the cache and route
