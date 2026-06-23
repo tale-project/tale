@@ -9,13 +9,16 @@ import { z } from 'zod';
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { ChatMessagesSkeleton } from '@/app/features/chat/components/chat-messages-skeleton';
+import {
+  ChatPanelProvider,
+  useChatPanel,
+} from '@/app/features/chat/components/chat-panel/chat-panel-context';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -26,20 +29,13 @@ import { StreamingToolProvider } from '@/app/features/chat/context/streaming-too
 import { THREADS_PAGE_SIZE } from '@/app/features/chat/hooks/queries';
 import { useSandboxPanesAvailable } from '@/app/features/chat/hooks/use-sandbox-panes';
 import { CanvasPane } from '@/app/features/workspace/components/canvas-pane';
-import {
-  LiveBrowserProvider,
-  useLiveBrowser,
-} from '@/app/features/workspace/components/live-browser-context';
+import { LiveBrowserProvider } from '@/app/features/workspace/components/live-browser-context';
 import {
   WorkspaceProvider,
   useWorkspace,
 } from '@/app/features/workspace/components/workspace-context';
-import {
-  WorkspaceFilesProvider,
-  useWorkspaceFiles,
-} from '@/app/features/workspace/components/workspace-files-context';
+import { WorkspaceFilesProvider } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -51,7 +47,15 @@ const PlanPane = lazyComponent(() =>
   })),
 );
 
-const WorkspaceFilesPane = lazyComponent(() =>
+const ChatPanel = lazyComponent(() =>
+  import('@/app/features/chat/components/chat-panel/chat-panel').then(
+    (mod) => ({
+      default: mod.ChatPanel,
+    }),
+  ),
+);
+
+const WorkspaceFilesPane = lazyComponent<{ available: boolean }>(() =>
   import('@/app/features/workspace/components/workspace-files-pane').then(
     (mod) => ({
       default: mod.WorkspaceFilesPane,
@@ -59,26 +63,10 @@ const WorkspaceFilesPane = lazyComponent(() =>
   ),
 );
 
-const WorkspaceFilesMobileBody = lazyComponent<{ threadId: string }>(() =>
-  import('@/app/features/workspace/components/workspace-files-pane').then(
-    (mod) => ({
-      default: mod.WorkspaceFilesMobileBody,
-    }),
-  ),
-);
-
-const LiveBrowserPane = lazyComponent(() =>
+const LiveBrowserPane = lazyComponent<{ available: boolean }>(() =>
   import('@/app/features/workspace/components/live-browser-pane').then(
     (mod) => ({
       default: mod.LiveBrowserPane,
-    }),
-  ),
-);
-
-const LiveBrowserMobileBody = lazyComponent<{ threadId: string }>(() =>
-  import('@/app/features/workspace/components/live-browser-pane').then(
-    (mod) => ({
-      default: mod.LiveBrowserMobileBody,
     }),
   ),
 );
@@ -241,15 +229,7 @@ function ThreadGate({
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { isHistoryOpen, clearChatState } = useChatLayout();
   const { resetWorkspace } = useWorkspace();
-  const { isOpen: isFilesOpen, close: closeFiles } = useWorkspaceFiles();
-  const { isOpen: isLiveBrowserOpen, close: closeLiveBrowser } =
-    useLiveBrowser();
-  // Desktop renders the docked panes; mobile (< md) renders the Sheet variants.
-  // The two must be mutually gated: a Sheet's `md:hidden` only hides its content
-  // via CSS, but Radix still portals the Dialog backdrop on desktop (it covers
-  // the screen + intercepts clicks). Gate each surface on the viewport.
-  const isMobile = useIsMobile();
-  const { t: tChatFiles } = useT('chat');
+  const { reset: resetChatPanel } = useChatPanel();
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
   const threadMatch = useMatch({
@@ -259,9 +239,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const threadId = threadMatch?.params?.threadId;
 
   // The read-only sandbox panes (Workspace files + Live browser) only apply to
-  // external-agent threads with a session. On desktop the collapsed strips are
-  // the open affordance; on mobile the `+`-menu entries are. Gate the mounts so
-  // a normal chat thread never shows a stray strip / backdrop.
+  // external-agent threads with a session — drives whether those two tabs
+  // appear in the unified right panel.
   const sandboxPanesAvailable = useSandboxPanesAvailable(
     organizationId,
     threadId,
@@ -286,26 +265,10 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     if (hadThread && !threadId) {
       clearChatState();
       resetWorkspace();
-      closeFiles();
-      closeLiveBrowser();
+      resetChatPanel();
       setNewChatCount((c) => c + 1);
     }
-  }, [threadId, clearChatState, resetWorkspace, closeFiles, closeLiveBrowser]);
-
-  // The workspace-files and live-browser panes are both right-side panes —
-  // keep at most one open at a time (opening one closes the other) so the
-  // layout never tries to stack two resizable panes on the right edge.
-  useEffect(() => {
-    if (isFilesOpen && isLiveBrowserOpen) closeFiles();
-    // Intentionally not depending on the close callbacks: this fires when
-    // either open-state flips, and `isLiveBrowserOpen` going true (the more
-    // recent action when both are set on the same tick) wins.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLiveBrowserOpen]);
-  useEffect(() => {
-    if (isFilesOpen && isLiveBrowserOpen) closeLiveBrowser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFilesOpen]);
+  }, [threadId, clearChatState, resetWorkspace, resetChatPanel]);
 
   // Render shared chat view when on shared route
   if (shareToken) {
@@ -373,71 +336,20 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             </LayoutErrorBoundary>
           </Stack>
 
+          {/* The four panes are registrars — they publish descriptors to the
+              unified right panel and render nothing themselves. The single
+              <ChatPanel> shell renders the shared strip / tabs / bodies. Plan
+              and Canvas always mount; the sandbox panes (Files + Live browser)
+              register only when `sandboxPanesAvailable`. */}
           <PlanPane />
           <CanvasPane organizationId={organizationId} />
-          {/* Read-only workspace-files explorer — gated to external-agent threads
-              with a session. On desktop the collapsed strip IS the open affordance
-              (no composer pill); the mobile Sheet below carries it under `md`. */}
-          {!isMobile && sandboxPanesAvailable && (
-            <LayoutErrorBoundary organizationId={organizationId}>
-              <WorkspaceFilesPane />
-            </LayoutErrorBoundary>
-          )}
-          {/* Read-only live-browser stream — independent right-side pane, gated
-              identically. At most one of it / workspace-files is open at a time
-              (see the mutual-exclusion effects above). Desktop only; the mobile
-              Sheet below carries it under `md`. */}
-          {!isMobile && sandboxPanesAvailable && (
-            <LayoutErrorBoundary organizationId={organizationId}>
-              <LiveBrowserPane />
-            </LayoutErrorBoundary>
-          )}
+          <WorkspaceFilesPane available={sandboxPanesAvailable} />
+          <LiveBrowserPane available={sandboxPanesAvailable} />
+          <LayoutErrorBoundary organizationId={organizationId}>
+            <ChatPanel />
+          </LayoutErrorBoundary>
         </BranchProvider>
       </Row>
-
-      {/* Mobile: present the workspace-files pane in a right Sheet like the
-          mobile history sidebar, so the desktop split-pane never breaks the
-          narrow layout. Opened from the `+`-menu (same gate). */}
-      {threadId && isMobile && sandboxPanesAvailable && (
-        <Sheet
-          open={isFilesOpen}
-          onOpenChange={(open) => {
-            if (!open) closeFiles();
-          }}
-          side="right"
-          title={tChatFiles('workspaceFiles.title')}
-          className="w-full p-0 md:hidden"
-          // The pane body renders its own close button in the header row; the
-          // Sheet's default absolute top-right close would overlap the Refresh
-          // action, so suppress it (ESC / overlay-tap still dismiss).
-          hideClose
-        >
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <WorkspaceFilesMobileBody threadId={threadId} />
-          </LayoutErrorBoundary>
-        </Sheet>
-      )}
-
-      {/* Mobile: live-browser stream in its own right Sheet (mirrors the
-          workspace-files mobile Sheet). Opened from the `+`-menu (same gate). */}
-      {threadId && isMobile && sandboxPanesAvailable && (
-        <Sheet
-          open={isLiveBrowserOpen}
-          onOpenChange={(open) => {
-            if (!open) closeLiveBrowser();
-          }}
-          side="right"
-          title={tChatFiles('liveBrowser.title')}
-          className="w-full p-0 md:hidden"
-          // The pane body renders its own close button in the header row (see
-          // the workspace-files Sheet above for the same rationale).
-          hideClose
-        >
-          <LayoutErrorBoundary organizationId={organizationId}>
-            <LiveBrowserMobileBody threadId={threadId} />
-          </LayoutErrorBoundary>
-        </Sheet>
-      )}
     </PageLayout>
   );
 }
@@ -451,9 +363,11 @@ function ChatLayout() {
         <WorkspaceProvider>
           <WorkspaceFilesProvider>
             <LiveBrowserProvider>
-              <StreamingToolProvider>
-                <ChatLayoutContent organizationId={organizationId} />
-              </StreamingToolProvider>
+              <ChatPanelProvider>
+                <StreamingToolProvider>
+                  <ChatLayoutContent organizationId={organizationId} />
+                </StreamingToolProvider>
+              </ChatPanelProvider>
             </LiveBrowserProvider>
           </WorkspaceFilesProvider>
         </WorkspaceProvider>

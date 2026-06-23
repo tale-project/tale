@@ -9,7 +9,7 @@ Le Canvas n'est pas une zone documentaire séparée ou un composer plus riche. C
 
 ## Ce qu'est le Canvas
 
-Le Canvas s'ouvre automatiquement la première fois qu'une réponse produit du contenu digne du Canvas. Le thread garde un petit renvoi (« Source », « Aperçu ») à l'endroit de la conversation où le contenu du Canvas a été généré ; le volet de droite tient le contenu réel. Bascule entre **Source** et **Aperçu** en haut du Canvas pour lire le code brut ou voir le résultat rendu ; **Télécharger** sauvegarde le contenu actuel du Canvas dans un fichier.
+Le Canvas s'ouvre automatiquement la première fois qu'une réponse produit du contenu digne du Canvas. Le thread garde un petit renvoi (« Source », « Aperçu ») à l'endroit de la conversation où le contenu du Canvas a été généré ; le volet de droite tient le contenu réel. Bascule entre **Source** et **Aperçu** sur le Canvas pour lire le code brut ou voir le résultat rendu ; **Télécharger** sauvegarde le contenu actuel du Canvas dans un fichier.
 
 ## Quand il s'ouvre automatiquement
 

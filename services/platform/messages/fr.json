@@ -1193,7 +1193,7 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Rechercher des agents",
       "noResults": "Aucun agent trouvé",
-      "addAgent": "Ajouter un agent"
+      "addAgent": "Catalogue"
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
@@ -1626,15 +1626,19 @@
       "verdictError": "Échec de l'enregistrement du verdict"
     },
     "canvas": {
+      "title": "Canevas",
+      "stripOpen": "Ouvrir le canevas",
       "download": "Télécharger",
       "mermaidError": "Échec du rendu du diagramme",
       "viewSource": "Source",
       "viewPreview": "Aperçu",
       "viewToggleAriaLabel": "Basculer entre source et aperçu",
+      "fileSizeAriaLabel": "Taille du fichier",
       "sourceRunOutput": "Sortie de code",
       "sourceAgentWrite": "Fichiers IA",
       "sourceUserUpload": "Téléversés",
       "noFilesYet": "Aucun fichier pour le moment",
+      "writing": "Écriture…",
       "runStatus": {
         "queued": "En file d'attente",
         "installing": "Installation des dépendances",
@@ -1734,8 +1738,7 @@
       "error": "Impossible de charger ce fichier.",
       "retry": "Réessayer",
       "truncated": "… autres éléments masqués (liste tronquée)",
-      "ariaTree": "Fichiers de l'espace de travail",
-      "paneClose": "Fermer le panneau des fichiers"
+      "ariaTree": "Fichiers de l'espace de travail"
     },
     "liveBrowser": {
       "title": "Navigateur en direct",
@@ -1749,12 +1752,17 @@
       "retry": "Réessayer",
       "emptyTitle": "L'agent ne navigue pas en ce moment",
       "emptyHint": "Lance une requête — dès que l'agent ouvre un navigateur, tu le verras ici, en direct.",
-      "paneClose": "Fermer le navigateur en direct",
       "ariaLabel": "Vue en direct du navigateur de l'agent (lecture seule)",
       "reset": "Réinitialiser le navigateur (efface les connexions)",
       "resetConfirmTitle": "Réinitialiser le navigateur ?",
       "resetConfirmBody": "Redémarre le navigateur avec un profil vierge et te déconnecte de tous les sites où l'agent s'était connecté. À n'utiliser que si le navigateur est bloqué et ne se rétablit pas tout seul.",
       "resetConfirmAction": "Réinitialiser le navigateur"
+    },
+    "chatPanel": {
+      "stripAria": "Panneau de discussion",
+      "ariaLabel": "Panneau de discussion",
+      "minimize": "Réduire le panneau de discussion",
+      "resizeAria": "Redimensionner le panneau de discussion"
     }
   },
   "common": {
@@ -6869,9 +6877,6 @@
     "failedCount": "{count} échoués",
     "collapse": "Réduire",
     "expand": "Développer",
-    "paneClose": "Fermer le plan",
-    "paneMinimize": "Réduire le plan",
-    "paneResizeHandle": "Redimensionner le panneau de plan",
     "stripOpen": "Ouvrir le plan de recherche",
     "showMoreSources": "Afficher {count} sources de plus",
     "hideSources": "Masquer les sources supplémentaires",

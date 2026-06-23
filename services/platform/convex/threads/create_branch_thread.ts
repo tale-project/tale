@@ -81,20 +81,8 @@ export const createBranchThread = internalMutation({
       ...(sourceMetadata.teamId && { teamId: sourceMetadata.teamId }),
     });
 
-    // Create threadBranches record
-    await ctx.db.insert('threadBranches', {
-      rootThreadId: args.rootThreadId,
-      branchThreadId,
-      parentThreadId: args.sourceThreadId,
-      forkAfterMessageId: args.editedMessageId,
-      forkOrder: args.editedMessageOrder,
-      branchIndex: branchCount + 1,
-      createdAt,
-    });
-
-    // Copy every source message strictly before the edited message's turn,
-    // preserving the FULL model content (reasoning blocks + tool calls/results),
-    // then append the new edited user message.
+    // Load the source messages first — we need them both to copy the pre-fork
+    // history AND to stamp the fork-point timestamp on the branch record.
     //
     // We iterate the RAW agent messages (not the flattened text from
     // getThreadMessages): the previous copy saved only `{ role, content: text }`,
@@ -119,6 +107,38 @@ export const createBranchThread = internalMutation({
     const ordered = [...sourceMessages].sort((a, b) =>
       a.order === b.order ? a.stepOrder - b.stepOrder : a.order - b.order,
     );
+
+    // The fork point as a TIMESTAMP — the `_creationTime` of the message at
+    // `editedMessageOrder`. The pane queries cut each ancestor's artifacts at
+    // this instant so files the parent wrote AFTER the branch split off don't
+    // leak onto the branch. Fall back to the highest pre-fork message time (or
+    // the branch's own `createdAt`) if the exact boundary message isn't found —
+    // a missing value just means "no cut" downstream, never a crash.
+    const forkOrderCreatedAt =
+      ordered.find((m) => m.order === args.editedMessageOrder)?._creationTime ??
+      ordered
+        .filter((m) => m.order < args.editedMessageOrder)
+        .reduce<number | undefined>(
+          (max, m) =>
+            max === undefined || m._creationTime > max ? m._creationTime : max,
+          undefined,
+        ) ??
+      createdAt;
+
+    // Create threadBranches record
+    await ctx.db.insert('threadBranches', {
+      rootThreadId: args.rootThreadId,
+      branchThreadId,
+      parentThreadId: args.sourceThreadId,
+      forkAfterMessageId: args.editedMessageId,
+      forkOrder: args.editedMessageOrder,
+      forkOrderCreatedAt,
+      branchIndex: branchCount + 1,
+      createdAt,
+    });
+
+    // Copy every source message strictly before the edited message's turn,
+    // preserving the FULL model content, then append the new edited user message.
     for (const doc of ordered) {
       // Everything from the edited turn onward is dropped (the branch
       // regenerates from the edit point).

@@ -1,26 +1,23 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
 import { useMatch } from '@tanstack/react-router';
-import { PanelRightClose, Telescope, X } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Telescope } from 'lucide-react';
+import { memo, useMemo } from 'react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useWorkspaceOptional } from '@/app/features/workspace/components/workspace-context';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
+import type { ChatPaneDescriptor } from '../chat-panel/types';
+import { useAutoOpen, useRegisterPane } from '../chat-panel/use-register-pane';
 import { TodoListCard } from '../todo-list-card';
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH = 560;
-const DEFAULT_WIDTH = 360;
-const STRIP_WIDTH = 48;
-
+/**
+ * Research-plan pane. A registrar: it owns the todos query and publishes a
+ * descriptor to the unified right panel ({@link useRegisterPane}); the shell
+ * renders the strip / tab / body. The component itself renders nothing.
+ */
 function PlanPaneComponent() {
   const { t } = useT('todoList');
   const threadMatch = useMatch({
@@ -36,169 +33,50 @@ function PlanPaneComponent() {
   const hasTodos = !!todosData && todosData.todos.length > 0;
   const counts = computeCounts(todosData?.todos ?? []);
 
-  const workspace = useWorkspaceOptional();
-  const isCanvasOpen = !!workspace?.isOpen;
+  const hasContent = !!threadId && hasTodos;
+  useAutoOpen('plan', hasContent);
 
-  const [userDismissed, setUserDismissed] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const resizeRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-
-  useEffect(() => {
-    setUserDismissed(false);
-    setIsOpen(false);
-    setIsMinimized(false);
-  }, [threadId]);
-
-  useEffect(() => {
-    if (hasTodos && !userDismissed && !isOpen) {
-      setIsOpen(true);
-    }
-  }, [hasTodos, userDismissed, isOpen]);
-
-  const handleClose = useCallback(() => {
-    setIsOpen(false);
-    setUserDismissed(true);
-  }, []);
-
-  const handleMinimize = useCallback(() => {
-    setIsMinimized(true);
-  }, []);
-
-  const handleStripOpen = useCallback(() => {
-    workspace?.closeWorkspace();
-    setIsMinimized(false);
-    setUserDismissed(false);
-    setIsOpen(true);
-  }, [workspace]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const startX = e.clientX;
-    const startWidth =
-      resizeRef.current?.parentElement?.offsetWidth ?? DEFAULT_WIDTH;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const delta = startX - moveEvent.clientX;
-      const newWidth = Math.min(
-        MAX_WIDTH,
-        Math.max(MIN_WIDTH, startWidth + delta),
-      );
-      setWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, []);
-
-  if (!threadId || !hasTodos || !isOpen) return null;
-
-  if (isCanvasOpen || isMinimized) {
-    return (
-      <button
-        type="button"
-        onClick={handleStripOpen}
-        aria-label={t('stripOpen')}
-        className={cn(
-          'border-border bg-background hover:bg-muted/50 group flex h-full shrink-0 flex-col items-center gap-3 border-l py-4 transition-colors',
-          'cursor-pointer',
-        )}
-        style={{ width: STRIP_WIDTH }}
-      >
-        <Telescope className="text-muted-foreground group-hover:text-foreground size-4" />
-        <Badge
-          variant="outline"
-          className="rotate-180 text-[10px] [writing-mode:vertical-rl]"
-        >
-          {t('progress', { done: counts.done, total: counts.total })}
-        </Badge>
-        {counts.failed > 0 && (
+  const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
+    if (!hasContent || !threadId) return null;
+    return {
+      id: 'plan',
+      icon: Telescope,
+      label: t('title'),
+      ariaLabel: t('stripOpen', { defaultValue: 'Open research plan' }),
+      badge: (
+        <div className="flex flex-col items-center gap-1">
           <Badge
-            variant="destructive"
+            variant="outline"
             className="rotate-180 text-[10px] [writing-mode:vertical-rl]"
           >
-            {t('failedCount', { count: counts.failed })}
-          </Badge>
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <Stack
-      gap={0}
-      className="border-border bg-background relative h-full shrink-0 border-l"
-      style={{ width }}
-      role="complementary"
-      aria-label={t('ariaLabel')}
-    >
-      <div
-        ref={resizeRef}
-        onMouseDown={handleMouseDown}
-        className="absolute top-0 -left-1 z-10 h-full w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('paneResizeHandle')}
-      />
-
-      <Row gap={2} justify="between" className="border-border border-b p-3">
-        <Row gap={2} className="min-w-0">
-          <Telescope className="text-muted-foreground size-4 shrink-0" />
-          <span className="truncate text-sm font-medium">{t('title')}</span>
-          <Badge variant="outline" className="shrink-0 text-xs">
             {t('progress', { done: counts.done, total: counts.total })}
           </Badge>
           {counts.failed > 0 && (
-            <Badge variant="destructive" className="shrink-0 text-xs">
+            <Badge
+              variant="destructive"
+              className="rotate-180 text-[10px] [writing-mode:vertical-rl]"
+            >
               {t('failedCount', { count: counts.failed })}
             </Badge>
           )}
-        </Row>
-        <Row gap={1} className="shrink-0">
-          <Tooltip content={t('paneMinimize')} side="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={handleMinimize}
-              aria-label={t('paneMinimize')}
-            >
-              <PanelRightClose className="size-3.5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('paneClose')} side="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={handleClose}
-              aria-label={t('paneClose')}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </Tooltip>
-        </Row>
-      </Row>
+        </div>
+      ),
+      hasContent: true,
+      body: (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <TodoListCard
+            threadId={threadId}
+            hideHeader
+            className="border-0 shadow-none"
+          />
+        </div>
+      ),
+    };
+  }, [hasContent, threadId, t, counts.done, counts.total, counts.failed]);
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <TodoListCard
-          threadId={threadId}
-          hideHeader
-          className="border-0 shadow-none"
-        />
-      </div>
-    </Stack>
-  );
+  useRegisterPane(descriptor);
+
+  return null;
 }
 
 function computeCounts(

@@ -1192,7 +1192,7 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
-      "addAgent": "Add agent"
+      "addAgent": "Catalog"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1352,8 +1352,7 @@
       "error": "Could not load this file.",
       "retry": "Retry",
       "truncated": "… more items hidden (list truncated)",
-      "ariaTree": "Workspace files",
-      "paneClose": "Close files panel"
+      "ariaTree": "Workspace files"
     },
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
@@ -1645,15 +1644,19 @@
       "verdictError": "Failed to record verdict"
     },
     "canvas": {
+      "title": "Canvas",
+      "stripOpen": "Open canvas",
       "download": "Download",
       "mermaidError": "Failed to render diagram",
       "viewSource": "Source",
       "viewPreview": "Preview",
       "viewToggleAriaLabel": "Toggle source / preview",
+      "fileSizeAriaLabel": "File size",
       "sourceRunOutput": "Code output",
       "sourceAgentWrite": "AI files",
       "sourceUserUpload": "Uploaded",
       "noFilesYet": "No files yet",
+      "writing": "Writing…",
       "runStatus": {
         "queued": "Queued",
         "installing": "Installing dependencies",
@@ -1748,12 +1751,17 @@
       "retry": "Retry",
       "emptyTitle": "The agent isn’t browsing right now",
       "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
-      "paneClose": "Close live browser",
       "ariaLabel": "Live view of the agent’s browser (read-only)",
       "reset": "Reset browser (clears logins)",
       "resetConfirmTitle": "Reset browser?",
       "resetConfirmBody": "Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.",
       "resetConfirmAction": "Reset browser"
+    },
+    "chatPanel": {
+      "stripAria": "Chat panel",
+      "ariaLabel": "Chat panel",
+      "minimize": "Minimize chat panel",
+      "resizeAria": "Resize chat panel"
     }
   },
   "common": {
@@ -7130,9 +7138,6 @@
     "failedCount": "{count} failed",
     "collapse": "Collapse",
     "expand": "Expand",
-    "paneClose": "Close plan",
-    "paneMinimize": "Minimize plan",
-    "paneResizeHandle": "Resize plan panel",
     "stripOpen": "Open research plan",
     "showMoreSources": "Show {count} more sources",
     "hideSources": "Hide additional sources",

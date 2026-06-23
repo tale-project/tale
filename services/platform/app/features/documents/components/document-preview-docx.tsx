@@ -26,7 +26,7 @@ const docxProseClasses = cn(
   '[&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6',
   '[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6',
   '[&_li]:leading-relaxed',
-  '[&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:no-underline',
+  '[&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:no-underline',
   '[&_strong]:font-semibold',
   '[&_em]:italic',
   '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em]',

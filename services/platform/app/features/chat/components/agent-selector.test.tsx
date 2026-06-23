@@ -16,7 +16,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.viewDetails': 'View agent details',
         'agentSelector.searchPlaceholder': 'Search agents...',
         'agentSelector.noResults': 'No agents found',
-        'agentSelector.addAgent': 'Add agent',
+        'agentSelector.addAgent': 'Catalog',
       };
       return translations[key] ?? key;
     },
@@ -87,33 +87,6 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
-const mockDialogOpen = vi.fn();
-const mockDialogClose = vi.fn();
-const mockDialogOnOpenChange = vi.fn();
-let mockDialogIsOpen = false;
-
-vi.mock('@/app/hooks/use-dialog-search-param', () => ({
-  useDialogSearchParam: () => ({
-    isOpen: mockDialogIsOpen,
-    open: mockDialogOpen,
-    close: mockDialogClose,
-    onOpenChange: mockDialogOnOpenChange,
-  }),
-}));
-
-vi.mock('@/app/features/agents/components/agent-create-dialog', () => ({
-  CreateAgentDialog: ({
-    open,
-  }: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    organizationId: string;
-  }) =>
-    open ? (
-      <div data-testid="create-agent-dialog">Create Agent Dialog</div>
-    ) : null,
-}));
-
 const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
@@ -154,7 +127,6 @@ vi.mock('../hooks/use-composer-capabilities', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mockCanWrite = true;
-  mockDialogIsOpen = false;
   mockAgents = defaultAgents;
   mockEffectiveAgent = { name: 'assistant', displayName: 'Default Chat' };
   mockEffectiveAgentLoading = false;
@@ -214,16 +186,16 @@ describe('AgentSelector', () => {
     expect(trigger).toHaveClass('sm:min-w-32');
   });
 
-  it('shows "Add agent" button when user has write permission', async () => {
+  it('shows the "Catalog" button when user has write permission', async () => {
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    expect(screen.getByText('Add agent')).toBeInTheDocument();
+    expect(screen.getByText('Catalog')).toBeInTheDocument();
   });
 
-  it('hides "Add agent" button when user lacks write permission', async () => {
+  it('hides the "Catalog" button when user lacks write permission', async () => {
     mockCanWrite = false;
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
@@ -231,7 +203,7 @@ describe('AgentSelector', () => {
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    expect(screen.queryByText('Add agent')).not.toBeInTheDocument();
+    expect(screen.queryByText('Catalog')).not.toBeInTheDocument();
   });
 
   it('shows a "view agent details" link on each agent row (not Auto) for managers', async () => {
@@ -277,32 +249,19 @@ describe('AgentSelector', () => {
     expect(mockSetSelectedAgent).not.toHaveBeenCalled();
   });
 
-  it('opens create dialog when "Add agent" is clicked', async () => {
+  it('navigates to the agent catalog when "Catalog" is clicked', async () => {
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    const addButton = screen.getByText('Add agent');
+    const addButton = screen.getByText('Catalog');
     await user.click(addButton);
 
-    expect(mockDialogOpen).toHaveBeenCalled();
-  });
-
-  it('renders CreateAgentDialog when dialog is open', () => {
-    mockDialogIsOpen = true;
-
-    render(<AgentSelector organizationId="org-1" />);
-
-    expect(screen.getByTestId('create-agent-dialog')).toBeInTheDocument();
-  });
-
-  it('does not render CreateAgentDialog when dialog is closed', () => {
-    mockDialogIsOpen = false;
-
-    render(<AgentSelector organizationId="org-1" />);
-
-    expect(screen.queryByTestId('create-agent-dialog')).not.toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/agents/catalog',
+      params: { id: 'org-1' },
+    });
   });
 
   it('calls setSelectedAgent with agent name when option is clicked', async () => {

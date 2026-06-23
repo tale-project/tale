@@ -115,13 +115,22 @@ fi
 # --error: any reported finding exits non-zero (the blocking gate). Gate on
 # ERROR and WARNING (the strictness level chosen for this repo); INFO rules are
 # dropped from the run so they neither block nor add noise.
-exec "${bin}" scan \
-  "${config_args[@]}" \
-  --severity=ERROR \
-  --severity=WARNING \
-  --error \
-  --disable-version-check \
-  "${sarif_args[@]}" \
-  "${exclude_rule_args[@]}" \
-  "${exclude_args[@]}" \
-  "${targets[@]}"
+# Bash 3.2 (macOS /bin/bash) treats "${empty[@]}" as unbound under `set -u`.
+scan_args=(
+  "${config_args[@]}"
+  --severity=ERROR
+  --severity=WARNING
+  --error
+  --disable-version-check
+)
+if [ "${#sarif_args[@]}" -gt 0 ]; then
+  scan_args+=("${sarif_args[@]}")
+fi
+if [ "${#exclude_rule_args[@]}" -gt 0 ]; then
+  scan_args+=("${exclude_rule_args[@]}")
+fi
+if [ "${#exclude_args[@]}" -gt 0 ]; then
+  scan_args+=("${exclude_args[@]}")
+fi
+scan_args+=("${targets[@]}")
+exec "${bin}" scan "${scan_args[@]}"
