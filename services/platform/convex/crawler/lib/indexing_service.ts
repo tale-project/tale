@@ -354,6 +354,66 @@ export async function indexWebsite(
   };
 }
 
+export interface IndexPageInput {
+  url: string;
+  title: string | null;
+  content: string;
+}
+
+/**
+ * Index a specific set of already-fetched pages (chunk + embed),
+ * concurrency-bounded (INDEXING_CONCURRENCY). Unlike `indexWebsite` — which
+ * rescans EVERY crawled page of the domain on each call (O(total), so calling
+ * it per batch in the incremental scan loop would be O(n²)) — this touches only
+ * the pages passed in (O(batch)). Used by the incremental scan scheduler to
+ * index each freshly-fetched batch without re-walking the whole corpus.
+ * Indexing failures are logged and counted, never thrown, so one bad page can't
+ * abort the batch.
+ */
+export async function indexPages(
+  orgSlug: string,
+  domain: string,
+  pages: IndexPageInput[],
+): Promise<IndexWebsiteResult> {
+  let indexed = 0;
+  let skipped = 0;
+  let failed = 0;
+  let totalChunks = 0;
+
+  const results = await runWithConcurrency(
+    pages,
+    INDEXING_CONCURRENCY,
+    (page) => indexPage(orgSlug, domain, page.url, page.title, page.content),
+  );
+
+  for (const result of results) {
+    if (result.error !== undefined && result.value === undefined) {
+      logger.error(
+        `Indexing task failed for ${domain}: ${stringifyError(result.error)}`,
+      );
+      failed += 1;
+    } else if (result.value) {
+      const r = result.value;
+      if (r.status === 'indexed') {
+        indexed += 1;
+        totalChunks += r.chunks_indexed;
+      } else if (r.status === 'skipped') {
+        skipped += 1;
+      } else {
+        failed += 1;
+      }
+    }
+  }
+
+  return {
+    domain,
+    pages_indexed: indexed,
+    pages_skipped: skipped,
+    pages_failed: failed,
+    total_chunks: totalChunks,
+  };
+}
+
 interface SettledResult<T> {
   value?: T;
   error?: unknown;

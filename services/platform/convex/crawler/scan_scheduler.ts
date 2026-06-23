@@ -11,6 +11,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { indexPages } from './lib/indexing_service';
 import {
   countUncrawledUrls,
   getDueWebsites,
@@ -30,18 +31,20 @@ const envInt = (name: string, fallback: number): number => {
 // at exactly 100. Bound only by a generous safety cap so a pathological sitemap
 // can't blow one action's memory. Override via `CRAWLER_MAX_DISCOVER_URLS`.
 const MAX_DISCOVER_URLS = envInt('CRAWLER_MAX_DISCOVER_URLS', 10_000);
-// Crawling (fetch + render + chunk + embed each page) is expensive, so bound it
-// PER ACTION to stay within the Convex node-action budget. `scanWebsite`
-// self-continues across fresh actions until the whole site is indexed, so the
-// per-action cap limits action duration, NOT total coverage. Override via
-// `CRAWLER_MAX_PAGES_PER_SCAN`.
-const MAX_PAGES_PER_SCAN = envInt('CRAWLER_MAX_PAGES_PER_SCAN', 100);
+// Crawling (fetch + chunk + embed each page) is expensive. Bound each action by
+// WALL-CLOCK rather than page count: a Convex node action is hard-killed near
+// ~10 min WITHOUT running its catch/reschedule, so a fixed 100-page batch on a
+// slow site overran the budget and the chain died with status stuck 'scanning'.
+// We crawl in small batches until this budget elapses, then reschedule a fresh
+// action — so coverage is unbounded across the chain while each action stays
+// safely within the kill limit. Override via `CRAWLER_SCAN_ACTION_BUDGET_MS`.
+const SCAN_ACTION_BUDGET_MS = envInt('CRAWLER_SCAN_ACTION_BUDGET_MS', 300_000);
 const FETCH_BATCH_SIZE = 20;
 // Hard cap on the self-continuation chain length from a single trigger, so a
 // huge site can't schedule an unbounded action chain in one go; the next cron
-// tick resumes any remainder. Override via `CRAWLER_MAX_SCAN_CONTINUATIONS`
-// (default 50 ⇒ up to 50 × MAX_PAGES_PER_SCAN = 5000 pages per trigger).
-const MAX_SCAN_CONTINUATIONS = envInt('CRAWLER_MAX_SCAN_CONTINUATIONS', 50);
+// tick (or a manual re-scan) resumes any remainder. Override via
+// `CRAWLER_MAX_SCAN_CONTINUATIONS`.
+const MAX_SCAN_CONTINUATIONS = envInt('CRAWLER_MAX_SCAN_CONTINUATIONS', 100);
 // A URL that fails this many fetches is dropped from both the crawl list and the
 // remaining-work count, so a permanently-broken page can't wedge the loop.
 const MAX_FETCH_FAIL_COUNT = 10;
@@ -94,6 +97,7 @@ export const scanWebsite = internalAction({
     // Refresh status (and `updated_at`) on every continuation so a long chain is
     // never mistaken for a stuck 'scanning' row by getDueWebsites' >2h check.
     await updateScanStatus(domain, 'scanning');
+    const deadline = Date.now() + SCAN_ACTION_BUDGET_MS;
     try {
       // 1. Discover the full frontier once per chain.
       if (continuation === 0) {
@@ -103,39 +107,50 @@ export const scanWebsite = internalAction({
         });
       }
 
-      // 2. Crawl a bounded batch of pages that still need crawling (uncrawled
-      //    first, then stale), skipping URLs past the fail-count budget.
-      const toCrawl = await getUrlsNeedingRecrawl(
-        domain,
-        MAX_PAGES_PER_SCAN,
-        null,
-        MAX_FETCH_FAIL_COUNT,
-      );
-      for (let i = 0; i < toCrawl.length; i += FETCH_BATCH_SIZE) {
-        await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
+      // 2. Crawl + index not-yet-crawled pages in small batches until the
+      //    wall-clock budget elapses or the site is fully crawled. Each fetched
+      //    page is indexed individually (chunk + embed) right after fetch — O(new
+      //    pages) and resilient: if the action is killed mid-loop, the next
+      //    continuation simply re-selects whatever is still uncrawled.
+      while (Date.now() < deadline) {
+        if ((await countUncrawledUrls(domain, MAX_FETCH_FAIL_COUNT)) === 0) {
+          break;
+        }
+        // Uncrawled / never-attempted URLs sort first (NULLS FIRST), so failed
+        // pages are retried only after fresh ones and drop out past the budget.
+        const batch = await getUrlsNeedingRecrawl(
           domain,
-          urls: toCrawl.slice(i, i + FETCH_BATCH_SIZE),
-        });
-        // Surface progress to the UI after each batch (fetchUrls has just set
-        // content_hash on these pages, so crawled_count climbs immediately).
+          FETCH_BATCH_SIZE,
+          null,
+          MAX_FETCH_FAIL_COUNT,
+        );
+        if (batch.length === 0) break;
+
+        const fetched = await ctx.runAction(
+          internal.crawler.index_pages.fetchUrls,
+          { domain, urls: batch },
+        );
+        // Index just the pages we fetched (chunk + embed), concurrency-bounded.
+        // Indexing the batch directly is O(batch); calling indexWebsite here
+        // would rescan the whole corpus each time (O(n²) over the chain).
+        await indexPages(
+          orgSlug,
+          domain,
+          fetched.pages.map((page) => ({
+            url: page.url,
+            title: page.title ?? null,
+            content: page.content,
+          })),
+        );
+        await updateLastScanned(domain);
+        // Surface progress to the UI after each batch (crawled_count just grew).
         await pushRowSync();
       }
 
-      // 3. Index newly-fetched content (idempotent; skips unchanged pages).
-      await ctx.runAction(internal.crawler.index_pages.indexWebsite, {
-        orgSlug,
-        domain,
-      });
-      await updateLastScanned(domain);
-
-      // 4. More to crawl? Continue in a fresh action (stays in budget) until the
-      //    whole site is indexed or the continuation cap is hit; else go idle.
+      // 3. More to crawl? Continue in a fresh action (resets the budget) until
+      //    the whole site is indexed or the continuation cap is hit; else idle.
       const remaining = await countUncrawledUrls(domain, MAX_FETCH_FAIL_COUNT);
-      if (
-        toCrawl.length > 0 &&
-        remaining > 0 &&
-        continuation < MAX_SCAN_CONTINUATIONS
-      ) {
+      if (remaining > 0 && continuation < MAX_SCAN_CONTINUATIONS) {
         await ctx.scheduler.runAfter(
           0,
           internal.crawler.scan_scheduler.scanWebsite,
