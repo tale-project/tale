@@ -28,3 +28,9 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 # The base image ships busybox wget but no curl.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1
+
+# Re-assert the upstream image's existing non-root user (uid 1000, owns /app and
+# the /app/data SQLite store). The runtime is unchanged — bifrost already runs as
+# appuser — but Trivy's static Dockerfile scan can't see the base image's USER,
+# so an explicit instruction is needed to satisfy AVD-DS-0002.
+USER appuser
