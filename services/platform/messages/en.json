@@ -6236,7 +6236,6 @@
       "testSystemError": "The connection test couldn't run. Check the provider's base URL and API key, then try again.",
       "addKey": "Add API key",
       "apiKeyEnter": "Enter API key",
-      "searchProvider": "Search providers...",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",

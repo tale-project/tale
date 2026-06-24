@@ -5975,7 +5975,6 @@
       "testSystemError": "Le test de connexion n'a pas pu s'exécuter. Vérifie l'URL de base et la clé API du fournisseur, puis réessaie.",
       "addKey": "Ajouter une clé API",
       "apiKeyEnter": "Saisis la clé API",
-      "searchProvider": "Rechercher des fournisseurs...",
       "created": "Fournisseur créé",
       "modelCount": "{count, plural, one {# modèle} other {# modèles}}",
       "removeModel": "Supprimer le modèle",
