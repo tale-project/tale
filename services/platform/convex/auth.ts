@@ -708,6 +708,20 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // through a `Record<string, unknown>` view so the field
             // shape matches Better Auth's loose update payload type.
             const orgPatch = data.organization as Record<string, unknown>;
+            // Org name is required: reject a rename that clears it (empty or
+            // whitespace-only). Mirrors the client-side `.min(1)` validation so
+            // an empty name can't slip past the auth boundary via a direct API
+            // call. Only enforced when `name` is part of the patch — a name-less
+            // update (e.g. locale-only) leaves the stored name untouched.
+            const rawName = orgPatch.name;
+            if (rawName !== undefined) {
+              if (typeof rawName !== 'string' || rawName.trim().length === 0) {
+                throw new APIError('BAD_REQUEST', {
+                  message: 'Organization name is required.',
+                });
+              }
+              orgPatch.name = rawName.trim();
+            }
             const rawSlug = orgPatch.slug;
             if (typeof rawSlug !== 'string') return;
             const normalizedSlug = rawSlug.toLowerCase();
