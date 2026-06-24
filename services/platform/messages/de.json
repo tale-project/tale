@@ -1977,7 +1977,9 @@
       "escape": "Esc"
     },
     "notFound": {
-      "title": "Seite nicht gefunden"
+      "title": "Seite nicht gefunden",
+      "description": "Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.",
+      "backToDashboard": "Zurück zum Dashboard"
     },
     "localeTabs": {
       "default": "Standard",
@@ -4072,6 +4074,10 @@
     "chat": {
       "title": "Chat",
       "description": "Chatte mit der KI, um Hilfe bei deinen Aufgaben zu erhalten."
+    },
+    "notFound": {
+      "title": "Seite nicht gefunden",
+      "description": "Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben."
     },
     "conversations": {
       "title": "Konversationen",

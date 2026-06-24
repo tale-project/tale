@@ -1978,7 +1978,9 @@
       "escape": "Échap"
     },
     "notFound": {
-      "title": "Page introuvable"
+      "title": "Page introuvable",
+      "description": "La page que tu cherches n'existe pas ou a peut-être été déplacée.",
+      "backToDashboard": "Retour au tableau de bord"
     },
     "localeTabs": {
       "default": "défaut",
@@ -4073,6 +4075,10 @@
     "chat": {
       "title": "Chat",
       "description": "Discute avec l'IA pour obtenir de l'aide sur tes tâches."
+    },
+    "notFound": {
+      "title": "Page introuvable",
+      "description": "La page que tu cherches n'existe pas ou a peut-être été déplacée."
     },
     "conversations": {
       "title": "Conversations",
