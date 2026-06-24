@@ -8,7 +8,7 @@
  * stores panel.
  * `api.deployment.*` resolves after `convex codegen` (runs on dev/deploy).
  *
- * Built on the shared settings UI (`SettingsSection`, app `Input`/`Select`/
+ * Built on the shared settings UI (`PageSection`, app `Input`/`Select`/
  * `Switch`, `Alert`, `Stack`/`HStack`) so it matches every other settings page
  * instead of carrying bespoke banner / label / card chrome.
  *
@@ -18,8 +18,10 @@
  */
 
 import { Alert } from '@tale/ui/alert';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Grid, HStack, Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Info } from 'lucide-react';
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
@@ -31,7 +33,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -225,25 +227,33 @@ function PgSection({
 }) {
   const { t } = useT('settings');
   return (
-    <SettingsSection
+    <PageSection
       className={className}
       title={title}
       description={description}
       action={
-        <Switch
-          label={t('dataResidency.externalPostgres')}
-          hideLabelOnMobile
-          checked={state.enabled}
-          disabled={disabled}
-          onCheckedChange={(checked) =>
-            setState({ ...state, enabled: checked })
-          }
-        />
+        // State lives in a scannable pill; the switch is the control (its
+        // accessible name comes from `aria-label`, since the pill is visual).
+        <HStack gap={2} align="center">
+          <Badge variant={state.enabled ? 'blue' : 'slate'} dot>
+            {state.enabled
+              ? t('dataResidency.externalPostgres')
+              : t('dataResidency.status.builtIn')}
+          </Badge>
+          <Switch
+            aria-label={t('dataResidency.externalPostgres')}
+            checked={state.enabled}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              setState({ ...state, enabled: checked })
+            }
+          />
+        </HStack>
       }
     >
       {state.enabled ? (
         <Stack gap={4}>
-          <Grid sm={2}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label={t('dataResidency.field.host')}
               value={state.host}
@@ -294,10 +304,11 @@ function PgSection({
                     : t('dataResidency.password.writeOnlyHint')
               }
             />
-          </Grid>
+          </div>
           <HStack gap={3} align="center" className="flex-wrap">
             <Button
               variant="secondary"
+              size="sm"
               onClick={onTest}
               disabled={disabled || testing}
             >
@@ -312,12 +323,10 @@ function PgSection({
           </HStack>
           {note}
         </Stack>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          {t('dataResidency.usingSharedDatabase')}
-        </p>
-      )}
-    </SettingsSection>
+      ) : // Off = built-in: the status pill in the header already says so, so
+      // the body stays empty rather than repeating it as a grey sentence.
+      null}
+    </PageSection>
   );
 }
 
@@ -614,14 +623,59 @@ function DeploymentSettingsView({
     }
   }
 
+  // Register Save and Apply & restart in the shared settings header — same
+  // position as branding's buttons, but with data residency's own actions.
+  // Always register both (fixed-size array so effect deps never change length);
+  // readOnly gates via `disabled` rather than omitting the buttons entirely.
+  useRegisterSettingsSecondaryAction([
+    {
+      label: t('dataResidency.save'),
+      loadingLabel: t('dataResidency.saving'),
+      onClick: () => void onSave(),
+      disabled: readOnly || saving || !isDirty,
+      loading: saving,
+    },
+    {
+      label: t('dataResidency.applyRestart'),
+      loadingLabel: t('dataResidency.restarting'),
+      onClick: () => setRestartConfirmOpen(true),
+      disabled: readOnly || restarting || isDirty,
+      loading: restarting,
+      title: t('dataResidency.applyRestartTitle'),
+      variant: 'secondary',
+    },
+  ]);
+
   return (
     <SettingsPage fitToContainer>
-      {/* Page = a scrollable body + a footer docked to the bottom, so the
-          Save / Apply & restart bar stays pinned to the bottom of the viewport
-          regardless of how short the content is (plain `position: sticky` only
-          pins once the content is tall enough to scroll). */}
-      <Stack gap={0} className="min-h-0 flex-1">
-        <Stack gap={8} className="min-h-0 flex-1 overflow-y-auto pb-8">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-8 pb-8">
+          {/* Save / restart status — previously in the footer, now inline at
+              the top of the scrollable body so they're visible without
+              scrolling to the bottom. */}
+          {error || (savedOk && !isDirty) || restartMsg ? (
+            <Stack gap={3}>
+              {error ? (
+                <Alert variant="destructive" description={error} />
+              ) : null}
+              {savedOk && !isDirty ? (
+                <Alert
+                  description={
+                    <>
+                      <strong>{t('dataResidency.saved.title')}</strong>{' '}
+                      {t('dataResidency.saved.runPrefix')}{' '}
+                      <code>docker compose restart convex</code>{' '}
+                      {t('dataResidency.saved.orPrefix')}{' '}
+                      <code>tale deploy --services convex</code>{' '}
+                      {t('dataResidency.saved.tail')}
+                    </>
+                  }
+                />
+              ) : null}
+              {restartMsg ? <Alert description={restartMsg} /> : null}
+            </Stack>
+          ) : null}
+
           {readOnly ||
           data?.secretsError === 'encrypted_no_key' ||
           data?.secretsError === 'unreadable' ? (
@@ -683,24 +737,31 @@ function DeploymentSettingsView({
             }
           />
 
-          <SettingsSection
+          <PageSection
+            className="border-border border-t pt-8"
             title={t('dataResidency.storage.title')}
             description={t('dataResidency.storage.description')}
             action={
-              <Switch
-                label={t('dataResidency.storage.externalS3')}
-                hideLabelOnMobile
-                checked={storage.s3}
-                disabled={readOnly}
-                onCheckedChange={(checked) =>
-                  setStorage({ ...storage, s3: checked })
-                }
-              />
+              <HStack gap={2} align="center">
+                <Badge variant={storage.s3 ? 'blue' : 'slate'} dot>
+                  {storage.s3
+                    ? t('dataResidency.storage.externalS3')
+                    : t('dataResidency.storage.localLabel')}
+                </Badge>
+                <Switch
+                  aria-label={t('dataResidency.storage.externalS3')}
+                  checked={storage.s3}
+                  disabled={readOnly}
+                  onCheckedChange={(checked) =>
+                    setStorage({ ...storage, s3: checked })
+                  }
+                />
+              </HStack>
             }
           >
             {storage.s3 ? (
               <Stack gap={5}>
-                <Grid sm={2}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Input
                     label={t('dataResidency.storage.region')}
                     value={storage.region}
@@ -717,7 +778,7 @@ function DeploymentSettingsView({
                       setStorage({ ...storage, endpoint: e.target.value })
                     }
                   />
-                </Grid>
+                </div>
                 <Switch
                   label={t('dataResidency.storage.forcePathStyle')}
                   checked={storage.forcePathStyle}
@@ -727,7 +788,7 @@ function DeploymentSettingsView({
                   }
                 />
                 <FormSection label={t('dataResidency.storage.bucketsLabel')}>
-                  <Grid sm={2}>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Input
                       label={t('dataResidency.storage.bucket.files')}
                       value={storage.files}
@@ -771,12 +832,12 @@ function DeploymentSettingsView({
                         setStorage({ ...storage, search: e.target.value })
                       }
                     />
-                  </Grid>
+                  </div>
                 </FormSection>
                 <FormSection
                   label={t('dataResidency.storage.credentialsLabel')}
                 >
-                  <Grid sm={2}>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Input
                       label={t('dataResidency.storage.accessKeyId')}
                       value={storage.accessKeyId}
@@ -809,11 +870,12 @@ function DeploymentSettingsView({
                       }
                       description={t('dataResidency.storage.writeOnly')}
                     />
-                  </Grid>
+                  </div>
                 </FormSection>
                 <HStack gap={3} align="center" className="flex-wrap">
                   <Button
                     variant="secondary"
+                    size="sm"
                     onClick={() => void runTest('convexStorage')}
                     disabled={readOnly || testing === 'convexStorage'}
                   >
@@ -831,18 +893,16 @@ function DeploymentSettingsView({
                   description={t('dataResidency.storage.greenfieldWarning')}
                 />
               </Stack>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t('dataResidency.storage.localStorageNote')}
-              </p>
-            )}
-          </SettingsSection>
+            ) : // Off = local volume: the header status pill already says so.
+            null}
+          </PageSection>
 
           {/* Advanced Convex metadata DB — reuses the Postgres section chrome; its
           own header switch toggles `enabled`. Titled "(advanced)" rather than
           hidden behind a disclosure so it shares the rhythm of the sections
           above. */}
           <PgSection
+            className="border-border border-t pt-8"
             title={t('dataResidency.appDb.summary')}
             description={t('dataResidency.appDb.description')}
             state={appPg}
@@ -865,66 +925,8 @@ function DeploymentSettingsView({
               </p>
             }
           />
-        </Stack>
-
-        {/* Footer docked to the bottom of the page (outside the scroll body)
-            so Save / Apply & restart stay reachable regardless of content
-            height; the top border separates actions from the sections, and
-            `-mx-4 px-4` bleeds the background to the content-area gutters. */}
-        <div className="bg-background border-border -mx-4 border-t px-4 pt-4">
-          <Stack gap={3}>
-            {error ? <Alert variant="destructive" description={error} /> : null}
-            {savedOk && !isDirty ? (
-              <Alert
-                description={
-                  <>
-                    <strong>{t('dataResidency.saved.title')}</strong>{' '}
-                    {t('dataResidency.saved.runPrefix')}{' '}
-                    <code>docker compose restart convex</code>{' '}
-                    {t('dataResidency.saved.orPrefix')}{' '}
-                    <code>tale deploy --services convex</code>{' '}
-                    {t('dataResidency.saved.tail')}
-                  </>
-                }
-              />
-            ) : null}
-
-            {/* Status text on the left (`mr-auto`), actions right-aligned —
-                the standard footer/action-bar layout. Save comes before
-                Apply & restart to match the workflow order (save, then apply). */}
-            <HStack gap={3} align="center" justify="end" className="flex-wrap">
-              {isDirty ? (
-                <span className="text-muted-foreground mr-auto text-sm">
-                  {t('dataResidency.applyRestartDirtyHint')}
-                </span>
-              ) : restartMsg ? (
-                <span className="text-muted-foreground mr-auto text-sm">
-                  {restartMsg}
-                </span>
-              ) : null}
-              <Button
-                onClick={() => void onSave()}
-                disabled={readOnly || saving || !isDirty}
-              >
-                {saving ? t('dataResidency.saving') : t('dataResidency.save')}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setRestartConfirmOpen(true)}
-                // Gate on a clean form: a restart applies the LAST-SAVED on-disk
-                // config, so allowing it while dirty would silently bounce into a
-                // config that differs from what's on screen.
-                disabled={readOnly || restarting || isDirty}
-                title={t('dataResidency.applyRestartTitle')}
-              >
-                {restarting
-                  ? t('dataResidency.restarting')
-                  : t('dataResidency.applyRestart')}
-              </Button>
-            </HStack>
-          </Stack>
         </div>
-      </Stack>
+      </div>
 
       <ConfirmDialog
         open={restartConfirmOpen}

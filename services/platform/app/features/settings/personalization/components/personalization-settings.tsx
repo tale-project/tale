@@ -224,17 +224,25 @@ function PersonalizationSettingsView({
           </>
         }
       >
-        <CustomInstructionsToggleSection
-          organizationId={organizationId}
-          gate={customInstructionsGate}
-          orgDefaultLoaded={orgDefaultLoaded}
-        />
-        <MemoriesToggleSection
-          organizationId={organizationId}
-          gate={memoriesGate}
-          orgDefaultLoaded={orgDefaultLoaded}
-        />
-        <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
+        {/* Group the toggles as a single section child with extra top padding
+            so they sit a comfortable distance below the section description —
+            the section's own `gap-4` (16px) alone reads too tight here. The
+            account page gets the same breathing room from its `py-5` rows; we
+            add the padding to the group instead of widening the section gap so
+            the three toggles stay tightly grouped (no dividers between them). */}
+        <div className="flex flex-col gap-4 pt-4">
+          <CustomInstructionsToggleSection
+            organizationId={organizationId}
+            gate={customInstructionsGate}
+            orgDefaultLoaded={orgDefaultLoaded}
+          />
+          <MemoriesToggleSection
+            organizationId={organizationId}
+            gate={memoriesGate}
+            orgDefaultLoaded={orgDefaultLoaded}
+          />
+          <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
+        </div>
       </SettingsSection>
       {(loading || customInstructionsGate.effective) && (
         <CustomInstructionsSection

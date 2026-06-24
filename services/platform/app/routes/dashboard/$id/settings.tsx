@@ -1,5 +1,6 @@
-import { Row } from '@tale/ui/layout';
+import { Button } from '@tale/ui/button';
 import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import {
   AdaptiveHeaderRoot,
@@ -14,6 +15,12 @@ import {
 } from '@/app/components/ui/editor';
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
 import { SettingsRail } from '@/app/features/settings/components/settings-rail';
+import {
+  SettingsHeaderActionsSetter,
+  SettingsHeaderActionsReader,
+  useSettingsHeaderActions,
+  type SettingsHeaderAction,
+} from '@/app/features/settings/components/settings-secondary-action-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
@@ -32,93 +39,112 @@ function SettingsLayout() {
 
   const headerTitle = tNav('userSettings');
 
-  // The Governance and API sections render an internally-scrolling content pane
-  // (see their `route.tsx`) that needs ContentArea to be a bounded flex parent
-  // (`min-h-0 flex-1`) for its `overflow-y-auto` to get a height to scroll
-  // within. Every other settings page is a plain scrolling form/table: leaving
-  // ContentArea at content height lets the PageLayout scroll container honor
-  // ContentArea's own `py-6` bottom padding.
+  // Stable setter (from useState) goes in SetterContext so sub-page effects
+  // can include it as a dep without causing re-render loops.
+  const [headerActions, setHeaderActions] = useState<SettingsHeaderAction[]>(
+    [],
+  );
+
   const usesBoundedLayout =
     location.pathname.includes('/settings/governance') ||
     location.pathname.includes('/settings/api') ||
     location.pathname.includes('/settings/branding') ||
-    // Data residency docks its Save / Apply & restart bar to the bottom, so it
-    // needs ContentArea bounded for the page's internal scroll body + footer.
     location.pathname.includes('/settings/deployment');
 
   return (
     <ActiveEditorProvider>
-      <PageLayout
-        organizationId={organizationId}
-        header={
-          <AdaptiveHeaderRoot showBorder standalone={false}>
-            <SettingsMobileBackButton organizationId={organizationId} />
-            <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
-            <SettingsEditorActionsSlot />
-          </AdaptiveHeaderRoot>
-        }
-      >
-        <SettingsMobileActionBar />
-        {/* Left rail (desktop) + content. The rail replaces the former
-            horizontal tab strip; on mobile it's hidden and the dedicated
-            personal/workspace overview routes drive navigation instead. */}
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <div className="hidden md:flex">
-            <SettingsRail organizationId={organizationId} />
-          </div>
-          <ContentArea
-            className={cn(
-              'min-w-0 overflow-y-auto',
-              usesBoundedLayout ? 'min-h-0 flex-1' : 'flex-1',
-            )}
-            variant="page"
-            gap={6}
+      {/* Split provider: setter is stable, reader changes only when actions change. */}
+      <SettingsHeaderActionsSetter.Provider value={setHeaderActions}>
+        <SettingsHeaderActionsReader.Provider value={headerActions}>
+          <PageLayout
+            organizationId={organizationId}
+            header={
+              <AdaptiveHeaderRoot showBorder standalone={false}>
+                <SettingsMobileBackButton organizationId={organizationId} />
+                <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
+                <SettingsEditorActionsSlot />
+              </AdaptiveHeaderRoot>
+            }
           >
-            <Outlet />
-          </ContentArea>
-        </div>
-      </PageLayout>
+            <SettingsMobileActionBar />
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+              <div className="hidden md:flex">
+                <SettingsRail organizationId={organizationId} />
+              </div>
+              <ContentArea
+                className={cn(
+                  'min-w-0 overflow-y-auto',
+                  usesBoundedLayout ? 'min-h-0 flex-1' : 'flex-1',
+                )}
+                variant="page"
+                gap={6}
+              >
+                <Outlet />
+              </ContentArea>
+            </div>
+          </PageLayout>
+        </SettingsHeaderActionsReader.Provider>
+      </SettingsHeaderActionsSetter.Provider>
     </ActiveEditorProvider>
   );
 }
 
+function HeaderActionButton({ action }: { action: SettingsHeaderAction }) {
+  return (
+    <Button
+      variant={action.variant ?? 'primary'}
+      size="sm"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      title={action.title}
+    >
+      {action.loading && action.loadingLabel
+        ? action.loadingLabel
+        : action.label}
+    </Button>
+  );
+}
+
 /**
- * Reads the active child controller (settings sub-page form) and renders the
- * unified Save/Discard cluster in the settings header. Sub-pages without forms
- * (teams, integrations list, audit logs) clear the active editor and the
- * cluster doesn't render. Replaces the cluster that previously lived in the
- * horizontal tab strip.
+ * Renders the unified Save/Discard cluster (from `useActiveEditor`) plus any
+ * page-specific buttons registered via `useRegisterSettingsSecondaryAction`.
+ * Data residency uses the latter exclusively: [Save] [Apply & restart].
  */
 function SettingsEditorActionsSlot() {
   const controller = useActiveEditor();
-  if (!controller) return null;
+  const actions = useSettingsHeaderActions();
+
+  if (!controller && actions.length === 0) return null;
+
   return (
     <div className="ml-auto hidden items-center gap-2 md:flex">
-      <EditorActions controller={controller} entityKind="settings" />
+      {controller && (
+        <EditorActions controller={controller} entityKind="settings" />
+      )}
+      {actions.map((action) => (
+        <HeaderActionButton key={action.label} action={action} />
+      ))}
     </div>
   );
 }
 
 /**
- * Mobile-only bar holding the active settings page's Save/Discard cluster.
- * The desktop equivalent lives in the settings header (`SettingsEditorActionsSlot`),
- * which is `hidden md:flex` — so on small screens the Save/Discard buttons were
- * unreachable. Reads the active editor (set by each form page) and renders the
- * cluster only when one is present. Back navigation lives in the settings header
- * (`SettingsMobileBackButton`, rendered into the mobile top bar).
+ * Mobile-only bar — mirrors `SettingsEditorActionsSlot` for small screens.
  */
 function SettingsMobileActionBar() {
   const controller = useActiveEditor();
+  const actions = useSettingsHeaderActions();
 
-  if (!controller) return null;
+  if (!controller && actions.length === 0) return null;
 
   return (
-    <Row
-      gap={2}
-      justify="end"
-      className="border-border border-b px-4 py-2 md:hidden"
-    >
-      <EditorActions controller={controller} entityKind="settings" />
-    </Row>
+    <div className="border-border flex items-center justify-end gap-2 border-b px-4 py-2 md:hidden">
+      {controller && (
+        <EditorActions controller={controller} entityKind="settings" />
+      )}
+      {actions.map((action) => (
+        <HeaderActionButton key={action.label} action={action} />
+      ))}
+    </div>
   );
 }

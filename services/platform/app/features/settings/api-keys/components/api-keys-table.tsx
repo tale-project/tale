@@ -1,9 +1,9 @@
 'use client';
 
-import { buttonVariants } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
+import { Button, buttonVariants } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { BookOpen, Key } from 'lucide-react';
+import { BookOpen, Key, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -25,7 +25,7 @@ function ApiDocsLink() {
   const { t: tSettings } = useT('settings');
 
   return (
-    <Row gap={0} align="stretch" justify="center" className="py-4">
+    <div className="flex justify-center py-4">
       <a
         href="/docs"
         target="_blank"
@@ -35,7 +35,7 @@ function ApiDocsLink() {
         <BookOpen className="mr-2 size-4" />
         {tSettings('apiDocs.openDocs')}
       </a>
-    </Row>
+    </div>
   );
 }
 
@@ -94,8 +94,35 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
           title: tEmpty('apiKeys.title'),
           description: (
             <>
-              {tEmpty('apiKeys.description')}
-              <ApiDocsLink />
+              {/* `text-balance` evens the two lines so the last word never
+                  strands on its own line (the "REST API" orphan). */}
+              <span className="block text-balance">
+                {tEmpty('apiKeys.description')}
+              </span>
+              {/* Both CTAs share one horizontal row: the primary "Create" and
+                  the secondary docs link sit side by side rather than stacked. */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  {tSettings('apiKeys.createKey')}
+                </Button>
+                <a
+                  href="/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({
+                    variant: 'secondary',
+                    size: 'sm',
+                  })}
+                >
+                  <BookOpen className="mr-2 size-4" />
+                  {tSettings('apiDocs.openDocs')}
+                </a>
+              </div>
             </>
           ),
         }}

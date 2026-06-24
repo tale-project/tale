@@ -1,12 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Row } from '@tale/ui/layout';
+import { PageSection } from '@tale/ui/page-section';
 import { Text } from '@tale/ui/text';
 import { RefreshCw } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -91,12 +90,13 @@ export function ModelCatalogCard({
   }, [organizationId, sync, t]);
 
   return (
-    <SettingsSection
+    <PageSection
+      as="h2"
       className={className}
       title={t('providers.modelCatalog.title')}
       description={t('providers.modelCatalog.description')}
     >
-      <Row justify="between" className="rounded-lg border px-4 py-3">
+      <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
         <Text as="span" variant="caption" className="text-muted-foreground">
           {latest
             ? latest.ok
@@ -111,6 +111,7 @@ export function ModelCatalogCard({
         </Text>
         <Button
           variant="secondary"
+          size="sm"
           onClick={onRefresh}
           disabled={sync.isPending}
           icon={RefreshCw}
@@ -118,7 +119,7 @@ export function ModelCatalogCard({
         >
           {t('providers.modelCatalog.refresh')}
         </Button>
-      </Row>
+      </div>
       <SettingsToggleRow
         label={t('providers.modelCatalog.autoSync')}
         description={t('providers.modelCatalog.autoSyncHelp')}
@@ -127,6 +128,6 @@ export function ModelCatalogCard({
         disabled={setAutoSync.isPending}
         onCheckedChange={onToggleAutoSync}
       />
-    </SettingsSection>
+    </PageSection>
   );
 }
