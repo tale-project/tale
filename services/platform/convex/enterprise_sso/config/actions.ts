@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action, type ActionCtx } from '../../_generated/server';
@@ -32,13 +32,21 @@ async function requireAdmin(
     internal.enterprise_sso.config.internal_queries.getAuthUser,
     {},
   );
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser) {
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
+  }
   const role = await ctx.runQuery(
     internal.enterprise_sso.config.internal_queries.getCallerRole,
     { organizationId, userId: authUser._id },
   );
   if (!isAdmin(role)) {
-    throw new Error('Only admins can configure SSO');
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'Only admins can configure SSO',
+    });
   }
   return { userId: authUser._id, email: authUser.email, role: role ?? 'admin' };
 }

@@ -34,6 +34,7 @@ export async function ssoAuthorizeHandler(
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
+    const organizationId = url.searchParams.get('organizationId') || undefined;
     const promptParam = url.searchParams.get('prompt');
     const seamlessParam = url.searchParams.get('seamless');
     const claimsParam = url.searchParams.get('claims');
@@ -50,7 +51,7 @@ export async function ssoAuthorizeHandler(
 
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
-      {},
+      { organizationId },
     );
     if (!config) {
       return new Response('No SSO configuration found', { status: 404 });
@@ -89,6 +90,9 @@ export async function ssoAuthorizeHandler(
       redirectUri,
       timestamp: Date.now(),
       seamless: prompt === 'none',
+      // Bind the resolved org to the state so the callback exchanges the code
+      // against the SAME connection — not whichever is first enabled (#2082).
+      organizationId: config.organizationId,
       ...(encryptedPkceVerifier ? { pkce: encryptedPkceVerifier } : {}),
     });
     const base64Payload = btoa(statePayload)
