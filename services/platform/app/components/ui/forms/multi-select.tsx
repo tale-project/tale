@@ -172,6 +172,7 @@ function MultiSelectBase({
   const optionId = (index: number) => `${instanceId}-option-${index}`;
   const triggerId = providedId ?? `${instanceId}-trigger`;
   const descriptionId = `${instanceId}-description`;
+  const labelId = `${instanceId}-label`;
 
   const valueSet = useMemo(() => new Set(value), [value]);
 
@@ -306,6 +307,10 @@ function MultiSelectBase({
       aria-controls={isOpen ? listboxId : undefined}
       aria-disabled={disabled || undefined}
       aria-invalid={error || undefined}
+      // A `<label htmlFor>` cannot name a role="combobox" div, so name the
+      // trigger explicitly: prefer the visible label, fall back to aria-label.
+      aria-labelledby={label ? labelId : undefined}
+      aria-label={label ? undefined : ariaLabel}
       aria-describedby={description ? descriptionId : undefined}
       onKeyDown={(e) => {
         if (disabled) return;
@@ -474,7 +479,12 @@ function MultiSelectBase({
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <Label htmlFor={triggerId} required={required} error={error}>
+        <Label
+          id={labelId}
+          htmlFor={triggerId}
+          required={required}
+          error={error}
+        >
           {label}
         </Label>
       )}

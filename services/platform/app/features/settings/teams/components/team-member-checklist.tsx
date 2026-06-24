@@ -101,13 +101,11 @@ export function TeamMemberChecklist({
 
   return (
     <Stack gap={2}>
-      <p className="text-foreground/80 text-sm font-medium">
-        {tSettings('teams.manageMembers')}
-      </p>
       <p className="text-muted-foreground text-xs">
         {tSettings('teams.memberChecklistHint')}
       </p>
       <MultiSelect
+        label={tSettings('teams.manageMembers')}
         value={Array.from(selectedMemberIds)}
         onValueChange={handleChange}
         options={options}
@@ -115,7 +113,13 @@ export function TeamMemberChecklist({
         searchPlaceholder={tCommon('search.placeholder')}
         emptyText={tCommon('search.noResults')}
         aria-label={tSettings('teams.manageMembers')}
+        modal
       />
+      {isLastMember && (
+        <p className="text-muted-foreground text-xs">
+          {tSettings('teams.lastMemberHint')}
+        </p>
+      )}
     </Stack>
   );
 }

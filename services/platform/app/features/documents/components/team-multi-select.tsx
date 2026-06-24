@@ -52,6 +52,7 @@ export function TeamMultiSelect({
       }
       searchPlaceholder={t('search.placeholder')}
       emptyText={t('search.noResults')}
+      modal
     />
   );
 }
