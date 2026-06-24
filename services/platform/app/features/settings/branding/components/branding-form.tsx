@@ -372,7 +372,7 @@ export function BrandingForm({
               variant="secondary"
               onClick={() => void handleClearBranding()}
             >
-              {tCommon('actions.clearAll')}
+              {tCommon('actions.reset')}
             </Button>
           </HStack>
         )}
