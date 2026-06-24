@@ -16,16 +16,12 @@ import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
+import type { ColumnDef, Row } from '@tanstack/react-table';
 import { Ellipsis, Pencil, Plus, Trash2, Variable, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  ACTIONS_COLUMN_SIZE,
-  createSelectColumn,
-} from '@/app/components/ui/data-table/column-builders';
+import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -154,22 +150,12 @@ export function TokenSourcesManager({
   // null = closed; { slug: null } = create; { slug } = edit.
   const [panel, setPanel] = useState<{ slug: string | null } | null>(null);
   const [deleteRow, setDeleteRow] = useState<TokenSourceRow | null>(null);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const rows = useMemo<TokenSourceRow[]>(() => sources ?? [], [sources]);
 
   const invalidate = useCallback(async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: listKey });
   }, [queryClient, listKey]);
-
-  const handleClearSelection = useCallback(() => setRowSelection({}), []);
-
-  const handleBulkDeleteItem = useCallback(
-    async (slug: string) => {
-      await deleteSource({ organizationId, slug });
-    },
-    [deleteSource, organizationId],
-  );
 
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!deleteRow) return;
@@ -226,7 +212,6 @@ export function TokenSourcesManager({
 
   const columnsWithActions = useMemo<ColumnDef<TokenSourceRow>[]>(
     () => [
-      createSelectColumn<TokenSourceRow>(),
       ...columns,
       {
         id: 'actions',
@@ -245,10 +230,6 @@ export function TokenSourcesManager({
   const list = useListPage<TokenSourceRow>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },
     pageSize: 50,
-    search: {
-      fields: ['displayName', 'endpoint'],
-      placeholder: t('tokenSources.search'),
-    },
     entityLabel: t('tokenSources.entityLabel'),
   });
 
@@ -257,9 +238,6 @@ export function TokenSourcesManager({
       <DataTable
         {...list.tableProps}
         columns={columnsWithActions}
-        enableRowSelection
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
         getRowId={(row) => row.slug}
         onRowClick={(row) => setPanel({ slug: row.original.slug })}
         actionMenu={
@@ -273,14 +251,6 @@ export function TokenSourcesManager({
           title: t('tokenSources.emptyTitle'),
           description: t('tokenSources.empty'),
         }}
-        footer={
-          <BulkDeleteBar
-            rowSelection={rowSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleBulkDeleteItem}
-            onDeleteComplete={handleClearSelection}
-          />
-        }
       />
 
       <ConfirmDialog

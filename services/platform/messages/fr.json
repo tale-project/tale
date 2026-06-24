@@ -4975,7 +4975,6 @@
       "empty": "Aucune source de jetons pour l'instant. Ajoutes-en une pour donner aux agents un pool d'identifiants rotatif.",
       "edit": "Modifier",
       "delete": "Supprimer",
-      "search": "Rechercher des sources de jetons…",
       "entityLabel": "source de jetons",
       "emptyTitle": "Aucune source de jetons pour l'instant",
       "actions": "Actions de la source de jetons",
