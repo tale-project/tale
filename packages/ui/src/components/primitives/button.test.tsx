@@ -361,6 +361,54 @@ describe('Button', () => {
       expect(handleClick).not.toHaveBeenCalled();
     });
 
+    it('does not activate a soft-disabled button on Space', async () => {
+      const handleClick = vi.fn();
+      const { user } = render(
+        <Button
+          onClick={handleClick}
+          disabled
+          disabledReason="Pick an agent first"
+        >
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      button.focus();
+      await user.keyboard(' ');
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+
+    it('describes the focused soft-disabled button via aria-describedby', async () => {
+      const { user } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await user.tab();
+      const button = screen.getByRole('button');
+      // Radix wires the open tooltip to the trigger via aria-describedby so the
+      // reason reaches screen-reader users on focus, not just on hover.
+      const describedBy = button.getAttribute('aria-describedby');
+      expect(describedBy).toBeTruthy();
+      const description = describedBy
+        ? document.getElementById(describedBy)
+        : null;
+      expect(description).toHaveTextContent('Pick an agent first');
+    });
+
+    it('suppresses the reason tooltip under asChild (Slot)', () => {
+      // asChild renders a Radix Slot (typically another overlay's trigger);
+      // soft-disable can't work through it, so no tooltip trigger is added.
+      render(
+        <Button asChild disabled disabledReason="Pick an agent first">
+          <a href="/test">Link</a>
+        </Button>,
+      );
+      const link = screen.getByRole('link', { name: 'Link' });
+      expect(link).toBeInTheDocument();
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
     it('ignores the reason while the button is enabled', () => {
       render(<Button disabledReason="Pick an agent first">Send</Button>);
       const button = screen.getByRole('button');

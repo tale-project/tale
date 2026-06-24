@@ -77,7 +77,11 @@ describe('Wizard navigation', () => {
 });
 
 describe('Wizard validation gating', () => {
-  function GatedHarness() {
+  function GatedHarness({
+    nextDisabledReason,
+  }: {
+    nextDisabledReason?: string;
+  }) {
     const [value, setValue] = useState('');
     const steps: WizardStepMeta[] = [
       { id: 'name', label: 'Name' },
@@ -96,7 +100,12 @@ describe('Wizard validation gating', () => {
         <WizardStep id="done">
           <p>Done content</p>
         </WizardStep>
-        <WizardFooter backLabel="Back" nextLabel="Next" finishLabel="Finish" />
+        <WizardFooter
+          backLabel="Back"
+          nextLabel="Next"
+          finishLabel="Finish"
+          nextDisabledReason={nextDisabledReason}
+        />
       </Wizard>
     );
   }
@@ -105,6 +114,23 @@ describe('Wizard validation gating', () => {
     const { user } = render(<GatedHarness />);
     const next = screen.getByRole('button', { name: 'Next' });
     expect(next).toBeDisabled();
+    await user.type(screen.getByRole('textbox'), 'Acme');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+
+  it('explains the disabled Next button via a tooltip when given a reason', async () => {
+    const { user } = render(
+      <GatedHarness nextDisabledReason="Complete this step to continue" />,
+    );
+    const next = screen.getByRole('button', { name: 'Next' });
+    // Soft-disabled so the reason can reach pointer and keyboard users: still
+    // inert (aria-disabled) but in the tab order rather than natively disabled.
+    expect(next).not.toBeDisabled();
+    expect(next).toHaveAttribute('aria-disabled', 'true');
+    next.focus();
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Complete this step to continue');
+    // Once the step is valid the reason no longer applies and Next enables.
     await user.type(screen.getByRole('textbox'), 'Acme');
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });

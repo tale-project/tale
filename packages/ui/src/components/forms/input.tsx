@@ -1,9 +1,23 @@
-import { type InputHTMLAttributes, forwardRef } from 'react';
+import { type InputHTMLAttributes, type ReactNode, forwardRef } from 'react';
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
+import { DisabledReasonTooltip } from '../overlays/disabled-reason';
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement>;
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  /**
+   * Explains *why* the field is disabled, surfaced in a tooltip on hover AND
+   * focus and to screen readers (#1949). Only takes effect while the field is
+   * `disabled`; ignored otherwise, so callers can pass it unconditionally.
+   *
+   * A natively-`disabled` field emits no pointer events and leaves the tab
+   * order, so no tooltip could reach it. When a disabled field carries a
+   * `disabledReason` we therefore keep it focusable and `readOnly` (still
+   * rendered visually disabled and inert to edits), swap `disabled` for
+   * `aria-disabled`, and let the shared Tooltip wire up `aria-describedby`.
+   */
+  disabledReason?: ReactNode;
+}
 
 /**
  * Skeleton-aware Input. Always wraps the real field in a `<SkeletonBox>`: idle,
@@ -11,22 +25,36 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement>;
  * `<Skeletonize loading>` it masks the field with an overlay at its exact size.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', ...props }, ref) => (
-    <SkeletonBox fullWidth>
-      <input
-        ref={ref}
-        type={type}
-        className={cn(
-          'h-9 w-full rounded-lg border px-3 py-2 text-base md:text-sm',
-          'border-[color:var(--color-border-input)] bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)] placeholder:text-[color:var(--color-fg-subtle)] shadow-sm transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:border-[color:var(--color-accent-base)]',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          'aria-invalid:border-[color:var(--color-danger)] aria-invalid:ring-[color:var(--color-danger)]/20',
-          className,
-        )}
-        {...props}
-      />
-    </SkeletonBox>
-  ),
+  (
+    { className, type = 'text', disabled, disabledReason, readOnly, ...props },
+    ref,
+  ) => {
+    // Soft-disable keeps the field focusable + hoverable (so the reason tooltip
+    // reaches pointer and keyboard users) while `readOnly` blocks edits.
+    const softDisabled = Boolean(disabled) && disabledReason != null;
+    return (
+      <SkeletonBox fullWidth>
+        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+          <input
+            ref={ref}
+            type={type}
+            disabled={softDisabled ? undefined : disabled}
+            aria-disabled={disabled || undefined}
+            readOnly={softDisabled ? true : readOnly}
+            className={cn(
+              'h-9 w-full rounded-lg border px-3 py-2 text-base md:text-sm',
+              'border-[color:var(--color-border-input)] bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)] placeholder:text-[color:var(--color-fg-subtle)] shadow-sm transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:border-[color:var(--color-accent-base)]',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
+              'aria-invalid:border-[color:var(--color-danger)] aria-invalid:ring-[color:var(--color-danger)]/20',
+              className,
+            )}
+            {...props}
+          />
+        </DisabledReasonTooltip>
+      </SkeletonBox>
+    );
+  },
 );
 Input.displayName = 'Input';

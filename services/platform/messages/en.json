@@ -1927,6 +1927,7 @@
       "back": "Back",
       "next": "Next",
       "skip": "Skip",
+      "completeStepToContinue": "Complete this step to continue",
       "loading": "Loading...",
       "done": "Done",
       "duplicate": "Duplicate",

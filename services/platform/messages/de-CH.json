@@ -65,7 +65,8 @@
   },
   "common": {
     "actions": {
-      "close": "Schliessen"
+      "close": "Schliessen",
+      "completeStepToContinue": "Schliesse diesen Schritt ab, um fortzufahren"
     },
     "aria": {
       "close": "Schliessen",

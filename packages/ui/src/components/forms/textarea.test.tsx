@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { Textarea } from './textarea';
 
@@ -9,6 +9,45 @@ describe('Textarea', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<Textarea aria-label="Bio" />);
+      await checkAccessibility(container);
+    });
+  });
+
+  describe('disabledReason', () => {
+    it('keeps native disabled when no reason is given', () => {
+      render(<Textarea aria-label="Bio" disabled />);
+      expect(screen.getByRole('textbox')).toBeDisabled();
+    });
+
+    it('soft-disables (aria-disabled, focusable, readOnly) with a reason', () => {
+      render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).not.toBeDisabled();
+      expect(textarea).toHaveAttribute('aria-disabled', 'true');
+      expect(textarea).toHaveAttribute('readonly');
+      expectFocusable(textarea);
+    });
+
+    it('surfaces the reason as a tooltip on focus', async () => {
+      const { user } = render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Unlock first');
+    });
+
+    it('ignores the reason while enabled', () => {
+      render(<Textarea aria-label="Bio" disabledReason="Unlock first" />);
+      expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-disabled');
+    });
+
+    it('passes axe audit for a soft-disabled textarea', async () => {
+      const { container } = render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
       await checkAccessibility(container);
     });
   });

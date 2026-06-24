@@ -220,6 +220,7 @@ export function OnboardingWizard({
             nextLabel={tCommon('actions.next')}
             finishLabel={t('finish.goToDashboard')}
             skipLabel={tCommon('actions.skip')}
+            nextDisabledReason={tCommon('actions.completeStepToContinue')}
           />
         </Wizard>
       </main>

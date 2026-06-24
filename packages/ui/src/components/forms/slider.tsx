@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type InputHTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
   forwardRef,
   useEffect,
@@ -10,6 +11,7 @@ import {
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
+import { DisabledReasonTooltip } from '../overlays/disabled-reason';
 
 export interface SliderProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -34,10 +36,36 @@ export interface SliderProps extends Omit<
   valueLabel?: ReactNode;
   /** Time in ms to keep the value label visible after interaction. Default 1500. */
   valueLabelHideDelay?: number;
+  /**
+   * Explains *why* the slider is disabled, surfaced in a tooltip on hover AND
+   * focus and to screen readers (#1949). Only takes effect while the slider is
+   * `disabled`; ignored otherwise, so callers can pass it unconditionally.
+   *
+   * A natively-`disabled` range emits no pointer events and leaves the tab
+   * order, so no tooltip could reach it. When a disabled slider carries a
+   * `disabledReason` we therefore keep it focusable (still rendered visually
+   * disabled and inert — the value can't change via drag or arrow keys), swap
+   * `disabled` for `aria-disabled`, and let the shared Tooltip wire up
+   * `aria-describedby`.
+   */
+  disabledReason?: ReactNode;
 }
 
 const THUMB_DIAMETER_PX = 20;
 const THUMB_HALF_PX = THUMB_DIAMETER_PX / 2;
+
+// Keys a native range responds to by changing its value — blocked while a
+// slider is soft-disabled so keyboard users can't nudge an inert control.
+const VALUE_KEYS = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
 
 function clampPct(pct: number): number {
   if (pct < 0) return 0;
@@ -95,9 +123,12 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
       valueLabel,
       valueLabelHideDelay = 1500,
       className,
+      disabled,
+      disabledReason,
       onPointerDown,
       onFocus,
       onBlur,
+      onKeyDown,
       ...rest
     },
     ref,
@@ -124,6 +155,12 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
       flashLabel();
       onChange(event);
     }
+
+    // Soft-disable keeps the range focusable + hoverable (so the reason tooltip
+    // reaches pointer and keyboard users) while making it inert: the control is
+    // value-controlled, so swallowing onChange freezes the thumb against drag,
+    // and blocking the value keys stops keyboard nudges.
+    const softDisabled = Boolean(disabled) && disabledReason != null;
 
     const range = max - min;
     const pct = range > 0 ? ((value - min) / range) * 100 : 0;
@@ -183,33 +220,52 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
             </div>
           ) : null}
 
-          <input
-            ref={ref}
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={handleChange}
-            onPointerDown={(event) => {
-              flashLabel();
-              onPointerDown?.(event);
-            }}
-            onFocus={(event) => {
-              flashLabel();
-              onFocus?.(event);
-            }}
-            onBlur={(event) => {
-              setShowLabel(false);
-              if (hideTimerRef.current) {
-                clearTimeout(hideTimerRef.current);
-                hideTimerRef.current = null;
-              }
-              onBlur?.(event);
-            }}
-            className={cn(inputClasses, className)}
-            {...rest}
-          />
+          <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+            <input
+              ref={ref}
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={value}
+              disabled={softDisabled ? undefined : disabled}
+              aria-disabled={disabled || undefined}
+              onChange={softDisabled ? undefined : handleChange}
+              onPointerDown={(event) => {
+                if (softDisabled) {
+                  event.preventDefault();
+                  return;
+                }
+                flashLabel();
+                onPointerDown?.(event);
+              }}
+              onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                if (softDisabled && VALUE_KEYS.has(event.key)) {
+                  event.preventDefault();
+                  return;
+                }
+                onKeyDown?.(event);
+              }}
+              onFocus={(event) => {
+                flashLabel();
+                onFocus?.(event);
+              }}
+              onBlur={(event) => {
+                setShowLabel(false);
+                if (hideTimerRef.current) {
+                  clearTimeout(hideTimerRef.current);
+                  hideTimerRef.current = null;
+                }
+                onBlur?.(event);
+              }}
+              className={cn(
+                inputClasses,
+                'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
+                className,
+              )}
+              {...rest}
+            />
+          </DisabledReasonTooltip>
         </div>
       </div>
     );
