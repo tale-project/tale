@@ -1982,7 +1982,9 @@
       "escape": "Esc"
     },
     "notFound": {
-      "title": "Page not found"
+      "title": "Page not found",
+      "description": "The page you're looking for doesn't exist or may have been moved.",
+      "backToDashboard": "Back to dashboard"
     },
     "localeTabs": {
       "default": "default",
@@ -4089,6 +4091,10 @@
     "chat": {
       "title": "Chat",
       "description": "Chat with AI to get help with your tasks."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you're looking for doesn't exist or may have been moved."
     },
     "conversations": {
       "title": "Conversations",

@@ -15,18 +15,11 @@ import { SEEDED_AGENT_DISPLAY_NAME, SEEDED_AGENT_SLUG } from '../helpers/seed';
  * scope to the main-navigation landmark and locate each by its deterministic
  * href.
  *
- * NOT-FOUND NOTE: the app sets no custom not-found component, and there's no
- * splat/catch-all under `/dashboard/$id`, so an unmatched child renders
- * TanStack Router's built-in default — a literal `<p>Not Found</p>` — inside
- * the matched `$id` layout's `<Outlet/>`. That string is FRAMEWORK output (not
- * in `messages/en.json`), so it stays a local constant rather than a `t()`
- * lookup.
+ * NOT-FOUND NOTE: a splat/catch-all route (`/dashboard/$id/$`) renders a styled
+ * 404 inside the matched `$id` layout's `<Outlet/>` for any unmatched child —
+ * a heading, message, and a "Back to dashboard" recovery link — so the copy is
+ * translated and asserted via `t('common.notFound.*')`.
  */
-
-// TanStack Router's built-in default not-found body (see NOT-FOUND NOTE). Not a
-// translated UI string — it comes from `@tanstack/react-router`, so it stays a
-// local framework constant rather than going through `t()`.
-const FRAMEWORK_NOT_FOUND_TEXT = 'Not Found';
 
 function dashboardUrl(organizationId: string, path = ''): string {
   return `/dashboard/${organizationId}${path}`;
@@ -264,7 +257,7 @@ test.describe('navigation: breadcrumbs', () => {
 });
 
 test.describe('navigation: 404 and history', () => {
-  test('renders the not-found UI for an unknown route inside the shell', async ({
+  test('renders the styled not-found UI for an unknown route inside the shell', async ({
     page,
     org,
   }) => {
@@ -272,14 +265,28 @@ test.describe('navigation: 404 and history', () => {
 
     await page.goto(dashboardUrl(organizationId, '/__nope__'));
 
-    // The framework default not-found body renders (no custom 404 component),
-    // proving the app didn't blank-screen or crash on the unmatched route.
+    // The styled 404 renders: a heading proving the app didn't blank-screen or
+    // fall back to the bare framework "Not Found" string on the unmatched route.
     await expect(
-      page.getByText(FRAMEWORK_NOT_FOUND_TEXT, { exact: true }).first(),
+      page.getByRole('heading', { name: t('common.notFound.title'), level: 1 }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+    // The recovery CTA links back to the org dashboard.
+    const backLink = page.getByRole('link', {
+      name: t('common.notFound.backToDashboard'),
+    });
+    await expect(backLink).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(backLink).toHaveAttribute(
+      'href',
+      new RegExp(`/dashboard/${organizationId}$`),
+    );
 
     // It renders INSIDE the `$id` layout, so the primary nav shell is still up.
     await expect(primaryNav(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // The route `head` sets a sensible document title instead of falling back
+    // to the marketing default — part of the issue's reported regression.
+    await expect(page).toHaveTitle(new RegExp(t('metadata.notFound.title')));
   });
 
   test('back/forward navigation tracks the URL and content', async ({

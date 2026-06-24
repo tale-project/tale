@@ -34,6 +34,7 @@ import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$
 import { Route as DashboardIdAppsRouteImport } from './routes/dashboard/$id/apps';
 import { Route as DashboardIdAgentsRouteImport } from './routes/dashboard/$id/agents';
 import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge';
+import { Route as DashboardIdSplatRouteImport } from './routes/dashboard/$id/$';
 import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index';
 import { Route as DashboardIdProjectsIndexRouteImport } from './routes/dashboard/$id/projects/index';
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index';
@@ -258,6 +259,11 @@ const DashboardIdAgentsRoute = DashboardIdAgentsRouteImport.update({
 } as any);
 const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
   id: '/_knowledge',
+  getParentRoute: () => DashboardIdRoute,
+} as any);
+const DashboardIdSplatRoute = DashboardIdSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => DashboardIdRoute,
 } as any);
 const DashboardIdSettingsIndexRoute =
@@ -870,6 +876,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
   '/dashboard/': typeof DashboardIndexRoute;
+  '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren;
   '/dashboard/$id/apps': typeof DashboardIdAppsRouteWithChildren;
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren;
@@ -993,6 +1000,7 @@ export interface FileRoutesByTo {
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
   '/dashboard': typeof DashboardIndexRoute;
+  '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id': typeof DashboardIdIndexRoute;
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren;
   '/dashboard/$id/custom-agents': typeof DashboardIdCustomAgentsRoute;
@@ -1107,6 +1115,7 @@ export interface FileRoutesById {
   '/dashboard/switching': typeof DashboardSwitchingRoute;
   '/forced-change-password/$id': typeof ForcedChangePasswordIdRoute;
   '/dashboard/': typeof DashboardIndexRoute;
+  '/dashboard/$id/$': typeof DashboardIdSplatRoute;
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren;
   '/dashboard/$id/agents': typeof DashboardIdAgentsRouteWithChildren;
   '/dashboard/$id/apps': typeof DashboardIdAppsRouteWithChildren;
@@ -1235,6 +1244,7 @@ export interface FileRouteTypes {
     | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard/'
+    | '/dashboard/$id/$'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/apps'
     | '/dashboard/$id/automations'
@@ -1358,6 +1368,7 @@ export interface FileRouteTypes {
     | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard'
+    | '/dashboard/$id/$'
     | '/dashboard/$id'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/custom-agents'
@@ -1471,6 +1482,7 @@ export interface FileRouteTypes {
     | '/dashboard/switching'
     | '/forced-change-password/$id'
     | '/dashboard/'
+    | '/dashboard/$id/$'
     | '/dashboard/$id/_knowledge'
     | '/dashboard/$id/agents'
     | '/dashboard/$id/apps'
@@ -1768,6 +1780,13 @@ declare module '@tanstack/react-router' {
       path: '';
       fullPath: '/dashboard/$id';
       preLoaderRoute: typeof DashboardIdKnowledgeRouteImport;
+      parentRoute: typeof DashboardIdRoute;
+    };
+    '/dashboard/$id/$': {
+      id: '/dashboard/$id/$';
+      path: '/$';
+      fullPath: '/dashboard/$id/$';
+      preLoaderRoute: typeof DashboardIdSplatRouteImport;
       parentRoute: typeof DashboardIdRoute;
     };
     '/dashboard/$id/settings/': {
@@ -2921,6 +2940,7 @@ const DashboardIdProjectsProjectIdRouteWithChildren =
   );
 
 interface DashboardIdRouteChildren {
+  DashboardIdSplatRoute: typeof DashboardIdSplatRoute;
   DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren;
   DashboardIdAgentsRoute: typeof DashboardIdAgentsRouteWithChildren;
   DashboardIdAppsRoute: typeof DashboardIdAppsRouteWithChildren;
@@ -2935,6 +2955,7 @@ interface DashboardIdRouteChildren {
 }
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
+  DashboardIdSplatRoute: DashboardIdSplatRoute,
   DashboardIdKnowledgeRoute: DashboardIdKnowledgeRouteWithChildren,
   DashboardIdAgentsRoute: DashboardIdAgentsRouteWithChildren,
   DashboardIdAppsRoute: DashboardIdAppsRouteWithChildren,
