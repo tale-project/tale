@@ -84,7 +84,13 @@ export async function ssoCallbackHandler(
                 const authorizeUrl = buildAuthorizeRedirectUrl(
                   url.origin,
                   stateData.redirectUri,
-                  { prompt: 'login' },
+                  {
+                    prompt: 'login',
+                    // Keep the retry pinned to the same org (#2082).
+                    ...(stateData.organizationId
+                      ? { organizationId: stateData.organizationId }
+                      : {}),
+                  },
                 );
                 return new Response(null, {
                   status: 302,
@@ -101,6 +107,10 @@ export async function ssoCallbackHandler(
                       extractClaimsChallenge(errorDescription);
                     const params: Record<string, string> = { prompt: 'login' };
                     if (claimsChallenge) params['claims'] = claimsChallenge;
+                    // Keep the step-up retry pinned to the same org (#2082).
+                    if (stateData.organizationId) {
+                      params['organizationId'] = stateData.organizationId;
+                    }
                     const authorizeUrl = buildAuthorizeRedirectUrl(
                       url.origin,
                       stateData.redirectUri,
@@ -151,7 +161,12 @@ export async function ssoCallbackHandler(
       return redirectWithError(url.origin, 'Invalid state signature');
     }
 
-    let state: { redirectUri: string; timestamp: number; pkce?: string };
+    let state: {
+      redirectUri: string;
+      timestamp: number;
+      pkce?: string;
+      organizationId?: string;
+    };
     try {
       const base64 = verifiedPayload.replace(/-/g, '+').replace(/_/g, '/');
       const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
@@ -166,9 +181,12 @@ export async function ssoCallbackHandler(
 
     const frontendOrigin = new URL(state.redirectUri).origin;
 
+    // Resolve the SAME org's connection the authorize step used (carried in the
+    // signed state), not the first enabled one, so the code is exchanged against
+    // the correct org's IdP in multi-org deployments (#2082).
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
-      {},
+      state.organizationId ? { organizationId: state.organizationId } : {},
     );
     if (!config) {
       return redirectWithError(frontendOrigin, 'SSO configuration not found');

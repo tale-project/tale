@@ -34,6 +34,10 @@ export async function ssoAuthorizeHandler(
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
+    // Which org's connection to use. The login screen resolves this from the
+    // user's email via /api/sso/discover; without it we'd fall back to the
+    // first enabled connection regardless of email (multi-org collision, #2082).
+    const organizationId = url.searchParams.get('organizationId') || undefined;
     const promptParam = url.searchParams.get('prompt');
     const seamlessParam = url.searchParams.get('seamless');
     const claimsParam = url.searchParams.get('claims');
@@ -50,7 +54,7 @@ export async function ssoAuthorizeHandler(
 
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
-      {},
+      organizationId ? { organizationId } : {},
     );
     if (!config) {
       return new Response('No SSO configuration found', { status: 404 });
@@ -89,6 +93,10 @@ export async function ssoAuthorizeHandler(
       redirectUri,
       timestamp: Date.now(),
       seamless: prompt === 'none',
+      // Carry the resolved org through the signed state so the callback resolves
+      // the SAME connection — otherwise it would re-resolve to the first enabled
+      // one and could exchange the code against the wrong org's IdP (#2082).
+      organizationId: config.organizationId,
       ...(encryptedPkceVerifier ? { pkce: encryptedPkceVerifier } : {}),
     });
     const base64Payload = btoa(statePayload)

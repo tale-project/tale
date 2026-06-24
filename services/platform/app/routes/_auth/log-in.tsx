@@ -255,19 +255,69 @@ export function LogInPage() {
     }
   };
 
-  const handleSsoLogin = useCallback(() => {
+  const handleSsoLogin = useCallback(async () => {
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
     const base = `${siteUrl}${basePath}/http_api/api/sso`;
+
+    // Route to the org whose connection matches the entered email. Each SSO
+    // connection is scoped per organization, so on a multi-org deployment we
+    // must resolve WHICH org before starting the flow — otherwise the server
+    // falls back to the first enabled connection and second-org users land at
+    // the wrong IdP (#2082). Discovery also tells us the protocol, which we use
+    // for the SAML-vs-OIDC branch instead of the deployment-global status
+    // (which likewise reports only the first connection).
+    const email = form.getValues('email')?.trim();
+    let organizationId: string | undefined;
+    let protocol: string | undefined;
+    if (email) {
+      try {
+        const res = await fetch(`${base}/discover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) {
+          const data: {
+            ssoEnabled?: boolean;
+            organizationId?: string;
+            protocol?: string;
+          } = await res.json();
+          if (data.ssoEnabled) {
+            organizationId = data.organizationId;
+            protocol = data.protocol;
+          }
+        }
+      } catch (error) {
+        // Network/parse failure: fall back to the deployment-global status
+        // below rather than blocking sign-in.
+        console.warn(
+          '[SSO] Discovery failed, using default connection:',
+          error,
+        );
+      }
+    }
+
+    // Fall back to the global status when discovery didn't resolve a connection
+    // (empty email, single-org deployment, or discovery failure).
+    const resolvedProtocol = protocol ?? ssoConfig?.providerType;
+
     // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
     // authorization-code flow via /authorize.
-    if (ssoConfig?.providerType === 'saml') {
-      window.location.href = `${base}/saml/login`;
+    if (resolvedProtocol === 'saml') {
+      const samlUrl = new URL(`${base}/saml/login`);
+      if (organizationId) samlUrl.searchParams.set('org', organizationId);
+      window.location.href = samlUrl.toString();
       return;
     }
-    const callbackUri = `${base}/callback`;
-    window.location.href = `${base}/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-  }, [ssoConfig?.providerType]);
+    const authorizeUrl = new URL(`${base}/authorize`);
+    authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+    if (email) authorizeUrl.searchParams.set('email', email);
+    if (organizationId) {
+      authorizeUrl.searchParams.set('organizationId', organizationId);
+    }
+    window.location.href = authorizeUrl.toString();
+  }, [ssoConfig?.providerType, form]);
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
   // ceremony; on success the session is live, so refresh the cache and route
