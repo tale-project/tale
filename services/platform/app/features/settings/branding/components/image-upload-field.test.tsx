@@ -104,6 +104,22 @@ describe('ImageUploadField', () => {
     resolveUpload({ filename: 'logo.png' });
   });
 
+  // Edge: a valid file whose browser-reported MIME is blank/non-`image/*` is
+  // still accepted via its extension (e.g. a `.ico` reporting empty type),
+  // keeping the drop path in sync with the picker's `accept` list.
+  it('accepts a dropped file with a non-image MIME but an accepted extension', async () => {
+    const onUpload = vi.fn();
+    render(<ImageUploadField {...baseProps} onUpload={onUpload} />);
+
+    dropFile(
+      screen.getByRole('button', { name: 'Upload logo' }),
+      makeFile('favicon.ico', ''),
+    );
+
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(1));
+    expect(mockSaveImage).toHaveBeenCalledTimes(1);
+  });
+
   // Error: a non-image file is rejected before any upload is attempted.
   it('ignores a dropped non-image file', () => {
     const onUpload = vi.fn();
