@@ -4136,6 +4136,10 @@
       "title": "Projects",
       "description": "Shared workspaces for files, instructions, and chats."
     },
+    "apps": {
+      "title": "Apps",
+      "description": "Installed packs and the apps they add to your organization."
+    },
     "websites": {
       "title": "Websites",
       "description": "Manage websites for knowledge extraction."
