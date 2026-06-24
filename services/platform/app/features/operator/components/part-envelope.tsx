@@ -37,6 +37,7 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
   upcoming: 'slate',
   loading: 'slate',
   running: 'blue',
+  queued_capacity: 'orange',
   output_available: 'green',
   output_error: 'destructive',
   waiting_human: 'yellow',
@@ -53,6 +54,7 @@ const STATE_BADGE: Record<PartState, BadgeVariant> = {
 const BODY_SUPPRESSED = new Set<PartState>([
   'upcoming',
   'loading',
+  'queued_capacity',
   'waiting_external',
   'empty',
   'output_error',
@@ -81,6 +83,7 @@ export function PartEnvelope({
   const hasBody =
     showBody ||
     part.partState === 'loading' ||
+    part.partState === 'queued_capacity' ||
     part.partState === 'waiting_external' ||
     part.partState === 'empty' ||
     (part.partState === 'output_error' && part.error !== undefined);
@@ -142,6 +145,10 @@ export function PartEnvelope({
         {open && (
           <>
             {part.partState === 'loading' && <SkeletonText lines={2} />}
+
+            {part.partState === 'queued_capacity' && (
+              <Text variant="muted">{t('body.queuedCapacity')}</Text>
+            )}
 
             {part.partState === 'waiting_external' && (
               <Text variant="muted">{t('body.waitingExternal')}</Text>

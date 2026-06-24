@@ -23,6 +23,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { reserveOneshotTicketArg } from '../../sandbox/admission';
 import {
   SANDBOX_DEFAULT_TIMEOUT_MS,
   SANDBOX_MAX_OUTPUT_FILES_PER_RUN,
@@ -186,6 +187,10 @@ export const executeCode = internalAction({
     /** Optional skill provenance — recorded on the audit row only. */
     sourceCitationSkillSlug: v.optional(v.string()),
     sourceCitationFiles: v.optional(v.array(v.string())),
+    /** Park-on-capacity: set by the workflow SCRIPT step so a per-org
+     * concurrency-cap hit waits (FIFO) instead of failing. The run_code LLM tool
+     * leaves it undefined (interactive — it surfaces the quota error). */
+    ticket: v.optional(reserveOneshotTicketArg),
   },
   returns: v.object({
     executionId: v.id('sandboxExecutions'),
@@ -270,6 +275,7 @@ export const executeCode = internalAction({
             ...(args.packagesByLang?.node ?? []),
           ],
           estimatedSeconds,
+          ...(args.ticket !== undefined && { ticket: args.ticket }),
         },
       );
     } catch (err) {

@@ -1118,6 +1118,7 @@ import type * as rag_lib_search_service from "../rag/lib/search_service.js";
 import type * as rag_lib_secret_scanner from "../rag/lib/secret_scanner.js";
 import type * as rag_lib_semantic_cache from "../rag/lib/semantic_cache.js";
 import type * as rag_search from "../rag/search.js";
+import type * as sandbox_admission from "../sandbox/admission.js";
 import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
@@ -2706,6 +2707,7 @@ declare const fullApi: ApiFromModules<{
   "rag/lib/secret_scanner": typeof rag_lib_secret_scanner;
   "rag/lib/semantic_cache": typeof rag_lib_semantic_cache;
   "rag/search": typeof rag_search;
+  "sandbox/admission": typeof sandbox_admission;
   "sandbox/internal_mutations": typeof sandbox_internal_mutations;
   "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/quota_policy": typeof sandbox_quota_policy;

@@ -26,6 +26,7 @@ import { toSeconds, useThinkingTimer } from './use-thinking-timer';
 export function ThinkingIndicator({
   className,
   phase = 'thinking',
+  queued = false,
   routedAgentName,
   routeReason,
   turnStartMs,
@@ -34,6 +35,10 @@ export function ThinkingIndicator({
   /** 'routing' while the Auto router is still deciding (no agent yet); 'thinking'
    *  for a pinned agent, a human-input resume, or once the route has resolved. */
   phase?: 'routing' | 'thinking';
+  /** Park-on-capacity: the turn is waiting for a free sandbox slot (org at its
+   *  concurrency cap). Overrides the label to "Queued for capacity" while the
+   *  timer keeps ticking, so the user sees a deliberate wait, not a stall. */
+  queued?: boolean;
   routedAgentName?: string;
   routeReason?: RouteReason;
   turnStartMs?: number;
@@ -45,12 +50,15 @@ export function ThinkingIndicator({
   // "Routing · Ns" while the router decides; "Thinking · Ns" once it has (or for
   // a pinned agent). Once resolved, chat-interface passes phase 'thinking' with
   // the routed agent, so the header reads "Thinking" and the chip carries the
-  // routing decision — matching the in-bubble split.
+  // routing decision — matching the in-bubble split. A queued turn overrides the
+  // label (still a thinking-phase window, so the timer continues).
   const activity: ThoughtActivity =
     phase === 'routing' && !routedAgentName
       ? { type: 'routing' }
       : { type: 'thinking' };
-  const label = activityLabel(t, activity);
+  const label = queued
+    ? t('thoughtProcess.queuedForCapacity')
+    : activityLabel(t, activity);
   const headerText =
     liveElapsedMs != null
       ? `${label} · ${t('thoughtProcess.seconds', { seconds: toSeconds(liveElapsedMs) })}`

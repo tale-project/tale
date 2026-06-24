@@ -29,6 +29,7 @@ import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
 import {
   SessionDuplicateError,
   SessionNotFoundError,
+  SpawnerBusyError,
   sessionCreate,
   sessionDestroy,
   sessionEnvPatch,
@@ -54,11 +55,16 @@ import {
 } from '../../node_only/sandbox/token_pool_select';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForThread,
   sessionIdForUser,
   userOwnerId,
 } from '../../sandbox/session_naming';
+import {
+  SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS,
+  SANDBOX_ADMISSION_POLL_BACKOFF_MS,
+} from '../../sandbox/sessions_schema';
 import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
@@ -231,21 +237,24 @@ export const runExternalAgentTurn = internalAction({
     // the catch can mark it failed while preserving the partial tool timeline.
     let lastContent: AgentAssistantContent = '';
 
+    // Owner identity for the sandbox session AND its park-on-capacity admission
+    // ticket. Hoisted so the catch can re-park on a capacity wait. One sandbox
+    // per (org, user) serves all the user's threads; thread-owned is the
+    // no-userId fallback.
+    const ownerType = args.userId ? OWNER_TYPE_USER : OWNER_TYPE_THREAD;
+    const ownerId = args.userId
+      ? userOwnerId(args.organizationId, args.userId)
+      : args.threadId;
+
     try {
       // BYO ("bring your own credentials"): the per-agent authMode is the sole
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
 
-      // 1. Reuse the user's persistent sandbox, or create one (owner = user;
-      // thread-owned fallback only when no userId is available). One sandbox
-      // per user PER ORG serves all their threads in that org — shared
-      // /workspace, per-thread Claude conversation. The owner key is
-      // (org, user) so the same user in another org gets a separate sandbox.
-      const ownerType = args.userId ? OWNER_TYPE_USER : OWNER_TYPE_THREAD;
-      const ownerId = args.userId
-        ? userOwnerId(args.organizationId, args.userId)
-        : args.threadId;
+      // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
+      // user PER ORG serves all their threads in that org — shared /workspace,
+      // per-thread Claude conversation.
       const existing = await ctx.runQuery(
         internal.sandbox.session_queries.getActiveSessionByOwner,
         { ownerType, ownerId },
@@ -331,6 +340,10 @@ export const runExternalAgentTurn = internalAction({
             ownerId,
             createdBy: args.userId ?? 'system',
             agentKind: args.agentKind,
+            // Park-on-capacity: if the org is at its session cap, this throws
+            // WAIT_FIFO (caught below → re-schedule + "Queued for capacity")
+            // instead of failing the turn. Claims the FIFO ticket atomically.
+            ticket: { source: 'chat', threadId: args.threadId },
           },
         );
         try {
@@ -370,6 +383,22 @@ export const runExternalAgentTurn = internalAction({
           internal.sandbox.session_mutations.setSessionStatus,
           { rowId, status: 'active', lastActivityAt: Date.now() },
         );
+        // Park-on-capacity: the slot is now held by this session row, so drop
+        // the FIFO ticket (it stops counting against the queue) and clear any
+        // "Queued for capacity" flag set by a prior parked attempt.
+        await ctx.runMutation(
+          internal.sandbox.admission.deleteAdmissionTicket,
+          {
+            ownerType,
+            ownerId,
+          },
+        );
+        if (args.streamId) {
+          await ctx.runMutation(
+            internal.threads.internal_mutations.setGenerationQueued,
+            { threadId: args.threadId, streamId: args.streamId, queued: false },
+          );
+        }
       }
 
       // Persist the colour the session landed on so a recovery/continuation
@@ -1043,6 +1072,59 @@ export const runExternalAgentTurn = internalAction({
       // continuation action (the >30min handoff; no finalize, the turn keeps going).
       await handleTurnOutcome(ctx, turn, result);
     } catch (err) {
+      // Park-on-capacity (NOT a failure): the org is at its session cap
+      // (WAIT_FIFO from reserve — ticket already waiting) or the global host is
+      // at capacity (SpawnerBusyError from create — flip the claimed ticket back
+      // to waiting to keep FIFO position). Nothing was built yet (no message /
+      // op / VK; a 429-after-reserve already marked its row failed), so re-stamp
+      // the thread "Queued for capacity" and re-schedule THIS turn. The wait is
+      // unbounded by design — only the user cancelling, or a slot freeing (incl.
+      // the ticket reaper clearing a dead head), ends it.
+      if (isWaitFifoError(err) || err instanceof SpawnerBusyError) {
+        if (err instanceof SpawnerBusyError) {
+          await ctx
+            .runMutation(internal.sandbox.admission.parkAdmissionTicket, {
+              organizationId: args.organizationId,
+              kind: 'session',
+              ownerType,
+              ownerId,
+              source: 'chat',
+              threadId: args.threadId,
+            })
+            .catch((e) =>
+              console.warn('[runExternalAgentTurn] re-park failed:', e),
+            );
+        }
+        const backoffMs = Math.min(
+          Math.max(
+            (err instanceof SpawnerBusyError ? err.retryAfterMs : undefined) ??
+              SANDBOX_ADMISSION_POLL_BACKOFF_MS,
+            1000,
+          ),
+          SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS * 6,
+        );
+        if (args.streamId) {
+          await ctx
+            .runMutation(
+              internal.threads.internal_mutations.setGenerationQueued,
+              {
+                threadId: args.threadId,
+                streamId: args.streamId,
+                queued: true,
+              },
+            )
+            .catch((e) =>
+              console.warn('[runExternalAgentTurn] mark queued failed:', e),
+            );
+        }
+        await ctx.scheduler.runAfter(
+          backoffMs,
+          internal.agents.external_agent.run_external_agent
+            .runExternalAgentTurn,
+          args,
+        );
+        return null;
+      }
       const message = err instanceof Error ? err.message : String(err);
       console.error('[runExternalAgentTurn] failed:', {
         threadId: args.threadId,

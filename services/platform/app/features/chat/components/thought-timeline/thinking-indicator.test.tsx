@@ -12,6 +12,7 @@ vi.mock('@/lib/i18n/client', () => ({
       const map: Record<string, string> = {
         'thoughtProcess.thinking': 'Thinking',
         'thoughtProcess.routingPhase': 'Routing',
+        'thoughtProcess.queuedForCapacity': 'Queued for capacity',
         'thoughtProcess.seconds': `${p('seconds')}s`,
         'routing.routedTo': `Routed to ${p('agent')}`,
         'routing.reason.classified': 'Best match for this request',
@@ -31,6 +32,14 @@ describe('ThinkingIndicator', () => {
   it('shows "Routing" while the Auto router is still deciding', () => {
     render(<ThinkingIndicator phase="routing" />);
     expect(screen.getByText(/Routing/)).toBeInTheDocument();
+  });
+
+  it('shows "Queued for capacity" while parked, overriding the thinking label', () => {
+    // Park-on-capacity: the turn is generating but waiting for a free sandbox
+    // slot — the user must see a deliberate wait, not a stalled "Thinking".
+    render(<ThinkingIndicator phase="thinking" queued />);
+    expect(screen.getByText(/Queued for capacity/)).toBeInTheDocument();
+    expect(screen.queryByText(/Thinking/)).not.toBeInTheDocument();
   });
 
   it('surfaces the resolved "Routed to X" chip as soon as the route lands', () => {

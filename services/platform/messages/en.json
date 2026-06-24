@@ -180,6 +180,7 @@
       "output_error": "Error",
       "waiting_human": "Needs you",
       "waiting_external": "Waiting",
+      "queued_capacity": "Queued",
       "empty": "No output"
     },
     "field": {
@@ -221,6 +222,7 @@
     },
     "body": {
       "waitingExternal": "Waiting for an external event to continue.",
+      "queuedCapacity": "Queued — waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "empty": "This step produced no output.",
       "noDetails": "No details to show."
     },
@@ -1115,7 +1117,8 @@
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "Showed its reasoning",
-      "responding": "Responding"
+      "responding": "Responding",
+      "queuedForCapacity": "Queued for capacity"
     },
     "routing": {
       "routedTo": "Routed to {agent}",

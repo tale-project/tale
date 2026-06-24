@@ -27,10 +27,16 @@ const scriptConfig = (): SandboxNodeConfig => ({
   run: { script: 'pack://issue-desk/x.py', language: 'python' },
 });
 
-// Minimal ActionCtx: runQuery answers getRawExecution (the subject lookup);
-// runAction routes the env-resolution call to an empty env map and the
+// Minimal ActionCtx: runQuery answers getRawExecution (the subject lookup) and
+// the durable-resume checkpoint probe (sessionId arg → null, i.e. fresh);
+// runMutation answers the park-on-capacity admission poll (admit) + the ticket
+// delete; runAction routes the env-resolution call to an empty env map and the
 // sandbox-exec call (agent or script args) to the supplied terminal `data`.
-function makeCtx(opts: { data: Record<string, unknown>; exec?: unknown }) {
+function makeCtx(opts: {
+  data: Record<string, unknown>;
+  exec?: unknown;
+  pollVerdict?: 'admit' | 'wait';
+}) {
   const runAction = vi.fn((_ref: unknown, args: Record<string, unknown>) =>
     Promise.resolve(
       args && ('agentSlug' in args || 'script' in args)
@@ -38,10 +44,23 @@ function makeCtx(opts: { data: Record<string, unknown>; exec?: unknown }) {
         : { workflowEnv: {}, stepEnv: {} },
     ),
   );
-  const runQuery = vi.fn(() => Promise.resolve(opts.exec ?? null));
+  const runQuery = vi.fn((_ref: unknown, args: Record<string, unknown>) =>
+    // The agent path probes for a resume checkpoint by sessionId — answer null
+    // (fresh entry). Every other query is the getRawExecution subject lookup.
+    Promise.resolve(args && 'sessionId' in args ? null : (opts.exec ?? null)),
+  );
+  const runMutation = vi.fn((_ref: unknown, args: Record<string, unknown>) =>
+    // pollAdmission carries `kind`; default to admit so the flow proceeds. The
+    // ticket delete (ownerType/ownerId only) and others just resolve null.
+    Promise.resolve(
+      args && 'kind' in args
+        ? { verdict: opts.pollVerdict ?? 'admit', ticketCreatedAt: 1 }
+        : null,
+    ),
+  );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only: minimal ActionCtx surface
-  const ctx = { runAction, runQuery } as unknown as ActionCtx;
-  return { ctx, runAction, runQuery };
+  const ctx = { runAction, runQuery, runMutation } as unknown as ActionCtx;
+  return { ctx, runAction, runQuery, runMutation };
 }
 
 const sandboxCallArgs = (runAction: ReturnType<typeof vi.fn>) =>
@@ -93,6 +112,46 @@ describe('executeSandboxNode port mapping', () => {
       );
       expect(result.port, `status=${status}`).toBe('success');
     }
+  });
+
+  it('parks on the "awaiting_capacity" port when the admission poll says wait (and never runs the agent)', async () => {
+    const { ctx, runAction } = makeCtx({
+      data: { mode: 'agent', ok: true, status: 'completed', outputFileIds: [] },
+      pollVerdict: 'wait',
+    });
+    const result = await executeSandboxNode(
+      ctx,
+      agentConfig(),
+      { organizationId: 'org-1' },
+      'exec-1',
+      'implement',
+    );
+    expect(result.port).toBe('awaiting_capacity');
+    // No env resolution + no sandbox-exec call happened — parking is cheap.
+    expect(
+      runAction.mock.calls.some(
+        ([, a]) => a && typeof a === 'object' && 'agentSlug' in a,
+      ),
+    ).toBe(false);
+  });
+
+  it('maps an action-reported "awaiting_capacity" (post-poll race / global 429) to the park port', async () => {
+    const { ctx } = makeCtx({
+      data: {
+        mode: 'agent',
+        ok: false,
+        status: 'awaiting_capacity',
+        outputFileIds: [],
+      },
+    });
+    const result = await executeSandboxNode(
+      ctx,
+      agentConfig(),
+      { organizationId: 'org-1' },
+      'exec-1',
+      'implement',
+    );
+    expect(result.port).toBe('awaiting_capacity');
   });
 
   it('a deterministic script run never takes the "running" port', async () => {

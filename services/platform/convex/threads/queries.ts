@@ -268,6 +268,10 @@ export const getThreadMeta = query({
     v.object({
       projectId: v.union(v.id('projects'), v.null()),
       isGenerating: v.boolean(),
+      // Park-on-capacity: the turn is generating but WAITING for a free sandbox
+      // slot (org at its concurrency cap). The composer shows "Queued for
+      // capacity" instead of "Thinking". Always false unless isGenerating.
+      isQueued: v.boolean(),
       forkInfo: v.union(
         v.null(),
         v.object({
@@ -315,6 +319,9 @@ export const getThreadMeta = query({
     // Live generation status (mirrors isThreadGenerating, incl. stale guard).
     const isGenerating =
       metadata.generationStatus === 'generating' && isGenerationFresh(metadata);
+    // Park-on-capacity: queued only while genuinely generating (the stale guard
+    // above prevents a leftover flag surfacing on an idle thread).
+    const isQueued = isGenerating && metadata.generationQueuedSince != null;
 
     // Fork info — owner-only, forked threads only (mirrors getThreadForkInfo).
     const forkInfo =
@@ -342,6 +349,7 @@ export const getThreadMeta = query({
     return {
       projectId: metadata.projectId ?? null,
       isGenerating,
+      isQueued,
       forkInfo,
       failedErrors,
       canvasState: {

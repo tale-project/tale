@@ -74,6 +74,7 @@ describe('platform state / mode / field / role vocabularies', () => {
       'upcoming',
       'loading',
       'running',
+      'queued_capacity',
       'output_available',
       'output_error',
       'waiting_human',

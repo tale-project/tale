@@ -60,6 +60,15 @@ export const threadMetadataTable = defineTable({
    */
   generationHeartbeatAt: v.optional(v.number()),
   /**
+   * Park-on-capacity: set (with `generationStatus` kept 'generating') while a
+   * turn is WAITING for a free sandbox slot — the org is at its concurrency cap.
+   * The composer reads this to show "Queued for capacity" instead of "Thinking".
+   * Cleared when the turn is admitted and actually starts (or on turn end). The
+   * generation lock + liveness stay 'generating' so the thread still blocks new
+   * turns and the re-park heartbeat keeps it fresh.
+   */
+  generationQueuedSince: v.optional(v.number()),
+  /**
    * Adaptive Reasoning Governor (Layer C) per-thread learning state: per
    * difficulty-class Welford statistics of observed reasoning tokens plus an
    * "under-resourced" EMA, letting the governor learn a difficulty→need curve

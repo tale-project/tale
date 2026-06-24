@@ -39,6 +39,11 @@ export type ExecuteStepResult = {
   port: string;
   error?: string;
   approvalTaskId?: string;
+  /** Park-on-capacity (`awaiting_capacity` port): a backoff hint surfaced from
+   * the step output (a spawner `retry-after` on a global 429) so the durable
+   * handler can sleep that long before re-entering instead of the default poll
+   * interval. */
+  retryAfterMs?: number;
 };
 
 /**
@@ -263,11 +268,18 @@ export async function handleExecuteStep(
     essentialLoop,
   );
 
-  // 11. Return essential control information
+  // 11. Return essential control information. For a park (`awaiting_capacity`)
+  // surface the optional retry-after backoff hint from the step output.
+  const outData = result.output.data;
+  const retryAfterMs =
+    isRecord(outData) && typeof outData.retryAfterMs === 'number'
+      ? outData.retryAfterMs
+      : undefined;
   return {
     port: result.port,
     error: result.error,
     approvalTaskId,
+    ...(retryAfterMs !== undefined && { retryAfterMs }),
   };
 }
 

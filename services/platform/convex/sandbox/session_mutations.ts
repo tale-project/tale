@@ -13,6 +13,13 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import {
+  type AdmissionTicketArgs,
+  assertFifoEligible,
+  claimTicket,
+  reserveTicketArg,
+  upsertWaitingTicket,
+} from './admission';
 import { readSandboxQuotaPolicy } from './quota_policy';
 import {
   isLiveSessionStatus,
@@ -37,21 +44,17 @@ export const reserveSessionSlotAndInsert = internalMutation({
     createdBy: v.string(),
     agentKind: v.optional(v.string()),
     ttlMs: v.optional(v.number()),
+    // Park-on-capacity: when present, the per-org cap becomes a FIFO queue —
+    // this caller already polled `pollAdmission` and is claiming a freed slot.
+    ticket: v.optional(reserveTicketArg),
   },
   returns: v.id('sandboxSessions'),
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Per-org session cap from the `sandbox_quota` governance policy (missing
-    // row → schema default). Defense in depth; the deployment-wide host cap is
-    // the spawner's `SANDBOX_MAX_SESSIONS` env. Sessions are per-owner (cap
-    // below), so this org cap is the per-tenant aggregate slice.
-    const { maxSessionsPerOrg } = await readSandboxQuotaPolicy(
-      ctx.db,
-      args.organizationId,
-    );
-
-    // Per-owner cap (default 1 active session per thread/workflow-run/user).
+    // Per-owner cap (default 1 active session per thread/workflow-run/user). A
+    // real conflict (this owner already holds a live session), NOT a capacity
+    // wait — so it throws QUOTA_EXCEEDED even in parking mode.
     let ownerActive = 0;
     for await (const row of ctx.db
       .query('sandboxSessions')
@@ -69,20 +72,56 @@ export const reserveSessionSlotAndInsert = internalMutation({
       }
     }
 
-    // Per-org cap (defense in depth; the spawner enforces its own cap too).
-    let orgActive = 0;
-    for (const status of ['creating', 'active'] as const) {
-      for await (const _row of ctx.db
-        .query('sandboxSessions')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', args.organizationId).eq('status', status),
-        )) {
-        orgActive += 1;
-        if (orgActive >= maxSessionsPerOrg) {
-          throw new ConvexError({
-            code: 'QUOTA_EXCEEDED',
-            message: `At most ${maxSessionsPerOrg} sandbox sessions can be active for this organization.`,
-          });
+    // Per-org cap. In PARKING mode (a ticket is present) the cap is a FIFO queue:
+    // `assertFifoEligible` throws WAIT_FIFO (caller re-parks) unless this ticket
+    // is at the front of an open slot; we then claim it in THIS txn so the slot
+    // count + the claim are one serializable transaction. Without a ticket the
+    // legacy hard-cap throw (QUOTA_EXCEEDED) is unchanged.
+    if (args.ticket) {
+      const ticketArgs: AdmissionTicketArgs = {
+        organizationId: args.organizationId,
+        kind: 'session',
+        ownerType: args.ownerType,
+        ownerId: args.ownerId,
+        source: args.ticket.source,
+        ...(args.ticket.threadId !== undefined && {
+          threadId: args.ticket.threadId,
+        }),
+        ...(args.ticket.wfExecutionId !== undefined && {
+          wfExecutionId: args.ticket.wfExecutionId,
+        }),
+        ...(args.ticket.stepSlug !== undefined && {
+          stepSlug: args.ticket.stepSlug,
+        }),
+      };
+      const ticketCreatedAt = await upsertWaitingTicket(ctx, ticketArgs, now);
+      await assertFifoEligible(
+        ctx,
+        args.organizationId,
+        'session',
+        ticketCreatedAt,
+      );
+      await claimTicket(ctx, args.ownerType, args.ownerId, now);
+    } else {
+      // Per-org cap (defense in depth; the spawner enforces its own cap too).
+      const { maxSessionsPerOrg } = await readSandboxQuotaPolicy(
+        ctx.db,
+        args.organizationId,
+      );
+      let orgActive = 0;
+      for (const status of ['creating', 'active'] as const) {
+        for await (const _row of ctx.db
+          .query('sandboxSessions')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', status),
+          )) {
+          orgActive += 1;
+          if (orgActive >= maxSessionsPerOrg) {
+            throw new ConvexError({
+              code: 'QUOTA_EXCEEDED',
+              message: `At most ${maxSessionsPerOrg} sandbox sessions can be active for this organization.`,
+            });
+          }
         }
       }
     }

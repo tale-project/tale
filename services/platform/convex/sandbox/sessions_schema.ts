@@ -282,6 +282,57 @@ export const sandboxAgentCheckpointsTable = defineTable({
 }).index('by_sessionId', ['sessionId']);
 
 /**
+ * Admission queue ticket for a sandbox request that hit a per-org concurrency
+ * cap and chose to WAIT instead of fail (park-on-capacity). One row per waiting
+ * owner (a chat thread/user, a workflow-run step). The ticket gives the org a
+ * FIFO order — a waiter may claim a freed slot only when it is among the front
+ * `slotsOpen` oldest WAITING tickets for its (org, kind). The ticket is NOT a
+ * slot: a `waiting` ticket holds zero compute and counts toward NO concurrency
+ * cap; only the `sandboxSessions`/`sandboxExecutions` row it eventually inserts
+ * does. `createdAt` is the FIFO key (no monotonic counter → no write hotspot).
+ *
+ * Lifecycle: waiting (re-stamped `lastSeenAt` on every poll = liveness
+ * heartbeat) → admitted (flipped in the SAME txn that inserts the slot row, so
+ * the slot count and the claim are one serializable transaction) → deleted (on
+ * proceed / terminal fail / cancel). Orphans whose poll-chain died are reaped by
+ * `recoverStuckAdmissionTickets` on the staleness of `lastSeenAt` — the ONLY
+ * guard against permanent queue-head starvation under indefinite wait.
+ *
+ * Indexes:
+ *   by_owner                       — upsert/claim/delete point lookup (1/owner)
+ *   by_org_kind_status_createdAt   — FIFO rank (waiting, oldest-first, per kind)
+ *   by_status_lastSeen             — reaper staleness scan
+ */
+export const sandboxAdmissionTicketsTable = defineTable({
+  organizationId: v.string(),
+  /** 'session' = chat + workflow agent step (caps on `sandboxSessions`);
+   *  'oneshot' = workflow script step (caps on `sandboxExecutions`). Each kind
+   *  queues independently (separate cap + separate in-flight table). */
+  kind: v.union(v.literal('session'), v.literal('oneshot')),
+  // Polymorphic owner (open set, like sandboxSessions.ownerType).
+  ownerType: v.string(), // 'thread' | 'user' | 'workflow_run' | …
+  ownerId: v.string(),
+  /** Where the waiter lives, so the reaper can cross-check liveness. */
+  source: v.union(v.literal('chat'), v.literal('workflow')),
+  threadId: v.optional(v.string()), // chat reaping cross-check
+  wfExecutionId: v.optional(v.string()), // workflow reaping cross-check
+  stepSlug: v.optional(v.string()),
+  status: v.union(v.literal('waiting'), v.literal('admitted')),
+  /** FIFO ordering key (ms). Set once on the first park; never re-stamped. */
+  createdAt: v.number(),
+  /** Liveness heartbeat — re-stamped on every poll. Reaper deletes stale ones. */
+  lastSeenAt: v.number(),
+})
+  .index('by_owner', ['ownerType', 'ownerId'])
+  .index('by_org_kind_status_createdAt', [
+    'organizationId',
+    'kind',
+    'status',
+    'createdAt',
+  ])
+  .index('by_status_lastSeen', ['status', 'lastSeenAt']);
+
+/**
  * Audit row for every Tier-2 credential fetch (the integration-credential
  * broker), so a session's use of a granted GitHub/etc. token is traceable.
  */
@@ -322,6 +373,19 @@ export const sandboxIntegrationCallsTable = defineTable({
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
 export const SANDBOX_SESSION_MAX_IDLE_MS = 30 * 60 * 1000;
+
+/** Park-on-capacity backoff between admission polls when waiting on the per-org
+ * FIFO cap. Short so the front waiter wakes promptly after a slot frees (a freed
+ * slot idles at most one interval while the head ticket sleeps). */
+export const SANDBOX_ADMISSION_POLL_BACKOFF_MS = 4_000;
+/** Default backoff when the GLOBAL spawner host cap rejects (HTTP 429) and no
+ * `retry-after` is supplied. Longer than the per-org poll: a global slot frees
+ * across tenants, not from this org's own queue. */
+export const SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS = 10_000;
+/** A `waiting` ticket whose `lastSeenAt` is older than this lost its poll-chain
+ * (the workflow/chat that owned it died) → the reaper deletes it so the queue
+ * head can advance. ~6 missed per-org polls; tune WITH the poll backoff. */
+export const SANDBOX_ADMISSION_TICKET_STALE_MS = 30_000;
 
 /**
  * Statuses under which a session row is LIVE: the incarnation the reused

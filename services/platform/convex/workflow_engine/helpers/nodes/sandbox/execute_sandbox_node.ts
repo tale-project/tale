@@ -8,6 +8,10 @@ import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import { toId } from '../../../../lib/type_cast_helpers';
+import {
+  sessionIdForWorkflowRun,
+  workflowRunOwnerId,
+} from '../../../../sandbox/session_naming';
 import type { StepExecutionResult } from '../../../types';
 import type { SandboxNodeConfig } from '../../../types/nodes';
 import { mergeSandboxEnv } from './merge_sandbox_env';
@@ -26,6 +30,74 @@ export async function executeSandboxNode(
       : '';
   const run = config.run;
   const inputs = config.inputs ?? [];
+  const isAgent = 'agent' in run;
+  const runMode = isAgent ? ('agent' as const) : ('script' as const);
+
+  // Park-on-capacity admission gate. A workflow sandbox step that hits its org's
+  // concurrency cap WAITS (FIFO) instead of failing: poll the queue, and if not
+  // yet at the front of an open slot, return the internal `awaiting_capacity`
+  // port so the durable handler sleeps + re-enters this step. The poll upserts
+  // this step's FIFO ticket and re-stamps its liveness heartbeat — running it
+  // BEFORE the (expensive) env-resolution RPC means a still-full re-poll is cheap.
+  //
+  // A RESUME (a prior segment handed off mid-run) already HOLDS its slot and must
+  // NOT poll: doing so would count its own slot, see slotsOpen=0, and park a
+  // running step → it never resumes → its slot never frees (self-deadlock). So
+  // gate the poll on fresh entry only — for an agent step that means no live
+  // checkpoint; a script step never resumes.
+  const ownerType = 'workflow_run';
+  const ownerId = workflowRunOwnerId(executionId, stepSlug);
+  const canPark = organizationId !== '' && executionId !== '';
+  // Sticky "Queued" marker on the execution row so the run view shows a steady
+  // badge across the rapid poll segments (the per-segment in-progress blip would
+  // otherwise flicker Running↔Queued). Cleared the instant we proceed to real
+  // work — BEFORE the long agent run — so a running step never reads "Queued".
+  const setCapacityWait = (waiting: boolean) =>
+    ctx.runMutation(
+      internal.workflow_executions.internal_mutations.setStepCapacityWait,
+      { executionId: toId<'wfExecutions'>(executionId), stepSlug, waiting },
+    );
+  let resuming = false;
+  if (canPark && isAgent) {
+    const checkpoint = await ctx.runQuery(
+      internal.sandbox.session_queries.loadAgentCheckpoint,
+      { sessionId: sessionIdForWorkflowRun(executionId, stepSlug) },
+    );
+    resuming = checkpoint !== null;
+  }
+  if (canPark && !resuming) {
+    const poll = await ctx.runMutation(
+      internal.sandbox.admission.pollAdmission,
+      {
+        organizationId,
+        kind: isAgent ? 'session' : 'oneshot',
+        ownerType,
+        ownerId,
+        source: 'workflow',
+        wfExecutionId: executionId,
+        stepSlug,
+      },
+    );
+    if (poll.verdict === 'wait') {
+      await setCapacityWait(true);
+      return {
+        port: 'awaiting_capacity',
+        output: {
+          type: 'sandbox',
+          data: {
+            mode: runMode,
+            ok: false,
+            status: 'awaiting_capacity',
+            outputFileIds: [],
+          },
+        },
+      };
+    }
+  }
+  // Proceeding to real work (admitted, or a resume re-entry): clear any sticky
+  // "Queued" marker BEFORE the long run so the step reads "Running", not a stale
+  // "Queued". No-op on the first segment (nothing was set).
+  if (canPark) await setCapacityWait(false);
 
   // Resolve the env this sandbox sees from three layers and merge them (step
   // beats workflow; operator UI beats the pack file — see `mergeSandboxEnv`):
@@ -126,12 +198,36 @@ export async function executeSandboxNode(
           },
         );
 
+  // Post-run ticket + marker bookkeeping. A run that actually started (terminal,
+  // or handed off 'running') holds its slot via the session/exec row → drop the
+  // FIFO ticket (the marker was already cleared before the run). If the action
+  // itself came back `awaiting_capacity` (a post-poll WAIT_FIFO race or a global
+  // 429), keep the ticket and RE-SET the sticky marker so the badge stays
+  // "Queued" through the re-entry.
+  if (canPark) {
+    if (data.status === 'awaiting_capacity') {
+      await setCapacityWait(true);
+    } else {
+      await ctx.runMutation(internal.sandbox.admission.deleteAdmissionTicket, {
+        ownerType,
+        ownerId,
+      });
+    }
+  }
+
   // A DURABLE agent run hands off with status 'running' when its per-action
   // window elapses mid-run (the sandbox exec keeps running). Surface it on a
   // dedicated 'running' port so the handler re-enters the SAME step to attach
   // the next segment, transparently spanning the 10-min action ceiling.
-  // Everything terminal stays on 'success' (ok/error live in output.data, so a
-  // following condition branches as before). Script runs never return 'running'.
-  const port = data.status === 'running' ? 'running' : 'success';
+  // `awaiting_capacity` is the park-on-capacity twin: the step never started
+  // (no slot, no budget burned) — the handler sleeps then re-enters. Everything
+  // terminal stays on 'success' (ok/error live in output.data, so a following
+  // condition branches as before). Script runs never return 'running'.
+  const port =
+    data.status === 'running'
+      ? 'running'
+      : data.status === 'awaiting_capacity'
+        ? 'awaiting_capacity'
+        : 'success';
   return { port, output: { type: 'sandbox', data } };
 }
