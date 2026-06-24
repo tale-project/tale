@@ -161,6 +161,7 @@ export function ActiveHoldsSection({
             <IconButton
               type="button"
               variant="ghost"
+              size="sm"
               icon={LockOpen}
               aria-label={t('legalHold.actions.requestRelease')}
               onClick={(e) => {

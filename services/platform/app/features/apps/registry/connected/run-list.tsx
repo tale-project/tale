@@ -7,7 +7,7 @@
  * per-step live panels), reusing it rather than rebuilding a live view here.
  */
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { SkeletonText } from '@tale/ui/skeleton';
 import {
   Table,
@@ -19,7 +19,7 @@ import {
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { Activity } from 'lucide-react';
+import { Activity, Eye } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -106,8 +106,11 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                   </TableCell>
                   <TableCell>{fmt(run.startedAt)}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="secondary"
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      icon={Eye}
+                      aria-label={t('runs.watchLive')}
                       disabled={!id}
                       onClick={() =>
                         // A project-scoped app watches runs under its project
@@ -136,9 +139,7 @@ export function RunList({ title, workflowSlug }: RunListProps) {
                               search: { wf: workflowSlug },
                             }))
                       }
-                    >
-                      {t('runs.watchLive')}
-                    </Button>
+                    />
                   </TableCell>
                 </TableRow>
               );
