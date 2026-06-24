@@ -109,10 +109,11 @@ export function Collection({
             subjectType
               ? {
                   idField: subjectIdField,
-                  render: (subjectId) => (
+                  render: (subjectId, statusBadge) => (
                     <SubjectCapacityChip
                       subjectType={subjectType}
                       subjectId={subjectId}
+                      fallback={statusBadge}
                     />
                   ),
                 }

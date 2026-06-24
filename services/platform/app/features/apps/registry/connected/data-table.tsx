@@ -100,14 +100,19 @@ export interface DataTableProps {
     idField: string;
     render: (subjectId: string) => React.ReactNode;
   };
-  /** Optional per-row accessory rendered inline beside the status/state badge
-   *  (e.g. an ambient "queued for capacity" chip). The `idField` value is passed
-   *  to `render`; like `expansion`, this keeps the table domain-agnostic — the
-   *  caller injects the connected component. A row with no status/state column,
-   *  or a non-string idField value, simply shows no accessory. */
+  /** Optional per-row accessory that owns the status/state cell: it receives the
+   *  row's `idField` value and the default status badge, and returns either that
+   *  badge or an ambient replacement (e.g. a "queued for capacity" chip shown
+   *  *instead of* the badge, so a row never reads as both states at once). Like
+   *  `expansion`, this keeps the table domain-agnostic — the caller injects the
+   *  connected component, which alone knows when to swap. A row with no
+   *  status/state column, or a non-string idField value, renders the badge. */
   rowAccessory?: {
     idField: string;
-    render: (subjectId: string) => React.ReactNode;
+    render: (
+      subjectId: string,
+      statusBadge: React.ReactNode,
+    ) => React.ReactNode;
   };
   /** Cap on rendered rows (default 50). */
   maxRows?: number;
@@ -180,22 +185,16 @@ export function DataTable({
                     typeof rawAccessoryId === 'string'
                       ? rawAccessoryId
                       : undefined;
-                  const accessory =
+                  const statusBadge = cell(c, row[c]);
+                  // The accessory owns the status cell so it can show the
+                  // ambient chip *in place of* the badge — the parked state
+                  // lives in the connected component, so it decides; otherwise
+                  // it returns the badge unchanged.
+                  const content =
                     isStatusCol && rowAccessory && accessoryId !== undefined
-                      ? rowAccessory.render(accessoryId)
-                      : null;
-                  return (
-                    <TableCell key={c}>
-                      {accessory ? (
-                        <Row gap={2} align="center" wrap>
-                          {cell(c, row[c])}
-                          {accessory}
-                        </Row>
-                      ) : (
-                        cell(c, row[c])
-                      )}
-                    </TableCell>
-                  );
+                      ? rowAccessory.render(accessoryId, statusBadge)
+                      : statusBadge;
+                  return <TableCell key={c}>{content}</TableCell>;
                 })}
                 {acts.length > 0 && (
                   // Stop row-click expansion when interacting with actions.
