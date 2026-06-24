@@ -120,6 +120,38 @@ describe('AuditLogsPage', () => {
     expect(activityTab).toHaveAttribute('aria-selected', 'false');
   });
 
+  it('shows the category filter only on the Audit and Errors tabs', async () => {
+    // [114] The category `DataTableFilters` feeds only the audit + error
+    // queries, so the page renders it solely on those two tabs — on "Sign-in
+    // blocks" and "Activity logs" it was a no-op and is now omitted entirely.
+    // The shared toolbar's filter trigger is the `FilterButton`, accessible by
+    // its "Filter" label, so its presence/absence tracks the fix exactly.
+    const { user } = renderPage();
+
+    // Default "Audit logs" tab — filter present.
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+
+    // "Sign-in blocks" tab — filter hidden (was a no-op).
+    await user.click(screen.getByRole('tab', { name: 'Sign-in blocks' }));
+    expect(
+      screen.queryByRole('button', { name: 'Filter' }),
+    ).not.toBeInTheDocument();
+
+    // "Activity logs" tab — filter hidden (was a no-op).
+    await user.click(screen.getByRole('tab', { name: 'Activity logs' }));
+    expect(
+      screen.queryByRole('button', { name: 'Filter' }),
+    ).not.toBeInTheDocument();
+
+    // "Error logs" tab — filter present (category really filters it).
+    await user.click(screen.getByRole('tab', { name: 'Error logs' }));
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+
+    // Back to "Audit logs" — filter present again.
+    await user.click(screen.getByRole('tab', { name: 'Audit logs' }));
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+  });
+
   it('passes an axe audit of the tab strip and active audit table', async () => {
     renderPage();
     // Audit the migrated subject — the tablist + the active tab panel holding
