@@ -1,0 +1,101 @@
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+import { parse } from 'yaml';
+
+import { setProjectId } from '../../project/project-context';
+import type { ServiceConfig } from '../types';
+import { createConvexService } from './create-convex-service';
+
+// Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
+// config that lives in one pipeline but not the other. `compose.yml` (the
+// `docker compose up` base) and the CLI generators (`tale deploy`) are two
+// hand-maintained sources of truth; this asserts they agree on the load-bearing,
+// safety-critical dimensions so drift fails CI instead of shipping.
+//
+// Documented past drifts this locks down: NET_ADMIN silently dropped (R1.17),
+// uncapped egress proxy (R2-B11), and `stop_grace_period` missing from
+// compose.yml (10s default → SIGKILL of in-flight HTTP/SSE + sandbox execs).
+
+setProjectId('test-project');
+const config = {
+  version: '0.0.0-test',
+  registry: 'ghcr.io/tale-project',
+} satisfies ServiceConfig;
+
+const composePath = fileURLToPath(
+  new URL('../../../../../../compose.yml', import.meta.url),
+);
+const compose = parse(readFileSync(composePath, 'utf8')) as {
+  services: Record<
+    string,
+    { networks?: unknown; cap_add?: string[]; stop_grace_period?: string }
+  >;
+};
+
+function networkNames(networks: unknown): string[] {
+  if (Array.isArray(networks)) return networks as string[];
+  if (networks && typeof networks === 'object') return Object.keys(networks);
+  return [];
+}
+
+function graceSeconds(value: string | undefined): number {
+  if (!value) return 0;
+  const match = /^(\d+)s$/.exec(value);
+  return match ? Number(match[1]) : 0;
+}
+
+describe('sandbox→convex reachability parity', () => {
+  test('CLI generator dual-homes convex onto the sandbox net with the `convex` alias', () => {
+    const networks = createConvexService(config).networks;
+    if (Array.isArray(networks) || networks === undefined) {
+      throw new Error('convex networks should be the object form with aliases');
+    }
+    expect(networks.internal).toBeDefined();
+    expect(networks.sandbox).toBeDefined();
+    // container_name is `<project>-convex`, so the explicit alias is what makes
+    // http://convex:3210 reachable from the session container.
+    expect(networks.sandbox?.aliases).toContain('convex');
+  });
+
+  test('compose.yml keeps convex on the sandbox network (reachable as `convex`)', () => {
+    // compose.yml's service is literally named `convex`, so service-name
+    // resolution covers the alias — only membership must be asserted.
+    expect(networkNames(compose.services.convex?.networks)).toContain(
+      'sandbox',
+    );
+  });
+});
+
+describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
+  test('CLI generator keeps NET_ADMIN on convex', () => {
+    expect(createConvexService(config).cap_add).toContain('NET_ADMIN');
+  });
+
+  test('compose.yml keeps NET_ADMIN on convex', () => {
+    expect(compose.services.convex?.cap_add).toContain('NET_ADMIN');
+  });
+
+  test('compose.yml keeps NET_ADMIN on the sandbox-egress proxy', () => {
+    expect(compose.services['sandbox-egress']?.cap_add).toContain('NET_ADMIN');
+  });
+});
+
+describe('graceful-shutdown parity — compose.yml meets the floor', () => {
+  // The CLI side is floor-tested in generate-color-compose.test.ts (>=41s). This
+  // guards the OTHER pipeline: compose.yml must not regress to Docker's 10s
+  // default, which SIGKILLs in-flight HTTP/SSE chat streams + sandbox execs on
+  // `docker compose up`.
+  test('platform drains streams before SIGKILL (mirrors CLI 45s)', () => {
+    expect(
+      graceSeconds(compose.services.platform?.stop_grace_period),
+    ).toBeGreaterThanOrEqual(45);
+  });
+
+  test('sandbox spawner drains executions before SIGKILL (mirrors CLI 30s)', () => {
+    expect(
+      graceSeconds(compose.services.sandbox?.stop_grace_period),
+    ).toBeGreaterThanOrEqual(30);
+  });
+});

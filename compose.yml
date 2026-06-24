@@ -304,6 +304,10 @@ services:
 
     # Restart policy
     # Automatically restart the container if it crashes
+    # Graceful shutdown: drain in-flight HTTP/SSE chat streams before SIGKILL.
+    # Mirrors the CLI generator (create-platform-service.ts: 45s); without it
+    # `docker compose up` gets Docker's 10s default and cuts streams mid-flight.
+    stop_grace_period: 45s
     restart: unless-stopped
 
     # Health check — only checks Vite now (Convex is a separate service with
@@ -574,6 +578,10 @@ services:
       # tier from deployment.json (same convex-data volume the convex/platform
       # services share).
       - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
+    # Graceful shutdown: let the spawner drain in-flight executions before
+    # SIGKILL. Mirrors the CLI generator (create-sandbox-service.ts: 30s);
+    # without it `docker compose up` gets Docker's 10s default.
+    stop_grace_period: 30s
     restart: unless-stopped
     # Resource caps mirror the CLI compose generator
     # (`tools/cli/src/lib/compose/services/create-sandbox-service.ts`). The

@@ -22,8 +22,11 @@ import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { components, internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
+import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
 import {
@@ -35,6 +38,7 @@ import {
   sessionEnvPatch,
   sessionIsAlive,
   sessionSetPinned,
+  sessionStageFiles,
 } from '../../node_only/sandbox/helpers/session_client';
 import {
   stageBrowserControlSkill,
@@ -65,6 +69,12 @@ import {
   SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS,
   SANDBOX_ADMISSION_POLL_BACKOFF_MS,
 } from '../../sandbox/sessions_schema';
+import {
+  UPLOADS_ABS_ROOT,
+  buildAttachmentPreamble,
+  buildAttachmentStagePlan,
+  composePromptWithAttachments,
+} from './attachment_files';
 import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
@@ -176,6 +186,97 @@ function withErrorNote(
   return [...content, { type: 'text', text: text.trimStart() }];
 }
 
+/**
+ * Stage this turn's chat attachments into the sandbox and return the prompt with
+ * an absolute-path preamble appended, plus the dirs to grant the agent. The
+ * heavy bytes never pass through this action: storage mints a presigned URL and
+ * the in-container daemon fetches it directly (sessionStageFiles, url mode).
+ *
+ * Best-effort: a storage miss or a daemon-side skip degrades to a "not
+ * delivered" line in the preamble (so the agent never assumes a file it cannot
+ * read), and a transport failure is swallowed — staging must not fail the turn.
+ */
+async function stageChatAttachments(
+  ctx: ActionCtx,
+  opts: {
+    attachments: ReadonlyArray<{
+      fileId: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    }>;
+    promptMessageId: string;
+    sessionId: string;
+    spawnerColor: string | null;
+    rawPrompt: string;
+  },
+): Promise<{ prompt: string; additionalDirs: string[] }> {
+  const plan = buildAttachmentStagePlan(opts.promptMessageId, opts.attachments);
+  const entries: {
+    path: string;
+    url: string;
+    absPath: string;
+    fileType: string;
+    diskName: string;
+  }[] = [];
+  for (const p of plan.planned) {
+    const raw = await ctx.storage.getUrl(toId<'_storage'>(p.fileId));
+    if (!raw) {
+      plan.skipped.push({ name: p.diskName, reason: 'not_found' });
+      continue;
+    }
+    entries.push({
+      path: p.stagePath,
+      url: toSandboxStorageUrl(raw),
+      absPath: p.absPath,
+      fileType: p.fileType,
+      diskName: p.diskName,
+    });
+  }
+
+  const stagedOk: { absPath: string; fileType: string }[] = [];
+  if (entries.length > 0) {
+    try {
+      const result = await sessionStageFiles(
+        opts.sessionId,
+        entries.map((e) => ({ path: e.path, url: e.url })),
+        opts.spawnerColor,
+      );
+      const skippedReason = new Map(
+        result.skipped.map((s) => [s.path, s.reason]),
+      );
+      for (const e of entries) {
+        const reason = skippedReason.get(e.path);
+        if (reason !== undefined) {
+          plan.skipped.push({ name: e.diskName, reason });
+        } else {
+          stagedOk.push({ absPath: e.absPath, fileType: e.fileType });
+        }
+      }
+      if (result.skipped.length > 0) {
+        console.warn(
+          '[runExternalAgentTurn] some attachments were skipped:',
+          result.skipped,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[runExternalAgentTurn] attachment staging failed (continuing):',
+        err,
+      );
+      for (const e of entries) {
+        plan.skipped.push({ name: e.diskName, reason: 'stage_failed' });
+      }
+    }
+  }
+
+  const preamble = buildAttachmentPreamble(stagedOk, plan.skipped);
+  return {
+    prompt: composePromptWithAttachments(opts.rawPrompt, preamble),
+    additionalDirs: stagedOk.length > 0 ? [UPLOADS_ABS_ROOT] : [],
+  };
+}
+
 export const runExternalAgentTurn = internalAction({
   args: {
     threadId: v.string(),
@@ -210,6 +311,21 @@ export const runExternalAgentTurn = internalAction({
      * (which integrations `integration({slug})` may invoke). Enforced
      * server-side by /api/integrations/execute; defaults to none-granted. */
     integrationBindings: v.optional(v.array(v.string())),
+    /** Chat attachments uploaded with this turn. Staged into the sandbox under
+     * /user/uploads/<promptMessageId>/ and referenced by absolute path in the
+     * prompt so the agent can read them (the in-process path instead inlines
+     * images as multimodal parts). Org-ownership of each fileId is already
+     * verified upstream in start_agent_chat before dispatch. */
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
     organizationId: v.string(),
     userId: v.optional(v.string()),
   },
@@ -797,6 +913,30 @@ export const runExternalAgentTurn = internalAction({
         });
       await stampTurnOpRow(execId);
 
+      // Deliver this turn's chat attachments into the sandbox: stage each file
+      // under /user/uploads/<promptMessageId>/ and reference the absolute paths
+      // in the prompt so the agent reads the real files (images load as vision).
+      // claude-code only for now — opencode's out-of-cwd file access is a
+      // follow-up. The in-process agent path instead inlines images as
+      // multimodal parts; the external agent has no such channel.
+      let promptForRun = args.rawPrompt;
+      let attachmentDirs: string[] = [];
+      if (
+        args.agentKind === 'claude-code' &&
+        args.attachments &&
+        args.attachments.length > 0
+      ) {
+        const staged = await stageChatAttachments(ctx, {
+          attachments: args.attachments,
+          promptMessageId: args.promptMessageId,
+          sessionId: liveSessionId,
+          spawnerColor: liveSpawnerColor,
+          rawPrompt: args.rawPrompt,
+        });
+        promptForRun = staged.prompt;
+        attachmentDirs = staged.additionalDirs;
+      }
+
       // Compose the agent's own instructions with the plan-mode/steering
       // addendum + trust rules (pure, unit-tested in system_prompt.ts).
       const systemPromptAppend = buildSystemPromptAppend({
@@ -819,7 +959,8 @@ export const runExternalAgentTurn = internalAction({
           ...(liveSpawnerColor !== null && { spawnerColor: liveSpawnerColor }),
           execId: id,
           agentSlug: args.agentKind,
-          prompt: args.rawPrompt,
+          prompt: promptForRun,
+          ...(attachmentDirs.length > 0 && { additionalDirs: attachmentDirs }),
           // Live browser view (operator flag, default off): attach Playwright
           // MCP over CDP to the session's headed Chromium so it can be mirrored
           // read-only. Only set when on so the adapter's headless self-launch

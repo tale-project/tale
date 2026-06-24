@@ -92,6 +92,22 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(cwd).toBe('/user/workspace');
   });
 
+  it('grants out-of-cwd dirs via --add-dir (chat attachment staging)', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      additionalDirs: ['/user/uploads'],
+    });
+    const i = argv.indexOf('--add-dir');
+    expect(i).toBeGreaterThan(-1);
+    expect(argv[i + 1]).toBe('/user/uploads');
+  });
+
+  it('omits --add-dir when no additional dirs are requested', () => {
+    expect(new ClaudeCodeAdapter().buildExec(base).argv).not.toContain(
+      '--add-dir',
+    );
+  });
+
   it('adds the integration MCP bridge (with URL + session key) when integrationsBaseUrl is set', () => {
     const { argv } = new ClaudeCodeAdapter().buildExec({
       ...base,

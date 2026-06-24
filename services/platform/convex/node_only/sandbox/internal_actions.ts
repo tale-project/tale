@@ -22,7 +22,10 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import {
+  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT,
+  toSandboxStorageUrl,
+} from '../../lib/helpers/public_storage_url';
 import { reserveOneshotTicketArg } from '../../sandbox/admission';
 import {
   SANDBOX_DEFAULT_TIMEOUT_MS,
@@ -353,8 +356,7 @@ export const executeCode = internalAction({
 
     const storageBase = (
       process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-      process.env.SITE_URL ??
-      'http://127.0.0.1:3210'
+      SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
     ).replace(/\/$/, '');
     const httpApiBase = (
       process.env.SANDBOX_HTTP_API_BASE_URL ??

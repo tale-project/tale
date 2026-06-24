@@ -670,6 +670,12 @@ export async function startAgentChat(
         // The agent's integration allowlist becomes the session's dispatch grant
         // set (scope.integrationGrants), enforced by /api/integrations/execute.
         integrationBindings: enforcedConfig.integrationBindings ?? [],
+        // Chat attachments → staged into the sandbox + referenced by path in the
+        // prompt (run_external_agent). Org-ownership already verified above.
+        ...(actionAttachments !== undefined &&
+          actionAttachments.length > 0 && {
+            attachments: actionAttachments,
+          }),
         streamId: streamId || undefined,
         agentSlug: args.agentSlug,
         organizationId,

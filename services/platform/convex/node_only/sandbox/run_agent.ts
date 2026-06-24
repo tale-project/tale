@@ -196,6 +196,9 @@ export interface RunAgentInSessionArgs {
   /** Platform base URL for the integration-dispatch bridge (/api/integrations). */
   integrationsBaseUrl?: string;
   workdir?: string;
+  /** Absolute dirs outside `workdir` the agent must read (e.g. /user/uploads
+   * for chat attachments). Threaded to the adapter as `--add-dir` grants. */
+  additionalDirs?: string[];
   timeoutMs?: number;
   /** Per-flush durable persistence hook. Called on the same throttle as the
    * live op flush with the timeline-so-far as AI-SDK assistant content, so the
@@ -393,6 +396,10 @@ export async function runAgentInSessionImpl(
         ...(args.integrationsBaseUrl !== undefined && {
           integrationsBaseUrl: args.integrationsBaseUrl,
         }),
+        ...(args.additionalDirs !== undefined &&
+          args.additionalDirs.length > 0 && {
+            additionalDirs: args.additionalDirs,
+          }),
         workdir: args.workdir ?? '/user/workspace',
         // Mid-turn steering: keys the per-exec TALE_STEER_DIR the platform
         // stages queued user messages into (claude_code adapter only).

@@ -111,35 +111,47 @@ export function isStorageUrl(url: string): boolean {
 }
 
 /**
- * Rewrite an internal Convex URL so a sandbox spawner container can reach it
- * through the Caddy proxy on the internal Docker network.
+ * The in-sandbox origin of Convex — the single contract for how anything
+ * running on the sandbox network reaches Convex.
  *
- * Sister function of {@link toPublicUrl}. They differ in audience:
- *  - `toPublicUrl()` builds the **browser-facing** URL (SITE_URL public host).
- *  - `toSandboxStorageUrl()` builds the **sandbox-bound** URL using
- *    `SANDBOX_STORAGE_INTERNAL_BASE_URL` (defaults to the internal proxy
- *    alias e.g. `http://proxy` in docker compose). Spawner containers can
- *    fetch / POST through this without going out to the public hostname.
+ * `convex` is the alias carried on the sandbox network in EVERY topology:
+ *  - prod / `docker compose up`: the Convex container is dual-homed onto the
+ *    sandbox net with the `convex` alias (create-convex-service.ts / compose.yml);
+ *  - `bun dev`: the `convex-relay` socat bridge is aliased `convex` on the
+ *    sandbox net (compose.dev.yml).
  *
- * Falls back to `toPublicUrl()` when `SANDBOX_STORAGE_INTERNAL_BASE_URL`
- * isn't set, so local `bun dev` (where the env var may be undefined) keeps
- * working — the sandbox is still reachable via the public URL form.
+ * It is the ONLY Convex origin a session container can reach: that container
+ * sits on the `--internal` sandbox net (no host route) and its Node `fetch`
+ * (undici) ignores the egress proxy, so it can only reach hosts DIRECTLY on
+ * that network. The public SITE_URL is never reachable there — so it must NOT
+ * be a fallback for sandbox-bound URLs (that was the latent bug that broke
+ * storage staging in prod). Storage is served on :3210, HTTP actions /
+ * integrations on :3211.
+ */
+export const SANDBOX_CONVEX_STORAGE_BASE_DEFAULT = 'http://convex:3210';
+export const SANDBOX_CONVEX_HTTP_API_BASE_DEFAULT = 'http://convex:3211';
+
+/**
+ * Rewrite an internal Convex storage URL to the sandbox-bound form so a session
+ * container's daemon can fetch it.
+ *
+ * Rewrites the origin to `SANDBOX_STORAGE_INTERNAL_BASE_URL` when set (operator
+ * escape hatch for non-standard topologies), else to the in-sandbox `convex`
+ * alias ({@link SANDBOX_CONVEX_STORAGE_BASE_DEFAULT}). It deliberately does NOT
+ * fall back to the public URL ({@link toPublicUrl}) — that host is unreachable
+ * from the `--internal` sandbox net.
  *
  * Idempotent: if the URL already starts with the configured prefix it is
  * returned unchanged so callers never need to worry about double-rewriting.
  */
 export function toSandboxStorageUrl(internalUrl: string): string {
-  const base = process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL;
-  if (!base) {
-    // Fallback for `bun dev` and any deploy that hasn't set the env yet.
-    // The public URL is still reachable from the spawner (it just round-
-    // trips through Caddy's public listener instead of the internal one).
-    return toPublicUrl(internalUrl);
-  }
-  const prefix = base.replace(/\/$/, '');
-  if (internalUrl.startsWith(prefix)) return internalUrl;
+  const base = (
+    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
+    SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
+  ).replace(/\/$/, '');
+  if (internalUrl.startsWith(base)) return internalUrl;
   const originMatch = internalUrl.match(/^https?:\/\/[^/]+/);
   if (!originMatch) return internalUrl;
   const path = internalUrl.slice(originMatch[0].length);
-  return `${prefix}${path}`;
+  return `${base}${path}`;
 }

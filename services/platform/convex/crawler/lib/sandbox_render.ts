@@ -58,7 +58,10 @@
 import type { GenericActionCtx } from 'convex/server';
 
 import type { DataModel, Id } from '../../_generated/dataModel';
-import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import {
+  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT,
+  toSandboxStorageUrl,
+} from '../../lib/helpers/public_storage_url';
 import { spawnerExecute } from '../../node_only/sandbox/helpers/spawner_client';
 
 /**
@@ -86,8 +89,7 @@ function resolveCallbackEndpoints(): {
 } {
   const storageBase = (
     process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-    process.env.SITE_URL ??
-    'http://127.0.0.1:3210'
+    SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
   ).replace(/\/$/, '');
   const httpApiBase = (
     process.env.SANDBOX_HTTP_API_BASE_URL ??
