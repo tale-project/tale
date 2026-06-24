@@ -10,7 +10,7 @@ import { SkeletonBox } from '../feedback/skeleton';
 import { TooltipContent } from '../overlays/tooltip';
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:opacity-50 leading-none ring-offset-background cursor-pointer',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:scale-100 aria-disabled:hover:opacity-50 leading-none ring-offset-background cursor-pointer',
   {
     variants: {
       // One height fits all (`h-9`), with a single smaller variant (`h-8`) for
@@ -83,6 +83,21 @@ interface ButtonOwnProps
   tooltip?: React.ReactNode;
   /** Side the tooltip opens on (default `top`). */
   tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * Explains *why* the button is disabled, surfaced in a tooltip on hover AND
+   * focus and to screen readers (#1949). Only takes effect while the button is
+   * `disabled`; ignored otherwise, so callers can pass it unconditionally.
+   *
+   * A natively-`disabled` button emits no pointer events and leaves the tab
+   * order, so neither a hover nor a focus tooltip could ever reach it. When a
+   * disabled button carries a `disabledReason` we therefore keep it focusable,
+   * swap the native `disabled` attribute for `aria-disabled` (still rendered
+   * visually disabled and inert to clicks/Enter/Space), and let the shared
+   * Tooltip wire up `aria-describedby` — so the reason reaches pointer and
+   * keyboard users alike. Overrides `tooltip`/`title` for the visible tip while
+   * disabled. Has no effect under `asChild` (the button is a Radix `Slot`).
+   */
+  disabledReason?: React.ReactNode;
 }
 
 type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
@@ -104,8 +119,13 @@ export type ButtonProps = ButtonOwnProps &
   );
 
 // Loose internal props — the wrapper has already resolved title → aria-label
-// and stripped the tooltip props, so the base never sees them.
-type ButtonBaseProps = ButtonOwnProps & { size?: ButtonSize | null };
+// and stripped the tooltip props, so the base never sees them. `softDisabled`
+// is set by the wrapper when a disabled button must stay focusable/hoverable to
+// surface a `disabledReason` tooltip (see the Button wrapper below).
+type ButtonBaseProps = ButtonOwnProps & {
+  size?: ButtonSize | null;
+  softDisabled?: boolean;
+};
 
 // Plain control — the real button. No skeleton/tooltip logic of its own.
 const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
@@ -120,12 +140,31 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
       iconClassName,
       fullWidth = false,
       collapseLabel = false,
+      softDisabled = false,
+      disabled,
+      disabledReason: _disabledReason,
+      onClick,
+      onKeyDown,
       children,
       ...props
     },
     ref,
   ) => {
     const Comp = asChild ? Slot : 'button';
+    const isDisabled = isLoading || disabled;
+    // Soft-disable keeps the control in the tab order and emitting pointer
+    // events (so a disabledReason tooltip reaches both pointer and keyboard
+    // users) while making activation inert — the native `disabled` attribute
+    // would remove it from the tab order and silence all events.
+    const soft = softDisabled && Boolean(isDisabled) && !asChild;
+    const blockActivation = (
+      event: React.SyntheticEvent & { key?: string },
+    ) => {
+      // Space/Enter activate a button; let other keys (Tab, arrows) through.
+      if ('key' in event && event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
     const iconClass = cn(
       'size-4',
       children && (collapseLabel ? 'sm:mr-2' : 'mr-2'),
@@ -166,9 +205,11 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
           fullWidth && 'w-full',
         )}
         ref={ref}
-        disabled={isLoading || props.disabled}
+        disabled={soft ? undefined : isDisabled || undefined}
         aria-busy={isLoading || undefined}
-        aria-disabled={isLoading || props.disabled || undefined}
+        aria-disabled={isDisabled || undefined}
+        onClick={soft ? blockActivation : onClick}
+        onKeyDown={soft ? blockActivation : onKeyDown}
         {...props}
       >
         {content}
@@ -185,7 +226,17 @@ ButtonBase.displayName = 'ButtonBase';
  * with an overlay at its exact size.
  */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ tooltip, tooltipSide, title, 'aria-label': ariaLabel, ...props }, ref) => {
+  (
+    {
+      tooltip,
+      tooltipSide,
+      title,
+      disabledReason,
+      'aria-label': ariaLabel,
+      ...props
+    },
+    ref,
+  ) => {
     // `title` shows a tooltip for any button, and ALSO names icon-only buttons
     // (they have no visible text). Text buttons keep their accessible name from
     // their children — `title` must NOT override it there — so the name only
@@ -194,9 +245,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const accessibleName =
       ariaLabel ??
       (props.size === 'icon' || props.size === 'icon-sm' ? title : undefined);
-    const tip = tooltip ?? title;
+    // While disabled, a `disabledReason` explains why and takes over the visible
+    // tip. It needs the button kept focusable/hoverable (soft-disable), which
+    // can't work through a Radix `Slot`, so it's suppressed under `asChild`.
+    const showDisabledReason =
+      Boolean(props.disabled) && disabledReason != null && !props.asChild;
+    const tip = showDisabledReason ? disabledReason : (tooltip ?? title);
     const base = (
-      <ButtonBase {...props} aria-label={accessibleName} ref={ref} />
+      <ButtonBase
+        {...props}
+        aria-label={accessibleName}
+        softDisabled={showDisabledReason}
+        ref={ref}
+      />
     );
     // The tooltip Trigger must wrap the REAL button (`ButtonBase` forwards its
     // ref + props), never the `SkeletonBox` span — a plain span drops the

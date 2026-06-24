@@ -95,6 +95,26 @@ describe('IconButton', () => {
     });
   });
 
+  describe('disabledReason', () => {
+    it('soft-disables and surfaces the reason on focus', async () => {
+      const { user } = render(
+        <IconButton
+          icon={Trash2}
+          aria-label="Delete"
+          disabled
+          disabledReason="You can only delete your own rows"
+        />,
+      );
+      const button = screen.getByRole('button');
+      // Kept focusable so the reason reaches keyboard users.
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('You can only delete your own rows');
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

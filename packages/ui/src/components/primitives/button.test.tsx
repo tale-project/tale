@@ -309,6 +309,74 @@ describe('Button', () => {
       expect(button.className).toContain('disabled:active:scale-100');
     });
   });
+
+  describe('disabledReason', () => {
+    it('keeps native disabled when no reason is given', () => {
+      render(<Button disabled>Disabled</Button>);
+      const button = screen.getByRole('button');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('soft-disables (aria-disabled, focusable) when a reason is given', () => {
+      render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      // Not natively disabled, so it stays in the tab order and emits events…
+      expect(button).not.toBeDisabled();
+      // …but is still announced as disabled to assistive tech.
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expectFocusable(button);
+    });
+
+    it('surfaces the reason as a tooltip on focus', async () => {
+      const { user } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Pick an agent first');
+    });
+
+    it('does not activate a soft-disabled button on click or Enter', async () => {
+      const handleClick = vi.fn();
+      const { user } = render(
+        <Button
+          onClick={handleClick}
+          disabled
+          disabledReason="Pick an agent first"
+        >
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      await user.click(button);
+      button.focus();
+      await user.keyboard('{Enter}');
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+
+    it('ignores the reason while the button is enabled', () => {
+      render(<Button disabledReason="Pick an agent first">Send</Button>);
+      const button = screen.getByRole('button');
+      expect(button).not.toBeDisabled();
+      expect(button).not.toHaveAttribute('aria-disabled');
+    });
+
+    it('passes axe audit for a soft-disabled button', async () => {
+      const { container } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await checkAccessibility(container);
+    });
+  });
 });
 
 describe('LinkButton', () => {
