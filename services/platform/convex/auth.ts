@@ -15,6 +15,7 @@ import {
 
 import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
+import { organizationNameSchema } from '../lib/shared/schemas/organizations';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
 import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-utils';
@@ -713,14 +714,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // an empty name can't slip past the auth boundary via a direct API
             // call. Only enforced when `name` is part of the patch — a name-less
             // update (e.g. locale-only) leaves the stored name untouched.
-            const rawName = orgPatch.name;
-            if (rawName !== undefined) {
-              if (typeof rawName !== 'string' || rawName.trim().length === 0) {
+            if (orgPatch.name !== undefined) {
+              const parsedName = organizationNameSchema().safeParse(
+                orgPatch.name,
+              );
+              if (!parsedName.success) {
                 throw new APIError('BAD_REQUEST', {
                   message: 'Organization name is required.',
                 });
               }
-              orgPatch.name = rawName.trim();
+              orgPatch.name = parsedName.data;
             }
             const rawSlug = orgPatch.slug;
             if (typeof rawSlug !== 'string') return;

@@ -5,9 +5,10 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
@@ -29,6 +30,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
+import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
 type Organization = {
@@ -90,6 +92,7 @@ export function OrganizationSettingsView({
   memberContext,
   canDelete,
   isCurrentOrganization,
+  onSave,
 }: {
   controller: OrganizationController;
   organization: Organization;
@@ -99,13 +102,18 @@ export function OrganizationSettingsView({
   canDelete: boolean;
   /** Whether this is the org the user is currently viewing (drives post-delete nav). */
   isCurrentOrganization: boolean;
+  onSave: (values: OrganizationFormData) => Promise<void>;
 }) {
   const { t: tSettings } = useT('settings');
   const { t: tGlobal } = useT('global');
-  const { t: tCommon } = useT('common');
 
   const { form, isLoading, isSaving } = controller;
-  const { register, control, formState } = form;
+  const {
+    handleSubmit,
+    register,
+    control,
+    formState: { errors },
+  } = form;
 
   const localeOptions = useMemo(
     () =>
@@ -120,29 +128,24 @@ export function OrganizationSettingsView({
     <SettingsPage>
       {/* Settings-row layout: each field is a horizontal row with its
           label + helper text on the left and the control pinned right, with
-          a divider between rows. The form (name + locale) reads as one
-          continuous divided block; Save/Discard live in the settings header
-          via the registered editor. */}
+          a divider between rows. The form (name + locale) and the read-only
+          Organization ID share one divided list so they read as one
+          continuous block; Save/Discard live in the settings header via the
+          registered editor. */}
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
       >
-        <Form id="organization-form" onSubmit={controller.submit}>
+        <Form
+          id="organization-form"
+          onSubmit={handleSubmit((values) => onSave(values))}
+        >
           <fieldset disabled={isLoading} className="divide-border divide-y">
             <SettingsRow
               className="py-5"
-              label={
-                <>
-                  {tSettings('organization.title')}
-                  <span
-                    className="ml-1 text-red-600"
-                    aria-label={tCommon('aria.required')}
-                  >
-                    *
-                  </span>
-                </>
-              }
+              label={tSettings('organization.title')}
               description={tSettings('organization.nameDescription')}
+              required
             >
               {/* Fixed-width control column, full-width on mobile where the row
                 stacks. `wrapperClassName="w-full"` lets the bare Input fill it
@@ -152,7 +155,7 @@ export function OrganizationSettingsView({
                   id="org-name"
                   aria-label={tSettings('organization.title')}
                   required
-                  errorMessage={formState.errors.name?.message}
+                  errorMessage={errors.name?.message}
                   {...register('name')}
                   wrapperClassName="w-full"
                 />
@@ -189,6 +192,19 @@ export function OrganizationSettingsView({
                       options={localeOptions}
                     />
                   )}
+                />
+              </div>
+            </SettingsRow>
+
+            <SettingsRow
+              className="py-5"
+              label={tSettings('organization.organizationId')}
+              description={tSettings('organization.organizationIdDescription')}
+            >
+              <div className="w-full sm:w-80">
+                <CopyableField
+                  value={organization?._id ?? ''}
+                  copyAriaLabel={tSettings('organization.copyOrganizationId')}
                 />
               </div>
             </SettingsRow>
@@ -308,6 +324,15 @@ export function OrganizationSettings({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const organizationSchema = useMemo(
+    () =>
+      z.object({
+        name: organizationNameSchema(tSettings('organization.nameRequired')),
+        defaultLocale: z.string(),
+      }),
+    [tSettings],
+  );
+
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   const { data: organization, isLoading: isOrgLoading } =
@@ -346,7 +371,7 @@ export function OrganizationSettings({
         await authClient.organization.update({
           organizationId: organization._id,
           data: {
-            name: data.name.trim() || undefined,
+            name: data.name.trim(),
             metadata: updatedMetadata,
           },
         });
@@ -367,20 +392,9 @@ export function OrganizationSettings({
     [existingMetadata, organization, queryClient, toast, tToast],
   );
 
-  // Organization name is required: an empty value blocks Save (`isValid`)
-  // and surfaces a field error, mirroring the account profile-name rule.
-  const orgSchema = useMemo(
-    () =>
-      z.object({
-        name: z.string().trim().min(1, tSettings('organization.nameRequired')),
-        defaultLocale: z.string(),
-      }),
-    [tSettings],
-  );
-
   const editor = useFormEditor<OrganizationFormData>({
     data: initialData,
-    schema: orgSchema,
+    schema: organizationSchema,
     save,
   });
 
@@ -409,6 +423,7 @@ export function OrganizationSettings({
         // The settings route is always scoped to the org the user is currently
         // in (`/dashboard/$id/...`), so deleting it must route them elsewhere.
         isCurrentOrganization
+        onSave={save}
       />
     </Skeletonize>
   );

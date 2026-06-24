@@ -12,7 +12,9 @@ vi.mock('better-auth', () => ({
 }));
 
 vi.mock('better-auth/plugins', () => ({
-  organization: vi.fn(() => ({})),
+  // Return the config so tests can reach `organizationHooks` (the real plugin
+  // would consume them internally and expose nothing).
+  organization: vi.fn((config: unknown) => config),
   twoFactor: vi.fn(() => ({})),
 }));
 
@@ -94,6 +96,63 @@ describe('auth trustedOrigins', () => {
       expect(origin).not.toContain('*');
     }
 
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('beforeUpdateOrganization name guard', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  // Pull the `beforeUpdateOrganization` hook out of the org plugin config the
+  // mock above passes through, so we can exercise the server-side gate directly
+  // — the acceptance criterion requires an empty name to be blocked on the
+  // server too, and neither the client unit tests nor the Playwright E2E reach
+  // this branch.
+  async function getBeforeUpdateOrganization() {
+    vi.stubEnv('SITE_URL', 'https://app.example.com');
+    const { getAuthOptions } = await import('./auth');
+    const options = getAuthOptions({} as never);
+    // oxlint-disable-next-line typescript/no-explicit-any -- test reaches into the loose better-auth plugin config
+    const orgPlugin = (options.plugins as any[]).find(
+      (plugin) => plugin?.organizationHooks?.beforeUpdateOrganization,
+    );
+    expect(orgPlugin).toBeDefined();
+    return orgPlugin.organizationHooks.beforeUpdateOrganization as (
+      data: unknown,
+    ) => Promise<void>;
+  }
+
+  it('rejects a whitespace-only name', async () => {
+    const beforeUpdate = await getBeforeUpdateOrganization();
+    await expect(
+      beforeUpdate({ organization: { name: '   ' } }),
+    ).rejects.toThrow();
+    vi.unstubAllEnvs();
+  });
+
+  it('rejects a non-string name', async () => {
+    const beforeUpdate = await getBeforeUpdateOrganization();
+    await expect(
+      beforeUpdate({ organization: { name: 123 } }),
+    ).rejects.toThrow();
+    vi.unstubAllEnvs();
+  });
+
+  it('trims and persists a valid name', async () => {
+    const beforeUpdate = await getBeforeUpdateOrganization();
+    const data = { organization: { name: '  Acme  ' } };
+    await beforeUpdate(data);
+    expect(data.organization.name).toBe('Acme');
+    vi.unstubAllEnvs();
+  });
+
+  it('leaves a name-absent (locale-only) update untouched', async () => {
+    const beforeUpdate = await getBeforeUpdateOrganization();
+    const data = { organization: { metadata: { defaultLocale: 'de' } } };
+    await expect(beforeUpdate(data)).resolves.toBeUndefined();
+    expect(data.organization).toEqual({ metadata: { defaultLocale: 'de' } });
     vi.unstubAllEnvs();
   });
 });

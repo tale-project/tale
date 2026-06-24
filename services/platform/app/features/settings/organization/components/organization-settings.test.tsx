@@ -1,11 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 import { useFormEditor } from '@/app/components/ui/editor';
+import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
+import enMessages from '@/messages/en.json';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { OrganizationSettingsView } from './organization-settings';
+
+// Resolve user-facing labels through the translation layer rather than
+// hardcoding English, matching the platform i18n rule for tests.
+const orgNameLabel = enMessages.settings.organization.title;
+const nameRequiredMessage = enMessages.settings.organization.nameRequired;
 
 // The view now embeds the Members section, which subscribes to Convex via
 // `useMembers`. This suite renders the view in isolation (no Convex provider)
@@ -40,6 +47,7 @@ function Harness() {
       memberContext={null}
       canDelete={false}
       isCurrentOrganization
+      onSave={save}
     />
   );
 }
@@ -65,6 +73,7 @@ function LoadHarness({ orgName }: { orgName: string }) {
       memberContext={null}
       canDelete={false}
       isCurrentOrganization
+      onSave={save}
     />
   );
 }
@@ -85,7 +94,7 @@ describe('OrganizationSettingsView page load', () => {
     // The org-name field, labeled by `settings.organization.title`, resolves to
     // the current (non-empty) org name once the form applies its baseline.
     const orgNameField = screen.getByRole('textbox', {
-      name: 'Organization name',
+      name: orgNameLabel,
     });
     await waitFor(() => expect(orgNameField).toHaveValue('Acme Industries'));
     // Mirror the E2E's "non-empty value" intent.
@@ -95,24 +104,19 @@ describe('OrganizationSettingsView page load', () => {
   });
 });
 
-// The container wires `useFormEditor` with a Zod schema that makes the org name
-// required (`z.string().trim().min(1, …)`); the view then surfaces the error
-// via `errorMessage={formState.errors.name?.message}` and the editor's `isValid`
-// gates the global Save button. The page-load/locale harnesses above
-// deliberately omit the schema, so this harness mirrors the *production*
-// wiring — same shape, same message key — to exercise the required-name branch
-// the container now ships (#1951).
-const NAME_REQUIRED_MESSAGE = 'Organization name is required';
-
-const requiredSchema = z.object({
-  name: z.string().trim().min(1, NAME_REQUIRED_MESSAGE),
+// Build the harness schema from the same shared `organizationNameSchema` the
+// real container wires in, with the i18n message resolved through the
+// translation layer — so the test guards the actual validation rule and never
+// drifts on a hardcoded English literal.
+const organizationSchema = z.object({
+  name: organizationNameSchema(nameRequiredMessage),
   defaultLocale: z.string(),
 });
 
-function RequiredHarness({ orgName }: { orgName: string }) {
+function ValidationHarness({ orgName }: { orgName: string }) {
   const editor = useFormEditor<Form>({
     data: { name: orgName, defaultLocale: 'en' },
-    schema: requiredSchema,
+    schema: organizationSchema,
     save,
   });
   holder.current = editor;
@@ -124,72 +128,63 @@ function RequiredHarness({ orgName }: { orgName: string }) {
       memberContext={null}
       canDelete={false}
       isCurrentOrganization
+      onSave={save}
     />
   );
 }
 
-describe('OrganizationSettingsView required org name', () => {
-  it('starts valid with a non-empty name', async () => {
-    render(<RequiredHarness orgName="Acme" />);
+describe('OrganizationSettingsView name validation', () => {
+  it('blocks an empty org name with an inline error and an invalid form', async () => {
+    render(<ValidationHarness orgName="Acme" />);
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
-    await waitFor(() => expect(holder.current?.isValid).toBe(true));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('goes invalid and shows the required error when the name is cleared', async () => {
-    render(<RequiredHarness orgName="Acme" />);
-    await waitFor(() => expect(holder.current?.isLoading).toBe(false));
+    expect(holder.current?.isValid).toBe(true);
 
     const orgNameField = screen.getByRole('textbox', {
-      name: 'Organization name',
+      name: orgNameLabel,
     });
     fireEvent.change(orgNameField, { target: { value: '' } });
-    // onTouched (#1943): the field error renders only after the first blur,
-    // while `isValid` (Save gating) stays accurate on every change.
+    // onTouched (#1943): the field error renders only after the first blur.
     fireEvent.blur(orgNameField);
 
-    // (a) The editor's validity flips false → the global Save button is gated.
-    await waitFor(() => expect(holder.current?.isValid).toBe(false));
-    // (b) The `organization.nameRequired` message renders on the name field.
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        NAME_REQUIRED_MESSAGE,
-      ),
+      expect(screen.getByText(nameRequiredMessage)).toBeInTheDocument(),
     );
+    expect(holder.current?.isValid).toBe(false);
   });
 
-  it('treats a whitespace-only name as empty (trimmed) and stays invalid', async () => {
-    render(<RequiredHarness orgName="Acme" />);
+  it('treats a whitespace-only org name as invalid', async () => {
+    render(<ValidationHarness orgName="Acme" />);
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
+    expect(holder.current?.isValid).toBe(true);
 
     const orgNameField = screen.getByRole('textbox', {
-      name: 'Organization name',
+      name: orgNameLabel,
     });
+    // The schema trims before checking `.min(1)`, so a name of only spaces must
+    // fail exactly as an empty string does — the trim is the rule this PR adds.
     fireEvent.change(orgNameField, { target: { value: '   ' } });
-    // onTouched (#1943): blur to surface the field error.
+    // onTouched (#1943): the field error renders only after the first blur.
     fireEvent.blur(orgNameField);
 
-    await waitFor(() => expect(holder.current?.isValid).toBe(false));
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        NAME_REQUIRED_MESSAGE,
-      ),
+      expect(screen.getByText(nameRequiredMessage)).toBeInTheDocument(),
     );
+    expect(holder.current?.isValid).toBe(false);
   });
 
-  it('recovers to valid once a real name is typed back', async () => {
-    render(<RequiredHarness orgName="Acme" />);
+  it('clears the error once a non-empty name is entered', async () => {
+    render(<ValidationHarness orgName="Acme" />);
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
 
     const orgNameField = screen.getByRole('textbox', {
-      name: 'Organization name',
+      name: orgNameLabel,
     });
     fireEvent.change(orgNameField, { target: { value: '' } });
     await waitFor(() => expect(holder.current?.isValid).toBe(false));
 
-    fireEvent.change(orgNameField, { target: { value: 'Acme Industries' } });
+    fireEvent.change(orgNameField, { target: { value: 'New name' } });
     await waitFor(() => expect(holder.current?.isValid).toBe(true));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(nameRequiredMessage)).not.toBeInTheDocument();
   });
 });
 
