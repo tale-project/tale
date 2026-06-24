@@ -7411,33 +7411,96 @@
   },
   "toast": {
     "success": {
-      "saved": "Changes saved successfully",
-      "deleted": "Successfully deleted",
-      "profileUpdated": "Profile updated successfully",
-      "passwordChanged": "Password changed successfully",
-      "passwordSet": "Password set successfully",
-      "organizationUpdated": "Organization updated successfully",
-      "newMemberCreated": "New member created and added to organization",
-      "existingUserAdded": "Existing user added to organization",
-      "automationDuplicated": "Automation duplicated successfully",
-      "automationRenamed": "Automation renamed successfully",
-      "brandingUpdated": "Branding updated successfully",
-      "faviconGenerated": "Favicon generated from your logo"
+      "saved": {
+        "title": "Changes saved",
+        "description": "Your changes have been saved."
+      },
+      "deleted": {
+        "title": "Deleted",
+        "description": "The item has been deleted."
+      },
+      "profileUpdated": {
+        "title": "Profile updated",
+        "description": "Your profile changes have been saved."
+      },
+      "passwordChanged": {
+        "title": "Password changed",
+        "description": "Use your new password the next time you sign in."
+      },
+      "passwordSet": {
+        "title": "Password set",
+        "description": "You can now sign in with your password."
+      },
+      "organizationUpdated": {
+        "title": "Organization updated",
+        "description": "Your organization changes have been saved."
+      },
+      "newMemberCreated": {
+        "title": "Member added",
+        "description": "The new member has been created and added to your organization."
+      },
+      "existingUserAdded": {
+        "title": "Member added",
+        "description": "The user has been added to your organization."
+      },
+      "automationDuplicated": {
+        "title": "Automation duplicated",
+        "description": "A copy of the automation has been created."
+      },
+      "automationRenamed": {
+        "title": "Automation renamed",
+        "description": "The new name has been saved."
+      },
+      "brandingUpdated": {
+        "title": "Branding updated",
+        "description": "Your branding changes have been saved."
+      },
+      "faviconGenerated": {
+        "title": "Favicon generated",
+        "description": "We created a favicon from your logo."
+      }
     },
     "error": {
-      "saveFailed": "Failed to save changes",
-      "profileUpdateFailed": "Failed to update profile",
-      "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
-      "organizationUpdateFailed": "Failed to update organization",
-      "brandingUpdateFailed": "Failed to update branding",
+      "saveFailed": {
+        "title": "Couldn't save changes",
+        "description": "Something went wrong. Please try again."
+      },
+      "profileUpdateFailed": {
+        "title": "Couldn't update profile",
+        "description": "Something went wrong. Please try again."
+      },
+      "passwordChangeFailed": {
+        "title": "Couldn't change password",
+        "description": "Please check your current password and try again."
+      },
+      "organizationUpdateFailed": {
+        "title": "Couldn't update organization",
+        "description": "Something went wrong. Please try again."
+      },
+      "brandingUpdateFailed": {
+        "title": "Couldn't update branding",
+        "description": "Something went wrong. Please try again."
+      },
       "imageUploadFailed": "Failed to upload image",
       "imageTooLarge": "Image is too large. Maximum size is 2 MB.",
       "imageMimeUnsupported": "Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.",
       "imageTypeInvalid": "Invalid image type",
-      "addMemberFailed": "Failed to add member",
-      "automationDuplicateFailed": "Failed to duplicate automation",
-      "automationDeleteFailed": "Failed to delete automation",
-      "generic": "Something went wrong. Please try again."
+      "addMemberFailed": {
+        "title": "Couldn't add member",
+        "description": "Something went wrong. Please try again."
+      },
+      "automationDuplicateFailed": {
+        "title": "Couldn't duplicate automation",
+        "description": "Something went wrong. Please try again."
+      },
+      "automationDeleteFailed": {
+        "title": "Couldn't delete automation",
+        "description": "Something went wrong. Please try again."
+      },
+      "generic": {
+        "title": "Something went wrong",
+        "description": "Please try again."
+      }
     }
   },
   "todoList": {

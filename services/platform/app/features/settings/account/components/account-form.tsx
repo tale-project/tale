@@ -116,12 +116,14 @@ function ProfileSection() {
       try {
         await updateUserName({ name });
         toast({
-          title: tToast('success.profileUpdated'),
+          title: tToast('success.profileUpdated.title'),
+          description: tToast('success.profileUpdated.description'),
           variant: 'success',
         });
       } catch (err) {
         toast({
-          title: tToast('error.profileUpdateFailed'),
+          title: tToast('error.profileUpdateFailed.title'),
+          description: tToast('error.profileUpdateFailed.description'),
           variant: 'destructive',
         });
         throw err;
@@ -317,7 +319,8 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       });
     } catch {
       toast({
-        title: tToast('error.passwordChangeFailed'),
+        title: tToast('error.passwordChangeFailed.title'),
+        description: tToast('error.passwordChangeFailed.description'),
         variant: 'destructive',
       });
       return;
@@ -460,7 +463,8 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       });
 
       toast({
-        title: tToast('success.passwordSet'),
+        title: tToast('success.passwordSet.title'),
+        description: tToast('success.passwordSet.description'),
         variant: 'success',
       });
 
@@ -468,7 +472,8 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       onOpenChange(false);
     } catch {
       toast({
-        title: tToast('error.passwordChangeFailed'),
+        title: tToast('error.passwordChangeFailed.title'),
+        description: tToast('error.passwordChangeFailed.description'),
         variant: 'destructive',
       });
     }

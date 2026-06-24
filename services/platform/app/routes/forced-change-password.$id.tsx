@@ -128,7 +128,8 @@ function ForcedChangePasswordPage() {
         trigger: 'forced',
       });
       toast({
-        title: tToast('success.passwordChanged'),
+        title: tToast('success.passwordChanged.title'),
+        description: tToast('success.passwordChanged.description'),
         variant: 'success',
       });
       void navigate({
@@ -139,7 +140,8 @@ function ForcedChangePasswordPage() {
     } catch (e) {
       console.error(e);
       toast({
-        title: tToast('error.passwordChangeFailed'),
+        title: tToast('error.passwordChangeFailed.title'),
+        description: tToast('error.passwordChangeFailed.description'),
         variant: 'destructive',
       });
     }

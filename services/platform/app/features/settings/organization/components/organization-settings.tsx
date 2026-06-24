@@ -352,13 +352,15 @@ export function OrganizationSettings({
         });
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
         toast({
-          title: tToast('success.organizationUpdated'),
+          title: tToast('success.organizationUpdated.title'),
+          description: tToast('success.organizationUpdated.description'),
           variant: 'success',
         });
       } catch (error) {
         console.error(error);
         toast({
-          title: tToast('error.organizationUpdateFailed'),
+          title: tToast('error.organizationUpdateFailed.title'),
+          description: tToast('error.organizationUpdateFailed.description'),
           variant: 'destructive',
         });
         throw error;

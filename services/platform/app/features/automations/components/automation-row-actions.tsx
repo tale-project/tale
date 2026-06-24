@@ -55,14 +55,16 @@ export function AutomationRowActions({
     duplicateAutomation(workflowArgs, {
       onSuccess: () => {
         toast({
-          title: tToast('success.automationDuplicated'),
+          title: tToast('success.automationDuplicated.title'),
+          description: tToast('success.automationDuplicated.description'),
           variant: 'success',
         });
       },
       onError: (error: Error) => {
         console.error('Failed to duplicate automation:', error);
         toast({
-          title: tToast('error.automationDuplicateFailed'),
+          title: tToast('error.automationDuplicateFailed.title'),
+          description: tToast('error.automationDuplicateFailed.description'),
           variant: 'destructive',
         });
       },
@@ -78,7 +80,8 @@ export function AutomationRowActions({
           newSlug: name,
         });
         toast({
-          title: tToast('success.automationRenamed'),
+          title: tToast('success.automationRenamed.title'),
+          description: tToast('success.automationRenamed.description'),
           variant: 'success',
         });
       } catch (error: unknown) {
@@ -101,7 +104,8 @@ export function AutomationRowActions({
       onError: (error: Error) => {
         console.error('Failed to delete automation:', error);
         toast({
-          title: tToast('error.automationDeleteFailed'),
+          title: tToast('error.automationDeleteFailed.title'),
+          description: tToast('error.automationDeleteFailed.description'),
           variant: 'destructive',
         });
       },
