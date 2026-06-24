@@ -81,6 +81,29 @@ describe('Input', () => {
       const input = screen.getByLabelText('Plan', { exact: false });
       expect(input).toHaveAttribute('readonly');
     });
+
+    // The password/sensitive path is a separate render branch (it adds the eye
+    // toggle); the borderless variant must still resolve there so a read-only
+    // secret reads as text yet keeps the toggle.
+    it('applies the borderless variant on the password/toggle render path', () => {
+      render(
+        <Input
+          label="API key"
+          type="password"
+          readOnly
+          defaultValue="sk-secret"
+        />,
+      );
+      const input = screen.getByLabelText('API key', { exact: false });
+      expect(input).toHaveClass('bg-transparent');
+      expect(input).toHaveClass('h-9');
+      expect(input).toHaveAttribute('readonly');
+      expect(input.className).not.toContain('--color-border-input');
+      // The reveal toggle still renders alongside the read-only field.
+      expect(
+        screen.getByRole('button', { name: /show password/i }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('password input', () => {
