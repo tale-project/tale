@@ -12,6 +12,17 @@ import { cn } from '@/lib/utils/cn';
 import { useSaveImage } from '../hooks/mutations';
 
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
+const ACCEPTED_EXTENSIONS = ['.png', '.svg', '.jpg', '.jpeg', '.webp', '.ico'];
+
+// Mirror the `<input accept>` list for the drag-and-drop path. Some valid
+// uploads report an empty or non-`image/*` MIME type (e.g. a `.ico` whose
+// browser-reported type is blank), so fall back to the file extension rather
+// than rejecting them — keeping picker and drop acceptance in sync.
+function isAcceptedImage(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const name = file.name.toLowerCase();
+  return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
 
 interface ImageUploadFieldProps {
   organizationId: string;
@@ -77,6 +88,7 @@ export function ImageUploadField({
       setPreviewUrl(objectUrl);
       onPreviewUrlChange?.(objectUrl);
       setIsRemoved(false);
+      setIsDragging(false);
       setIsUploading(true);
 
       try {
@@ -138,7 +150,7 @@ export function ImageUploadField({
       setIsDragging(false);
       if (isUploading) return;
       const file = e.dataTransfer.files?.[0];
-      if (file?.type.startsWith('image/')) void uploadFile(file);
+      if (file && isAcceptedImage(file)) void uploadFile(file);
     },
     [isUploading, uploadFile],
   );
@@ -169,7 +181,7 @@ export function ImageUploadField({
           className={cn(
             'group border-border ring-offset-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border bg-background shadow-xs transition-all duration-150',
             'hover:border-border-strong hover:bg-bg-elevated',
-            'focus-visible:ring-ring focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none',
+            'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
             'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',
             sizeClasses,
             isDragging && 'border-accent-base ring-accent-base ring-1',
@@ -185,7 +197,7 @@ export function ImageUploadField({
                 <img
                   src={previewUrl}
                   alt=""
-                  className="size-full object-contain"
+                  className="pointer-events-none size-full object-contain"
                   width={48}
                   height={48}
                 />
@@ -193,17 +205,17 @@ export function ImageUploadField({
                 <Image
                   src={displayUrl}
                   alt=""
-                  className="size-full object-contain"
+                  className="pointer-events-none size-full object-contain"
                   width={48}
                   height={48}
                 />
               )}
-              <span className="bg-foreground/55 pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
+              <span className="bg-foreground/60 pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
                 <Upload className="text-background size-4 shrink-0" />
               </span>
             </>
           ) : (
-            <Plus className="text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-colors duration-150 motion-reduce:transition-none" />
+            <Plus className="text-muted-foreground group-hover:text-foreground pointer-events-none size-4 shrink-0 transition-colors duration-150 motion-reduce:transition-none" />
           )}
         </button>
         {displayUrl && !isUploading && onRemove && (
@@ -229,6 +241,7 @@ export function ImageUploadField({
         onChange={handleFileChange}
         className="hidden"
         tabIndex={-1}
+        aria-label={ariaLabel}
       />
     </VStack>
   );
