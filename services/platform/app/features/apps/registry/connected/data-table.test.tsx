@@ -54,6 +54,42 @@ describe('DataTable', () => {
     expect(screen.queryByText('detail-r1')).toBeNull();
   });
 
+  it('lets a rowAccessory replace the status badge (status col only)', () => {
+    render(
+      <DataTable
+        rows={[{ _id: 'r1', title: 'Fix login', status: 'in_progress' }]}
+        columns={['title', 'status']}
+        rowAccessory={{
+          idField: '_id',
+          // What the capacity chip does when parked: render an ambient chip
+          // instead of the badge, so the row never reads as both at once.
+          render: (id) => <span>chip-{id}</span>,
+        }}
+      />,
+    );
+    expect(screen.getByText('chip-r1')).toBeVisible();
+    // The status badge is replaced by the chip, not shown alongside it.
+    expect(screen.queryByText('in_progress')).toBeNull();
+    // A non-status column (title) does not carry the accessory.
+    const titleCell = screen.getByText('Fix login').closest('td');
+    expect(titleCell?.textContent).not.toContain('chip-');
+  });
+
+  it('falls back to the status badge when the accessory returns it', () => {
+    render(
+      <DataTable
+        rows={[{ _id: 'r1', title: 'Fix login', status: 'in_progress' }]}
+        columns={['title', 'status']}
+        rowAccessory={{
+          idField: '_id',
+          // Not parked: the accessory returns the supplied badge unchanged.
+          render: (_id, statusBadge) => statusBadge,
+        }}
+      />,
+    );
+    expect(screen.getByText('in_progress')).toBeVisible();
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = render(
       <DataTable

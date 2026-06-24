@@ -157,7 +157,9 @@
       "colRun": "Run",
       "colStatus": "Status",
       "colStarted": "Started",
-      "watchLive": "Watch live"
+      "watchLive": "Watch live",
+      "queuedForCapacity": "Queued for capacity",
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
     },
     "membership": {
       "title": "Projects",

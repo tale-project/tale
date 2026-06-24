@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { isParkedOnCapacity } from '../../lib/shared/platform/run_capacity';
 import { queryWithRLS } from '../lib/rls';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
 import { getExecutionStepStatuses as getExecutionStepStatusesHelper } from '../workflows/executions/get_execution_step_statuses';
@@ -96,6 +97,35 @@ export const getLatestExecutionForSubject = queryWithRLS({
       }),
       startedAt: row.startedAt,
     };
+  },
+});
+
+/**
+ * Whether the latest run "about" a subject is currently parked on sandbox
+ * capacity (queued behind the org's concurrency cap). A tiny boolean so a list
+ * can show a per-row ambient "Queued for capacity" chip without subscribing each
+ * visible row to the full execution summary — Convex pushes an update only when
+ * the boolean flips, not on every ~4s poll of the running execution.
+ */
+export const getSubjectAwaitingCapacity = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    subjectType: v.string(),
+    subjectId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('wfExecutions')
+      .withIndex('by_org_subject', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('subjectType', args.subjectType)
+          .eq('subjectId', args.subjectId),
+      )
+      .order('desc')
+      .first();
+    return isParkedOnCapacity(row);
   },
 });
 
