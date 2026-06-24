@@ -24,7 +24,9 @@ interface UsePageFileDropOptions {
  *    cursor crosses child elements.
  *  - A region-scoped `FileUpload.DropZone` that calls `stopPropagation()` on a
  *    drop (e.g. the chat composer) still wins for drops landing on it; only
- *    drops elsewhere bubble to this window handler.
+ *    drops elsewhere bubble to this window handler. The overlay reset runs in
+ *    the CAPTURE phase so it still clears on those region-zone drops (a missing
+ *    reset there left the full-page overlay stuck until reload).
  *  - Prevents the browser's default "navigate to the dropped file" while
  *    mounted, so a stray drop never blows away the app.
  */
@@ -71,23 +73,35 @@ export function usePageFileDrop(options: UsePageFileDropOptions): {
     const onDrop = (e: DragEvent) => {
       if (!carriesFiles(e)) return;
       e.preventDefault();
-      dragDepth.current = 0;
-      setIsDragOver(false);
       const all = Array.from(e.dataTransfer?.files ?? []);
       const accept = acceptRef.current;
       const files = accept ? all.filter(accept) : all;
       if (files.length > 0) onFilesDroppedRef.current(files);
+    };
+    // Overlay reset runs in the CAPTURE phase: a drop ALWAYS ends the drag, so
+    // the overlay must clear even when a region-scoped DropZone (the chat
+    // composer) calls stopPropagation() on its drop — which would otherwise
+    // stop the bubble-phase `onDrop` above from ever running, leaving the
+    // overlay stuck until a page reload. Capture runs window->target, BEFORE
+    // the target's stopPropagation, so it always fires. Reset only here (no
+    // file handling) so a region-zone drop never double-uploads: the bubble
+    // `onDrop` still owns the upload for drops that DON'T hit a region zone.
+    const onDropResetCapture = () => {
+      dragDepth.current = 0;
+      setIsDragOver(false);
     };
 
     window.addEventListener('dragenter', onDragEnter);
     window.addEventListener('dragover', onDragOver);
     window.addEventListener('dragleave', onDragLeave);
     window.addEventListener('drop', onDrop);
+    window.addEventListener('drop', onDropResetCapture, true);
     return () => {
       window.removeEventListener('dragenter', onDragEnter);
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('drop', onDrop);
+      window.removeEventListener('drop', onDropResetCapture, true);
     };
   }, [disabled]);
 
