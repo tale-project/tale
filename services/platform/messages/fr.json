@@ -5074,7 +5074,7 @@
       "columns": {
         "name": "Nom",
         "members": "Membres",
-        "created": "Ajouté le"
+        "created": "Ajouté"
       },
       "editTeam": "Modifier l'équipe",
       "deleteTeam": "Supprimer l'équipe",
@@ -6077,7 +6077,7 @@
       "columns": {
         "name": "Nom",
         "key": "Clé",
-        "created": "Ajouté le",
+        "created": "Ajouté",
         "lastUsed": "Dernière utilisation"
       },
       "form": {
@@ -6849,7 +6849,7 @@
       "teams": "Équipes",
       "uploadedBy": "Téléversé par",
       "actions": "Actions",
-      "created": "Ajouté le",
+      "created": "Ajouté",
       "description": "Description",
       "email": "Courriel",
       "product": "Produit",
