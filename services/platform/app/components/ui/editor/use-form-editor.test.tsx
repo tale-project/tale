@@ -135,7 +135,7 @@ describe('useFormEditor', () => {
           schema,
           save: vi.fn().mockResolvedValue(undefined),
         }),
-      { initialProps: { data: undefined } },
+      { initialProps: { data: undefined as Form | undefined } },
     );
 
     // Loading, but the controlled fields already read defined values rather
