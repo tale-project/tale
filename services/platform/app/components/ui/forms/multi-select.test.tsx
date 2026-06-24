@@ -149,6 +149,23 @@ describe('MultiSelect', () => {
         'true',
       );
     });
+
+    it('does not open on click when disabled', async () => {
+      const { user } = renderDefault({ disabled: true });
+      await user.click(screen.getByRole('combobox'));
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('does not emit onValueChange when disabled and toggled', async () => {
+      const { user, onValueChange } = renderDefault({
+        disabled: true,
+        open: true,
+      });
+      // Even if the popover is forced open, a disabled select must not mutate
+      // its value when an option is clicked.
+      await user.click(screen.getByRole('option', { name: /Apple/i }));
+      expect(onValueChange).not.toHaveBeenCalled();
+    });
   });
 
   describe('interactions', () => {

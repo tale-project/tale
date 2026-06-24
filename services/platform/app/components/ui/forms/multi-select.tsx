@@ -222,22 +222,27 @@ function MultiSelectBase({
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
+      // A disabled trigger must not open by any path (Radix's Trigger fires
+      // onOpenToggle on mouse click regardless of our div's aria-disabled).
+      if (disabled && nextOpen) return;
       setIsOpen(nextOpen);
+      if (nextOpen) setHighlightedIndex(0);
       if (!nextOpen) setSearch('');
     },
-    [setIsOpen],
+    [disabled, setIsOpen],
   );
 
   // Toggle keeps the popover open — multi-select picks several values per visit.
   const handleToggle = useCallback(
     (optionValue: string) => {
+      if (disabled) return;
       if (valueSet.has(optionValue)) {
         onValueChange(value.filter((v) => v !== optionValue));
       } else {
         onValueChange([...value, optionValue]);
       }
     },
-    [value, valueSet, onValueChange],
+    [disabled, value, valueSet, onValueChange],
   );
 
   const handleSearchKeyDown = useCallback(
@@ -312,7 +317,7 @@ function MultiSelectBase({
       className={cn(
         selectTriggerClasses({ error }),
         'h-auto min-h-9 cursor-pointer flex-wrap gap-1.5 py-1.5',
-        disabled && 'cursor-not-allowed opacity-50',
+        disabled && 'pointer-events-none cursor-not-allowed opacity-50',
         triggerClassName,
       )}
     >
@@ -401,7 +406,7 @@ function MultiSelectBase({
                 aria-expanded={isOpen}
                 aria-controls={listboxId}
                 aria-activedescendant={
-                  filteredOptions.length > 0
+                  highlightedIndex < filteredOptions.length
                     ? optionId(highlightedIndex)
                     : undefined
                 }
