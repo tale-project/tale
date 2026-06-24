@@ -117,8 +117,14 @@ test.describe('onboarding wizard', () => {
     await expect(
       page.getByRole('heading', { name: t('onboarding.finish.heading') }),
     ).toBeVisible();
+    // Assert the checklist body rendered (not just the hero heading) via a
+    // state-independent item. The provider row flips to "connected" whenever the
+    // org has a keyed provider, and the E2E builtin-config seeds a mock provider
+    // whose key is set — so `providerItem` never shows here; the agent row always
+    // renders as a pending next step. (The provider-connected vs CTA branching is
+    // unit-tested in finish-step.test.tsx.)
     await expect(
-      page.getByText(t('onboarding.finish.providerItem')),
+      page.getByText(t('onboarding.finish.agentItem')),
     ).toBeVisible();
 
     await page
