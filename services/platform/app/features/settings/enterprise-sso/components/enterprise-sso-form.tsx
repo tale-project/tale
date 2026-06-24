@@ -139,6 +139,37 @@ const ROLE_RULE_TARGETS = [
   'member',
 ] as const satisfies readonly PlatformRole[];
 
+/**
+ * Fully-defined empty form state used as RHF's initial `defaultValues` while
+ * the connection config is still loading. Every field is defined (empty
+ * strings for text/Selects, booleans for Switches) so the controlled Select
+ * and Switch inputs are controlled from the first render — without this they
+ * would mount with `undefined` and log React's uncontrolled→controlled warning
+ * once the seeded `data` resolves.
+ */
+const EMPTY_FORM_DATA: SsoFormData = {
+  protocol: 'entra-id',
+  displayName: '',
+  domain: '',
+  issuer: '',
+  clientId: '',
+  clientSecret: '',
+  scopes: '',
+  pkce: true,
+  authzEndpoint: '',
+  tokenEndpoint: '',
+  userinfoEndpoint: '',
+  domainHint: '',
+  idpEntityId: '',
+  idpSsoUrl: '',
+  idpCertificate: '',
+  defaultRole: 'member',
+  autoRole: false,
+  roleMappingRules: [],
+  autoTeam: false,
+  excludeGroups: '',
+};
+
 const isOidcProtocol = (p: UiProtocol): p is Exclude<UiProtocol, 'saml'> =>
   p !== 'saml';
 
@@ -440,7 +471,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     [config, organizationId, t, toast, upsertOidc, upsertSaml],
   );
 
-  const editor = useFormEditor<SsoFormData>({ data, schema, save });
+  const editor = useFormEditor<SsoFormData>({
+    data,
+    defaultValues: EMPTY_FORM_DATA,
+    schema,
+    save,
+  });
 
   useRegisterActiveEditor(editor);
 
