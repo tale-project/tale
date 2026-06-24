@@ -6065,7 +6065,7 @@
         "refresh": "Refresh now",
         "synced": "Synced {count} models.",
         "syncFailed": "Sync failed: {error}",
-        "lastSynced": "Last synced {when} · {count} models.",
+        "lastSynced": "Last synced: {when} · {count} models.",
         "lastFailed": "Last attempt failed at {when}.",
         "neverSynced": "Not synced yet — refreshes automatically each day.",
         "autoSync": "Weekly auto-sync of provider config",
