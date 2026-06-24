@@ -6944,7 +6944,7 @@
     "setup": {
       "title": "Zwei-Faktor-Authentifizierung einrichten",
       "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschließend den 6-stelligen Code unten ein.",
-      "manualEntry": "Kein Scan möglich? Gib dieses Geheimnis manuell ein:",
+      "manualEntry": "Oder manuell eingeben:",
       "verifyCodeLabel": "Bestätigungscode",
       "verifyButton": "Prüfen und aktivieren"
     },

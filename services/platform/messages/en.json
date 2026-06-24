@@ -7206,7 +7206,7 @@
     "setup": {
       "title": "Set up two-factor authentication",
       "qrInstructions": "Scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code below.",
-      "manualEntry": "Can't scan? Enter this secret manually:",
+      "manualEntry": "Or enter manually:",
       "verifyCodeLabel": "Verification code",
       "verifyButton": "Verify and enable"
     },
