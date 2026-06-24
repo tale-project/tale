@@ -147,6 +147,15 @@ const MAX_TOKEN_ATTEMPTS = 3;
 // remains — a single attempt (esp. an auth retry-storm) must fit before the
 // seam, so the cap can't be defeated by burning the window on the last try.
 const TOKEN_ROTATION_MIN_WINDOW_MS = 90 * 1000;
+// When the CACHED broker pool is exhausted (every token tried, still 401/429),
+// re-fetch the pool from the broker — the credential may have been refreshed or
+// rotated upstream — and retry WARM (same sandbox, session preserved via the
+// resume runner; no teardown). Bounded so a permanently-dead broker can't spin.
+// After these in-sandbox retries, the loop throws → the engine's COLD retry
+// (destroy sandbox, fresh start from scratch) takes over, and if that keeps
+// failing the execution fails loudly.
+const MAX_TOKEN_REFETCH = 3;
+const TOKEN_REFETCH_BACKOFF_MS = 3000;
 
 /**
  * Thrown by `runSandboxAgent` for an infrastructure/execution failure (the agent
@@ -1126,6 +1135,9 @@ export const runSandboxAgent = internalAction({
         tokens: string[];
         targetEnvVar: string;
         selection: TokenSelection;
+        /** Broker source slug — kept so the rotation loop can RE-FETCH a fresh
+         * pool from the broker when the cached tokens are exhausted. */
+        slug: string;
       } | null = null;
       // v1 honors the first Environment-tab token-source binding (warns if more).
       const tokenBinding = agentTokenBindings[0];
@@ -1142,12 +1154,13 @@ export const runSandboxAgent = internalAction({
           );
         } else {
           // FRESH: fail-fast — resolveTokenPool throws TokenSourceError on an
-          // unreachable/empty/malformed broker → the outer catch finalizes +
-          // fails the step (no creds ⇒ the run cannot even start). RESUME: the
-          // conversation is already running on a valid credential, so a transient
-          // broker outage must NOT kill a healthy resumed segment — degrade to
-          // no-pool (continue on the current token, no rotation this segment).
-          // The binding's env var name wins over the source's default.
+          // unreachable/empty/malformed broker → the outer catch RE-THROWS → the
+          // engine retries the step fresh and, if the broker stays down, fails
+          // the execution loudly (no creds ⇒ the run cannot even start). RESUME:
+          // the conversation is already running on a valid credential, so a
+          // transient broker outage must NOT kill a healthy resumed segment —
+          // degrade to no-pool (continue on the current token, no rotation this
+          // segment). The binding's env var name wins over the source's default.
           try {
             const pool = await ctx.runAction(
               internal.node_only.sandbox.token_source_pool.resolveTokenPool,
@@ -1162,6 +1175,7 @@ export const runSandboxAgent = internalAction({
               tokens: pool.tokens,
               targetEnvVar: tokenBinding.key,
               selection: pool.selection,
+              slug: tokenBinding.tokenSourceSlug,
             };
           } catch (poolErr) {
             if (!resuming) throw poolErr;
@@ -1309,8 +1323,9 @@ export const runSandboxAgent = internalAction({
       // re-run — up to MAX_TOKEN_ATTEMPTS total, while enough window remains. A
       // `running` handoff is NOT a failure and never rotates.
       let tokenAttempt = 1;
+      let tokenRefetch = 0;
       if (tokenPool !== null) {
-        const pool = tokenPool; // stable non-null binding for the loop body
+        let pool = tokenPool; // re-fetch swaps in a fresh broker pool below
         while (
           result.status !== 'running' &&
           tokenAttempt < MAX_TOKEN_ATTEMPTS &&
@@ -1322,8 +1337,49 @@ export const runSandboxAgent = internalAction({
             authAbortStatus: result.authAbortStatus,
           })
         ) {
-          const nextToken = pickToken(pool.tokens, triedTokens, pool.selection);
-          if (nextToken === null) break; // no distinct token left → fail below
+          let nextToken = pickToken(pool.tokens, triedTokens, pool.selection);
+          // CACHED pool exhausted → RE-FETCH fresh secrets from the broker and
+          // retry WARM (same sandbox; the resume runner preserves the session —
+          // no teardown). The broker may have refreshed/rotated the credential
+          // upstream. Bounded by MAX_TOKEN_REFETCH so a permanently-dead broker
+          // can't spin; a backoff gives the broker a beat. If re-fetch is
+          // unreachable or still yields no usable token, give up → the throw
+          // below hands off to the engine's COLD retry (fresh sandbox, from
+          // scratch), which on continued failure fails the execution loudly.
+          if (nextToken === null) {
+            if (tokenRefetch >= MAX_TOKEN_REFETCH) break;
+            tokenRefetch += 1;
+            await new Promise((r) => setTimeout(r, TOKEN_REFETCH_BACKOFF_MS));
+            try {
+              const fresh = await ctx.runAction(
+                internal.node_only.sandbox.token_source_pool.resolveTokenPool,
+                {
+                  organizationId: args.organizationId,
+                  orgSlug,
+                  sessionId,
+                  slug: pool.slug,
+                },
+              );
+              pool = {
+                tokens: fresh.tokens,
+                targetEnvVar: pool.targetEnvVar,
+                selection: fresh.selection,
+                slug: pool.slug,
+              };
+            } catch (refetchErr) {
+              console.warn(
+                `[runSandboxAgent] token-source re-fetch ${tokenRefetch}/${MAX_TOKEN_REFETCH} failed (step ${args.stepSlug}):`,
+                refetchErr,
+              );
+              break;
+            }
+            triedTokens.clear(); // fresh pool ⇒ every token eligible again
+            console.warn(
+              `[runSandboxAgent] token-source re-fetch ${tokenRefetch}/${MAX_TOKEN_REFETCH} (step ${args.stepSlug})`,
+            );
+            nextToken = pickToken(pool.tokens, triedTokens, pool.selection);
+            if (nextToken === null) break; // broker returned an empty pool
+          }
           triedTokens.add(nextToken);
           tokenAttempt += 1;
           await sessionEnvPatch(sessionId, {
@@ -1362,16 +1418,21 @@ export const runSandboxAgent = internalAction({
         }
       }
 
-      // Exhausted the pool / attempt cap and still rate-limited or auth-failed →
-      // fail the step terminally. Throw a NON-retryable TokenSourceError (not the
-      // retryable SandboxAgentExecutionError) so the outer step does NOT re-run
-      // and blow past the 3-attempt contract; the catch finalizes + returns fail.
+      // In-sandbox retries exhausted (every cached token + MAX_TOKEN_REFETCH
+      // fresh broker re-fetches still rate-limited/auth-failed) → THROW. The
+      // throw is the deliberate seam between the two retry layers: the warm
+      // in-sandbox retries above are done, so we tear down (the `finally`,
+      // keepAlive false) and hand off to the ENGINE's cold retry — a fresh
+      // sandbox + a fresh pool resolve, everything from scratch (maxRetries) —
+      // and if THAT keeps failing the execution fails loudly. A dead credential
+      // is an operational exception, never a synthesized success or a quiet
+      // business `ok:false`.
       // EXCEPTION: a resume runner that threw (`resumeRotationAborted`) did NOT
       // exhaust the pool — it hit the unverified `--resume`-after-error path, so
-      // skip this terminal throw and let Part A's retryable execution-error throw
-      // fire below (a fresh step retry is the correct, safe-by-construction
-      // fallback). This is what makes resume-rotation safe even though the
-      // mid-conversation contract is unverified.
+      // skip this throw and let Part A's execution-error throw fire below (a
+      // fresh step retry is the correct, safe-by-construction fallback). This is
+      // what keeps resume-rotation safe even though the mid-conversation contract
+      // is unverified.
       if (
         tokenPool !== null &&
         !resumeRotationAborted &&
@@ -1604,6 +1665,15 @@ export const runSandboxAgent = internalAction({
       // The re-throw paths deliberately do NOT finalize — the orphaned 'running'
       // row is reclaimed by recoverStuckTaskRuns so the fresh retry re-admits.
       if (e instanceof SandboxAgentExecutionError) {
+        throw e;
+      }
+      // Token-source exhaustion (all cached tokens + the in-sandbox broker
+      // re-fetches still 401/429): an operational exception, NOT a business
+      // outcome. RE-THROW so the engine's COLD retry restarts FRESH (destroy
+      // sandbox, re-resolve the pool) and, if it keeps failing, the execution
+      // fails loudly — instead of laundering a dead credential into a quiet
+      // `ok:false` that the desk-process would route to a rollback-as-done.
+      if (e instanceof TokenSourceError) {
         throw e;
       }
       // Park-on-capacity (NOT a failure): WAIT_FIFO (lost the per-org slot race
