@@ -1,10 +1,9 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { Stack, HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
-import { ChevronDownIcon, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -41,18 +40,14 @@ interface MemberContext {
 
 interface MemberTableProps {
   members: Member[];
-  sortOrder: 'asc' | 'desc';
   memberContext?: MemberContext | null;
-  onSortChange: (sortOrder: 'asc' | 'desc') => void;
   isLoading?: boolean;
   approxRowCount?: number;
 }
 
 export function MemberTable({
   members,
-  sortOrder,
   memberContext,
-  onSortChange,
   isLoading,
   approxRowCount,
 }: MemberTableProps) {
@@ -61,9 +56,6 @@ export function MemberTable({
   const { t: tEmpty } = useT('emptyStates');
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const removeMember = useRemoveMember();
-  const handleSort = useCallback(() => {
-    onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
-  }, [sortOrder, onSortChange]);
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -94,20 +86,7 @@ export function MemberTable({
       createSelectColumn<Member>(),
       {
         id: 'member',
-        header: () => (
-          <Button
-            variant="ghost"
-            className="text-muted-foreground hover:text-foreground h-auto p-0 font-medium"
-            onClick={handleSort}
-          >
-            {tTables('headers.member')}
-            <ChevronDownIcon
-              className={`ml-1 size-4 transition-transform ${
-                sortOrder === 'desc' ? 'rotate-180' : ''
-              }`}
-            />
-          </Button>
-        ),
+        header: tTables('headers.member'),
         cell: ({ row }) => {
           const member = row.original;
           return (
@@ -176,7 +155,7 @@ export function MemberTable({
         ),
       },
     ],
-    [handleSort, sortOrder, memberContext, tTables, tSettings],
+    [memberContext, tTables, tSettings],
   );
 
   return (

@@ -38,7 +38,6 @@ export function MembersSettings({
 }: MembersSettingsProps) {
   const { t: tSettings } = useT('settings');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -60,11 +59,9 @@ export function MembersSettings({
     return [...filtered].sort((a, b) => {
       const nameA = a.displayName || a.email || '';
       const nameB = b.displayName || b.email || '';
-      return sortOrder === 'asc'
-        ? nameA.localeCompare(nameB)
-        : nameB.localeCompare(nameA);
+      return nameA.localeCompare(nameB);
     });
-  }, [allMembers, debouncedSearch, sortOrder]);
+  }, [allMembers, debouncedSearch]);
 
   return (
     <Stack gap={4}>
@@ -85,7 +82,6 @@ export function MembersSettings({
 
       <MemberTable
         members={members || []}
-        sortOrder={sortOrder}
         isLoading={isMembersLoading}
         approxRowCount={5}
         memberContext={
@@ -110,9 +106,6 @@ export function MembersSettings({
               }
             : undefined
         }
-        onSortChange={(newSortOrder) => {
-          setSortOrder(newSortOrder);
-        }}
       />
 
       <AddMemberDialog
