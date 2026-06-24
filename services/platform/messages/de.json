@@ -5808,7 +5808,7 @@
         "refresh": "Jetzt aktualisieren",
         "synced": "{count} Modelle synchronisiert.",
         "syncFailed": "Synchronisierung fehlgeschlagen: {error}",
-        "lastSynced": "Zuletzt synchronisiert {when} · {count} Modelle.",
+        "lastSynced": "Zuletzt synchronisiert: {when} · {count} Modelle.",
         "lastFailed": "Letzter Versuch fehlgeschlagen um {when}.",
         "neverSynced": "Noch nicht synchronisiert — aktualisiert sich täglich automatisch.",
         "autoSync": "Wöchentliche Auto-Synchronisierung der Anbieter-Konfiguration",

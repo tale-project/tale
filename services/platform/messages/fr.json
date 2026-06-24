@@ -5809,7 +5809,7 @@
         "refresh": "Actualiser maintenant",
         "synced": "{count} modèles synchronisés.",
         "syncFailed": "Échec de la synchronisation : {error}",
-        "lastSynced": "Dernière synchro {when} · {count} modèles.",
+        "lastSynced": "Dernière synchro : {when} · {count} modèles.",
         "lastFailed": "Dernière tentative échouée à {when}.",
         "neverSynced": "Pas encore synchronisé — s'actualise automatiquement chaque jour.",
         "autoSync": "Synchronisation auto hebdomadaire de la config fournisseur",
