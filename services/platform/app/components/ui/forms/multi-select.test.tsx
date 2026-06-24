@@ -222,4 +222,45 @@ describe('MultiSelect', () => {
       expect(onValueChange).toHaveBeenCalledWith(['banana']);
     });
   });
+
+  describe('keyboard navigation without a search input', () => {
+    it('focuses the listbox on open so it is keyboard-operable', async () => {
+      const { user } = renderSelect({ searchable: false });
+      await user.click(screen.getByText('Open select'));
+      const listbox = screen.getByRole('listbox');
+      expect(listbox).toHaveAttribute('tabindex', '0');
+      expect(listbox).toHaveFocus();
+    });
+
+    it('toggles the highlighted option with ArrowDown + Enter', async () => {
+      const { user, onValueChange } = renderSelect({ searchable: false });
+      await user.click(screen.getByText('Open select'));
+      await user.keyboard('{ArrowDown}{Enter}');
+      expect(onValueChange).toHaveBeenCalledWith(['banana']);
+    });
+
+    it('toggles the first/last option with Home/End', async () => {
+      const { user, onValueChange } = renderSelect({ searchable: false });
+      await user.click(screen.getByText('Open select'));
+      await user.keyboard('{End}{Enter}');
+      // Last option (index 3) is disabled, so End lands on the last *enabled*
+      // option, Cherry.
+      expect(onValueChange).toHaveBeenCalledWith(['cherry']);
+      onValueChange.mockClear();
+      await user.keyboard('{Home}{Enter}');
+      expect(onValueChange).toHaveBeenCalledWith(['apple']);
+    });
+
+    it('exposes the highlighted option via aria-activedescendant', async () => {
+      const { user } = renderSelect({ searchable: false });
+      await user.click(screen.getByText('Open select'));
+      const listbox = screen.getByRole('listbox');
+      const activeId = listbox.getAttribute('aria-activedescendant');
+      expect(activeId).toBeTruthy();
+      expect(screen.getByRole('option', { name: /Apple/i })).toHaveAttribute(
+        'id',
+        activeId,
+      );
+    });
+  });
 });

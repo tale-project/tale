@@ -245,8 +245,8 @@ function MultiSelectBase({
     [disabled, value, valueSet, onValueChange],
   );
 
-  const handleSearchKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleListKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLElement>) => {
       const len = filteredOptions.length;
       if (len === 0) return;
 
@@ -381,10 +381,13 @@ function MultiSelectBase({
           )}
           onOpenAutoFocus={(e) => {
             // Keep focus on the search input (or the list, when not searchable)
-            // rather than the first option, so type-to-filter works immediately.
+            // rather than the first option, so type-to-filter works immediately
+            // and Arrow/Home/End/Enter drive the highlight in both modes.
+            e.preventDefault();
             if (searchable) {
-              e.preventDefault();
               searchRef.current?.focus();
+            } else {
+              listRef.current?.focus();
             }
           }}
         >
@@ -400,7 +403,7 @@ function MultiSelectBase({
                 role="combobox"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
+                onKeyDown={handleListKeyDown}
                 placeholder={searchPlaceholder}
                 className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
                 aria-expanded={isOpen}
@@ -422,7 +425,16 @@ function MultiSelectBase({
             role="listbox"
             aria-multiselectable="true"
             aria-label={ariaLabel}
-            className="max-h-[18rem] overflow-y-auto p-1"
+            // With no search input the listbox itself is the focusable, keyboard
+            // -operable control, so it carries tabIndex + the roving descendant.
+            tabIndex={searchable ? undefined : 0}
+            onKeyDown={searchable ? undefined : handleListKeyDown}
+            aria-activedescendant={
+              !searchable && highlightedIndex < filteredOptions.length
+                ? optionId(highlightedIndex)
+                : undefined
+            }
+            className="max-h-[18rem] overflow-y-auto p-1 outline-none"
           >
             {filteredOptions.map((option, index) => (
               <MultiSelectOptionItem
@@ -513,7 +525,7 @@ function MultiSelectOptionItem({
   const showDescription = Boolean(option.description);
 
   return (
-    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled via the search input's aria-activedescendant
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled by the focused search input / listbox via aria-activedescendant
     <div
       role="option"
       id={id}
