@@ -290,17 +290,21 @@ async function patchUserResource(
 }
 
 async function deleteUser(rc: ScimRc, userId: string): Promise<Response> {
-  const existing = await rc.ctx.runQuery(
-    internal.scim.internal_queries.getUserRecord,
+  // A SCIM DELETE removes the resource: the user is de-provisioned from this
+  // org so a later GET returns 404 (RFC 7644 §3.6). A plain disable is the
+  // separate `PATCH active:false` path (soft-deactivate, restorable).
+  const result = await rc.ctx.runMutation(
+    internal.scim.internal_mutations.deprovisionUser,
     { organizationId: rc.organizationId, userId },
   );
-  if (!existing) return scimError(404, `User ${userId} not found`);
-  await rc.ctx.runMutation(internal.scim.internal_mutations.patchUser, {
-    organizationId: rc.organizationId,
-    userId,
-    defaultRole: rc.defaultRole,
-    active: false,
-  });
+  if (result === 'not-found') return scimError(404, `User ${userId} not found`);
+  if (result === 'owner-protected') {
+    return scimError(
+      403,
+      'Cannot de-provision the organization owner',
+      'mutability',
+    );
+  }
   return scimNoContent();
 }
 

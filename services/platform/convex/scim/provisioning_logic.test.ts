@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyDeprovision,
   classifyUserOwnership,
   composeDesiredMembers,
   planActivation,
@@ -8,7 +9,7 @@ import {
 
 /**
  * Pure tests for the activation/deactivation policy that backs SCIM
- * `active:false`, DELETE (soft), and reactivation. No backend required.
+ * `active:false` (soft-deactivate) and reactivation. No backend required.
  */
 describe('planActivation', () => {
   it('creates a new active member at the default role', () => {
@@ -81,6 +82,34 @@ describe('classifyUserOwnership', () => {
         'orgA',
       ),
     ).toBe('owned-here');
+  });
+});
+
+/**
+ * HTTP DELETE de-provisions a SCIM User (RFC 7644 §3.6 — the resource must no
+ * longer be returned), distinct from the soft `active:false` disable. The org
+ * owner is protected so a SCIM token can never orphan an org.
+ */
+describe('classifyDeprovision', () => {
+  it('404s when the user is not a member of the org', () => {
+    expect(classifyDeprovision(undefined)).toBe('not-found');
+  });
+
+  it('removes a regular member', () => {
+    expect(classifyDeprovision({ role: 'member' })).toBe('deprovision');
+  });
+
+  it('removes an admin member', () => {
+    expect(classifyDeprovision({ role: 'admin' })).toBe('deprovision');
+  });
+
+  it('protects the org owner from SCIM removal (case-insensitive)', () => {
+    expect(classifyDeprovision({ role: 'owner' })).toBe('owner-protected');
+    expect(classifyDeprovision({ role: 'OWNER' })).toBe('owner-protected');
+  });
+
+  it('treats a missing role as a removable member', () => {
+    expect(classifyDeprovision({})).toBe('deprovision');
   });
 });
 
