@@ -283,6 +283,10 @@ test.describe('navigation: 404 and history', () => {
 
     // It renders INSIDE the `$id` layout, so the primary nav shell is still up.
     await expect(primaryNav(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // The route `head` sets a sensible document title instead of falling back
+    // to the marketing default — part of the issue's reported regression.
+    await expect(page).toHaveTitle(new RegExp(t('metadata.notFound.title')));
   });
 
   test('back/forward navigation tracks the URL and content', async ({
