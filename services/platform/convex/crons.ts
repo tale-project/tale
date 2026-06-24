@@ -177,6 +177,20 @@ cron(
   {},
 );
 
+// Sandbox ADMISSION ticket reaper — park-on-capacity FIFO tickets whose owner's
+// poll-chain died (a cancelled/crashed workflow step or chat turn that stopped
+// re-stamping `lastSeenAt`) would wedge the org's queue head forever. Under
+// indefinite-wait this staleness sweep is the ONLY guard against permanent
+// queue-head starvation, so it runs at the FASTER 2-min cadence (matching the
+// external-agent turn recovery) to bound how long a dead head blocks live
+// waiters behind it.
+cron(
+  'recover stuck sandbox admission tickets (every 2 min)',
+  '*/2 * * * *',
+  internal.sandbox.admission.recoverStuckAdmissionTickets,
+  {},
+);
+
 // External-agent turn recovery — the connection-independent counterpart. A
 // turn whose draining action died (crash / redeploy / 30min ceiling) without
 // finalizing is found by its stale heartbeat and finalized exactly-once

@@ -29,6 +29,16 @@ describe('derivePartState', () => {
     );
   });
 
+  it('maps a park-on-capacity queued node to queued_capacity (never raw JSON / done)', () => {
+    // Both interactions: a capacity wait is never human-actionable.
+    expect(derivePartState(node({ status: 'queued' }), 'read_only')).toBe(
+      'queued_capacity',
+    );
+    expect(derivePartState(node({ status: 'queued' }), 'actionable')).toBe(
+      'queued_capacity',
+    );
+  });
+
   it('routes a waiting node by interaction: actionable → human', () => {
     expect(derivePartState(node({ status: 'waiting' }), 'actionable')).toBe(
       'waiting_human',

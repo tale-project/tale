@@ -295,7 +295,6 @@ import type * as crawler_helpers_content_filter from "../crawler/helpers/content
 import type * as crawler_helpers_fetch_rendered_html from "../crawler/helpers/fetch_rendered_html.js";
 import type * as crawler_helpers_structured_data from "../crawler/helpers/structured_data.js";
 import type * as crawler_index_pages from "../crawler/index_pages.js";
-import type * as crawler_scan_scheduler from "../crawler/scan_scheduler.js";
 import type * as crawler_lib_discovery from "../crawler/lib/discovery.js";
 import type * as crawler_lib_document_metadata from "../crawler/lib/document_metadata.js";
 import type * as crawler_lib_docx_generate from "../crawler/lib/docx_generate.js";
@@ -308,6 +307,7 @@ import type * as crawler_lib_sandbox_render from "../crawler/lib/sandbox_render.
 import type * as crawler_lib_sandbox_render_document from "../crawler/lib/sandbox_render_document.js";
 import type * as crawler_lib_search_service from "../crawler/lib/search_service.js";
 import type * as crawler_lib_website_store from "../crawler/lib/website_store.js";
+import type * as crawler_scan_scheduler from "../crawler/scan_scheduler.js";
 import type * as crawler_search from "../crawler/search.js";
 import type * as crawler_web from "../crawler/web.js";
 import type * as crawler_websites from "../crawler/websites.js";
@@ -1118,8 +1118,10 @@ import type * as rag_lib_search_service from "../rag/lib/search_service.js";
 import type * as rag_lib_secret_scanner from "../rag/lib/secret_scanner.js";
 import type * as rag_lib_semantic_cache from "../rag/lib/semantic_cache.js";
 import type * as rag_search from "../rag/search.js";
+import type * as sandbox_admission from "../sandbox/admission.js";
 import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
 import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
+import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
 import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
 import type * as sandbox_session_naming from "../sandbox/session_naming.js";
@@ -1882,7 +1884,6 @@ declare const fullApi: ApiFromModules<{
   "crawler/helpers/fetch_rendered_html": typeof crawler_helpers_fetch_rendered_html;
   "crawler/helpers/structured_data": typeof crawler_helpers_structured_data;
   "crawler/index_pages": typeof crawler_index_pages;
-  "crawler/scan_scheduler": typeof crawler_scan_scheduler;
   "crawler/lib/discovery": typeof crawler_lib_discovery;
   "crawler/lib/document_metadata": typeof crawler_lib_document_metadata;
   "crawler/lib/docx_generate": typeof crawler_lib_docx_generate;
@@ -1895,6 +1896,7 @@ declare const fullApi: ApiFromModules<{
   "crawler/lib/sandbox_render_document": typeof crawler_lib_sandbox_render_document;
   "crawler/lib/search_service": typeof crawler_lib_search_service;
   "crawler/lib/website_store": typeof crawler_lib_website_store;
+  "crawler/scan_scheduler": typeof crawler_scan_scheduler;
   "crawler/search": typeof crawler_search;
   "crawler/web": typeof crawler_web;
   "crawler/websites": typeof crawler_websites;
@@ -2705,8 +2707,10 @@ declare const fullApi: ApiFromModules<{
   "rag/lib/secret_scanner": typeof rag_lib_secret_scanner;
   "rag/lib/semantic_cache": typeof rag_lib_semantic_cache;
   "rag/search": typeof rag_search;
+  "sandbox/admission": typeof sandbox_admission;
   "sandbox/internal_mutations": typeof sandbox_internal_mutations;
   "sandbox/output_mutations": typeof sandbox_output_mutations;
+  "sandbox/quota_policy": typeof sandbox_quota_policy;
   "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
   "sandbox/session_naming": typeof sandbox_session_naming;

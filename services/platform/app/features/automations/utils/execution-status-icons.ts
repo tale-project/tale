@@ -3,6 +3,7 @@ import {
   Bug,
   CheckCircle2,
   CirclePause,
+  Clock,
   Loader2,
   XCircle,
 } from 'lucide-react';
@@ -22,6 +23,10 @@ export const EXECUTION_STATUS_ICONS: Record<
     Icon: Loader2,
     className:
       'animate-spin motion-reduce:animate-none text-blue-600 dark:text-blue-400',
+  },
+  queued: {
+    Icon: Clock,
+    className: 'text-amber-600 dark:text-amber-400',
   },
   success: {
     Icon: CheckCircle2,

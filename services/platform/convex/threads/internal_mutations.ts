@@ -428,6 +428,10 @@ export const clearGenerationStatus = internalMutation({
         generationStatus: 'idle',
         streamId: undefined,
         generationHeartbeatAt: undefined,
+        // Park-on-capacity: a turn that ended (or was cancelled) is no longer
+        // queued for a slot — clear the flag so the UI never shows a stale
+        // "Queued for capacity".
+        generationQueuedSince: undefined,
         // Generation ended → mark "new activity" for the unread badge. The
         // sidebar compares this against the per-user `lastReadAt`.
         lastReplyAt: Date.now(),
@@ -436,6 +440,33 @@ export const clearGenerationStatus = internalMutation({
         liveRoute: undefined,
       });
     }
+  },
+});
+
+/**
+ * Park-on-capacity: toggle the thread's "Queued for capacity" flag while an
+ * external-agent turn WAITS for a free sandbox slot (`queued: true`), or clear
+ * it once the turn is admitted and actually starts (`queued: false`). Gated on
+ * the streamId so a stale action can't flag a newer turn. Keeps
+ * `generationStatus` 'generating' (the lock holds) and, when flagging, re-stamps
+ * the liveness heartbeat so the re-park loop never trips the staleness watchdog.
+ */
+export const setGenerationQueued = internalMutation({
+  args: {
+    threadId: v.string(),
+    streamId: v.string(),
+    queued: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const meta = await getThreadMetadataRow(ctx, args.threadId);
+    if (!meta || meta.streamId !== args.streamId) return null;
+    if (meta.generationStatus !== 'generating') return null;
+    await ctx.db.patch(meta._id, {
+      generationQueuedSince: args.queued ? Date.now() : undefined,
+      ...(args.queued && { generationHeartbeatAt: Date.now() }),
+    });
+    return null;
   },
 });
 

@@ -53,6 +53,28 @@ export class SessionDuplicateError extends Error {
   }
 }
 
+/** The spawner is at its GLOBAL host capacity (HTTP 429 — `busy` for one-shot
+ * execs, `session_quota` for sessions). Distinct from the per-org governance cap
+ * (a platform-side `QUOTA_EXCEEDED`): this is a cross-tenant host limit the
+ * platform can't see ahead of time, so the caller PARKS best-effort and retries
+ * after `retryAfterMs` rather than failing the run. */
+export class SpawnerBusyError extends Error {
+  readonly retryAfterMs: number | undefined;
+  constructor(retryAfterMs: number | undefined) {
+    super('sandbox spawner at host capacity (429)');
+    this.name = 'SpawnerBusyError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** Parse an HTTP `retry-after` header (delta-seconds) into ms, if present. */
+export function parseRetryAfterMs(res: Response): number | undefined {
+  const raw = res.headers.get('retry-after');
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+}
+
 /** The exec SSE went silent past the idle-read deadline (no events AND no
  * keepalive — a half-open/wedged connection). The resilient drain re-attaches
  * via sinceSeq WITHOUT consuming its consecutive-failure budget: a genuinely
@@ -199,6 +221,7 @@ export async function sessionCreate(
     signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
   });
   if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
+  if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
   if (!res.ok) {
     throw new Error(
       `sandbox session create failed (${res.status}): ${await safeText(res)}`,

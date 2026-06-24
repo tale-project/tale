@@ -25,6 +25,14 @@ export const wfExecutionsTable = defineTable({
     }),
   ),
   waitingFor: v.optional(v.string()),
+  /** Park-on-capacity: the slug of the sandbox step currently WAITING for a free
+   * slot (the org is at its concurrency cap). Set/cleared by `executeSandboxNode`
+   * at the admission decision — sticky like chat's `generationQueuedSince`, so
+   * the run view shows a steady "Queued" badge instead of flickering Running↔
+   * Queued as each ~4s poll segment goes briefly in-progress. Cleared the instant
+   * the step is admitted (before the long agent run), so real work reads
+   * "Running", not a stale "Queued". */
+  awaitingCapacityStepSlug: v.optional(v.string()),
   startedAt: v.number(),
   updatedAt: v.number(),
   completedAt: v.optional(v.number()),

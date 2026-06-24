@@ -16,6 +16,11 @@ export const OUTPUT_PREVIEW_MAX_CHARS = 8 * 1024;
 
 export type ExecutionNodeStatus =
   | 'running'
+  // Park-on-capacity: a sandbox step is waiting for a free slot (the org is at
+  // its concurrency cap). Non-terminal like 'running' — the durable handler
+  // re-enters the step once a slot frees — but distinct so the run view shows a
+  // "Queued for capacity" affordance instead of a live "Running" transcript.
+  | 'queued'
   | 'success'
   | 'failed'
   | 'waiting'
@@ -133,6 +138,12 @@ function deriveEntryStatus(
       // momentary terminal node, drops the live transcript, and flashes the
       // `{status:'running'}` handoff envelope as raw JSON each seam.
       if (port === 'running') return { status: 'running' };
+      // Park-on-capacity: the step is queued behind the org's concurrency cap
+      // (the handler sleeps + re-enters on the INTERNAL `awaiting_capacity`
+      // control port). Like 'running' it is NOT terminal — read `queued` so the
+      // run view shows a "Queued for capacity" affordance, not a "Done" badge +
+      // the raw `{status:'awaiting_capacity'}` envelope dumped as JSON.
+      if (port === 'awaiting_capacity') return { status: 'queued' };
     }
     return { status: 'success' };
   }
@@ -245,6 +256,26 @@ export function deriveStepStatuses(
         };
   }
 
+  // Park-on-capacity: a sandbox step waiting for a free slot polls in rapid
+  // segments, each briefly in-progress. The execution-row marker (set/cleared by
+  // `executeSandboxNode` at the admission decision) makes the badge STICK at
+  // 'queued' rather than flicker Running↔Queued as the latest journal entry
+  // alternates inProgress↔awaiting_capacity-result. Only overrides a live park
+  // read (running/queued); a real failure or the settle pass below still wins.
+  if (execution.status === 'running' && execution.awaitingCapacityStepSlug) {
+    const slug = execution.awaitingCapacityStepSlug;
+    const current = nodes[slug];
+    if (!current) {
+      nodes[slug] = {
+        status: 'queued',
+        stepName: execution.currentStepName,
+        attempts: 0,
+      };
+    } else if (current.status === 'running' || current.status === 'queued') {
+      nodes[slug] = { ...current, status: 'queued' };
+    }
+  }
+
   // A SETTLED execution has no live step. Two ways a step is stranded mid-run
   // when the run is stopped (a user Stop → status 'failed' + errorCode
   // 'canceled') or hard-fails:
@@ -266,6 +297,7 @@ export function deriveStepStatuses(
     for (const node of Object.values(nodes)) {
       if (
         node.status === 'running' ||
+        node.status === 'queued' ||
         node.status === 'waiting' ||
         node.status === 'paused'
       ) {

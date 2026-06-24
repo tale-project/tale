@@ -17,6 +17,16 @@ const RUNNING_ENVELOPE = {
   status: 'running',
 };
 
+/** The park-on-capacity handoff envelope a queued sandbox step persists — never
+ * a real result. It must surface a "Queued for capacity" affordance, never leak
+ * as raw JSON (the reported bug) and never read as a "Done" output. */
+const AWAITING_CAPACITY_ENVELOPE = {
+  mode: 'agent',
+  ok: false,
+  outputFileIds: [],
+  status: 'awaiting_capacity',
+};
+
 function part(overrides: Partial<RenderPart>): RenderPart {
   return {
     render: 'stream',
@@ -44,6 +54,30 @@ describe('PartEnvelope', () => {
     // The abandoned step's raw handoff envelope must NOT be dumped as JSON.
     expect(screen.queryByText(/durationMs/)).not.toBeInTheDocument();
     expect(screen.queryByText(/"status"/)).not.toBeInTheDocument();
+  });
+
+  it('shows a queued affordance and NOT the raw awaiting_capacity envelope for a parked step', () => {
+    render(
+      <PartEnvelope
+        part={part({
+          partState: 'queued_capacity',
+          data: AWAITING_CAPACITY_ENVELOPE,
+        })}
+      >
+        <RenderKindRouter
+          part={part({
+            partState: 'queued_capacity',
+            data: AWAITING_CAPACITY_ENVELOPE,
+          })}
+        />
+      </PartEnvelope>,
+    );
+
+    // The park envelope must NOT leak as raw JSON (the reported bug) — the
+    // queued_capacity body affordance replaces it.
+    expect(screen.queryByText(/awaiting_capacity/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"status"/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/outputFileIds/)).not.toBeInTheDocument();
   });
 
   it('still renders the render-kind body for an available output', () => {

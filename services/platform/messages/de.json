@@ -180,6 +180,7 @@
       "output_error": "Fehler",
       "waiting_human": "Aktion nötig",
       "waiting_external": "Wartet",
+      "queued_capacity": "In Warteschlange",
       "empty": "Keine Ausgabe"
     },
     "field": {
@@ -221,6 +222,7 @@
     },
     "body": {
       "waitingExternal": "Wartet auf ein externes Ereignis, um fortzufahren.",
+      "queuedCapacity": "In Warteschlange — wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "empty": "Dieser Schritt hat keine Ausgabe erzeugt.",
       "noDetails": "Keine Details vorhanden."
     },
@@ -1115,7 +1117,8 @@
       "skillsCount": "{count, plural, one {# Skill} other {# Skills}}",
       "tokensCount": "{count, plural, one {# Token} other {# Tokens}}",
       "summaryReasoningOnly": "Hat den Gedankengang gezeigt",
-      "responding": "Antwortet"
+      "responding": "Antwortet",
+      "queuedForCapacity": "In der Warteschlange"
     },
     "routing": {
       "routedTo": "An {agent} weitergeleitet",
@@ -2976,6 +2979,18 @@
       "invalid": "Leerlaufzeit muss eine ganze Zahl zwischen 1 und 1440 Minuten sein.",
       "saved": "Sitzungs-Leerlaufzeit wurde aktualisiert",
       "saveFailed": "Sitzungs-Leerlaufzeit konnte nicht gespeichert werden"
+    },
+    "sandboxQuota": {
+      "title": "Sandbox-Parallelitätslimits",
+      "description": "Begrenze, wie viele Sandboxes diese Organisation gleichzeitig ausführen kann. Diese Limits pro Organisation liegen unterhalb der deploymentweiten Hostkapazität; ein Senken schützt gemeinsam genutzte Serverressourcen vor Überlastung.",
+      "maxConcurrent": "Max. gleichzeitige Einmal-Ausführungen",
+      "maxConcurrentHint": "Verwerfbare Sandboxes (run_code und Workflow-Skriptschritte), die für diese Organisation gleichzeitig laufen dürfen. Anfragen über dem Limit schlagen mit einem Kontingentfehler fehl. Standard: 2.",
+      "maxSessions": "Max. aktive Sitzungen",
+      "maxSessionsHint": "Dauerhafte Sandbox-Sitzungen (Chat-Agenten und Workflow-Agentenschritte), die für diese Organisation gleichzeitig aktiv sein dürfen. Anfragen über dem Limit schlagen mit einem Kontingentfehler fehl. Standard: 2.",
+      "invalidConcurrent": "Muss eine ganze Zahl zwischen 1 und 100 sein.",
+      "invalidSessions": "Muss eine ganze Zahl zwischen 1 und 500 sein.",
+      "saved": "Sandbox-Parallelitätslimits wurden aktualisiert",
+      "saveFailed": "Sandbox-Parallelitätslimits konnten nicht gespeichert werden"
     },
     "featureFlags": {
       "title": "Feature-Steuerung",

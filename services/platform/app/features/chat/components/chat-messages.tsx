@@ -195,6 +195,9 @@ interface ChatMessagesProps {
    *  gap-shell "Thinking · Ns" timer to the same clock the in-bubble timeline
    *  uses — so it neither resets at the handoff nor across the new-chat remount. */
   generationStartMs?: number | null;
+  /** Park-on-capacity: the in-flight turn is waiting for a free sandbox slot, so
+   *  the gap-shell shows "Queued for capacity" instead of "Thinking". */
+  isQueued?: boolean;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
@@ -252,6 +255,7 @@ export const ChatMessages = memo(function ChatMessages({
   isAutoRoute,
   liveRoute,
   generationStartMs,
+  isQueued,
   lastUserMessageRef,
   containerRef,
   activeApproval,
@@ -979,6 +983,7 @@ export const ChatMessages = memo(function ChatMessages({
       <ThinkingIndicator
         className="px-4 py-3"
         phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
+        queued={isQueued ?? false}
         routedAgentName={liveRoute?.agentName}
         routeReason={liveRoute?.reason}
         turnStartMs={generationStartMs ?? undefined}

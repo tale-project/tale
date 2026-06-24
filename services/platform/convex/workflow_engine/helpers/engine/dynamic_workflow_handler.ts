@@ -10,6 +10,10 @@ import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { jsonValueValidator } from '../../../lib/validators/json';
+import {
+  SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS,
+  SANDBOX_ADMISSION_POLL_BACKOFF_MS,
+} from '../../../sandbox/sessions_schema';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -313,6 +317,42 @@ export async function handleDynamicWorkflow(
           currentStepName: stepDef.name,
         },
       );
+      continue;
+    }
+
+    // PARK-on-capacity: the sandbox step hit its org's concurrency cap (or a
+    // global host 429) and chose to WAIT instead of fail. Unlike 'running' it
+    // built NO session and burned NO run budget — there's nothing to re-attach,
+    // so just sleep a backoff and re-enter the SAME step to re-poll the admission
+    // queue (no `currentStepSlug` advance). Like 'running', this is an INTERNAL
+    // control port the author never maps, so handle it before nextSteps
+    // resolution. Honor a spawner `retryAfterMs` hint (global 429) over the short
+    // per-org poll interval. The wait is unbounded by design — only a workflow
+    // cancel, or a slot freeing (incl. the ticket reaper clearing a dead head),
+    // ends it.
+    if (stepResult.port === 'awaiting_capacity') {
+      const backoffMs = Math.min(
+        Math.max(
+          stepResult.retryAfterMs ?? SANDBOX_ADMISSION_POLL_BACKOFF_MS,
+          1000,
+        ),
+        SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS * 6,
+      );
+      debugLog('dynamicWorkflow Parking sandbox step (awaiting capacity)', {
+        executionId,
+        stepSlug: stepDef.stepSlug,
+        backoffMs,
+      });
+      await step.runMutation(
+        internal.workflow_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          currentStepSlug: stepDef.stepSlug,
+          currentStepName: stepDef.name,
+        },
+      );
+      await step.sleep(backoffMs);
       continue;
     }
 

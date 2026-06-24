@@ -100,6 +100,39 @@ export const updateExecutionStatus = internalMutation({
   },
 });
 
+/**
+ * Park-on-capacity: flag/clear the sandbox step currently WAITING for a free
+ * slot. Set by `executeSandboxNode` when its admission poll says wait, cleared
+ * the instant it is admitted (before the long agent run). The run view reads
+ * this to keep a steady "Queued" badge across the rapid poll segments instead of
+ * flickering Running↔Queued. The clear is slug-guarded so a stale clear from a
+ * different step can't wipe an active wait.
+ */
+export const setStepCapacityWait = internalMutation({
+  args: {
+    executionId: v.id('wfExecutions'),
+    stepSlug: v.string(),
+    waiting: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const execution = await ctx.db.get(args.executionId);
+    if (!execution) return null;
+    if (args.waiting) {
+      await ctx.db.patch(args.executionId, {
+        awaitingCapacityStepSlug: args.stepSlug,
+      });
+    } else if (execution.awaitingCapacityStepSlug === args.stepSlug) {
+      // Only the step that set the wait clears it (a parallel branch's wait must
+      // survive this step's admission).
+      await ctx.db.patch(args.executionId, {
+        awaitingCapacityStepSlug: undefined,
+      });
+    }
+    return null;
+  },
+});
+
 export const updateExecutionVariables = internalMutation({
   args: {
     executionId: v.id('wfExecutions'),

@@ -165,6 +165,76 @@ describe('deriveStepStatuses', () => {
     expect(result.nodes.implement).toMatchObject({ status: 'running' });
   });
 
+  it('maps a success runResult on the internal awaiting_capacity port to queued (park-on-capacity)', () => {
+    // A durable sandbox step parked behind the org's concurrency cap returns on
+    // the internal `awaiting_capacity` control port. Like `running` it is NOT
+    // terminal — it must read `queued` so the run view shows the queued
+    // affordance, not a "Done" badge + the raw envelope as JSON.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'implement',
+          },
+          runResult: {
+            kind: 'success',
+            returnValue: { port: 'awaiting_capacity' },
+          },
+        }),
+      ],
+      execution({ currentStepSlug: 'implement' }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({ status: 'queued' });
+  });
+
+  it('holds the badge at queued across a poll seam: an in-progress segment under the capacity marker reads queued, not running', () => {
+    // The flicker fix: while parked, each ~4s poll segment goes briefly
+    // in-progress (→ would read `running`). The sticky `awaitingCapacityStepSlug`
+    // marker on the execution row pins the badge at `queued` so it never flickers
+    // Running↔Queued between segments.
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'implement',
+          },
+          inProgress: true,
+        }),
+      ],
+      execution({
+        currentStepSlug: 'implement',
+        awaitingCapacityStepSlug: 'implement',
+      }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({ status: 'queued' });
+  });
+
+  it('drops the capacity marker override once real work resumes (no marker → running)', () => {
+    // After admission the marker is cleared, so the same in-progress segment now
+    // reads `running` (the agent is actually working).
+    const result = deriveStepStatuses(
+      [
+        executeStepEntry('implement', {
+          args: {
+            stepSlug: 'implement',
+            stepType: 'sandbox',
+            stepName: 'implement',
+          },
+          inProgress: true,
+        }),
+      ],
+      execution({ currentStepSlug: 'implement' }),
+    );
+
+    expect(result.nodes.implement).toMatchObject({ status: 'running' });
+  });
+
   it('maps a canceled runResult to canceled', () => {
     const result = deriveStepStatuses(
       [executeStepEntry('fetch', { runResult: { kind: 'canceled' } })],

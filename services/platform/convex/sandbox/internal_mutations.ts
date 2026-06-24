@@ -8,8 +8,15 @@ import {
 } from '../_generated/server';
 import { rateLimiter } from '../lib/rate_limiter';
 import {
+  type AdmissionTicketArgs,
+  assertFifoEligible,
+  claimTicket,
+  reserveOneshotTicketArg,
+  upsertWaitingTicket,
+} from './admission';
+import { readSandboxQuotaPolicy } from './quota_policy';
+import {
   SANDBOX_DAILY_CPU_BUDGET_SECONDS,
-  SANDBOX_MAX_CONCURRENT_PER_ORG,
   SANDBOX_WATCHDOG_CUTOFF_MS,
 } from './schema';
 import {
@@ -162,31 +169,80 @@ export const reserveSlotAndInsert = internalMutation({
     codeStorageId: v.optional(v.id('_storage')),
     packages: v.array(v.string()),
     estimatedSeconds: v.number(),
+    // Park-on-capacity: when present, the per-org CONCURRENCY cap becomes a FIFO
+    // queue (the daily CPU budget below still hard-fails — waiting can't free
+    // it). The caller already polled `pollAdmission` and is claiming a slot.
+    ticket: v.optional(reserveOneshotTicketArg),
   },
   returns: v.id('sandboxExecutions'),
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Concurrent cap. Short-circuit at the cap; never materialise the full set.
-    // Both `queued` and `running` rows count: the cap is "in-flight", not
-    // "actively executing". This must agree with the watchdog (below) which
-    // also sweeps both states — otherwise a leaked queued row would shrink
-    // the effective cap until the next watchdog run.
-    let inFlight = 0;
+    // Concurrent cap. Both `queued` and `running` rows count: the cap is
+    // "in-flight", not "actively executing". This must agree with the watchdog
+    // (below) which sweeps both states. We also sum the in-flight
+    // `estimatedSeconds` for the daily-budget check further down — needed in
+    // BOTH the parking and legacy paths.
     let runningSecondsProjected = 0;
-    for (const status of ['running', 'queued', 'installing'] as const) {
-      for await (const row of ctx.db
-        .query('sandboxExecutions')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', args.organizationId).eq('status', status),
-        )) {
-        inFlight += 1;
-        runningSecondsProjected += row.estimatedSeconds;
-        if (inFlight >= SANDBOX_MAX_CONCURRENT_PER_ORG) {
-          throw new ConvexError({
-            code: 'QUOTA_EXCEEDED',
-            message: `At most ${SANDBOX_MAX_CONCURRENT_PER_ORG} sandboxes can run concurrently for this organization.`,
-          });
+    if (args.ticket) {
+      // PARKING mode: FIFO gate instead of a hard throw, claimed in this txn.
+      const ticketArgs: AdmissionTicketArgs = {
+        organizationId: args.organizationId,
+        kind: 'oneshot',
+        ownerType: args.ticket.ownerType,
+        ownerId: args.ticket.ownerId,
+        source: args.ticket.source,
+        ...(args.ticket.threadId !== undefined && {
+          threadId: args.ticket.threadId,
+        }),
+        ...(args.ticket.wfExecutionId !== undefined && {
+          wfExecutionId: args.ticket.wfExecutionId,
+        }),
+        ...(args.ticket.stepSlug !== undefined && {
+          stepSlug: args.ticket.stepSlug,
+        }),
+      };
+      const ticketCreatedAt = await upsertWaitingTicket(ctx, ticketArgs, now);
+      await assertFifoEligible(
+        ctx,
+        args.organizationId,
+        'oneshot',
+        ticketCreatedAt,
+      );
+      await claimTicket(ctx, args.ticket.ownerType, args.ticket.ownerId, now);
+      for (const status of ['running', 'queued', 'installing'] as const) {
+        for await (const row of ctx.db
+          .query('sandboxExecutions')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', status),
+          )) {
+          runningSecondsProjected += row.estimatedSeconds;
+        }
+      }
+    } else {
+      // Per-org one-shot concurrency cap from the `sandbox_quota` governance
+      // policy (missing row → schema default). The deployment-wide host cap is
+      // the spawner's `SANDBOX_MAX_CONCURRENT` env; this is the per-tenant slice.
+      const { maxConcurrentPerOrg } = await readSandboxQuotaPolicy(
+        ctx.db,
+        args.organizationId,
+      );
+      // Short-circuit at the cap; never materialise the full set.
+      let inFlight = 0;
+      for (const status of ['running', 'queued', 'installing'] as const) {
+        for await (const row of ctx.db
+          .query('sandboxExecutions')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', status),
+          )) {
+          inFlight += 1;
+          runningSecondsProjected += row.estimatedSeconds;
+          if (inFlight >= maxConcurrentPerOrg) {
+            throw new ConvexError({
+              code: 'QUOTA_EXCEEDED',
+              message: `At most ${maxConcurrentPerOrg} sandboxes can run concurrently for this organization.`,
+            });
+          }
         }
       }
     }

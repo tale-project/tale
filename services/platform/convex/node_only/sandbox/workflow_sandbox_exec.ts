@@ -43,6 +43,7 @@ import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForWorkflowRun,
   workflowRunOwnerId,
@@ -56,6 +57,7 @@ import {
   type SessionStageFile,
   SessionDuplicateError,
   SessionNotFoundError,
+  SpawnerBusyError,
   sessionCreate,
   sessionDestroy,
   sessionEnvPatch,
@@ -365,6 +367,10 @@ export const sandboxRunResultValidator = v.object({
    * vocabulary so a generic loop's `check_refused` can route it to a quiet
    * rollback instead of a noisy failure comment. */
   refusedReason: v.optional(v.string()),
+  /** Park-on-capacity: set with `status:'awaiting_capacity'` to suggest how long
+   * the durable handler should sleep before re-entering (the spawner's
+   * `retry-after` on a global 429; absent → the per-org poll backoff). */
+  retryAfterMs: v.optional(v.number()),
 });
 
 // Explicit handler return type — breaks the circular `internal` type inference
@@ -481,6 +487,16 @@ export const runSandboxScript = internalAction({
           ...(args.env !== undefined &&
             Object.keys(args.env).length > 0 && { env: args.env }),
           purpose: `sandbox step ${args.stepSlug}`,
+          // Park-on-capacity: a per-org concurrency-cap hit waits (FIFO) instead
+          // of failing the step. The reserve claims this ticket atomically; an
+          // un-eligible waiter throws WAIT_FIFO (caught below → awaiting_capacity).
+          ticket: {
+            ownerType: 'workflow_run',
+            ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+            source: 'workflow' as const,
+            wfExecutionId: args.executionId,
+            stepSlug: args.stepSlug,
+          },
         },
       );
 
@@ -512,6 +528,26 @@ export const runSandboxScript = internalAction({
         ...(res.errorMessage !== undefined && { error: res.errorMessage }),
       };
     } catch (e) {
+      // Park-on-capacity: a per-org FIFO wait (WAIT_FIFO) or a global host-cap
+      // 429 (SpawnerBusyError) is NOT a failure — surface `awaiting_capacity` so
+      // the durable handler sleeps + re-enters this step instead of failing it.
+      if (isWaitFifoError(e)) {
+        return {
+          mode: 'script' as const,
+          ok: false,
+          status: 'awaiting_capacity',
+          outputFileIds: [],
+        };
+      }
+      if (e instanceof SpawnerBusyError) {
+        return {
+          mode: 'script' as const,
+          ok: false,
+          status: 'awaiting_capacity',
+          outputFileIds: [],
+          ...(e.retryAfterMs !== undefined && { retryAfterMs: e.retryAfterMs }),
+        };
+      }
       return fail(e instanceof Error ? e.message : String(e));
     }
   },
@@ -738,20 +774,24 @@ export const runSandboxAgent = internalAction({
           );
           if (!admission.started || !admission.runId) {
             const reason = admission.reason ?? 'unknown';
-            // Normalize to the task-workflow refusal vocabulary so a generic
-            // loop's check_refused routes a concurrency/budget refusal to a
-            // quiet rollback (not a noisy failure comment).
+            const isConcurrency =
+              reason === 'agent_concurrency' || reason === 'org_concurrency';
+            // Concurrency refusals PARK — waiting clears them when a peer run
+            // finishes, so emit `awaiting_capacity` and let the durable handler
+            // re-enter this step. Budget/circuit refusals are hard policy stops
+            // (waiting can't clear them) → fail as before. `refusedReason` keeps
+            // the task-workflow vocabulary so a generic loop's `check_refused`
+            // still routes either to a quiet rollback, not a noisy comment.
             const refusedReason =
-              reason === 'agent_concurrency' || reason === 'org_concurrency'
-                ? 'queued'
-                : reason === 'budget_paused' ||
-                    reason === 'task_circuit_breaker'
-                  ? reason
+              reason === 'budget_paused' || reason === 'task_circuit_breaker'
+                ? reason
+                : isConcurrency
+                  ? 'queued'
                   : undefined;
             return {
               mode: 'agent',
               ok: false,
-              status: 'failed',
+              status: isConcurrency ? 'awaiting_capacity' : 'failed',
               outputFileIds: [],
               error: `agent run refused: ${reason}`,
               ...(refusedReason !== undefined && { refusedReason }),
@@ -780,6 +820,15 @@ export const runSandboxAgent = internalAction({
             ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
             createdBy: 'system',
             agentKind,
+            // Park-on-capacity: the per-org session cap is a FIFO queue. This
+            // claims the ticket the `executeSandboxNode` poll parked; if a peer
+            // won the slot first, the mutation throws WAIT_FIFO (caught below →
+            // awaiting_capacity, re-entered by the durable handler).
+            ticket: {
+              source: 'workflow',
+              wfExecutionId: args.executionId,
+              stepSlug: args.stepSlug,
+            },
           },
         );
         try {
@@ -1408,6 +1457,46 @@ export const runSandboxAgent = internalAction({
       // row is reclaimed by recoverStuckTaskRuns so the fresh retry re-admits.
       if (e instanceof SandboxAgentExecutionError) {
         throw e;
+      }
+      // Park-on-capacity (NOT a failure): WAIT_FIFO (lost the per-org slot race
+      // in reserve) or SpawnerBusyError (global host cap at sessionCreate). Both
+      // occur in the FRESH segment AFTER the task-metrics admit, so finalize the
+      // admitted run (release its concurrency counter) before returning, or the
+      // re-entry would double-admit. The `finally` teardown (keyed by sessionId)
+      // is a no-op for WAIT_FIFO (no row inserted) and already covered for the
+      // 429 (the inner create-catch marked the reserved row failed). The poll
+      // pre-gates the common case, so a WAIT_FIFO race here is rare; sustained
+      // GLOBAL saturation can still churn one timed_out run per retry seam.
+      if (isWaitFifoError(e) || e instanceof SpawnerBusyError) {
+        await finalizeRunMetric(
+          'timed_out',
+          'error',
+          'awaiting sandbox capacity',
+        );
+        if (e instanceof SpawnerBusyError) {
+          // Global host cap: keep our earned FIFO position — flip the claimed
+          // ticket back to waiting so the next poll re-admits it in order.
+          await ctx.runMutation(
+            internal.sandbox.admission.parkAdmissionTicket,
+            {
+              organizationId: args.organizationId,
+              kind: 'session',
+              ownerType: 'workflow_run',
+              ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+              source: 'workflow',
+              wfExecutionId: args.executionId,
+              stepSlug: args.stepSlug,
+            },
+          );
+        }
+        return {
+          mode: 'agent',
+          ok: false,
+          status: 'awaiting_capacity',
+          outputFileIds: [],
+          ...(e instanceof SpawnerBusyError &&
+            e.retryAfterMs !== undefined && { retryAfterMs: e.retryAfterMs }),
+        };
       }
       // Non-retryable terminal failure → finalize the run before returning.
       await finalizeRunMetric(

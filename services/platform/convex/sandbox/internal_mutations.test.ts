@@ -21,7 +21,12 @@ import {
   finalize,
 } from './internal_mutations';
 import { insertOutputFiles } from './output_mutations';
-import { SANDBOX_MAX_CONCURRENT_PER_ORG } from './schema';
+import { DEFAULT_SANDBOX_QUOTA } from './quota_policy';
+
+// Per-org one-shot cap now comes from the `sandbox_quota` governance policy;
+// with no configCache row the mutation falls back to this schema default.
+const SANDBOX_MAX_CONCURRENT_PER_ORG =
+  DEFAULT_SANDBOX_QUOTA.maxConcurrentPerOrg;
 
 interface MutHandler<TArgs, TReturn> {
   handler: (ctx: unknown, args: TArgs) => Promise<TReturn> | TReturn;
@@ -90,6 +95,9 @@ function createMockCtx(opts: MockCtxOptions = {}) {
     // Watchdog uses `.take(N)` to bound the per-status scan. Tests deal in
     // tens of rows so we just return everything (cap=200 production value).
     builder.take = vi.fn(async (_n: number) => resolveRows());
+    // `.first()` is only reached by readSandboxQuotaPolicy's configCache lookup;
+    // returning null models a cache miss so the handler uses the schema default.
+    builder.first = vi.fn(async () => null);
     // The mutation iterates the builder directly with `for await` for the
     // reserveSlotAndInsert quota scan path.
     builder[Symbol.asyncIterator] = function () {

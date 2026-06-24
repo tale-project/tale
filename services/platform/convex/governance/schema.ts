@@ -62,6 +62,11 @@ export const GOVERNANCE_POLICY_TYPES = [
   // former `modelSyncSettings` DB table). Missing file → enabled. Config shape:
   // `modelSyncConfigSchema`.
   'model_sync',
+  // Per-org sandbox concurrency quota: one-shot exec cap + active-session
+  // cap. The deployment-wide host caps are spawner env; this is the
+  // per-tenant slice. Config shape: `sandboxQuotaConfigSchema`
+  // (lib/shared/schemas/governance.ts).
+  'sandbox_quota',
 ] as const;
 
 const policyTypeValidator = v.union(

@@ -1227,6 +1227,7 @@ export function ChatInterface({
                       isAutoRoute={isAutoRoute}
                       liveRoute={liveRoute}
                       generationStartMs={effectiveGenerationStartMs}
+                      isQueued={threadMeta?.isQueued ?? false}
                       lastUserMessageRef={lastUserMessageRef}
                       containerRef={containerRef}
                       activeApproval={activeApproval}

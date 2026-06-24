@@ -180,6 +180,7 @@
       "output_error": "Erreur",
       "waiting_human": "Action requise",
       "waiting_external": "En attente",
+      "queued_capacity": "En file d'attente",
       "empty": "Aucune sortie"
     },
     "field": {
@@ -221,6 +222,7 @@
     },
     "body": {
       "waitingExternal": "En attente d'un événement externe pour continuer.",
+      "queuedCapacity": "En file d'attente — en attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
       "empty": "Cette étape n'a produit aucune sortie.",
       "noDetails": "Aucun détail à afficher."
     },
@@ -1116,7 +1118,8 @@
       "skillsCount": "{count, plural, one {# skill} other {# skills}}",
       "tokensCount": "{count, plural, one {# token} other {# tokens}}",
       "summaryReasoningOnly": "A montré son raisonnement",
-      "responding": "Réponse"
+      "responding": "Réponse",
+      "queuedForCapacity": "En file d'attente"
     },
     "routing": {
       "routedTo": "Dirigé vers {agent}",
@@ -2977,6 +2980,18 @@
       "invalid": "Le délai d'inactivité doit être un entier entre 1 et 1440 minutes.",
       "saved": "Le délai d'inactivité de session a été mis à jour",
       "saveFailed": "Échec de l'enregistrement du délai d'inactivité de session"
+    },
+    "sandboxQuota": {
+      "title": "Limites de simultanéité des sandboxes",
+      "description": "Limitez le nombre de sandboxes que cette organisation peut exécuter simultanément. Ces limites par organisation s'inscrivent sous la capacité hôte définie au niveau du déploiement ; les réduire protège les ressources serveur partagées contre la saturation.",
+      "maxConcurrent": "Exécutions ponctuelles simultanées max.",
+      "maxConcurrentHint": "Sandboxes jetables (run_code et étapes de script de workflow) pouvant s'exécuter en même temps pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
+      "maxSessions": "Sessions actives max.",
+      "maxSessionsHint": "Sessions de sandbox persistantes (agents de discussion et étapes d'agent de workflow) pouvant être actives simultanément pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
+      "invalidConcurrent": "Doit être un nombre entier compris entre 1 et 100.",
+      "invalidSessions": "Doit être un nombre entier compris entre 1 et 500.",
+      "saved": "Les limites de simultanéité des sandboxes ont été mises à jour",
+      "saveFailed": "Échec de l'enregistrement des limites de simultanéité des sandboxes"
     },
     "featureFlags": {
       "title": "Contrôle des fonctionnalités",
