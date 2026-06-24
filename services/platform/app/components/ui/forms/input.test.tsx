@@ -33,13 +33,54 @@ describe('Input', () => {
   });
 
   describe('variants', () => {
-    it.each(['default', 'unstyled'] as const)(
+    it.each(['default', 'unstyled', 'readOnly'] as const)(
       'renders %s variant',
       (variant) => {
         render(<Input variant={variant} placeholder="Test" />);
         expect(screen.getByPlaceholderText('Test')).toBeInTheDocument();
       },
     );
+  });
+
+  describe('read-only display variant', () => {
+    // Display-only values must read as text — borderless and transparent — yet
+    // keep the field footprint (same `h-9` + padding box as an editable input)
+    // so toggling editable ↔ read-only causes no layout shift (#1942).
+    it('auto-selects the borderless variant for a native readOnly input', () => {
+      render(<Input label="Plan" readOnly defaultValue="Enterprise" />);
+      const input = screen.getByLabelText('Plan', { exact: false });
+      expect(input).toHaveClass('bg-transparent');
+      expect(input).toHaveClass('h-9');
+      expect(input).toHaveClass('px-3');
+      // No visible ring/border chrome on the resting field.
+      expect(input.className).not.toContain('--color-border-input');
+    });
+
+    it('keeps the editable field footprint (h-9 + horizontal padding)', () => {
+      render(<Input label="Email" defaultValue="a@b.com" />);
+      const input = screen.getByLabelText('Email', { exact: false });
+      expect(input).toHaveClass('h-9');
+      expect(input).toHaveClass('px-3');
+    });
+
+    it('lets an explicit variant override the readOnly default', () => {
+      render(
+        <Input
+          label="Plan"
+          readOnly
+          variant="default"
+          defaultValue="Enterprise"
+        />,
+      );
+      const input = screen.getByLabelText('Plan', { exact: false });
+      expect(input.className).toContain('--color-border-input');
+    });
+
+    it('still forwards the readOnly attribute to the input', () => {
+      render(<Input label="Plan" readOnly defaultValue="Enterprise" />);
+      const input = screen.getByLabelText('Plan', { exact: false });
+      expect(input).toHaveAttribute('readonly');
+    });
   });
 
   describe('password input', () => {
