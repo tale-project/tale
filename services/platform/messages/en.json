@@ -5281,8 +5281,6 @@
       "nameDescription": "The display name for your organization.",
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
-      "organizationIdDescription": "Reference this ID in API requests and integrations.",
-      "copyOrganizationId": "Copy organization ID",
       "membersSectionTitle": "Members",
       "membersDescription": "People who have access to this organization.",
       "membersEntityLabel": "members",

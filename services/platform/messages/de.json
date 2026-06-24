@@ -5019,8 +5019,6 @@
       "nameDescription": "Der Anzeigename deiner Organisation.",
       "localeDescription": "Die Hauptsprache deiner Organisation.",
       "organizationId": "Organisations-ID",
-      "organizationIdDescription": "Verwende diese ID in API-Anfragen und Integrationen.",
-      "copyOrganizationId": "Organisations-ID kopieren",
       "membersSectionTitle": "Mitglieder",
       "membersDescription": "Personen, die Zugriff auf diese Organisation haben.",
       "membersEntityLabel": "Mitglieder",
