@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -10,11 +10,13 @@ import {
   upsertMemberMirror,
   upsertTeamMemberMirror,
 } from '../members/mirror_sync';
+import type { BetterAuthMember } from '../members/types';
 import {
   findMember,
   findTeamById,
   findUserByEmail,
   listTeamMembers,
+  listUserMemberships,
 } from './data';
 import { deleteLink, getLink, upsertLink } from './links';
 import type { ScimGroupRecord, ScimUserRecord } from './types';
@@ -161,6 +163,38 @@ export function planActivation(
 }
 
 /**
+ * Classify how a SCIM create may touch a user already matched globally by
+ * email, given that user's full membership set and the token's org. A SCIM
+ * token must never graft a membership onto, or rename, an account another
+ * tenant owns — `owned-elsewhere` is rejected by the create path (#2036).
+ */
+export function classifyUserOwnership(
+  memberships: readonly { organizationId: string }[],
+  organizationId: string,
+): 'owned-here' | 'unowned' | 'owned-elsewhere' {
+  if (memberships.some((m) => m.organizationId === organizationId)) {
+    return 'owned-here';
+  }
+  return memberships.length > 0 ? 'owned-elsewhere' : 'unowned';
+}
+
+/**
+ * Compose a SCIM Group membership PATCH into the final desired user-id set: a
+ * clear-all / replace base, then adds, then removes. Keeps an `add` paired with
+ * a value-less `remove members` from being silently dropped (#2085[13]).
+ */
+export function composeDesiredMembers(
+  replaceMembers: readonly string[],
+  addMembers: readonly string[],
+  removeMembers: readonly string[],
+): string[] {
+  const desired = new Set(replaceMembers);
+  for (const id of addMembers) desired.add(id);
+  for (const id of removeMembers) desired.delete(id);
+  return [...desired];
+}
+
+/**
  * Create-or-upsert a user + org membership from a SCIM User resource.
  * Idempotent on `(org, email)` — used by both POST (create) and PUT (replace).
  */
@@ -179,9 +213,29 @@ export const provisionUser = internalMutation({
     const existingUser = await findUserByEmail(ctx, args.email);
 
     let userId: string;
+    let memberHere: BetterAuthMember | undefined;
     if (existingUser) {
+      // A SCIM token is scoped to its own tenant. If the email already maps to
+      // a global user owned by ANOTHER org, refuse to reuse it — never graft a
+      // membership onto, or rename, an account this org does not own (#2036).
+      // The `scim_user_conflict` code is mapped to a 409 by the HTTP layer.
+      const memberships = await listUserMemberships(ctx, existingUser._id);
+      if (
+        classifyUserOwnership(memberships, args.organizationId) ===
+        'owned-elsewhere'
+      ) {
+        throw new ConvexError({
+          code: 'scim_user_conflict',
+          message: `User ${args.email} belongs to another organization`,
+        });
+      }
+      memberHere = memberships.find(
+        (m) => m.organizationId === args.organizationId,
+      );
       userId = existingUser._id;
-      if (args.name && existingUser.name !== args.name) {
+      // Only rename when this org already owns the membership — a SCIM token
+      // must not rewrite the global user row of an account it does not own.
+      if (memberHere && args.name && existingUser.name !== args.name) {
         await ctx.runMutation(components.betterAuth.adapter.updateMany, {
           input: {
             model: 'user',
@@ -211,7 +265,7 @@ export const provisionUser = internalMutation({
     }
 
     const link = await getLink(ctx, args.organizationId, userId);
-    const member = await findMember(ctx, args.organizationId, userId);
+    const member = memberHere;
     const plan = planActivation(
       args.active,
       member?.role,
@@ -532,7 +586,18 @@ export const patchGroup = internalMutation({
     }
 
     if (args.replaceMembers !== undefined) {
-      await setTeamMembers(ctx, args.teamId, args.replaceMembers);
+      // A clear-all / replace sets the base set; adds and removes in the SAME
+      // PATCH compose on top so an `add` paired with a value-less `remove
+      // members` isn't silently dropped (#2085[13]).
+      await setTeamMembers(
+        ctx,
+        args.teamId,
+        composeDesiredMembers(
+          args.replaceMembers,
+          args.addMembers,
+          args.removeMembers,
+        ),
+      );
     } else {
       const current = await listTeamMembers(ctx, args.teamId);
       const currentIds = new Set(current.map((m) => m.userId));

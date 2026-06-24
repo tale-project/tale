@@ -9,6 +9,9 @@
  * `userName eq` / `displayName eq` / `members[value eq "…"]` are not supported.
  */
 
+import { ConvexError } from 'convex/values';
+
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { type ActionCtx, httpAction } from '../_generated/server';
 import type { PlatformRole } from '../enterprise_sso/types';
@@ -116,6 +119,18 @@ function withScimAuth(
         req,
       );
     } catch (error) {
+      // A coded ConvexError from the provisioning layer maps to its SCIM
+      // status — a cross-tenant create collision is a 409, not a 500 (#2036).
+      if (error instanceof ConvexError && isRecord(error.data)) {
+        const data = error.data;
+        if (data.code === 'scim_user_conflict') {
+          const detail =
+            typeof data.message === 'string'
+              ? data.message
+              : 'User already exists';
+          return scimError(409, detail, 'uniqueness');
+        }
+      }
       console.error('[scim] handler error', error);
       return scimError(500, 'Internal server error');
     }
