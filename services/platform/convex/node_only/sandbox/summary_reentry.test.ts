@@ -53,4 +53,11 @@ describe('shouldForceSummaryReentry', () => {
       shouldForceSummaryReentry({ ...base, byo: false, gatewayToken: null }),
     ).toBe(false);
   });
+
+  it('does NOT fire when the run carried a terminal API error (laundered 401)', () => {
+    // Every other gate passes (completed + no summary + resumable + budget +
+    // BYO), but isError means the "completed" is a lie — re-entering would just
+    // re-hit the dead token, so the run routes to the retryable throw instead.
+    expect(shouldForceSummaryReentry({ ...base, isError: true })).toBe(false);
+  });
 });

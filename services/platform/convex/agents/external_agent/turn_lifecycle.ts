@@ -496,11 +496,20 @@ export async function handleTurnOutcome(
     return;
   }
 
+  // A terminal API error (401/403/429/5xx) is laundered by Claude Code into a
+  // `completed` result carrying `is_error:true` (see isRetryableExecutionError /
+  // the parse.ts subtype mapping). Treat it as FAILED so the chat never renders
+  // a blown-up turn as a success bubble. No throw here — the chat turn has no
+  // workflow-step retry, so surfacing the error in a failed bubble is the right
+  // shape (the task/sandbox path throws + retries instead).
+  const errored = result.isError === true;
   const finalText =
     result.finalText ??
-    (result.status === 'completed'
-      ? 'Agent run completed.'
-      : `Agent run ${result.status}.`);
+    (errored
+      ? agentErrorMessage(result.apiErrorStatus)
+      : result.status === 'completed'
+        ? 'Agent run completed.'
+        : `Agent run ${result.status}.`);
   const content =
     result.assistantContent !== undefined &&
     (typeof result.assistantContent !== 'string' ||
@@ -511,7 +520,7 @@ export async function handleTurnOutcome(
     ctx,
     turn.assistantMessageId,
     content,
-    result.status === 'completed' ? 'success' : 'failed',
+    result.status === 'completed' && !errored ? 'success' : 'failed',
   );
   // Plan proposal → approval card (any terminal status except cancelled — a
   // plan captured before a max-turns/error end is still worth reviewing).
@@ -612,10 +621,15 @@ export function resolvePlanText(
 export function isEmptyCompletedTurn(
   result: Pick<
     RunAgentInSessionResult,
-    'status' | 'finalText' | 'assistantContent' | 'planText'
+    'status' | 'finalText' | 'assistantContent' | 'planText' | 'isError'
   >,
   permissionMode: 'plan' | 'execute' | undefined,
 ): boolean {
+  // A terminal API error is NOT an "empty" turn — it's a failure with a cause.
+  // Excluding it here stops the one-shot empty-retry (run_external_agent) from
+  // re-running a blank 401 against the same dead token, and routes it to the
+  // failed-bubble rendering in handleTurnOutcome instead.
+  if (result.isError === true) return false;
   return (
     result.status === 'completed' &&
     (result.finalText ?? '').trim() === '' &&
@@ -629,6 +643,17 @@ export function isEmptyCompletedTurn(
  * affordance shows. */
 export const EMPTY_TURN_MESSAGE =
   'The agent returned no output — the model response came back empty. Please try again.';
+
+/** Stored message text for a turn that ended on a terminal API error (the
+ * laundered-401 case) but left no usable final text — a blank error bubble
+ * would read as "nothing happened". Server-authored (not i18n) like
+ * EMPTY_TURN_MESSAGE; rendered as a failed bubble with the status code when the
+ * gateway surfaced one. */
+export function agentErrorMessage(apiErrorStatus: number | undefined): string {
+  return apiErrorStatus !== undefined
+    ? `The agent stopped on an API error (status ${apiErrorStatus}). Please try again.`
+    : 'The agent stopped on an API error. Please try again.';
+}
 
 function turnTokensOf(
   result: RunAgentInSessionResult,

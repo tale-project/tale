@@ -74,6 +74,10 @@ import {
   resolveGatewayRoutingFromRef,
   revokeVirtualKey,
 } from './llm_gateway_admin';
+import {
+  RESUME_CONTINUATION_PROMPT,
+  shouldAttemptResumeRotation,
+} from './resume_rotation';
 import { runAgentInSessionImpl } from './run_agent';
 import {
   shouldForceSummaryReentry,
@@ -210,6 +214,25 @@ async function reapStaleWorkflowRunSessions(
       console.warn('[reapStaleWorkflowRunSessions] row cleanup failed:', e);
     }
   }
+}
+
+/**
+ * The agent's token-source bindings (Environment-tab rows). On a FRESH segment
+ * these fall out of the agent-env injection for free; on RESUME that setup block
+ * is skipped, so this re-fetches them so the rotation pool can be rebuilt for the
+ * resumed conversation (Part C). Thin wrapper over `resolveAgentEnv` so "this
+ * agent's token bindings" is one named concept.
+ */
+async function loadAgentTokenBindings(
+  ctx: ActionCtx,
+  organizationId: string,
+  agentSlug: string,
+): Promise<{ key: string; tokenSourceSlug: string }[]> {
+  const agentEnv = await ctx.runAction(
+    internal.agents.agent_env_actions.resolveAgentEnv,
+    { organizationId, agentSlug },
+  );
+  return agentEnv.tokenBindings;
 }
 
 /**
@@ -1075,11 +1098,30 @@ export const runSandboxAgent = internalAction({
               { sessionId },
             )) as UiTimelinePart[])
           : [];
-      // --- Token-source credential rotation (BYO + fresh start only) --------
-      // Fetch the broker pool once, inject a random pick, and (in the loop
-      // below) fail over to a different token on a rate-limit/auth error. Only
-      // fresh starts rotate: a resume continues an in-flight conversation, and
-      // swapping its credential mid-stream is the deferred hard case.
+      // On RESUME the `if (!resuming)` setup block above was skipped, so the
+      // agent's token bindings were never loaded. Re-fetch them (best-effort) so
+      // a rotatable error on the resumed segment can fail over (Part C); a
+      // failure just leaves the pool empty → the fresh-step retry fallback.
+      if (resuming && agentTokenBindings.length === 0) {
+        try {
+          agentTokenBindings = await loadAgentTokenBindings(
+            ctx,
+            args.organizationId,
+            args.agentSlug,
+          );
+        } catch (bindErr) {
+          console.warn(
+            '[runSandboxAgent] resume token-binding re-fetch failed (resume-rotation disabled):',
+            bindErr,
+          );
+        }
+      }
+      // --- Token-source credential rotation (BYO) ---------------------------
+      // Fetch the broker pool once and fail over to a different token on a
+      // rate-limit/auth error. A FRESH start injects an initial pick below; a
+      // RESUME keeps the credential the prior segment was using and only swaps it
+      // if the re-attached segment returns a rotatable error (Part C — the pool
+      // is now built on resume too, not just on fresh starts).
       let tokenPool: {
         tokens: string[];
         targetEnvVar: string;
@@ -1088,7 +1130,7 @@ export const runSandboxAgent = internalAction({
       // v1 honors the first Environment-tab token-source binding (warns if more).
       const tokenBinding = agentTokenBindings[0];
       const tokenSourceSlug = tokenBinding?.tokenSourceSlug;
-      if (tokenBinding !== undefined && checkpoint === null) {
+      if (tokenBinding !== undefined) {
         if (agentTokenBindings.length > 1) {
           console.warn(
             `[runSandboxAgent] ${agentTokenBindings.length} token-source bindings — v1 honors only the first (${tokenBinding.key}).`,
@@ -1099,28 +1141,44 @@ export const runSandboxAgent = internalAction({
             `[runSandboxAgent] agent "${args.agentSlug}" binds a token source but is not BYO — the managed gateway key wins; ignoring`,
           );
         } else {
-          // Fail-fast: resolveTokenPool throws TokenSourceError on an
-          // unreachable/empty/malformed broker → the catch finalizes + fails
-          // the step (no retry). The binding's env var name wins over the
-          // source's default targetEnvVar.
-          const pool = await ctx.runAction(
-            internal.node_only.sandbox.token_source_pool.resolveTokenPool,
-            {
-              organizationId: args.organizationId,
-              orgSlug,
-              sessionId,
-              slug: tokenBinding.tokenSourceSlug,
-            },
-          );
-          tokenPool = {
-            tokens: pool.tokens,
-            targetEnvVar: tokenBinding.key,
-            selection: pool.selection,
-          };
+          // FRESH: fail-fast — resolveTokenPool throws TokenSourceError on an
+          // unreachable/empty/malformed broker → the outer catch finalizes +
+          // fails the step (no creds ⇒ the run cannot even start). RESUME: the
+          // conversation is already running on a valid credential, so a transient
+          // broker outage must NOT kill a healthy resumed segment — degrade to
+          // no-pool (continue on the current token, no rotation this segment).
+          // The binding's env var name wins over the source's default.
+          try {
+            const pool = await ctx.runAction(
+              internal.node_only.sandbox.token_source_pool.resolveTokenPool,
+              {
+                organizationId: args.organizationId,
+                orgSlug,
+                sessionId,
+                slug: tokenBinding.tokenSourceSlug,
+              },
+            );
+            tokenPool = {
+              tokens: pool.tokens,
+              targetEnvVar: tokenBinding.key,
+              selection: pool.selection,
+            };
+          } catch (poolErr) {
+            if (!resuming) throw poolErr;
+            console.warn(
+              '[runSandboxAgent] resume token-pool build failed (rotation disabled this segment):',
+              poolErr,
+            );
+          }
         }
       }
       const triedTokens = new Set<string>();
-      if (tokenPool !== null) {
+      // Inject the initial pick on a FRESH start only. A resumed conversation
+      // already carries the credential the prior segment set (sessionEnvPatch is
+      // sticky on the container); re-picking here would swap it mid-stream before
+      // any error. `triedTokens` stays empty on resume (v1 — checkpointing the
+      // last-used token to skip it on the first rotation is a later increment).
+      if (tokenPool !== null && !resuming) {
         // resolveTokenPool guarantees a non-empty pool, so `first` is non-null.
         const first = pickToken(
           tokenPool.tokens,
@@ -1162,6 +1220,56 @@ export const runSandboxAgent = internalAction({
           budgetDeadlineMs,
           timeoutMs: segmentTimeoutMs,
         });
+
+      // RESUME-rotation runner: spawn a FRESH `claude --resume <id>` exec to
+      // continue the handed-off conversation on a rotated credential (NOT a
+      // re-attach to the dead exec — that is what the `resumeFrom` initial
+      // attempt does). Mirrors `runFreshSegment` but seeds `agentSessionId` and
+      // the no-restart continuation prompt. BYO-only in practice (the pool is
+      // BYO-gated), so the managed gateway block is moot.
+      const runResumingSegment = (
+        segExecId: string,
+        resumeSessionId: string,
+      ): ReturnType<typeof runAgentInSessionImpl> =>
+        runAgentInSessionImpl(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+          execId: segExecId,
+          agentSlug: agentKind,
+          prompt: RESUME_CONTINUATION_PROMPT,
+          agentSessionId: resumeSessionId,
+          ...(useModel !== undefined && { model: useModel }),
+          authMode: byo ? 'byo' : 'managed',
+          ...(nativeWebTools !== undefined && { nativeWebTools }),
+          interactionMode: 'autonomous',
+          captureLiveTimeline: true,
+          systemPromptAppend,
+          ...(args.budget.maxTurns !== undefined && {
+            maxTurns: args.budget.maxTurns,
+          }),
+          ...(!byo &&
+            gatewayToken !== null && {
+              gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
+              gatewayToken,
+              integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
+            }),
+          budgetDeadlineMs,
+          timeoutMs: segmentTimeoutMs,
+        });
+
+      // Resume-rotation precondition (Part C): a resume, with the Claude session
+      // id known (so a `--resume` exec is possible) and a pool resolved. When
+      // false, a rotatable error on resume routes to Part A's fresh-step retry.
+      const resumeSessionId = checkpoint?.agentSessionId;
+      const useResumeRotation = shouldAttemptResumeRotation({
+        resuming,
+        agentSessionId: resumeSessionId,
+        tokenPoolPresent: tokenPool !== null,
+      });
+      // Set when the resume runner throws (an unverified `--resume`-after-error
+      // contract failure) → suppress the terminal TokenSourceError and fall
+      // through to Part A's retryable fresh-step retry instead.
+      let resumeRotationAborted = false;
 
       let result =
         checkpoint !== null
@@ -1227,7 +1335,30 @@ export const runSandboxAgent = internalAction({
           // Carry the rotated exec id forward so a handoff from THIS attempt
           // checkpoints/resumes the live exec, not the dead first attempt.
           liveExecId = `${execId}-t${tokenAttempt}`;
-          result = await runFreshSegment(liveExecId);
+          // FRESH: re-run the task on the new token (unchanged behavior). RESUME:
+          // spawn a fresh `claude --resume <id>` on the new token to CONTINUE the
+          // handed-off conversation. The resume runner is the unverified path
+          // (mid-conversation `--resume`-after-error vs Anthropic's
+          // previous_message_id contract), so ONLY it is wrapped: on throw, abort
+          // rotation and fall through to Part A's retryable fresh-step retry (work
+          // discarded but correct) — never the non-retryable TokenSourceError
+          // below. The fresh path stays behaviorally identical (no try/catch).
+          // The chat path (run_external_agent) has its own rotation loop with
+          // op-row fencing — keep them separate; do NOT merge across the boundary.
+          if (useResumeRotation && resumeSessionId !== undefined) {
+            try {
+              result = await runResumingSegment(liveExecId, resumeSessionId);
+            } catch (resumeErr) {
+              console.warn(
+                '[runSandboxAgent] resume token rotation threw — falling back to a fresh step retry:',
+                resumeErr,
+              );
+              resumeRotationAborted = true;
+              break;
+            }
+          } else {
+            result = await runFreshSegment(liveExecId);
+          }
         }
       }
 
@@ -1235,8 +1366,15 @@ export const runSandboxAgent = internalAction({
       // fail the step terminally. Throw a NON-retryable TokenSourceError (not the
       // retryable SandboxAgentExecutionError) so the outer step does NOT re-run
       // and blow past the 3-attempt contract; the catch finalizes + returns fail.
+      // EXCEPTION: a resume runner that threw (`resumeRotationAborted`) did NOT
+      // exhaust the pool — it hit the unverified `--resume`-after-error path, so
+      // skip this terminal throw and let Part A's retryable execution-error throw
+      // fire below (a fresh step retry is the correct, safe-by-construction
+      // fallback). This is what makes resume-rotation safe even though the
+      // mid-conversation contract is unverified.
       if (
         tokenPool !== null &&
+        !resumeRotationAborted &&
         result.status !== 'running' &&
         isRotatableApiError({
           isError: result.isError,
@@ -1334,6 +1472,9 @@ export const runSandboxAgent = internalAction({
           hardDeadlineMs,
           byo,
           gatewayToken,
+          // A laundered API error (`completed` + isError) must NOT re-enter — it
+          // would just re-hit the dead token; it routes to the throw below.
+          isError: result.isError,
         })
       ) {
         try {
@@ -1385,14 +1526,16 @@ export const runSandboxAgent = internalAction({
       // FRESH (the `finally` tears down → new session + re-minted VK) and, if it
       // keeps failing, the workflow FAILS at this step — instead of returning a
       // synthesized "success" that the next step (or a rework loop) consumes.
-      // Keys on the agent's OWN reported status, not the process exit code, which
-      // a 401 leaves at `completed`/0. Computed AFTER the summary re-entry above
-      // so `summaryWritten` is final.
+      // Keys on the agent's OWN reported status AND `is_error` — NOT the process
+      // exit code, which a 401 leaves at `completed`/0, and not the result
+      // subtype, which Claude Code leaves at `success` on a laundered API error.
+      // Computed AFTER the summary re-entry above so `summaryWritten` is final.
       if (
         isRetryableExecutionError({
           agentResultStatus: result.agentResultStatus,
           terminalStatus,
           summaryWritten,
+          isError: result.isError,
         })
       ) {
         throw new SandboxAgentExecutionError(
@@ -1402,6 +1545,11 @@ export const runSandboxAgent = internalAction({
         );
       }
 
+      // `ok` needn't re-check `isError`: the throw gate above already fired for
+      // every `isError && !summaryWritten`, so control reaches here with a live
+      // `isError` ONLY when a summary WAS written — a genuine handoff that stays
+      // ok. (The laundered-401 fake-success bug lived precisely in `ok` being
+      // computed without that guard.)
       const ok =
         terminalStatus === 'completed' &&
         (result.exitCode === 0 || result.exitCode === null);
