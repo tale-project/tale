@@ -10,6 +10,7 @@ vi.mock('../../node_only/sandbox/helpers/spawner_client', () => ({
 }));
 vi.mock('../../lib/helpers/public_storage_url', () => ({
   toSandboxStorageUrl: (url: string) => `sandbox:${url}`,
+  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT: 'http://convex:3210',
 }));
 
 import {
