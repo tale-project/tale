@@ -41,7 +41,16 @@ vi.mock('../audit_logs/helpers', () => ({
 
 vi.mock('convex/values', () => {
   const stub = () => 'validator';
+  class ConvexError extends Error {
+    data: unknown;
+    constructor(data: unknown) {
+      super(typeof data === 'string' ? data : JSON.stringify(data));
+      this.name = 'ConvexError';
+      this.data = data;
+    }
+  }
   return {
+    ConvexError,
     v: {
       string: stub,
       number: stub,
@@ -134,7 +143,7 @@ describe('updateUserPassword', () => {
 
     await expect(
       handler(ctx as never, { newPassword: 'weak' }),
-    ).rejects.toThrow('Password does not meet policy');
+    ).rejects.toMatchObject({ data: { code: 'password_policy_violation' } });
   });
 
   it('calls changePassword with revokeOtherSessions for credential users', async () => {
@@ -165,7 +174,7 @@ describe('updateUserPassword', () => {
 
     await expect(
       handler(ctx as never, { newPassword: VALID_PASSWORD }),
-    ).rejects.toThrow('Current password is required');
+    ).rejects.toMatchObject({ data: { code: 'current_password_required' } });
   });
 
   it('calls setPassword without session revocation for OAuth-only users', async () => {
