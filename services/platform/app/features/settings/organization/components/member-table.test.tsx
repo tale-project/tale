@@ -52,29 +52,19 @@ describe('MemberTable', () => {
               displayName: 'Bob',
             }),
           ]}
-          sortOrder="asc"
-          onSortChange={vi.fn()}
         />,
       );
       await checkAccessibility(container, axeOptions);
     });
 
     it('passes axe audit when empty', async () => {
-      const { container } = render(
-        <MemberTable members={[]} sortOrder="asc" onSortChange={vi.fn()} />,
-      );
+      const { container } = render(<MemberTable members={[]} />);
       await checkAccessibility(container, axeOptions);
     });
 
     it('passes axe audit when loading', async () => {
       const { container } = render(
-        <MemberTable
-          members={[]}
-          sortOrder="asc"
-          onSortChange={vi.fn()}
-          isLoading
-          approxRowCount={5}
-        />,
+        <MemberTable members={[]} isLoading approxRowCount={5} />,
       );
       await checkAccessibility(container, axeOptions);
     });
