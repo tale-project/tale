@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -27,7 +28,18 @@ function ApiRestPage() {
     <SettingsPage>
       <SettingsSection
         title={tNav('apiKeys')}
-        description={tSettings('menu.apiKeys.description')}
+        description={
+          // The organization ID lives here (not in org settings) because it's
+          // what callers reference when authenticating against the API. Copy
+          // affordance reuses the shared `CopyableText` pill.
+          <div className="flex flex-col gap-2">
+            <span>{tSettings('menu.apiKeys.description')}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>{tSettings('organization.organizationId')}:</span>
+              <CopyableText value={organizationId} />
+            </div>
+          </div>
+        }
       >
         <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />
       </SettingsSection>

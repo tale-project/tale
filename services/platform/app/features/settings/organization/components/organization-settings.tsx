@@ -7,7 +7,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
@@ -121,10 +120,9 @@ export function OrganizationSettingsView({
     <SettingsPage>
       {/* Settings-row layout: each field is a horizontal row with its
           label + helper text on the left and the control pinned right, with
-          a divider between rows. The form (name + locale) and the read-only
-          Organization ID share one divided list so they read as one
-          continuous block; Save/Discard live in the settings header via the
-          registered editor. */}
+          a divider between rows. The form (name + locale) reads as one
+          continuous divided block; Save/Discard live in the settings header
+          via the registered editor. */}
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
@@ -182,19 +180,6 @@ export function OrganizationSettingsView({
                       options={localeOptions}
                     />
                   )}
-                />
-              </div>
-            </SettingsRow>
-
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.organizationId')}
-              description={tSettings('organization.organizationIdDescription')}
-            >
-              <div className="w-full sm:w-80">
-                <CopyableField
-                  value={organization?._id ?? ''}
-                  copyAriaLabel={tSettings('organization.copyOrganizationId')}
                 />
               </div>
             </SettingsRow>
