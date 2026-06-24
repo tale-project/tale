@@ -2,6 +2,7 @@
 
 import { LinkButton } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
+import { Center, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { FileQuestion } from 'lucide-react';
 
@@ -19,7 +20,8 @@ interface DashboardNotFoundProps {
  * the dashboard layout's `<Outlet/>`, so the side-nav rail and shell stay up;
  * this only fills the content area with a heading, message, and a recovery link
  * back to the org dashboard. Mirrors the app's other empty/error states
- * (AccessDenied, GlobalErrorDisplay) for visual consistency.
+ * (AccessDenied, GlobalErrorDisplay) for visual consistency. Composes the
+ * design-system layout primitives (`Center`, `Stack`) rather than raw flex divs.
  */
 export function DashboardNotFound({
   organizationId,
@@ -28,19 +30,14 @@ export function DashboardNotFound({
   const { t } = useT('common');
 
   return (
-    <div
-      className={cn(
-        'flex min-h-[50vh] flex-1 flex-col items-center justify-center px-6 text-center',
-        className,
-      )}
-    >
-      <div className="mx-auto flex w-full max-w-md flex-col items-center">
-        <div
+    <Center className={cn('min-h-[50vh] flex-1 px-6 text-center', className)}>
+      <Stack align="center" gap={0} className="mx-auto w-full max-w-md">
+        <Center
           aria-hidden="true"
-          className="bg-muted text-muted-foreground mb-6 flex size-16 items-center justify-center rounded-full"
+          className="bg-muted text-muted-foreground mb-6 size-16 rounded-full"
         >
           <FileQuestion className="size-7" />
-        </div>
+        </Center>
         <Heading level={1} size="2xl" className="mb-2">
           {t('notFound.title')}
         </Heading>
@@ -52,7 +49,7 @@ export function DashboardNotFound({
         >
           {t('notFound.backToDashboard')}
         </LinkButton>
-      </div>
-    </div>
+      </Stack>
+    </Center>
   );
 }
