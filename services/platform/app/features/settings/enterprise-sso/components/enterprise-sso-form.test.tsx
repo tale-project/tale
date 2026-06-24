@@ -377,4 +377,29 @@ describe('EnterpriseSsoForm validation + save', () => {
     errorSpy.mockRestore();
     expect(warned).toBe(false);
   });
+
+  it('adds a role-mapping rule and saves it (#2085[12])', async () => {
+    upsertOidcMock.mockClear();
+    revealClientIdMock.mockResolvedValueOnce('client-xyz');
+    const { user } = renderForm(connectedOidc);
+
+    // Wait for the stored client id to be revealed so the OIDC form is valid.
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^client id$/i)).toHaveValue('client-xyz'),
+    );
+
+    // The editor is visible (the connection auto-provisions roles). Add a rule
+    // mapping the IdP group "Engineering" to the default member role.
+    await user.click(screen.getByRole('button', { name: /add rule/i }));
+    await user.type(screen.getByLabelText(/matches value/i), 'Engineering');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
+    expect(upsertOidcMock.mock.calls[0][0].roleMappingRules).toEqual([
+      { source: 'group', pattern: 'Engineering', targetRole: 'member' },
+    ]);
+  });
 });

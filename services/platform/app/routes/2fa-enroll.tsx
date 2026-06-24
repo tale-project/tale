@@ -20,14 +20,16 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
@@ -82,6 +84,21 @@ function TwoFactorEnrollPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
+
+  // Parity with the forced-change-password wall: don't trap a user who has no
+  // reason to be on the enforced enrollment wall — already enrolled, or the org
+  // doesn't enforce 2FA (#2085[04]). The session stays active either way.
+  const { data: status } = useConvexQuery(
+    api.two_factor.queries.getStatus,
+    {},
+    { requireAuth: false },
+  );
+  useEffect(() => {
+    if (!status || !status.authenticated) return;
+    if (status.twoFactorEnabled || !status.enforced) {
+      void navigate({ to: redirectTo || '/dashboard', replace: true });
+    }
+  }, [status, navigate, redirectTo]);
 
   async function beginEnrollment(e: React.FormEvent) {
     e.preventDefault();
