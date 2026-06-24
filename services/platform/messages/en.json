@@ -5328,7 +5328,7 @@
       "columns": {
         "name": "Name",
         "members": "Members",
-        "created": "Added on"
+        "created": "Added"
       },
       "editTeam": "Edit team",
       "deleteTeam": "Delete team",
@@ -6331,7 +6331,7 @@
       "columns": {
         "name": "Name",
         "key": "Key",
-        "created": "Added on",
+        "created": "Added",
         "lastUsed": "Last used"
       },
       "form": {
@@ -7103,7 +7103,7 @@
       "teams": "Teams",
       "uploadedBy": "Uploaded by",
       "actions": "Actions",
-      "created": "Added on",
+      "created": "Added",
       "description": "Description",
       "email": "Email",
       "product": "Product",
