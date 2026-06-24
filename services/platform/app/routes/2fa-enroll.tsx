@@ -85,9 +85,12 @@ function TwoFactorEnrollPage() {
   const [submitting, setSubmitting] = useState(false);
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
 
-  // Parity with the forced-change-password wall: don't trap a user who has no
-  // reason to be on the enforced enrollment wall — already enrolled, or the org
-  // doesn't enforce 2FA (#2085[04]). The session stays active either way.
+  // Don't trap a user who is ALREADY enrolled on the enrollment wall — bounce
+  // them out (parity with the forced-change-password guard). Gate on the
+  // initial 'password' step so an in-progress enrollment is never interrupted
+  // (verifyTotp flips twoFactorEnabled before the backup codes are shown), and
+  // so /2fa-enroll stays usable for voluntary enrollment by users 2FA isn't
+  // enforced for (#2085[04]).
   const { data: status } = useConvexQuery(
     api.two_factor.queries.getStatus,
     {},
@@ -95,10 +98,10 @@ function TwoFactorEnrollPage() {
   );
   useEffect(() => {
     if (!status || !status.authenticated) return;
-    if (status.twoFactorEnabled || !status.enforced) {
+    if (status.twoFactorEnabled && step.kind === 'password') {
       void navigate({ to: redirectTo || '/dashboard', replace: true });
     }
-  }, [status, navigate, redirectTo]);
+  }, [status, step.kind, navigate, redirectTo]);
 
   async function beginEnrollment(e: React.FormEvent) {
     e.preventDefault();
