@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -66,10 +67,23 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-function renderPage() {
-  return render(
-    <AuditLogsPage organizationId="org-1" onCategoryChange={vi.fn()} />,
+// The active tab now round-trips through the URL (the route owns it), so the
+// component is controlled. Mirror that here with a tiny stateful harness so
+// clicking a trigger flips the selection the same way the route would.
+function ControlledAuditLogsPage() {
+  const [tab, setTab] = useState('audit');
+  return (
+    <AuditLogsPage
+      organizationId="org-1"
+      tab={tab}
+      onTabChange={setTab}
+      onCategoryChange={vi.fn()}
+    />
   );
+}
+
+function renderPage() {
+  return render(<ControlledAuditLogsPage />);
 }
 
 describe('AuditLogsPage', () => {
