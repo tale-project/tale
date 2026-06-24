@@ -1,9 +1,9 @@
 ---
 title: Einstellungen
-description: Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Anzeigename und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden.
+description: Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden.
 ---
 
-Einstellungen sind die Schrauben, die dir gehören, nicht der Organisation. Dein Anzeigename ist der Name, den Agents und Teamkolleginnen in Chats und Genehmigungen sehen. Deine Locale und dein Theme folgen dir zwischen Geräten. Deine eigenen Anweisungen und Erinnerungen prägen, wie Agents speziell dir antworten — getrennt von allem, was Admin oder Redakteur auf Organisationsebene gesetzt hat. Diese Seite zeigt, wo jeder Hebel sitzt und was er ändert.
+Einstellungen sind die Schrauben, die dir gehören, nicht der Organisation. Dein Name ist das, was Agents und Teamkolleginnen in Chats und Genehmigungen sehen. Deine Locale und dein Theme folgen dir zwischen Geräten. Deine eigenen Anweisungen und Erinnerungen prägen, wie Agents speziell dir antworten — getrennt von allem, was Admin oder Redakteur auf Organisationsebene gesetzt hat. Diese Seite zeigt, wo jeder Hebel sitzt und was er ändert.
 
 Die Form ist bewusst zweischichtig: das Profilmenü (überall, einen Klick vom Avatar entfernt) trägt die schnellen Schalter; **Einstellungen > Konto** und **Einstellungen > Personalisierung** tragen die tieferen Kontofelder. Alles hier gehört dir — nichts davon lecken zu anderen Mitgliedern oder anderen Organisationen durch.
 
@@ -17,7 +17,7 @@ Das Menü trägt außerdem einen Organisationswechsler, wenn du zu mehr als eine
 
 Öffne **Einstellungen > Konto**. Drei Abschnitte sitzen auf der Seite: **Profil**, **Sicherheit** und **Zwei-Faktor-Authentifizierung**.
 
-Der Profil-Abschnitt hält deinen **Anzeigenamen** und deine **E-Mail**. Der Anzeigename ist inline bearbeitbar; die Änderung speichert beim Verlassen des Felds und schlägt beim nächsten Render in jedem Chat und jeder Genehmigung durch. Die E-Mail ist schreibgeschützt — sie ist das, womit du dich angemeldet hast, und ein Wechsel läuft über den Support. Es gibt kein Avatar-Feld auf der Seite; Tale leitet einen Avatar aus den Initialen deines Anzeigenamens ab.
+Der Profil-Abschnitt zeigt zuerst deine **E-Mail**, dann deinen **Namen** — die E-Mail legt den Namen nahe, den Tale vorschlägt und den du frei bearbeiten kannst. Der Name ist inline bearbeitbar; die Änderung speichert und schlägt beim nächsten Render in jedem Chat und jeder Genehmigung durch. Die E-Mail ist schreibgeschützt — sie ist das, womit du dich angemeldet hast, und ein Wechsel läuft über den Support. Es gibt kein Avatar-Feld auf der Seite; Tale leitet einen Avatar aus den Initialen deines Namens ab.
 
 Der Sicherheits-Abschnitt hält einen einzelnen Knopf: **Passwort ändern**, wenn du dich mit E-Mail und Passwort registriert hast, **Passwort setzen**, wenn dein Konto über SSO föderiert ist und du ein Passwort als Rückfall hinzufügen willst. Beide Abläufe erzwingen die Passwort-Richtlinie der Organisation und zeigen die Regeln live, während du tippst. Der Zwei-Faktor-Abschnitt paart das Konto mit einer TOTP-App oder einem Hardware-Schlüssel und zeigt die Backup-Codes einmal bei der Einrichtung.
 

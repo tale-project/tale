@@ -30,6 +30,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
+import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
 import { ChatsSection } from './chats-section';
@@ -105,10 +106,17 @@ function ProfileSection() {
     [tSettings],
   );
 
-  const data = useMemo<ProfileFormData | undefined>(
-    () => (user ? { name: user.name ?? '' } : undefined),
-    [user],
-  );
+  const data = useMemo<ProfileFormData | undefined>(() => {
+    if (!user) return undefined;
+    const email = user.email ?? '';
+    const savedName = user.name?.trim() ?? '';
+    // Legacy owner accounts were created with `name === email` (see the
+    // onboarding account step); treat that — and an empty name — as "no real
+    // name yet" and offer an editable suggestion derived from the email.
+    const name =
+      savedName && savedName !== email ? savedName : deriveNameFromEmail(email);
+    return { name };
+  }, [user]);
 
   const save = useCallback(
     async (values: ProfileFormData) => {
@@ -162,6 +170,18 @@ function ProfileSection() {
           disabled={editor.isLoading}
           className="divide-border divide-y"
         >
+          {/* Email first, then Name — the email implies the suggested name
+              (#1941), so it reads top-to-bottom as cause then effect. */}
+          <SettingsRow
+            className="py-5"
+            label={tSettings('account.profile.email')}
+            description={tSettings('account.profile.emailDescription')}
+          >
+            <div className="w-full sm:w-80">
+              <EmailField email={user?.email ?? ''} />
+            </div>
+          </SettingsRow>
+
           <SettingsRow
             className="py-5"
             label={tSettings('account.profile.name')}
@@ -180,16 +200,6 @@ function ProfileSection() {
                 wrapperClassName="w-full"
                 {...register('name')}
               />
-            </div>
-          </SettingsRow>
-
-          <SettingsRow
-            className="py-5"
-            label={tSettings('account.profile.email')}
-            description={tSettings('account.profile.emailDescription')}
-          >
-            <div className="w-full sm:w-80">
-              <EmailField email={user?.email ?? ''} />
             </div>
           </SettingsRow>
         </fieldset>
