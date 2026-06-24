@@ -5753,7 +5753,8 @@
         "formHint": "Lege fest, wie sich Mitglieder anmelden, und speichere deine Änderungen oben in der Kopfzeile.",
         "validation": {
           "required": "Dieses Feld ist erforderlich.",
-          "url": "Gib eine gültige URL ein (inklusive https://)."
+          "url": "Gib eine gültige URL ein (inklusive https://).",
+          "clientSecretRequired": "Ein Client-Secret ist erforderlich."
         },
         "guide": {
           "title": "Einrichtungsleitfaden",

@@ -333,4 +333,48 @@ describe('EnterpriseSsoForm validation + save', () => {
     const errors = await screen.findAllByText(/this field is required/i);
     expect(errors.length).toBeGreaterThan(0);
   });
+
+  it('requires a client secret when switching a SAML connection to OIDC (#2057)', async () => {
+    upsertOidcMock.mockClear();
+    const { user } = renderForm(samlConfig);
+
+    // Switch the protocol SAML → Microsoft Entra ID.
+    await user.click(screen.getByRole('combobox', { name: /protocol/i }));
+    await user.click(
+      await screen.findByRole('option', { name: /microsoft entra id/i }),
+    );
+
+    // A SAML-only connection has no stored OIDC secret to reuse, so a blank
+    // secret must keep Save blocked even though issuer + client id are filled.
+    await user.type(
+      screen.getByLabelText(/issuer url/i),
+      'https://login.example.com',
+    );
+    await user.type(screen.getByLabelText(/^client id$/i), 'client-123');
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeDisabled());
+    expect(upsertOidcMock).not.toHaveBeenCalled();
+  });
+
+  it('mounts controls defined so no uncontrolled→controlled warning fires as config loads (#2095)', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { rerender } = render(
+      <Bare>
+        <EnterpriseSsoForm organizationId="org-1" config={undefined} />
+      </Bare>,
+    );
+    rerender(
+      <Bare>
+        <EnterpriseSsoForm organizationId="org-1" config={connectedOidc} />
+      </Bare>,
+    );
+    const warned = errorSpy.mock.calls.some((call) =>
+      /uncontrolled to controlled|controlled to uncontrolled|changing an uncontrolled|changing a controlled/i.test(
+        String(call[0]),
+      ),
+    );
+    errorSpy.mockRestore();
+    expect(warned).toBe(false);
+  });
 });

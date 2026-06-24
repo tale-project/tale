@@ -20,7 +20,7 @@
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   type SsoConnectionFile,
@@ -202,7 +202,12 @@ export const writeOidcConnection = internalAction({
 
     const clientSecret = args.clientSecret ?? existing.secrets.clientSecret;
     if (!clientSecret) {
-      throw new Error('Client secret is required for a new configuration');
+      // Coded + localizable (the client maps the code to a translated string);
+      // a raw Error would be redacted to a generic "Server Error" in prod (#2057).
+      throw new ConvexError({
+        code: 'sso_client_secret_required',
+        message: 'Client secret is required.',
+      });
     }
 
     const protocol = args.providerId === 'oauth2' ? 'oauth2' : 'oidc';

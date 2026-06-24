@@ -5754,7 +5754,8 @@
         "formHint": "Configurez la manière dont les membres se connectent, puis enregistrez vos modifications depuis l'en-tête.",
         "validation": {
           "required": "Ce champ est requis.",
-          "url": "Saisissez une URL valide (avec https://)."
+          "url": "Saisissez une URL valide (avec https://).",
+          "clientSecretRequired": "Un secret client est requis."
         },
         "guide": {
           "title": "Guide de configuration",

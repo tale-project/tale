@@ -32,6 +32,7 @@ import type {
   PlatformRole,
   SsoConnectionView,
 } from '@/lib/shared/schemas/enterprise_sso';
+import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import {
@@ -171,12 +172,13 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const canEdit = !cannotManage;
 
   // -------------------------------------------------------------------------
-  // Validation schema (memoized on `t` and `config?.configured`). The protocol
-  // Select drives which fields are required; `clientSecret` is required only
-  // for a brand-new connection (an existing connection keeps its stored secret
-  // when the field is left blank).
+  // Validation schema (memoized on `t` and whether an OIDC secret is stored).
+  // The protocol Select drives which fields are required; `clientSecret` is
+  // required whenever no OIDC client secret is already stored — i.e. a new
+  // connection OR a switch to OIDC from a SAML-only connection. An existing
+  // OIDC connection keeps its stored secret when the field is left blank.
   // -------------------------------------------------------------------------
-  const isConfigured = !!config?.configured;
+  const hasStoredOidcSecret = !!config?.oidc;
   const schema = useMemo(() => {
     const requiredMsg = t('integrations.enterpriseSso.validation.required');
     const urlMsg = t('integrations.enterpriseSso.validation.url');
@@ -232,9 +234,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           if (!data.issuer.trim()) req('issuer');
           else if (!looksLikeUrl(data.issuer.trim())) url('issuer');
           if (!data.clientId.trim()) req('clientId');
-          // Secret is required only when configuring a NEW connection. On an
-          // existing connection a blank secret means "keep the stored one".
-          if (!isConfigured && !data.clientSecret.trim()) req('clientSecret');
+          // Required unless an OIDC secret is already stored. A blank secret on
+          // an existing OIDC connection means "keep the stored one"; switching
+          // to OIDC from a SAML-only connection has no stored secret to reuse.
+          if (!hasStoredOidcSecret && !data.clientSecret.trim()) {
+            req('clientSecret');
+          }
 
           if (data.protocol === 'oauth2') {
             for (const field of [
@@ -255,7 +260,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           if (!data.idpCertificate.trim()) req('idpCertificate');
         }
       });
-  }, [t, isConfigured]);
+  }, [t, hasStoredOidcSecret]);
 
   // -------------------------------------------------------------------------
   // Seed the form once the stored connection loads. `data` is `undefined`
@@ -391,11 +396,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           variant: 'success',
         });
       } catch (error) {
+        const fallback = t('integrations.enterpriseSso.saveFailed');
         toast({
           title:
-            error instanceof Error
-              ? error.message
-              : t('integrations.enterpriseSso.saveFailed'),
+            convexErrorCode(error) === 'sso_client_secret_required'
+              ? t('integrations.enterpriseSso.validation.clientSecretRequired')
+              : convexErrorMessage(error, fallback),
           variant: 'destructive',
         });
         throw error;
@@ -559,7 +565,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   id="sso-protocol"
                   label={t('integrations.enterpriseSso.protocolLabel')}
                   description={t('integrations.enterpriseSso.protocolHelp')}
-                  value={field.value}
+                  value={field.value ?? 'entra-id'}
                   onValueChange={(value) => {
                     const next = narrowStringUnion<UiProtocol>(
                       value,
@@ -749,7 +755,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 <Select
                   id="sso-default-role"
                   label={t('integrations.enterpriseSso.defaultRoleLabel')}
-                  value={field.value}
+                  value={field.value ?? 'member'}
                   onValueChange={(value) => {
                     const r = narrowStringUnion<PlatformRole>(value, [
                       'admin',
@@ -768,7 +774,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               name="autoRole"
               render={({ field }) => (
                 <Switch
-                  checked={field.value}
+                  checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoRoleLabel')}
                 />
@@ -779,7 +785,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               name="autoTeam"
               render={({ field }) => (
                 <Switch
-                  checked={field.value}
+                  checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoTeamLabel')}
                 />

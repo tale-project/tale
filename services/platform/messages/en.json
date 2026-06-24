@@ -6015,7 +6015,8 @@
         "formHint": "Configure how members sign in, then save your changes from the header.",
         "validation": {
           "required": "This field is required.",
-          "url": "Enter a valid URL (including https://)."
+          "url": "Enter a valid URL (including https://).",
+          "clientSecretRequired": "A client secret is required."
         },
         "guide": {
           "title": "Setup guide",
