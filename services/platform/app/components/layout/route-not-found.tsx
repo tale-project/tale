@@ -1,13 +1,50 @@
 'use client';
 
 import { useRouterState } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
+import { seo } from '@/lib/utils/seo';
 
 // Route id (and id prefix) of the dashboard org subtree. Every dashboard page
 // lives under `/dashboard/$id`, so any matched route whose id starts with this
 // threads the `id` (organization) param we need for the recovery link.
 const DASHBOARD_ORG_ROUTE_ID = '/dashboard/$id';
+
+// Pull the document `<title>` string out of the SAME `seo('notFound')` meta tags
+// the `/dashboard/$id/$` splat sets via its route `head`, so a nested miss shows
+// the identical "Page not found" title. `RouteNotFound` is a plain component, not
+// a route, so it carries no `head`: the title for a nested miss otherwise comes
+// from the deepest matched route's `head`, and several dashboard sub-layouts
+// (e.g. `projects/$projectId`, `apps/$appSlug`) set none — leaving the title to
+// fall back to the marketing default (issue #2097). Sourcing it here keeps 404
+// titles consistent across every dashboard subtree.
+function notFoundTitle(): string | undefined {
+  const titleTag = seo('notFound').find(
+    (tag): tag is { title: string } => 'title' in tag,
+  );
+  return titleTag?.title;
+}
+
+/**
+ * Sets the document title while mounted, restoring the prior title on unmount so
+ * we don't permanently overwrite whatever TanStack's `HeadContent` rendered for
+ * the matched route. Mirrors the existing tab-title pattern in `online-gate`. An
+ * `undefined` title is a no-op, so callers can keep hook order stable without
+ * branching on the dashboard check.
+ */
+function useDocumentTitle(title: string | undefined) {
+  useEffect(() => {
+    if (title === undefined || typeof document === 'undefined') {
+      return undefined;
+    }
+    const previous = document.title;
+    document.title = title;
+    return () => {
+      document.title = previous;
+    };
+  }, [title]);
+}
 
 /**
  * Router-level fallback for an unmatched URL (wired as the router's
@@ -24,8 +61,10 @@ const DASHBOARD_ORG_ROUTE_ID = '/dashboard/$id';
  * When the unmatched URL is anywhere inside the dashboard org subtree we read the
  * `id` param threaded through `/dashboard/$id` and render the same styled 404 as
  * the splat, keeping the dashboard shell + side-nav up and offering a recovery
- * link. Outside the dashboard there is no such param, so we preserve TanStack's
- * minimal default fallback rather than show a dashboard-flavoured 404.
+ * link. We also set the same "Page not found" document title the splat sets via
+ * `head`, so head-less nested layouts no longer leak the marketing-default title.
+ * Outside the dashboard there is no such param, so we preserve TanStack's minimal
+ * default fallback rather than show a dashboard-flavoured 404.
  */
 export function RouteNotFound() {
   const organizationId = useRouterState({
@@ -40,6 +79,10 @@ export function RouteNotFound() {
       return undefined;
     },
   });
+
+  // Only override the title inside the dashboard subtree; a non-dashboard miss
+  // keeps TanStack's default behaviour untouched.
+  useDocumentTitle(organizationId !== undefined ? notFoundTitle() : undefined);
 
   if (organizationId !== undefined) {
     return <DashboardNotFound organizationId={organizationId} />;

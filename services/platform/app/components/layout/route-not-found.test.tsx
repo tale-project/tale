@@ -6,12 +6,17 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import enMessages from '../../../messages/en.json';
 import { RouteNotFound } from './route-not-found';
+
+const notFoundMeta = enMessages.metadata.notFound;
+// The "Page not found" document title the `/dashboard/$id/$` splat sets via
+// `seo('notFound')` — title + the global metadata suffix.
+const notFoundDocumentTitle = `${notFoundMeta.title} - ${enMessages.metadata.suffix}`;
 
 const notFound = enMessages.common.notFound;
 
@@ -66,6 +71,12 @@ function renderAt(initialPath: string) {
 }
 
 describe('RouteNotFound', () => {
+  // The document-title effect restores the prior title on unmount; reset between
+  // tests so one case can't leak its title into the next.
+  afterEach(() => {
+    document.title = '';
+  });
+
   // The gap the existing `/dashboard/$id/$` splat leaves: a miss under a nested
   // dashboard layout (no splat of its own) must still render the styled 404 —
   // heading + recovery link — with the dashboard shell/nav intact.
@@ -85,6 +96,11 @@ describe('RouteNotFound', () => {
 
     // The dashboard shell stays mounted — the 404 fills the content area only.
     expect(screen.getByTestId('dashboard-shell')).toBeInTheDocument();
+
+    // The defect in #2097: a head-less nested layout left the document title at
+    // the marketing default. We now set the same "Page not found" title the
+    // splat sets via `seo('notFound')`, so nested misses stay consistent.
+    await waitFor(() => expect(document.title).toBe(notFoundDocumentTitle));
   });
 
   // Outside the dashboard subtree there is no org context, so the dashboard 404
@@ -96,5 +112,9 @@ describe('RouteNotFound', () => {
     expect(
       screen.queryByRole('link', { name: notFound.backToDashboard }),
     ).not.toBeInTheDocument();
+
+    // No org context means no title override either — TanStack's default
+    // behaviour is preserved untouched outside the dashboard subtree.
+    expect(document.title).not.toBe(notFoundDocumentTitle);
   });
 });
