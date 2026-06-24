@@ -28,6 +28,36 @@ describe('usePageFileDrop', () => {
     expect(onFilesDropped.mock.calls[0][0]).toEqual([file]);
   });
 
+  it('clears the overlay even when a region drop zone stops propagation', () => {
+    // Regression: dropping ONTO the chat composer (a FileUpload.DropZone that
+    // calls stopPropagation on drop) stopped the window bubble handler from
+    // running, so isDragOver never reset and the full-page overlay stuck until
+    // reload. The capture-phase reset must still clear it.
+    const onFilesDropped = vi.fn();
+    const { result } = renderHook(() => usePageFileDrop({ onFilesDropped }));
+
+    const region = document.createElement('div');
+    document.body.appendChild(region);
+    region.addEventListener('drop', (e) => e.stopPropagation());
+
+    act(() => {
+      fireEvent.dragEnter(window, { dataTransfer: fileTransfer([]) });
+    });
+    expect(result.current.isDragOver).toBe(true);
+
+    const file = new File(['hi'], 'note.txt', { type: 'text/plain' });
+    act(() => {
+      fireEvent.drop(region, { dataTransfer: fileTransfer([file]) });
+    });
+
+    // Overlay cleared despite the region zone swallowing the bubble...
+    expect(result.current.isDragOver).toBe(false);
+    // ...and the window handler did NOT also upload (the region zone owns it).
+    expect(onFilesDropped).not.toHaveBeenCalled();
+
+    document.body.removeChild(region);
+  });
+
   it('ignores drags that carry no files (text/links/internal dnd)', () => {
     const onFilesDropped = vi.fn();
     const { result } = renderHook(() => usePageFileDrop({ onFilesDropped }));
