@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { deriveDeviceLabel } from '@/lib/utils/device-label';
 
 /**
  * 'any' lets the browser offer every available authenticator (platform
@@ -41,6 +42,15 @@ export function PasskeyRegisterDialog({
   const [attachment, setAttachment] = useState<AttachmentChoice>('any');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill the name with a best-effort device label (#1948) each time the
+  // dialog opens, but never clobber a value the user has already typed. The
+  // field stays editable and falls back to its placeholder when the label is
+  // empty (unrecognized User-Agent).
+  useEffect(() => {
+    if (!open || typeof navigator === 'undefined') return;
+    setName((current) => current || deriveDeviceLabel(navigator.userAgent));
+  }, [open]);
 
   function reset() {
     setName('');
