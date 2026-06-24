@@ -7356,7 +7356,6 @@
       "revokeButton": "Entfernen",
       "revokeConfirmTitle": "Passkey entfernen?",
       "revokeConfirmDescription": "Dadurch wird „{name}\" entfernt und kann nicht mehr zur Anmeldung verwendet werden. War es dein einziger zweiter Faktor, wirst du möglicherweise erneut zur Einrichtung der Zwei-Faktor-Authentifizierung aufgefordert.",
-      "empty": "Noch keine Passkeys registriert.",
       "unnamed": "Passkey",
       "registered": "Passkey registriert",
       "revoked": "Passkey entfernt",
@@ -8216,7 +8215,8 @@
     "accessDenied": "Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten."
   },
   "envEditor": {
-    "none": "Noch keine Umgebungsvariablen.",
+    "confirmRemoveTitle": "Variable entfernen?",
+    "confirmRemoveDescription": "Sie wird beim Speichern deiner Änderungen entfernt. Dies kann nicht rückgängig gemacht werden.",
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "Wert",
     "secret": "Geheim",

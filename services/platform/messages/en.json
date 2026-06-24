@@ -7623,7 +7623,6 @@
       "revokeButton": "Remove",
       "revokeConfirmTitle": "Remove passkey?",
       "revokeConfirmDescription": "This removes \"{name}\" and it can no longer be used to sign in. If it was your only second factor, you may be prompted to set up two-factor authentication again.",
-      "empty": "No passkeys registered yet.",
       "unnamed": "Passkey",
       "registered": "Passkey registered",
       "revoked": "Passkey removed",
@@ -8219,7 +8218,8 @@
     "accessDenied": "You need developer or admin access to manage sandboxes."
   },
   "envEditor": {
-    "none": "No environment variables yet.",
+    "confirmRemoveTitle": "Remove variable?",
+    "confirmRemoveDescription": "It will be removed when you save your changes. This can't be undone.",
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "value",
     "secret": "Secret",

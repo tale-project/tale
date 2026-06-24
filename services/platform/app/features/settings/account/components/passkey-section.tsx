@@ -2,8 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { HStack, Stack, VStack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -109,34 +108,27 @@ export function PasskeySection() {
       }
     >
       {!isLoading && passkeys && passkeys.length > 0 && (
-        <Stack gap={2}>
-          {passkeys.map((pk) => (
-            <HStack
-              key={pk.id}
-              justify="between"
-              align="center"
-              className="rounded-md border px-3 py-2"
-            >
-              <VStack gap={0} className="min-w-0">
-                <Text className="truncate text-sm font-medium">
-                  {pk.name?.trim() || t('passkeys.unnamed')}
-                </Text>
-              </VStack>
-              <IconButton
-                icon={Trash2}
-                variant="ghost"
-                aria-label={t('passkeys.revokeButton')}
-                onClick={() => setRevokeTarget(pk)}
-              />
-            </HStack>
-          ))}
-        </Stack>
-      )}
-
-      {!isLoading && (!passkeys || passkeys.length === 0) && (
-        <Text variant="muted" className="text-sm">
-          {t('passkeys.empty')}
-        </Text>
+        <Table>
+          <TableBody>
+            {passkeys.map((pk) => (
+              <TableRow key={pk.id} data-no-hover>
+                <TableCell className="text-sm font-medium">
+                  <span className="block truncate">
+                    {pk.name?.trim() || t('passkeys.unnamed')}
+                  </span>
+                </TableCell>
+                <TableCell className="w-0 text-right">
+                  <IconButton
+                    icon={Trash2}
+                    variant="ghost"
+                    aria-label={t('passkeys.revokeButton')}
+                    onClick={() => setRevokeTarget(pk)}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       <PasskeyRegisterDialog
@@ -151,7 +143,7 @@ export function PasskeySection() {
       <DeleteDialog
         open={revokeTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setRevokeTarget(null);
+          if (!open && !isRevoking) setRevokeTarget(null);
         }}
         title={t('passkeys.revokeConfirmTitle')}
         description={t('passkeys.revokeConfirmDescription', {

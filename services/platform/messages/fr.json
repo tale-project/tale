@@ -7357,7 +7357,6 @@
       "revokeButton": "Supprimer",
       "revokeConfirmTitle": "Supprimer le passkey ?",
       "revokeConfirmDescription": "Cela supprime « {name} » qui ne pourra plus être utilisé pour se connecter. S'il s'agissait de ton seul second facteur, il se peut que tu doives reconfigurer la double authentification.",
-      "empty": "Aucun passkey enregistré pour l'instant.",
       "unnamed": "Passkey",
       "registered": "Passkey enregistré",
       "revoked": "Passkey supprimé",
@@ -8217,7 +8216,8 @@
     "accessDenied": "Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes."
   },
   "envEditor": {
-    "none": "Aucune variable d'environnement pour l'instant.",
+    "confirmRemoveTitle": "Supprimer la variable ?",
+    "confirmRemoveDescription": "Elle sera supprimée lorsque tu enregistreras tes modifications. Cette action est irréversible.",
     "keyPlaceholder": "NOM",
     "valuePlaceholder": "valeur",
     "secret": "Secret",
