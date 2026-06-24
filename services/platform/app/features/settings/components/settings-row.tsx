@@ -1,7 +1,6 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
-import { Stack } from '@tale/ui/layout';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
@@ -38,7 +37,11 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
         )}
         {...props}
       >
-        <Stack gap={1} className="min-w-0">
+        {/* Cap the text column at a readable line length (matching
+            `SettingsSection`'s header and `SettingsToggleRow`) so a long
+            description doesn't stretch to the full content width when the
+            right-side control is narrow. */}
+        <div className="flex max-w-2xl min-w-0 flex-col gap-1">
           <span
             id={labelId}
             className="text-foreground text-sm leading-none font-medium"
@@ -46,7 +49,7 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
             {label}
           </span>
           {description && <Description id={descId}>{description}</Description>}
-        </Stack>
+        </div>
         <div className="shrink-0">{children}</div>
       </div>
     );

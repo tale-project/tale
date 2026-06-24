@@ -1,7 +1,6 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
-import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { forwardRef, useId, type ComponentRef, type ReactNode } from 'react';
 
@@ -33,7 +32,7 @@ interface SettingsToggleRowProps {
  * the Switch via `aria-labelledby` rather than relying on the row-level
  * association.
  *
- * Use this instead of pairing a `SettingsSection` with a bare `Switch`: the
+ * Use this instead of pairing a `PageSection` with a bare `Switch`: the
  * bare-switch layout leaves the toggle anchored to the left under a
  * heading, breaking the "controls live on the right" visual rhythm shared
  * with the rest of settings.
@@ -65,7 +64,11 @@ export const SettingsToggleRow = forwardRef<
           className,
         )}
       >
-        <Stack gap={1} className="min-w-0">
+        {/* Cap the text column at a readable line length (matching
+            `SettingsSection`'s header) so a long description doesn't stretch to
+            the full content width — the right-side Switch is tiny, so without a
+            cap `justify-between` lets the copy run edge-to-edge. */}
+        <div className="flex max-w-2xl min-w-0 flex-col gap-1">
           <span
             id={labelId}
             className="text-foreground text-sm leading-none font-medium"
@@ -79,7 +82,7 @@ export const SettingsToggleRow = forwardRef<
               <SkeletonBox fullWidth>{description}</SkeletonBox>
             </Description>
           )}
-        </Stack>
+        </div>
         <div className="shrink-0">
           <Switch
             ref={ref}

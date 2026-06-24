@@ -4398,8 +4398,8 @@
       },
       "voiceOutput": {
         "label": "Sprachausgabe (Standard)",
-        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. In der Chat-Kopfzeile kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
-        "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Sprachausgabe steht erst zur Verfügung, wenn ein Admin unter Einstellungen → KI-Anbieter ein TTS-Modell hinzufügt.",
+        "description": "Wenn aktiviert, werden Antworten in neuen Chats vorgelesen.",
+        "providerUnavailable": "Nicht verfügbar, bis ein Admin ein Text-zu-Sprache-Modell hinzufügt.",
         "configureProvider": "Anbieter einrichten",
         "disabledByOrg": "Deine Organisation hat die Sprachausgabe für alle deaktiviert. Bitte eine administrative Person, sie unter Governance → Richtlinien wieder zu aktivieren."
       },
@@ -4435,12 +4435,9 @@
     "page": {
       "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Variablen und Geheimnisse, die in alle deine Agent-Sandboxes eingespeist werden.",
-      "agentAccessTitle": "In deine Sandboxes eingespeist",
       "note": "Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle deine Sandboxes eingespeist."
     },
     "add": {
-      "button": "Variable hinzufügen",
-      "title": "Variable hinzufügen",
       "keyLabel": "Name",
       "keyPlaceholder": "z. B. MY_API_KEY",
       "keyInvalid": "Muss mit einem Buchstaben oder Unterstrich beginnen und darf nur Buchstaben, Zahlen und Unterstriche enthalten.",
@@ -6486,7 +6483,9 @@
       "secretsEncryptedNoKey": "Die gespeicherten Secrets sind SOPS-verschlüsselt, aber es ist kein age-Schlüssel konfiguriert — bestehende Secrets lassen sich nicht lesen.",
       "secretsUnreadable": "Die gespeicherten Secrets sind vorhanden, lassen sich aber nicht entschlüsseln (beschädigter Chiffretext oder ein fehlender/falscher age-Schlüssel). Gib die Werte erneut ein und speichere, um sie zu überschreiben.",
       "externalPostgres": "Externes Postgres",
-      "usingSharedDatabase": "Verwendet die eingebaute gemeinsame Datenbank.",
+      "status": {
+        "builtIn": "Eingebaut"
+      },
       "field": {
         "host": "Host",
         "port": "Port",
@@ -6508,13 +6507,14 @@
       },
       "knowledge": {
         "title": "Wissensdatenbank (RAG)",
-        "description": "Die Postgres-Datenbank hinter Wissenssuche und -abruf. Standardmäßig die mit diesem Deployment gelieferte Datenbank.",
+        "description": "Die Postgres-Datenbank hinter Wissenssuche und -abruf.",
         "paradeDbNote": "Die externe Wissensdatenbank muss ParadeDB (pgvector + pg_search) verwenden, damit die volle Hybrid-Suche funktioniert; reines pgvector fällt auf reine Vektor-Suche zurück."
       },
       "storage": {
         "title": "Dateispeicher (hochgeladene Dokumente)",
-        "description": "Wo hochgeladene Dokumente und erzeugte Exporte gespeichert werden. Standardmäßig das lokale Convex-Volume.",
+        "description": "Wo hochgeladene Dokumente und erzeugte Exporte gespeichert werden.",
         "externalS3": "Externes S3",
+        "localLabel": "Lokales Volume",
         "region": "Region",
         "endpoint": "Endpunkt (MinIO/R2; leer für AWS)",
         "forcePathStyle": "Path-Style erzwingen (MinIO/R2)",
@@ -6533,8 +6533,7 @@
         "secretAccessKey": "Secret Access Key",
         "testReachability": "Erreichbarkeit testen",
         "reachable": "Erreichbar",
-        "greenfieldWarning": "S3-Speicher ist Greenfield: Der Wechsel von lokal migriert bestehende hochgeladene Dateien NICHT. Lege das beim ersten Deploy fest, oder kopiere die lokalen Blobs separat in den Bucket.",
-        "localStorageNote": "Dateien liegen auf dem lokalen Convex-Volume."
+        "greenfieldWarning": "S3-Speicher ist Greenfield: Der Wechsel von lokal migriert bestehende hochgeladene Dateien NICHT. Lege das beim ersten Deploy fest, oder kopiere die lokalen Blobs separat in den Bucket."
       },
       "appDb": {
         "summary": "Anwendungsdatenbank (erweitert)",
@@ -6552,7 +6551,6 @@
       "saving": "Speichern…",
       "applyRestart": "Anwenden & neu starten",
       "applyRestartTitle": "rag + convex über den Controller neu starten (falls aktiviert), sonst wird der manuelle Befehl angezeigt",
-      "applyRestartDirtyHint": "Speichern Sie Ihre Änderungen vor dem Neustart.",
       "restarting": "Neu starten…",
       "restart": {
         "notEnabled": "Restart-Controller nicht aktiviert.",

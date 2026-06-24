@@ -4398,8 +4398,8 @@
       },
       "voiceOutput": {
         "label": "Voice output (default)",
-        "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
-        "providerUnavailable": "No text-to-speech provider configured. Voice output is unavailable until an admin adds a TTS model in Settings → AI providers.",
+        "description": "When on, new conversations read assistant replies aloud.",
+        "providerUnavailable": "Unavailable until an admin adds a text-to-speech model.",
         "configureProvider": "Configure a provider",
         "disabledByOrg": "Your organization has disabled voice output for everyone. Ask an admin to re-enable it in Governance → Policies."
       },
@@ -4435,12 +4435,9 @@
     "page": {
       "title": "Environment variables & secrets",
       "description": "Variables and secrets injected into all of your agent sandboxes.",
-      "agentAccessTitle": "Injected into your sandboxes",
       "note": "Secrets are encrypted and write-only — once saved they are never shown again. These variables are injected into all of your sandboxes."
     },
     "add": {
-      "button": "Add variable",
-      "title": "Add variable",
       "keyLabel": "Name",
       "keyPlaceholder": "e.g. MY_API_KEY",
       "keyInvalid": "Must start with a letter or underscore and contain only letters, numbers, and underscores.",
@@ -6748,7 +6745,9 @@
       "secretsEncryptedNoKey": "The stored secrets are SOPS-encrypted but no age key is configured — existing secrets can't be read.",
       "secretsUnreadable": "The stored secrets exist but can't be decrypted (corrupt ciphertext, or a missing/incorrect age key). Re-enter the values and save to overwrite them.",
       "externalPostgres": "External Postgres",
-      "usingSharedDatabase": "Using the built-in shared database.",
+      "status": {
+        "builtIn": "Built-in"
+      },
       "field": {
         "host": "Host",
         "port": "Port",
@@ -6770,13 +6769,14 @@
       },
       "knowledge": {
         "title": "Knowledge database (RAG)",
-        "description": "The Postgres database backing knowledge search and retrieval. Defaults to the database bundled with this deployment.",
+        "description": "The Postgres database backing knowledge search and retrieval.",
         "paradeDbNote": "The external knowledge database must run ParadeDB (pgvector + pg_search) for full hybrid search; plain pgvector degrades to vector-only."
       },
       "storage": {
         "title": "File storage (uploaded documents)",
-        "description": "Where uploaded documents and generated exports are kept. Defaults to the local Convex volume.",
+        "description": "Where uploaded documents and generated exports are kept.",
         "externalS3": "External S3",
+        "localLabel": "Local volume",
         "region": "Region",
         "endpoint": "Endpoint (MinIO/R2; blank for AWS)",
         "forcePathStyle": "Force path-style (MinIO/R2)",
@@ -6795,8 +6795,7 @@
         "secretAccessKey": "Secret access key",
         "testReachability": "Test reachability",
         "reachable": "Reachable",
-        "greenfieldWarning": "S3 storage is greenfield: switching from local does NOT migrate existing uploaded files. Set this at initial deploy, or copy the local blobs into the bucket separately.",
-        "localStorageNote": "Files are stored on the local Convex volume."
+        "greenfieldWarning": "S3 storage is greenfield: switching from local does NOT migrate existing uploaded files. Set this at initial deploy, or copy the local blobs into the bucket separately."
       },
       "appDb": {
         "summary": "Application database (advanced)",
@@ -6814,7 +6813,6 @@
       "saving": "Saving…",
       "applyRestart": "Apply & restart",
       "applyRestartTitle": "Restart rag + convex via the controller (if enabled), or shows the manual command",
-      "applyRestartDirtyHint": "Save your changes before restarting.",
       "restarting": "Restarting…",
       "restart": {
         "notEnabled": "Restart controller not enabled.",
