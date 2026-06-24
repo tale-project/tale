@@ -5662,6 +5662,8 @@
         "sectionWorkflowBindings": "Bound workflows",
         "sectionWorkflowBindingsDescription": "Bind specific workflows as dedicated tools. The agent won't need to specify the workflow ID.",
         "noWorkflowsAvailable": "No active workflows available.",
+        "bindIntegrationsPlaceholder": "Bind integrations…",
+        "bindWorkflowsPlaceholder": "Bind workflows…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
         "skillBindingsCounter": "{count}/{max} bound",
