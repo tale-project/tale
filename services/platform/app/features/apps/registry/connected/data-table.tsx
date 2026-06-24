@@ -100,6 +100,15 @@ export interface DataTableProps {
     idField: string;
     render: (subjectId: string) => React.ReactNode;
   };
+  /** Optional per-row accessory rendered inline beside the status/state badge
+   *  (e.g. an ambient "queued for capacity" chip). The `idField` value is passed
+   *  to `render`; like `expansion`, this keeps the table domain-agnostic — the
+   *  caller injects the connected component. A row with no status/state column,
+   *  or a non-string idField value, simply shows no accessory. */
+  rowAccessory?: {
+    idField: string;
+    render: (subjectId: string) => React.ReactNode;
+  };
   /** Cap on rendered rows (default 50). */
   maxRows?: number;
 }
@@ -110,6 +119,7 @@ export function DataTable({
   columnLabels,
   actions,
   expansion,
+  rowAccessory,
   maxRows = 50,
 }: DataTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -161,9 +171,32 @@ export function DataTable({
                     )}
                   </TableCell>
                 )}
-                {cols.map((c) => (
-                  <TableCell key={c}>{cell(c, row[c])}</TableCell>
-                ))}
+                {cols.map((c) => {
+                  const isStatusCol = c === 'status' || c === 'state';
+                  const rawAccessoryId = rowAccessory
+                    ? row[rowAccessory.idField]
+                    : undefined;
+                  const accessoryId =
+                    typeof rawAccessoryId === 'string'
+                      ? rawAccessoryId
+                      : undefined;
+                  const accessory =
+                    isStatusCol && rowAccessory && accessoryId !== undefined
+                      ? rowAccessory.render(accessoryId)
+                      : null;
+                  return (
+                    <TableCell key={c}>
+                      {accessory ? (
+                        <Row gap={2} align="center" wrap>
+                          {cell(c, row[c])}
+                          {accessory}
+                        </Row>
+                      ) : (
+                        cell(c, row[c])
+                      )}
+                    </TableCell>
+                  );
+                })}
                 {acts.length > 0 && (
                   // Stop row-click expansion when interacting with actions.
                   <TableCell onClick={(e) => e.stopPropagation()}>

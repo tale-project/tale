@@ -26,6 +26,7 @@ import {
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
+import { SubjectCapacityChip } from './subject-capacity-chip';
 import { SubjectRun } from './subject-run';
 
 export interface CollectionProps {
@@ -97,6 +98,19 @@ export function Collection({
                   idField: subjectIdField,
                   render: (subjectId) => (
                     <SubjectRun
+                      subjectType={subjectType}
+                      subjectId={subjectId}
+                    />
+                  ),
+                }
+              : undefined
+          }
+          rowAccessory={
+            subjectType
+              ? {
+                  idField: subjectIdField,
+                  render: (subjectId) => (
+                    <SubjectCapacityChip
                       subjectType={subjectType}
                       subjectId={subjectId}
                     />

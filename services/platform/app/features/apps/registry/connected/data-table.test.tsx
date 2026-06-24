@@ -54,6 +54,25 @@ describe('DataTable', () => {
     expect(screen.queryByText('detail-r1')).toBeNull();
   });
 
+  it('renders a rowAccessory beside the status badge (not for non-status cols)', () => {
+    render(
+      <DataTable
+        rows={[{ _id: 'r1', title: 'Fix login', status: 'in_progress' }]}
+        columns={['title', 'status']}
+        rowAccessory={{
+          idField: '_id',
+          render: (id) => <span>chip-{id}</span>,
+        }}
+      />,
+    );
+    // The accessory renders in the status cell; the status badge is untouched.
+    expect(screen.getByText('chip-r1')).toBeVisible();
+    expect(screen.getByText('in_progress')).toBeVisible();
+    // A non-status column (title) does not carry the accessory.
+    const titleCell = screen.getByText('Fix login').closest('td');
+    expect(titleCell?.textContent).not.toContain('chip-');
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = render(
       <DataTable

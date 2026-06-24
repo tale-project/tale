@@ -157,7 +157,9 @@
       "colRun": "Lauf",
       "colStatus": "Status",
       "colStarted": "Gestartet",
-      "watchLive": "Live ansehen"
+      "watchLive": "Live ansehen",
+      "queuedForCapacity": "Wartet auf Kapazität",
+      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird."
     },
     "membership": {
       "title": "Projekte",
