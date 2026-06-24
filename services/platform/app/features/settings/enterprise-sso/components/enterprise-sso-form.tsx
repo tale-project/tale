@@ -89,7 +89,7 @@ interface Props {
 
 const DEFAULT_SCOPES: Record<UiProtocol, string> = {
   'entra-id':
-    'openid email profile offline_access https://graph.microsoft.com/GroupMember.Read.All',
+    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All',
   'generic-oidc': 'openid email profile',
   oauth2: 'email profile',
   saml: '',
