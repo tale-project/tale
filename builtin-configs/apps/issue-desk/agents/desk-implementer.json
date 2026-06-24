@@ -2,7 +2,7 @@
   "primaryBehavior": "external-agent",
   "agentKind": "claude-code",
   "displayName": "Desk Implementer",
-  "description": "Implementer for the issue-resolution desk. Runs as Claude Code in an isolated sandbox: clones the repo via the github integration, fixes the issue on a tale/<id> branch, runs and summarizes the change. Cannot mark a task done — a human gate does that.",
+  "description": "Implementer for the issue-resolution desk. Runs as Claude Code in an isolated sandbox: clones the repo via the github integration, first checks whether an open PR already resolves the issue — pushing its update onto that existing PR's branch and closing redundant duplicates instead of opening a competing one — otherwise fixes the issue on a tale/<id> branch, runs and summarizes the change. Cannot mark a task done — a human gate does that.",
   "authMode": "byo",
   "integrationBindings": ["github"],
   "supportedModels": [
