@@ -23,6 +23,11 @@ export const SUMMARY_REENTRY_MAX_TURNS = 6;
  * session is still resumable, there is budget left, and a managed run still has
  * a gateway token (BYO needs none). Never loops — the caller guards it to a
  * single attempt.
+ *
+ * Skips outright when the run carried a terminal API error (`isError`): the
+ * "completed" status is the laundered-401 lie, so re-entering would just re-hit
+ * the dead token and waste the budget — that case is routed to the retryable
+ * execution-error throw instead (see `isRetryableExecutionError`).
  */
 export function shouldForceSummaryReentry(input: {
   terminalStatus: string;
@@ -32,7 +37,11 @@ export function shouldForceSummaryReentry(input: {
   hardDeadlineMs: number;
   byo: boolean;
   gatewayToken: string | null;
+  /** The terminal result's `is_error` flag — a laundered API error masquerading
+   * as `completed`. A doomed re-entry against the same credential is skipped. */
+  isError?: boolean;
 }): boolean {
+  if (input.isError === true) return false;
   return (
     input.terminalStatus === 'completed' &&
     !input.summaryWritten &&

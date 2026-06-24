@@ -55,6 +55,7 @@ vi.mock('../../node_only/sandbox/helpers/session_client', () => ({
 
 import type { RunAgentInSessionResult } from '../../node_only/sandbox/run_agent';
 import {
+  agentErrorMessage,
   EMPTY_TURN_MESSAGE,
   handleTurnOutcome,
   isEmptyCompletedTurn,
@@ -249,6 +250,70 @@ describe('handleTurnOutcome — terminal status mapping', () => {
     expect(claims).toHaveLength(1);
   });
 
+  it('completed + isError → FAILED bubble carrying the error text (laundered 401)', async () => {
+    const ctx = createMockCtx();
+    const result: RunAgentInSessionResult = {
+      status: 'completed',
+      exitCode: 0,
+      isError: true,
+      apiErrorStatus: 401,
+      finalText: 'API Error: 401 Invalid authentication credentials',
+    };
+
+    await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), result);
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual({
+      messageId: 'msg_1',
+      patch: {
+        status: 'failed',
+        message: {
+          role: 'assistant',
+          content: 'API Error: 401 Invalid authentication credentials',
+        },
+      },
+    });
+  });
+
+  it('completed + isError with no usable text → failed bubble with the status fallback', async () => {
+    const ctx = createMockCtx();
+    const result: RunAgentInSessionResult = {
+      status: 'completed',
+      exitCode: 0,
+      isError: true,
+      apiErrorStatus: 401,
+      assistantContent: '',
+    };
+
+    await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), result);
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual({
+      messageId: 'msg_1',
+      patch: {
+        status: 'failed',
+        message: { role: 'assistant', content: agentErrorMessage(401) },
+      },
+    });
+  });
+
+  it('REGRESSION: completed without isError stays success', async () => {
+    const ctx = createMockCtx();
+    const result: RunAgentInSessionResult = {
+      status: 'completed',
+      exitCode: 0,
+      assistantContent: 'All done.',
+    };
+
+    await handleTurnOutcome(ctx as unknown as ActionCtx, makeTurn(), result);
+
+    const calls = updateMessageCalls(ctx);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toMatchObject({ patch: { status: 'success' } });
+  });
+
   it('an empty FINAL segment of a resumed turn keeps the success fallback', async () => {
     const ctx = createMockCtx();
     const turn: TurnContext = { ...makeTurn(), continuationCount: 2 };
@@ -352,6 +417,17 @@ describe('isEmptyCompletedTurn', () => {
       isEmptyCompletedTurn(
         { status: 'completed', planText: '# plan', assistantContent: '' },
         'plan',
+      ),
+    ).toBe(false);
+  });
+
+  it('false when the turn carried a terminal API error (a blank 401 is NOT empty)', () => {
+    // A blank-but-errored turn must route to the failed-bubble rendering, not
+    // the empty-retry that would re-run it against the same dead token.
+    expect(
+      isEmptyCompletedTurn(
+        { status: 'completed', finalText: '', isError: true },
+        undefined,
       ),
     ).toBe(false);
   });

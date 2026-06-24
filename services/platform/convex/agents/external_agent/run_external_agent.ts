@@ -902,6 +902,9 @@ export const runExternalAgentTurn = internalAction({
       // re-run — up to MAX_TOKEN_ATTEMPTS total, while enough window remains.
       // Reuses the empty-turn retry's exec-row turnover fence (stamp B → claim+
       // park A). A `running` handoff is not a failure and never rotates.
+      // The durable workflow path has a sibling loop (workflow_sandbox_exec) that
+      // also rotates on RESUMED segments via `--resume`; the two are deliberately
+      // NOT shared — this one carries op-row fencing the workflow path lacks.
       let tokenAttempt = 1;
       if (tokenPool !== null) {
         const pool = tokenPool;

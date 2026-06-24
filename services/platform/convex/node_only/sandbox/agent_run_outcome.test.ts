@@ -36,6 +36,34 @@ describe('isRetryableExecutionError', () => {
         }),
       ).toBe(true);
     });
+
+    it('THE BUG: laundered 401 — isError on a "completed" result, no summary', () => {
+      // Claude Code leaves subtype:'success' (→ agentResultStatus 'completed')
+      // and exit 0 on a turn-terminating 401, carrying only is_error/api_error.
+      // Without the isError gate this laundered into a fake success.
+      expect(
+        isRetryableExecutionError({
+          agentResultStatus: 'completed',
+          terminalStatus: 'completed',
+          summaryWritten: false,
+          isError: true,
+        }),
+      ).toBe(true);
+    });
+
+    it('isError is broader than rotatable: a 5xx/connection blip retries too', () => {
+      // isRetryableExecutionError fires on ANY isError-without-handoff (e.g. a
+      // 502 that isRotatableApiError would reject) — a fresh step may recover it
+      // even when no credential swap would. Deliberate two-gate width difference.
+      expect(
+        isRetryableExecutionError({
+          agentResultStatus: 'completed',
+          terminalStatus: 'completed',
+          summaryWritten: false,
+          isError: true,
+        }),
+      ).toBe(true);
+    });
   });
 
   describe('does not throw (genuine outcome / budget / has handoff)', () => {
@@ -45,6 +73,42 @@ describe('isRetryableExecutionError', () => {
           agentResultStatus: 'error',
           terminalStatus: 'failed',
           summaryWritten: true,
+        }),
+      ).toBe(false);
+    });
+
+    it('a handoff wins over isError too (real summary despite a late error)', () => {
+      expect(
+        isRetryableExecutionError({
+          agentResultStatus: 'completed',
+          terminalStatus: 'completed',
+          summaryWritten: true,
+          isError: true,
+        }),
+      ).toBe(false);
+    });
+
+    it('REGRESSION GUARD: max-turns carries is_error:true but is a budget outcome', () => {
+      // Claude Code stamps is_error:true on an error_max_turns result, so the
+      // isError gate must NOT fire for it — retrying a max-turns run just burns
+      // the same budget. The budget-outcome guard runs before the isError gate.
+      expect(
+        isRetryableExecutionError({
+          agentResultStatus: 'max-turns',
+          terminalStatus: 'completed',
+          summaryWritten: false,
+          isError: true,
+        }),
+      ).toBe(false);
+    });
+
+    it('cancelled with isError is still a user outcome, never retried', () => {
+      expect(
+        isRetryableExecutionError({
+          agentResultStatus: 'cancelled',
+          terminalStatus: 'cancelled',
+          summaryWritten: false,
+          isError: true,
         }),
       ).toBe(false);
     });

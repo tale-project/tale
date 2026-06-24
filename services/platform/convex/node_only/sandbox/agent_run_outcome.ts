@@ -31,6 +31,14 @@ import type { AgentResultStatus } from '../../../lib/agent-adapters/events';
  *  - `completed` (even with an unfavorable verdict in the summary);
  *  - `max-turns` / `cancelled` / a wall-clock `timeout` (budget/user outcomes —
  *    retrying just burns the same budget or re-cancels).
+ *
+ * The `isError` gate is DELIBERATELY wider than `isRotatableApiError`: Claude
+ * Code laundered a turn-terminating API error (401/403/429/5xx, a dropped
+ * connection, or a malformed 200) into `subtype:'success'` → `agentResultStatus`
+ * is the misleading `'completed'`, and ONLY `result.isError` exposes it. Such a
+ * run with no handoff is retryable by a FRESH step (the work was never done)
+ * even when it is not token-rotatable — whereas `isRotatableApiError` stays
+ * narrow on `{401,403,429,529}` because only those warrant a credential swap.
  */
 export function isRetryableExecutionError(input: {
   /** The agent's self-reported terminal verdict (`undefined` ⇒ no result event
@@ -40,9 +48,29 @@ export function isRetryableExecutionError(input: {
   terminalStatus: string;
   /** Whether the agent wrote the mandated `output/summary.md` handoff. */
   summaryWritten: boolean;
+  /** The terminal result's `is_error` flag. Claude Code leaves `subtype:'success'`
+   * on an errored result, so this is the only honest signal that a "completed"
+   * turn actually blew up at the API/transport layer (the laundered-401 bug). */
+  isError?: boolean;
 }): boolean {
   // A real handoff ⇒ the agent ran and produced an outcome; never retry it.
   if (input.summaryWritten) return false;
+  // Budget/user outcomes are NOT execution errors — they beat the `isError`
+  // gate below. Claude Code stamps `is_error:true` on an `error_max_turns`
+  // result too, but a max-turns run hit its budget; retrying just burns the
+  // same budget. A user `cancelled` must never resurrect itself either. (A
+  // wall-clock `timeout` arrives via terminalStatus on an exhausted `running`
+  // handoff — no terminal result event, so it carries no `isError` to gate on.)
+  if (
+    input.agentResultStatus === 'max-turns' ||
+    input.agentResultStatus === 'cancelled'
+  ) {
+    return false;
+  }
+  // A mechanical API/transport error the agent reported on its terminal result
+  // but with NO handoff — the laundered-401 case (see the header note on the
+  // deliberate two-gate width difference vs `isRotatableApiError`).
+  if (input.isError === true) return true;
   // The agent itself reported a mechanical error (error_during_execution:
   // 401/403/429/5xx, connection failure, internal crash).
   if (input.agentResultStatus === 'error') return true;
