@@ -4966,7 +4966,6 @@
       "empty": "Noch keine Token-Quellen. Füge eine hinzu, um Agenten einen rotierenden Anmeldedaten-Pool zu geben.",
       "edit": "Bearbeiten",
       "delete": "Löschen",
-      "search": "Token-Quellen suchen…",
       "entityLabel": "Token-Quelle",
       "emptyTitle": "Noch keine Token-Quellen",
       "actions": "Token-Quellen-Aktionen",

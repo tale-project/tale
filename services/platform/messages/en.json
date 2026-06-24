@@ -5228,7 +5228,6 @@
       "empty": "No token sources yet. Add one to give agents a rotating credential pool.",
       "edit": "Edit",
       "delete": "Delete",
-      "search": "Search token sources…",
       "entityLabel": "token source",
       "emptyTitle": "No token sources yet",
       "actions": "Token source actions",
