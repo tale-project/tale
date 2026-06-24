@@ -10,6 +10,20 @@ const searchSchema = z.object({
   tab: z.enum(['audit', 'blocks', 'activity', 'errors']).optional(),
 });
 
+type LogsTab = NonNullable<z.infer<typeof searchSchema>['tab']>;
+
+// Type guard (not a cast) so narrowing the `string` from Radix's
+// `onValueChange` to the tab enum stays type-safe — the type-aware lint
+// rejects a `value as LogsTab` assertion here.
+function isLogsTab(value: string): value is LogsTab {
+  return (
+    value === 'audit' ||
+    value === 'blocks' ||
+    value === 'activity' ||
+    value === 'errors'
+  );
+}
+
 export const Route = createFileRoute('/dashboard/$id/settings/governance/logs')(
   {
     head: () => ({ meta: seo('logs') }),
@@ -45,7 +59,7 @@ function LogsRoute() {
         params: { id: organizationId },
         search: {
           category,
-          tab: next === 'audit' ? undefined : (next as typeof tab),
+          tab: next === 'audit' || !isLogsTab(next) ? undefined : next,
         },
       });
     },
