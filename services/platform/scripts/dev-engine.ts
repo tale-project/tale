@@ -166,27 +166,21 @@ function envNormalizeCommon() {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 
-  // Sandbox-wobbly-origami plan §4: the spawner runs inside docker (compose)
-  // while Convex runs on the host in `bun dev` mode, so storage URLs the
-  // action sends to the spawner must use a hostname that resolves to the
-  // host from inside the container. `host.docker.internal` is the standard
-  // cross-platform alias (Docker Desktop ships it; Linux Docker requires
-  // `extra_hosts: ["host.docker.internal:host-gateway"]` which compose.dev.yml
-  // already sets on the sandbox service).
+  // Sandbox → Convex reachability. The URLs the platform hands the sandbox are
+  // fetched by the SESSION CONTAINER's daemon (not the spawner), which sits on
+  // the `--internal` sandbox net and whose undici fetch ignores the egress
+  // proxy — so it can only reach Convex via the `convex` alias carried on that
+  // network. In `bun dev` Convex runs on the host, so the `convex-relay` socat
+  // (compose.dev.yml) bridges :3210/:3211 → host Convex. (`host.docker.internal`
+  // resolves for the spawner but NOT for session containers, which is why it
+  // never worked for storage staging — see SANDBOX_CONVEX_STORAGE_BASE_DEFAULT.)
   //
-  // Override in `services/platform/.env.local` only if your network stack
-  // breaks the default — e.g. a VPN/proxy (singbox-tun, tailscale, ...) that
-  // hijacks RFC1918 traffic and blocks docker-bridge → host. In that case
-  // set the host's LAN IP:
-  //
-  //   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://192.168.x.y:3210
-  //   SANDBOX_HTTP_API_BASE_URL=http://192.168.x.y:3211
+  // Override in `services/platform/.env.local` only for a non-standard topology.
   if (!process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL) {
-    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL =
-      'http://host.docker.internal:3210';
+    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL = 'http://convex:3210';
   }
   if (!process.env.SANDBOX_HTTP_API_BASE_URL) {
-    process.env.SANDBOX_HTTP_API_BASE_URL = 'http://host.docker.internal:3211';
+    process.env.SANDBOX_HTTP_API_BASE_URL = 'http://convex:3211';
   }
 
   // Writable per-org config ROOT (org-first: `<root>/<orgSlug>/<domain>/`).

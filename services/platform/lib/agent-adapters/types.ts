@@ -55,6 +55,11 @@ export interface AgentRunSpec {
   integrationsBaseUrl?: string;
   /** Working directory inside the session (e.g. /user/workspace). */
   workdir: string;
+  /** Absolute directories OUTSIDE `workdir` the agent must be able to read/edit
+   * — e.g. the chat-upload staging dir /user/uploads. Claude Code scopes its
+   * file tools to cwd by default (even under bypassPermissions), so each entry
+   * is granted via `--add-dir`. Adapters without an equivalent ignore it. */
+  additionalDirs?: string[];
   /** Enable the in-container Playwright MCP server. Default true for the
    * agent profile; entry points pass false for headless/no-browser tasks to
    * save the per-turn tool-definition token overhead. */

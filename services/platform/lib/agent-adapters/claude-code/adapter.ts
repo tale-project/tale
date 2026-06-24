@@ -95,6 +95,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       '--max-turns',
       String(spec.maxTurns ?? DEFAULT_MAX_TURNS),
     ];
+    // Grant read/edit access to directories OUTSIDE cwd (e.g. the chat-upload
+    // staging dir /user/uploads). Claude Code's file tools are scoped to the
+    // working dir even under bypassPermissions, so a staged attachment at an
+    // absolute path outside /user/workspace is unreadable without this.
+    for (const dir of spec.additionalDirs ?? []) {
+      argv.push('--add-dir', dir);
+    }
     if (spec.agentSessionId) argv.push('--resume', spec.agentSessionId);
     if (spec.model) argv.push('--model', spec.model);
     if (spec.systemPromptAppend) {

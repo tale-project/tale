@@ -27,15 +27,21 @@ services:
       # accidentally invoke the E2E harness. Dev compose explicitly opts in.
       - NODE_ENV=development
 
-  # Dev-only bridge: the agent sandbox container is on the `--internal`
-  # tale-sandbox-net (SSRF-locked) and `bun dev` runs convex on the HOST
-  # (host.docker.internal:3211), so the in-container MCP integration bridge
-  # can't reach it. This socat relay is dual-homed (internal + sandbox), aliased
-  # `convex` on the sandbox net, forwarding :3211 → the host-run convex. In prod
-  # the real convex container is dual-homed onto `sandbox` instead (compose.yml).
+  # Dev-only bridge: the agent sandbox + session containers are on the
+  # `--internal` tale-sandbox-net (SSRF-locked) and `bun dev` runs convex on the
+  # HOST, so in-container code can't reach it. This socat relay is dual-homed
+  # (internal + sandbox), aliased `convex` on the sandbox net, forwarding BOTH
+  # :3211 (HTTP actions / integration bridge) AND :3210 (storage — the session
+  # daemon fetches staged file URLs from here) → the host-run convex. In prod the
+  # real convex container is dual-homed onto `sandbox` instead (compose.yml).
   convex-relay:
     image: alpine/socat
-    command: ['TCP-LISTEN:3211,fork,reuseaddr', 'TCP:host.docker.internal:3211']
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - >-
+        socat TCP-LISTEN:3211,fork,reuseaddr TCP:host.docker.internal:3211 &
+        socat TCP-LISTEN:3210,fork,reuseaddr TCP:host.docker.internal:3210 &
+        wait
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     restart: unless-stopped
