@@ -55,7 +55,6 @@ const notificationRowValidator = v.object({
 export const listMyNotifications = query({
   args: {
     organizationId: v.string(),
-    unreadOnly: v.optional(v.boolean()),
     paginationOpts: paginationOptsValidator,
   },
   returns: v.object({
@@ -68,24 +67,13 @@ export const listMyNotifications = query({
     // Cursor-based pagination (mirrors `notifications.queries.list`) so the
     // personal inbox is no longer capped — the panel's "Load more" can walk
     // past the first page instead of stopping at a hard 100-row ceiling.
-    const result = args.unreadOnly
-      ? await ctx.db
-          .query('userNotifications')
-          .withIndex('by_user_org_read', (q) =>
-            q
-              .eq('userId', userId)
-              .eq('organizationId', args.organizationId)
-              .eq('read', false),
-          )
-          .order('desc')
-          .paginate(args.paginationOpts)
-      : await ctx.db
-          .query('userNotifications')
-          .withIndex('by_user_org_created', (q) =>
-            q.eq('userId', userId).eq('organizationId', args.organizationId),
-          )
-          .order('desc')
-          .paginate(args.paginationOpts);
+    const result = await ctx.db
+      .query('userNotifications')
+      .withIndex('by_user_org_created', (q) =>
+        q.eq('userId', userId).eq('organizationId', args.organizationId),
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
 
     return {
       page: result.page,
