@@ -22,7 +22,7 @@ import {
   type MessageDoc,
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
-import type { ModelMessage } from 'ai';
+import { hasToolCall, type ModelMessage, stepCountIs } from 'ai';
 
 import {
   classifyChatErrorCode,
@@ -204,6 +204,19 @@ export async function generateAgentResponse(
     prewarm,
     pinnedFileIds,
   } = args;
+
+  // Hard-stop the agent loop the moment `request_human_input` is called. That
+  // tool only surfaces an approval card and tells the model to stop and wait —
+  // but "stop" was a prompt-only contract the model could (and did) ignore,
+  // most visibly the researcher barrelling past its plan-confirmation card
+  // straight into web searches. `hasToolCall` turns the gate into a real stop.
+  // Scoped to agents that actually expose the tool so no other agent's loop
+  // behaviour changes. Setting `stopWhen` makes the SDK ignore the config's
+  // `maxSteps`, so the step cap is re-applied here via `stepCountIs` (mirroring
+  // the default in create_agent_config.ts).
+  const humanInputStopWhen = convexToolNames?.includes('request_human_input')
+    ? [stepCountIs(args.maxSteps ?? 40), hasToolCall('request_human_input')]
+    : undefined;
 
   const debugLog = createDebugLog(
     `DEBUG_${agentType.toUpperCase()}_AGENT`,
@@ -1259,6 +1272,7 @@ export async function generateAgentResponse(
             system: systemPrompt,
             prompt: promptToSend,
             abortSignal: abortController.signal,
+            ...(humanInputStopWhen ? { stopWhen: humanInputStopWhen } : {}),
             ...(outputTransform !== null && {
               experimental_transform: outputTransform,
             }),
@@ -1478,6 +1492,7 @@ export async function generateAgentResponse(
               system: systemPrompt,
               prompt: promptToSend,
               abortSignal: abortController.signal,
+              ...(humanInputStopWhen ? { stopWhen: humanInputStopWhen } : {}),
               ...(promptMessageId ? { promptMessageId } : {}),
               ...(effectiveTemperature != null && {
                 temperature: effectiveTemperature,
@@ -2689,4 +2704,8 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export { needsToolResultRetry, shouldRetryGeneration } from './retry_policy';
+export {
+  endedOnHumanInputGate,
+  needsToolResultRetry,
+  shouldRetryGeneration,
+} from './retry_policy';

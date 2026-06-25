@@ -21,18 +21,46 @@ import {
 import type { DelegateAgentMeta } from './create_delegation_tool';
 
 /**
- * The double-delegation guard: when an orchestrated leaf delegate runs, strip
- * its delegation entirely so it can't re-delegate (the router owns
- * decomposition). Returns the config UNCHANGED when not stripping, and never
- * mutates the input. Uses the explicit `delegationDisabled` flag — delegates
- * are derived from the org chart at tool-build time, so only this flag
- * reliably disables delegation.
+ * Prepare a delegate's config for a delegated run.
+ *
+ * Two strips happen here:
+ *
+ * 1. **Human-input gate (always).** A delegated sub-agent runs
+ *    non-interactively: there is no flow to resume a delegate after a
+ *    `request_human_input` gate. The approval re-homes to the PARENT thread
+ *    (`request_human_input_tool.ts` → `getApprovalThreadId`) and
+ *    `submitHumanInputResponse` resumes the PARENT agent, never the delegate
+ *    (`human_input/mutations.ts`). So a delegate's gate only strands a pending
+ *    approval that locks the composer while the parent answers anyway. Drop
+ *    `request_human_input` from `convexToolNames` on every delegated run —
+ *    which also clears its `stopWhen` halt (generate_response.ts). The gate
+ *    still works when the same agent (e.g. the Researcher) runs as the PRIMARY
+ *    agent, which does not go through here.
+ *
+ * 2. **Re-delegation (the double-delegation guard, gated on `strip`).** When an
+ *    orchestrated leaf delegate runs, disable its delegation so it can't
+ *    re-delegate (the router owns decomposition). Uses the explicit
+ *    `delegationDisabled` flag — delegates are derived from the org chart at
+ *    tool-build time, so only this flag reliably disables delegation.
+ *
+ * Returns the config UNCHANGED (same reference) when neither strip applies, and
+ * never mutates the input.
  */
 export function applyDelegationStrip(
   config: SerializableAgentConfig,
   strip: boolean | undefined,
 ): SerializableAgentConfig {
-  return strip ? { ...config, delegationDisabled: true } : config;
+  const hasGate = config.convexToolNames?.includes('request_human_input');
+  if (!hasGate && !strip) return config;
+
+  const next: SerializableAgentConfig = { ...config };
+  if (hasGate) {
+    next.convexToolNames = config.convexToolNames?.filter(
+      (toolName) => toolName !== 'request_human_input',
+    );
+  }
+  if (strip) next.delegationDisabled = true;
+  return next;
 }
 
 export interface RunDelegateStepArgs {

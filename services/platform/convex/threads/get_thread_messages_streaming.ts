@@ -24,6 +24,28 @@ import type {
   StreamingMessagesResult,
 } from './types';
 
+/**
+ * Empty `streams` payload shaped to match the client's `streamArgs.kind`.
+ *
+ * The `@convex-dev/agent` client hook (`useDeltaStreams`) reads
+ * `result.streams.messages` for a `list` request — with NO shape guard — so any
+ * payload missing that field makes it call `.filter` on `undefined` and crash
+ * the chat subtree. Callers that short-circuit before `syncStreams` (the
+ * auth/access fallbacks in `getThreadMessagesStreaming`'s query wrapper) MUST
+ * return this instead of a bespoke sentinel: those fallbacks fire on a live
+ * subscription — e.g. a WebSocket token refresh mid-stream momentarily nulls
+ * the identity — so a malformed payload turns into a crash/recover flicker loop
+ * for the duration of a long run.
+ */
+export function emptyStreamsResult(
+  streamArgs: GetThreadMessagesStreamingArgs['streamArgs'],
+): StreamingMessagesResult['streams'] {
+  if (!streamArgs) return undefined;
+  return streamArgs.kind === 'list'
+    ? { kind: 'list', messages: [] }
+    : { kind: 'deltas', deltas: [] };
+}
+
 export async function getThreadMessagesStreaming(
   ctx: QueryCtx,
   args: GetThreadMessagesStreamingArgs,

@@ -141,6 +141,39 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
     expect(mockGetDelegateSubThreadIds).not.toHaveBeenCalled();
   });
 
+  it('skips an EMPTY parent row and surfaces the delegate sub-thread plan', async () => {
+    // Regression: once the parent agent runs its own web/integration calls, a
+    // `threadTodos` row materializes on the parent purely to track
+    // `integrationCallCount` — with `todos: []`. It must NOT shadow the
+    // researcher delegate's real plan (the bug that made the plan pane flash
+    // then vanish mid-run).
+    mockGetDelegateSubThreadIds.mockResolvedValue(['sub']);
+    const ctx = makeCtx({
+      threadMetadata: [metaRow()],
+      threadTodos: [
+        todosRow({ threadId: 'parent', todos: [], integrationCallCount: 21 }),
+        todosRow({ threadId: 'sub', updatedAt: 7 }),
+      ],
+    });
+    const out = (await getTodos(ctx, { threadId: 'parent' })) as {
+      threadId: string;
+      todos: unknown[];
+    } | null;
+    expect(out?.threadId).toBe('sub');
+    expect(out?.todos).toHaveLength(1);
+  });
+
+  it('returns null when the only row (parent) has an empty todos array', async () => {
+    // An empty row is not a plan — with no delegate plan either, show nothing
+    // rather than an empty pane.
+    const ctx = makeCtx({
+      threadMetadata: [metaRow()],
+      threadTodos: [todosRow({ threadId: 'parent', todos: [] })],
+    });
+    const out = await getTodos(ctx, { threadId: 'parent' });
+    expect(out).toBeNull();
+  });
+
   it('returns null when neither parent nor any sub-thread has todos', async () => {
     mockGetDelegateSubThreadIds.mockResolvedValue(['sub']);
     const ctx = makeCtx({ threadMetadata: [metaRow()], threadTodos: [] });

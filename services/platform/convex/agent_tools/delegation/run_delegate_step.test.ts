@@ -28,3 +28,43 @@ describe('applyDelegationStrip (double-delegation guard)', () => {
     expect(applyDelegationStrip(base, undefined)).toBe(base);
   });
 });
+
+describe('applyDelegationStrip (human-input gate strip)', () => {
+  const withGate: SerializableAgentConfig = {
+    name: 'researcher',
+    instructions: 'research the sub-task',
+    maxSteps: 40,
+    convexToolNames: ['update_todos', 'request_human_input', 'web'],
+  };
+
+  it('removes request_human_input from a delegated run, even without stripping', () => {
+    const out = applyDelegationStrip(withGate, undefined);
+    expect(out.convexToolNames).toEqual(['update_todos', 'web']);
+    // Re-delegation is NOT disabled when only the gate is stripped.
+    expect(out.delegationDisabled).toBeUndefined();
+  });
+
+  it('strips both the gate and re-delegation when stripping', () => {
+    const out = applyDelegationStrip(withGate, true);
+    expect(out.convexToolNames).toEqual(['update_todos', 'web']);
+    expect(out.delegationDisabled).toBe(true);
+  });
+
+  it('never mutates the input config', () => {
+    applyDelegationStrip(withGate, true);
+    expect(withGate.convexToolNames).toEqual([
+      'update_todos',
+      'request_human_input',
+      'web',
+    ]);
+  });
+
+  it('leaves a delegate without the gate untouched (same reference)', () => {
+    const noGate: SerializableAgentConfig = {
+      name: 'coder',
+      instructions: 'write code',
+      convexToolNames: ['web'],
+    };
+    expect(applyDelegationStrip(noGate, undefined)).toBe(noGate);
+  });
+});
