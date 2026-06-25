@@ -102,6 +102,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       pandoc \
     && rm -rf /var/lib/apt/lists/*
 
+# --- LaTeX (XeTeX) for publication-grade PDF -------------------------------
+# Gives `pandoc -o out.pdf --pdf-engine=xelatex` a real TeX engine, so PDFs get
+# a genuine `--toc`, page numbers, running headers/footers, a title page and
+# full font/margin control — instead of the brittle render-then-stitch route
+# (LibreOffice/fitz) the agent otherwise falls back to. A separate layer from
+# the Office/PDF block above: it's a large, self-contained concern that caches
+# independently. Kept to the XeTeX subset pandoc's default template needs, NOT
+# the multi-GB full `texlive` meta-package:
+#   texlive-xetex             — the `xelatex` engine (Unicode/OpenType native).
+#   texlive-latex-recommended — the core package set the default template loads.
+#   texlive-fonts-recommended — Latin Modern / TeX Gyre fonts that template uses.
+#   texlive-lang-chinese      — xeCJK / ctex so the Chinese workspace docs
+#       (e.g. *-zh-CN.md) typeset instead of dropping to tofu. The CJK *fonts*
+#       (Noto CJK) are already baked above for the live browser, so this adds
+#       only the macro packages; it also pulls texlive-latex-extra, handy for
+#       richer templates (fancyhdr, mdframed, …).
+#   lmodern                   — Latin Modern `lmodern.sty`. Pandoc's default
+#       LaTeX template does `\usepackage{lmodern}`, but it's only a *Recommends*
+#       of texlive-latex-recommended, so `--no-install-recommends` drops it and
+#       every `pandoc --pdf-engine=xelatex` then dies with "lmodern.sty not
+#       found". Pull it explicitly (the one Recommends we actually need).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      texlive-xetex \
+      texlive-latex-recommended \
+      texlive-fonts-recommended \
+      texlive-lang-chinese \
+      lmodern \
+    && rm -rf /var/lib/apt/lists/*
+
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
