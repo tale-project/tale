@@ -72,6 +72,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \
     && ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
+# --- document conversion toolchain (Office / PDF) ---------------------------
+# Binaries the bundled document skills (builtin-configs/skills/*) and any agent
+# asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
+# in via the per-execution `uv pip install` path (that only provides Python
+# *libraries* into /user/.runtime/deps/python — see entrypoint.sh install_python),
+# so the OS-level tools must be baked here:
+#   libreoffice-writer/calc/impress — faithful Office→PDF conversion (docx,
+#       xlsx, pptx) and xlsx formula recalc via `soffice --headless`. Install
+#       just these three apps (they pull libreoffice-core/common + ure as hard
+#       Depends); --no-install-recommends skips Base/Draw/Math, Java and the GUI
+#       stack we never use. This is what unblocks the pptx skill's render path.
+#   poppler-utils — `pdftoppm` rasterizes the intermediate (or any) PDF to
+#       images for the thumbnail / visual-QA loop; `pdftotext` extracts PDF text.
+#   pandoc — clean .docx → markdown/text extraction (handles tracked changes);
+#       the tool the official docx skill uses for reading.
+# Deliberately NOT installed: gcc / libc6-dev for office/soffice.py's AF_UNIX
+# LD_PRELOAD shim. Tale runs the default Docker / RuntimeDefault seccomp profile
+# (docker-args.ts: apparmor=docker-default, no custom seccomp; k8s-pod-spec.ts:
+# seccompProfile RuntimeDefault), which permits AF_UNIX sockets — so the skill's
+# _needs_shim() is always false here and the shim (the only thing that would
+# need a compiler at runtime) never builds. No reason to ship a C toolchain in
+# this hardened image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libreoffice-writer \
+      libreoffice-calc \
+      libreoffice-impress \
+      poppler-utils \
+      pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
