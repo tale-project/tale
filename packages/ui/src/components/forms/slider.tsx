@@ -229,7 +229,10 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
               step={step}
               value={value}
               disabled={softDisabled ? undefined : disabled}
-              aria-disabled={disabled || undefined}
+              // Only the soft-disabled branch needs `aria-disabled`; a natively
+              // `disabled` control already conveys the state, so emitting it
+              // there too would be redundant with the native attribute.
+              aria-disabled={softDisabled || undefined}
               // The range stays value-controlled while soft-disabled, so React
               // would warn about a `value` with no `onChange`. `readOnly`
               // silences that without changing behaviour — drag is already

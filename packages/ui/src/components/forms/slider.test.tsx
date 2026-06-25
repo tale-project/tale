@@ -33,7 +33,10 @@ describe('Slider', () => {
           disabled
         />,
       );
-      expect(screen.getByRole('slider')).toBeDisabled();
+      const slider = screen.getByRole('slider');
+      expect(slider).toBeDisabled();
+      // Native `disabled` already conveys the state; no redundant aria-disabled.
+      expect(slider).not.toHaveAttribute('aria-disabled');
     });
 
     it('soft-disables (aria-disabled, focusable) with a reason', () => {

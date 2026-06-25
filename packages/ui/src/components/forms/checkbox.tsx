@@ -55,7 +55,10 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
           <CheckboxPrimitive.Root
             ref={ref}
             disabled={softDisabled ? undefined : disabled}
-            aria-disabled={disabled || undefined}
+            // Only the soft-disabled branch needs `aria-disabled`; a natively
+            // `disabled` control already conveys the state, so emitting it there
+            // too would be redundant with the native attribute.
+            aria-disabled={softDisabled || undefined}
             onClick={softDisabled ? blockActivation : onClick}
             onKeyDown={softDisabled ? blockActivation : onKeyDown}
             className={cn(

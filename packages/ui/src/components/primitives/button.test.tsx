@@ -378,6 +378,26 @@ describe('Button', () => {
       expect(handleClick).not.toHaveBeenCalled();
     });
 
+    it('defaults a soft-disabled button to type="button" so it cannot implicitly submit', () => {
+      render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      // A soft-disabled button keeps emitting events, so without an explicit
+      // type it would act as an implicit submit button inside a <form>.
+      expect(screen.getByRole('button')).toHaveAttribute('type', 'button');
+    });
+
+    it('lets an explicit type win over the soft-disabled default', () => {
+      render(
+        <Button type="submit" disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      expect(screen.getByRole('button')).toHaveAttribute('type', 'submit');
+    });
+
     it('describes the focused soft-disabled button via aria-describedby', async () => {
       const { user } = render(
         <Button disabled disabledReason="Pick an agent first">

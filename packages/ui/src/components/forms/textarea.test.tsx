@@ -16,7 +16,10 @@ describe('Textarea', () => {
   describe('disabledReason', () => {
     it('keeps native disabled when no reason is given', () => {
       render(<Textarea aria-label="Bio" disabled />);
-      expect(screen.getByRole('textbox')).toBeDisabled();
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).toBeDisabled();
+      // Native `disabled` already conveys the state; no redundant aria-disabled.
+      expect(textarea).not.toHaveAttribute('aria-disabled');
     });
 
     it('soft-disables (aria-disabled, focusable, readOnly) with a reason', () => {

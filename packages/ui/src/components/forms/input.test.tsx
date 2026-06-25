@@ -18,6 +18,8 @@ describe('Input', () => {
       render(<Input aria-label="Email" disabled />);
       const input = screen.getByRole('textbox');
       expect(input).toBeDisabled();
+      // Native `disabled` already conveys the state; no redundant aria-disabled.
+      expect(input).not.toHaveAttribute('aria-disabled');
     });
 
     it('soft-disables (aria-disabled, focusable, readOnly) with a reason', () => {

@@ -27,7 +27,10 @@ describe('Checkbox', () => {
   describe('disabledReason', () => {
     it('keeps native disabled when no reason is given', () => {
       render(<Checkbox aria-label="Accept terms" disabled />);
-      expect(screen.getByRole('checkbox')).toBeDisabled();
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toBeDisabled();
+      // Native `disabled` already conveys the state; no redundant aria-disabled.
+      expect(checkbox).not.toHaveAttribute('aria-disabled');
     });
 
     it('soft-disables (aria-disabled, focusable) with a reason', () => {

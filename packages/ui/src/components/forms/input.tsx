@@ -39,7 +39,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             type={type}
             disabled={softDisabled ? undefined : disabled}
-            aria-disabled={disabled || undefined}
+            // Only the soft-disabled branch needs `aria-disabled`; a natively
+            // `disabled` field already conveys the state, so emitting it there
+            // too would be redundant with the native attribute.
+            aria-disabled={softDisabled || undefined}
             readOnly={softDisabled ? true : readOnly}
             className={cn(
               'h-9 w-full rounded-lg border px-3 py-2 text-base md:text-sm',

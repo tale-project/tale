@@ -145,6 +145,7 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
       disabledReason: _disabledReason,
       onClick,
       onKeyDown,
+      type,
       children,
       ...props
     },
@@ -208,6 +209,12 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
         disabled={soft ? undefined : isDisabled || undefined}
         aria-busy={isLoading || undefined}
         aria-disabled={isDisabled || undefined}
+        // A soft-disabled button keeps emitting events to surface its tooltip,
+        // so inside a <form> it would otherwise act as an implicit submit
+        // button. Activation is already blocked by `blockActivation`, but
+        // defaulting `type` to "button" is robust defense-in-depth; an explicit
+        // caller `type` always wins.
+        type={soft ? (type ?? 'button') : type}
         onClick={soft ? blockActivation : onClick}
         onKeyDown={soft ? blockActivation : onKeyDown}
         {...props}
