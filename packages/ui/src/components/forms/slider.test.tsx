@@ -90,6 +90,27 @@ describe('Slider', () => {
       expect(onChange).not.toHaveBeenCalled();
     });
 
+    it('is readOnly while soft-disabled (freezes the value, no React warning)', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(
+        <Slider
+          aria-label="Temperature"
+          value={40}
+          min={0}
+          max={100}
+          onChange={() => {}}
+          disabled
+          disabledReason="Enable advanced mode first"
+        />,
+      );
+      const slider = screen.getByRole('slider');
+      expect(slider).toHaveAttribute('readonly');
+      // A controlled `value` without `onChange` (swallowed while soft-disabled)
+      // would make React log a console error — `readOnly` must silence it.
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
     it('ignores the reason while enabled', () => {
       render(
         <Slider

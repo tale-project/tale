@@ -230,6 +230,12 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
               value={value}
               disabled={softDisabled ? undefined : disabled}
               aria-disabled={disabled || undefined}
+              // The range stays value-controlled while soft-disabled, so React
+              // would warn about a `value` with no `onChange`. `readOnly`
+              // silences that without changing behaviour — drag is already
+              // blocked via `onPointerDown` and arrow keys via `onKeyDown` —
+              // matching how `input.tsx`/`textarea.tsx` freeze their fields.
+              readOnly={softDisabled ? true : undefined}
               onChange={softDisabled ? undefined : handleChange}
               onPointerDown={(event) => {
                 if (softDisabled) {
