@@ -16,7 +16,7 @@ import {
   useBulkUnarchiveConversations,
 } from './mutations';
 
-function getSelectedConversationIds(
+export function getSelectedConversationIds(
   selectionState: SelectionState,
   conversations: ConversationItem[],
 ) {
