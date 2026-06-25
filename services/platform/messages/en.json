@@ -7244,6 +7244,7 @@
     "verify": {
       "title": "Verify your identity",
       "description": "Enter the 6-digit code from your authenticator app.",
+      "backupDescription": "Enter one of your backup codes.",
       "codeLabel": "Authentication code",
       "useBackupCodeToggle": "Use a backup code instead",
       "useAuthenticatorToggle": "Use the authenticator app instead",

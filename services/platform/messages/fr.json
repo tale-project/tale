@@ -6983,6 +6983,7 @@
     "verify": {
       "title": "Vérifier ton identité",
       "description": "Saisis le code à 6 chiffres de ton application d'authentification.",
+      "backupDescription": "Saisis l'un de tes codes de secours.",
       "codeLabel": "Code d'authentification",
       "useBackupCodeToggle": "Utiliser un code de secours à la place",
       "useAuthenticatorToggle": "Utiliser l'application d'authentification à la place",

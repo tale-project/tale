@@ -6982,6 +6982,7 @@
     "verify": {
       "title": "Identität bestätigen",
       "description": "Gib den 6-stelligen Code aus deiner Authenticator-App ein.",
+      "backupDescription": "Gib einen deiner Backup-Codes ein.",
       "codeLabel": "Authentifizierungscode",
       "useBackupCodeToggle": "Stattdessen einen Backup-Code verwenden",
       "useAuthenticatorToggle": "Stattdessen die Authenticator-App verwenden",
