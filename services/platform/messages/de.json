@@ -13,13 +13,22 @@
       "title": "Noch nichts anzuzeigen",
       "description": "Für dieses Pack sind keine Seiten konfiguriert."
     },
+    "details": {
+      "scopeOrg": "Organisations-App",
+      "scopeProject": "Projekt-App",
+      "includesTitle": "Enthalten",
+      "pages": "Seiten",
+      "workflows": "Workflows",
+      "agents": "Agenten",
+      "requiresTitle": "Was du brauchst",
+      "requiresHint": "Diese verbindest du bei der Einrichtung."
+    },
     "install": {
       "install": "Installieren",
       "installed": "Installiert",
       "reinstall": "Neu installieren",
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
-      "notInstalledTitle": "Noch nicht installiert",
       "notInstalledDescription": "Installiere diese App, um ihre Agenten und Workflows zu deiner Organisation hinzuzufügen.",
       "chooseProjectDescription": "Diese App läuft innerhalb eines Projekts. Wähle, wo ihre Aufgaben und Seiten leben.",
       "projectLabel": "Projekt",
@@ -1636,7 +1645,10 @@
       "mermaidError": "Diagramm konnte nicht gerendert werden",
       "viewSource": "Quelltext",
       "viewPreview": "Vorschau",
-      "viewToggleAriaLabel": "Quelltext / Vorschau umschalten",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "toggleWrap": "Zeilenumbruch umschalten",
+      "fileActionsAriaLabel": "Dateiaktionen",
       "fileSizeAriaLabel": "Dateigröße",
       "sourceRunOutput": "Code-Ausgabe",
       "sourceAgentWrite": "KI-Dateien",
@@ -1766,7 +1778,9 @@
       "stripAria": "Chat-Bereich",
       "ariaLabel": "Chat-Bereich",
       "minimize": "Chat-Bereich minimieren",
-      "resizeAria": "Chat-Bereich vergrößern"
+      "resizeAria": "Chat-Bereich vergrößern",
+      "fullscreen": "Auf Vollbild erweitern",
+      "exitFullscreen": "Vollbild beenden"
     }
   },
   "common": {

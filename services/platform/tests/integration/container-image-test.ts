@@ -45,10 +45,13 @@ const SIZE_BUDGETS: Record<string, number> = {
   convex: 2500,
   sandbox: 320,
   'sandbox-egress': 80,
-  // Grew past the prior 2100 budget with native docker/compose-in-session
-  // (runtime tiers, #1881) on top of the playwright/chromium toolchain. ~10%
-  // headroom over the current optimized size.
-  'sandbox-runtime': 2800,
+  // Carries a heavy toolchain by design, on top of the playwright/chromium base
+  // and native docker/compose-in-session (runtime tiers, #1881):
+  //   - document conversion: libreoffice + poppler + pandoc (~570 MB)
+  //   - LaTeX/XeTeX for pandoc publication-grade PDF: texlive-xetex +
+  //     latex-recommended + fonts-recommended + lang-chinese + lmodern (~660 MB)
+  // The amd64 image is ~4.0 GB as a result; ~10% headroom over that.
+  'sandbox-runtime': 4400,
 };
 
 const SERVICES = [

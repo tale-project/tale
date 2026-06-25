@@ -349,6 +349,6 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
         />
       </div>
     ),
-    meta: { skeleton: { type: 'action' } },
+    meta: { skeleton: { type: 'checkbox' } },
   };
 }

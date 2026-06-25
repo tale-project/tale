@@ -49,7 +49,8 @@ import {
   isTextBasedFile,
 } from '@/lib/utils/text-file-types';
 
-import { CodeViewer } from '../viewers/code-viewer';
+import { CanvasPreferencesProvider } from '../hooks/canvas-preferences';
+import { CodeFileViewer } from '../viewers/code-file-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
 import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
 import { useWorkspaceFiles } from './workspace-files-context';
@@ -865,7 +866,7 @@ function WorkspaceFileViewerContent({
         />
       );
     }
-    return <CodeViewer path={path} content={state.content} showWrapToggle />;
+    return <CodeFileViewer path={path} content={state.content} />;
   }
 
   // download-only notice (binary, or 404 missing/too-large) — the Download
@@ -932,45 +933,59 @@ function WorkspaceFilesBody({
 
   const handleSelectFile = useCallback((p: string) => setSelectedPath(p), []);
 
+  // An explicit Refresh re-probes a stopped session without remounting the body
+  // (a remount would collapse the tree's expanded folders and drop the open
+  // file — the very thing the user wants to keep). Flipping back to "running"
+  // re-mounts the tree, whose first load reports the real state and flips this
+  // back to stopped if the session is still down. When already running this is a
+  // no-op, and the tree refreshes its expanded dirs in place off `refreshNonce`.
+  useEffect(() => {
+    setSessionRunning(true);
+  }, [refreshNonce]);
+
   if (!sessionRunning) {
     return <SessionStoppedState />;
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-      {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
+    // Provider sits above the `key={selectedPath}` viewer below (which remounts
+    // per file) so the wrap / Source-Preview preferences hold as you browse.
+    <CanvasPreferencesProvider>
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* Tree: stacked on top under `md` (narrow), left sidebar on desktop
           (the conventional file-explorer left/right layout). */}
-      <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
-        <WorkspaceFileTree
-          threadId={threadId}
-          showHidden={showHidden}
-          refreshNonce={refreshNonce}
-          selectedPath={selectedPath}
-          onSelectFile={handleSelectFile}
-          onSessionRunningChange={setSessionRunning}
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {selectedPath ? (
-          <WorkspaceFileViewer
-            key={selectedPath}
+        <div className="border-border max-h-[45%] min-h-0 w-full shrink-0 overflow-y-auto border-b p-2 md:h-full md:max-h-none md:w-1/3 md:max-w-[280px] md:min-w-[160px] md:border-r md:border-b-0">
+          <WorkspaceFileTree
             threadId={threadId}
-            path={selectedPath}
+            showHidden={showHidden}
+            refreshNonce={refreshNonce}
+            selectedPath={selectedPath}
+            onSelectFile={handleSelectFile}
+            onSessionRunningChange={setSessionRunning}
           />
-        ) : (
-          <Stack
-            gap={2}
-            className="h-full items-center justify-center p-8 text-center"
-          >
-            <Text variant="muted" className="text-sm">
-              {t('workspaceFiles.selectFile', {
-                defaultValue: 'Select a file to preview.',
-              })}
-            </Text>
-          </Stack>
-        )}
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {selectedPath ? (
+            <WorkspaceFileViewer
+              key={selectedPath}
+              threadId={threadId}
+              path={selectedPath}
+            />
+          ) : (
+            <Stack
+              gap={2}
+              className="h-full items-center justify-center p-8 text-center"
+            >
+              <Text variant="muted" className="text-sm">
+                {t('workspaceFiles.selectFile', {
+                  defaultValue: 'Select a file to preview.',
+                })}
+              </Text>
+            </Stack>
+          )}
+        </div>
       </div>
-    </div>
+    </CanvasPreferencesProvider>
   );
 }
 
@@ -1060,14 +1075,16 @@ function WorkspaceFilesPaneComponent({ available }: WorkspaceFilesPaneProps) {
       hasContent: true,
       headerActions,
       body: (
-        // Key by threadId + refreshNonce so the body remounts — resetting
-        // `selectedPath` and `sessionRunning` to their fresh defaults — both on
-        // a thread switch (else the previous thread's file shows) and on an
-        // explicit Refresh. The Refresh remount is what lets a STOPPED session
-        // recover: once `sessionRunning` is false the tree unmounts and can no
-        // longer report itself running, so only a remount re-checks it.
+        // Key by threadId alone so the body remounts on a thread switch —
+        // resetting `selectedPath` and `sessionRunning` to fresh defaults so the
+        // previous thread's file/state never bleeds in. Deliberately NOT keyed
+        // by `refreshNonce`: Refresh must preserve the open file and the tree's
+        // expanded folders. The tree re-fetches its expanded dirs in place off
+        // the `refreshNonce` prop, and a STOPPED session is re-probed by the
+        // effect in the body (which re-mounts the tree to re-check) — no remount
+        // of the whole body, so nothing collapses.
         <WorkspaceFilesBody
-          key={`${threadId}:${refreshNonce}`}
+          key={threadId}
           threadId={threadId}
           showHidden={showHidden}
           refreshNonce={refreshNonce}

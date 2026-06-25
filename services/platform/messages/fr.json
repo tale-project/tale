@@ -13,13 +13,22 @@
       "title": "Rien à afficher",
       "description": "Aucune page n'est configurée pour ce pack."
     },
+    "details": {
+      "scopeOrg": "Application d'organisation",
+      "scopeProject": "Application de projet",
+      "includesTitle": "Ce qui est inclus",
+      "pages": "Pages",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresTitle": "Ce dont vous aurez besoin",
+      "requiresHint": "Vous les connecterez lors de la configuration."
+    },
     "install": {
       "install": "Installer",
       "installed": "Installé",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
-      "notInstalledTitle": "Pas encore installé",
       "notInstalledDescription": "Installez cette application pour ajouter ses agents et workflows à votre organisation.",
       "chooseProjectDescription": "Cette application fonctionne au sein d'un projet. Choisissez où vivront ses tâches et ses pages.",
       "projectLabel": "Projet",
@@ -1637,7 +1646,10 @@
       "mermaidError": "Échec du rendu du diagramme",
       "viewSource": "Source",
       "viewPreview": "Aperçu",
-      "viewToggleAriaLabel": "Basculer entre source et aperçu",
+      "copy": "Copier",
+      "copied": "Copié",
+      "toggleWrap": "Basculer le retour à la ligne",
+      "fileActionsAriaLabel": "Actions du fichier",
       "fileSizeAriaLabel": "Taille du fichier",
       "sourceRunOutput": "Sortie de code",
       "sourceAgentWrite": "Fichiers IA",
@@ -1767,7 +1779,9 @@
       "stripAria": "Panneau de discussion",
       "ariaLabel": "Panneau de discussion",
       "minimize": "Réduire le panneau de discussion",
-      "resizeAria": "Redimensionner le panneau de discussion"
+      "resizeAria": "Redimensionner le panneau de discussion",
+      "fullscreen": "Passer en plein écran",
+      "exitFullscreen": "Quitter le plein écran"
     }
   },
   "common": {

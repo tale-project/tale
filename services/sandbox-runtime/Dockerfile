@@ -72,6 +72,65 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/local/bin/python3 /usr/local/bin/python \
     && ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
+# --- document conversion toolchain (Office / PDF) ---------------------------
+# Binaries the bundled document skills (builtin-configs/skills/*) and any agent
+# asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
+# in via the per-execution `uv pip install` path (that only provides Python
+# *libraries* into /user/.runtime/deps/python — see entrypoint.sh install_python),
+# so the OS-level tools must be baked here:
+#   libreoffice-writer/calc/impress — faithful Office→PDF conversion (docx,
+#       xlsx, pptx) and xlsx formula recalc via `soffice --headless`. Install
+#       just these three apps (they pull libreoffice-core/common + ure as hard
+#       Depends); --no-install-recommends skips Base/Draw/Math, Java and the GUI
+#       stack we never use. This is what unblocks the pptx skill's render path.
+#   poppler-utils — `pdftoppm` rasterizes the intermediate (or any) PDF to
+#       images for the thumbnail / visual-QA loop; `pdftotext` extracts PDF text.
+#   pandoc — clean .docx → markdown/text extraction (handles tracked changes);
+#       the tool the official docx skill uses for reading.
+# Deliberately NOT installed: gcc / libc6-dev for office/soffice.py's AF_UNIX
+# LD_PRELOAD shim. Tale runs the default Docker / RuntimeDefault seccomp profile
+# (docker-args.ts: apparmor=docker-default, no custom seccomp; k8s-pod-spec.ts:
+# seccompProfile RuntimeDefault), which permits AF_UNIX sockets — so the skill's
+# _needs_shim() is always false here and the shim (the only thing that would
+# need a compiler at runtime) never builds. No reason to ship a C toolchain in
+# this hardened image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libreoffice-writer \
+      libreoffice-calc \
+      libreoffice-impress \
+      poppler-utils \
+      pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- LaTeX (XeTeX) for publication-grade PDF -------------------------------
+# Gives `pandoc -o out.pdf --pdf-engine=xelatex` a real TeX engine, so PDFs get
+# a genuine `--toc`, page numbers, running headers/footers, a title page and
+# full font/margin control — instead of the brittle render-then-stitch route
+# (LibreOffice/fitz) the agent otherwise falls back to. A separate layer from
+# the Office/PDF block above: it's a large, self-contained concern that caches
+# independently. Kept to the XeTeX subset pandoc's default template needs, NOT
+# the multi-GB full `texlive` meta-package:
+#   texlive-xetex             — the `xelatex` engine (Unicode/OpenType native).
+#   texlive-latex-recommended — the core package set the default template loads.
+#   texlive-fonts-recommended — Latin Modern / TeX Gyre fonts that template uses.
+#   texlive-lang-chinese      — xeCJK / ctex so the Chinese workspace docs
+#       (e.g. *-zh-CN.md) typeset instead of dropping to tofu. The CJK *fonts*
+#       (Noto CJK) are already baked above for the live browser, so this adds
+#       only the macro packages; it also pulls texlive-latex-extra, handy for
+#       richer templates (fancyhdr, mdframed, …).
+#   lmodern                   — Latin Modern `lmodern.sty`. Pandoc's default
+#       LaTeX template does `\usepackage{lmodern}`, but it's only a *Recommends*
+#       of texlive-latex-recommended, so `--no-install-recommends` drops it and
+#       every `pandoc --pdf-engine=xelatex` then dies with "lmodern.sty not
+#       found". Pull it explicitly (the one Recommends we actually need).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      texlive-xetex \
+      texlive-latex-recommended \
+      texlive-fonts-recommended \
+      texlive-lang-chinese \
+      lmodern \
+    && rm -rf /var/lib/apt/lists/*
+
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 

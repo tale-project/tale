@@ -29,10 +29,18 @@ interface ChatPanelContextType {
   activeTab: ChatPaneId | null;
   /** Maximized (full pane + tabs) vs minimized (the shared strip). */
   isMaximized: boolean;
+  /**
+   * Whether the maximized pane is expanded to a full-viewport overlay (desktop
+   * only — mobile is already full-width). Lets a cramped docked panel grow to
+   * the whole window for reading documents / the live browser, then snap back.
+   */
+  isFullscreen: boolean;
   /** Open a pane maximized and make it the active tab. */
   openPane: (id: ChatPaneId) => void;
   /** Collapse to the strip without losing content (never a dead-end). */
   minimize: () => void;
+  /** Toggle the full-viewport overlay on the maximized pane (desktop only). */
+  toggleFullscreen: () => void;
   /** Clear shell state — used on new-chat / thread switch. */
   reset: () => void;
 }
@@ -85,6 +93,7 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
   );
   const [activeTab, setActiveTab] = useState<ChatPaneId | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const registerPane = useCallback((descriptor: ChatPaneDescriptor) => {
     setRegistry((prev) => {
@@ -117,11 +126,18 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
     setIsMaximized(true);
   }, []);
 
-  const minimize = useCallback(() => setIsMaximized(false), []);
+  // Collapsing to the strip also leaves fullscreen, so re-opening starts docked.
+  const minimize = useCallback(() => {
+    setIsMaximized(false);
+    setIsFullscreen(false);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => setIsFullscreen((v) => !v), []);
 
   const reset = useCallback(() => {
     setActiveTab(null);
     setIsMaximized(false);
+    setIsFullscreen(false);
   }, []);
 
   // Reset shell state on every thread switch (mirrors the per-thread reset in
@@ -132,6 +148,7 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
     if (prevThreadIdRef.current !== threadId) {
       setActiveTab(null);
       setIsMaximized(false);
+      setIsFullscreen(false);
       prevThreadIdRef.current = threadId;
     }
   }, [threadId]);
@@ -144,6 +161,7 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
     if (visiblePanes.length === 0) {
       if (activeTab !== null) setActiveTab(null);
       if (isMaximized) setIsMaximized(false);
+      if (isFullscreen) setIsFullscreen(false);
       return;
     }
     const stillVisible =
@@ -151,7 +169,7 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
     if (!stillVisible) {
       setActiveTab(visiblePanes[0].id);
     }
-  }, [visiblePanes, activeTab, isMaximized]);
+  }, [visiblePanes, activeTab, isMaximized, isFullscreen]);
 
   const value = useMemo<ChatPanelContextType>(
     () => ({
@@ -160,8 +178,10 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
       visiblePanes,
       activeTab,
       isMaximized,
+      isFullscreen,
       openPane,
       minimize,
+      toggleFullscreen,
       reset,
     }),
     [
@@ -170,8 +190,10 @@ export function ChatPanelProvider({ children }: ChatPanelProviderProps) {
       visiblePanes,
       activeTab,
       isMaximized,
+      isFullscreen,
       openPane,
       minimize,
+      toggleFullscreen,
       reset,
     ],
   );

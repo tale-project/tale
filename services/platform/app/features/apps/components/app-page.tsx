@@ -16,11 +16,12 @@
  *  A non-blocking readiness checklist (missing integration credentials / agent
  *  setup / broken install) rides above the views/hub; the shell stays usable. */
 import { Alert } from '@tale/ui/alert';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Grid, HStack, VStack } from '@tale/ui/layout';
+import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
@@ -29,6 +30,7 @@ import { LayoutGrid, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { startCase } from '@/lib/utils/string';
 
 import { useAppAgentReadiness } from '../hooks/use-app-agent-readiness';
 import { resolvePackLabels } from '../hooks/use-app-pack-labels';
@@ -497,6 +499,148 @@ function AddToThisProject({
   );
 }
 
+/**
+ * Org route, app NOT installed — a real pre-install details page: the full
+ * (un-clamped) description plus what the app brings (its pages / workflows /
+ * agents) and what it needs (integrations connected during setup), with Install
+ * as the CTA. Replaces the bare "install it first" prompt so you can judge an
+ * app before committing to it. The wizard (project pick / required integrations)
+ * lives inside, matching the one-click-vs-wizard split on the hub.
+ */
+function AppDetails({
+  organizationId,
+  appSlug,
+  app,
+  labels,
+}: {
+  organizationId: string;
+  appSlug: string;
+  app: AppSummary;
+  labels: Record<string, string>;
+}) {
+  const { t } = useT('apps');
+  const { install, isPending } = useAppInstallActions(organizationId);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const needsWizard =
+    app.scope === 'project' || app.requiredIntegrations.length > 0;
+
+  // Pages by their resolved (pack-label or literal) titles; untitled views drop
+  // out — a blank chip says nothing about what the page is.
+  const pageTitles = app.views
+    .map((v) => resolvePackLabel(v.title, labels))
+    .filter((title): title is string => Boolean(title));
+
+  // The app's composition, as labelled chip groups. Slugs are humanized for
+  // display (we have no friendlier name pre-install); empty groups are dropped.
+  const includes = [
+    { key: 'views', label: t('details.pages'), items: pageTitles },
+    {
+      key: 'workflows',
+      label: t('details.workflows'),
+      items: app.workflows.map(startCase),
+    },
+    {
+      key: 'agents',
+      label: t('details.agents'),
+      items: app.agents.map(startCase),
+    },
+  ].filter((section) => section.items.length > 0);
+
+  return (
+    <VStack gap={6}>
+      <HStack className="items-start justify-between gap-3">
+        <HStack gap={3} className="min-w-0 items-start">
+          <Row
+            gap={0}
+            justify="center"
+            className="bg-muted text-muted-foreground size-10 shrink-0 rounded-lg"
+          >
+            <LayoutGrid className="size-5" />
+          </Row>
+          <VStack gap={1} className="min-w-0">
+            <Text as="span" className="text-xl font-semibold">
+              {app.name}
+            </Text>
+            <div>
+              <Badge variant="slate">
+                {t(
+                  app.scope === 'project'
+                    ? 'details.scopeProject'
+                    : 'details.scopeOrg',
+                )}
+              </Badge>
+            </div>
+          </VStack>
+        </HStack>
+        <Button
+          disabled={isPending}
+          onClick={() =>
+            needsWizard ? setWizardOpen(true) : void install(appSlug)
+          }
+        >
+          {t('install.install')}
+        </Button>
+      </HStack>
+
+      <Text variant="muted">
+        {app.description || t('install.notInstalledDescription')}
+      </Text>
+
+      {includes.length > 0 && (
+        <Card>
+          <VStack gap={4}>
+            <Text className="font-medium">{t('details.includesTitle')}</Text>
+            {includes.map((section) => (
+              <VStack key={section.key} gap={2}>
+                <Text variant="muted" className="text-sm">
+                  {section.label}
+                </Text>
+                <HStack gap={2} className="flex-wrap">
+                  {section.items.map((item, i) => (
+                    <Badge key={`${section.key}-${i}`} variant="outline">
+                      {item}
+                    </Badge>
+                  ))}
+                </HStack>
+              </VStack>
+            ))}
+          </VStack>
+        </Card>
+      )}
+
+      {app.requiredIntegrations.length > 0 && (
+        <Card>
+          <VStack gap={3}>
+            <Text className="font-medium">{t('details.requiresTitle')}</Text>
+            <HStack gap={2} className="flex-wrap">
+              {app.requiredIntegrations.map((slug) => (
+                <Badge key={slug} variant="outline">
+                  {startCase(slug)}
+                </Badge>
+              ))}
+            </HStack>
+            <Text variant="muted" className="text-sm">
+              {t('details.requiresHint')}
+            </Text>
+          </VStack>
+        </Card>
+      )}
+
+      {needsWizard && (
+        <AppInstallWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          organizationId={organizationId}
+          appSlug={appSlug}
+          appName={app.name}
+          scope={app.scope}
+          requiredIntegrations={app.requiredIntegrations}
+        />
+      )}
+    </VStack>
+  );
+}
+
 export function AppPage({
   organizationId,
   appSlug,
@@ -509,11 +653,9 @@ export function AppPage({
 }) {
   const { t } = useT('apps');
   const { locale } = useLocale();
-  const [wizardOpen, setWizardOpen] = useState(false);
   const { apps, isLoading } = useApps(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
-  const { install, isPending } = useAppInstallActions(organizationId);
 
   const app = apps.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
@@ -567,39 +709,17 @@ export function AppPage({
     );
   }
 
-  // ORG route, not installed — Install prompt (wizard picks the first project
-  // for a project-scoped app / walks required integrations).
+  // ORG route, not installed — a pre-install details page (full description +
+  // what it includes / needs) with Install as the CTA. The wizard (project pick
+  // for a project-scoped app / required integrations) lives inside it.
   if (!state) {
-    const needsWizard = isProjectScoped || app.requiredIntegrations.length > 0;
     return (
-      <>
-        <EmptyState
-          icon={LayoutGrid}
-          title={t('install.notInstalledTitle', { defaultValue: app.name })}
-          description={t('install.notInstalledDescription')}
-          action={
-            <Button
-              disabled={isPending}
-              onClick={() =>
-                needsWizard ? setWizardOpen(true) : void install(appSlug)
-              }
-            >
-              {t('install.install')}
-            </Button>
-          }
-        />
-        {needsWizard && (
-          <AppInstallWizard
-            open={wizardOpen}
-            onOpenChange={setWizardOpen}
-            organizationId={organizationId}
-            appSlug={appSlug}
-            appName={app.name}
-            scope={app.scope}
-            requiredIntegrations={app.requiredIntegrations}
-          />
-        )}
-      </>
+      <AppDetails
+        organizationId={organizationId}
+        appSlug={appSlug}
+        app={app}
+        labels={labels}
+      />
     );
   }
 

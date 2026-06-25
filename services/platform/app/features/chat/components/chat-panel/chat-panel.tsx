@@ -1,8 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { PanelRightClose } from 'lucide-react';
-import { useRef, type KeyboardEvent } from 'react';
+import { Maximize2, Minimize2, PanelRightClose } from 'lucide-react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useIsMobile } from '@/app/hooks/use-is-mobile';
@@ -39,8 +39,15 @@ const bodyId = (id: ChatPaneId) => `chat-panel-body-${id}`;
 export function ChatPanel() {
   const { t } = useT('chat');
   const isMobile = useIsMobile();
-  const { visiblePanes, activeTab, isMaximized, openPane, minimize } =
-    useChatPanel();
+  const {
+    visiblePanes,
+    activeTab,
+    isMaximized,
+    isFullscreen,
+    openPane,
+    minimize,
+    toggleFullscreen,
+  } = useChatPanel();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const { width, minWidth, maxWidth, handleMouseDown, handleKeyDown } =
@@ -49,6 +56,20 @@ export function ChatPanel() {
       maxWidth: MAX_WIDTH,
       initialWidth: DEFAULT_WIDTH,
     });
+
+  // Desktop fullscreen expands to the same full-viewport overlay mobile always
+  // uses (mobile has no docked state to grow from, so its toggle is hidden).
+  const isOverlay = isMobile || isFullscreen;
+
+  // Escape leaves the desktop fullscreen overlay (back to the docked pane).
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') toggleFullscreen();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen, toggleFullscreen]);
 
   if (visiblePanes.length === 0) return null;
 
@@ -98,19 +119,23 @@ export function ChatPanel() {
     <div
       className={cn(
         'border-border bg-background relative flex h-full shrink-0 flex-col border-l',
-        // On mobile the panel is a full-screen fixed overlay above the chat so
-        // the tabs + body are usable on a narrow viewport; on desktop it's a
-        // fixed-width docked column in the flex row that the user can resize.
+        // The panel is a full-screen fixed overlay above the chat when it has no
+        // docked column to live in — always on mobile (narrow viewport), and on
+        // desktop when the user toggles fullscreen to read a cramped document.
         // Fixed positioning (not a Radix Dialog) keeps every body mounted, so
-        // the Live Browser's RFB socket survives minimize/maximize on mobile.
-        isMobile && 'fixed inset-0 z-40 w-full border-l-0',
+        // the Live Browser's RFB socket survives minimize/maximize/fullscreen.
+        // z-50 matches the app's top-layer tier so the overlay also covers the
+        // `sticky z-50` composer; it renders after the chat column in the DOM,
+        // and Radix-portaled tooltips/dialogs (also z-50, but later in the body)
+        // still sit above it.
+        isOverlay && 'fixed inset-0 z-50 w-full border-l-0',
       )}
-      style={isMobile ? undefined : { width }}
+      style={isOverlay ? undefined : { width }}
       role="complementary"
       aria-label={t('chatPanel.ariaLabel', { defaultValue: 'Chat panel' })}
     >
-      {/* Drag-to-resize handle — desktop only (mobile is full-width). */}
-      {!isMobile && (
+      {/* Drag-to-resize handle — only when docked (overlay is full-width). */}
+      {!isOverlay && (
         <div
           ref={panelRef}
           role="separator"
@@ -170,6 +195,44 @@ export function ChatPanel() {
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {activeHeaderActions}
+          {/* Fullscreen toggle — desktop only; mobile is already full-screen. */}
+          {!isMobile && (
+            <Tooltip
+              content={
+                isFullscreen
+                  ? t('chatPanel.exitFullscreen', {
+                      defaultValue: 'Exit full screen',
+                    })
+                  : t('chatPanel.fullscreen', {
+                      defaultValue: 'Expand to full screen',
+                    })
+              }
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={toggleFullscreen}
+                aria-pressed={isFullscreen}
+                aria-label={
+                  isFullscreen
+                    ? t('chatPanel.exitFullscreen', {
+                        defaultValue: 'Exit full screen',
+                      })
+                    : t('chatPanel.fullscreen', {
+                        defaultValue: 'Expand to full screen',
+                      })
+                }
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="size-3.5" />
+                ) : (
+                  <Maximize2 className="size-3.5" />
+                )}
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip
             content={t('chatPanel.minimize', {
               defaultValue: 'Minimize chat panel',
