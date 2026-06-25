@@ -31,6 +31,15 @@ interface FileAttachment {
   fileType: string;
   fileSize: number;
   previewUrl?: string;
+  /**
+   * Identity of the source file the user picked, before any client-side
+   * image compression renamed/resized it (see compress-image.ts). Dedup
+   * keys off these so re-attaching the same original is caught even though
+   * `fileName`/`fileSize` hold the compressed values. Falls back to the
+   * stored name/size for non-image attachments that were never compressed.
+   */
+  originalFileName?: string;
+  originalFileSize?: number;
 }
 
 interface ConvexFileUploadConfig {
@@ -97,6 +106,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
+
+  // In-flight uploads that have passed the gates but not yet committed to
+  // `attachments`. The count/dedup/total-size gates below read only the
+  // committed `attachments`, so without this a second attach batch fired
+  // while the first is still uploading would not see the first batch — letting
+  // it bypass the file-count cap, cross-batch dedup, and total-size cap. Each
+  // entry keeps the ORIGINAL (pre-compression) dedup key and the source size
+  // so those gates account for the pending file. Keyed by a per-upload id so
+  // overlapping batches don't clobber each other's reservations.
+  const pendingUploadsRef = useRef(
+    new Map<string, { dedupKey: string; size: number }>(),
+  );
 
   const uploadFiles = useCallback(
     async (files: File[]) => {
@@ -212,10 +233,23 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
       if (validFiles.length === 0) return;
 
-      // Skip files already attached (match by name + size)
-      const existingKeys = new Set(
-        attachmentsRef.current.map((att) => `${att.fileName}:${att.fileSize}`),
-      );
+      // Skip files already attached (match by name + size). Compare against
+      // the ORIGINAL identity of stored attachments — images are compressed
+      // and renamed before storage, so keying off `fileName`/`fileSize` would
+      // miss a re-attach of the same >1MB source image. In-flight uploads are
+      // folded in too so a duplicate spread across concurrent batches is
+      // caught before the first one finishes committing.
+      const existingKeys = new Set<string>();
+      for (const att of attachmentsRef.current) {
+        existingKeys.add(
+          `${att.originalFileName ?? att.fileName}:${
+            att.originalFileSize ?? att.fileSize
+          }`,
+        );
+      }
+      for (const pending of pendingUploadsRef.current.values()) {
+        existingKeys.add(pending.dedupKey);
+      }
       const deduped: typeof validFiles = [];
       for (const entry of validFiles) {
         const key = `${entry.file.name}:${entry.file.size}`;
@@ -234,9 +268,12 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
       if (deduped.length === 0) return;
 
-      // Enforce max file count
+      // Enforce max file count — count in-flight uploads alongside committed
+      // attachments so overlapping batches can't collectively exceed the cap.
       const slotsAvailable =
-        CHAT_MAX_FILE_COUNT - attachmentsRef.current.length;
+        CHAT_MAX_FILE_COUNT -
+        attachmentsRef.current.length -
+        pendingUploadsRef.current.size;
       if (slotsAvailable <= 0) {
         toast({
           title: t('tooManyFiles'),
@@ -265,11 +302,16 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         });
       }
 
-      // Enforce max total attachment size
-      const existingSize = attachmentsRef.current.reduce(
+      // Enforce max total attachment size — include in-flight uploads (using
+      // the source size as an upper bound; the compressed upload is smaller)
+      // so concurrent batches can't collectively exceed the total cap.
+      let existingSize = attachmentsRef.current.reduce(
         (sum, att) => sum + att.fileSize,
         0,
       );
+      for (const pending of pendingUploadsRef.current.values()) {
+        existingSize += pending.size;
+      }
       const incomingSize = acceptedFiles.reduce(
         (sum, { file }) => sum + file.size,
         0,
@@ -285,9 +327,22 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         return;
       }
 
-      const uploadPromises = acceptedFiles.map(
-        async ({ file, resolvedType }) => {
-          const fileId = `${file.name}-${Date.now()}`;
+      // Reserve a slot for every accepted file *before* any upload starts, so
+      // a concurrent batch fired mid-upload sees these in the gates above. The
+      // dedup key uses the original (pre-compression) identity to match the
+      // stored-attachment key. Reservations are released in the `finally` once
+      // the file commits to `attachments` (or fails).
+      const uploadTasks = acceptedFiles.map(({ file, resolvedType }, index) => {
+        const fileId = `${file.name}-${file.size}-${Date.now()}-${index}`;
+        pendingUploadsRef.current.set(fileId, {
+          dedupKey: `${file.name}:${file.size}`,
+          size: file.size,
+        });
+        return { file, resolvedType, fileId };
+      });
+
+      const uploadPromises = uploadTasks.map(
+        async ({ file, resolvedType, fileId }) => {
           setUploadingFiles((prev) => [...prev, fileId]);
 
           try {
@@ -336,11 +391,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               fileName: fileToUpload.name,
               fileType: resolvedType,
               fileSize: fileToUpload.size,
+              // Preserve the source identity so a later re-attach of the same
+              // original file dedups even after compression renamed/resized it.
+              originalFileName: file.name,
+              originalFileSize: file.size,
               previewUrl: resolvedType.startsWith('image/')
                 ? URL.createObjectURL(fileToUpload)
                 : undefined,
             };
 
+            // Commit to `attachments` and release the in-flight reservation in
+            // the same tick so the file is never counted twice by the gates.
+            pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 
             toast({
@@ -355,6 +417,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               variant: 'destructive',
             });
           } finally {
+            // Idempotent: the success path already released the reservation;
+            // this covers the failure path so a failed upload frees its slot.
+            pendingUploadsRef.current.delete(fileId);
             setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
           }
         },
