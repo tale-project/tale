@@ -2,11 +2,18 @@
 
 import { Button } from '@tale/ui/button';
 import { Code, Eye } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { formatFileSize } from '@/lib/utils/format/file';
 
+import { useCanvasPreferences } from '../hooks/canvas-preferences';
+import {
+  CopyAction,
+  DownloadTextAction,
+  WrapAction,
+} from './canvas-file-actions';
+import { CanvasViewerFrame } from './canvas-viewer-frame';
 import { CodeViewer } from './code-viewer';
 import { HtmlViewer } from './html-viewer';
 import { MarkdownViewer } from './markdown-viewer';
@@ -49,17 +56,11 @@ function RenderableFileViewerComponent({
   defaultMode = 'source',
 }: RenderableFileViewerProps) {
   const { t } = useT('chat');
-  // Remember the chosen mode per file path. The canvas keeps a single
-  // RenderableFileViewer mounted and only swaps `path` when you switch tabs;
-  // resetting to `defaultMode` on every swap flipped source⇄preview and shifted
-  // the layout. Keying by path makes the mode sticky per file, so re-selecting a
-  // tab restores exactly what you last viewed — no jump.
-  const [modeByPath, setModeByPath] = useState<
-    Record<string, 'source' | 'preview'>
-  >({});
-  const viewMode = modeByPath[path] ?? defaultMode;
-  const setViewMode = (mode: 'source' | 'preview') =>
-    setModeByPath((prev) => ({ ...prev, [path]: mode }));
+  // Wrap + the per-file Source/Preview choice live in the shared canvas
+  // preferences so they hold as you move between files and viewer kinds (a
+  // re-selected tab restores exactly what you last viewed — no jump).
+  const { wrap, toggleWrap, getViewMode, setViewMode } = useCanvasPreferences();
+  const viewMode = getViewMode(path, defaultMode);
 
   const effectiveMode: 'source' | 'preview' = isStreaming ? 'source' : viewMode;
 
@@ -71,63 +72,51 @@ function RenderableFileViewerComponent({
   );
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      {/* `pb-14` reserves a gutter the height of the floating control so the
-          last line of content can scroll clear of it instead of hiding behind
-          it. */}
-      <div className="min-h-0 flex-1 overflow-hidden pb-14">
-        {effectiveMode === 'source' ? (
-          <CodeViewer path={path} content={content} />
-        ) : kind === 'html' ? (
-          <HtmlViewer html={content} />
-        ) : kind === 'svg' ? (
-          <SvgViewer svg={content} />
-        ) : kind === 'mermaid' ? (
-          <MermaidViewer code={content} />
-        ) : (
-          <MarkdownViewer content={content} />
-        )}
-      </div>
-
-      {/* Floating control: the Source/Preview toggle plus the file size, docked
-          bottom-right above the content as a raised card rather than a
-          full-width top bar. */}
-      <div
-        className="border-border bg-background/95 absolute right-3 bottom-3 z-10 flex items-center gap-1 rounded-lg border p-1 shadow-md backdrop-blur"
-        role="group"
-        aria-label={t('canvas.viewToggleAriaLabel', {
-          defaultValue: 'Toggle source / preview',
-        })}
-      >
-        <span
-          className="text-muted-foreground px-2 text-xs tabular-nums"
-          aria-label={t('canvas.fileSizeAriaLabel', {
-            defaultValue: 'File size',
-          })}
-        >
-          {sizeLabel}
-        </span>
-        <Button
-          variant={effectiveMode === 'source' ? 'secondary' : 'ghost'}
-          size="sm"
-          icon={Code}
-          onClick={() => setViewMode('source')}
-          aria-pressed={effectiveMode === 'source'}
-        >
-          {t('canvas.viewSource', { defaultValue: 'Source' })}
-        </Button>
-        <Button
-          variant={effectiveMode === 'preview' ? 'secondary' : 'ghost'}
-          size="sm"
-          icon={Eye}
-          onClick={() => setViewMode('preview')}
-          aria-pressed={effectiveMode === 'preview'}
-          disabled={isStreaming}
-        >
-          {t('canvas.viewPreview', { defaultValue: 'Preview' })}
-        </Button>
-      </div>
-    </div>
+    <CanvasViewerFrame
+      sizeLabel={sizeLabel}
+      actions={
+        <>
+          {/* Wrapping only applies to the source view (the rendered preview has
+              no long-line concept). */}
+          {effectiveMode === 'source' && (
+            <WrapAction wrap={wrap} onToggle={toggleWrap} />
+          )}
+          <CopyAction content={content} />
+          <DownloadTextAction path={path} content={content} />
+          <Button
+            variant={effectiveMode === 'source' ? 'secondary' : 'ghost'}
+            size="sm"
+            icon={Code}
+            onClick={() => setViewMode(path, 'source')}
+            aria-pressed={effectiveMode === 'source'}
+          >
+            {t('canvas.viewSource', { defaultValue: 'Source' })}
+          </Button>
+          <Button
+            variant={effectiveMode === 'preview' ? 'secondary' : 'ghost'}
+            size="sm"
+            icon={Eye}
+            onClick={() => setViewMode(path, 'preview')}
+            aria-pressed={effectiveMode === 'preview'}
+            disabled={isStreaming}
+          >
+            {t('canvas.viewPreview', { defaultValue: 'Preview' })}
+          </Button>
+        </>
+      }
+    >
+      {effectiveMode === 'source' ? (
+        <CodeViewer path={path} content={content} wrap={wrap} />
+      ) : kind === 'html' ? (
+        <HtmlViewer html={content} />
+      ) : kind === 'svg' ? (
+        <SvgViewer svg={content} />
+      ) : kind === 'mermaid' ? (
+        <MermaidViewer code={content} />
+      ) : (
+        <MarkdownViewer content={content} />
+      )}
+    </CanvasViewerFrame>
   );
 }
 

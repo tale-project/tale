@@ -69,6 +69,22 @@ function getHighlighter(): Promise<HighlighterCore> {
   return highlighterPromise;
 }
 
+/**
+ * Warm the highlighter singleton (engine + themes + eager grammars) ahead of
+ * first use. The init is otherwise lazy, paid on the first `highlightCode`
+ * call — so the first file a user opens flashes un-highlighted while the
+ * dynamic imports resolve. Call this on mount of any surface that's about to
+ * render code (e.g. the canvas) so highlighting is ready by the time content
+ * lands. Idempotent (the promise is cached) and fire-and-forget.
+ */
+export function preloadHighlighter(): void {
+  void getHighlighter().catch((error) => {
+    // Already reset+rethrown inside getHighlighter; log so the preload doesn't
+    // surface an unhandled rejection, and let the next real call retry.
+    console.warn('[shiki] preload failed:', error);
+  });
+}
+
 const LANG_ALIASES: Record<string, string> = {
   plaintext: 'text',
   txt: 'text',
