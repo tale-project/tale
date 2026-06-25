@@ -1,3 +1,5 @@
+import { ConvexError } from 'convex/values';
+
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -31,11 +33,17 @@ export async function sendMessageViaIntegration(
 ): Promise<Id<'conversationMessages'>> {
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
-    throw new Error('Conversation not found');
+    throw new ConvexError({
+      code: 'conversation_not_found',
+      message: 'Conversation not found',
+    });
   }
 
   if (conversation.organizationId !== args.organizationId) {
-    throw new Error('Conversation does not belong to organization');
+    throw new ConvexError({
+      code: 'conversation_org_mismatch',
+      message: 'Conversation does not belong to organization',
+    });
   }
 
   // Resolve threading headers from the conversation's message history

@@ -2,6 +2,8 @@
  * Update a conversation message (business logic)
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -20,7 +22,10 @@ export async function updateConversationMessage(
 ): Promise<void> {
   const message = await ctx.db.get(args.messageId);
   if (!message) {
-    throw new Error('Conversation message not found');
+    throw new ConvexError({
+      code: 'conversation_message_not_found',
+      message: 'Conversation message not found',
+    });
   }
 
   const previousState: Record<string, unknown> = {};

@@ -2,6 +2,8 @@
  * Delete a conversation (business logic)
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertNotHeld } from '../governance/legal_hold_guard';
@@ -12,7 +14,10 @@ export async function deleteConversation(
 ): Promise<void> {
   const conversation = await ctx.db.get(conversationId);
   if (!conversation) {
-    throw new Error('Conversation not found');
+    throw new ConvexError({
+      code: 'conversation_not_found',
+      message: 'Conversation not found',
+    });
   }
 
   // Conversations have no per-row hold today; this only blocks on

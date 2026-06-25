@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -6,15 +6,19 @@ import { internalMutation, type MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { platformRoleValidator } from '../enterprise_sso/validators';
 import {
+  deleteMemberMirrorByMemberId,
   deleteTeamMemberMirrorByTeamMemberId,
   upsertMemberMirror,
   upsertTeamMemberMirror,
 } from '../members/mirror_sync';
+import type { BetterAuthMember } from '../members/types';
 import {
   findMember,
   findTeamById,
   findUserByEmail,
+  findUserById,
   listTeamMembers,
+  listUserMemberships,
 } from './data';
 import { deleteLink, getLink, upsertLink } from './links';
 import type { ScimGroupRecord, ScimUserRecord } from './types';
@@ -161,6 +165,51 @@ export function planActivation(
 }
 
 /**
+ * Classify how a SCIM create may touch a user already matched globally by
+ * email, given that user's full membership set and the token's org. A SCIM
+ * token must never graft a membership onto, or rename, an account another
+ * tenant owns — `owned-elsewhere` is rejected by the create path (#2036).
+ */
+export function classifyUserOwnership(
+  memberships: readonly { organizationId: string }[],
+  organizationId: string,
+): 'owned-here' | 'unowned' | 'owned-elsewhere' {
+  if (memberships.some((m) => m.organizationId === organizationId)) {
+    return 'owned-here';
+  }
+  return memberships.length > 0 ? 'owned-elsewhere' : 'unowned';
+}
+
+/**
+ * Decide how an HTTP DELETE resolves for a SCIM User, from the caller's
+ * membership in the token's org: a missing membership is a 404; the org owner
+ * is protected (removing it would orphan the org); anything else is removed.
+ */
+export function classifyDeprovision(
+  member: { role?: string } | undefined,
+): 'not-found' | 'owner-protected' | 'deprovision' {
+  if (!member) return 'not-found';
+  if ((member.role ?? '').toLowerCase() === 'owner') return 'owner-protected';
+  return 'deprovision';
+}
+
+/**
+ * Compose a SCIM Group membership PATCH into the final desired user-id set: a
+ * clear-all / replace base, then adds, then removes. Keeps an `add` paired with
+ * a value-less `remove members` from being silently dropped (#2085[13]).
+ */
+export function composeDesiredMembers(
+  replaceMembers: readonly string[],
+  addMembers: readonly string[],
+  removeMembers: readonly string[],
+): string[] {
+  const desired = new Set(replaceMembers);
+  for (const id of addMembers) desired.add(id);
+  for (const id of removeMembers) desired.delete(id);
+  return [...desired];
+}
+
+/**
  * Create-or-upsert a user + org membership from a SCIM User resource.
  * Idempotent on `(org, email)` — used by both POST (create) and PUT (replace).
  */
@@ -179,9 +228,29 @@ export const provisionUser = internalMutation({
     const existingUser = await findUserByEmail(ctx, args.email);
 
     let userId: string;
+    let memberHere: BetterAuthMember | undefined;
     if (existingUser) {
+      // A SCIM token is scoped to its own tenant. If the email already maps to
+      // a global user owned by ANOTHER org, refuse to reuse it — never graft a
+      // membership onto, or rename, an account this org does not own (#2036).
+      // The `scim_user_conflict` code is mapped to a 409 by the HTTP layer.
+      const memberships = await listUserMemberships(ctx, existingUser._id);
+      if (
+        classifyUserOwnership(memberships, args.organizationId) ===
+        'owned-elsewhere'
+      ) {
+        throw new ConvexError({
+          code: 'scim_user_conflict',
+          message: `User ${args.email} belongs to another organization`,
+        });
+      }
+      memberHere = memberships.find(
+        (m) => m.organizationId === args.organizationId,
+      );
       userId = existingUser._id;
-      if (args.name && existingUser.name !== args.name) {
+      // Only rename when this org already owns the membership — a SCIM token
+      // must not rewrite the global user row of an account it does not own.
+      if (memberHere && args.name && existingUser.name !== args.name) {
         await ctx.runMutation(components.betterAuth.adapter.updateMany, {
           input: {
             model: 'user',
@@ -211,7 +280,7 @@ export const provisionUser = internalMutation({
     }
 
     const link = await getLink(ctx, args.organizationId, userId);
-    const member = await findMember(ctx, args.organizationId, userId);
+    const member = memberHere;
     const plan = planActivation(
       args.active,
       member?.role,
@@ -281,9 +350,11 @@ export const provisionUser = internalMutation({
 });
 
 /**
- * Apply a SCIM User PATCH (active toggle + optional name/email). Also serves
- * DELETE (soft-deactivate) by passing `active: false`. Returns null if the
- * user is not a member of the org.
+ * Apply a SCIM User PATCH (active toggle + optional name/email). A SCIM
+ * `active: false` — the IdP's primary de-provisioning signal — soft-deactivates:
+ * the membership is KEPT with role `disabled` so a later `active: true` restores
+ * the prior role. (A hard `DELETE` is the separate `deprovisionUser` path.)
+ * Returns null if the user is not a member of the org.
  */
 export const patchUser = internalMutation({
   args: {
@@ -370,6 +441,60 @@ export const patchUser = internalMutation({
       name: args.name ?? '',
       active,
     };
+  },
+});
+
+/**
+ * Hard de-provision a SCIM User (HTTP DELETE): drop the org membership, its
+ * mirror, and the provisioning link, so the resource is gone from this tenant's
+ * SCIM view — a subsequent GET/PATCH returns 404, per RFC 7644 §3.6 ("the
+ * resource ... MUST NOT be returned"). This is the symmetric counterpart to
+ * `deleteGroup`. The global Better Auth `user` row is intentionally preserved
+ * (the person may belong to other orgs, and Tale never lets a SCIM token mutate
+ * an account it doesn't own — #2036).
+ *
+ * This is DISTINCT from a SCIM `active: false`, which `patchUser`
+ * soft-deactivates (membership kept, restorable) — the IdP's usual
+ * de-provisioning signal. The sole owner is never removed: deleting it would
+ * orphan the org, so that case is reported as `owner-protected` (HTTP 403).
+ */
+export const deprovisionUser = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.union(
+    v.literal('deprovisioned'),
+    v.literal('not-found'),
+    v.literal('owner-protected'),
+  ),
+  handler: async (ctx, args) => {
+    const member = await findMember(ctx, args.organizationId, args.userId);
+    const verdict = classifyDeprovision(member);
+    if (verdict === 'not-found' || verdict === 'owner-protected')
+      return verdict;
+    // `verdict === 'deprovision'` implies a member exists; re-assert it so the
+    // type narrows (classifyDeprovision already guaranteed it at runtime).
+    if (!member) return 'not-found';
+
+    const user = await findUserById(ctx, args.userId);
+
+    await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
+      input: {
+        model: 'member',
+        where: [{ field: '_id', value: member._id, operator: 'eq' }],
+      },
+    });
+    await deleteMemberMirrorByMemberId(ctx, member._id);
+    await deleteLink(ctx, args.organizationId, args.userId);
+
+    await logScim(
+      ctx,
+      args.organizationId,
+      'scim_deprovision_user',
+      'member',
+      args.userId,
+      user?.email ?? args.userId,
+      { previous: { role: member.role } },
+    );
+    return 'deprovisioned';
   },
 });
 
@@ -532,7 +657,18 @@ export const patchGroup = internalMutation({
     }
 
     if (args.replaceMembers !== undefined) {
-      await setTeamMembers(ctx, args.teamId, args.replaceMembers);
+      // A clear-all / replace sets the base set; adds and removes in the SAME
+      // PATCH compose on top so an `add` paired with a value-less `remove
+      // members` isn't silently dropped (#2085[13]).
+      await setTeamMembers(
+        ctx,
+        args.teamId,
+        composeDesiredMembers(
+          args.replaceMembers,
+          args.addMembers,
+          args.removeMembers,
+        ),
+      );
     } else {
       const current = await listTeamMembers(ctx, args.teamId);
       const currentIds = new Set(current.map((m) => m.userId));

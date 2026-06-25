@@ -84,7 +84,12 @@ export async function ssoCallbackHandler(
                 const authorizeUrl = buildAuthorizeRedirectUrl(
                   url.origin,
                   stateData.redirectUri,
-                  { prompt: 'login' },
+                  {
+                    prompt: 'login',
+                    ...(stateData.organizationId
+                      ? { organizationId: stateData.organizationId }
+                      : {}),
+                  },
                 );
                 return new Response(null, {
                   status: 302,
@@ -100,6 +105,9 @@ export async function ssoCallbackHandler(
                     const claimsChallenge =
                       extractClaimsChallenge(errorDescription);
                     const params: Record<string, string> = { prompt: 'login' };
+                    if (stateData.organizationId) {
+                      params['organizationId'] = stateData.organizationId;
+                    }
                     if (claimsChallenge) params['claims'] = claimsChallenge;
                     const authorizeUrl = buildAuthorizeRedirectUrl(
                       url.origin,
@@ -151,7 +159,12 @@ export async function ssoCallbackHandler(
       return redirectWithError(url.origin, 'Invalid state signature');
     }
 
-    let state: { redirectUri: string; timestamp: number; pkce?: string };
+    let state: {
+      redirectUri: string;
+      timestamp: number;
+      pkce?: string;
+      organizationId?: string;
+    };
     try {
       const base64 = verifiedPayload.replace(/-/g, '+').replace(/_/g, '/');
       const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
@@ -168,7 +181,7 @@ export async function ssoCallbackHandler(
 
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
-      {},
+      { organizationId: state.organizationId },
     );
     if (!config) {
       return redirectWithError(frontendOrigin, 'SSO configuration not found');

@@ -21,7 +21,32 @@ type FindOrCreateSsoUserArgs = {
   accessTokenExpiresAt?: number;
   organizationId: string;
   role: PlatformRole;
+  /**
+   * Re-apply `role` to an existing membership on every login (set when the org
+   * enables "auto-assign roles from the IdP"), so an IdP promotion/demotion
+   * propagates instead of sticking at the role from the user's first login.
+   */
+  syncRole?: boolean;
 };
+
+function num(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+/**
+ * Whether to overwrite an existing membership's role with the IdP-mapped role on
+ * login. Only when "auto-assign roles from the IdP" is on (`syncRole`), never
+ * for an `owner` (that would orphan the org), and not for a no-op.
+ */
+export function shouldSyncMemberRole(
+  syncRole: boolean | undefined,
+  currentRole: string | undefined,
+  newRole: string,
+): boolean {
+  return (
+    Boolean(syncRole) && currentRole !== 'owner' && currentRole !== newRole
+  );
+}
 
 type FindOrCreateSsoUserResult = {
   userId: string | null;
@@ -118,7 +143,10 @@ export async function findOrCreateSsoUser(
       },
     );
 
-    const existingMembership = membershipRes?.page?.[0];
+    const existingMembershipRaw = membershipRes?.page?.[0];
+    const existingMembership = isRecord(existingMembershipRaw)
+      ? existingMembershipRaw
+      : undefined;
 
     if (!existingMembership) {
       const memberCreatedAt = Date.now();
@@ -144,6 +172,33 @@ export async function findOrCreateSsoUser(
           organizationId: args.organizationId,
           role: args.role,
           createdAt: memberCreatedAt,
+        });
+      }
+    } else if (args.syncRole) {
+      // "Auto-assign roles from the IdP" is authoritative: re-apply the mapped
+      // role to the existing membership so an IdP promotion/demotion takes
+      // effect on the next login. Never touch an `owner` (that would orphan the
+      // org), and skip a no-op write.
+      const memberId = extractMemberId(existingMembership);
+      const currentRole = getString(existingMembership, 'role');
+      if (
+        memberId &&
+        shouldSyncMemberRole(args.syncRole, currentRole, args.role)
+      ) {
+        await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+          input: {
+            model: 'member' as const,
+            where: [{ field: '_id', value: memberId, operator: 'eq' }],
+            update: { role: args.role },
+          },
+          paginationOpts: { cursor: null, numItems: 1 },
+        });
+        await upsertMemberMirror(ctx, {
+          memberId,
+          userId: existingUserId,
+          organizationId: args.organizationId,
+          role: args.role,
+          createdAt: num(existingMembership.createdAt) ?? Date.now(),
         });
       }
     }

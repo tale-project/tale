@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
@@ -189,16 +189,25 @@ export const downloadAttachments = mutationWithRLS({
   handler: async (ctx, args) => {
     const message = await ctx.db.get(args.messageId);
     if (!message) {
-      throw new Error('Message not found');
+      throw new ConvexError({
+        code: 'message_not_found',
+        message: 'Message not found',
+      });
     }
 
     const conversation = await ctx.db.get(message.conversationId);
     if (!conversation) {
-      throw new Error('Conversation not found');
+      throw new ConvexError({
+        code: 'conversation_not_found',
+        message: 'Conversation not found',
+      });
     }
 
     if (!message.externalMessageId) {
-      throw new Error('Message has no external ID for attachment download');
+      throw new ConvexError({
+        code: 'message_no_external_id',
+        message: 'Message has no external ID for attachment download',
+      });
     }
 
     const integrationName = conversation.integrationName ?? 'outlook';

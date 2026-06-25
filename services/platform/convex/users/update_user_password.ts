@@ -3,6 +3,7 @@
  */
 
 import { hashPassword } from 'better-auth/crypto';
+import { ConvexError } from 'convex/values';
 
 import {
   isPasswordValid,
@@ -44,7 +45,10 @@ export async function updateUserPassword(
 ): Promise<void> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
   }
   const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
@@ -56,9 +60,10 @@ export async function updateUserPassword(
 
   if (!isPasswordValid(args.newPassword, policy)) {
     const violations = passwordPolicyViolations(args.newPassword, policy);
-    throw new Error(
-      `Password does not meet policy (failed: ${violations.join(', ')})`,
-    );
+    throw new ConvexError({
+      code: 'password_policy_violation',
+      message: `Password does not meet policy (failed: ${violations.join(', ')})`,
+    });
   }
 
   const hasPassword = await hasCredentialAccount(ctx);
@@ -74,7 +79,10 @@ export async function updateUserPassword(
     await auth.api.revokeOtherSessions({ headers });
   } else if (hasPassword) {
     if (!args.currentPassword) {
-      throw new Error('Current password is required');
+      throw new ConvexError({
+        code: 'current_password_required',
+        message: 'Current password is required',
+      });
     }
     await auth.api.changePassword({
       body: {
@@ -138,11 +146,17 @@ async function forcedResetCredentialPassword(
   );
   const credential = accountRes?.page?.[0];
   if (!isRecord(credential)) {
-    throw new Error('Credential account not found');
+    throw new ConvexError({
+      code: 'credential_account_not_found',
+      message: 'Credential account not found',
+    });
   }
   const credentialId = getString(credential, '_id');
   if (!credentialId) {
-    throw new Error('Credential account missing _id');
+    throw new ConvexError({
+      code: 'credential_account_not_found',
+      message: 'Credential account missing _id',
+    });
   }
 
   const passwordHash = await hashPassword(newPassword);

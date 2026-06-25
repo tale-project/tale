@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   SSO_CONFIG_DOMAIN,
@@ -42,12 +42,22 @@ export const get = query({
   returns: scimConfigViewValidator,
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Unauthenticated',
+      });
+    }
     const role = await getCallerRole(ctx, {
       organizationId: args.organizationId,
       userId: authUser.userId,
     });
-    if (!role) throw new Error('Not a member of this organization');
+    if (!role) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Not a member of this organization',
+      });
+    }
 
     const baseUrl = scimBaseUrl();
     const row = await ctx.db

@@ -5754,7 +5754,25 @@
         "formHint": "Configurez la manière dont les membres se connectent, puis enregistrez vos modifications depuis l'en-tête.",
         "validation": {
           "required": "Ce champ est requis.",
-          "url": "Saisissez une URL valide (avec https://)."
+          "url": "Saisissez une URL valide (avec https://).",
+          "clientSecretRequired": "Un secret client est requis."
+        },
+        "roleMapping": {
+          "help": "Associez les groupes, rôles d'application ou intitulés de poste du fournisseur d'identité à un rôle de la plateforme. Les utilisateurs sans correspondance reçoivent le rôle par défaut.",
+          "empty": "Aucune règle pour l'instant — tout le monde reçoit le rôle par défaut.",
+          "addRule": "Ajouter une règle",
+          "removeRule": "Supprimer",
+          "sourceLabel": "Source",
+          "source": {
+            "group": "Groupe IdP",
+            "appRole": "Rôle d'application",
+            "jobTitle": "Intitulé de poste",
+            "claim": "Claim"
+          },
+          "patternLabel": "Valeur correspondante",
+          "targetRoleLabel": "Attribue le rôle",
+          "claimLabel": "Chemin du claim",
+          "claimHelp": "Chemin pointé dans les claims du jeton, p. ex. realm_access.roles."
         },
         "guide": {
           "title": "Guide de configuration",
@@ -6917,6 +6935,7 @@
       "disabled": "Authentification à double facteur désactivée",
       "passwordPromptDescription": "Confirme ton mot de passe pour commencer la configuration de l'authentification à double facteur.",
       "disablePromptDescription": "Confirme ton mot de passe pour désactiver l'authentification à double facteur.",
+      "disableEnforcedWarning": "Votre organisation exige l'authentification à double facteur. Si vous la désactivez, vous devrez la reconfigurer à votre prochaine connexion.",
       "regeneratePromptDescription": "Confirme ton mot de passe. Générer de nouveaux codes invalide tous les codes de secours précédents."
     },
     "passkeys": {
