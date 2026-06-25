@@ -9,7 +9,10 @@ import {
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
-import { DisabledReasonTooltip } from '../overlays/disabled-reason';
+import {
+  DisabledReasonTooltip,
+  hasDisabledReason,
+} from '../overlays/disabled-reason';
 
 export interface CheckboxProps extends ComponentPropsWithoutRef<
   typeof CheckboxPrimitive.Root
@@ -40,7 +43,7 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
   ) => {
     // Soft-disable keeps the control focusable + hoverable (so the reason
     // tooltip reaches pointer and keyboard users) while blocking activation.
-    const softDisabled = Boolean(disabled) && disabledReason != null;
+    const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
     // Calling preventDefault here also stops Radix's composed toggle handler,
     // so the checked state can't change while soft-disabled.
     const blockActivation = (event: SyntheticEvent & { key?: string }) => {

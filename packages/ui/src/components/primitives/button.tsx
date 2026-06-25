@@ -7,6 +7,7 @@ import * as React from 'react';
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
+import { hasDisabledReason } from '../overlays/disabled-reason';
 import { TooltipContent } from '../overlays/tooltip';
 
 export const buttonVariants = cva(
@@ -256,7 +257,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // tip. It needs the button kept focusable/hoverable (soft-disable), which
     // can't work through a Radix `Slot`, so it's suppressed under `asChild`.
     const showDisabledReason =
-      Boolean(props.disabled) && disabledReason != null && !props.asChild;
+      Boolean(props.disabled) &&
+      hasDisabledReason(disabledReason) &&
+      !props.asChild;
     const tip = showDisabledReason ? disabledReason : (tooltip ?? title);
     const base = (
       <ButtonBase

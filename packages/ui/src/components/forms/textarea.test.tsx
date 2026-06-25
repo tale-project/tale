@@ -47,6 +47,16 @@ describe('Textarea', () => {
       expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-disabled');
     });
 
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(<Textarea aria-label="Bio" disabled disabledReason="   " />);
+      const textarea = screen.getByRole('textbox');
+      // A blank reason explains nothing, so the control must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(textarea).toBeDisabled();
+      expect(textarea).not.toHaveAttribute('aria-disabled');
+      expect(textarea).not.toHaveAttribute('readonly');
+    });
+
     it('passes axe audit for a soft-disabled textarea', async () => {
       const { container } = render(
         <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,

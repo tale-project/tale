@@ -1,3 +1,4 @@
+import { fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
@@ -91,6 +92,68 @@ describe('Slider', () => {
       slider.focus();
       await user.keyboard('{ArrowRight}{ArrowLeft}');
       expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it.each(['Home', 'End', 'PageUp', 'PageDown'])(
+      'does not change value via %s while soft-disabled',
+      (key) => {
+        const onChange = vi.fn();
+        render(
+          <Slider
+            aria-label="Temperature"
+            value={40}
+            min={0}
+            max={100}
+            onChange={onChange}
+            disabled
+            disabledReason="Enable advanced mode first"
+          />,
+        );
+        const slider = screen.getByRole('slider');
+        // The key handler must `preventDefault` so the browser never moves the
+        // thumb — a cancelled event reports `false` from `fireEvent`.
+        const notCancelled = fireEvent.keyDown(slider, { key });
+        expect(notCancelled).toBe(false);
+        expect(onChange).not.toHaveBeenCalled();
+      },
+    );
+
+    it('blocks pointer drag while soft-disabled', () => {
+      render(
+        <Slider
+          aria-label="Temperature"
+          value={40}
+          min={0}
+          max={100}
+          onChange={() => {}}
+          disabled
+          disabledReason="Enable advanced mode first"
+        />,
+      );
+      const slider = screen.getByRole('slider');
+      // Drag is the slider's primary interaction; the `onPointerDown` guard must
+      // `preventDefault` so the browser never starts a drag.
+      const notCancelled = fireEvent.pointerDown(slider);
+      expect(notCancelled).toBe(false);
+    });
+
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(
+        <Slider
+          aria-label="Temperature"
+          value={40}
+          min={0}
+          max={100}
+          onChange={() => {}}
+          disabled
+          disabledReason="   "
+        />,
+      );
+      const slider = screen.getByRole('slider');
+      // A blank reason explains nothing, so the control must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(slider).toBeDisabled();
+      expect(slider).not.toHaveAttribute('aria-disabled');
     });
 
     it('is readOnly while soft-disabled (freezes the value, no React warning)', () => {

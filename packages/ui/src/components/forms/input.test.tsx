@@ -51,6 +51,16 @@ describe('Input', () => {
       expect(input).not.toHaveAttribute('aria-disabled');
     });
 
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(<Input aria-label="Email" disabled disabledReason="   " />);
+      const input = screen.getByRole('textbox');
+      // A blank reason explains nothing, so the control must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(input).toBeDisabled();
+      expect(input).not.toHaveAttribute('aria-disabled');
+      expect(input).not.toHaveAttribute('readonly');
+    });
+
     it('passes axe audit for a soft-disabled input', async () => {
       const { container } = render(
         <Input aria-label="Email" disabled disabledReason="Verify first" />,

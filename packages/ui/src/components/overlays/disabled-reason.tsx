@@ -25,6 +25,24 @@ export interface DisabledReasonTooltipProps {
 }
 
 /**
+ * Whether a `disabledReason` is meaningful enough to soft-disable a control.
+ *
+ * Soft-disabling trades a native `disabled` (inert, out of the tab order) for a
+ * focusable `aria-disabled` control whose only justification is the reason it
+ * surfaces. An absent reason — `null`/`undefined`, a boolean, or an
+ * empty/whitespace-only string — would leave the control inert *and* focusable
+ * while explaining nothing, which is strictly worse than a native disable. In
+ * that case callers should fall back to the native `disabled` behaviour, so the
+ * shared primitives gate `softDisabled` on this helper rather than a bare null
+ * check.
+ */
+export function hasDisabledReason(reason: ReactNode): boolean {
+  if (reason == null || typeof reason === 'boolean') return false;
+  if (typeof reason === 'string') return reason.trim() !== '';
+  return true;
+}
+
+/**
  * Wraps a soft-disabled control in the shared Tooltip so the reason it's
  * disabled reaches pointer and keyboard users alike (#1949).
  *
@@ -43,7 +61,7 @@ export function DisabledReasonTooltip({
   side,
   children,
 }: DisabledReasonTooltipProps): ReactElement {
-  if (!active || reason == null) return children;
+  if (!active || !hasDisabledReason(reason)) return children;
   return (
     <TooltipPrimitive.Provider delayDuration={300}>
       <TooltipPrimitive.Root>

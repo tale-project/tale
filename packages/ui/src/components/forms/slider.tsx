@@ -11,7 +11,10 @@ import {
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
-import { DisabledReasonTooltip } from '../overlays/disabled-reason';
+import {
+  DisabledReasonTooltip,
+  hasDisabledReason,
+} from '../overlays/disabled-reason';
 
 export interface SliderProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -160,7 +163,7 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
     // reaches pointer and keyboard users) while making it inert: the control is
     // value-controlled, so swallowing onChange freezes the thumb against drag,
     // and blocking the value keys stops keyboard nudges.
-    const softDisabled = Boolean(disabled) && disabledReason != null;
+    const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
 
     const range = max - min;
     const pct = range > 0 ? ((value - min) / range) * 100 : 0;

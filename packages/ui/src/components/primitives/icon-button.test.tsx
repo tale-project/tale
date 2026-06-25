@@ -113,6 +113,66 @@ describe('IconButton', () => {
       const tooltip = await screen.findByRole('tooltip');
       expect(tooltip).toHaveTextContent('You can only delete your own rows');
     });
+
+    it('keeps native disabled when no reason is given', () => {
+      render(<IconButton icon={Trash2} aria-label="Delete" disabled />);
+      // Native `disabled` (inert, out of the tab order); no soft-disable.
+      expect(screen.getByRole('button')).toBeDisabled();
+    });
+
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(
+        <IconButton
+          icon={Trash2}
+          aria-label="Delete"
+          disabled
+          disabledReason="   "
+        />,
+      );
+      // A blank reason explains nothing, so the control must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(screen.getByRole('button')).toBeDisabled();
+    });
+
+    it('blocks activation on click, Space, and Enter while soft-disabled', async () => {
+      const handleClick = vi.fn();
+      const { user } = render(
+        <IconButton
+          icon={Trash2}
+          aria-label="Delete"
+          disabled
+          disabledReason="You can only delete your own rows"
+          onClick={handleClick}
+        />,
+      );
+      const button = screen.getByRole('button');
+      await user.click(button);
+      button.focus();
+      await user.keyboard(' ');
+      await user.keyboard('{Enter}');
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+
+    it('describes the focused soft-disabled icon button via aria-describedby', async () => {
+      const { user } = render(
+        <IconButton
+          icon={Trash2}
+          aria-label="Delete"
+          disabled
+          disabledReason="You can only delete your own rows"
+        />,
+      );
+      await user.tab();
+      const button = screen.getByRole('button');
+      const describedBy = button.getAttribute('aria-describedby');
+      expect(describedBy).toBeTruthy();
+      const description = describedBy
+        ? document.getElementById(describedBy)
+        : null;
+      expect(description).toHaveTextContent(
+        'You can only delete your own rows',
+      );
+    });
   });
 
   describe('accessibility', () => {

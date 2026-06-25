@@ -318,6 +318,18 @@ describe('Button', () => {
       expect(button).toHaveAttribute('aria-disabled', 'true');
     });
 
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(
+        <Button disabled disabledReason="   ">
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      // A blank reason explains nothing, so the button must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(button).toBeDisabled();
+    });
+
     it('soft-disables (aria-disabled, focusable) when a reason is given', () => {
       render(
         <Button disabled disabledReason="Pick an agent first">

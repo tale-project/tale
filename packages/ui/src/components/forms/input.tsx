@@ -2,7 +2,10 @@ import { type InputHTMLAttributes, type ReactNode, forwardRef } from 'react';
 
 import { cn } from '../../lib/cn';
 import { SkeletonBox } from '../feedback/skeleton';
-import { DisabledReasonTooltip } from '../overlays/disabled-reason';
+import {
+  DisabledReasonTooltip,
+  hasDisabledReason,
+} from '../overlays/disabled-reason';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   /**
@@ -31,7 +34,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ) => {
     // Soft-disable keeps the field focusable + hoverable (so the reason tooltip
     // reaches pointer and keyboard users) while `readOnly` blocks edits.
-    const softDisabled = Boolean(disabled) && disabledReason != null;
+    const softDisabled = Boolean(disabled) && hasDisabledReason(disabledReason);
     return (
       <SkeletonBox fullWidth>
         <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
