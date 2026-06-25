@@ -125,8 +125,7 @@ export async function getOrgWorkflowMetrics(
     // remaining row is also out of scope, so we can stop. This bounds the scan
     // to in-window + prior-window rows and keeps `capped` meaning only
     // "in-scope data was truncated" (more than MAX_SCAN rows within the two
-    // windows) rather than firing on out-of-window historical volume. Same
-    // monotonic-desc assumption used by `listExecutions`.
+    // windows) rather than firing on out-of-window historical volume.
     if (e.startedAt < prevWindowStart) break;
     scanned++;
     if (scanned > MAX_SCAN) {
