@@ -18,6 +18,7 @@ import { reasoningProviderOptionsFor } from '../lib/agent_response/reasoning/bui
 import { renderPrompt } from '../lib/prompts/registry';
 import { buildCallProviderOptions } from '../lib/provider_options';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
+import { deriveFallbackTitle } from './derive_fallback_title';
 
 const TITLE_TIMEOUT_MS = 10_000;
 
@@ -80,7 +81,13 @@ export const generateThreadTitle = internalAction({
         setTimeout(() => resolve(null), TITLE_TIMEOUT_MS),
       );
 
-      const title = await Promise.race([titlePromise, timeoutPromise]);
+      const aiTitle = await Promise.race([titlePromise, timeoutPromise]);
+
+      // Prefer the AI title; on failure/timeout/empty fall back to a trimmed
+      // slice of the user's first message so the thread gets a distinctive
+      // title instead of staying the generic "New Chat" — which made every
+      // failed/timed-out thread look identical. See #1981.
+      const title = aiTitle ?? deriveFallbackTitle(args.firstMessage);
 
       if (title) {
         await ctx.runMutation(
