@@ -474,6 +474,13 @@ deploy_convex_functions() {
     log_error "Reason: admin key invalid"
     echo "  fix: check INSTANCE_NAME and INSTANCE_SECRET match on both services."
 
+  elif grep -q "InvalidModules" "$deploy_log" && grep -q "Function execution timed out" "$deploy_log"; then
+    log_error "Reason: module analyze timed out (2s isolate budget) — usually transient deploy-time CPU contention"
+    echo "  → A module's import-time evaluation exceeded the 2s analyze budget,"
+    echo "    typically because convex was CPU-starved during image pulls / chat drain."
+    echo "  fix: auto-retrying; if persistent, set RUST_LOG=debug to find the slow module and defer its top-level work."
+    retry=true
+
   else
     log_error "Reason: unclassified. See full deploy log above."
     echo "  fix: try RUST_LOG=debug on the convex service and re-run deploy."
