@@ -7208,6 +7208,8 @@
       "unnamed": "Passkey",
       "registered": "Passkey registered",
       "revoked": "Passkey removed",
+      "confirmTitle": "Remove this passkey?",
+      "confirmDescription": "This permanently removes the passkey \"{name}\". You can no longer sign in with it and will have to register it again.",
       "namePromptDescription": "Give this passkey a name so you can recognize it later (e.g. \"MacBook Touch ID\").",
       "nameLabel": "Passkey name",
       "namePlaceholder": "MacBook Touch ID",

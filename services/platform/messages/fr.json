@@ -6947,6 +6947,8 @@
       "unnamed": "Passkey",
       "registered": "Passkey enregistré",
       "revoked": "Passkey supprimé",
+      "confirmTitle": "Supprimer ce passkey ?",
+      "confirmDescription": "Cela supprime définitivement le passkey \"{name}\". Tu ne pourras plus l'utiliser pour te connecter et devras l'enregistrer à nouveau.",
       "namePromptDescription": "Donne un nom à ce passkey pour le reconnaître plus tard (p. ex. \"Touch ID du MacBook\").",
       "nameLabel": "Nom du passkey",
       "namePlaceholder": "Touch ID du MacBook",

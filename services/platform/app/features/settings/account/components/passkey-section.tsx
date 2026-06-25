@@ -6,6 +6,7 @@ import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
@@ -43,6 +44,12 @@ export function PasskeySection() {
   const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
 
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+  // Passkey pending destructive confirmation; `null` keeps the dialog closed.
+  const [confirmTarget, setConfirmTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const { data: passkeys, isLoading } = useQuery({
     queryKey: PASSKEYS_QUERY_KEY,
@@ -62,9 +69,13 @@ export function PasskeySection() {
     void queryClient.invalidateQueries({ queryKey: PASSKEYS_QUERY_KEY });
   }
 
-  async function revoke(id: string) {
+  async function handleRevoke() {
+    if (!confirmTarget) return;
+    setRevoking(true);
     try {
-      const result = await authClient.passkey.deletePasskey({ id });
+      const result = await authClient.passkey.deletePasskey({
+        id: confirmTarget.id,
+      });
       if (result?.error) {
         toast({
           title: t('passkeys.errors.revokeFailed'),
@@ -73,12 +84,15 @@ export function PasskeySection() {
         return;
       }
       toast({ title: t('passkeys.revoked'), variant: 'success' });
+      setConfirmTarget(null);
       invalidate();
     } catch {
       toast({
         title: t('passkeys.errors.revokeFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -95,23 +109,27 @@ export function PasskeySection() {
     >
       {!isLoading && passkeys && passkeys.length > 0 && (
         <Stack gap={2}>
-          {passkeys.map((pk) => (
-            <HStack
-              key={pk.id}
-              justify="between"
-              align="center"
-              className="rounded-md border px-3 py-2"
-            >
-              <VStack gap={0} className="min-w-0">
-                <Text className="truncate text-sm font-medium">
-                  {pk.name?.trim() || t('passkeys.unnamed')}
-                </Text>
-              </VStack>
-              <Button variant="ghost" onClick={() => revoke(pk.id)}>
-                {t('passkeys.revokeButton')}
-              </Button>
-            </HStack>
-          ))}
+          {passkeys.map((pk) => {
+            const name = pk.name?.trim() || t('passkeys.unnamed');
+            return (
+              <HStack
+                key={pk.id}
+                justify="between"
+                align="center"
+                className="rounded-md border px-3 py-2"
+              >
+                <VStack gap={0} className="min-w-0">
+                  <Text className="truncate text-sm font-medium">{name}</Text>
+                </VStack>
+                <Button
+                  variant="ghost"
+                  onClick={() => setConfirmTarget({ id: pk.id, name })}
+                >
+                  {t('passkeys.revokeButton')}
+                </Button>
+              </HStack>
+            );
+          })}
         </Stack>
       )}
 
@@ -128,6 +146,21 @@ export function PasskeySection() {
           toast({ title: t('passkeys.registered'), variant: 'success' });
           invalidate();
         }}
+      />
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmTarget(null);
+        }}
+        title={t('passkeys.confirmTitle')}
+        description={t('passkeys.confirmDescription', {
+          name: confirmTarget?.name ?? '',
+        })}
+        confirmText={t('passkeys.revokeButton')}
+        variant="destructive"
+        isLoading={revoking}
+        onConfirm={handleRevoke}
       />
     </SettingsSection>
   );
