@@ -35,6 +35,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useBoundActionQuery } from '../../hooks/use-bound-action-query';
 import { useBoundQuery } from '../../hooks/use-bound-query';
+import { useAppRuntime } from '../../runtime/app-runtime';
 import {
   resolveColumnLabels,
   usePackLabelString,
@@ -132,6 +133,7 @@ export function ExternalList({
 }: ExternalListProps) {
   const { t } = useT('apps');
   const labelOf = usePackLabelString();
+  const { config } = useAppRuntime();
 
   const [page, setPage] = useState(1);
   const paginated = perPage !== undefined;
@@ -172,8 +174,9 @@ export function ExternalList({
       pickRefRows(refQuery.data),
       excludeBy.refField,
       excludeBy.rowKeyTemplate,
+      config,
     );
-  }, [rows, rowWhen, excludeBy, refQuery.data]);
+  }, [rows, rowWhen, excludeBy, refQuery.data, config]);
 
   const refresh = (
     <Button

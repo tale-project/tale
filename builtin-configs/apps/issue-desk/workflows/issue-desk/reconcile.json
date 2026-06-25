@@ -35,8 +35,6 @@
         "cron": "*/15 * * * *",
         "timezone": "UTC",
         "variables": {
-          "owner": "tale-project",
-          "repo": "tale",
           "state": "all"
         }
       }

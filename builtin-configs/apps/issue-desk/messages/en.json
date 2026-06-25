@@ -17,5 +17,7 @@
   "issueDesk.col.number": "Number",
   "issueDesk.col.title": "Title",
   "issueDesk.col.state": "State",
-  "issueDesk.col.status": "Status"
+  "issueDesk.col.status": "Status",
+  "issueDesk.config.owner": "GitHub owner (user or org)",
+  "issueDesk.config.repo": "GitHub repository"
 }

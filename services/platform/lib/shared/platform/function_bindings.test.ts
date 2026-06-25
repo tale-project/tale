@@ -102,6 +102,26 @@ describe('resolveBindingArgs', () => {
     // Unknown fields stay verbatim (fail-visible).
     expect(resolveBindingArgs('$tpl:{missing}', tctx)).toBe('{missing}');
   });
+  it('substitutes $config:<key> from the per-install config', () => {
+    const cctx = {
+      organizationId: 'org_1',
+      config: { owner: 'acme', repo: 'widgets' },
+    };
+    expect(resolveBindingArgs('$config:owner', cctx)).toBe('acme');
+    expect(resolveBindingArgs('$config:repo', cctx)).toBe('widgets');
+    // Unset key → undefined (a visible miss, not a literal).
+    expect(resolveBindingArgs('$config:missing', cctx)).toBeUndefined();
+  });
+  it('$tpl: mixes config and row fields so one key can target the configured repo', () => {
+    const ctx = {
+      organizationId: 'org_1',
+      config: { owner: 'acme', repo: 'widgets' },
+      selected: { number: 42 },
+    };
+    expect(resolveBindingArgs('$tpl:{owner}/{repo}#{number}', ctx)).toBe(
+      'acme/widgets#42',
+    );
+  });
   it('resolves $label: via the pack catalog, then interpolates the row', () => {
     const lctx = {
       organizationId: 'org_1',

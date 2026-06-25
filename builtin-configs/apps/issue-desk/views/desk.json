@@ -19,8 +19,8 @@
                 "path": "integrations/public_actions:listGitHubIssues",
                 "args": {
                   "organizationId": "$orgId",
-                  "owner": "tale-project",
-                  "repo": "tale",
+                  "owner": "$config:owner",
+                  "repo": "$config:repo",
                   "state": "open"
                 }
               },
@@ -41,7 +41,7 @@
                   }
                 },
                 "refField": "externalId",
-                "rowKeyTemplate": "tale-project/tale#{number}"
+                "rowKeyTemplate": "{owner}/{repo}#{number}"
               },
               "actions": [
                 {
@@ -54,7 +54,7 @@
                     "organizationId": "$orgId",
                     "projectId": "$projectId",
                     "externalSystem": "github",
-                    "externalId": "$tpl:tale-project/tale#{number}",
+                    "externalId": "$tpl:{owner}/{repo}#{number}",
                     "title": "$selected.title",
                     "externalUrl": "$selected.html_url",
                     "description": "$label:issueDesk.taskTemplate",

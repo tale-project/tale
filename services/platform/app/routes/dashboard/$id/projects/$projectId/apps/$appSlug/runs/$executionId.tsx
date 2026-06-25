@@ -35,7 +35,14 @@ function ProjectAppRunDetail() {
   const { labels } = useAppPackLabels(organizationId, appSlug);
   return (
     <AppRuntimeProvider
-      value={{ organizationId, projectId, appSlug, allowlist: [], labels }}
+      value={{
+        organizationId,
+        projectId,
+        appSlug,
+        allowlist: [],
+        labels,
+        config: {},
+      }}
     >
       <VStack gap={4}>
         <Link

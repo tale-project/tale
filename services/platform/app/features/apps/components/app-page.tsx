@@ -33,6 +33,7 @@ import { useT } from '@/lib/i18n/client';
 import { startCase } from '@/lib/utils/string';
 
 import { useAppAgentReadiness } from '../hooks/use-app-agent-readiness';
+import { useAppConfig } from '../hooks/use-app-config';
 import { resolvePackLabels } from '../hooks/use-app-pack-labels';
 import {
   type AppSummary,
@@ -48,6 +49,7 @@ import {
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
+import { AppConfigForm } from './app-config-form';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
@@ -288,6 +290,7 @@ function InstalledAppBody({
   lifecycleContext: 'org' | 'project';
 }) {
   const { t } = useT('apps');
+  const { config } = useAppConfig(organizationId, appSlug);
   const lifecycle = (
     <AppLifecycleActions
       appSlug={appSlug}
@@ -305,6 +308,7 @@ function InstalledAppBody({
         appSlug,
         allowlist: app.functions,
         labels,
+        config,
       }}
     >
       <ResourceDetailProvider>
@@ -317,6 +321,15 @@ function InstalledAppBody({
             blockedIntegrations={blockedIntegrations}
             projectId={projectId}
           />
+          {app.requiredConfig.length > 0 && (
+            <AppConfigForm
+              organizationId={organizationId}
+              appSlug={appSlug}
+              fields={app.requiredConfig}
+              config={config}
+              resolveLabel={(labelKey) => labels[labelKey] ?? labelKey}
+            />
+          )}
           {app.views.length === 0 ? (
             <VStack gap={4}>
               <HStack className="justify-end">{lifecycle}</HStack>

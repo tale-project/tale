@@ -41,6 +41,14 @@
     ]
   },
   "requires": {
-    "integrations": ["github"]
+    "integrations": ["github"],
+    "config": [
+      {
+        "key": "owner",
+        "type": "string",
+        "labelKey": "issueDesk.config.owner"
+      },
+      { "key": "repo", "type": "string", "labelKey": "issueDesk.config.repo" }
+    ]
   }
 }

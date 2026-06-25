@@ -62,6 +62,14 @@
       "agentNeedsSetup": "{agent} needs setup to run.",
       "setupButton": "Set up"
     },
+    "config": {
+      "title": "Configuration",
+      "description": "Point this app at your own resources. These values drive its pages and scheduled work.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Configuration saved",
+      "saveError": "Couldn't save configuration"
+    },
     "installWizard": {
       "title": "Set up {name}",
       "progress": "{label} · step {current} of {total}",

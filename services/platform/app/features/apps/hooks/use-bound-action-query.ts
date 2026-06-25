@@ -40,7 +40,8 @@ export function useBoundActionQuery(
   path: string,
   args: unknown,
 ): BoundActionQueryResult {
-  const { organizationId, projectId, allowlist, labels } = useAppRuntime();
+  const { organizationId, projectId, allowlist, labels, config } =
+    useAppRuntime();
   const { isAuthenticated } = useConvexAuth();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, 'action');
@@ -48,14 +49,29 @@ export function useBoundActionQuery(
   // Hooks run unconditionally; `enabled` (not the ref) gates the actual call.
   const action = useAction(makeFunctionReference<'action'>(path));
   const argsKey = JSON.stringify(args ?? {});
+  // Resolved args embed config values (e.g. owner/repo), so a config change must
+  // bust the cache — fold it into the key.
+  const configKey = JSON.stringify(config ?? {});
 
   const query = useQuery({
     // projectId folded in alongside organizationId so two projects never share a
     // cache entry even though the unresolved args carry the same sentinels.
-    queryKey: ['bound-action-query', path, organizationId, projectId, argsKey],
+    queryKey: [
+      'bound-action-query',
+      path,
+      organizationId,
+      projectId,
+      argsKey,
+      configKey,
+    ],
     queryFn: () =>
       action(
-        resolveBindingArgs(args ?? {}, { organizationId, projectId, labels }),
+        resolveBindingArgs(args ?? {}, {
+          organizationId,
+          projectId,
+          labels,
+          config,
+        }),
       ),
     staleTime: Infinity,
     // ConvexError is deterministic (validation / auth / expected-state) — don't

@@ -158,11 +158,17 @@ export function validateViewBindings(
  *  - `$selected` / `$selected.<key>` → the selected row, or one of its fields;
  *  - `$result` / `$result.<key>` → the just-resolved action result (used by
  *    `onSuccess` effects to read e.g. a created id).
- * Prefix templates (interpolated over the selected row, `{field}` syntax):
- *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over the row, so
- *    an arg can embed row fields (e.g. `"$tpl:{owner}/{repo}#{number}"`);
+ *  - `$config:<key>` → the app's per-install config value for `key` (from
+ *    `ctx.config`, e.g. a configured github `owner`/`repo`); undefined if unset.
+ *    This is what keeps an app repo-agnostic — the operator's target is data, not
+ *    a hardcoded literal.
+ * Prefix templates (interpolated over the row MERGED WITH config, `{field}`
+ * syntax; row fields win a name clash):
+ *  - `$tpl:…{field}…` → the suffix as an `interpolateTemplate` over
+ *    `{...config, ...selected}`, so one arg can mix config + row fields (e.g.
+ *    `"$tpl:{owner}/{repo}#{number}"` — owner/repo from config, number from the row);
  *  - `$label:<key>` → the pack label `key` (from `ctx.labels`, else the key
- *    itself) interpolated over the row — a localized, row-templated string.
+ *    itself) interpolated over the same merged context — a localized string.
  */
 export function resolveBindingArgs(
   args: unknown,
@@ -173,8 +179,13 @@ export function resolveBindingArgs(
     selected?: Record<string, unknown>;
     result?: Record<string, unknown>;
     labels?: Record<string, string>;
+    /** The app's per-install config values (`$config:`/template `{key}`). */
+    config?: Record<string, unknown>;
   },
 ): unknown {
+  // Templates can reference both per-install config and the selected row; row
+  // fields win a name clash (they're the more specific, per-item value).
+  const templateScope = { ...ctx.config, ...ctx.selected };
   if (typeof args === 'string') {
     if (args === '$orgId') return ctx.organizationId;
     // Undefined when the app isn't project-scoped: fall through so the literal
@@ -191,15 +202,15 @@ export function resolveBindingArgs(
     if (args.startsWith('$result.') && ctx.result) {
       return ctx.result[args.slice('$result.'.length)];
     }
+    if (args.startsWith('$config:')) {
+      return ctx.config?.[args.slice('$config:'.length)];
+    }
     if (args.startsWith('$tpl:')) {
-      return interpolateTemplate(
-        args.slice('$tpl:'.length),
-        ctx.selected ?? {},
-      );
+      return interpolateTemplate(args.slice('$tpl:'.length), templateScope);
     }
     if (args.startsWith('$label:')) {
       const key = args.slice('$label:'.length);
-      return interpolateTemplate(ctx.labels?.[key] ?? key, ctx.selected ?? {});
+      return interpolateTemplate(ctx.labels?.[key] ?? key, templateScope);
     }
     return args;
   }

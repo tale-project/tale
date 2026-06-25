@@ -38,19 +38,27 @@ export function buildExclusionSet(
 }
 
 /**
- * Return `rows` minus any whose `rowKeyTemplate` (interpolated over the row)
- * matches a key present in `refRows[refField]`. Empty `refRows` ⇒ `rows`
- * unchanged.
+ * Return `rows` minus any whose `rowKeyTemplate` matches a key present in
+ * `refRows[refField]`. The template is interpolated over the row MERGED WITH
+ * `templateScope` (the app's per-install config, e.g. a configured `owner`/
+ * `repo`); row fields win a name clash. This lets the join key embed both
+ * configured values and per-row fields (e.g. `"{owner}/{repo}#{number}"`) so it
+ * still matches the externalId the create path wrote from the same config. Empty
+ * `refRows` ⇒ `rows` unchanged.
  */
 export function excludeExisting<T extends Record<string, unknown>>(
   rows: readonly T[],
   refRows: readonly unknown[],
   refField: string,
   rowKeyTemplate: string,
+  templateScope?: Record<string, unknown>,
 ): T[] {
   const set = buildExclusionSet(refRows, refField);
   if (set.size === 0) return [...rows];
   return rows.filter(
-    (row) => !set.has(interpolateTemplate(rowKeyTemplate, row)),
+    (row) =>
+      !set.has(
+        interpolateTemplate(rowKeyTemplate, { ...templateScope, ...row }),
+      ),
   );
 }

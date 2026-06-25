@@ -62,6 +62,14 @@
       "agentNeedsSetup": "{agent} muss noch eingerichtet werden.",
       "setupButton": "Einrichten"
     },
+    "config": {
+      "title": "Konfiguration",
+      "description": "Richte diese App auf deine eigenen Ressourcen aus. Diese Werte steuern ihre Seiten und geplanten Abläufe.",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "saved": "Konfiguration gespeichert",
+      "saveError": "Konfiguration konnte nicht gespeichert werden"
+    },
     "installWizard": {
       "title": "{name} einrichten",
       "progress": "{label} · Schritt {current} von {total}",
