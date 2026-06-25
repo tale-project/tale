@@ -4,14 +4,14 @@
   "icon": "ticket",
   "scope": "project",
   "messageNamespace": "issueDesk",
-  "workflows": ["issue-desk/desk-process"],
+  "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
   "agents": ["desk-implementer", "desk-reviewer"],
   "roles": {
     "implementer": "issue-desk/desk-implementer",
     "reviewer": "issue-desk/desk-reviewer"
   },
   "capabilities": {
-    "workflows": ["issue-desk/desk-process"],
+    "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
       { "path": "tasks/queries:listTasksByProject", "mode": "query" },
