@@ -48,7 +48,7 @@ export function TwoFactorSection() {
   if (!status || !status.authenticated || !status.hasCredential) return null;
 
   return status.twoFactorEnabled ? (
-    <EnrolledState />
+    <EnrolledState enforced={status.enforced} />
   ) : (
     <NotEnrolledState enforced={status.enforced} />
   );
@@ -152,7 +152,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
   );
 }
 
-function EnrolledState() {
+function EnrolledState({ enforced }: { enforced: boolean }) {
   const { t } = useT('twoFactor');
   const { toast } = useToast();
   const showBackupCodes = useShowBackupCodes();
@@ -224,6 +224,7 @@ function EnrolledState() {
         open={disableOpen}
         title={t('enrollment.disableButton')}
         description={t('enrollment.disablePromptDescription')}
+        warning={enforced ? t('enrollment.disableEnforcedWarning') : undefined}
         submitting={submitting}
         onCancel={() => {
           setDisableOpen(false);
@@ -253,6 +254,8 @@ interface PasswordPromptProps {
   open: boolean;
   title: string;
   description: string;
+  /** Optional standing warning shown above the password field. */
+  warning?: string;
   submitting: boolean;
   error: string | null;
   onCancel: () => void;
@@ -263,6 +266,7 @@ function PasswordPromptDialog({
   open,
   title,
   description,
+  warning,
   submitting,
   error,
   onCancel,
@@ -291,6 +295,14 @@ function PasswordPromptDialog({
         if (!submitting && password) onSubmit(password);
       }}
     >
+      {warning && (
+        <Text
+          role="status"
+          className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"
+        >
+          {warning}
+        </Text>
+      )}
       <Input
         id="two-factor-password"
         type="password"

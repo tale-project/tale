@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { planActivation } from './internal_mutations';
+import {
+  classifyDeprovision,
+  classifyUserOwnership,
+  composeDesiredMembers,
+  planActivation,
+} from './internal_mutations';
 
 /**
  * Pure tests for the activation/deactivation policy that backs SCIM
- * `active:false`, DELETE (soft), and reactivation. No backend required.
+ * `active:false` (soft-deactivate) and reactivation. No backend required.
  */
 describe('planActivation', () => {
   it('creates a new active member at the default role', () => {
@@ -46,5 +51,86 @@ describe('planActivation', () => {
     expect(planActivation(true, 'ADMIN', 'member', undefined).role).toBe(
       'admin',
     );
+  });
+});
+
+/**
+ * The org-ownership gate that stops a SCIM token in one tenant from grafting
+ * onto / renaming a user account owned by another tenant (#2036).
+ */
+describe('classifyUserOwnership', () => {
+  it('reuses a user already a member of the token org', () => {
+    expect(classifyUserOwnership([{ organizationId: 'orgA' }], 'orgA')).toBe(
+      'owned-here',
+    );
+  });
+
+  it('rejects a user owned only by another org (cross-tenant)', () => {
+    expect(classifyUserOwnership([{ organizationId: 'orgB' }], 'orgA')).toBe(
+      'owned-elsewhere',
+    );
+  });
+
+  it('treats a membership-less global user as unowned (attachable)', () => {
+    expect(classifyUserOwnership([], 'orgA')).toBe('unowned');
+  });
+
+  it('prefers ownership-here when the user is in both orgs', () => {
+    expect(
+      classifyUserOwnership(
+        [{ organizationId: 'orgB' }, { organizationId: 'orgA' }],
+        'orgA',
+      ),
+    ).toBe('owned-here');
+  });
+});
+
+/**
+ * HTTP DELETE de-provisions a SCIM User (RFC 7644 §3.6 — the resource must no
+ * longer be returned), distinct from the soft `active:false` disable. The org
+ * owner is protected so a SCIM token can never orphan an org.
+ */
+describe('classifyDeprovision', () => {
+  it('404s when the user is not a member of the org', () => {
+    expect(classifyDeprovision(undefined)).toBe('not-found');
+  });
+
+  it('removes a regular member', () => {
+    expect(classifyDeprovision({ role: 'member' })).toBe('deprovision');
+  });
+
+  it('removes an admin member', () => {
+    expect(classifyDeprovision({ role: 'admin' })).toBe('deprovision');
+  });
+
+  it('protects the org owner from SCIM removal (case-insensitive)', () => {
+    expect(classifyDeprovision({ role: 'owner' })).toBe('owner-protected');
+    expect(classifyDeprovision({ role: 'OWNER' })).toBe('owner-protected');
+  });
+
+  it('treats a missing role as a removable member', () => {
+    expect(classifyDeprovision({})).toBe('deprovision');
+  });
+});
+
+/**
+ * SCIM Group PATCH membership composition — a clear-all/replace must still apply
+ * the adds in the same PATCH (#2085[13]).
+ */
+describe('composeDesiredMembers', () => {
+  it('keeps adds when combined with a value-less remove (replace=[])', () => {
+    expect(composeDesiredMembers([], ['a', 'b'], [])).toEqual(['a', 'b']);
+  });
+
+  it('composes a replace base with adds and removes', () => {
+    expect(composeDesiredMembers(['a', 'b'], ['c'], ['a'])).toEqual(['b', 'c']);
+  });
+
+  it('clears all members for a bare value-less remove', () => {
+    expect(composeDesiredMembers([], [], [])).toEqual([]);
+  });
+
+  it('dedupes an id present in both replace and add', () => {
+    expect(composeDesiredMembers(['a'], ['a', 'b'], [])).toEqual(['a', 'b']);
   });
 });

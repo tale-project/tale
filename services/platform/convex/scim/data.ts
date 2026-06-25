@@ -116,6 +116,20 @@ export async function listOrgMembers(
   ]);
 }
 
+/**
+ * All `member` rows for a user across every org. The SCIM create path uses this
+ * to decide whether a user matched globally by email is owned by another tenant
+ * before reusing it (#2036).
+ */
+export async function listUserMemberships(
+  ctx: ScimReadCtx,
+  userId: string,
+): Promise<BetterAuthMember[]> {
+  return gatherAll<BetterAuthMember>(ctx, 'member', [
+    { field: 'userId', value: userId, operator: 'eq' },
+  ]);
+}
+
 /** Map of `userId → user` for an org, built from two paginated scans (no N+1). */
 export async function buildOrgUserMap(
   ctx: ScimReadCtx,

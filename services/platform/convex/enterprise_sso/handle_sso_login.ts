@@ -79,6 +79,9 @@ export async function handleSsoLogin(
         accessTokenExpiresAt: args.accessTokenExpiresAt,
         organizationId: args.organizationId,
         role,
+        // IdP is authoritative for roles when auto-assign is on — keep an
+        // existing member's role in sync on every login, not just at creation.
+        syncRole: config.autoProvisionRole,
       },
     );
 

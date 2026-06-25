@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -101,5 +102,42 @@ describe('checkProjectAccess (re-exported)', () => {
     expect(access.canRead).toBe(true);
     expect(access.canEdit).toBe(true);
     expect(access.canAdminister).toBe(false);
+  });
+});
+
+/**
+ * The half-set assignee pair must surface a coded ConvexError (#2049[58]) so
+ * production returns the `task_assignee_invalid` code instead of a redacted
+ * generic "Server Error".
+ */
+describe('normalizeAssignee coded errors', () => {
+  it('throws on a half-set pair', () => {
+    expect(() => normalizeAssignee({ assigneeType: 'user' })).toThrow();
+    expect(() => normalizeAssignee({ assigneeId: 'user-1' })).toThrow();
+  });
+
+  it('throws a ConvexError carrying the task_assignee_invalid code', () => {
+    let thrown: unknown;
+    try {
+      normalizeAssignee({ assigneeType: 'user' });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ConvexError);
+    expect((thrown as ConvexError<{ code: string }>).data.code).toBe(
+      'task_assignee_invalid',
+    );
+  });
+
+  it('returns null when both fields are cleared', () => {
+    expect(
+      normalizeAssignee({ assigneeType: null, assigneeId: null }),
+    ).toBeNull();
+  });
+
+  it('returns the normalized pair when both fields are set', () => {
+    expect(
+      normalizeAssignee({ assigneeType: 'agent', assigneeId: 'researcher' }),
+    ).toEqual({ assigneeType: 'agent', assigneeId: 'researcher' });
   });
 });

@@ -22,6 +22,9 @@ export const findOrCreateSsoUser = internalMutation({
     accessTokenExpiresAt: v.optional(v.number()),
     organizationId: v.string(),
     role: platformRoleValidator,
+    // When true (auto-assign roles from the IdP is on), re-apply the mapped role
+    // to an EXISTING membership on every login so IdP role changes propagate.
+    syncRole: v.optional(v.boolean()),
   },
   returns: v.object({
     userId: v.union(v.string(), v.null()),

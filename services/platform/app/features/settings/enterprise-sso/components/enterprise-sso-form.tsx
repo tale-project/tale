@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { Check, Copy, Loader2 } from 'lucide-react';
@@ -14,7 +14,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Controller } from 'react-hook-form';
+import {
+  Controller,
+  type Control,
+  useFieldArray,
+  useWatch,
+} from 'react-hook-form';
 import { z } from 'zod';
 
 import {
@@ -30,8 +35,10 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type {
   PlatformRole,
+  RoleMappingRule,
   SsoConnectionView,
 } from '@/lib/shared/schemas/enterprise_sso';
+import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import {
@@ -82,7 +89,7 @@ interface Props {
 
 const DEFAULT_SCOPES: Record<UiProtocol, string> = {
   'entra-id':
-    'openid email profile offline_access https://graph.microsoft.com/GroupMember.Read.All',
+    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All',
   'generic-oidc': 'openid email profile',
   oauth2: 'email profile',
   saml: '',
@@ -110,9 +117,25 @@ interface SsoFormData {
   // Provisioning
   defaultRole: PlatformRole;
   autoRole: boolean;
+  roleMappingRules: RoleMappingRule[];
   autoTeam: boolean;
   excludeGroups: string;
 }
+
+const ROLE_RULE_SOURCES = [
+  'group',
+  'appRole',
+  'jobTitle',
+  'claim',
+] as const satisfies readonly RoleMappingRule['source'][];
+type RoleRuleSource = (typeof ROLE_RULE_SOURCES)[number];
+
+const ROLE_RULE_TARGETS = [
+  'admin',
+  'developer',
+  'editor',
+  'member',
+] as const satisfies readonly PlatformRole[];
 
 const isOidcProtocol = (p: UiProtocol): p is Exclude<UiProtocol, 'saml'> =>
   p !== 'saml';
@@ -171,12 +194,13 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const canEdit = !cannotManage;
 
   // -------------------------------------------------------------------------
-  // Validation schema (memoized on `t` and `config?.configured`). The protocol
-  // Select drives which fields are required; `clientSecret` is required only
-  // for a brand-new connection (an existing connection keeps its stored secret
-  // when the field is left blank).
+  // Validation schema (memoized on `t` and whether an OIDC secret is stored).
+  // The protocol Select drives which fields are required; `clientSecret` is
+  // required whenever no OIDC client secret is already stored — i.e. a new
+  // connection OR a switch to OIDC from a SAML-only connection. An existing
+  // OIDC connection keeps its stored secret when the field is left blank.
   // -------------------------------------------------------------------------
-  const isConfigured = !!config?.configured;
+  const hasStoredOidcSecret = !!config?.oidc;
   const schema = useMemo(() => {
     const requiredMsg = t('integrations.enterpriseSso.validation.required');
     const urlMsg = t('integrations.enterpriseSso.validation.url');
@@ -206,6 +230,20 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           'disabled',
         ]),
         autoRole: z.boolean(),
+        roleMappingRules: z.array(
+          z.object({
+            source: z.enum(ROLE_RULE_SOURCES),
+            pattern: z.string(),
+            targetRole: z.enum([
+              'admin',
+              'developer',
+              'editor',
+              'member',
+              'disabled',
+            ]),
+            claim: z.string().optional(),
+          }),
+        ),
         autoTeam: z.boolean(),
         excludeGroups: z.string(),
       })
@@ -232,9 +270,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           if (!data.issuer.trim()) req('issuer');
           else if (!looksLikeUrl(data.issuer.trim())) url('issuer');
           if (!data.clientId.trim()) req('clientId');
-          // Secret is required only when configuring a NEW connection. On an
-          // existing connection a blank secret means "keep the stored one".
-          if (!isConfigured && !data.clientSecret.trim()) req('clientSecret');
+          // Required unless an OIDC secret is already stored. A blank secret on
+          // an existing OIDC connection means "keep the stored one"; switching
+          // to OIDC from a SAML-only connection has no stored secret to reuse.
+          if (!hasStoredOidcSecret && !data.clientSecret.trim()) {
+            req('clientSecret');
+          }
 
           if (data.protocol === 'oauth2') {
             for (const field of [
@@ -255,7 +296,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           if (!data.idpCertificate.trim()) req('idpCertificate');
         }
       });
-  }, [t, isConfigured]);
+  }, [t, hasStoredOidcSecret]);
 
   // -------------------------------------------------------------------------
   // Seed the form once the stored connection loads. `data` is `undefined`
@@ -320,6 +361,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       idpCertificate,
       defaultRole: config.provisioning.defaultRole,
       autoRole: config.provisioning.autoProvisionRole,
+      roleMappingRules: config.provisioning.roleMappingRules,
       autoTeam: config.provisioning.autoProvisionTeam,
       excludeGroups: config.provisioning.excludeGroups.join(', '),
     };
@@ -330,7 +372,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       const provisioning = {
         autoProvisionRole: values.autoRole,
         defaultRole: values.defaultRole,
-        roleMappingRules: config?.provisioning.roleMappingRules ?? [],
+        roleMappingRules: values.roleMappingRules.filter((r) =>
+          r.pattern.trim(),
+        ),
         autoProvisionTeam: values.autoTeam,
         excludeGroups: values.excludeGroups
           .split(',')
@@ -391,11 +435,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           variant: 'success',
         });
       } catch (error) {
+        const fallback = t('integrations.enterpriseSso.saveFailed');
         toast({
           title:
-            error instanceof Error
-              ? error.message
-              : t('integrations.enterpriseSso.saveFailed'),
+            convexErrorCode(error) === 'sso_client_secret_required'
+              ? t('integrations.enterpriseSso.validation.clientSecretRequired')
+              : convexErrorMessage(error, fallback),
           variant: 'destructive',
         });
         throw error;
@@ -419,6 +464,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
   const protocol = watch('protocol') ?? 'entra-id';
   const isOidcLike = isOidcProtocol(protocol);
+  const autoRole = watch('autoRole') ?? false;
 
   // -------------------------------------------------------------------------
   // Prefill clientId once for an existing OIDC connection (the read view no
@@ -559,7 +605,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   id="sso-protocol"
                   label={t('integrations.enterpriseSso.protocolLabel')}
                   description={t('integrations.enterpriseSso.protocolHelp')}
-                  value={field.value}
+                  value={field.value ?? 'entra-id'}
                   onValueChange={(value) => {
                     const next = narrowStringUnion<UiProtocol>(
                       value,
@@ -749,7 +795,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 <Select
                   id="sso-default-role"
                   label={t('integrations.enterpriseSso.defaultRoleLabel')}
-                  value={field.value}
+                  value={field.value ?? 'member'}
                   onValueChange={(value) => {
                     const r = narrowStringUnion<PlatformRole>(value, [
                       'admin',
@@ -768,18 +814,19 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               name="autoRole"
               render={({ field }) => (
                 <Switch
-                  checked={field.value}
+                  checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoRoleLabel')}
                 />
               )}
             />
+            {autoRole && <RoleMappingRulesEditor control={control} />}
             <Controller
               control={control}
               name="autoTeam"
               render={({ field }) => (
                 <Switch
-                  checked={field.value}
+                  checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoTeamLabel')}
                 />
@@ -949,6 +996,172 @@ function ReadOnlyCopy({
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>
       </HStack>
+    </Stack>
+  );
+}
+
+/**
+ * Editor for the IdP → platform role-mapping rules (drives the "auto-assign
+ * roles from the IdP" toggle, which is otherwise inert without rules). The
+ * first matching rule wins; a user who matches none gets the default role.
+ */
+function RoleMappingRulesEditor({
+  control,
+}: {
+  control: Control<SsoFormData>;
+}) {
+  const { t } = useT('settings');
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'roleMappingRules',
+  });
+  const sourceOptions = ROLE_RULE_SOURCES.map((s) => ({
+    value: s,
+    label: t(`integrations.enterpriseSso.roleMapping.source.${s}`),
+  }));
+  const roleOptions = ROLE_RULE_TARGETS.map((r) => ({
+    value: r,
+    label: t(`integrations.enterpriseSso.role.${r}`),
+  }));
+
+  return (
+    <Stack gap={3} className="border-border rounded-md border p-3">
+      <Text variant="muted" className="text-sm">
+        {t('integrations.enterpriseSso.roleMapping.help')}
+      </Text>
+      {fields.length === 0 ? (
+        <Text variant="muted" className="text-sm">
+          {t('integrations.enterpriseSso.roleMapping.empty')}
+        </Text>
+      ) : (
+        <Stack gap={3}>
+          {fields.map((field, index) => (
+            <RoleMappingRuleRow
+              key={field.id}
+              control={control}
+              index={index}
+              sourceOptions={sourceOptions}
+              roleOptions={roleOptions}
+              onRemove={() => remove(index)}
+            />
+          ))}
+        </Stack>
+      )}
+      <HStack>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() =>
+            append({ source: 'group', pattern: '', targetRole: 'member' })
+          }
+        >
+          {t('integrations.enterpriseSso.roleMapping.addRule')}
+        </Button>
+      </HStack>
+    </Stack>
+  );
+}
+
+function RoleMappingRuleRow({
+  control,
+  index,
+  sourceOptions,
+  roleOptions,
+  onRemove,
+}: {
+  control: Control<SsoFormData>;
+  index: number;
+  sourceOptions: { value: string; label: string }[];
+  roleOptions: { value: string; label: string }[];
+  onRemove: () => void;
+}) {
+  const { t } = useT('settings');
+  const source = useWatch({
+    control,
+    name: `roleMappingRules.${index}.source`,
+  });
+
+  return (
+    <Stack gap={2} className="border-border rounded-md border p-3">
+      <Row gap={2} align="end" wrap>
+        <Controller
+          control={control}
+          name={`roleMappingRules.${index}.source`}
+          render={({ field }) => (
+            <Select
+              id={`role-rule-source-${index}`}
+              label={t('integrations.enterpriseSso.roleMapping.sourceLabel')}
+              value={field.value ?? 'group'}
+              onValueChange={(value) => {
+                const next = narrowStringUnion<RoleRuleSource>(
+                  value,
+                  ROLE_RULE_SOURCES,
+                );
+                if (next) field.onChange(next);
+              }}
+              options={sourceOptions}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name={`roleMappingRules.${index}.pattern`}
+          render={({ field }) => (
+            <Input
+              id={`role-rule-pattern-${index}`}
+              label={t('integrations.enterpriseSso.roleMapping.patternLabel')}
+              name={field.name}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name={`roleMappingRules.${index}.targetRole`}
+          render={({ field }) => (
+            <Select
+              id={`role-rule-target-${index}`}
+              label={t(
+                'integrations.enterpriseSso.roleMapping.targetRoleLabel',
+              )}
+              value={field.value ?? 'member'}
+              onValueChange={(value) => {
+                const next = narrowStringUnion<PlatformRole>(
+                  value,
+                  ROLE_RULE_TARGETS,
+                );
+                if (next) field.onChange(next);
+              }}
+              options={roleOptions}
+            />
+          )}
+        />
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          {t('integrations.enterpriseSso.roleMapping.removeRule')}
+        </Button>
+      </Row>
+      {source === 'claim' && (
+        <Controller
+          control={control}
+          name={`roleMappingRules.${index}.claim`}
+          render={({ field }) => (
+            <Input
+              id={`role-rule-claim-${index}`}
+              label={t('integrations.enterpriseSso.roleMapping.claimLabel')}
+              description={t(
+                'integrations.enterpriseSso.roleMapping.claimHelp',
+              )}
+              name={field.name}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+            />
+          )}
+        />
+      )}
     </Stack>
   );
 }

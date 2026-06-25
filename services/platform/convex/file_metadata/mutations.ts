@@ -31,6 +31,17 @@ export const saveFileMetadata = mutation({
      * spoofing across orgs.
      */
     threadId: v.optional(v.string()),
+    /**
+     * Suppress automatic RAG indexing for this upload. The composer sets
+     * this when the active conversation targets an external agent (sandbox
+     * sessions like Claude Code): those agents receive attachments by
+     * file-staging into the sandbox (see external_agent/attachment_files),
+     * not via the knowledge base, so indexing them is wasted work that only
+     * produces a spurious "Index failed" badge. Worst case a client lies and
+     * skips indexing its own file — the file stays usable inline; nothing
+     * cross-tenant is exposed, so this stays a client-supplied hint.
+     */
+    skipRagIndexing: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
@@ -83,7 +94,9 @@ export const saveFileMetadata = mutation({
     // failed" badge. Non-indexable files keep ragStatus undefined — the
     // audio pattern — and stay usable inline in chat.
     const shouldIndex =
-      !isAudio && isRagIndexableFile(args.fileName, args.contentType);
+      !args.skipRagIndexing &&
+      !isAudio &&
+      isRagIndexableFile(args.fileName, args.contentType);
 
     const now = Date.now();
 

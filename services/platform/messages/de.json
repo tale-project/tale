@@ -5756,7 +5756,25 @@
         "formHint": "Lege fest, wie sich Mitglieder anmelden, und speichere deine Änderungen oben in der Kopfzeile.",
         "validation": {
           "required": "Dieses Feld ist erforderlich.",
-          "url": "Gib eine gültige URL ein (inklusive https://)."
+          "url": "Gib eine gültige URL ein (inklusive https://).",
+          "clientSecretRequired": "Ein Client-Secret ist erforderlich."
+        },
+        "roleMapping": {
+          "help": "Ordne Gruppen, App-Rollen oder Jobtitel aus dem Identity-Provider einer Plattformrolle zu. Wer auf keine Regel passt, erhält die Standardrolle.",
+          "empty": "Noch keine Regeln — alle erhalten die Standardrolle.",
+          "addRule": "Regel hinzufügen",
+          "removeRule": "Entfernen",
+          "sourceLabel": "Quelle",
+          "source": {
+            "group": "IdP-Gruppe",
+            "appRole": "App-Rolle",
+            "jobTitle": "Jobtitel",
+            "claim": "Claim"
+          },
+          "patternLabel": "Passender Wert",
+          "targetRoleLabel": "Weist Rolle zu",
+          "claimLabel": "Claim-Pfad",
+          "claimHelp": "Punktpfad in die Token-Claims, z. B. realm_access.roles."
         },
         "guide": {
           "title": "Einrichtungsleitfaden",
@@ -6919,6 +6937,7 @@
       "disabled": "Zwei-Faktor-Authentifizierung deaktiviert",
       "passwordPromptDescription": "Bestätige dein Passwort, um die Einrichtung der Zwei-Faktor-Authentifizierung zu starten.",
       "disablePromptDescription": "Bestätige dein Passwort, um die Zwei-Faktor-Authentifizierung auszuschalten.",
+      "disableEnforcedWarning": "Deine Organisation verlangt Zwei-Faktor-Authentifizierung. Wenn du sie deaktivierst, musst du sie bei der nächsten Anmeldung erneut einrichten.",
       "regeneratePromptDescription": "Bestätige dein Passwort. Beim Neuerzeugen werden alle bisherigen Backup-Codes ungültig."
     },
     "passkeys": {

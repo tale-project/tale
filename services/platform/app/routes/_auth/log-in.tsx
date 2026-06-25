@@ -26,7 +26,9 @@ import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
+import { sanitizeInternalRedirect } from '@/lib/shared/utils/safe-redirect';
 import { seo } from '@/lib/utils/seo';
+import { getString, isRecord } from '@/lib/utils/type-utils';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
@@ -78,7 +80,12 @@ export function LogInPage() {
   const redirectToTrustedHeadersAuth = useCallback(() => {
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
-    const target = redirectTo || `${basePath}/dashboard`;
+    // Forward only a validated same-origin path — defence in depth against the
+    // open redirect the authenticate endpoint also guards (#2037).
+    const target = sanitizeInternalRedirect(
+      redirectTo,
+      `${basePath}/dashboard`,
+    );
     window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
   }, [redirectTo]);
   useEffect(() => {
@@ -255,12 +262,57 @@ export function LogInPage() {
     }
   };
 
-  const handleSsoLogin = useCallback(() => {
+  const handleSsoLogin = useCallback(async () => {
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
-    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
-    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-  }, []);
+    const base = `${siteUrl}${basePath}/http_api/api/sso`;
+
+    // Route by the typed email's domain so a deployment with more than one SSO
+    // connection reaches the IdP of the matching org, instead of always the
+    // first enabled connection (#2082). With no email (the common single-org
+    // case) or an inconclusive lookup, fall back to the global connection.
+    const email = form.getValues('email').trim();
+    let organizationId: string | undefined;
+    let protocol: string = ssoConfig?.providerType === 'saml' ? 'saml' : 'oidc';
+    if (email) {
+      try {
+        const res = await fetch(`${base}/discover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) {
+          const data: unknown = await res.json();
+          if (isRecord(data) && data.ssoEnabled === true) {
+            const orgId = getString(data, 'organizationId');
+            const proto = getString(data, 'protocol');
+            if (orgId) {
+              organizationId = orgId;
+              if (proto) protocol = proto;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[sso] discovery failed; using default connection', error);
+      }
+    }
+
+    // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
+    // authorization-code flow via /authorize.
+    if (protocol === 'saml') {
+      const samlUrl = new URL(`${base}/saml/login`);
+      if (organizationId) samlUrl.searchParams.set('org', organizationId);
+      window.location.href = samlUrl.toString();
+      return;
+    }
+    const authorizeUrl = new URL(`${base}/authorize`);
+    authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+    if (email) authorizeUrl.searchParams.set('email', email);
+    if (organizationId) {
+      authorizeUrl.searchParams.set('organizationId', organizationId);
+    }
+    window.location.href = authorizeUrl.toString();
+  }, [ssoConfig?.providerType, form]);
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
   // ceremony; on success the session is live, so refresh the cache and route

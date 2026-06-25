@@ -9,6 +9,9 @@
  * `userName eq` / `displayName eq` / `members[value eq "…"]` are not supported.
  */
 
+import { ConvexError } from 'convex/values';
+
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { type ActionCtx, httpAction } from '../_generated/server';
 import type { PlatformRole } from '../enterprise_sso/types';
@@ -116,6 +119,18 @@ function withScimAuth(
         req,
       );
     } catch (error) {
+      // A coded ConvexError from the provisioning layer maps to its SCIM
+      // status — a cross-tenant create collision is a 409, not a 500 (#2036).
+      if (error instanceof ConvexError && isRecord(error.data)) {
+        const data = error.data;
+        if (data.code === 'scim_user_conflict') {
+          const detail =
+            typeof data.message === 'string'
+              ? data.message
+              : 'User already exists';
+          return scimError(409, detail, 'uniqueness');
+        }
+      }
       console.error('[scim] handler error', error);
       return scimError(500, 'Internal server error');
     }
@@ -275,17 +290,21 @@ async function patchUserResource(
 }
 
 async function deleteUser(rc: ScimRc, userId: string): Promise<Response> {
-  const existing = await rc.ctx.runQuery(
-    internal.scim.internal_queries.getUserRecord,
+  // A SCIM DELETE removes the resource: the user is de-provisioned from this
+  // org so a later GET returns 404 (RFC 7644 §3.6). A plain disable is the
+  // separate `PATCH active:false` path (soft-deactivate, restorable).
+  const result = await rc.ctx.runMutation(
+    internal.scim.internal_mutations.deprovisionUser,
     { organizationId: rc.organizationId, userId },
   );
-  if (!existing) return scimError(404, `User ${userId} not found`);
-  await rc.ctx.runMutation(internal.scim.internal_mutations.patchUser, {
-    organizationId: rc.organizationId,
-    userId,
-    defaultRole: rc.defaultRole,
-    active: false,
-  });
+  if (result === 'not-found') return scimError(404, `User ${userId} not found`);
+  if (result === 'owner-protected') {
+    return scimError(
+      403,
+      'Cannot de-provision the organization owner',
+      'mutability',
+    );
+  }
   return scimNoContent();
 }
 

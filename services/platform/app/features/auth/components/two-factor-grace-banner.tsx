@@ -40,7 +40,7 @@ export function TwoFactorGraceBanner({
   return (
     <div className="px-4 pt-2">
       <Row
-        role="alert"
+        role="status"
         gap={2}
         wrap
         className="bg-warning/10 border-warning/30 rounded-lg border p-3 text-sm"

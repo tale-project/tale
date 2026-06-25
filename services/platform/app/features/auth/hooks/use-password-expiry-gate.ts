@@ -23,7 +23,10 @@ export function usePasswordExpiryGate(organizationId: string): void {
 
   useEffect(() => {
     if (!data || !data.expired) return;
-    if (location.pathname.endsWith(FORCED_CHANGE_PATH)) return;
+    // The route is `/forced-change-password/$id`, so the pathname ends with the
+    // id, never the literal segment — match by inclusion so the gate actually
+    // short-circuits on that page instead of re-navigating to it (#2085[06]).
+    if (location.pathname.includes(`/${FORCED_CHANGE_PATH}`)) return;
     const id = (params as { id?: string }).id ?? organizationId;
     void navigate({
       to: '/forced-change-password/$id',

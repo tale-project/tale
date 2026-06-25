@@ -39,6 +39,13 @@ function buildAuthorizeUrl(
   );
 
   const scopes = [...config.scopes];
+  // getUserInfo always reads the signed-in user from Microsoft Graph `/me`,
+  // which needs the User.Read delegated permission. Ensure it is requested even
+  // when the configured scopes omit it (a scope set that lists only
+  // GroupMember.Read.All would otherwise 403 the userinfo call).
+  if (!scopes.some((s) => /(^|\/)user\.read$/i.test(s))) {
+    scopes.push('https://graph.microsoft.com/User.Read');
+  }
   if (params.additionalScopes) {
     for (const scope of params.additionalScopes) {
       if (!scopes.includes(scope)) {
