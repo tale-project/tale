@@ -2,6 +2,7 @@
  * Update conversations with flexible filtering and updates (business logic)
  */
 
+import { ConvexError } from 'convex/values';
 import { set, merge } from 'lodash';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -42,9 +43,11 @@ export async function updateConversations(
 ): Promise<UpdateConversationsResult> {
   // Validate: must provide either conversationId or organizationId
   if (!args.conversationId && !args.organizationId) {
-    throw new Error(
-      'Must provide either conversationId or organizationId for safety',
-    );
+    throw new ConvexError({
+      code: 'conversation_target_required',
+      message:
+        'Must provide either conversationId or organizationId for safety',
+    });
   }
 
   // Find conversations to update
@@ -54,7 +57,10 @@ export async function updateConversations(
     // Update by ID (most common case)
     const conversation = await ctx.db.get(args.conversationId);
     if (!conversation) {
-      throw new Error(`Conversation not found: ${args.conversationId}`);
+      throw new ConvexError({
+        code: 'conversation_not_found',
+        message: 'Conversation not found',
+      });
     }
     // Cross-tenant write guard: when the caller's org is known (the agent
     // conversation_write tool always passes it), the target conversation must
@@ -63,7 +69,10 @@ export async function updateConversations(
       args.organizationId &&
       conversation.organizationId !== args.organizationId
     ) {
-      throw new Error(`Conversation not found: ${args.conversationId}`);
+      throw new ConvexError({
+        code: 'conversation_not_found',
+        message: 'Conversation not found',
+      });
     }
     conversationsToUpdate = [conversation];
   } else if (args.organizationId) {
