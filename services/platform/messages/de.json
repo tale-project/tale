@@ -7333,6 +7333,7 @@
       "ragStatusCompleted": "Indexiert",
       "ragStatusFailed": "Fehlgeschlagen",
       "detachAction": "Aus Projekt entfernen",
+      "previewAction": "Datei anzeigen",
       "detachSuccess": "Dokument aus Projekt entfernt",
       "detachError": "Dokument konnte nicht entfernt werden",
       "attachSuccess": "Dokument zum Projekt hinzugefügt",
