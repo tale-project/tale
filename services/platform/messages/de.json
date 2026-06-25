@@ -1640,6 +1640,7 @@
     },
     "canvas": {
       "title": "Canvas",
+      "noFile": "Keine Datei ausgewählt",
       "stripOpen": "Canvas öffnen",
       "download": "Herunterladen",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
@@ -1769,6 +1770,8 @@
       "emptyTitle": "Der Agent surft gerade nicht",
       "emptyHint": "Starte eine Anfrage — sobald der Agent einen Browser öffnet, siehst du es hier live.",
       "ariaLabel": "Live-Ansicht des Browsers des Agents (schreibgeschützt)",
+      "ariaLabelControl": "Live-Browser – du steuerst ihn",
+      "controlling": "Du hast die Kontrolle",
       "reset": "Browser zurücksetzen (meldet von allen Seiten ab)",
       "resetConfirmTitle": "Browser zurücksetzen?",
       "resetConfirmBody": "Startet den Browser mit einem leeren Profil neu und meldet dich von allen Seiten ab, bei denen der Agent angemeldet war. Nutze dies nur, wenn der Browser hängt und sich nicht von selbst erholt.",
@@ -1776,6 +1779,7 @@
     },
     "chatPanel": {
       "stripAria": "Chat-Bereich",
+      "tablistAria": "Bereich öffnen",
       "ariaLabel": "Chat-Bereich",
       "minimize": "Chat-Bereich minimieren",
       "resizeAria": "Chat-Bereich vergrößern",
