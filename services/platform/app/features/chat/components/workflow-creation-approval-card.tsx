@@ -571,9 +571,15 @@ function WorkflowCreationApprovalCardComponent({
                   ? 'blue'
                   : 'destructive'
             }
-            className="shrink-0 text-xs capitalize"
+            className="shrink-0 text-xs"
           >
-            {status}
+            {status === 'completed'
+              ? tCommon('statusCompleted')
+              : status === 'executing'
+                ? tCommon('statusExecuting')
+                : status === 'rejected'
+                  ? tCommon('statusRejected')
+                  : tCommon('statusPending')}
           </Badge>
         </HStack>
       )}

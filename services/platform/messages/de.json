@@ -491,7 +491,11 @@
     "errorSubmitFailed": "Antwort konnte nicht gesendet werden",
     "copied": "Kopiert!",
     "copyConfiguration": "Konfiguration kopieren",
-    "viewWorkflow": "Workflow anzeigen"
+    "viewWorkflow": "Workflow anzeigen",
+    "statusPending": "Ausstehend",
+    "statusExecuting": "Wird ausgeführt",
+    "statusCompleted": "Abgeschlossen",
+    "statusRejected": "Abgelehnt"
   },
   "auth": {
     "email": "E-Mail",

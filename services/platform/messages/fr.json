@@ -492,7 +492,11 @@
     "errorSubmitFailed": "Échec de la soumission de la réponse",
     "copied": "Copié !",
     "copyConfiguration": "Copier la configuration",
-    "viewWorkflow": "Voir le workflow"
+    "viewWorkflow": "Voir le workflow",
+    "statusPending": "En attente",
+    "statusExecuting": "Exécution",
+    "statusCompleted": "Terminé",
+    "statusRejected": "Rejeté"
   },
   "auth": {
     "email": "Courriel",
