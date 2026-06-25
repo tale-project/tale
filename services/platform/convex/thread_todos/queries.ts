@@ -71,15 +71,28 @@ export const get = query({
     // per-item fork linkage, so we surface the nearest one in the lineage
     // rather than trying to slice it. The `by_org_thread` org filter is the
     // access gate for sub-threads (which carry no `threadMetadata`).
+    //
+    // A "hit" requires a row with ACTUAL todos. A thread that only made
+    // integration calls still owns a `threadTodos` row (it tracks
+    // `integrationCallCount`) with an EMPTY `todos` array — that empty row must
+    // NOT count as a plan, or it shadows a delegate sub-thread's real plan:
+    // once the parent agent runs its own web/integration calls, an empty parent
+    // row appears and the research-plan pane blinks out mid-run.
     const chain = await getBranchAncestorThreadIds(ctx, args.threadId);
     let record: Awaited<ReturnType<typeof readTodos>> = null;
     for (const hop of chain) {
-      record = await readTodos(hop.threadId);
-      if (record) break;
+      const own = await readTodos(hop.threadId);
+      if (own && own.todos.length > 0) {
+        record = own;
+        break;
+      }
       const subThreadIds = await getDelegateSubThreadIds(ctx, hop.threadId);
       for (const subThreadId of subThreadIds) {
-        record = await readTodos(subThreadId);
-        if (record) break;
+        const sub = await readTodos(subThreadId);
+        if (sub && sub.todos.length > 0) {
+          record = sub;
+          break;
+        }
       }
       if (record) break;
     }

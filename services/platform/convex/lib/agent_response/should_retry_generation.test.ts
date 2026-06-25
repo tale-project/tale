@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 // These are pure functions — no mocks needed
 import {
+  endedOnHumanInputGate,
   shouldRetryGeneration,
   needsToolResultRetry,
 } from './generate_response';
@@ -157,6 +158,46 @@ describe('shouldRetryGeneration', () => {
     });
   });
 
+  describe('human-input approval gate is terminal', () => {
+    // Regression: `stopWhen: hasToolCall('request_human_input')` halts the loop
+    // with finishReason 'tool-calls'; without this branch the continue/retry
+    // path resumed past the gate and ran the whole task anyway (the researcher
+    // barrelling past its plan-confirmation card).
+    it('does not retry when the last step called request_human_input (tool-calls)', () => {
+      const steps = [
+        makeStep({ toolCalls: [{ toolName: 'update_todos' }] }),
+        makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
+      ];
+      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      expect(result).toEqual({ retry: false, reason: 'awaiting-human-input' });
+    });
+
+    it('does not retry on the "stop" + empty-text gate halt either', () => {
+      const steps = [
+        makeStep({
+          toolCalls: [{ toolName: 'request_human_input' }],
+          text: '',
+        }),
+      ];
+      const result = shouldRetryGeneration('stop', '', steps, false);
+      expect(result).toEqual({ retry: false, reason: 'awaiting-human-input' });
+    });
+
+    it('still retries when request_human_input is only an EARLIER step', () => {
+      // The model called the gate, then kept going on its own — that is NOT a
+      // stopWhen halt, so the incomplete trailing tool call stays retryable.
+      const steps = [
+        makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
+        makeStep({ toolCalls: [{ toolName: 'web' }] }),
+      ];
+      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-tool-calls',
+      });
+    });
+  });
+
   describe('already-retried guard', () => {
     it('returns false when already retried, even for retryable finishReason', () => {
       const result = shouldRetryGeneration('length', 'Partial...', [], true);
@@ -191,6 +232,35 @@ describe('needsToolResultRetry', () => {
     expect(needsToolResultRetry('Response', [makeStep({ text: 'Hi' })])).toBe(
       false,
     );
+  });
+});
+
+describe('endedOnHumanInputGate', () => {
+  it('returns false for no steps', () => {
+    expect(endedOnHumanInputGate([])).toBe(false);
+    expect(endedOnHumanInputGate(undefined)).toBe(false);
+  });
+
+  it('returns true when the last step called request_human_input', () => {
+    const steps = [
+      makeStep({ toolCalls: [{ toolName: 'update_todos' }] }),
+      makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
+    ];
+    expect(endedOnHumanInputGate(steps)).toBe(true);
+  });
+
+  it('returns false when the gate call is not the last step', () => {
+    const steps = [
+      makeStep({ toolCalls: [{ toolName: 'request_human_input' }] }),
+      makeStep({ toolCalls: [{ toolName: 'web' }] }),
+    ];
+    expect(endedOnHumanInputGate(steps)).toBe(false);
+  });
+
+  it('returns false for an ordinary tool call', () => {
+    expect(
+      endedOnHumanInputGate([makeStep({ toolCalls: [{ toolName: 'web' }] })]),
+    ).toBe(false);
   });
 
   it('returns true when last step has tool calls (preamble-only)', () => {
