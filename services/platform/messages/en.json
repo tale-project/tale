@@ -826,7 +826,8 @@
       },
       "common": {
         "never": "Never",
-        "copied": "Copied"
+        "copied": "Copied",
+        "copyFailed": "Copy failed"
       }
     },
     "executions": {
@@ -4054,6 +4055,7 @@
     "deleteConfirmation": "Are you sure you want to delete this MCP server connection?",
     "testConnection": "Test connection",
     "testing": "Testing connection...",
+    "connectionTestFailed": "Connection test failed",
     "connected": "Connected",
     "disconnected": "Disconnected",
     "error": "Error",
