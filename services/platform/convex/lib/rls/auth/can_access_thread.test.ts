@@ -7,10 +7,15 @@ vi.mock('../../../_generated/api', () => ({
         findMany: 'betterAuth:adapter:findMany',
       },
     },
+    agent: {
+      threads: {
+        getThread: 'agent:threads:getThread',
+      },
+    },
   },
 }));
 
-const { canAccessThread, assertThreadAccess } =
+const { canAccessThread, assertThreadAccess, canAccessThreadOrSubThread } =
   await import('./can_access_thread');
 
 const authUser = { userId: 'user_1', email: 'larry@tale.dev' };
@@ -469,5 +474,175 @@ describe('assertThreadAccess', () => {
     await expect(
       assertThreadAccess(ctx as never, 't_1', authUser),
     ).rejects.toMatchObject({ data: { code: 'forbidden' } });
+  });
+});
+
+/**
+ * Mock ctx for the sub-thread tests: `threadMetadata` is keyed by threadId (so
+ * a sub-thread can resolve to `null` while its parent resolves to a real row),
+ * and `agent.threads.getThread` is served from `summariesByThreadId`.
+ */
+function createSubThreadMockCtx(opts: {
+  metadataByThreadId: Record<string, MockMetadata>;
+  summariesByThreadId?: Record<string, string | undefined>;
+  members?: BetterAuthMember[];
+}) {
+  return {
+    db: {
+      query: vi.fn().mockImplementation((table: string) => ({
+        withIndex: vi
+          .fn()
+          .mockImplementation(
+            (_index: string, builder?: (q: unknown) => unknown) => {
+              let capturedThreadId: string | undefined;
+              if (builder) {
+                const q = {
+                  eq: (field: string, value: string) => {
+                    if (field === 'threadId') capturedThreadId = value;
+                    return q;
+                  },
+                };
+                builder(q);
+              }
+              return {
+                first: vi
+                  .fn()
+                  .mockResolvedValue(
+                    table === 'memberMirror'
+                      ? null
+                      : capturedThreadId
+                        ? (opts.metadataByThreadId[capturedThreadId] ?? null)
+                        : null,
+                  ),
+              };
+            },
+          ),
+      })),
+    },
+    runQuery: vi
+      .fn()
+      .mockImplementation(
+        (
+          ref: string,
+          args:
+            | { threadId: string }
+            | { where: { field: string; value: string }[] },
+        ) => {
+          if (ref === 'agent:threads:getThread') {
+            const threadId = (args as { threadId: string }).threadId;
+            const summary = opts.summariesByThreadId?.[threadId];
+            return Promise.resolve(summary !== undefined ? { summary } : null);
+          }
+          // isOrgMember → Better Auth `member` findMany
+          const where = (args as { where: { field: string; value: string }[] })
+            .where;
+          const orgIdFilter = where.find((w) => w.field === 'organizationId');
+          const userIdFilter = where.find((w) => w.field === 'userId');
+          const page = (opts.members ?? []).filter(
+            (m) =>
+              (orgIdFilter === undefined ||
+                m.organizationId === orgIdFilter.value) &&
+              (userIdFilter === undefined || m.userId === userIdFilter.value),
+          );
+          return Promise.resolve({ page, isDone: true, continueCursor: '' });
+        },
+      ),
+    auth: {},
+  };
+}
+
+describe('canAccessThreadOrSubThread', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const parentMeta: MockMetadata = {
+    _id: 'tm_parent',
+    threadId: 't_parent',
+    userId: 'user_1',
+    organizationId: 'org_1',
+  };
+  const ownerMembers: BetterAuthMember[] = [
+    { _id: 'm_1', organizationId: 'org_1', userId: 'user_1', role: 'admin' },
+  ];
+
+  it('grants access to a sub-thread whose parent the user can access', async () => {
+    // The sub-thread has NO threadMetadata row of its own (the Agent SDK
+    // component creates it without one) — access is inherited from the parent.
+    const ctx = createSubThreadMockCtx({
+      metadataByThreadId: { t_parent: parentMeta },
+      summariesByThreadId: {
+        t_sub: JSON.stringify({
+          subAgentType: 'researcher',
+          parentThreadId: 't_parent',
+        }),
+      },
+      members: ownerMembers,
+    });
+
+    const result = await canAccessThreadOrSubThread(
+      ctx as never,
+      't_sub',
+      authUser,
+    );
+
+    expect(result).toEqual(parentMeta);
+  });
+
+  it('denies a sub-thread whose parent the user cannot access', async () => {
+    const ctx = createSubThreadMockCtx({
+      // Parent exists but the user is not a member of its org.
+      metadataByThreadId: {
+        t_parent: { ...parentMeta, userId: 'user_other' },
+      },
+      summariesByThreadId: {
+        t_sub: JSON.stringify({ parentThreadId: 't_parent' }),
+      },
+      members: [],
+    });
+
+    const result = await canAccessThreadOrSubThread(
+      ctx as never,
+      't_sub',
+      authUser,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('denies a thread that has neither metadata nor a parent summary', async () => {
+    const ctx = createSubThreadMockCtx({
+      metadataByThreadId: {},
+      summariesByThreadId: { t_orphan: undefined },
+      members: ownerMembers,
+    });
+
+    const result = await canAccessThreadOrSubThread(
+      ctx as never,
+      't_orphan',
+      authUser,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('walks nested delegation up to an accessible ancestor', async () => {
+    // sub2 → sub1 → parent(owned). Both intermediate sub-threads lack metadata.
+    const ctx = createSubThreadMockCtx({
+      metadataByThreadId: { t_parent: parentMeta },
+      summariesByThreadId: {
+        t_sub2: JSON.stringify({ parentThreadId: 't_sub1' }),
+        t_sub1: JSON.stringify({ parentThreadId: 't_parent' }),
+      },
+      members: ownerMembers,
+    });
+
+    const result = await canAccessThreadOrSubThread(
+      ctx as never,
+      't_sub2',
+      authUser,
+    );
+
+    expect(result).toEqual(parentMeta);
   });
 });

@@ -5,11 +5,17 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
-import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import {
+  canAccessThread,
+  canAccessThreadOrSubThread,
+} from '../lib/rls/auth/can_access_thread';
 import { autoRouteReasonValidator } from '../streaming/validators';
 import { isGenerationFresh } from './generation_liveness';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
-import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
+import {
+  emptyStreamsResult,
+  getThreadMessagesStreaming as getThreadMessagesStreamingHelper,
+} from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
 import {
   isHiddenFromChatHistory,
@@ -144,17 +150,24 @@ export const getThreadMessagesStreaming = query({
         page: [],
         isDone: true,
         continueCursor: '',
-        streams: { value: null },
+        streams: emptyStreamsResult(args.streamArgs),
       };
     }
 
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    // `OrSubThread`: the chat UI streams a delegated sub-agent's thread to
+    // render its live nested timeline, and sub-threads have no threadMetadata
+    // row — authorize them via their parent thread (see helper docs).
+    const metadata = await canAccessThreadOrSubThread(
+      ctx,
+      args.threadId,
+      authUser,
+    );
     if (!metadata) {
       return {
         page: [],
         isDone: true,
         continueCursor: '',
-        streams: { value: null },
+        streams: emptyStreamsResult(args.streamArgs),
       };
     }
 
