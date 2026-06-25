@@ -14,6 +14,7 @@
 
 import { makeFunctionReference } from 'convex/server';
 
+import { sanitizeInternalRedirect } from '../../lib/shared/utils/safe-redirect';
 import type { ActionCtx } from '../_generated/server';
 import { createAuth } from '../auth';
 import { signCookieValue } from '../enterprise_sso/sign_cookie_value';
@@ -67,8 +68,12 @@ export async function trustedHeadersAuthenticateHandler(
   const url = new URL(req.url);
   const frontendOrigin = url.origin;
   const basePath = process.env.BASE_PATH || '';
-  const redirectTo =
-    url.searchParams.get('redirect') || `${basePath}/dashboard`;
+  // Validate the redirect target to a same-origin path — a user-supplied
+  // absolute or protocol-relative URL here is an open redirect (#2037).
+  const redirectTo = sanitizeInternalRedirect(
+    url.searchParams.get('redirect'),
+    `${basePath}/dashboard`,
+  );
 
   // Guard: trusted headers must be enabled
   if (process.env.TRUSTED_HEADERS_ENABLED !== 'true') {

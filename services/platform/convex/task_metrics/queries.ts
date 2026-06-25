@@ -10,7 +10,7 @@
  * cost always travel together — the UI never shows cost alone.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
@@ -30,7 +30,11 @@ async function requireMember(
   organizationId: string,
 ): Promise<{ userId: string; role: string }> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser)
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
   const member = await getOrganizationMember(ctx, organizationId, authUser);
   return { userId: member.userId, role: member.role };
 }
@@ -525,11 +529,11 @@ export const getProjectTaskMetrics = query({
   returns: v.any(),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error('PROJECT_NOT_FOUND');
+    if (!project) return null;
     const { userId, role } = await requireMember(ctx, project.organizationId);
     const teamIds = await getUserTeamIds(ctx, userId);
     const access = checkProjectAccess(project, teamIds, role);
-    if (!access.canRead) throw new Error('TASK_FORBIDDEN');
+    if (!access.canRead) return null;
 
     const { startKey, prevStartKey } = windowKeys(args.days ?? 30);
     // Scan from the previous window's start; split current vs prior period so

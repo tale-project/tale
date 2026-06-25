@@ -8,6 +8,7 @@ import { Download } from 'lucide-react';
 import { memo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { downloadUrlFile } from '@/lib/utils/download';
 import { formatBytes } from '@/lib/utils/format-bytes';
 
 interface AttachmentViewerProps {
@@ -39,17 +40,7 @@ function AttachmentViewerComponent({
     if (isDownloading) return;
     try {
       setIsDownloading(true);
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
+      await downloadUrlFile(filename, url);
     } catch (err) {
       console.error('Canvas download failed:', err);
     } finally {

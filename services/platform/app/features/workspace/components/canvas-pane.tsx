@@ -1,19 +1,10 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { useMatch } from '@tanstack/react-router';
 import { parsePartialJson } from 'ai';
-import { Download, Palette } from 'lucide-react';
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Palette } from 'lucide-react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { ChatPaneDescriptor } from '@/app/features/chat/components/chat-panel/types';
 import {
   useAutoOpen,
@@ -24,7 +15,9 @@ import { useStreamingTools } from '@/app/features/chat/context/streaming-tool-co
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { preloadHighlighter } from '@/lib/utils/shiki';
 
+import { CanvasPreferencesProvider } from '../hooks/canvas-preferences';
 import type { ThreadFileItem } from '../types';
 import { FileViewerRouter } from './file-viewer-router';
 import { useWorkspace } from './workspace-context';
@@ -54,6 +47,12 @@ interface LiveFile {
  */
 function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   const { t } = useT('chat');
+
+  // Warm shiki as soon as the canvas is in play so the first code file the user
+  // opens highlights without the lazy cold-start delay (engine + grammars).
+  useEffect(() => {
+    preloadHighlighter();
+  }, []);
   const threadMatch = useMatch({
     from: '/dashboard/$id/chat/$threadId',
     shouldThrow: false,
@@ -159,59 +158,12 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
   );
 
   const isActiveStreaming = !!activeLive;
-  const { data: downloadMeta } = useConvexQuery(
-    api.thread_files.queries.getThreadFileContentUrl,
-    threadId && resolvedPath && !isActiveStreaming
-      ? { threadId, organizationId, path: resolvedPath }
-      : 'skip',
-  );
-  const downloadUrl = downloadMeta?.url;
-  const [isDownloading, setIsDownloading] = useState(false);
-  const handleDownload = useCallback(async () => {
-    if (!downloadUrl || !resolvedPath || isDownloading) return;
-    try {
-      setIsDownloading(true);
-      const res = await fetch(downloadUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = resolvedPath.split('/').pop() ?? resolvedPath;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.error('Canvas download failed:', err);
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [downloadUrl, resolvedPath, isDownloading]);
 
   const hasContent = !!threadId && mergedFiles.length > 0;
   useAutoOpen('canvas', hasContent);
 
   const descriptor = useMemo<ChatPaneDescriptor | null>(() => {
     if (!hasContent || !threadId) return null;
-
-    const headerActions: ReactNode = (
-      <Tooltip
-        content={t('canvas.download', { defaultValue: 'Download' })}
-        side="bottom"
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => void handleDownload()}
-          disabled={!downloadUrl || isDownloading || isActiveStreaming}
-          aria-label={t('canvas.download', { defaultValue: 'Download' })}
-        >
-          <Download className="size-3.5" />
-        </Button>
-      </Tooltip>
-    );
 
     // Active-file meta, pinned to the right of the tab strip. Only the
     // streaming indicator rides here now — the file size was dropped.
@@ -220,33 +172,35 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
       : null;
 
     const body: ReactNode = (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <WorkspaceFileTabs
-          files={mergedFiles}
-          activePath={resolvedPath}
-          onSelect={setActiveFilePath}
-          streamingPaths={livePaths}
-          viewerId={CANVAS_VIEWER_ID}
-          meta={activeMeta}
-        />
-        <div id={CANVAS_VIEWER_ID} className="min-h-0 flex-1 overflow-hidden">
-          <FileViewerRouter
-            threadId={threadId}
-            organizationId={organizationId}
-            path={resolvedPath}
-            liveContent={
-              activeLive?.contentPreview ?? (activeLive ? '' : undefined)
-            }
-            liveEncoding={activeLive?.encoding}
+      <CanvasPreferencesProvider>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <WorkspaceFileTabs
+            files={mergedFiles}
+            activePath={resolvedPath}
+            onSelect={setActiveFilePath}
+            streamingPaths={livePaths}
+            viewerId={CANVAS_VIEWER_ID}
+            meta={activeMeta}
+          />
+          <div id={CANVAS_VIEWER_ID} className="min-h-0 flex-1 overflow-hidden">
+            <FileViewerRouter
+              threadId={threadId}
+              organizationId={organizationId}
+              path={resolvedPath}
+              liveContent={
+                activeLive?.contentPreview ?? (activeLive ? '' : undefined)
+              }
+              liveEncoding={activeLive?.encoding}
+            />
+          </div>
+          <WorkspaceOutputDock
+            files={mergedFiles}
+            activePath={resolvedPath}
+            onSelect={setActiveFilePath}
+            viewerId={CANVAS_VIEWER_ID}
           />
         </div>
-        <WorkspaceOutputDock
-          files={mergedFiles}
-          activePath={resolvedPath}
-          onSelect={setActiveFilePath}
-          viewerId={CANVAS_VIEWER_ID}
-        />
-      </div>
+      </CanvasPreferencesProvider>
     );
 
     return {
@@ -255,7 +209,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
       label: t('canvas.title', { defaultValue: 'Canvas' }),
       ariaLabel: t('canvas.stripOpen', { defaultValue: 'Open canvas' }),
       hasContent: true,
-      headerActions,
       body,
     };
   }, [
@@ -269,9 +222,6 @@ function CanvasPaneComponent({ organizationId }: CanvasPaneProps) {
     livePaths,
     activeLive,
     setActiveFilePath,
-    handleDownload,
-    downloadUrl,
-    isDownloading,
   ]);
 
   useRegisterPane(descriptor);

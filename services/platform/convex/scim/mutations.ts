@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 // Raw `mutation` (not the RLS wrapper) + explicit admin checks — same pattern
 // as `members/mutations.ts` and the enterprise-SSO config mutations.
@@ -24,13 +24,21 @@ async function requireAdmin(
   organizationId: string,
 ): Promise<Caller> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser) {
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
+  }
   const role = await getCallerRole(ctx, {
     organizationId,
     userId: authUser.userId,
   });
   if (!isAdmin(role)) {
-    throw new Error('Only admins can manage SCIM provisioning');
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'Only admins can manage SCIM provisioning',
+    });
   }
   return { userId: authUser.userId, email: authUser.email, role: role ?? '' };
 }

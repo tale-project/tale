@@ -1664,7 +1664,10 @@
       "mermaidError": "Failed to render diagram",
       "viewSource": "Source",
       "viewPreview": "Preview",
-      "viewToggleAriaLabel": "Toggle source / preview",
+      "copy": "Copy",
+      "copied": "Copied",
+      "toggleWrap": "Toggle line wrap",
+      "fileActionsAriaLabel": "File actions",
       "fileSizeAriaLabel": "File size",
       "sourceRunOutput": "Code output",
       "sourceAgentWrite": "AI files",
@@ -6024,7 +6027,25 @@
         "formHint": "Configure how members sign in, then save your changes from the header.",
         "validation": {
           "required": "This field is required.",
-          "url": "Enter a valid URL (including https://)."
+          "url": "Enter a valid URL (including https://).",
+          "clientSecretRequired": "A client secret is required."
+        },
+        "roleMapping": {
+          "help": "Map identity-provider groups, app roles, or job titles to a platform role. Users who match no rule get the default role.",
+          "empty": "No rules yet — every user gets the default role.",
+          "addRule": "Add rule",
+          "removeRule": "Remove",
+          "sourceLabel": "Source",
+          "source": {
+            "group": "IdP group",
+            "appRole": "App role",
+            "jobTitle": "Job title",
+            "claim": "Claim"
+          },
+          "patternLabel": "Matches value",
+          "targetRoleLabel": "Assigns role",
+          "claimLabel": "Claim path",
+          "claimHelp": "Dot-path into the token claims, e.g. realm_access.roles."
         },
         "guide": {
           "title": "Setup guide",
@@ -7187,6 +7208,7 @@
       "disabled": "Two-factor authentication disabled",
       "passwordPromptDescription": "Confirm your password to start setting up two-factor authentication.",
       "disablePromptDescription": "Confirm your password to turn off two-factor authentication.",
+      "disableEnforcedWarning": "Your organization requires two-factor authentication. If you disable it, you'll have to set it up again the next time you sign in.",
       "regeneratePromptDescription": "Confirm your password. Generating new codes invalidates all previous backup codes."
     },
     "passkeys": {

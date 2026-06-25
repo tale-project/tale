@@ -1,3 +1,5 @@
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -52,11 +54,17 @@ export async function addMessageToConversation(
 ): Promise<Id<'conversations'>> {
   const parentConversation = await ctx.db.get(args.conversationId);
   if (!parentConversation) {
-    throw new Error('Parent conversation not found');
+    throw new ConvexError({
+      code: 'conversation_not_found',
+      message: 'Parent conversation not found',
+    });
   }
 
   if (parentConversation.organizationId !== args.organizationId) {
-    throw new Error('Conversation does not belong to organization');
+    throw new ConvexError({
+      code: 'conversation_org_mismatch',
+      message: 'Conversation does not belong to organization',
+    });
   }
 
   const direction: 'inbound' | 'outbound' = args.isCustomer

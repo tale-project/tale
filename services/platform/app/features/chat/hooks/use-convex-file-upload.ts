@@ -49,6 +49,14 @@ interface ConvexFileUploadConfig {
    * path keeps them readable to the agent in the same org.
    */
   threadId?: string;
+  /**
+   * Suppress automatic knowledge-base (RAG) indexing for files uploaded
+   * through this composer. Set when the active conversation targets an
+   * external agent (sandbox sessions like Claude Code): those agents read
+   * attachments straight from the sandbox, so indexing them into the KB is
+   * wasted work that only surfaces a spurious "Index failed" badge.
+   */
+  disableIndexing?: boolean;
   maxFileSize?: number;
   allowedTypes?: string[];
 }
@@ -320,6 +328,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               ...(config.threadId !== undefined && {
                 threadId: config.threadId,
               }),
+              ...(config.disableIndexing && { skipRagIndexing: true }),
             });
 
             const attachment: FileAttachment = {
@@ -358,6 +367,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       saveFileMetadata,
       config.organizationId,
       config.threadId,
+      config.disableIndexing,
       mergedConfig,
       policyLimits,
       t,

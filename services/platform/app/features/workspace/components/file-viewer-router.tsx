@@ -15,7 +15,7 @@ import {
 
 import { useThreadFileContent } from '../hooks/use-thread-file-content';
 import { AttachmentViewer } from '../viewers/attachment-viewer';
-import { CodeViewer } from '../viewers/code-viewer';
+import { CodeFileViewer } from '../viewers/code-file-viewer';
 import { ImageViewer } from '../viewers/image-viewer';
 import { RenderableFileViewer } from '../viewers/renderable-file-viewer';
 
@@ -180,8 +180,8 @@ function FileViewerRouterComponent({
     }
     // `image` and `attachment` paths never get here for utf-8 streaming —
     // a binary file should have `liveEncoding === 'base64'`. Fall back to
-    // CodeViewer so the bytes at least render rather than silently nothing.
-    return <CodeViewer path={path} content={text} showWrapToggle />;
+    // CodeFileViewer so the bytes at least render rather than silently nothing.
+    return <CodeFileViewer path={path} content={text} />;
   }
 
   if (result.status === 'loading') {
@@ -229,7 +229,7 @@ function FileViewerRouterComponent({
 
   if (kind === 'image' && result.url) {
     const filename = path.split('/').pop() ?? path;
-    return <ImageViewer url={result.url} alt={filename} />;
+    return <ImageViewer url={result.url} alt={filename} size={result.size} />;
   }
 
   if (kind === 'attachment') {
@@ -261,7 +261,7 @@ function FileViewerRouterComponent({
     );
   }
 
-  return <CodeViewer path={path} content={text} showWrapToggle />;
+  return <CodeFileViewer path={path} content={text} />;
 }
 
 export const FileViewerRouter = memo(FileViewerRouterComponent);

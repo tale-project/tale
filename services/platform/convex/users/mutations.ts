@@ -4,7 +4,7 @@
  * Public mutations for user operations.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -35,7 +35,10 @@ export const updateUserPassword = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'unauthenticated',
+        message: 'Unauthenticated',
+      });
     }
 
     await updateUserPasswordHelper(ctx, args);
