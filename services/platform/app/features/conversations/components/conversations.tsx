@@ -201,7 +201,7 @@ export function Conversations({
           <div
             className={cn(
               'flex shrink-0 items-center gap-0.5 rounded py-0.5 pr-1',
-              readFilter !== 'all' && 'bg-blue-100',
+              readFilter !== 'all' && 'bg-blue-100 dark:bg-blue-950',
               controlsDisabled && 'opacity-50',
             )}
           >
@@ -262,7 +262,7 @@ export function Conversations({
                       onClick={openBulkSendDialog}
                       disabled={isBulkProcessing}
                       aria-label={tConversations('bulk.sendMessages')}
-                      className="bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600"
+                      className="bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-200"
                     >
                       <SendHorizontalIcon className="size-4" />
                     </Button>
