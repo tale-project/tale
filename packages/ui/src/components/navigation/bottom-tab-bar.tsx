@@ -115,7 +115,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           <>
             <span
               aria-hidden="true"
-              className="bg-destructive text-destructive-foreground absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold"
+              className="text-destructive-foreground absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] leading-none font-semibold"
             >
               {item.badge}
             </span>

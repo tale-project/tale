@@ -26,7 +26,7 @@ export const buttonVariants = cva(
         primary:
           'bg-accent-base text-accent-fg shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_rgba(3,7,18,1)] hover:opacity-95 ring-1 ring-inset ring-white/20 [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))]',
         destructive:
-          'bg-destructive text-destructive-foreground -outline-offset-1 outline-destructive shadow-sm hover:bg-destructive/90',
+          'bg-red-600 text-destructive-foreground -outline-offset-1 outline-red-600 shadow-sm hover:bg-red-700',
         success:
           'bg-success text-success-foreground -outline-offset-1 outline-success shadow-sm hover:bg-success/90',
         secondary:
