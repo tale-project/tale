@@ -133,6 +133,29 @@ describe('saveFileMetadata (public)', () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
+  it('skips RAG indexing when skipRagIndexing is set (external agent)', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    // An indexable PDF that would normally queue RAG — the external-agent
+    // composer opts out so the file is staged to the sandbox, not the KB.
+    await handler(ctx, { ...baseArgs, skipRagIndexing: true });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'fileMetadata',
+      expect.objectContaining({
+        ragStatus: undefined,
+        ragQueuedAt: undefined,
+      }),
+    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalledWith(
+      0,
+      'mock',
+      expect.objectContaining({ storageId: 'storage_1' }),
+    );
+  });
+
   it('patches existing file metadata by storageId', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const existing = {

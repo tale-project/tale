@@ -196,6 +196,22 @@ export function ChatInterface({
     }
   }, [insertedPrompt, setInsertedPrompt, setInputValue]);
 
+  // Agent availability — disable input when no agents exist
+  const { agents } = useChatAgents(organizationId);
+  const hasNoAgents = agents !== undefined && agents.length === 0;
+
+  // Image-generation agent derivations for EditingBanner.
+  const activeAgentMeta = useMemo(
+    () => agents?.find((a) => a.name === effectiveAgent?.name),
+    [agents, effectiveAgent?.name],
+  );
+  const isImageGenAgent =
+    activeAgentMeta?.primaryBehavior === 'image-generation';
+  // External-agent (sandbox session) threads support queue mode: the composer
+  // stays usable while a turn runs and sends enqueue for the running agent.
+  const isExternalAgentThread =
+    activeAgentMeta?.primaryBehavior === 'external-agent';
+
   const {
     attachments,
     setAttachments,
@@ -204,7 +220,13 @@ export function ChatInterface({
     removeAttachment,
     retryAttachmentTranscription,
     clearAttachments,
-  } = useConvexFileUpload({ organizationId, threadId });
+  } = useConvexFileUpload({
+    organizationId,
+    threadId,
+    // External agents read attachments straight from the sandbox, not the
+    // KB — skip RAG indexing so those uploads don't show "Index failed".
+    disableIndexing: isExternalAgentThread,
+  });
 
   const { isIndexing, statusMap: indexingStatuses } =
     useFileIndexingStatus(attachments);
@@ -300,21 +322,6 @@ export function ChatInterface({
     [savedMessageMap, deletePrompt],
   );
 
-  // Agent availability — disable input when no agents exist
-  const { agents } = useChatAgents(organizationId);
-  const hasNoAgents = agents !== undefined && agents.length === 0;
-
-  // Image-generation agent derivations for EditingBanner.
-  const activeAgentMeta = useMemo(
-    () => agents?.find((a) => a.name === effectiveAgent?.name),
-    [agents, effectiveAgent?.name],
-  );
-  const isImageGenAgent =
-    activeAgentMeta?.primaryBehavior === 'image-generation';
-  // External-agent (sandbox session) threads support queue mode: the composer
-  // stays usable while a turn runs and sends enqueue for the running agent.
-  const isExternalAgentThread =
-    activeAgentMeta?.primaryBehavior === 'external-agent';
   const threadImages = useThreadImages(isImageGenAgent ? messages : undefined);
   const { providers: providersForEdit } = useListProviders(organizationId);
   const activeModelRef = effectiveAgent?.name
