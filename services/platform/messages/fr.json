@@ -6990,6 +6990,7 @@
       "submitButton": "Vérifier",
       "invalid": "Code invalide ou expiré. Merci de réessayer.",
       "tooManyAttempts": "Trop de tentatives échouées. Merci de réessayer plus tard.",
+      "success": "Connecté avec succès",
       "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres.",
       "usePasskeyButton": "Utiliser un passkey à la place",
       "passkeyFailed": "Connexion par passkey échouée ou annulée. Réessaie ou utilise un code."

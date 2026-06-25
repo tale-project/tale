@@ -7251,6 +7251,7 @@
       "submitButton": "Verify",
       "invalid": "Invalid or expired code. Please try again.",
       "tooManyAttempts": "Too many failed attempts. Try again later.",
+      "success": "Signed in successfully",
       "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings.",
       "usePasskeyButton": "Use a passkey instead",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use a code."
