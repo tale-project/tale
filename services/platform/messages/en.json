@@ -1778,7 +1778,9 @@
       "stripAria": "Chat panel",
       "ariaLabel": "Chat panel",
       "minimize": "Minimize chat panel",
-      "resizeAria": "Resize chat panel"
+      "resizeAria": "Resize chat panel",
+      "fullscreen": "Expand to full screen",
+      "exitFullscreen": "Exit full screen"
     }
   },
   "common": {

@@ -16,7 +16,13 @@ interface CanvasPreferences {
    *  every file, so flipping it on holds as you browse the rest of the files. */
   wrap: boolean;
   toggleWrap: () => void;
-  /** The Source/Preview choice, remembered per file path. */
+  /**
+   * The Source/Preview choice. A file the user has explicitly toggled keeps its
+   * own choice; any file they haven't touched defaults to the LAST mode they
+   * picked anywhere (then to `fallback` before any pick). So choosing Preview on
+   * one doc carries to the next doc you open — like `wrap` — while still letting
+   * individual files override.
+   */
   getViewMode: (path: string, fallback: ViewMode) => ViewMode;
   setViewMode: (path: string, mode: ViewMode) => void;
 }
@@ -24,17 +30,20 @@ interface CanvasPreferences {
 function useCanvasPreferencesState(): CanvasPreferences {
   const [wrap, setWrap] = useState(false);
   const [modeByPath, setModeByPath] = useState<Record<string, ViewMode>>({});
+  // The last Source/Preview pick, used as the sticky default for files that
+  // don't have their own explicit choice yet.
+  const [lastMode, setLastMode] = useState<ViewMode | null>(null);
 
   const toggleWrap = useCallback(() => setWrap((w) => !w), []);
   const getViewMode = useCallback(
-    (path: string, fallback: ViewMode) => modeByPath[path] ?? fallback,
-    [modeByPath],
+    (path: string, fallback: ViewMode) =>
+      modeByPath[path] ?? lastMode ?? fallback,
+    [modeByPath, lastMode],
   );
-  const setViewMode = useCallback(
-    (path: string, mode: ViewMode) =>
-      setModeByPath((prev) => ({ ...prev, [path]: mode })),
-    [],
-  );
+  const setViewMode = useCallback((path: string, mode: ViewMode) => {
+    setModeByPath((prev) => ({ ...prev, [path]: mode }));
+    setLastMode(mode);
+  }, []);
 
   return useMemo(
     () => ({ wrap, toggleWrap, getViewMode, setViewMode }),

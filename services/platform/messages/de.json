@@ -1778,7 +1778,9 @@
       "stripAria": "Chat-Bereich",
       "ariaLabel": "Chat-Bereich",
       "minimize": "Chat-Bereich minimieren",
-      "resizeAria": "Chat-Bereich vergrößern"
+      "resizeAria": "Chat-Bereich vergrößern",
+      "fullscreen": "Auf Vollbild erweitern",
+      "exitFullscreen": "Vollbild beenden"
     }
   },
   "common": {
