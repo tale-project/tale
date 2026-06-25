@@ -1373,6 +1373,7 @@
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
     "audioDurationExceeded": "{names}: audio is longer than the {maxHours}-hour limit. Please split it into shorter segments.",
     "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
+    "fileTypeUnsupported": "{names}: file type not supported.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",

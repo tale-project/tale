@@ -1354,6 +1354,7 @@
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
     "audioDurationExceeded": "{names}: Audio länger als das Limit von {maxHours} Stunden. Bitte in kürzere Segmente aufteilen.",
     "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
+    "fileTypeUnsupported": "{names}: Dateityp nicht unterstützt.",
     "fileUploaded": "Datei hochgeladen",
     "uploadedSuccessfully": "{filename} hochgeladen",
     "uploadFailed": "Upload fehlgeschlagen",

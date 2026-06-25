@@ -1355,6 +1355,7 @@
     "fileSizeExceededMultiple": "{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.",
     "audioDurationExceeded": "{names} : l'audio dépasse la limite de {maxHours} heures. Découpe-le en segments plus courts.",
     "fileTypeNotAllowed": "{names} : type de fichier non autorisé par la politique de téléversement.",
+    "fileTypeUnsupported": "{names} : type de fichier non pris en charge.",
     "fileUploaded": "Fichier téléversé",
     "uploadedSuccessfully": "{filename} téléversé avec succès",
     "uploadFailed": "Échec du téléversement",
