@@ -401,7 +401,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
             };
 
             // Commit to `attachments` and release the in-flight reservation in
-            // the same tick so the file is never counted twice by the gates.
+            // the same synchronous tick so the file is never counted twice by
+            // the gates. `attachmentsRef.current` is normally refreshed only on
+            // the next render (see the assignment near the top of the hook), so
+            // deleting the reservation here while the committed file isn't yet
+            // visible in the ref would open a window — between this delete and
+            // the render — in which a concurrent batch's gates see the file in
+            // neither `pendingUploadsRef` nor `attachmentsRef.current` and can
+            // over-reserve past the count/total-size caps (and miss the dedup).
+            // Mirror the commit into the ref *before* releasing the reservation
+            // so the gates see the file the instant its slot is freed; the next
+            // render reconciles `attachmentsRef.current` to the same value.
+            attachmentsRef.current = [...attachmentsRef.current, attachment];
             pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 

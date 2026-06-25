@@ -296,6 +296,63 @@ describe('useConvexFileUpload — concurrent-batch cap & dedup', () => {
     await waitFor(() => expect(result.current.attachments).toHaveLength(2));
   });
 
+  it('counts a just-committed file against the cap during the commit→render gap', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    const CAP = CHAT_MAX_FILE_COUNT;
+
+    // Batch A fills the entire cap, held in-flight.
+    const batchA = Array.from({ length: CAP }, (_, i) =>
+      makeFile(`a-${i}.txt`, 10, 'text/plain'),
+    );
+    // Batch B would also fill the cap on its own.
+    const batchB = Array.from({ length: CAP }, (_, i) =>
+      makeFile(`b-${i}.txt`, 10, 'text/plain'),
+    );
+
+    // Fire batch B from inside the commit of batch A's first file — i.e. in the
+    // exact window after that file's reservation is deleted and `setAttachments`
+    // is queued, but *before* React re-renders and refreshes `attachmentsRef`.
+    // The `fileUploaded` toast is emitted synchronously right after the commit,
+    // so it is a faithful hook into that window. The gates must still see the
+    // committed files (via the synchronous `attachmentsRef` mirror); if they
+    // only saw the pending reservations + the stale ref, batch B would slip
+    // past and the final count would be ~2*CAP.
+    let promiseB: Promise<void> | undefined;
+    let fired = false;
+    toastMock.mockImplementation(((arg?: { title?: string }) => {
+      if (arg?.title === 'fileUploaded' && !fired) {
+        fired = true;
+        promiseB = result.current.uploadFiles(batchB);
+      }
+    }) as typeof toast);
+
+    let promiseA!: Promise<void>;
+    act(() => {
+      promiseA = result.current.uploadFiles(batchA);
+    });
+    await flush();
+
+    // Commit batch A; its first commit fires batch B mid-window.
+    await act(async () => {
+      resolveAllFetches();
+      await promiseA;
+      // Drain any uploads batch B managed to start, then settle them.
+      resolveAllFetches();
+      if (promiseB) await promiseB;
+      resolveAllFetches();
+      if (promiseB) await promiseB;
+    });
+
+    // Batch B must have been rejected by the cap gate, not silently accepted.
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(true);
+
+    // Exactly the cap — batch B never bypassed it through the commit→render gap.
+    await waitFor(() => expect(result.current.attachments).toHaveLength(CAP));
+  });
+
   it('frees an in-flight reservation when its upload fails', async () => {
     const { result } = renderHook(() => useConvexFileUpload(config));
 
