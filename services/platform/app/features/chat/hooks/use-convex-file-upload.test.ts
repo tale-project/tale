@@ -3,6 +3,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
+import {
+  CHAT_MAX_FILE_COUNT,
+  CHAT_MAX_TOTAL_SIZE,
+} from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
 
 import { useConvexFileUpload } from './use-convex-file-upload';
@@ -60,7 +64,9 @@ const toastMock = vi.mocked(toast);
 
 // A controllable POST/fetch: each call parks until the test resolves it, so a
 // batch can be held "in-flight" while a second batch races the cap/dedup gates.
-let pendingFetches: Array<() => void> = [];
+// Each parked resolver accepts an outcome so a test can settle an upload as a
+// failure (`ok: false`) and exercise the reservation-release path.
+let pendingFetches: Array<(outcome?: { ok?: boolean }) => void> = [];
 let storageCounter = 0;
 
 function installFetch() {
@@ -72,9 +78,9 @@ function installFetch() {
       () =>
         new Promise((resolve) => {
           const storageId = `storage-${storageCounter++}`;
-          pendingFetches.push(() =>
+          pendingFetches.push((outcome) =>
             resolve({
-              ok: true,
+              ok: outcome?.ok ?? true,
               json: async () => ({ storageId }),
             } as Response),
           );
@@ -89,8 +95,25 @@ function resolveAllFetches() {
   for (const done of settle) done();
 }
 
+// Settle every parked upload as a server failure so the hook throws and runs
+// its `finally` reservation cleanup.
+function failAllFetches() {
+  const settle = pendingFetches;
+  pendingFetches = [];
+  for (const done of settle) done({ ok: false });
+}
+
 function makeFile(name: string, size: number, type: string): File {
   return new File([new Uint8Array(size)], name, { type });
+}
+
+// A File that reports a large `size` without allocating the bytes — the hook
+// only reads `file.size`/`file.name` (fetch + compression are stubbed), so this
+// keeps the total-size test cheap while still tripping CHAT_MAX_TOTAL_SIZE.
+function makeSizedFile(name: string, size: number, type: string): File {
+  const file = new File([new Uint8Array(1)], name, { type });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
 }
 
 // Let the synchronous gate logic and the early `await detectMediaMime` chain
@@ -232,5 +255,91 @@ describe('useConvexFileUpload — concurrent-batch cap & dedup', () => {
       toastMock.mock.calls.some(([arg]) => arg?.title === 'duplicateFile'),
     ).toBe(true);
     expect(result.current.attachments).toHaveLength(1);
+  });
+
+  it('counts in-flight uploads against the total-size cap across batches', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    const MB = 1024 * 1024;
+    // Batch A: 180 MB held in-flight (2 files, each under the per-file cap).
+    const batchA = [
+      makeSizedFile('big-a0.txt', 90 * MB, 'text/plain'),
+      makeSizedFile('big-a1.txt', 90 * MB, 'text/plain'),
+    ];
+    let promiseA!: Promise<void>;
+    act(() => {
+      promiseA = result.current.uploadFiles(batchA);
+    });
+    await flush();
+
+    // Batch B: 30 MB alone fits, but 180 MB in-flight + 30 MB = 210 MB exceeds
+    // the 200 MB total cap once the pending reservations are folded in.
+    expect(90 * MB * 2 + 30 * MB).toBeGreaterThan(CHAT_MAX_TOTAL_SIZE);
+    const batchB = [makeSizedFile('big-b0.txt', 30 * MB, 'text/plain')];
+    let promiseB!: Promise<void>;
+    act(() => {
+      promiseB = result.current.uploadFiles(batchB);
+    });
+    await flush();
+
+    // Batch B must be rejected by the total-size gate, not silently accepted.
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
+    ).toBe(true);
+
+    resolveAllFetches();
+    await act(async () => {
+      await Promise.all([promiseA, promiseB]);
+    });
+
+    // Only batch A commits; batch B never slipped past the cap.
+    await waitFor(() => expect(result.current.attachments).toHaveLength(2));
+  });
+
+  it('frees an in-flight reservation when its upload fails', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    // One file in-flight, holding a reservation.
+    const failing = makeFile('fail.txt', 10, 'text/plain');
+    let promiseFail!: Promise<void>;
+    act(() => {
+      promiseFail = result.current.uploadFiles([failing]);
+    });
+    await flush();
+
+    // Settle it as a server failure — the hook's `finally` must release the
+    // slot rather than leak a phantom reservation that consumes the cap.
+    failAllFetches();
+    await act(async () => {
+      await promiseFail;
+    });
+
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'uploadFailed'),
+    ).toBe(true);
+    expect(result.current.attachments).toHaveLength(0);
+
+    // The reclaimed slot means a fresh batch can still fill the entire cap; if
+    // the failed file's reservation had leaked only 9 of these would be taken.
+    const batch = Array.from({ length: CHAT_MAX_FILE_COUNT }, (_, i) =>
+      makeFile(`ok-${i}.txt`, 10, 'text/plain'),
+    );
+    let promiseOk!: Promise<void>;
+    act(() => {
+      promiseOk = result.current.uploadFiles(batch);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await promiseOk;
+    });
+
+    await waitFor(() =>
+      expect(result.current.attachments).toHaveLength(CHAT_MAX_FILE_COUNT),
+    );
+    // No too-many-files toast — the cap was fully available, proving reclaim.
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(false);
   });
 });
