@@ -13,13 +13,22 @@
       "title": "Nothing to show yet",
       "description": "This pack has no pages configured."
     },
+    "details": {
+      "scopeOrg": "Organization app",
+      "scopeProject": "Project app",
+      "includesTitle": "What's included",
+      "pages": "Pages",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresTitle": "What you'll need",
+      "requiresHint": "You'll connect these during setup."
+    },
     "install": {
       "install": "Install",
       "installed": "Installed",
       "reinstall": "Reinstall",
       "setup": "Finish setup",
       "uninstall": "Uninstall",
-      "notInstalledTitle": "Not installed yet",
       "notInstalledDescription": "Install this app to add its agents and workflows to your organization.",
       "chooseProjectDescription": "This app runs inside a project. Choose where its tasks and pages live.",
       "projectLabel": "Project",

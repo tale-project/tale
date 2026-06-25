@@ -121,7 +121,12 @@ export function NotificationRow({
           />
         )}
       </div>
-      {children}
+      {children && (
+        // Actions render OUTSIDE the interactive body (no nested buttons), so
+        // re-create the body's content inset and add the missing bottom gutter:
+        // pl-9 (36px) = body px-4 (16) + unread dot size-2 (8) + gap-3 (12).
+        <div className="pr-4 pb-3 pl-9">{children}</div>
+      )}
     </li>
   );
 }

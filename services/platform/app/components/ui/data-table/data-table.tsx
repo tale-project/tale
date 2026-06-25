@@ -88,6 +88,7 @@ interface ColumnMeta {
       | 'avatar-text'
       | 'icon-text'
       | 'action'
+      | 'checkbox'
       | 'switch';
   };
   align?: 'left' | 'center' | 'right';
@@ -726,7 +727,10 @@ export function DataTable<TData, TValue = unknown>({
               // `h-12` mirrors the real data rows below — without it the
               // skeleton collapses to its content height (~32px) and reads as a
               // dense, tight list that doesn't match the roomier loaded table.
-              <TableRow key={`skeleton-${rowIndex}`} className="min-h-12">
+              // Must be `h-12`, not `min-h-12`: CSS ignores `min-height` on a
+              // table row (`display: table-row`), whereas `height` is treated as
+              // a *minimum* there, so taller cells still grow the row past it.
+              <TableRow key={`skeleton-${rowIndex}`} className="h-12">
                 {enableExpanding && <TableCell className="w-[3rem]" />}
                 {columns.map((col, colIndex) => {
                   const textWidth = (salt: number, min: number, span: number) =>
@@ -747,6 +751,17 @@ export function DataTable<TData, TValue = unknown>({
                           <div className="h-8 w-8 rounded-md" />
                         </SkeletonBox>
                       </HStack>
+                    );
+                  } else if (skeletonType === 'checkbox') {
+                    // Mirrors the real 16px checkbox (`size-4`) — NOT the 32px
+                    // `action` button shape. In the pinned 40px select column an
+                    // `h-8 w-8` block leaves only ~4px each side and reads as
+                    // edge-to-edge; a `size-4` square keeps the ~12px gutter the
+                    // loaded checkbox has.
+                    cellContent = (
+                      <SkeletonBox>
+                        <div className="size-4 rounded" />
+                      </SkeletonBox>
                     );
                   } else if (skeletonType === 'badge') {
                     cellContent = (
