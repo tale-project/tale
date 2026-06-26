@@ -9,6 +9,7 @@
 import { chown, mkdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { ensureBuildkitd } from '../../buildkitd.ts';
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
@@ -123,6 +124,27 @@ export class DockerSessionBackend implements SessionBackend {
       ? await this.ensureFreshDindVolume(spec.sessionId)
       : undefined;
 
+    // Shared cross-session build cache: ensure the shared buildkitd is up and
+    // get the endpoint the session's remote buildx builder should target. This
+    // is a pure OPTIMIZATION — a failure must never block session creation, so
+    // on error we proceed with no endpoint and the session falls back to its own
+    // inner builder (cold cache). Only when DinD + the flag are both on.
+    let buildkitdEndpoint: string | undefined;
+    if (this.cfg.dockerInContainer && this.cfg.dockerBuildCache) {
+      try {
+        buildkitdEndpoint = await ensureBuildkitd(
+          this.cfg,
+          spec.organizationId,
+        );
+      } catch (err) {
+        console.warn(
+          `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
+            `session will use its own inner builder (cold cache):`,
+          err,
+        );
+      }
+    }
+
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
       sessionId: spec.sessionId,
@@ -135,6 +157,7 @@ export class DockerSessionBackend implements SessionBackend {
       runnerdToken: token,
       createdAtMs: spec.createdAtMs,
       dockerStorageVolume,
+      ...(buildkitdEndpoint ? { buildkitdEndpoint } : {}),
     });
     // The seed env is NOT passed on the `docker run` argv. A `--env
     // TALE_SESSION_ENV=…` would be readable by anyone with host Docker access

@@ -309,6 +309,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
         imagesToPull.push(runtimeImageRemote);
       }
 
+      // The shared buildkitd image (also `docker run` by the spawner, not a
+      // compose service) needs the same pull + re-tag to the spawner's
+      // SANDBOX_BUILDKITD_IMAGE default (`tale-sandbox-buildkitd:latest`) so a
+      // deployment that enables the shared build cache has it locally. Tied to
+      // the same condition as the runtime image (versions in lockstep). It is
+      // only RUN when SANDBOX_DOCKER_BUILD_CACHE is on, so this is a small pull
+      // some deployments won't use — flag-gating it (reading deployment.json)
+      // is a future refinement.
+      const buildkitdImageRemote = needsRuntimeImage
+        ? `${env.GHCR_REGISTRY}/tale-sandbox-buildkitd:${version}`
+        : null;
+      if (buildkitdImageRemote) {
+        imagesToPull.push(buildkitdImageRemote);
+      }
+
       if (dryRun) {
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
@@ -316,6 +331,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         if (runtimeImageRemote) {
           logger.info(
             `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
+          );
+        }
+        if (buildkitdImageRemote) {
+          logger.info(
+            `${prefix}Would tag: ${buildkitdImageRemote} -> tale-sandbox-buildkitd:latest`,
           );
         }
       } else {
@@ -353,6 +373,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
           if (!tagResult.success) {
             throw new Error(
               `Failed to re-tag sandbox runtime image: ${tagResult.stderr.trim()}`,
+            );
+          }
+        }
+        if (buildkitdImageRemote) {
+          const tagResult = await exec('docker', [
+            'tag',
+            buildkitdImageRemote,
+            'tale-sandbox-buildkitd:latest',
+          ]);
+          if (!tagResult.success) {
+            throw new Error(
+              `Failed to re-tag sandbox buildkitd image: ${tagResult.stderr.trim()}`,
             );
           }
         }

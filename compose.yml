@@ -603,6 +603,16 @@ services:
       # deployment.json sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
+      # Shared cross-session docker build cache. Unset here so the spawner applies
+      # its default (follows SANDBOX_DOCKER_IN_CONTAINER — on whenever DinD is on);
+      # set SANDBOX_DOCKER_BUILD_CACHE=true/false (or the deployment.json
+      # sandboxRuntime section) to force it. The image refs the spawner `docker
+      # run`s for the shared buildkitd + its pull-through registry mirror are
+      # overridable for a pinned/mirrored ref in fenced deploys. Mirrors the CLI
+      # generator (create-sandbox-service.ts) — R2-B11 lockstep.
+      SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
+      SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:

@@ -73,6 +73,19 @@ export function createSandboxService(
       SANDBOX_DOCKER_IN_CONTAINER: '${SANDBOX_DOCKER_IN_CONTAINER:-}',
       SANDBOX_RUNTIME_IMAGE:
         '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
+      // Shared cross-session docker build cache. Unset here so the spawner
+      // applies its default (follows SANDBOX_DOCKER_IN_CONTAINER — on whenever
+      // DinD is on); set SANDBOX_DOCKER_BUILD_CACHE=true/false (or the
+      // deployment.json sandboxRuntime section) to force it. The image refs the
+      // spawner `docker run`s for the shared buildkitd + its pull-through
+      // registry mirror; defaults match `tale deploy`'s re-tag (deploy.ts) and
+      // stock `registry:2`, overridable for a pinned/mirrored ref in fenced
+      // deploys (the spawner pulls the mirror at runtime — deploy.ts does not).
+      SANDBOX_DOCKER_BUILD_CACHE: '${SANDBOX_DOCKER_BUILD_CACHE:-}',
+      SANDBOX_BUILDKITD_IMAGE:
+        '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
+      SANDBOX_BUILDKITD_MIRROR_IMAGE:
+        '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
       // Shared sandbox network across colours; the per-colour egress is
       // addressed by its colour-suffixed alias so blue/green runtime
       // containers each use their own egress sidecar.

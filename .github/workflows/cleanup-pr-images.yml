@@ -38,6 +38,7 @@ jobs:
             llm-gateway,
             sandbox,
             sandbox-egress,
+            sandbox-buildkitd,
             sandbox-runtime,
           ]
 

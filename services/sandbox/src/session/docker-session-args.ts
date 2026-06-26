@@ -41,11 +41,22 @@ interface DockerSessionRunInput {
    * isolated per session and doesn't share the (overlay-backed) workspace.
    */
   dockerStorageVolume?: string;
+  /**
+   * Endpoint of the shared buildkitd (e.g. `tcp://tale-buildkitd:1234`), set only
+   * when `cfg.dockerBuildCache` is on (and DinD). The entrypoint creates a remote
+   * buildx builder pointing here + sets BUILDX_BUILDER, so the session's
+   * `docker build` / `docker compose up --build` reuse the shared build cache.
+   * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
+   */
+  buildkitdEndpoint?: string;
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
+// `tcp://host:port` for the shared buildkitd endpoint — the only injection
+// surface a new env value adds, so validate it like every other interpolation.
+const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 // Hex token from deriveRunnerdToken (SHA256 → 64 hex chars), or empty in
 // unsigned dev mode (runnerd skips the check when TALE_RUNNERD_TOKEN is empty).
@@ -238,6 +249,14 @@ export function buildDockerSessionRunArgs(
       '--env',
       `TALE_RUNTIME_TIER=${cfg.runtimeTier}`,
     ];
+    // Shared build cache: point the session at the shared buildkitd so the
+    // entrypoint can wire a remote buildx builder. Only present when the backend
+    // resolved an endpoint (cfg.dockerBuildCache on + the daemon came up), so
+    // the off path stays argv byte-identical.
+    if (inp.buildkitdEndpoint) {
+      assertSafe('buildkitdEndpoint', inp.buildkitdEndpoint, ENDPOINT_RE);
+      dindEnv.push('--env', `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`);
+    }
   }
 
   // Live browser view (operator flag): signal the entrypoint to bring up the

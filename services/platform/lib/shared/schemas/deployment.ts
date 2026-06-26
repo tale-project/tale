@@ -133,13 +133,19 @@ const dataStoresSchema = z
  * (`runc` default, `gvisor`, `sysbox`, `kata`); `dockerInContainer` enables
  * native `docker`/`docker compose` inside session containers and is only valid
  * on a tier that keeps an isolation boundary (`sysbox`/`kata`) — the spawner
- * fails closed otherwise. Absent = the `.env` (SANDBOX_RUNTIME /
- * SANDBOX_DOCKER_IN_CONTAINER) defaults. Carries no secrets.
+ * fails closed otherwise. `dockerBuildCache` adds a shared, persistent buildkitd
+ * + registry mirror so `docker build` / `docker compose up --build` across
+ * sessions reuse one build cache (only meaningful with `dockerInContainer`;
+ * defaults to ON when `dockerInContainer` is on — set false to opt out). Absent
+ * = the `.env`
+ * (SANDBOX_RUNTIME / SANDBOX_DOCKER_IN_CONTAINER / SANDBOX_DOCKER_BUILD_CACHE)
+ * defaults. Carries no secrets.
  */
 const sandboxRuntimeSchema = z
   .object({
     tier: z.enum(['runc', 'gvisor', 'sysbox', 'kata']).optional(),
     dockerInContainer: z.boolean().optional(),
+    dockerBuildCache: z.boolean().optional(),
   })
   .strict();
 

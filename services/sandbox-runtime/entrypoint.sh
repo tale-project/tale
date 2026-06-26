@@ -425,6 +425,37 @@ start_inner_dockerd() {
   exit 1
 }
 
+# Wire the session to the shared buildkitd (set by the spawner via
+# TALE_BUILDKITD_ENDPOINT when SANDBOX_DOCKER_BUILD_CACHE is on). Creates a
+# remote buildx builder pointing at it and exports BUILDX_BUILDER, so the agent's
+# `docker build` / `docker buildx build` / `docker compose up --build` run on the
+# shared daemon and reuse its cross-session cache — with NO per-build flags.
+#
+# MUST run as the agent uid (10001) with the agent HOME so runnerd's execs (also
+# uid 10001, same HOME) see the builder definition; root-owned buildx state would
+# be invisible to them. The definition lives under the persistent workspace
+# (~/.docker), so it survives resume — hence the inspect-first idempotency.
+#
+# Best-effort: any failure just leaves the agent on the inner dockerd's local
+# builder (cold cache), never blocks the session. The remote `create` only
+# registers an endpoint (it does not connect), so it can't hang on a slow daemon.
+setup_shared_buildx_builder() {
+  [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
+  _bk() {
+    setpriv --reuid 10001 --regid 10001 --init-groups -- \
+      env HOME=/user/.runtime/home docker buildx "$@"
+  }
+  if _bk inspect tale-shared >/dev/null 2>&1 ||
+    _bk create --name tale-shared --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
+      >/var/log/buildx-create.log 2>&1; then
+    export BUILDX_BUILDER=tale-shared
+    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=tale-shared -> ${TALE_BUILDKITD_ENDPOINT}"
+  else
+    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+    tail -n 3 /var/log/buildx-create.log >&2 2>/dev/null || true
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Live browser view (read-only mirror). Used only when the spawner launches the
 # session with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW; see
@@ -751,6 +782,9 @@ if [ "$1" = "daemon" ]; then
     # Also redirect the session's OWN processes (not just nested containers) when
     # transparent egress is on — reuses the redsocks + chain dockerd's setup left.
     [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && setup_session_transparent_egress
+    # Point builds at the shared buildkitd (exports BUILDX_BUILDER for runnerd) —
+    # no-op + byte-identical when TALE_BUILDKITD_ENDPOINT is unset.
+    setup_shared_buildx_builder
     exec tini -g -- \
       setpriv --reuid 10001 --regid 10001 --init-groups -- \
       node /usr/local/lib/tale/runnerd.mjs
