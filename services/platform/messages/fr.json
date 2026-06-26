@@ -1633,7 +1633,7 @@
       "selectAll": "Tout sélectionner",
       "deselectAll": "Tout désélectionner",
       "messagesCount": "{count} sur {total} messages sélectionnés",
-      "downloadPdf": "Télécharger en PDF",
+      "downloadPdf": "Imprimer en PDF",
       "downloadMarkdown": "Télécharger en Markdown",
       "noMessages": "Aucun message à exporter",
       "you": "Toi",
