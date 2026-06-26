@@ -16,12 +16,17 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  type FileAttachment,
+  useConvexFileUpload,
+} from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
@@ -50,11 +55,24 @@ import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRuns } from './task-agent-runs';
+import { TaskAttachments } from './task-attachments';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskReviewCard } from './task-review-card';
 import { TaskStatusBadge } from './task-status-badge';
+
+/** Strip the client-only `previewUrl` so the value matches the mutations'
+ *  strict `attachments` validator. Always an array (an empty array sent to
+ *  `updateTask` CLEARS the field — `undefined` would mean "leave untouched"). */
+function stripPreviews(attachments: FileAttachment[]) {
+  return attachments.map(({ fileId, fileName, fileType, fileSize }) => ({
+    fileId,
+    fileName,
+    fileType,
+    fileSize,
+  }));
+}
 
 /**
  * The ONE task modal — used for BOTH creating a task and viewing/editing one.
@@ -215,6 +233,11 @@ function CreateTaskBody({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const createTask = useCreateTask();
+  const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
+    useConvexFileUpload({
+      organizationId,
+      allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+    });
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -238,6 +261,9 @@ function CreateTaskBody({
         projectId,
         title: trimmed,
         description: description.trim() || undefined,
+        attachments: attachments.length
+          ? stripPreviews(attachments)
+          : undefined,
         status,
         priority: priority ?? undefined,
         labels: labels.length ? labels : undefined,
@@ -294,6 +320,14 @@ function CreateTaskBody({
             organizationId={organizationId}
             target={{ projectId }}
             draft={description}
+          />
+          <TaskAttachments
+            attachments={attachments}
+            uploadingFiles={uploadingFiles}
+            canEdit
+            disabled={submitting}
+            onUpload={(files) => void uploadFiles(files)}
+            onRemove={removeAttachment}
           />
         </>
       }
@@ -381,6 +415,12 @@ function EditTaskBody({
   const updateStatus = useUpdateTaskStatus();
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
+  const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
+    {
+      organizationId: task?.organizationId ?? '',
+      allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+    },
+  );
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
 
@@ -423,6 +463,31 @@ function EditTaskBody({
     } catch (error) {
       onMutationError(error);
     }
+  };
+
+  // Upload then persist atomically: uploadFiles awaits every upload, then
+  // clearAttachments() returns + resets them, so we fold the new files into the
+  // task's existing set in a single updateTask (full-replace, like labels).
+  const onUploadAttachments = async (files: File[]) => {
+    await uploadFiles(files);
+    const added = clearAttachments();
+    if (added.length === 0) return;
+    await updateTask
+      .mutateAsync({
+        taskId: task._id,
+        attachments: stripPreviews([...(task.attachments ?? []), ...added]),
+      })
+      .catch(onMutationError);
+  };
+  const onRemoveAttachment = (fileId: Id<'_storage'>) => {
+    void updateTask
+      .mutateAsync({
+        taskId: task._id,
+        attachments: stripPreviews(
+          (task.attachments ?? []).filter((a) => a.fileId !== fileId),
+        ),
+      })
+      .catch(onMutationError);
   };
 
   return (
@@ -496,6 +561,14 @@ function EditTaskBody({
               </Text>
             )}
           </section>
+
+          <TaskAttachments
+            attachments={task.attachments ?? []}
+            uploadingFiles={uploadingFiles}
+            canEdit={canEdit}
+            onUpload={onUploadAttachments}
+            onRemove={onRemoveAttachment}
+          />
 
           <TaskAgentRuns taskId={task._id} />
 

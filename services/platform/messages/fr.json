@@ -6712,6 +6712,13 @@
     "deleteSuccess": "Secret supprimé"
   },
   "tasks": {
+    "attachments": {
+      "label": "Pièces jointes",
+      "add": "Ajouter des pièces jointes",
+      "remove": "Supprimer la pièce jointe",
+      "uploading": "Téléversement…",
+      "dropHint": "Déposez des images ou des documents, ou cliquez pour parcourir"
+    },
     "title": "Tâches",
     "entityLabel": "tâches",
     "status": {

@@ -6973,6 +6973,13 @@
     "deleteSuccess": "Secret deleted"
   },
   "tasks": {
+    "attachments": {
+      "label": "Attachments",
+      "add": "Add attachments",
+      "remove": "Remove attachment",
+      "uploading": "Uploading…",
+      "dropHint": "Drop images or documents, or click to browse"
+    },
     "title": "Tasks",
     "entityLabel": "tasks",
     "status": {

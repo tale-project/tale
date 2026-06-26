@@ -14,6 +14,7 @@ import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_pro
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { isHiddenFromChatHistory } from '../threads/list_threads';
 import {
   checkProjectAccess,
   hasProjectAccess,
@@ -374,6 +375,11 @@ export const listProjectThreads = query({
 
     const result = [];
     for await (const t of threadsQuery) {
+      // Discussions (task_discussion / project_discussion) and fork branches
+      // reuse threadMetadata but are not chats — they live under their own
+      // surfaces, not the project's chat list. Same rule as the main chat
+      // history (see `excludeNonChatHistoryThreads`).
+      if (isHiddenFromChatHistory(t)) continue;
       // A deleted/trashed/expired chat leaves the project entirely (parity
       // with the chat list): deleting a project chat removes it from the
       // project view. `archived` is intentionally KEPT so an archived chat
