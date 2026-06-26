@@ -1197,6 +1197,7 @@ import type * as threads_cleanup_orphaned_sub_threads from "../threads/cleanup_o
 import type * as threads_create_branch_thread from "../threads/create_branch_thread.js";
 import type * as threads_create_chat_thread from "../threads/create_chat_thread.js";
 import type * as threads_delete_chat_thread from "../threads/delete_chat_thread.js";
+import type * as threads_derive_fallback_title from "../threads/derive_fallback_title.js";
 import type * as threads_edit_and_branch from "../threads/edit_and_branch.js";
 import type * as threads_fork_and_chat from "../threads/fork_and_chat.js";
 import type * as threads_fork_own_thread from "../threads/fork_own_thread.js";
@@ -2789,6 +2790,7 @@ declare const fullApi: ApiFromModules<{
   "threads/create_branch_thread": typeof threads_create_branch_thread;
   "threads/create_chat_thread": typeof threads_create_chat_thread;
   "threads/delete_chat_thread": typeof threads_delete_chat_thread;
+  "threads/derive_fallback_title": typeof threads_derive_fallback_title;
   "threads/edit_and_branch": typeof threads_edit_and_branch;
   "threads/fork_and_chat": typeof threads_fork_and_chat;
   "threads/fork_own_thread": typeof threads_fork_own_thread;
