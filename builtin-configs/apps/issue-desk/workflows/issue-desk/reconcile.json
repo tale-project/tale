@@ -1,0 +1,168 @@
+{
+  "name": "Reconcile task state from GitHub",
+  "description": "Scheduled, UPDATE-ONLY reconcile of the issue-desk board against GitHub. Each run lists the repository's issues and, for every issue that ALREADY has a task on this board (matched by the stable external ref \"owner/repo#number\"), syncs its open/closed lifecycle: a closed issue moves its task to done, a reopened issue pulls a terminal task back to backlog. It NEVER creates a task — the desk's manual 'create task from issue' intake owns creation — so the board is never flooded. This is what closes the loop when a desk pull request is merged OUT OF BAND (GitHub UI, CI auto-merge, a teammate): the implementer's PR carries 'Closes #<issue>', so merging it closes the issue, and this reconcile then moves the parked 'in review' task to done. Runs org-scoped with no projectId (the update path keys off each found task's own project), via the generic task workflow action and the github connector — no GitHub-specific or issue-desk-specific backend code.",
+  "i18n": {
+    "en": {
+      "name": "Reconcile task state from GitHub",
+      "description": "Closes a board task when its GitHub issue closes (e.g. the desk's PR merged) and reopens it if the issue reopens. Update-only — never creates tasks."
+    },
+    "de": {
+      "name": "Aufgabenstatus aus GitHub abgleichen",
+      "description": "Schließt eine Board-Aufgabe, wenn ihr GitHub-Issue geschlossen wird (z. B. nach dem Merge des Desk-PRs), und öffnet sie bei einem erneut geöffneten Issue wieder. Nur Aktualisierung — legt nie neue Aufgaben an."
+    },
+    "fr": {
+      "name": "Réconcilier l'état des tâches depuis GitHub",
+      "description": "Termine une tâche du tableau lorsque son ticket GitHub est fermé (par ex. après le merge de la PR du desk) et la rouvre si le ticket est rouvert. Mise à jour uniquement — ne crée jamais de tâche."
+    }
+  },
+  "version": "1.0.0",
+  "metadata": {
+    "pack": "issue-desk"
+  },
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "workflowId": "issue_desk_reconcile"
+    }
+  },
+  "triggers": {
+    "schedules": [
+      {
+        "cron": "*/15 * * * *",
+        "timezone": "UTC",
+        "variables": {
+          "state": "all"
+        }
+      }
+    ]
+  },
+  "requires": {
+    "integrations": [
+      {
+        "name": "github",
+        "operations": ["list_issues"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "owner": {
+              "description": "GitHub repository owner (user or organization login), e.g. \"tale-project\".",
+              "type": "string"
+            },
+            "repo": {
+              "description": "GitHub repository name, e.g. \"tale\".",
+              "type": "string"
+            },
+            "state": {
+              "description": "Which issues to list: \"all\" (default) reconciles both closes and reopens; \"closed\" only closes.",
+              "type": "string"
+            }
+          },
+          "required": ["owner", "repo"]
+        }
+      },
+      "nextSteps": {
+        "success": "list_issues"
+      }
+    },
+    {
+      "stepSlug": "list_issues",
+      "name": "List GitHub Issues",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "github",
+          "operation": "list_issues",
+          "params": {
+            "owner": "{{input.owner}}",
+            "repo": "{{input.repo}}",
+            "state": "{{input.state || 'all'}}",
+            "per_page": 100
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_issues"
+      }
+    },
+    {
+      "stepSlug": "check_has_issues",
+      "name": "Skip Loop If No Issues",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.list_issues.output.data.result.data | length) > 0",
+        "description": "The loop step throws on an empty items array (not covered by continueOnError), so route the empty case straight to done."
+      },
+      "nextSteps": {
+        "true": "loop_issues",
+        "false": "done"
+      }
+    },
+    {
+      "stepSlug": "loop_issues",
+      "name": "Loop Through Issues",
+      "stepType": "loop",
+      "config": {
+        "continueOnError": true,
+        "itemVariable": "issue",
+        "items": "{{steps.list_issues.output.data.result.data}}"
+      },
+      "nextSteps": {
+        "loop": "skip_pull_requests",
+        "done": "done"
+      }
+    },
+    {
+      "stepSlug": "skip_pull_requests",
+      "name": "Skip Pull Requests",
+      "stepType": "condition",
+      "config": {
+        "expression": "!loop.item.pull_request",
+        "description": "GitHub's issues endpoint returns pull requests too; PR objects carry a `pull_request` field that plain issues lack. Only real issues map to tasks; PRs route straight back to the loop."
+      },
+      "nextSteps": {
+        "true": "reconcile_task",
+        "false": "loop_issues"
+      }
+    },
+    {
+      "stepSlug": "reconcile_task",
+      "name": "Reconcile Task From Issue",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "upsert_external",
+          "createIfMissing": false,
+          "externalSystem": "github",
+          "externalId": "{{input.owner + '/' + input.repo + '#' + loop.item.number}}",
+          "externalUrl": "{{loop.item.html_url}}",
+          "title": "{{loop.item.title}}",
+          "externalState": "{{loop.item.state}}"
+        }
+      },
+      "nextSteps": {
+        "success": "loop_issues"
+      }
+    },
+    {
+      "stepSlug": "done",
+      "name": "Done",
+      "stepType": "output",
+      "config": {},
+      "nextSteps": {}
+    }
+  ]
+}
