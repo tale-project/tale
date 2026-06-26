@@ -31,7 +31,7 @@ export interface BoundAction {
 }
 
 export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
-  const { organizationId, projectId, appSlug, allowlist, labels } =
+  const { organizationId, projectId, appSlug, allowlist, labels, config } =
     useAppRuntime();
   const allowed =
     isValidFunctionPath(path) && isFunctionAllowed(path, allowlist, mode);
@@ -49,6 +49,7 @@ export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
         projectId,
         selected,
         labels,
+        config,
       });
       // Phase-1 audit marker (server-side gate + persisted audit is Phase 3).
       console.info('[app-binding]', { appSlug, organizationId, path, mode });
@@ -64,6 +65,7 @@ export function useBoundAction(path: string, mode: FunctionMode): BoundAction {
       projectId,
       appSlug,
       labels,
+      config,
       mutation,
       action,
     ],

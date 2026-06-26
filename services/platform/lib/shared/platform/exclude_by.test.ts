@@ -58,6 +58,20 @@ describe('excludeExisting', () => {
     expect(result).not.toBe(issues);
   });
 
+  it('builds the key from per-install config (owner/repo) merged with the row', () => {
+    // A repo-agnostic key: owner/repo come from the app's config, number from the
+    // row — so it matches the externalId the create path wrote from the same config.
+    const scoped = '{owner}/{repo}#{number}';
+    const config = { owner: 'acme', repo: 'widgets' };
+    const refRows = [{ externalId: 'acme/widgets#2' }];
+    expect(
+      excludeExisting(issues, refRows, 'externalId', scoped, config),
+    ).toEqual([
+      { number: 1, title: 'a' },
+      { number: 3, title: 'c' },
+    ]);
+  });
+
   it('ignores reference rows with falsy keys (no accidental exclusion)', () => {
     const refRows = [{ externalId: undefined }, { externalId: '' }];
     expect(excludeExisting(issues, refRows, 'externalId', tmpl)).toEqual(

@@ -121,7 +121,9 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     // the same template the materialize action uses to write it.
     expect(excludeBy?.query?.path).toBe('tasks/queries:listTasksByProject');
     expect(excludeBy?.refField).toBe('externalId');
-    expect(excludeBy?.rowKeyTemplate).toBe('tale-project/tale#{number}');
+    // Config-driven: owner/repo come from the per-install config, the row's
+    // `number` from the issue — the same template the materialize action writes.
+    expect(excludeBy?.rowKeyTemplate).toBe('{owner}/{repo}#{number}');
     // The cross-ref query is collected (so publish-time validation covers it)
     // and is in the allowlist.
     const paths = collectViewBindings(view).map((b) => b.path);
