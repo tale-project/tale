@@ -73,7 +73,7 @@ export const listArchivedThreads = query({
 });
 
 export const isThreadGenerating = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -82,8 +82,14 @@ export const isThreadGenerating = query({
     // canAccessThread rejects trashed/expired/deleted threads as well as
     // non-owners — without it, an owner querying their own trashed thread
     // still saw `generating` until Pass-B physically deleted the row
-    // (round-2 v15 H8).
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    // (round-2 v15 H8). `organizationId` is the active org, scoping the thread
+    // to the org the caller is acting in (see canAccessThread).
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata) return false;
     if (metadata.generationStatus !== 'generating') return false;
 
@@ -95,7 +101,7 @@ export const isThreadGenerating = query({
 });
 
 export const getThreadMessages = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
@@ -105,8 +111,14 @@ export const getThreadMessages = query({
     // this gate, any signed-in user with a threadId could read every
     // message — bypasses owner / org / isShared / trashed checks and
     // relies on UUID secrecy for authorization. canAccessThread enforces
-    // the same allow-list the streaming path already uses.
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    // the same allow-list the streaming path already uses, scoped to the
+    // active `organizationId`.
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata) {
       return { messages: [] };
     }
@@ -117,6 +129,7 @@ export const getThreadMessages = query({
 export const getThreadMessagesStreaming = query({
   args: {
     threadId: v.string(),
+    organizationId: v.string(),
     paginationOpts: v.object({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
@@ -161,6 +174,7 @@ export const getThreadMessagesStreaming = query({
       ctx,
       args.threadId,
       authUser,
+      args.organizationId,
     );
     if (!metadata) {
       return {
@@ -185,14 +199,20 @@ export const getThreadMessagesStreaming = query({
  * on UIMessages (which breaks React/SDK dedup during streaming transitions).
  */
 export const getFailedMessageErrors = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return {};
 
     // canAccessThread blocks trashed/expired/deleted threads — error
-    // strings can leak PII the user thought they trashed.
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    // strings can leak PII the user thought they trashed. Scoped to the
+    // active `organizationId`.
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata) return {};
 
     const result = await listMessages(ctx, components.agent, {
@@ -275,7 +295,7 @@ export const getThreadProject = query({
  * still use the granular queries directly.)
  */
 export const getThreadMeta = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
@@ -326,7 +346,12 @@ export const getThreadMeta = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata) return null;
 
     // Live generation status (mirrors isThreadGenerating, incl. stale guard).
@@ -497,7 +522,7 @@ export const getThreadBranchSelections = query({
 });
 
 export const getThreadShareStatus = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
@@ -506,8 +531,13 @@ export const getThreadShareStatus = query({
 
     // canAccessThread blocks trashed/expired/deleted threads — share
     // status on a trashed thread is meaningless and surfaces stale
-    // shareTokens to the UI.
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    // shareTokens to the UI. Scoped to the active `organizationId`.
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata || metadata.userId !== authUser.userId) {
       return { isShared: false, shareToken: null };
     }
@@ -521,7 +551,7 @@ export const getThreadShareStatus = query({
 });
 
 export const getArenaThreadPair = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   returns: v.union(
     v.object({
       threadIdA: v.string(),
@@ -533,7 +563,12 @@ export const getArenaThreadPair = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (!metadata?.arenaGroupId || metadata.userId !== authUser.userId) {
       return null;
     }
@@ -564,14 +599,19 @@ export const getArenaThreadPair = query({
 });
 
 export const getThreadForkInfo = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
+    const metadata = await canAccessThread(
+      ctx,
+      args.threadId,
+      authUser,
+      args.organizationId,
+    );
     if (
       !metadata ||
       metadata.userId !== authUser.userId ||

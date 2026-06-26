@@ -22,12 +22,16 @@ export type ThreadMetadata = Doc<'threadMetadata'>;
  * (no cascade delete on org deletion). Without this, a removed-member owner
  * could still load their old thread by URL.
  *
- * `expectedOrgId` is an optional hint, typically the URL's `organizationId`.
- * When supplied, the membership lookup runs in parallel with the metadata
- * read via `Promise.all`; the fast path costs `max(metadata_read, isOrgMember)`
- * instead of `metadata_read + isOrgMember`. When the hint matches the thread's
- * actual org (the common case), the parallel result is reused; when it does
- * not, we fall through to a sequential lookup against the actual org.
+ * `expectedOrgId` is the caller's ACTIVE org, typically the URL's
+ * `organizationId`. When supplied it is ENFORCED: the thread must belong to
+ * that org or access is denied. This is the active-org coherence boundary —
+ * without it a member of both org A and org B who has switched to B can still
+ * load org-A's thread by id (a carried-over URL, a warm cache, or a deep link),
+ * because owning the thread + remaining an org-A member is enough to pass. The
+ * membership lookup runs in parallel with the metadata read via `Promise.all`,
+ * so the check costs `max(metadata_read, isOrgMember)` not the sum. Omit the
+ * hint ONLY from internal/system callers that have no active-org context; those
+ * fall back to authorizing against the thread's own org.
  */
 export async function canAccessThread(
   ctx: QueryCtx | MutationCtx,
@@ -61,9 +65,17 @@ export async function canAccessThread(
   // Owner branch
   if (metadata.userId === authUser.userId) {
     if (!metadata.organizationId) return metadata; // org-less thread: owner access, no org to check
-    if (expectedOrgId === metadata.organizationId) {
-      return expectedMembership ? metadata : null;
+    // Active-org coherence: an explicit `expectedOrgId` means the caller knows
+    // which org it is acting in, so the thread MUST belong to THAT org — not
+    // merely an org the owner still belongs to. Denying on mismatch is what
+    // stops org-A's thread from rendering while the user is switched to org B.
+    if (expectedOrgId !== undefined) {
+      return expectedOrgId === metadata.organizationId && expectedMembership
+        ? metadata
+        : null;
     }
+    // No active-org context (internal/system caller): authorize against the
+    // thread's own org.
     const isMember = await isOrgMember(
       ctx,
       authUser.userId,
@@ -72,14 +84,17 @@ export async function canAccessThread(
     return isMember ? metadata : null;
   }
 
-  // Non-owner access rules below grant access to any current member of the
-  // thread's org. They reuse the already-resolved `expectedMembership` when the
-  // hint matched, else fall back to a lookup against the actual org. A `false`
-  // result falls THROUGH to the next rule (a thread can be both shared and a
-  // discussion), unlike the owner branch which denies outright.
+  // Non-owner access rules below grant access to a current member of the
+  // thread's org. Same active-org coherence rule as the owner branch: an
+  // explicit hint is enforced (deny when it doesn't match the thread's org);
+  // only a missing hint falls back to a lookup against the thread's own org. A
+  // `false` result falls THROUGH to the next rule (a thread can be both shared
+  // and a discussion), unlike the owner branch which denies outright.
   const grantedToOrgMember = async (): Promise<boolean> => {
     if (!metadata.organizationId) return false;
-    if (expectedOrgId === metadata.organizationId) return !!expectedMembership;
+    if (expectedOrgId !== undefined) {
+      return expectedOrgId === metadata.organizationId && !!expectedMembership;
+    }
     return isOrgMember(ctx, authUser.userId, metadata.organizationId);
   };
 

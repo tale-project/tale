@@ -142,7 +142,12 @@ describe('canAccessThread — owner branch', () => {
     expect(ctx.runQuery).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to a second lookup when hint org mismatches actual org', async () => {
+  it('denies access when the active-org hint does not match the thread org', async () => {
+    // The coherence boundary. The user OWNS the thread and is a member of BOTH
+    // orgs, but is acting in `org_hint` while the thread lives in `org_actual`.
+    // Pre-fix this fell back to a second lookup and GRANTED on `org_actual`
+    // membership — exactly how org-A's thread rendered while switched to org B.
+    // With the active-org hint enforced, a mismatch is denied outright.
     const meta: MockMetadata = {
       _id: 'tm_1',
       threadId: 't_1',
@@ -152,7 +157,6 @@ describe('canAccessThread — owner branch', () => {
     const ctx = createMockCtx({
       metadata: meta,
       members: [
-        // User is member of both, but only org_actual matters
         {
           _id: 'm_hint',
           organizationId: 'org_hint',
@@ -175,9 +179,10 @@ describe('canAccessThread — owner branch', () => {
       'org_hint',
     );
 
-    expect(result).toEqual(meta);
-    // First call (parallel hint), then fallback against actual orgId.
-    expect(ctx.runQuery).toHaveBeenCalledTimes(2);
+    expect(result).toBeNull();
+    // The mismatch is decided from the single parallel-fired hint lookup — no
+    // second lookup against the thread's actual org.
+    expect(ctx.runQuery).toHaveBeenCalledTimes(1);
   });
 
   it('returns null when owner is no longer a member of the thread org (no hint)', async () => {
@@ -268,6 +273,46 @@ describe('canAccessThread — shared branch', () => {
 
     expect(result).toEqual(meta);
     expect(ctx.runQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies a non-owner member when the active-org hint differs from the shared org', async () => {
+    // Non-owner is a member of both `org_shared` and `org_other` but is acting
+    // in `org_other`. The shared thread belongs to `org_shared`, so supplying
+    // the active org as the hint must deny: it is not in the org the user is
+    // currently in, even though sharing + membership would otherwise grant.
+    const meta: MockMetadata = {
+      _id: 'tm_shared',
+      threadId: 't_shared',
+      userId: 'user_owner',
+      organizationId: 'org_shared',
+      isShared: true,
+    };
+    const ctx = createMockCtx({
+      metadata: meta,
+      members: [
+        {
+          _id: 'm_shared',
+          organizationId: 'org_shared',
+          userId: 'user_1',
+          role: 'member',
+        },
+        {
+          _id: 'm_other',
+          organizationId: 'org_other',
+          userId: 'user_1',
+          role: 'member',
+        },
+      ],
+    });
+
+    const result = await canAccessThread(
+      ctx as never,
+      't_shared',
+      authUser,
+      'org_other',
+    );
+
+    expect(result).toBeNull();
   });
 
   it('returns null for non-owner who is not a member of the shared org', async () => {

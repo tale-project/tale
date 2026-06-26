@@ -404,7 +404,9 @@ export function ChatInterface({
   // below read the same `threadMeta`.
   const { data: threadMeta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
-    dataThreadId ? { threadId: dataThreadId } : 'skip',
+    dataThreadId && organizationId
+      ? { threadId: dataThreadId, organizationId }
+      : 'skip',
   );
   const isGenerating = threadMeta?.isGenerating;
   // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —

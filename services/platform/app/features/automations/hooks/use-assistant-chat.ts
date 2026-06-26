@@ -147,7 +147,7 @@ export function useAssistantChat({
   // Server-side loading state: is the agent currently generating?
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
 
   // Dual-layer loading: isPending (optimistic) + isGenerating (server reactive)

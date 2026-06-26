@@ -380,6 +380,7 @@ export const archiveAllChatThreads = mutation({
 export const setThreadCanvasState = mutation({
   args: {
     threadId: v.string(),
+    organizationId: v.optional(v.string()),
     canvasOpen: v.optional(v.boolean()),
     canvasActiveFilePath: v.optional(v.union(v.string(), v.null())),
   },
@@ -392,8 +393,10 @@ export const setThreadCanvasState = mutation({
 
     // Cross-tenant gate, mirrors setThreadPinned / markThreadRead — the row
     // is keyed only by threadId, so without this any signed-in user could
-    // mutate another tenant's thread metadata by guessing the id.
-    await assertThreadAccess(ctx, args.threadId, identity);
+    // mutate another tenant's thread metadata by guessing the id. The active
+    // `organizationId` (when supplied) also enforces active-org coherence so a
+    // carried-over thread from another org can't be mutated post-switch.
+    await assertThreadAccess(ctx, args.threadId, identity, args.organizationId);
 
     const metadata = await ctx.db
       .query('threadMetadata')
