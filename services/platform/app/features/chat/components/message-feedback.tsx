@@ -50,8 +50,10 @@ export function MessageFeedback({
         setShowCommentBox(false);
         setComment('');
       }
-    } catch {
-      // Silently handle feedback errors — UI re-enables via finally
+    } catch (error) {
+      // Already surfaced (toast + log) by useConvexMutation; log for component
+      // context and to avoid an unhandled rejection from the click handler.
+      console.error('Message feedback action failed', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -65,8 +67,11 @@ export function MessageFeedback({
         await removeFeedback();
         setShowCommentBox(false);
         setComment('');
-      } catch {
-        // Silently handle feedback errors — UI re-enables via finally
+      } catch (error) {
+        // Already surfaced (toast + log) by useConvexMutation; log for
+        // component context and to avoid an unhandled rejection from the
+        // click handler.
+        console.error('Message feedback action failed', error);
       } finally {
         setIsSubmitting(false);
       }
@@ -75,8 +80,11 @@ export function MessageFeedback({
       try {
         await submitFeedback('negative');
         setShowCommentBox(true);
-      } catch {
-        // Silently handle feedback errors — UI re-enables via finally
+      } catch (error) {
+        // Already surfaced (toast + log) by useConvexMutation; log for
+        // component context and to avoid an unhandled rejection from the
+        // click handler.
+        console.error('Message feedback action failed', error);
       } finally {
         setIsSubmitting(false);
       }
@@ -90,8 +98,10 @@ export function MessageFeedback({
       await submitFeedback('negative', comment.trim());
       setShowCommentBox(false);
       setComment('');
-    } catch {
-      // Silently handle feedback errors — UI re-enables via finally
+    } catch (error) {
+      // Already surfaced (toast + log) by useConvexMutation; log for component
+      // context and to avoid an unhandled rejection from the click handler.
+      console.error('Message feedback action failed', error);
     } finally {
       setIsSubmitting(false);
     }

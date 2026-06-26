@@ -168,6 +168,10 @@ export const listApps = action({
         // already-parsed manifest; the same list is denormalized onto the
         // install record (`appInstallations.requiredIntegrations`).
         requiredIntegrations: manifest.requires?.integrations ?? [],
+        // Declared per-install config keys (e.g. github owner/repo). Drives the
+        // app's config form; values are stored on the install row + read by
+        // views via `$config:`.
+        requiredConfig: manifest.requires?.config ?? [],
         views,
         ...(Object.keys(messages).length > 0 && { messages }),
       });

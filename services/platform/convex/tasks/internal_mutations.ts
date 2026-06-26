@@ -291,7 +291,11 @@ export const agentUpsertTaskByExternalRef = internalMutation({
   args: {
     organizationId: v.string(),
     actorId: v.string(),
-    projectId: v.id('projects'),
+    /** Destination project for a CREATE. Required when a task may be created
+     *  (the default) and for `dedupeScope:'project'` lookups; omittable for an
+     *  org-scope, `createIfMissing:false` reconcile that only updates existing
+     *  tasks (the update path keys off the found task's own project). */
+    projectId: v.optional(v.id('projects')),
     externalSystem: v.string(),
     externalId: v.string(),
     title: v.string(),
@@ -318,43 +322,55 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *  `'project'` keys on the project (one task per issue per project);
      *  `'org'` (default) keys on the org (one task per issue per org). */
     dedupeScope: v.optional(v.union(v.literal('org'), v.literal('project'))),
+    /** What to do when the external ref matches no existing task:
+     *  - `true` (default): create one (needs `projectId`) — the intake sync.
+     *  - `false`: no-op (`taskId: null`) — an UPDATE-ONLY reconcile that only
+     *    closes/reopens tasks already on the board, never materializing a task
+     *    for every issue, and so can run org-scoped without a `projectId`. */
+    createIfMissing: v.optional(v.boolean()),
   },
   handler: async (
     ctx,
     args,
-  ): Promise<{ taskId: Id<'tasks'>; created: boolean }> => {
-    const project = await loadProjectInOrg(
-      ctx,
-      args.projectId,
-      args.organizationId,
-    );
+  ): Promise<{ taskId: Id<'tasks'> | null; created: boolean }> => {
     const title = trimTitle(args.title);
     const description = args.description?.trim() || undefined;
     const now = Date.now();
+    const createIfMissing = args.createIfMissing ?? true;
 
     // Dedup within the chosen scope: project-scoped apps look up by project so the
     // same issue in another project is treated as absent (→ a new task); the
-    // default org scope keeps the one-task-per-issue-per-org sync behavior.
-    const existing =
-      args.dedupeScope === 'project'
-        ? await ctx.db
-            .query('tasks')
-            .withIndex('by_project_external', (q) =>
-              q
-                .eq('projectId', args.projectId)
-                .eq('externalSystem', args.externalSystem)
-                .eq('externalId', args.externalId),
-            )
-            .first()
-        : await ctx.db
-            .query('tasks')
-            .withIndex('by_org_external', (q) =>
-              q
-                .eq('organizationId', args.organizationId)
-                .eq('externalSystem', args.externalSystem)
-                .eq('externalId', args.externalId),
-            )
-            .first();
+    // default org scope keeps the one-task-per-issue-per-org sync behavior. The
+    // project lookup needs an explicit projectId; the org lookup does not — which
+    // is what lets an update-only reconcile run without one.
+    let existing: Doc<'tasks'> | null;
+    if (args.dedupeScope === 'project') {
+      const projectId = args.projectId;
+      if (!projectId) {
+        throw new Error(
+          "agentUpsertTaskByExternalRef: dedupeScope 'project' requires a projectId",
+        );
+      }
+      existing = await ctx.db
+        .query('tasks')
+        .withIndex('by_project_external', (q) =>
+          q
+            .eq('projectId', projectId)
+            .eq('externalSystem', args.externalSystem)
+            .eq('externalId', args.externalId),
+        )
+        .first();
+    } else {
+      existing = await ctx.db
+        .query('tasks')
+        .withIndex('by_org_external', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('externalSystem', args.externalSystem)
+            .eq('externalId', args.externalId),
+        )
+        .first();
+    }
 
     if (existing) {
       // Preserve a non-empty existing description when asked (re-sync), so a
@@ -422,9 +438,22 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       return { taskId: existing._id, created: false };
     }
 
+    // No existing task. An update-only reconcile stops here (it never floods the
+    // board with a task per issue); the intake sync falls through to create.
+    if (!createIfMissing) {
+      return { taskId: null, created: false };
+    }
+    const projectId = args.projectId;
+    if (!projectId) {
+      throw new Error(
+        'agentUpsertTaskByExternalRef: creating a task requires a projectId',
+      );
+    }
+    const project = await loadProjectInOrg(ctx, projectId, args.organizationId);
+
     const status: Doc<'tasks'>['status'] =
       args.externalState === 'closed' ? 'done' : SYNC_OPEN_STATUS;
-    const rank = await computeEndRank(ctx, args.projectId, status);
+    const rank = await computeEndRank(ctx, projectId, status);
     const number = await nextTaskNumber(ctx, project);
     // A create launched by an installed app's workflow is OWNED by that app:
     // attribute it to the app (createdByType:'app', createdBy:<appSlug>) so the
@@ -439,7 +468,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       : null;
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
-      projectId: args.projectId,
+      projectId,
       title,
       description,
       status,
@@ -480,7 +509,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       resourceId: String(taskId),
       resourceName: title,
       metadata: {
-        projectId: String(args.projectId),
+        projectId: String(projectId),
         externalSystem: args.externalSystem,
         externalId: args.externalId,
       },

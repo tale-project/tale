@@ -31,6 +31,20 @@ describe('buildExclusionSet', () => {
     const set = buildExclusionSet([{ id: 7 }], 'id');
     expect(set.has('7')).toBe(true);
   });
+
+  it('treats entries as bare keys when no refField is given', () => {
+    // A key-only query (e.g. listExternalKeysByProject) returns a string[]; with
+    // an empty refField each entry IS the key.
+    const set = buildExclusionSet(
+      ['tale-project/tale#1', 'tale-project/tale#2', '', 9],
+      '',
+    );
+    expect([...set].sort()).toEqual([
+      '9',
+      'tale-project/tale#1',
+      'tale-project/tale#2',
+    ]);
+  });
 });
 
 describe('excludeExisting', () => {
@@ -56,6 +70,20 @@ describe('excludeExisting', () => {
     const result = excludeExisting(issues, [], 'externalId', tmpl);
     expect(result).toEqual(issues);
     expect(result).not.toBe(issues);
+  });
+
+  it('builds the key from per-install config (owner/repo) merged with the row', () => {
+    // A repo-agnostic key: owner/repo come from the app's config, number from the
+    // row — so it matches the externalId the create path wrote from the same config.
+    const scoped = '{owner}/{repo}#{number}';
+    const config = { owner: 'acme', repo: 'widgets' };
+    const refRows = [{ externalId: 'acme/widgets#2' }];
+    expect(
+      excludeExisting(issues, refRows, 'externalId', scoped, config),
+    ).toEqual([
+      { number: 1, title: 'a' },
+      { number: 3, title: 'c' },
+    ]);
   });
 
   it('ignores reference rows with falsy keys (no accidental exclusion)', () => {

@@ -137,8 +137,12 @@ export function WebhooksSection({
           variant: 'success',
         });
         setTimeout(() => setCopiedUrl(null), 2000);
-      } catch {
-        // Clipboard API not available
+      } catch (err) {
+        console.warn('[webhooks-section] clipboard write failed', err);
+        toast({
+          title: t('triggers.common.copyFailed'),
+          variant: 'destructive',
+        });
       }
     },
     [getWebhookUrl, toast, t],

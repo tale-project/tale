@@ -62,6 +62,18 @@
       "agentNeedsSetup": "{agent} needs setup to run.",
       "setupButton": "Set up"
     },
+    "config": {
+      "title": "Configuration",
+      "description": "Point this app at your own resources. These values drive its pages and scheduled work.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Configuration saved",
+      "saveError": "Couldn't save configuration",
+      "invalidValue": "{label}: check the format and try again.",
+      "configure": "Configure",
+      "setupTitle": "Configuration needed",
+      "setupPrompt": "Point this app at your resources to start using it."
+    },
     "installWizard": {
       "title": "Set up {name}",
       "progress": "{label} · step {current} of {total}",
@@ -108,9 +120,9 @@
       "refresh": "Refresh",
       "error": "Couldn't load data: {error}",
       "notConnected": "This integration isn't connected yet. Connect it to load data.",
-      "prev": "Previous",
-      "next": "Next",
-      "page": "Page {page}",
+      "needsConfig": "Configure this app to load data.",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
@@ -491,7 +503,11 @@
     "errorSubmitFailed": "Failed to submit response",
     "copied": "Copied!",
     "copyConfiguration": "Copy configuration",
-    "viewWorkflow": "View workflow"
+    "viewWorkflow": "View workflow",
+    "statusPending": "Pending",
+    "statusExecuting": "Executing",
+    "statusCompleted": "Completed",
+    "statusRejected": "Rejected"
   },
   "auth": {
     "email": "Email",
@@ -826,7 +842,8 @@
       },
       "common": {
         "never": "Never",
-        "copied": "Copied"
+        "copied": "Copied",
+        "copyFailed": "Copy failed"
       }
     },
     "executions": {
@@ -1373,6 +1390,7 @@
     "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
     "audioDurationExceeded": "{names}: audio is longer than the {maxHours}-hour limit. Please split it into shorter segments.",
     "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
+    "fileTypeUnsupported": "{names}: file type not supported.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
@@ -4058,6 +4076,7 @@
     "deleteConfirmation": "Are you sure you want to delete this MCP server connection?",
     "testConnection": "Test connection",
     "testing": "Testing connection...",
+    "connectionTestFailed": "Connection test failed",
     "connected": "Connected",
     "disconnected": "Disconnected",
     "error": "Error",
