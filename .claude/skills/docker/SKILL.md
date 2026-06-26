@@ -24,15 +24,19 @@ knowledge schemas — a sign a migration didn't ship or didn't run.
 `compose.yml` is the base, **local-dev-only** stack (exposes `5432` + app ports `8001-8003` that prod
 never exposes; prod configs come from `tale deploy`). Overlay with `-f`:
 
-- `compose.dev.yml` — source mounts + relaxed health checks + debug logs for HMR
-  (`-f compose.yml -f compose.dev.yml up --build`).
+- `compose.dev.yml` — source mounts + debug logs for HMR, **and** insecure dev secret defaults
+  (the `x-dev-secrets` anchor) so the stack boots with zero `.env`. Run via `bun run docker:dev`
+  (= `-f compose.yml -f compose.dev.yml -f compose.docs.yml up --build`). `.env` is optional
+  (`env_file: required: false`); when present its values win. `compose.docs.yml` is required only to
+  satisfy this file's `docs` override.
 - `compose.test.yml` — container-e2e: shifts ports off the host to avoid CI collisions.
 - `compose.test.mock.yml` — DB-only port mock (`db` on `15432`).
 - `compose.llm-gateway.dev.yml` — applied **only** when Convex + Vite run on the host (`scripts/dev.ts`),
   never by the fully-dockerized dev command; publishes the LLM gateway on loopback (`127.0.0.1:8080`).
 - `compose.docs.yml` / `compose.web.yml` (+ their `*.test.yml`) — standalone docs / marketing sites.
 
-Root `package.json` scripts: `docker:build` (turbo), `docker:up`, `docker:down`, `docker:logs`.
+Root `package.json` scripts: `docker:build` (turbo), `docker:up`, `docker:down`, `docker:logs`, and the
+zero-`.env` dev stack `docker:dev` / `docker:dev:down` / `docker:dev:logs`.
 Container integration suites under
 [`services/platform/tests/integration/`](../../../services/platform/tests/integration/) run via
 `docker:test` (smoke), `docker:test:image|web|docs|sandbox-runtime|vulnerability`, and `docker:e2e`

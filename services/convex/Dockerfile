@@ -143,6 +143,11 @@ ENV NODE_ENV=production \
     # Keep warm isolates alive up to 1h idle / 4h lifetime.
     ISOLATE_IDLE_TIMEOUT_SECONDS=3600 \
     ISOLATE_MAX_LIFETIME_SECONDS=14400 \
+    # Module-analyze budget for `convex deploy` push (default 4s). Bumped to 10s
+    # so the first cold push doesn't fail with "Function execution timed out
+    # (maximum duration: ...)" on slower / CPU-loaded hosts while the backend is
+    # evaluating every module's top-level code. Push-time only; not a runtime UDF limit.
+    ISOLATE_ANALYZE_USER_TIMEOUT_SECONDS=10 \
     # 30 minutes for Node and V8 actions (default 5 min).
     ACTIONS_USER_TIMEOUT_SECS=1800 \
     # Higher concurrency limits.
