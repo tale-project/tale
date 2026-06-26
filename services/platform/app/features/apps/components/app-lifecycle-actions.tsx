@@ -11,7 +11,7 @@
  *    (`APP_HAS_BOUND_PROJECTS`); we surface that as a clear toast, and when the
  *    bound-project count is known we block it up front with a hint. */
 import { ConvexError } from 'convex/values';
-import { FolderMinus, RotateCw, Trash2 } from 'lucide-react';
+import { FolderMinus, RotateCw, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -44,6 +44,9 @@ interface AppLifecycleActionsProps {
   /** Extra classes for the ⋯ trigger (e.g. card overlay positioning). */
   triggerClassName?: string;
   onChanged?: () => void;
+  /** When set, adds a "Configuration" item that opens the app's config panel.
+   *  Omitted for apps that declare no `requires.config`. */
+  onConfigure?: () => void;
 }
 
 export function AppLifecycleActions({
@@ -55,6 +58,7 @@ export function AppLifecycleActions({
   boundProjectCount,
   triggerClassName,
   onChanged,
+  onConfigure,
 }: AppLifecycleActionsProps) {
   const { t } = useT('apps');
   const { reinstall, uninstall, removeFromProject } =
@@ -138,7 +142,19 @@ export function AppLifecycleActions({
 
   const blockedByBindings = (boundProjectCount ?? 0) > 0;
 
-  const actions =
+  // "Configuration" leads the menu (when the app declares config); a separator
+  // sets it apart from the lifecycle (reinstall/remove/uninstall) group below.
+  const configAction = onConfigure
+    ? [
+        {
+          key: 'configure',
+          label: t('config.title'),
+          icon: SlidersHorizontal,
+          onClick: onConfigure,
+        },
+      ]
+    : [];
+  const lifecycleActions =
     context === 'project'
       ? [
           {
@@ -146,6 +162,7 @@ export function AppLifecycleActions({
             label: t('install.removeFromProject'),
             icon: FolderMinus,
             destructive: true,
+            separator: configAction.length > 0,
             onClick: () => dialogs.open.removeFromProject(),
           },
         ]
@@ -154,6 +171,7 @@ export function AppLifecycleActions({
             key: 'reinstall',
             label: t('install.reinstall'),
             icon: RotateCw,
+            separator: configAction.length > 0,
             onClick: () => dialogs.open.reinstall(),
           },
           {
@@ -175,6 +193,7 @@ export function AppLifecycleActions({
             },
           },
         ];
+  const actions = [...configAction, ...lifecycleActions];
 
   return (
     <>

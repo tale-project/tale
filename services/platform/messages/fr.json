@@ -69,7 +69,10 @@
       "saving": "Enregistrement…",
       "saved": "Configuration enregistrée",
       "saveError": "Impossible d'enregistrer la configuration",
-      "invalidValue": "{label} : vérifiez le format et réessayez."
+      "invalidValue": "{label} : vérifiez le format et réessayez.",
+      "configure": "Configurer",
+      "setupTitle": "Configuration requise",
+      "setupPrompt": "Pointez cette application vers vos ressources pour commencer à l'utiliser."
     },
     "installWizard": {
       "title": "Configurer {name}",
@@ -117,7 +120,7 @@
       "refresh": "Actualiser",
       "error": "Impossible de charger les données : {error}",
       "notConnected": "Cette intégration n'est pas encore connectée. Connecte-la pour charger les données.",
-      "needsConfig": "Configurez cette application ci-dessus pour charger les données.",
+      "needsConfig": "Configurez cette application pour charger les données.",
       "prev": "Précédent",
       "next": "Suivant",
       "page": "Page {page}",

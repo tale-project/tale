@@ -69,7 +69,10 @@
       "saving": "Wird gespeichert…",
       "saved": "Konfiguration gespeichert",
       "saveError": "Konfiguration konnte nicht gespeichert werden",
-      "invalidValue": "{label}: Prüfe das Format und versuche es erneut."
+      "invalidValue": "{label}: Prüfe das Format und versuche es erneut.",
+      "configure": "Konfigurieren",
+      "setupTitle": "Konfiguration erforderlich",
+      "setupPrompt": "Richte diese App auf deine Ressourcen aus, um sie zu nutzen."
     },
     "installWizard": {
       "title": "{name} einrichten",
@@ -117,7 +120,7 @@
       "refresh": "Aktualisieren",
       "error": "Daten konnten nicht geladen werden: {error}",
       "notConnected": "Diese Integration ist noch nicht verbunden. Verbinde sie, um Daten zu laden.",
-      "needsConfig": "Konfiguriere diese App oben, um Daten zu laden.",
+      "needsConfig": "Konfiguriere diese App, um Daten zu laden.",
       "prev": "Zurück",
       "next": "Weiter",
       "page": "Seite {page}",

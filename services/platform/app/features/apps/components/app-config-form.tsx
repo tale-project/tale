@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * Per-install config editor for an app — renders one input per declared
- * `requires.config` key (e.g. a GitHub repository), prefilled from the stored
- * values, and saves via `setAppConfig`. This is what lets a repo-agnostic app be
- * pointed at the operator's OWN target instead of a hardcoded one; the saved
- * values feed the app's views (via the `$config:` binding token) and its
- * scheduled workflows (synced into their variables by the mutation).
+ * Per-install config editor for an app — one input per declared `requires.config`
+ * key (e.g. a GitHub repository), prefilled from the stored values, saved via
+ * `setAppConfig`. This is what lets a repo-agnostic app be pointed at the
+ * operator's OWN target instead of a hardcoded one; the saved values feed the
+ * app's views (via the `$config:` binding token) and its scheduled workflows.
+ *
+ * Rendered inside the config side panel (`AppConfigDrawer`) — it is just the
+ * form body (fields + Save); the panel owns the heading and chrome.
  *
  * A field may declare a `derive` rule (one input → many stored keys, e.g. a
  * single "owner/repo or URL" that splits into `owner` + `repo`). The split runs
@@ -16,9 +18,7 @@
  * are the operator's own config, so doing it client-side crosses no boundary.
  */
 import { Button } from '@tale/ui/button';
-import { Card } from '@tale/ui/card';
 import { Checkbox } from '@tale/ui/checkbox';
-import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -55,6 +55,7 @@ export function AppConfigForm({
   fields,
   config,
   resolveLabel,
+  onSaved,
 }: {
   organizationId: string;
   appSlug: string;
@@ -62,6 +63,8 @@ export function AppConfigForm({
   config: Record<string, unknown>;
   /** Resolve a field's `labelKey`/`placeholderKey` against the app's pack catalog. */
   resolveLabel: (labelKey: string) => string;
+  /** Called after a successful save (e.g. to close the side panel). */
+  onSaved?: () => void;
 }) {
   const { t } = useT('apps');
   const setConfig = useSetAppConfig();
@@ -71,11 +74,11 @@ export function AppConfigForm({
   /** Field keys whose entered value failed its `derive` rule, shown inline. */
   const [invalid, setInvalid] = useState<string[]>([]);
 
-  // `config` is reactive and arrives after the first paint (and updates after a
-  // save). Re-seed local state when the stored values change so the inputs show
-  // what's persisted — a plain `useState` initializer runs once and would leave
-  // the form blank on a value that loaded late. Keyed on the stored values, not
-  // identity, so an unrelated re-render doesn't clobber an in-progress edit.
+  // `config` is reactive and may arrive after the first paint. Re-seed local
+  // state when the stored values change so the inputs show what's persisted — a
+  // plain `useState` initializer runs once and would leave the form blank on a
+  // value that loaded late. Keyed on the stored values, not identity, so an
+  // unrelated re-render doesn't clobber an in-progress edit.
   const configSignature = JSON.stringify(
     fields.map((f) => config[f.key] ?? null),
   );
@@ -103,6 +106,7 @@ export function AppConfigForm({
     try {
       await setConfig.mutateAsync({ organizationId, appSlug, config: out });
       toast({ title: t('config.saved') });
+      onSaved?.();
     } catch (err) {
       toast({
         title: t('config.saveError'),
@@ -111,22 +115,8 @@ export function AppConfigForm({
     }
   };
 
-  // Once every field has a stored value the app is pointed somewhere and the
-  // editor is just noise above the views — collapse it behind a summary the user
-  // can expand to change. While unconfigured it stays open + prominent so the
-  // setup step is obvious.
-  const isConfigured = fields.every((f) =>
-    f.type === 'boolean' ? true : asString(config[f.key]).trim() !== '',
-  );
-  // A compact echo of the configured values for the collapsed summary line.
-  const summary = fields
-    .filter((f) => f.type !== 'boolean')
-    .map((f) => asString(config[f.key]).trim())
-    .filter(Boolean)
-    .join(' · ');
-
-  const body = (
-    <>
+  return (
+    <VStack gap={4}>
       <VStack gap={3}>
         {fields.map((f) => (
           <VStack key={f.key} gap={1}>
@@ -171,48 +161,6 @@ export function AppConfigForm({
           {setConfig.isPending ? t('config.saving') : t('config.save')}
         </Button>
       </HStack>
-    </>
-  );
-
-  return (
-    <Card>
-      {isConfigured ? (
-        <CollapsibleDetails
-          summary={
-            <>
-              <Text as="span" className="shrink-0 font-medium">
-                {t('config.title')}
-              </Text>
-              {summary && (
-                <Text
-                  as="span"
-                  variant="muted"
-                  className="min-w-0 truncate text-sm font-normal"
-                >
-                  {summary}
-                </Text>
-              )}
-            </>
-          }
-        >
-          <VStack gap={4} className="mt-3">
-            <Text variant="muted" className="text-sm">
-              {t('config.description')}
-            </Text>
-            {body}
-          </VStack>
-        </CollapsibleDetails>
-      ) : (
-        <VStack gap={4}>
-          <VStack gap={1}>
-            <Text className="font-medium">{t('config.title')}</Text>
-            <Text variant="muted" className="text-sm">
-              {t('config.description')}
-            </Text>
-          </VStack>
-          {body}
-        </VStack>
-      )}
-    </Card>
+    </VStack>
   );
 }
