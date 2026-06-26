@@ -44,11 +44,15 @@
     "integrations": ["github"],
     "config": [
       {
-        "key": "owner",
+        "key": "repository",
         "type": "string",
-        "labelKey": "issueDesk.config.owner"
-      },
-      { "key": "repo", "type": "string", "labelKey": "issueDesk.config.repo" }
+        "labelKey": "issueDesk.config.repository",
+        "placeholderKey": "issueDesk.config.repositoryPlaceholder",
+        "derive": {
+          "pattern": "^(?:https?://github\\.com/)?([^/\\s]+)/([^/\\s#]+?)(?:\\.git)?/?$",
+          "into": ["owner", "repo"]
+        }
+      }
     ]
   }
 }

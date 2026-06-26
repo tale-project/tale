@@ -18,6 +18,6 @@
   "issueDesk.col.title": "Titel",
   "issueDesk.col.state": "Status",
   "issueDesk.col.status": "Status",
-  "issueDesk.config.owner": "GitHub-Eigentümer (Benutzer oder Organisation)",
-  "issueDesk.config.repo": "GitHub-Repository"
+  "issueDesk.config.repository": "GitHub-Repository",
+  "issueDesk.config.repositoryPlaceholder": "owner/repo oder https://github.com/owner/repo"
 }

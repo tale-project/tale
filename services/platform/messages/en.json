@@ -68,7 +68,8 @@
       "save": "Save",
       "saving": "Saving…",
       "saved": "Configuration saved",
-      "saveError": "Couldn't save configuration"
+      "saveError": "Couldn't save configuration",
+      "invalidValue": "{label}: check the format and try again."
     },
     "installWizard": {
       "title": "Set up {name}",
@@ -116,6 +117,7 @@
       "refresh": "Refresh",
       "error": "Couldn't load data: {error}",
       "notConnected": "This integration isn't connected yet. Connect it to load data.",
+      "needsConfig": "Configure this app above to load data.",
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page}",

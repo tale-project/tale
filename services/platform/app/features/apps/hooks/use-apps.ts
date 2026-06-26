@@ -4,11 +4,17 @@ import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
 import type { AppScope } from '@/lib/shared/schemas/apps';
 
 /** One declared per-install config key from an app manifest's `requires.config`
- *  (e.g. `{ key: 'owner', type: 'string', labelKey: 'issueDesk.config.owner' }`). */
+ *  (e.g. `{ key: 'repository', type: 'string', labelKey: 'issueDesk.config.repository' }`). */
 export interface AppConfigField {
   key: string;
   type: 'string' | 'number' | 'boolean';
   labelKey: string;
+  /** Optional input placeholder (pack-label key) — a format hint. */
+  placeholderKey?: string;
+  /** Optional one-input → many-keys derivation: the entered string is split by
+   *  `pattern` into the `into` keys (e.g. `owner`/`repo`) on save. The field's
+   *  own key keeps the raw input for read-back; the views bind the split keys. */
+  derive?: { pattern: string; into: string[] };
 }
 
 /** A navigable area of a view — its content is single-column Puck Data, or a

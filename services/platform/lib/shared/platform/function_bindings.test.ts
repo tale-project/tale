@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FunctionBinding,
+  bindingArgsResolved,
   collectViewBindings,
   isFunctionAllowed,
   isValidFunctionPath,
@@ -247,5 +248,33 @@ describe('collectViewBindings + validateViewBindings', () => {
     const errors = validateViewBindings(offending, allowlist);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain('secret/x:peek');
+  });
+});
+
+describe('bindingArgsResolved', () => {
+  it('is true when every value is bound (no undefined)', () => {
+    const resolved = resolveBindingArgs(
+      { organizationId: '$orgId', owner: '$config:owner', state: 'open' },
+      { organizationId: 'org_1', config: { owner: 'acme' } },
+    );
+    expect(bindingArgsResolved(resolved)).toBe(true);
+  });
+
+  it('is false when a $config: reference is unset (resolves to undefined)', () => {
+    const resolved = resolveBindingArgs(
+      { organizationId: '$orgId', owner: '$config:owner' },
+      { organizationId: 'org_1', config: {} },
+    );
+    expect(bindingArgsResolved(resolved)).toBe(false);
+  });
+
+  it('recurses through nested objects and arrays', () => {
+    expect(bindingArgsResolved({ a: { b: [1, 'x', true] } })).toBe(true);
+    expect(bindingArgsResolved({ a: { b: [1, undefined] } })).toBe(false);
+    expect(bindingArgsResolved([{ ok: 'y' }, { ok: undefined }])).toBe(false);
+  });
+
+  it('treats null as bound (only undefined gates the call)', () => {
+    expect(bindingArgsResolved({ a: null })).toBe(true);
   });
 });

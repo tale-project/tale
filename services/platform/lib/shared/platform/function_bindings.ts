@@ -226,3 +226,23 @@ export function resolveBindingArgs(
   }
   return args;
 }
+
+/**
+ * Whether a resolved args tree is fully bound — i.e. holds no `undefined`. A
+ * `$config:<key>` (or `$selected.`/`$result.`) reference whose value is absent
+ * resolves to `undefined`; a literal/`$orgId`/`$projectId` never does. So an
+ * `undefined` anywhere means a binding the live context couldn't satisfy yet —
+ * typically an app whose `requires.config` hasn't been filled in. Callers gate
+ * the actual call on this so an unconfigured view shows an empty state instead
+ * of firing a malformed request (e.g. `listGitHubIssues` missing `owner`).
+ */
+export function bindingArgsResolved(resolved: unknown): boolean {
+  if (resolved === undefined) return false;
+  if (Array.isArray(resolved)) return resolved.every(bindingArgsResolved);
+  if (resolved !== null && typeof resolved === 'object') {
+    return Object.values(resolved as Record<string, unknown>).every(
+      bindingArgsResolved,
+    );
+  }
+  return true;
+}

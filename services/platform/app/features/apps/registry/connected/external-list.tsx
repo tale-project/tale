@@ -194,6 +194,11 @@ export function ExternalList({
         <Text variant="error">
           {t('binding.blocked', { path: source.path })}
         </Text>
+      ) : query.needsConfig ? (
+        // A `$config:` the source binds is still unset — the app hasn't been
+        // pointed at a target yet. Prompt to configure rather than firing a
+        // request that would fail arg validation.
+        <Text variant="muted">{t('list.needsConfig')}</Text>
       ) : query.isLoading && rows.length === 0 ? (
         <SkeletonText lines={3} />
       ) : query.error ? (
