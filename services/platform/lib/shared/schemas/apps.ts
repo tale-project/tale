@@ -55,6 +55,26 @@ export const appManifestSchema = z
               key: z.string(),
               type: z.enum(['string', 'number', 'boolean']),
               labelKey: z.string(),
+              /** Optional input placeholder (pack-label key) — a format hint,
+               *  e.g. "owner/repo or https://github.com/owner/repo". */
+              placeholderKey: z.string().optional(),
+              /**
+               * Optional derivation: collect this field as ONE input, then split
+               * the entered string into several stored keys via a regex. `pattern`
+               * is matched against the value and its capture groups are stored
+               * under `into` (group 1 → into[0], …). Lets a repo-agnostic app ask
+               * for a single "owner/repo or URL" instead of two fields, while the
+               * views/workflows keep binding the split keys (`$config:owner` etc.).
+               * The platform stays domain-agnostic — the rule lives here, not in
+               * code. Authored by first parties; inputs are length-capped to bound
+               * regex cost (see `deriveConfigValues`).
+               */
+              derive: z
+                .object({
+                  pattern: z.string(),
+                  into: z.array(z.string()).min(1),
+                })
+                .optional(),
             }),
           )
           .optional(),

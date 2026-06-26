@@ -48,6 +48,8 @@ export interface EffectContext {
   selected?: Record<string, unknown>;
   result?: Record<string, unknown>;
   labels?: Record<string, string>;
+  /** The app's per-install config values (`$config:`/template `{key}`). */
+  config?: Record<string, unknown>;
 }
 
 /** A fully resolved, ready-to-apply effect (or null when it can't/shouldn't run). */
@@ -112,7 +114,7 @@ export function useActionEffect(): (
 ) => void {
   const navigate = useNavigate();
   const { open } = useResourceDetail();
-  const { organizationId, projectId, labels } = useAppRuntime();
+  const { organizationId, projectId, labels, config } = useAppRuntime();
 
   return useCallback(
     (effect, result, selected) => {
@@ -122,6 +124,7 @@ export function useActionEffect(): (
         selected,
         result: isRecord(result) ? result : undefined,
         labels,
+        config,
       });
       if (!resolved) return;
       if (resolved.kind === 'openDetail') {
@@ -140,6 +143,6 @@ export function useActionEffect(): (
         void go({ to: resolved.to, params: resolved.params });
       }
     },
-    [navigate, open, organizationId, projectId, labels],
+    [navigate, open, organizationId, projectId, labels, config],
   );
 }

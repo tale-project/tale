@@ -62,6 +62,18 @@
       "agentNeedsSetup": "{agent} needs setup to run.",
       "setupButton": "Set up"
     },
+    "config": {
+      "title": "Configuration",
+      "description": "Point this app at your own resources. These values drive its pages and scheduled work.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Configuration saved",
+      "saveError": "Couldn't save configuration",
+      "invalidValue": "{label}: check the format and try again.",
+      "configure": "Configure",
+      "setupTitle": "Configuration needed",
+      "setupPrompt": "Point this app at your resources to start using it."
+    },
     "installWizard": {
       "title": "Set up {name}",
       "progress": "{label} · step {current} of {total}",
@@ -108,9 +120,9 @@
       "refresh": "Refresh",
       "error": "Couldn't load data: {error}",
       "notConnected": "This integration isn't connected yet. Connect it to load data.",
-      "prev": "Previous",
-      "next": "Next",
-      "page": "Page {page}",
+      "needsConfig": "Configure this app to load data.",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",

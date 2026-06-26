@@ -94,7 +94,7 @@ type TaskActionParams =
     }
   | {
       operation: 'upsert_external';
-      projectId: string;
+      projectId?: string;
       externalSystem: string;
       externalId: string;
       title: string;
@@ -103,6 +103,8 @@ type TaskActionParams =
       labels?: string[];
       priority?: 'p0' | 'p1' | 'p2' | 'p3';
       externalState?: 'open' | 'closed';
+      dedupeScope?: 'org' | 'project';
+      createIfMissing?: boolean;
     };
 
 export const taskAction: ActionDefinition<TaskActionParams> = {
@@ -175,7 +177,9 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
     }),
     v.object({
       operation: v.literal('upsert_external'),
-      projectId: v.id('projects'),
+      // Optional: an org-scope, update-only reconcile (createIfMissing:false)
+      // needs no project — only the create path does.
+      projectId: v.optional(v.id('projects')),
       externalSystem: v.string(),
       externalId: v.string(),
       title: v.string(),
@@ -186,6 +190,10 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       externalState: v.optional(
         v.union(v.literal('open'), v.literal('closed')),
       ),
+      dedupeScope: v.optional(v.union(v.literal('org'), v.literal('project'))),
+      // false → only update tasks already on the board (close/reopen), never
+      // create one per issue. Default (create) keeps the intake-sync behavior.
+      createIfMissing: v.optional(v.boolean()),
     }),
   ),
   async execute(ctx, params, variables) {
@@ -394,7 +402,9 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
           {
             organizationId,
             actorId: WORKFLOW_ACTOR_ID,
-            projectId: toId<'projects'>(params.projectId),
+            projectId: params.projectId
+              ? toId<'projects'>(params.projectId)
+              : undefined,
             externalSystem: params.externalSystem,
             externalId: params.externalId,
             title: params.title,
@@ -407,12 +417,18 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
             labels: params.labels,
             priority: params.priority,
             externalState: params.externalState,
+            dedupeScope: params.dedupeScope,
+            createIfMissing: params.createIfMissing,
           },
         );
-        const task = await ctx.runQuery(
-          internal.tasks.internal_queries.getTaskByIdInternal,
-          { taskId: result.taskId, organizationId },
-        );
+        // An update-only reconcile (createIfMissing:false) no-ops when the issue
+        // has no task on the board — there's nothing to fetch or return.
+        const task = result.taskId
+          ? await ctx.runQuery(
+              internal.tasks.internal_queries.getTaskByIdInternal,
+              { taskId: result.taskId, organizationId },
+            )
+          : null;
         return { task, created: result.created };
       }
 
