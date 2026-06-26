@@ -427,6 +427,34 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.VIDEO_MP2T,
 ];
 
+/**
+ * Task attachment MIME validation list: images + documents only. A deliberate
+ * subset of {@link CHAT_UPLOAD_ALLOWED_TYPES} that drops audio/video — task
+ * attachments are reference material (screenshots, specs, sheets), not media
+ * that flows through the transcription pipeline. Used for BOTH the client
+ * upload gate (`useConvexFileUpload({ allowedTypes })`) and the server-side
+ * `validateTaskAttachments` check. Pair with {@link DOCUMENT_UPLOAD_ACCEPT} for
+ * the file-picker `accept` attribute.
+ */
+export const TASK_UPLOAD_ALLOWED_TYPES: readonly string[] = [
+  MIME_TYPES.JPEG,
+  MIME_TYPES.PNG,
+  MIME_TYPES.GIF,
+  MIME_TYPES.WEBP,
+  MIME_TYPES.PDF,
+  MIME_TYPES.PLAIN,
+  MIME_TYPES.DOC,
+  MIME_TYPES.DOCX,
+  MIME_TYPES.PPT,
+  MIME_TYPES.PPTX,
+  MIME_TYPES.XLS,
+  MIME_TYPES.XLSX,
+  MIME_TYPES.CSV,
+];
+
+/** Max attachments per task (parity with the chat per-message file cap). */
+export const TASK_MAX_ATTACHMENTS = 10;
+
 /** Allowed MIME types for document uploads (used for client + server validation) */
 const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PDF,
