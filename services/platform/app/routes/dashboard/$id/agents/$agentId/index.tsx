@@ -2,7 +2,7 @@ import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -171,19 +171,17 @@ function GeneralTab() {
     t,
   ]);
 
-  const [timeoutMinutes, setTimeoutMinutes] = useState(DEFAULT_TIMEOUT_MINUTES);
-  const [timeoutInitialized, setTimeoutInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!timeoutInitialized) {
-      setTimeoutMinutes(
-        config.timeoutMs
-          ? Math.round(config.timeoutMs / 60_000)
-          : DEFAULT_TIMEOUT_MINUTES,
-      );
-      setTimeoutInitialized(true);
-    }
-  }, [config.timeoutMs, timeoutInitialized]);
+  // Displayed minutes are DERIVED from `config.timeoutMs` (the source of
+  // truth) so a restore / any `overrideConfig` rehydrates the input — no
+  // one-shot useState mirror that latches the first value forever. While the
+  // user is actively typing we hold the raw text in `timeoutDraft`; it is
+  // `null` whenever the field is not being edited, so the input falls back to
+  // `config`. Clearing the draft on blur re-syncs the display to `config`.
+  const configTimeoutMinutes = config.timeoutMs
+    ? Math.round(config.timeoutMs / 60_000)
+    : DEFAULT_TIMEOUT_MINUTES;
+  const [timeoutDraft, setTimeoutDraft] = useState<string | null>(null);
+  const timeoutValue = timeoutDraft ?? String(configTimeoutMinutes);
 
   const teamOptions = useMemo(() => {
     const items = [{ value: NO_TEAM_VALUE, label: t('agents.form.teamNone') }];
@@ -258,11 +256,44 @@ function GeneralTab() {
     [updateConfig],
   );
 
+  // Commit a clamped minutes value into `config`, but only when it actually
+  // differs from what `config` already holds — so blurring a field the user
+  // never edited can never re-mark the form dirty or clobber a restored value.
+  const commitTimeout = useCallback(
+    (minutes: number) => {
+      const clamped = Math.max(1, Math.min(25, Math.round(minutes)));
+      const nextMs = clamped * 60_000;
+      if (nextMs !== config.timeoutMs) {
+        updateConfig({ timeoutMs: nextMs });
+      }
+    },
+    [config.timeoutMs, updateConfig],
+  );
+
+  const handleTimeoutChange = useCallback(
+    (raw: string) => {
+      setTimeoutDraft(raw);
+      // Only push valid numeric input through to `config`; an empty/partial
+      // entry stays in the draft until blur so typing isn't fought.
+      if (raw !== '') {
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) commitTimeout(parsed);
+      }
+    },
+    [commitTimeout],
+  );
+
   const handleTimeoutBlur = useCallback(() => {
-    const clamped = Math.max(1, Math.min(25, timeoutMinutes));
-    setTimeoutMinutes(clamped);
-    updateConfig({ timeoutMs: clamped * 60_000 });
-  }, [timeoutMinutes, updateConfig]);
+    // Re-sync the display to `config` once editing ends.
+    if (timeoutDraft === null) return;
+    const parsed = Number(timeoutDraft);
+    commitTimeout(
+      timeoutDraft !== '' && Number.isFinite(parsed)
+        ? parsed
+        : DEFAULT_TIMEOUT_MINUTES,
+    );
+    setTimeoutDraft(null);
+  }, [timeoutDraft, commitTimeout]);
 
   // Agent type (primaryBehavior) — Internal (chat, runs the platform tool loop)
   // vs External agent (Claude Code / OpenCode in a sandbox) vs Image generation.
@@ -482,12 +513,8 @@ function GeneralTab() {
             type="number"
             label={t('agents.general.timeoutMinutes')}
             description={t('agents.general.timeoutMinutesHelp')}
-            value={timeoutMinutes}
-            onChange={(e) =>
-              setTimeoutMinutes(
-                Number(e.target.value) || DEFAULT_TIMEOUT_MINUTES,
-              )
-            }
+            value={timeoutValue}
+            onChange={(e) => handleTimeoutChange(e.target.value)}
             onBlur={handleTimeoutBlur}
             min={1}
             max={25}
