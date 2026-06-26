@@ -237,13 +237,15 @@ function LocationRequestCardComponent({
                     ? 'destructive'
                     : 'blue'
               }
-              className="shrink-0 text-xs capitalize"
+              className="shrink-0 text-xs"
             >
               {status === 'completed'
                 ? t('statusShared')
                 : status === 'rejected'
                   ? t('statusDenied')
-                  : status}
+                  : status === 'executing'
+                    ? tCommon('statusExecuting')
+                    : tCommon('statusPending')}
             </Badge>
           </HStack>
         </Stack>

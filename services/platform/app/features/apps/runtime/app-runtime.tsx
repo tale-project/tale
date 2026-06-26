@@ -27,6 +27,13 @@ export interface AppRuntime {
    * Connected blocks resolve `ui.labelKey` against this via `usePackLabel`.
    */
   labels: Record<string, string>;
+  /**
+   * The app's per-install config values (`requires.config` keys → values, e.g. a
+   * configured github `owner`/`repo`). Connected blocks resolve `$config:<key>`
+   * and `{key}` templates against this, so a view targets the operator's own repo
+   * with no hardcoded literal. Empty until configured.
+   */
+  config: Record<string, unknown>;
 }
 
 const AppRuntimeContext = createContext<AppRuntime | null>(null);

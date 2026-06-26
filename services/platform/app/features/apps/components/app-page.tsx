@@ -33,6 +33,7 @@ import { useT } from '@/lib/i18n/client';
 import { startCase } from '@/lib/utils/string';
 
 import { useAppAgentReadiness } from '../hooks/use-app-agent-readiness';
+import { useAppConfig } from '../hooks/use-app-config';
 import { resolvePackLabels } from '../hooks/use-app-pack-labels';
 import {
   type AppSummary,
@@ -48,6 +49,7 @@ import {
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
+import { AppConfigDrawer } from './app-config-drawer';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
@@ -288,6 +290,16 @@ function InstalledAppBody({
   lifecycleContext: 'org' | 'project';
 }) {
   const { t } = useT('apps');
+  const { config } = useAppConfig(organizationId, appSlug);
+  const [configOpen, setConfigOpen] = useState(false);
+  const hasConfig = app.requiredConfig.length > 0;
+  // "Configured" = every declared field has a stored value. While false, a
+  // prompt nudges setup; while true, config lives only in the ⋯ menu → panel.
+  const isConfigured = app.requiredConfig.every((f) => {
+    if (f.type === 'boolean') return true;
+    const v = config[f.key];
+    return (typeof v === 'string' || typeof v === 'number') && String(v) !== '';
+  });
   const lifecycle = (
     <AppLifecycleActions
       appSlug={appSlug}
@@ -295,6 +307,7 @@ function InstalledAppBody({
       organizationId={organizationId}
       context={lifecycleContext}
       projectId={projectId}
+      onConfigure={hasConfig ? () => setConfigOpen(true) : undefined}
     />
   );
   return (
@@ -305,6 +318,7 @@ function InstalledAppBody({
         appSlug,
         allowlist: app.functions,
         labels,
+        config,
       }}
     >
       <ResourceDetailProvider>
@@ -317,6 +331,32 @@ function InstalledAppBody({
             blockedIntegrations={blockedIntegrations}
             projectId={projectId}
           />
+          {hasConfig && !isConfigured && (
+            <Card>
+              <HStack className="items-center justify-between gap-3">
+                <VStack gap={1} className="min-w-0">
+                  <Text className="font-medium">{t('config.setupTitle')}</Text>
+                  <Text variant="muted" className="text-sm">
+                    {t('config.setupPrompt')}
+                  </Text>
+                </VStack>
+                <Button onClick={() => setConfigOpen(true)}>
+                  {t('config.configure')}
+                </Button>
+              </HStack>
+            </Card>
+          )}
+          {hasConfig && (
+            <AppConfigDrawer
+              open={configOpen}
+              onOpenChange={setConfigOpen}
+              organizationId={organizationId}
+              appSlug={appSlug}
+              fields={app.requiredConfig}
+              config={config}
+              resolveLabel={(labelKey) => labels[labelKey] ?? labelKey}
+            />
+          )}
           {app.views.length === 0 ? (
             <VStack gap={4}>
               <HStack className="justify-end">{lifecycle}</HStack>

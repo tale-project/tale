@@ -685,13 +685,13 @@ function HumanInputRequestCardComponent({
                     ? 'blue'
                     : 'destructive'
               }
-              className="shrink-0 text-xs capitalize"
+              className="shrink-0 text-xs"
             >
               {status === 'completed'
                 ? t('statusResponded')
                 : status === 'executing'
                   ? t('statusProcessing')
-                  : status}
+                  : tCommon('statusRejected')}
             </Badge>
           )}
         </HStack>
