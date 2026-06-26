@@ -22,7 +22,7 @@ export interface DerivableConfigField {
   derive?: { pattern: string; into: string[] };
 }
 
-export interface DeriveConfigResult {
+interface DeriveConfigResult {
   /** The map to persist: each field's raw value PLUS every derived sub-key. */
   values: Record<string, string | number | boolean>;
   /** Field keys whose `derive` rule didn't match the entered value (non-empty
