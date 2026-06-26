@@ -30,7 +30,7 @@ describe('notifyOnInstallFailure', () => {
   });
 
   it('omits the description when the rejection is not an Error', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     notifyOnInstallFailure(
       Promise.reject('boom'),
@@ -44,6 +44,7 @@ describe('notifyOnInstallFailure', () => {
       description: undefined,
       variant: 'destructive',
     });
+    expect(errorSpy).toHaveBeenCalledWith('boom');
   });
 
   it('does not toast when the action resolves', async () => {
