@@ -26,6 +26,7 @@ import {
   notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
+import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
@@ -36,6 +37,10 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
 import { canClaimTask, checkProjectAccess, normalizeAssignee } from './access';
+import {
+  cleanupRemovedAttachments,
+  validateTaskAttachments,
+} from './attachments';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_COMMENT_RESOURCE_TYPE,
@@ -70,6 +75,7 @@ import {
   boardViewScopeValidator,
   type CommentEventComment,
   taskActorTypeValidator,
+  taskAttachmentValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -232,6 +238,7 @@ export const createTask = mutation({
     projectId: v.id('projects'),
     title: v.string(),
     description: v.optional(v.string()),
+    attachments: v.optional(v.array(taskAttachmentValidator)),
     status: v.optional(taskStatusValidator),
     priority: v.optional(taskPriorityValidator),
     labels: v.optional(v.array(v.string())),
@@ -258,6 +265,11 @@ export const createTask = mutation({
     const title = validateTitle(args.title);
     const description = validateDescription(args.description);
     const labels = validateLabels(args.labels);
+    const attachments = await validateTaskAttachments(
+      ctx,
+      args.organizationId,
+      args.attachments,
+    );
     const status = args.status ?? 'backlog';
     const assignee = normalizeAssignee({
       assigneeType: args.assigneeType,
@@ -283,6 +295,7 @@ export const createTask = mutation({
       projectId: args.projectId,
       title,
       description,
+      attachments,
       status,
       priority: args.priority,
       labels,
@@ -382,6 +395,7 @@ export const updateTask = mutation({
     taskId: v.id('tasks'),
     title: v.optional(v.string()),
     description: v.optional(v.union(v.string(), v.null())),
+    attachments: v.optional(v.array(taskAttachmentValidator)),
     priority: v.optional(v.union(taskPriorityValidator, v.null())),
     labels: v.optional(v.array(v.string())),
     dueDate: v.optional(v.union(v.number(), v.null())),
@@ -415,6 +429,14 @@ export const updateTask = mutation({
       patch.labels = validateLabels(args.labels);
       changedFields.push('labels');
     }
+    if (args.attachments !== undefined) {
+      patch.attachments = await validateTaskAttachments(
+        ctx,
+        task.organizationId,
+        args.attachments,
+      );
+      changedFields.push('attachments');
+    }
     if (args.dueDate !== undefined) {
       patch.dueDate = args.dueDate === null ? undefined : args.dueDate;
       // Any deadline change restarts the SLA escalation ladder: clearing the
@@ -428,6 +450,13 @@ export const updateTask = mutation({
     if (changedFields.length === 0) return null;
 
     await ctx.db.patch(args.taskId, patch);
+
+    // Purge storage for any attachment the edit dropped (full-replace ⇒ the
+    // diff against the prior set is what was removed). Runs after the patch so
+    // the row already reflects the new set if a later step throws.
+    if (args.attachments !== undefined) {
+      await cleanupRemovedAttachments(ctx, task.attachments, patch.attachments);
+    }
 
     // A description edit fans out its NEWLY added @mentions only — reworded
     // prose around an existing mention must not re-notify or re-trigger.
@@ -1712,6 +1741,11 @@ async function deleteTaskTree(
       threadId: task.discussionThreadId,
       organizationId: task.organizationId,
     });
+  }
+  // Attachments aren't thread-bound, so the thread cascade above can't reach
+  // them — purge each blob + its fileMetadata row explicitly.
+  for (const att of task?.attachments ?? []) {
+    await deleteStorageWithMetadata(ctx, att.fileId);
   }
   for await (const activity of ctx.db
     .query('taskActivity')

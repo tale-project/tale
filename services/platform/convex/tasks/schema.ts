@@ -67,6 +67,22 @@ export const taskCreatorTypeValidator = v.union(
   v.literal('app'),
 );
 
+/**
+ * A single image/document attached to a task. Stored SELF-DESCRIBED (name +
+ * MIME + size alongside the storage id) so the board/detail render without a
+ * join back to `fileMetadata` — mirroring how chat messages embed their
+ * attachments. `fileId` is the Convex `_storage` id; the URL is resolved at
+ * render time (`getFileUrl`). The list is bounded by `TASK_MAX_ATTACHMENTS` and
+ * each `fileType` is validated against `TASK_UPLOAD_ALLOWED_TYPES` in the
+ * mutation layer (`validateTaskAttachments`).
+ */
+export const taskAttachmentValidator = v.object({
+  fileId: v.id('_storage'),
+  fileName: v.string(),
+  fileType: v.string(),
+  fileSize: v.number(),
+});
+
 export const tasksTable = defineTable({
   organizationId: v.string(),
   projectId: v.id('projects'),
@@ -74,6 +90,11 @@ export const tasksTable = defineTable({
   // Content
   title: v.string(),
   description: v.optional(v.string()),
+
+  // Image/document attachments (images + documents only — no audio/video).
+  // Self-described so the UI renders without a fileMetadata join; full-replaced
+  // by createTask/updateTask like `labels`. Bounded by TASK_MAX_ATTACHMENTS.
+  attachments: v.optional(v.array(taskAttachmentValidator)),
 
   // Per-project sequence number claimed at creation from `projects.taskCounter`.
   // Combined with `projects.key` it forms the human-readable id (e.g. `TAL-7`).
