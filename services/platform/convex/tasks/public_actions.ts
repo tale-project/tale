@@ -139,20 +139,27 @@ export const createTaskFromExternalIssue = action({
         dedupeScope: args.projectId ? 'project' : 'org',
       },
     );
+    // Creation is unconditional here (a projectId is always resolved above and
+    // createIfMissing defaults true), so a null id is unreachable — guard it
+    // anyway since the upsert now returns null for update-only reconciles.
+    const taskId = result.taskId;
+    if (!taskId) {
+      throw new Error('Failed to create or find the task for this issue');
+    }
 
     let executionId: string | null | undefined;
     if (args.runWorkflowSlug && result.created) {
       // The workflow reads the full task doc (input.task.{_id,title,externalUrl,
       // description,...}); fetch it rather than re-deriving the shape here.
       const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
-        taskId: result.taskId,
+        taskId,
       });
       if (!loaded?.task) {
         // Just-created task isn't readable back (e.g. raced delete): don't start
         // a run doomed to fail on a null input.task — surface no run instead.
         console.error(
           '[create-task] created task not readable; skipping workflow start',
-          result.taskId,
+          taskId,
         );
         executionId = null;
       } else {
@@ -164,7 +171,7 @@ export const createTaskFromExternalIssue = action({
       }
     }
 
-    return { taskId: result.taskId, created: result.created, executionId };
+    return { taskId, created: result.created, executionId };
   },
 });
 

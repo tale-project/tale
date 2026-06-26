@@ -59,12 +59,38 @@ function upsert(
   );
 }
 
-async function taskProjectId(t: T, taskId: string): Promise<string> {
+async function taskProjectId(t: T, taskId: string | null): Promise<string> {
+  if (!taskId) throw new Error('expected a taskId');
   return await t.run(async (ctx) => {
     const task = await ctx.db.get(taskId as Id<'tasks'>);
     if (!task) throw new Error('task not found');
     return String(task.projectId);
   });
+}
+
+async function taskStatus(t: T, taskId: string | null): Promise<string> {
+  if (!taskId) throw new Error('expected a taskId');
+  return await t.run(async (ctx) => {
+    const task = await ctx.db.get(taskId as Id<'tasks'>);
+    if (!task) throw new Error('task not found');
+    return task.status;
+  });
+}
+
+// The update-only reconcile call: org-scope, NO projectId, never creates.
+function reconcile(t: T, externalId: string, externalState: 'open' | 'closed') {
+  return t.mutation(
+    internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+    {
+      organizationId: ORG,
+      actorId: 'workflow',
+      externalSystem: 'github',
+      externalId,
+      title: `Issue ${externalId}`,
+      externalState,
+      createIfMissing: false,
+    },
+  );
 }
 
 describe('agentUpsertTaskByExternalRef — dedup scope', () => {
@@ -111,5 +137,37 @@ describe('agentUpsertTaskByExternalRef — dedup scope', () => {
     expect(b.taskId).toBe(a.taskId);
     // The task stays in the project that first materialized it (projectId is not re-homed).
     expect(await taskProjectId(t, b.taskId)).toBe(String(projectA));
+  });
+});
+
+describe('agentUpsertTaskByExternalRef — createIfMissing (update-only reconcile)', () => {
+  it('no-ops when the issue has no task on the board (and needs no projectId)', async () => {
+    const t = convexTest(schema, modules);
+
+    const res = await reconcile(t, 'owner/repo#999', 'closed');
+
+    expect(res).toEqual({ taskId: null, created: false });
+    const count = await t.run(
+      async (ctx) => (await ctx.db.query('tasks').collect()).length,
+    );
+    expect(count).toBe(0); // never materialized a task for an untracked issue
+  });
+
+  it('closes an existing task when its issue closed — org-scoped, without a projectId', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    // The desk created the task earlier (open).
+    const created = await upsert(t, projectA, 'owner/repo#1851');
+    expect(created.created).toBe(true);
+    expect(created.taskId).not.toBeNull();
+
+    // A PR merged out of band closed the issue; reconcile finds the task by
+    // org+externalId (no projectId) and moves it to done.
+    const res = await reconcile(t, 'owner/repo#1851', 'closed');
+
+    expect(res.created).toBe(false);
+    expect(res.taskId).toBe(created.taskId);
+    expect(await taskStatus(t, created.taskId)).toBe('done');
   });
 });

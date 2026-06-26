@@ -33,7 +33,7 @@ function AppRunDetail() {
   const { labels } = useAppPackLabels(organizationId, appSlug);
   return (
     <AppRuntimeProvider
-      value={{ organizationId, appSlug, allowlist: [], labels }}
+      value={{ organizationId, appSlug, allowlist: [], labels, config: {} }}
     >
       <VStack gap={4}>
         <Link
