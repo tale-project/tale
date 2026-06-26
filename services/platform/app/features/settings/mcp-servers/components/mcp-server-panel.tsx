@@ -83,8 +83,9 @@ export function McpServerPanel({
         toast({ title: t('connected'), variant: 'success' });
         onUpdated();
       }
-    } catch {
-      setTestResult({ success: false, error: 'Connection test failed' });
+    } catch (err) {
+      console.error('[mcp-server-panel] connection test failed', err);
+      setTestResult({ success: false, error: t('connectionTestFailed') });
     } finally {
       setIsTesting(false);
     }
@@ -110,7 +111,8 @@ export function McpServerPanel({
         toast({ title: t('saved'), variant: 'success' });
         setIsEditing(false);
         onUpdated();
-      } catch {
+      } catch (err) {
+        console.error('[mcp-server-panel] update failed', err);
         toast({
           title: t('error'),
           variant: 'destructive',
@@ -132,7 +134,8 @@ export function McpServerPanel({
       toast({ title: t('deleted'), variant: 'success' });
       onOpenChange(false);
       onDeleted();
-    } catch {
+    } catch (err) {
+      console.error('[mcp-server-panel] delete failed', err);
       toast({
         title: t('error'),
         variant: 'destructive',
@@ -152,7 +155,8 @@ export function McpServerPanel({
         status: newStatus,
       });
       onUpdated();
-    } catch {
+    } catch (err) {
+      console.error('[mcp-server-panel] toggle status failed', err);
       toast({ title: t('error'), variant: 'destructive' });
     }
   }, [updateStatusAction, server._id, server.status, onUpdated, t]);

@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { jsonRecordValidator } from '../lib/validators/json';
+
 /**
  * One row per installed app per org — the ORG-LEVEL resource ledger. An app is
  * installed by COPYING its bundle's resources (agents/workflows/integration-defs)
@@ -54,6 +56,16 @@ export const appInstallationsTable = defineTable({
       contentHash: v.string(),
     }),
   ),
+  /**
+   * Per-install configuration values the user supplied for the app's declared
+   * `requires.config` keys (e.g. a GitHub `owner`/`repo`), keyed by config key.
+   * Org+app scoped (one repo per org install). Read by views via the `$config:`
+   * binding token and synced into the app's scheduled-workflow `variables` by
+   * `setAppConfig`, so an app ships repo-agnostic and the operator points it at
+   * their own repo at install — no hardcoded targets. Preserved across reinstall
+   * (the resource-ledger refresh never touches it). Absent until configured.
+   */
+  config: v.optional(jsonRecordValidator),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_slug', ['organizationId', 'appSlug']);

@@ -128,13 +128,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           }
         }
 
-        // Per-type ceiling: audio max file size is 1 GB (duration is the
-        // real gate — see audio duration check below); other types cap at
-        // the generic `maxFileSize`.
-        const perTypeLimit = Math.min(
-          mergedConfig.maxFileSize,
-          getMaxFileSizeForType(resolvedType),
-        );
+        // Per-type ceiling. Audio/video may exceed the generic per-file cap:
+        // duration (the 4-hour check below) and the total-attachment-size cap
+        // are the real gates for media, so we use the (higher) media ceiling
+        // rather than clamping it back down to the generic `maxFileSize`. The
+        // old `Math.min(maxFileSize, mediaCeiling)` collapsed the media ceiling
+        // to the 100 MB generic cap, rejecting 100–200 MB audio/video outright.
+        // A governance upload policy that sets an explicit max file size still
+        // bounds every type, media included.
+        const typeCeiling = getMaxFileSizeForType(resolvedType);
+        const perTypeLimit = policyLimits.policyEnabled
+          ? Math.min(mergedConfig.maxFileSize, typeCeiling)
+          : typeCeiling;
         if (file.size > perTypeLimit) {
           rejectedTooLarge.push(file);
         } else if (!isAllowedType) {
@@ -205,7 +210,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         const names = rejectedType.map((f) => f.name).join(', ');
         toast({
           title: t('invalidFiles'),
-          description: t('fileTypeNotAllowed', { names }),
+          // Unsupported type — distinct from a governance-policy block
+          // (rejectedExtension), which keeps the policy-worded message. #2086
+          description: t('fileTypeUnsupported', { names }),
           variant: 'destructive',
         });
       }

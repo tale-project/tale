@@ -280,9 +280,7 @@ function ScreencastViewport({
         }
         aria-label={
           control
-            ? t('liveBrowser.ariaLabelControl', {
-                defaultValue: 'Live browser — you are controlling it',
-              })
+            ? t('liveBrowser.ariaLabelControl')
             : t('liveBrowser.ariaLabel', {
                 defaultValue: 'Live view of the agent’s browser (read-only)',
               })
@@ -351,7 +349,7 @@ function ControlBadge({ control }: { control: boolean }) {
   const { t } = useT('chat');
   return control ? (
     <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-      {t('liveBrowser.controlling', { defaultValue: 'You’re in control' })}
+      {t('liveBrowser.controlling')}
     </span>
   ) : (
     <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">

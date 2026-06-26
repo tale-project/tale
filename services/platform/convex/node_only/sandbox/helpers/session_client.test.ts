@@ -4,9 +4,39 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
-import { drainSessionExecResilient } from './session_client';
+import { drainSessionExecResilient, sessionCreate } from './session_client';
 
 const enc = new TextEncoder();
+
+/** A spawner 503 "draining" body — the bare `sandbox` alias is mid-flip. */
+function drainingResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      error: 'draining',
+      message: 'spawner is draining; create on the active colour',
+    }),
+    { status: 503, headers: { 'content-type': 'application/json' } },
+  );
+}
+
+/** A successful create body, tagged with the colour the spawner answered on. */
+function createdResponse(sessionId: string, color: string): Response {
+  const session = {
+    sessionId,
+    organizationId: 'org-1',
+    profile: 'agent',
+    state: 'ready',
+    backend: 'docker',
+    createdAtMs: 1,
+    lastActivityAtMs: 1,
+    expiresAtMs: 2,
+    idleTimeoutMs: 1,
+  };
+  return new Response(JSON.stringify({ session }), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'x-sandbox-color': color },
+  });
+}
 
 /** Build a Response whose body is an SSE stream of the given raw blocks. */
 function sseResponse(blocks: string[]): Response {
@@ -103,4 +133,50 @@ describe('drainSessionExecResilient', () => {
     // Longer timeout: the give-up path deliberately sleeps the full linear
     // backoff (0.5+1+1.5+2+2.5s ≈ 7.5s) across the 5 retries.
   }, 15_000);
+});
+
+describe('sessionCreate drain-retry', () => {
+  test('retries past a 503 draining and creates on the active colour', async () => {
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      // First attempt lands on the draining old colour mid-flip; the re-POST
+      // re-resolves the `sandbox` alias onto the active (green) colour.
+      return n === 1 ? drainingResponse() : createdResponse('ses-x', 'green');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const result = await sessionCreate({
+      sessionId: 'ses-x',
+      organizationId: 'org-1',
+      profile: 'agent',
+    });
+
+    expect(n).toBe(2);
+    expect(result.session.sessionId).toBe('ses-x');
+    expect(result.spawnerColor).toBe('green');
+  });
+
+  test('gives up after the max drain retries', async () => {
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      return drainingResponse();
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    await expect(
+      sessionCreate({
+        sessionId: 'ses-y',
+        organizationId: 'org-1',
+        profile: 'agent',
+      }),
+    ).rejects.toThrow(/draining/);
+    // 1 initial + CREATE_DRAIN_RETRY_MAX (5) retries; the 6th attempt has
+    // attempt === MAX, so it falls through to the generic 503 failure.
+    expect(n).toBe(6);
+    // The give-up path sleeps 5 × 400ms ≈ 2s across the retries.
+  }, 10_000);
 });
