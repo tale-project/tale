@@ -1659,6 +1659,7 @@
     },
     "canvas": {
       "title": "Canevas",
+      "noFile": "Aucun fichier sélectionné",
       "stripOpen": "Ouvrir le canevas",
       "download": "Télécharger",
       "mermaidError": "Échec du rendu du diagramme",
@@ -1788,6 +1789,8 @@
       "emptyTitle": "L'agent ne navigue pas en ce moment",
       "emptyHint": "Lance une requête — dès que l'agent ouvre un navigateur, tu le verras ici, en direct.",
       "ariaLabel": "Vue en direct du navigateur de l'agent (lecture seule)",
+      "ariaLabelControl": "Navigateur en direct — tu le contrôles",
+      "controlling": "Tu as le contrôle",
       "reset": "Réinitialiser le navigateur (efface les connexions)",
       "resetConfirmTitle": "Réinitialiser le navigateur ?",
       "resetConfirmBody": "Redémarre le navigateur avec un profil vierge et te déconnecte de tous les sites où l'agent s'était connecté. À n'utiliser que si le navigateur est bloqué et ne se rétablit pas tout seul.",
@@ -1795,6 +1798,7 @@
     },
     "chatPanel": {
       "stripAria": "Panneau de discussion",
+      "tablistAria": "Ouvrir le panneau",
       "ariaLabel": "Panneau de discussion",
       "minimize": "Réduire le panneau de discussion",
       "resizeAria": "Redimensionner le panneau de discussion",

@@ -141,7 +141,7 @@ function FileViewerRouterComponent({
     return (
       <Stack gap={2} className="h-full items-center justify-center p-8">
         <Text variant="muted" className="text-sm">
-          {t('canvas.noFile', { defaultValue: 'No file selected' })}
+          {t('canvas.noFile')}
         </Text>
       </Stack>
     );

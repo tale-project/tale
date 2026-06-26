@@ -1677,6 +1677,7 @@
     },
     "canvas": {
       "title": "Canvas",
+      "noFile": "No file selected",
       "stripOpen": "Open canvas",
       "download": "Download",
       "mermaidError": "Failed to render diagram",
@@ -1787,6 +1788,8 @@
       "emptyTitle": "The agent isn’t browsing right now",
       "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
       "ariaLabel": "Live view of the agent’s browser (read-only)",
+      "ariaLabelControl": "Live browser — you are controlling it",
+      "controlling": "You’re in control",
       "reset": "Reset browser (clears logins)",
       "resetConfirmTitle": "Reset browser?",
       "resetConfirmBody": "Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.",
@@ -1794,6 +1797,7 @@
     },
     "chatPanel": {
       "stripAria": "Chat panel",
+      "tablistAria": "Open panel",
       "ariaLabel": "Chat panel",
       "minimize": "Minimize chat panel",
       "resizeAria": "Resize chat panel",

@@ -160,9 +160,7 @@ export function ChatPanel() {
       <div className="border-border flex items-center gap-2 border-b px-3 py-1.5">
         <div
           role="tablist"
-          aria-label={t('chatPanel.tablistAria', {
-            defaultValue: 'Open panel',
-          })}
+          aria-label={t('chatPanel.tablistAria')}
           aria-orientation="horizontal"
           onKeyDown={onTabKeyDown}
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
