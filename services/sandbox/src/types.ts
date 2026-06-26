@@ -290,6 +290,23 @@ export interface SpawnerConfig {
   // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
   // otherwise. The one-shot /v1/execute path never enables this.
   dockerInContainer: boolean;
+  // Shared cross-session docker build cache (env SANDBOX_DOCKER_BUILD_CACHE;
+  // DEFAULT = follows dockerInContainer, i.e. on whenever DinD is on). When on,
+  // the spawner lazily launches a single persistent buildkitd + pull-through
+  // registry mirror (see buildkitd.ts) and each session's entrypoint points a
+  // remote buildx builder at it, so `docker build` / `docker compose up --build`
+  // reuse one build cache across sessions instead of each rebuilding from zero.
+  // Inert without DinD; set false to opt out (keeps the extra daemons off).
+  dockerBuildCache: boolean;
+  // The shared buildkitd image ref the spawner launches (env
+  // SANDBOX_BUILDKITD_IMAGE). Defaults to a dev tag; release deployments pin the
+  // ghcr ref so the daemon matches the deployed version.
+  buildkitdImage: string;
+  // The pull-through registry mirror image (env SANDBOX_BUILDKITD_MIRROR_IMAGE;
+  // default stock `registry:2`) launched alongside the buildkitd so base-image
+  // pulls resolve by name on the internal net (buildkit can't resolve external
+  // registry names through docker's embedded DNS).
+  buildkitdMirrorImage: string;
   // Live browser view (env SANDBOX_BROWSER_VIEW; default false). When true the
   // session container is launched with TALE_BROWSER_CDP=1, so the entrypoint
   // brings up a headed Chromium with a loopback CDP endpoint mirrored read-only

@@ -363,6 +363,10 @@
         "typescript": "^5.6.0",
       },
     },
+    "services/sandbox-buildkitd": {
+      "name": "@tale/sandbox-buildkitd",
+      "version": "0.1.0",
+    },
     "services/sandbox-egress": {
       "name": "@tale/sandbox-egress",
       "version": "0.1.0",
@@ -1938,6 +1942,8 @@
     "@tale/proxy": ["@tale/proxy@workspace:services/proxy"],
 
     "@tale/sandbox": ["@tale/sandbox@workspace:services/sandbox"],
+
+    "@tale/sandbox-buildkitd": ["@tale/sandbox-buildkitd@workspace:services/sandbox-buildkitd"],
 
     "@tale/sandbox-egress": ["@tale/sandbox-egress@workspace:services/sandbox-egress"],
 

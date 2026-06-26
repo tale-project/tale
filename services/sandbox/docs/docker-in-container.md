@@ -167,6 +167,72 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   (per-container userns shifting makes a shared cross-session volume unsafe).
   Installs still work, just uncached across sessions.
 
+## Shared build cache (on by default under DinD)
+
+By default a session's inner `/var/lib/docker` is ephemeral, so every session
+that runs `docker build` / `docker compose up --build` rebuilds **all** layers
+from zero. The shared build cache makes those builds reuse one persistent cache
+across sessions.
+
+It is **on by default whenever DinD is enabled** (it's a strict, best-effort
+improvement — a failed daemon falls back to the inner builder — so there's no
+reason to opt in twice). Turn it off explicitly to keep the extra daemons off:
+
+```
+# env on the `sandbox` service, or deployment.json: sandboxRuntime.dockerBuildCache
+SANDBOX_DOCKER_BUILD_CACHE=false    # opt OUT (default follows DinD)
+```
+
+How it works (all spawner-managed; the user does nothing per build):
+
+- The spawner lazily launches **one persistent buildkitd** (image
+  `services/sandbox-buildkitd/`, container `tale-buildkitd`) on
+  `tale-sandbox-net`, with its content-addressed cache on a persistent volume
+  (`tale-buildkitd-cache` → `/var/lib/buildkit`, GC-bounded).
+- …and **one pull-through registry mirror** (stock `registry:2`, container
+  `tale-buildkitd-mirror`, volume `tale-buildkitd-mirror-cache`). This is
+  **load-bearing, not just a cache**: buildkit's image-pull DNS runs in the
+  daemon via Go's resolver against docker's embedded resolver (`127.0.0.11`),
+  which SERVFAILs Go's queries for **external** registry names on a user-defined
+  network — and can't be fixed from inside the container (resolv.conf / `[dns]` /
+  `GODEBUG` are all ignored for pulls). So the buildkitd is configured to mirror
+  `docker.io` at the registry by its **container name** (a _sibling_ name, which
+  the embedded resolver answers locally → no SERVFAIL); the mirror reaches Docker
+  Hub through the `sandbox-egress` proxy. The mirror also caches base-image
+  layers across sessions.
+- Each session's entrypoint creates a **remote buildx builder** pointing at the
+  buildkitd and sets `BUILDX_BUILDER`, so `docker build` / `docker buildx build`
+  / `docker compose up --build` run on the shared daemon **with no per-build
+  flags**. The daemon's own internal cache is the shared cache — no
+  `--cache-to/--cache-from`.
+- **Egress is still fenced.** Build RUN steps run in the buildkitd's netns
+  (`--oci-worker-net=host`) and reach the internet only through the
+  `sandbox-egress` proxy (redsocks redirect + IMDS/RFC1918 fence; RUN-step DNS is
+  pinned to the egress dnsmasq via the buildkitd's `[dns]` config). Verified:
+  `apk add`/`curl` reach the internet, `169.254.169.254` (IMDS) is blocked.
+- **Best-effort.** If the daemon can't be reached, the session falls back to its
+  own inner builder (cold cache); it never blocks session creation.
+
+Notes / limits:
+
+- `docker compose up --build` auto-loads the built image into the session's
+  inner docker, so build + run is transparent. A bare `docker build` to the
+  remote builder leaves the image in the cache only (add `--load` to run it).
+- **Mirrors cover `docker.io`, `ghcr.io`, `quay.io`** (one `registry:2` instance
+  per upstream — `registry:2` proxies one upstream each). A `FROM` base image
+  from a registry **outside this set** can't be pulled (buildkit can't resolve
+  its external name) — add it to `MIRROR_REGISTRIES` in `buildkitd.ts`. The
+  operator's host must be able to pull the mirror image
+  (`SANDBOX_BUILDKITD_MIRROR_IMAGE`, default `registry:2`).
+- **One global daemon + mirror in v1** — caches shared across orgs (acceptable
+  for single-enterprise self-host). The spawner helpers (`buildkitd.ts`) are
+  keyed by org id, so per-org isolation later is a name change + a per-org
+  network / mTLS.
+- buildkitd runs `--privileged` (host-level shared infra, not user code); the
+  build egress fence still applies. Rootless buildkitd is a hardening follow-up.
+- All addresses are resolved **dynamically** (the mirror by its stable container
+  name; the egress proxy by name via the embedded resolver) — no hardcoded IPs.
+
 ## v1 limitations
 
 - **Public images only.** Private-registry `docker login` / credential handling

@@ -10,6 +10,8 @@ import { loadConfig } from './config.ts';
 const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
+  'SANDBOX_DOCKER_BUILD_CACHE',
+  'SANDBOX_BUILDKITD_IMAGE',
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
@@ -163,6 +165,55 @@ describe('loadConfig — docker-in-container gating', () => {
       process.env.SANDBOX_DOCKER_IN_CONTAINER = '';
       expect(loadConfig().dockerInContainer).toBe(true);
     });
+  });
+});
+
+describe('loadConfig — shared build cache', () => {
+  test('default FOLLOWS DinD: off on runc (DinD off), with image defaults', () => {
+    const cfg = loadConfig(); // runc → DinD off → cache off
+    expect(cfg.dockerBuildCache).toBe(false);
+    expect(cfg.buildkitdImage).toBe('tale-sandbox-buildkitd:latest');
+    expect(cfg.buildkitdMirrorImage).toBe('registry:2');
+  });
+
+  test('default FOLLOWS DinD: ON when DinD is on (sysbox), no flag needed', () => {
+    process.env.SANDBOX_RUNTIME = 'sysbox'; // DinD default on → cache default on
+    const cfg = loadConfig();
+    expect(cfg.dockerInContainer).toBe(true);
+    expect(cfg.dockerBuildCache).toBe(true);
+  });
+
+  test('explicit SANDBOX_DOCKER_BUILD_CACHE=false disables it under DinD', () => {
+    process.env.SANDBOX_RUNTIME = 'sysbox';
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'false';
+    const cfg = loadConfig();
+    expect(cfg.dockerInContainer).toBe(true);
+    expect(cfg.dockerBuildCache).toBe(false);
+  });
+
+  test('deployment.json dockerBuildCache overrides the env', () => {
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'false';
+    writeDeployment({
+      version: 1,
+      sandboxRuntime: { dockerInContainer: true, dockerBuildCache: true },
+    });
+    expect(loadConfig().dockerBuildCache).toBe(true);
+  });
+
+  test('on without DinD is allowed (inert; warns, does not throw)', () => {
+    process.env.SANDBOX_RUNTIME = 'runc';
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'true';
+    const cfg = loadConfig();
+    expect(cfg.dockerBuildCache).toBe(true);
+    expect(cfg.dockerInContainer).toBe(false);
+  });
+
+  test('SANDBOX_BUILDKITD_IMAGE overrides the image ref', () => {
+    process.env.SANDBOX_BUILDKITD_IMAGE =
+      'ghcr.io/acme/tale-sandbox-buildkitd:v9';
+    expect(loadConfig().buildkitdImage).toBe(
+      'ghcr.io/acme/tale-sandbox-buildkitd:v9',
+    );
   });
 });
 

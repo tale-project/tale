@@ -11,16 +11,17 @@ L'architecture des conteneurs vit dans [Architecture des conteneurs](/fr/self-ho
 
 La stack est entièrement TypeScript — pas d'image Python. Chaque image a un Dockerfile sous `services/<name>/` :
 
-| Image                  | Chemin source               | Base                        |
-| ---------------------- | --------------------------- | --------------------------- |
-| `tale-proxy`           | `services/proxy/`           | Caddy                       |
-| `tale-platform`        | `services/platform/`        | Bun + Debian slim           |
-| `tale-convex`          | `services/convex/`          | Convex local-backend        |
-| `tale-db`              | `services/db/`              | ParadeDB (Postgres)         |
-| `tale-sandbox`         | `services/sandbox/`         | Bun + CLI Docker            |
-| `tale-sandbox-egress`  | `services/sandbox-egress/`  | Alpine + tinyproxy          |
-| `tale-sandbox-runtime` | `services/sandbox-runtime/` | Bun + Chromium + Playwright |
-| `tale-controller`      | `services/controller/`      | Bun + CLI Docker            |
+| Image                    | Chemin source                 | Base                         |
+| ------------------------ | ----------------------------- | ---------------------------- |
+| `tale-proxy`             | `services/proxy/`             | Caddy                        |
+| `tale-platform`          | `services/platform/`          | Bun + Debian slim            |
+| `tale-convex`            | `services/convex/`            | Convex local-backend         |
+| `tale-db`                | `services/db/`                | ParadeDB (Postgres)          |
+| `tale-sandbox`           | `services/sandbox/`           | Bun + CLI Docker             |
+| `tale-sandbox-egress`    | `services/sandbox-egress/`    | Alpine + tinyproxy           |
+| `tale-sandbox-runtime`   | `services/sandbox-runtime/`   | Bun + Chromium + Playwright  |
+| `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | Debian + BuildKit + redsocks |
+| `tale-controller`        | `services/controller/`        | Bun + CLI Docker             |
 
 Les deux conteneurs de base de données — `db` et `knowledge-db` — se construisent depuis la même image ParadeDB `tale-db` ; la différence est la base que chacun sert. La gateway LLM, `tale-llm-gateway`, est une image amont pinnée (`maximhq/bifrost`), elle n'a donc pas de Dockerfile dans le repo. Les fichiers compose à la racine du repo (`compose.yml` pour développement, le compose de production généré par la CLI) les référencent via `ghcr.io/tale-project/tale/<image>:<tag>`. Un build local remplace le pull de registre par un bloc `build:` dans compose.
 

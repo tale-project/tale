@@ -1,0 +1,28 @@
+# Shared sandbox buildkitd configuration. See services/sandbox-buildkitd/Dockerfile.
+root = "/var/lib/buildkit"
+
+[grpc]
+# gRPC endpoint the sessions' remote buildx builder connects to. Bound on the
+# internal sandbox network only (never published to the host); a unix socket
+# is also exposed for in-container probes. Auth is the network boundary
+# (tale-sandbox-net is `--internal`); per-org mTLS is a hardening follow-up.
+address = ["tcp://0.0.0.0:1234", "unix:///run/buildkit/buildkitd.sock"]
+
+[worker.oci]
+enabled = true
+# Build RUN steps share this container's netns so they inherit the redsocks
+# transparent-egress fence installed by docker-entrypoint.sh. MUST stay
+# "host" — the alternative "bridge" default (newer BuildKit) gives RUN steps
+# their own subnet that bypasses the redirect, so they'd have no egress.
+networkMode = "host"
+gc = true
+
+# Keep the cache bounded so a runaway build can't fill the host disk. The
+# persistent /var/lib/buildkit volume holds the cache across daemon restarts.
+[[worker.oci.gcpolicy]]
+keepBytes = "20GB"
+keepDuration = "168h"
+
+[worker.containerd]
+# Single OCI worker; no containerd worker (the image has no containerd.sock).
+enabled = false

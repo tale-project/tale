@@ -22,6 +22,9 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  dockerBuildCache: false,
+  buildkitdImage: 'tale-sandbox-buildkitd:test',
+  buildkitdMirrorImage: 'registry:2',
   browserView: false,
   transparentEgress: false,
   k8s: {

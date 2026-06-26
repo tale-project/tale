@@ -45,6 +45,9 @@ const SIZE_BUDGETS: Record<string, number> = {
   convex: 2500,
   sandbox: 320,
   'sandbox-egress': 80,
+  // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
+  // a lean, deterministic image (~335 MB amd64), ~13% headroom.
+  'sandbox-buildkitd': 380,
   // Carries a heavy toolchain by design, on top of the playwright/chromium base
   // and native docker/compose-in-session (runtime tiers, #1881):
   //   - document conversion: libreoffice + poppler + pandoc (~570 MB)
@@ -63,6 +66,7 @@ const SERVICES = [
   'convex',
   'sandbox',
   'sandbox-egress',
+  'sandbox-buildkitd',
   'sandbox-runtime',
 ];
 
@@ -79,14 +83,19 @@ const SAFE_SECRET_VALUES = new Set([
   'test-secret-do-not-use-in-production-1234567890',
 ]);
 
-/** Resolve a service's image ref, with the sandbox-runtime fallbacks. */
+// Spawner-managed images that are NOT compose services — the sandbox spawner
+// `docker run`s them, so they're tagged `:latest` locally (or pulled from ghcr
+// in CI) rather than declared in compose.
+const SPAWNER_IMAGES = new Set(['sandbox-runtime', 'sandbox-buildkitd']);
+
+/** Resolve a service's image ref, with the spawner-image fallbacks. */
 async function getImage(service: string): Promise<string> {
   const fromCompose = await compose.imageFor(service);
   if (fromCompose) return fromCompose;
-  if (service === 'sandbox-runtime') {
-    if (await imageExists('tale-sandbox-runtime:latest'))
-      return 'tale-sandbox-runtime:latest';
-    const ghcr = 'ghcr.io/tale-project/tale/tale-sandbox-runtime:latest';
+  if (SPAWNER_IMAGES.has(service)) {
+    const local = `tale-${service}:latest`;
+    if (await imageExists(local)) return local;
+    const ghcr = `ghcr.io/tale-project/tale/tale-${service}:latest`;
     if (await imageExists(ghcr)) return ghcr;
   }
   return '';
@@ -104,24 +113,20 @@ async function main(): Promise<number> {
       console.error(`${RED}Build failed!${NC}`);
       return 1;
     }
-    // sandbox-runtime is not a compose service — build it separately. Tag
-    // matches the spawner default; build context is the repo root.
-    if (!(await imageExists('tale-sandbox-runtime:latest'))) {
-      console.log(`  ${YELLOW}Building tale-sandbox-runtime:latest...${NC}`);
+    // The spawner-managed images are not compose services — build each
+    // separately. Tags match the spawner defaults; build context is the repo
+    // root. In CI these are already pulled + tagged `:latest`, so this is a
+    // local-only fallback.
+    for (const svc of SPAWNER_IMAGES) {
+      const tag = `tale-${svc}:latest`;
+      if (await imageExists(tag)) continue;
+      console.log(`  ${YELLOW}Building ${tag}...${NC}`);
       const code = await stream(
-        [
-          'docker',
-          'build',
-          '-t',
-          'tale-sandbox-runtime:latest',
-          '-f',
-          'services/sandbox-runtime/Dockerfile',
-          '.',
-        ],
+        ['docker', 'build', '-t', tag, '-f', `services/${svc}/Dockerfile`, '.'],
         { cwd: PROJECT_ROOT },
       );
       if (code !== 0) {
-        console.error(`${RED}sandbox-runtime build failed!${NC}`);
+        console.error(`${RED}${svc} build failed!${NC}`);
         return 1;
       }
     }
@@ -183,6 +188,11 @@ async function main(): Promise<number> {
       case 'sandbox-egress':
         r.pass(
           `${svc}: root (expected — privilege drops to docker.sock owner / tinyproxy user)`,
+        );
+        break;
+      case 'sandbox-buildkitd':
+        r.pass(
+          `${svc}: root (expected — buildkitd needs root + --privileged for build mount/namespace ops)`,
         );
         break;
       case 'sandbox-runtime':
@@ -250,9 +260,13 @@ async function main(): Promise<number> {
   for (const svc of SERVICES) {
     const img = images.get(svc);
     if (!img) continue;
-    // sandbox-runtime is an exec'd ephemeral container — HEALTHCHECK never runs.
-    if (svc === 'sandbox-runtime') {
-      r.pass(`${svc}: HEALTHCHECK skipped (ephemeral exec container)`);
+    // Spawner-managed images carry no docker HEALTHCHECK: sandbox-runtime is an
+    // exec'd ephemeral container, and sandbox-buildkitd is a daemon whose
+    // readiness the spawner probes (services/sandbox/src/buildkitd.ts).
+    if (SPAWNER_IMAGES.has(svc)) {
+      r.pass(
+        `${svc}: HEALTHCHECK skipped (spawner-managed, not docker-supervised)`,
+      );
       continue;
     }
     const healthcheck = await dockerInspect(img, '{{.Config.Healthcheck}}');
