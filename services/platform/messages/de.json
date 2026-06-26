@@ -842,7 +842,8 @@
       },
       "common": {
         "never": "Nie",
-        "copied": "Kopiert"
+        "copied": "Kopiert",
+        "copyFailed": "Kopieren fehlgeschlagen"
       }
     },
     "executions": {
@@ -4071,6 +4072,7 @@
     "deleteConfirmation": "Bist du sicher, dass du diese MCP-Server-Verbindung löschen möchtest?",
     "testConnection": "Verbindung testen",
     "testing": "Verbindung wird getestet...",
+    "connectionTestFailed": "Verbindungstest fehlgeschlagen",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
     "error": "Fehler",

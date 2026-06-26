@@ -42,8 +42,9 @@ export function SecretRevealDialog({
       setCopiedIndex(index);
       toast({ title: t('triggers.common.copied'), variant: 'success' });
       setTimeout(() => setCopiedIndex(null), 2000);
-    } catch {
-      // Clipboard API not available
+    } catch (err) {
+      console.warn('[secret-reveal-dialog] clipboard write failed', err);
+      toast({ title: t('triggers.common.copyFailed'), variant: 'destructive' });
     }
   };
 
