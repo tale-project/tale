@@ -164,14 +164,20 @@ export async function updateProducts(
     });
   }
 
+  // Validate the name once up front (the same value is applied to every
+  // matched product), so an invalid name throws before any DB write.
+  const validatedName =
+    args.updates.name !== undefined
+      ? validateProductName(args.updates.name)
+      : undefined;
+
   // Build patches for each product
   const patches: Array<{ id: Id<'products'>; patch: Record<string, unknown> }> =
     productsToUpdate.map((product) => {
       const patch: Record<string, unknown> = {};
 
       // Copy direct field updates
-      if (args.updates.name !== undefined)
-        patch.name = validateProductName(args.updates.name);
+      if (validatedName !== undefined) patch.name = validatedName;
       if (args.updates.description !== undefined)
         patch.description = args.updates.description;
       if (args.updates.imageUrl !== undefined)
