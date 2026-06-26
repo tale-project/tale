@@ -503,7 +503,11 @@
     "errorSubmitFailed": "Failed to submit response",
     "copied": "Copied!",
     "copyConfiguration": "Copy configuration",
-    "viewWorkflow": "View workflow"
+    "viewWorkflow": "View workflow",
+    "statusPending": "Pending",
+    "statusExecuting": "Executing",
+    "statusCompleted": "Completed",
+    "statusRejected": "Rejected"
   },
   "auth": {
     "email": "Email",
