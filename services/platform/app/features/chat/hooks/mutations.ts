@@ -139,11 +139,15 @@ export function useSetThreadCanvasState() {
     // rolls back via the optimistic patch; surfacing a toast on every
     // re-mount-during-disconnect would be noise.
     errorToast: false,
-    optimisticUpdate: (store, args) =>
+    optimisticUpdate: (store, args) => {
+      // The getThreadMeta subscription is keyed by { threadId, organizationId },
+      // so without the active org the patch can't target the cached entry —
+      // skip it and let the server round-trip apply the change.
+      if (!args.organizationId) return;
       updateDocumentQuery(
         store,
         api.threads.queries.getThreadMeta,
-        { threadId: args.threadId },
+        { threadId: args.threadId, organizationId: args.organizationId },
         (current) => {
           // `getThreadMeta` returns `null` until the row loads — skip the
           // optimistic patch rather than dereferencing null.
@@ -159,7 +163,8 @@ export function useSetThreadCanvasState() {
             },
           };
         },
-      ),
+      );
+    },
   });
 }
 

@@ -52,6 +52,13 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   })),
 }));
 
+// The hook now reads the active org from the route via useOrganizationId to
+// scope its thread queries; the renderHook harness has no router, so provide a
+// stable id (the mocked convex hooks key off the query path, not the args).
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
 vi.mock('./queries', () => ({
   useSessionProgress: vi.fn(() => mockSessionProgress),
 }));

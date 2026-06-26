@@ -10,6 +10,7 @@ import {
 } from '@/app/features/agents/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
@@ -306,16 +307,21 @@ export function useFileUrls(fileIds: Id<'_storage'>[], skip = false) {
 }
 
 export function useThreadMessages(threadId: string | null) {
+  const organizationId = useOrganizationId();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
   const query = api.threads.queries
     .getThreadMessagesStreaming as unknown as Parameters<
     typeof useUIMessages
   >[0];
-  const { results } = useUIMessages(query, threadId ? { threadId } : 'skip', {
-    initialNumItems: 100,
-    // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
-    stream: true,
-  });
+  const { results } = useUIMessages(
+    query,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+    {
+      initialNumItems: 100,
+      // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
+      stream: true,
+    },
+  );
 
   return results;
 }
