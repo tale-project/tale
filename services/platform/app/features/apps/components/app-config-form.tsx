@@ -18,6 +18,7 @@
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { Checkbox } from '@tale/ui/checkbox';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
@@ -87,6 +88,11 @@ export function AppConfigForm({
 
   if (fields.length === 0) return null;
 
+  // "Dirty" only when an input differs from what's stored — keep Save disabled
+  // otherwise so it never invites a no-op write of the already-saved values.
+  const baseline = initValues(fields, config);
+  const dirty = fields.some((f) => values[f.key] !== baseline[f.key]);
+
   const onSave = async (): Promise<void> => {
     const { values: out, invalid: bad } = deriveConfigValues(fields, values);
     if (bad.length > 0) {
@@ -105,61 +111,108 @@ export function AppConfigForm({
     }
   };
 
+  // Once every field has a stored value the app is pointed somewhere and the
+  // editor is just noise above the views — collapse it behind a summary the user
+  // can expand to change. While unconfigured it stays open + prominent so the
+  // setup step is obvious.
+  const isConfigured = fields.every((f) =>
+    f.type === 'boolean' ? true : asString(config[f.key]).trim() !== '',
+  );
+  // A compact echo of the configured values for the collapsed summary line.
+  const summary = fields
+    .filter((f) => f.type !== 'boolean')
+    .map((f) => asString(config[f.key]).trim())
+    .filter(Boolean)
+    .join(' · ');
+
+  const body = (
+    <>
+      <VStack gap={3}>
+        {fields.map((f) => (
+          <VStack key={f.key} gap={1}>
+            <Text as="label" className="text-sm font-medium">
+              {resolveLabel(f.labelKey)}
+            </Text>
+            {f.type === 'boolean' ? (
+              <Checkbox
+                checked={values[f.key] === true}
+                disabled={setConfig.isPending}
+                onCheckedChange={(c) =>
+                  setValues((s) => ({ ...s, [f.key]: c === true }))
+                }
+              />
+            ) : (
+              <Input
+                type={f.type === 'number' ? 'number' : 'text'}
+                value={asString(values[f.key])}
+                placeholder={
+                  f.placeholderKey ? resolveLabel(f.placeholderKey) : undefined
+                }
+                disabled={setConfig.isPending}
+                aria-invalid={invalid.includes(f.key) || undefined}
+                onChange={(e) =>
+                  setValues((s) => ({ ...s, [f.key]: e.target.value }))
+                }
+              />
+            )}
+            {invalid.includes(f.key) && (
+              <Text variant="error" className="text-sm">
+                {t('config.invalidValue', { label: resolveLabel(f.labelKey) })}
+              </Text>
+            )}
+          </VStack>
+        ))}
+      </VStack>
+      <HStack className="justify-end">
+        <Button
+          onClick={() => void onSave()}
+          disabled={setConfig.isPending || !dirty}
+        >
+          {setConfig.isPending ? t('config.saving') : t('config.save')}
+        </Button>
+      </HStack>
+    </>
+  );
+
   return (
     <Card>
-      <VStack gap={4}>
-        <VStack gap={1}>
-          <Text className="font-medium">{t('config.title')}</Text>
-          <Text variant="muted" className="text-sm">
-            {t('config.description')}
-          </Text>
-        </VStack>
-        <VStack gap={3}>
-          {fields.map((f) => (
-            <VStack key={f.key} gap={1}>
-              <Text as="label" className="text-sm font-medium">
-                {resolveLabel(f.labelKey)}
+      {isConfigured ? (
+        <CollapsibleDetails
+          summary={
+            <>
+              <Text as="span" className="shrink-0 font-medium">
+                {t('config.title')}
               </Text>
-              {f.type === 'boolean' ? (
-                <Checkbox
-                  checked={values[f.key] === true}
-                  disabled={setConfig.isPending}
-                  onCheckedChange={(c) =>
-                    setValues((s) => ({ ...s, [f.key]: c === true }))
-                  }
-                />
-              ) : (
-                <Input
-                  type={f.type === 'number' ? 'number' : 'text'}
-                  value={asString(values[f.key])}
-                  placeholder={
-                    f.placeholderKey
-                      ? resolveLabel(f.placeholderKey)
-                      : undefined
-                  }
-                  disabled={setConfig.isPending}
-                  aria-invalid={invalid.includes(f.key) || undefined}
-                  onChange={(e) =>
-                    setValues((s) => ({ ...s, [f.key]: e.target.value }))
-                  }
-                />
-              )}
-              {invalid.includes(f.key) && (
-                <Text variant="error" className="text-sm">
-                  {t('config.invalidValue', {
-                    label: resolveLabel(f.labelKey),
-                  })}
+              {summary && (
+                <Text
+                  as="span"
+                  variant="muted"
+                  className="min-w-0 truncate text-sm font-normal"
+                >
+                  {summary}
                 </Text>
               )}
-            </VStack>
-          ))}
+            </>
+          }
+        >
+          <VStack gap={4} className="mt-3">
+            <Text variant="muted" className="text-sm">
+              {t('config.description')}
+            </Text>
+            {body}
+          </VStack>
+        </CollapsibleDetails>
+      ) : (
+        <VStack gap={4}>
+          <VStack gap={1}>
+            <Text className="font-medium">{t('config.title')}</Text>
+            <Text variant="muted" className="text-sm">
+              {t('config.description')}
+            </Text>
+          </VStack>
+          {body}
         </VStack>
-        <HStack className="justify-end">
-          <Button onClick={() => void onSave()} disabled={setConfig.isPending}>
-            {setConfig.isPending ? t('config.saving') : t('config.save')}
-          </Button>
-        </HStack>
-      </VStack>
+      )}
     </Card>
   );
 }
