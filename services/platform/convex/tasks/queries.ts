@@ -183,6 +183,41 @@ export const listTasksByProject = query({
 });
 
 /**
+ * The set of `externalId` keys already materialized into this project's tasks for
+ * one external system (e.g. every GitHub issue that's already a task). Powers the
+ * issue desk's "hide issues already tracked" cross-reference — both the server's
+ * filtered-pagination anti-join AND the client's live top-up read it.
+ *
+ * Deliberately UN-truncated (unlike `listTasksByProject`'s `TASK_BOARD_CAP`): an
+ * incomplete exclusion set silently leaks already-tracked issues back into the
+ * list, so correctness requires the WHOLE set. The read is index-narrowed to
+ * `(projectId, externalSystem)` and returns bare keys (not whole task rows), so
+ * it stays cheap even for large projects.
+ */
+export const listExternalKeysByProject = query({
+  args: {
+    projectId: v.id('projects'),
+    externalSystem: v.string(),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const { project } = await loadAccessibleProject(ctx, args.projectId);
+
+    const keys: string[] = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_project_external', (q) =>
+        q
+          .eq('projectId', project._id)
+          .eq('externalSystem', args.externalSystem),
+      )) {
+      if (task.externalId) keys.push(task.externalId);
+    }
+    return keys;
+  },
+});
+
+/**
  * Org-wide task list (reactive) — the `task_collection` data source for the Apps
  * hub. Unlike `listTasksByProject`, a config-driven app can't know a projectId,
  * so this lists the org's recent tasks filtered by externalSystem/status (e.g.

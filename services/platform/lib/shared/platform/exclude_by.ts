@@ -20,15 +20,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The set of non-empty join keys present in the reference rows. */
+/**
+ * The set of non-empty join keys present in the reference rows. With a `refField`,
+ * each entry is a RECORD and the key is read from that field (non-record entries
+ * are malformed → skipped). With an EMPTY `refField`, the query returns the keys
+ * directly (a bare `string[]`/`number[]`, e.g. `listExternalKeysByProject`) and
+ * each entry IS the key.
+ */
 export function buildExclusionSet(
   refRows: readonly unknown[],
   refField: string,
 ): Set<string> {
+  const bareKeys = refField === '';
   const set = new Set<string>();
   for (const row of refRows) {
-    if (!isRecord(row)) continue;
-    const raw = row[refField];
+    let raw: unknown;
+    if (isRecord(row)) raw = row[refField];
+    else if (bareKeys && (typeof row === 'string' || typeof row === 'number'))
+      raw = row;
+    else continue;
     // Skip falsy keys: `String(undefined)` would seed the set with the literal
     // "undefined" and falsely exclude any row whose key resolves to that.
     if (raw === undefined || raw === null || raw === '') continue;

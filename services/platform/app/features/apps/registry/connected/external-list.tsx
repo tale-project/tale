@@ -3,29 +3,35 @@
 /**
  * Connected `ExternalList` block — the action-sourced sibling of `Collection`.
  * Fetches rows from any allowlisted action (data that lives outside Convex, e.g.
- * a GitHub repo's issues) through a CACHED query (`useBoundActionQuery`,
- * `staleTime: Infinity`) so re-entering the tab/page serves the cache instead of
- * re-hitting upstream on every mount; an explicit Refresh re-fetches. Renders
- * through the shared `DataTable`. Generic: the action path, its args, the
- * columns, the per-row actions, any row filter, and an optional cross-reference
- * exclusion are all view config — the block carries no scenario knowledge.
+ * a GitHub repo's issues) through a CACHED query (`staleTime: Infinity`) so
+ * re-entering the tab/page serves the cache instead of re-hitting upstream on
+ * every mount; an explicit Refresh re-fetches. Renders through the shared
+ * `DataTable`. Generic: the action path, its args, the columns, the per-row
+ * actions, any row filter, and an optional cross-reference exclusion are all
+ * view config — the block carries no scenario knowledge.
  *
- * Pagination is opt-in (set `perPage`); when on, the block sends `page`
- * (1-indexed) + `perPage` to the action and prefers the action's
- * `pagination.hasNextPage` flag, falling back to "a full page came back". Each
- * page is cached under its own key, so paging back is instant.
+ * Pagination is opt-in (set `perPage`); when on, the block ACCUMULATES pages via
+ * `useBoundActionInfiniteQuery` (each cached under one cursor key) and renders
+ * them as a single growing list behind a "Load more" button. The source action
+ * owns FILTERED pagination: it returns a full page of already-visible rows plus
+ * an opaque `pagination.nextCursor`, so "page 1" is genuinely a full page (the
+ * first paint is never a misleadingly-empty page of already-handled rows) and
+ * the cursor is a true end-of-stream signal.
  *
- * `excludeBy` (optional) hides rows already materialized into a Convex table:
- * it binds a reactive query and drops any row whose `rowKeyTemplate` matches a
- * key the query already holds (e.g. an issue whose task already exists). Because
- * the query is reactive, creating that task hides the row live.
+ * `rowWhen` (optional) drops rows client-side by predicate; `excludeBy`
+ * (optional) hides rows already materialized into a Convex table — it binds a
+ * reactive query and drops any row whose `rowKeyTemplate` matches a key the
+ * query already holds (e.g. an issue whose task already exists). When the source
+ * already filters server-side, these stay on as a thin LIVE top-up: because the
+ * exclude query is reactive, creating the task hides the row immediately, without
+ * waiting for a refetch.
  */
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { CircleDot } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { convexErrorCode } from '@/app/hooks/use-action-query';
 import { useT } from '@/lib/i18n/client';
@@ -33,7 +39,10 @@ import { excludeExisting } from '@/lib/shared/platform/exclude_by';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import { isRecord } from '@/lib/utils/type-utils';
 
-import { useBoundActionQuery } from '../../hooks/use-bound-action-query';
+import {
+  parsePage,
+  useBoundActionInfiniteQuery,
+} from '../../hooks/use-bound-action-infinite-query';
 import { useBoundQuery } from '../../hooks/use-bound-query';
 import { useAppRuntime } from '../../runtime/app-runtime';
 import {
@@ -58,47 +67,21 @@ export interface ExternalListProps {
   columnLabels?: Record<string, string>;
   /** Per-row actions, bound to the row via `BoundButton`. */
   actions?: BoundActionSpec[];
-  /** Page size; when set, the block paginates (`page` + `perPage` args). */
+  /** Page size; when set, the block paginates (`page` + `perPage` args) and
+   *  accumulates pages behind a "Load more" button. */
   perPage?: number;
   /**
    * Cross-reference exclusion: hide rows already represented in another Convex
-   * collection. `query` is an allowlisted reactive query whose rows hold the
-   * join key in `refField`; a source row is dropped when `rowKeyTemplate`
-   * (a `{field}` template over the row) resolves to one of those keys.
+   * collection. `query` is an allowlisted reactive query; a source row is dropped
+   * when `rowKeyTemplate` (a `{field}` template over the row) resolves to one of
+   * the query's keys. `refField` names the key field when the query returns
+   * records; omit it when the query returns the keys directly (a bare string[]).
    */
   excludeBy?: {
     query: { path: string; args?: unknown };
-    refField: string;
+    refField?: string;
     rowKeyTemplate: string;
   };
-}
-
-/** Extract the rows array + a next-page hint from the action result. */
-function parsePage(
-  result: unknown,
-  itemsKey: string | undefined,
-  perPage: number | undefined,
-): { rows: Record<string, unknown>[]; hasNext: boolean } {
-  // The action layer commonly wraps as `{ result: { data, pagination } }`.
-  const wrapper =
-    isRecord(result) && isRecord(result.result) ? result.result : result;
-  const fromKey =
-    itemsKey && isRecord(wrapper) && Array.isArray(wrapper[itemsKey])
-      ? wrapper[itemsKey]
-      : undefined;
-  const fallback = isRecord(wrapper)
-    ? ['data', 'items', 'rows', 'records', 'results', 'page']
-        .map((k) => wrapper[k])
-        .find(Array.isArray)
-    : undefined;
-  const raw = fromKey ?? fallback ?? (Array.isArray(result) ? result : []);
-  const rows = (raw as unknown[]).filter(isRecord);
-  const pagination = isRecord(wrapper) ? wrapper.pagination : undefined;
-  const hasNext =
-    isRecord(pagination) && typeof pagination.hasNextPage === 'boolean'
-      ? pagination.hasNextPage
-      : perPage !== undefined && rows.length >= perPage;
-  return { rows, hasNext };
 }
 
 /** Pull the rows array out of a bound-query result (array or common wrapper key). */
@@ -135,34 +118,23 @@ export function ExternalList({
   const labelOf = usePackLabelString();
   const { config } = useAppRuntime();
 
-  const [page, setPage] = useState(1);
   const paginated = perPage !== undefined;
-  const sourceArgs = isRecord(source.args) ? source.args : {};
-  const argsKey = JSON.stringify(sourceArgs);
-
-  const query = useBoundActionQuery(source.path, {
-    ...sourceArgs,
-    ...(paginated ? { page, perPage } : {}),
+  const query = useBoundActionInfiniteQuery(source.path, source.args, {
+    perPage,
   });
 
-  const { rows, hasNext } = parsePage(query.data, itemsKey, perPage);
+  // Flatten every loaded page into one raw-row list (a single page when not
+  // paginated). The page identity is the cache, so changing the source resets it.
+  const rows = useMemo(
+    () => query.pages.flatMap((p) => parsePage(p, itemsKey, perPage).rows),
+    [query.pages, itemsKey, perPage],
+  );
 
   // Reactive cross-reference source (skips when no `excludeBy` — invalid path).
   const refQuery = useBoundQuery(
     excludeBy?.query.path ?? '',
     excludeBy?.query.args,
   );
-
-  // Reset to page 1 when the query identity changes, so a changed source never
-  // starts mid-pagination on a page that may not exist for the new query.
-  const queryKey = `${source.path}|${argsKey}|${perPage ?? ''}`;
-  const prevQueryKey = useRef(queryKey);
-  useEffect(() => {
-    if (prevQueryKey.current !== queryKey) {
-      prevQueryKey.current = queryKey;
-      setPage(1);
-    }
-  }, [queryKey]);
 
   const visibleRows = useMemo(() => {
     const filtered = rowWhen
@@ -172,21 +144,41 @@ export function ExternalList({
     return excludeExisting(
       filtered,
       pickRefRows(refQuery.data),
-      excludeBy.refField,
+      excludeBy.refField ?? '',
       excludeBy.rowKeyTemplate,
       config,
     );
   }, [rows, rowWhen, excludeBy, refQuery.data, config]);
 
+  // The source returns a FULL page of already-visible rows, so the block never
+  // has to chase a probabilistically-empty page. The reactive `excludeBy` can
+  // still hide a row the user just materialized; if that empties the loaded set
+  // while real pages remain, pull the next one. Bounded by `hasNextPage` — a true
+  // end-of-stream signal from the cursor — so it can neither loop forever nor
+  // dead-end, and gated on `!query.error` so a failed fetch surfaces instead of
+  // re-firing in a tight loop.
+  const { fetchNextPage, hasNextPage, isFetching } = query;
+  const needMore =
+    paginated && visibleRows.length === 0 && hasNextPage && !query.error;
+  useEffect(() => {
+    if (needMore && !isFetching) fetchNextPage();
+  }, [needMore, isFetching, fetchNextPage]);
+
   const refresh = (
     <Button
       variant="ghost"
-      disabled={query.isFetching}
+      disabled={isFetching}
       onClick={() => query.refetch()}
     >
       {t('list.refresh')}
     </Button>
   );
+
+  // Still hunting for the first visible rows (initial load, a top-up in flight,
+  // or one about to fire) — show a skeleton, never a premature empty state that
+  // would flash before the next page arrives.
+  const searching =
+    query.isLoading || needMore || (isFetching && visibleRows.length === 0);
 
   return (
     <Section title={labelOf(title)} icon={CircleDot} action={refresh}>
@@ -199,9 +191,13 @@ export function ExternalList({
         // pointed at a target yet. Prompt to configure rather than firing a
         // request that would fail arg validation.
         <Text variant="muted">{t('list.needsConfig')}</Text>
-      ) : query.isLoading && rows.length === 0 ? (
+      ) : searching ? (
         <SkeletonText lines={3} />
-      ) : query.error ? (
+      ) : query.error && visibleRows.length === 0 ? (
+        // Only surface the full error state when nothing is VISIBLE: with
+        // accumulation a failed "Load more" must not wipe the rows already on
+        // screen. Keyed on `visibleRows` (not raw `rows`) so a hard error whose
+        // pages all filter to empty shows the error instead of a calm "empty".
         // A not-connected integration is an expected state, not a failure:
         // render a calm prompt to connect it rather than a red server error.
         convexErrorCode(query.error) === 'INTEGRATION_NOT_CONNECTED' ? (
@@ -221,30 +217,27 @@ export function ExternalList({
               columns={columns}
               columnLabels={resolveColumnLabels(columnLabels, labelOf)}
               actions={actions}
+              // Render the whole accumulated, filtered list — the default 50-row
+              // cap would silently swallow rows pulled in by "Load more".
+              maxRows={visibleRows.length}
             />
           )}
-          {/* Pagination stays available even when this page filtered to zero
-              visible rows (e.g. a whole page of rowWhen/excludeBy-excluded
-              items), so the user can advance to a page that has matches instead
-              of dead-ending. */}
-          {paginated && (
-            <HStack gap={3} className="items-center justify-end">
+          {/* A failed "Load more" keeps the rows above on screen, but must not
+              fail silently — surface the error inline so the user knows the click
+              didn't take and can retry via the button below. */}
+          {paginated && query.error && visibleRows.length > 0 && (
+            <Text variant="error" className="text-sm">
+              {t('list.error', { error: query.error.message })}
+            </Text>
+          )}
+          {paginated && hasNextPage && (
+            <HStack gap={3} className="items-center justify-center">
               <Button
                 variant="ghost"
-                disabled={query.isFetching || page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={isFetching}
+                onClick={() => fetchNextPage()}
               >
-                {t('list.prev')}
-              </Button>
-              <Text variant="muted" className="text-sm">
-                {t('list.page', { page })}
-              </Text>
-              <Button
-                variant="ghost"
-                disabled={query.isFetching || !hasNext}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t('list.next')}
+                {isFetching ? t('list.loadingMore') : t('list.loadMore')}
               </Button>
             </HStack>
           )}
