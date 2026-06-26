@@ -4114,7 +4114,19 @@
       "saving": "Speichern...",
       "cancel": "Abbrechen",
       "connectionSection": "Verbindung",
-      "authSection": "Authentifizierung"
+      "authSection": "Authentifizierung",
+      "validation": {
+        "nameRequired": "Name ist erforderlich",
+        "nameFormat": "Muss aus Kleinbuchstaben, Ziffern und Bindestrichen bestehen",
+        "displayNameRequired": "Anzeigename ist erforderlich",
+        "urlRequired": "URL ist erforderlich",
+        "commandRequired": "Befehl ist erforderlich",
+        "apiKeyRequired": "API-Key ist erforderlich",
+        "tokenUrlRequired": "Token-URL ist erforderlich",
+        "clientIdRequired": "Client-ID ist erforderlich",
+        "clientSecretRequired": "Client-Geheimnis ist erforderlich",
+        "authorizationUrlRequired": "Autorisierungs-URL ist erforderlich"
+      }
     },
     "oauth2": {
       "tokenUrl": "Token-URL",

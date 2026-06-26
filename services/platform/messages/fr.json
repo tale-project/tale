@@ -4115,7 +4115,19 @@
       "saving": "Enregistrement...",
       "cancel": "Annuler",
       "connectionSection": "Connexion",
-      "authSection": "Authentification"
+      "authSection": "Authentification",
+      "validation": {
+        "nameRequired": "Le nom est requis",
+        "nameFormat": "Doit être en minuscules alphanumériques avec des traits d'union",
+        "displayNameRequired": "Le nom d'affichage est requis",
+        "urlRequired": "L'URL est requise",
+        "commandRequired": "La commande est requise",
+        "apiKeyRequired": "La clé API est requise",
+        "tokenUrlRequired": "L'URL du jeton est requise",
+        "clientIdRequired": "L'ID client est requis",
+        "clientSecretRequired": "Le secret client est requis",
+        "authorizationUrlRequired": "L'URL d'autorisation est requise"
+      }
     },
     "oauth2": {
       "tokenUrl": "URL du jeton",
