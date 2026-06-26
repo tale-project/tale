@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import {
@@ -34,7 +34,7 @@ async function assertWorkflowInstalled(
     )
     .first();
   if (!installation) {
-    throw new Error('Workflow is not installed');
+    throw new ConvexError({ code: 'NOT_INSTALLED' });
   }
 }
 
@@ -49,10 +49,10 @@ export const createScheduleBySlug = mutation({
   returns: v.id('wfSchedules'),
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+      throw new ConvexError({ code: 'INVALID_SLUG', slug: args.workflowSlug });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -80,10 +80,10 @@ export const toggleScheduleBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const schedule = await ctx.db.get(args.scheduleId);
-    if (!schedule) throw new Error('Schedule not found');
+    if (!schedule) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
@@ -110,10 +110,10 @@ export const updateScheduleBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const schedule = await ctx.db.get(args.scheduleId);
-    if (!schedule) throw new Error('Schedule not found');
+    if (!schedule) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
@@ -131,10 +131,10 @@ export const deleteScheduleBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const schedule = await ctx.db.get(args.scheduleId);
-    if (!schedule) throw new Error('Schedule not found');
+    if (!schedule) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, schedule.organizationId, authUser);
 
@@ -157,10 +157,10 @@ export const createWebhookBySlug = mutation({
     args,
   ): Promise<{ webhookId: Id<'wfWebhooks'>; token: string }> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+      throw new ConvexError({ code: 'INVALID_SLUG', slug: args.workflowSlug });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -190,10 +190,10 @@ export const toggleWebhookBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const webhook = await ctx.db.get(args.webhookId);
-    if (!webhook) throw new Error('Webhook not found');
+    if (!webhook) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
@@ -215,10 +215,10 @@ export const deleteWebhookBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const webhook = await ctx.db.get(args.webhookId);
-    if (!webhook) throw new Error('Webhook not found');
+    if (!webhook) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
@@ -271,10 +271,10 @@ export const createEventSubscriptionBySlug = mutation({
   returns: v.id('wfEventSubscriptions'),
   handler: async (ctx, args): Promise<Id<'wfEventSubscriptions'>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     if (!validateWorkflowSlug(args.workflowSlug)) {
-      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+      throw new ConvexError({ code: 'INVALID_SLUG', slug: args.workflowSlug });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -287,13 +287,17 @@ export const createEventSubscriptionBySlug = mutation({
     if (
       await isAppOwnedWorkflowSlug(ctx, args.organizationId, args.workflowSlug)
     ) {
-      throw new Error(
-        `Workflow "${args.workflowSlug}" belongs to an app; app workflows are internally scoped and cannot subscribe to org-global events.`,
-      );
+      throw new ConvexError({
+        code: 'APP_OWNED_WORKFLOW',
+        slug: args.workflowSlug,
+      });
     }
 
     if (!isValidEventType(args.eventType)) {
-      throw new Error(`Invalid event type: ${String(args.eventType)}`);
+      throw new ConvexError({
+        code: 'INVALID_EVENT_TYPE',
+        eventType: String(args.eventType),
+      });
     }
 
     await assertWorkflowInstalled(ctx, args.organizationId, args.workflowSlug);
@@ -312,9 +316,10 @@ export const createEventSubscriptionBySlug = mutation({
       .first();
 
     if (existing) {
-      throw new Error(
-        `Event subscription for "${args.eventType}" already exists on this workflow`,
-      );
+      throw new ConvexError({
+        code: 'DUPLICATE_SUBSCRIPTION',
+        eventType: args.eventType,
+      });
     }
 
     const cleanFilter =
@@ -343,10 +348,10 @@ export const toggleEventSubscriptionBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const sub = await ctx.db.get(args.subscriptionId);
-    if (!sub) throw new Error('Event subscription not found');
+    if (!sub) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, sub.organizationId, authUser);
 
@@ -367,10 +372,10 @@ export const updateEventSubscriptionBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const sub = await ctx.db.get(args.subscriptionId);
-    if (!sub) throw new Error('Event subscription not found');
+    if (!sub) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, sub.organizationId, authUser);
 
@@ -386,10 +391,10 @@ export const deleteEventSubscriptionBySlug = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const sub = await ctx.db.get(args.subscriptionId);
-    if (!sub) throw new Error('Event subscription not found');
+    if (!sub) throw new ConvexError({ code: 'NOT_FOUND' });
 
     await getOrganizationMember(ctx, sub.organizationId, authUser);
 
