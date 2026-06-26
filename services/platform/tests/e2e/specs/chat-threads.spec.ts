@@ -67,13 +67,12 @@ test('the seeded prompt is listed in the prompt library', async ({
   await page.goto(`/dashboard/${organizationId}/chat`);
   await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-  // The composer's Save-options menu (bookmark) opens the Prompt Library.
+  // With an empty composer the bookmark button opens the Prompt Library
+  // directly (#2166); the Save-options menu only appears once there's a draft
+  // worth saving. A fresh chat starts empty, so click the direct button.
   await page
-    .getByRole('button', { name: t('chat.savePromptMenu') })
+    .getByRole('button', { name: t('chat.promptLibrary') })
     .first()
-    .click();
-  await page
-    .getByRole('menuitem', { name: t('chat.promptLibrary'), exact: true })
     .click();
 
   await expect(
