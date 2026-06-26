@@ -15,6 +15,10 @@
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
       { "path": "tasks/queries:listTasksByProject", "mode": "query" },
+      {
+        "path": "tasks/queries:listExternalKeysByProject",
+        "mode": "query"
+      },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "agents/file_actions:listAppAgents", "mode": "action" },
       { "path": "agents/file_actions:readAgent", "mode": "action" },
@@ -27,7 +31,7 @@
       { "path": "tasks/mutations:updateTaskStatus", "mode": "mutation" },
       { "path": "tasks/public_actions:startTaskWorkflow", "mode": "action" },
       {
-        "path": "integrations/public_actions:listGitHubIssues",
+        "path": "integrations/public_actions:listUntrackedGitHubIssues",
         "mode": "action"
       },
       {

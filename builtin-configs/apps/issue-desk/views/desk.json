@@ -16,16 +16,19 @@
               "id": "issues",
               "title": "$label:issueDesk.issuesListTitle",
               "source": {
-                "path": "integrations/public_actions:listGitHubIssues",
+                "path": "integrations/public_actions:listUntrackedGitHubIssues",
                 "args": {
                   "organizationId": "$orgId",
                   "owner": "$config:owner",
                   "repo": "$config:repo",
-                  "state": "open"
+                  "state": "open",
+                  "projectId": "$projectId",
+                  "externalSystem": "github",
+                  "rowWhen": "!pull_request",
+                  "rowKeyTemplate": "{owner}/{repo}#{number}"
                 }
               },
               "itemsKey": "data",
-              "rowWhen": "!pull_request",
               "columns": ["number", "title", "state"],
               "columnLabels": {
                 "number": "$label:issueDesk.col.number",
@@ -35,12 +38,12 @@
               "perPage": 30,
               "excludeBy": {
                 "query": {
-                  "path": "tasks/queries:listTasksByProject",
+                  "path": "tasks/queries:listExternalKeysByProject",
                   "args": {
-                    "projectId": "$projectId"
+                    "projectId": "$projectId",
+                    "externalSystem": "github"
                   }
                 },
-                "refField": "externalId",
                 "rowKeyTemplate": "{owner}/{repo}#{number}"
               },
               "actions": [

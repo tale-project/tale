@@ -31,6 +31,20 @@ describe('buildExclusionSet', () => {
     const set = buildExclusionSet([{ id: 7 }], 'id');
     expect(set.has('7')).toBe(true);
   });
+
+  it('treats entries as bare keys when no refField is given', () => {
+    // A key-only query (e.g. listExternalKeysByProject) returns a string[]; with
+    // an empty refField each entry IS the key.
+    const set = buildExclusionSet(
+      ['tale-project/tale#1', 'tale-project/tale#2', '', 9],
+      '',
+    );
+    expect([...set].sort()).toEqual([
+      '9',
+      'tale-project/tale#1',
+      'tale-project/tale#2',
+    ]);
+  });
 });
 
 describe('excludeExisting', () => {
