@@ -21,6 +21,25 @@ export function SavePromptMenu({
 }: SavePromptMenuProps) {
   const { t: tChat } = useT('chat');
 
+  // With an empty composer there's nothing to save as a draft, so the only
+  // useful action is the prompt library. Skip the menu and open it directly.
+  if (!canSavePromptDraft) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={tChat('promptLibrary')}
+        tooltip={tChat('promptLibrary')}
+        tooltipSide="top"
+        disabled={disabled}
+        onClick={onOpenPromptLibrary}
+        className="focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset"
+      >
+        <Bookmark className="size-4" aria-hidden="true" />
+      </Button>
+    );
+  }
+
   const items: DropdownMenuGroup[] = [
     [
       {
@@ -28,7 +47,6 @@ export function SavePromptMenu({
         label: tChat('savePromptDraft'),
         icon: Bookmark,
         onClick: onSavePromptDraft,
-        disabled: !canSavePromptDraft,
       },
       {
         type: 'item',
