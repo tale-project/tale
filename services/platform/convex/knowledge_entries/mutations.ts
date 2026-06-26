@@ -7,7 +7,7 @@
  * asynchronously by `materializeKnowledgeEntry`.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -50,9 +50,13 @@ export const createKnowledgeEntry = mutation({
       topicKey,
     );
     if (existing) {
-      throw new Error(
-        `A knowledge entry for the topic "${existing.topic}" already exists. Edit that entry instead.`,
-      );
+      // Structured code so the client can surface the duplicate toast in prod.
+      // A raw `Error` message is redacted to "Server Error" by Convex in prod,
+      // which kills the client's duplicate detection.
+      throw new ConvexError({
+        code: 'KNOWLEDGE_ENTRY_DUPLICATE',
+        topic: existing.topic,
+      });
     }
 
     const { entryId } = await upsertEntryRow(ctx, {
@@ -113,9 +117,10 @@ export const updateKnowledgeEntry = mutation({
         topicKey,
       );
       if (collision) {
-        throw new Error(
-          `A knowledge entry for the topic "${collision.topic}" already exists.`,
-        );
+        throw new ConvexError({
+          code: 'KNOWLEDGE_ENTRY_DUPLICATE',
+          topic: collision.topic,
+        });
       }
     }
 

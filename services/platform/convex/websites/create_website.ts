@@ -3,6 +3,8 @@
  * Does NOT register with the crawler — that's handled by the calling action.
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -40,7 +42,12 @@ export async function createWebsite(
     .first();
 
   if (existingWebsite) {
-    throw new Error(`Website with domain ${websiteDomain} already exists`);
+    // Structured code so the client surfaces the duplicate toast in prod, where
+    // Convex redacts raw `Error` messages to "Server Error".
+    throw new ConvexError({
+      code: 'WEBSITE_DUPLICATE_DOMAIN',
+      domain: websiteDomain,
+    });
   }
 
   return await ctx.db.insert('websites', {

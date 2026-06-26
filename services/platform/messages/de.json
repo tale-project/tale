@@ -501,6 +501,8 @@
     "errorNotAuthenticated": "Benutzer nicht authentifiziert",
     "errorRejectFailed": "Ablehnung fehlgeschlagen",
     "errorSubmitFailed": "Antwort konnte nicht gesendet werden",
+    "errorNotFound": "Diese Anfrage konnte nicht mehr gefunden werden. Möglicherweise wurde sie bereits bearbeitet.",
+    "errorAlreadyResolved": "Diese Anfrage wurde bereits bearbeitet.",
     "copied": "Kopiert!",
     "copyConfiguration": "Konfiguration kopieren",
     "viewWorkflow": "Workflow anzeigen",
@@ -734,6 +736,15 @@
     },
     "triggers": {
       "title": "Trigger",
+      "errors": {
+        "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
+        "invalidSlug": "Die Kennung dieser Automatisierung ist ungültig.",
+        "notInstalled": "Diese Automatisierung ist noch nicht installiert.",
+        "notFound": "Dieser Trigger konnte nicht mehr gefunden werden. Möglicherweise wurde er gelöscht.",
+        "appOwnedWorkflow": "App-Automatisierungen laufen nur innerhalb der App und können daher keine Ereignisse abonnieren.",
+        "invalidEventType": "Dieser Ereignistyp ist ungültig.",
+        "duplicateSubscription": "Diese Automatisierung hat bereits einen Trigger für dieses Ereignis."
+      },
       "schedules": {
         "title": "Zeitpläne",
         "createButton": "Zeitplan hinzufügen",
@@ -3948,6 +3959,10 @@
     "errorFillRequiredFields": "Bitte fülle alle erforderlichen Felder aus",
     "errorSelectRequired": "Bitte triff eine Auswahl",
     "errorFeedbackRequired": "Bitte gib dein Feedback ein",
+    "errorAlreadyResponded": "Diese Anfrage wurde bereits beantwortet.",
+    "errorNotEditable": "Nur eine abgeschlossene Antwort kann bearbeitet werden.",
+    "errorWorkflowNotEditable": "Workflow-Antworten können nicht bearbeitet werden.",
+    "errorGenerationInProgress": "Warte, bis die aktuelle Antwort abgeschlossen ist, bevor du deine Antwort bearbeitest.",
     "copyQuestions": "Fragen kopieren",
     "pushback": "Anders antworten",
     "pushbackPlaceholder": "Sag der KI, was du stattdessen möchtest...",
@@ -6696,6 +6711,13 @@
     "deleteSuccess": "Secret gelöscht"
   },
   "tasks": {
+    "attachments": {
+      "label": "Anhänge",
+      "add": "Anhänge hinzufügen",
+      "remove": "Anhang entfernen",
+      "uploading": "Wird hochgeladen …",
+      "dropHint": "Bilder oder Dokumente hierher ziehen oder zum Auswählen klicken"
+    },
     "title": "Aufgaben",
     "entityLabel": "Aufgaben",
     "status": {

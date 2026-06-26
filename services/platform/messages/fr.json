@@ -502,6 +502,8 @@
     "errorNotAuthenticated": "Utilisateur non authentifié",
     "errorRejectFailed": "Échec du rejet",
     "errorSubmitFailed": "Échec de la soumission de la réponse",
+    "errorNotFound": "Cette demande est introuvable. Elle a peut-être déjà été traitée.",
+    "errorAlreadyResolved": "Cette demande a déjà été traitée.",
     "copied": "Copié !",
     "copyConfiguration": "Copier la configuration",
     "viewWorkflow": "Voir le workflow",
@@ -735,6 +737,15 @@
     },
     "triggers": {
       "title": "Déclencheurs",
+      "errors": {
+        "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
+        "invalidSlug": "L'identifiant de cette automatisation est invalide.",
+        "notInstalled": "Cette automatisation n'est pas encore installée.",
+        "notFound": "Ce déclencheur est introuvable. Il a peut-être été supprimé.",
+        "appOwnedWorkflow": "Les automatisations d'app s'exécutent uniquement depuis l'app et ne peuvent donc pas s'abonner à des événements.",
+        "invalidEventType": "Ce type d'événement n'est pas valide.",
+        "duplicateSubscription": "Cette automatisation a déjà un déclencheur pour cet événement."
+      },
       "schedules": {
         "title": "Planifications",
         "createButton": "Ajouter une planification",
@@ -3949,6 +3960,10 @@
     "errorFillRequiredFields": "Merci de remplir tous les champs obligatoires",
     "errorSelectRequired": "Merci de faire une sélection",
     "errorFeedbackRequired": "Merci de saisir ton commentaire",
+    "errorAlreadyResponded": "Cette demande a déjà reçu une réponse.",
+    "errorNotEditable": "Seule une réponse terminée peut être modifiée.",
+    "errorWorkflowNotEditable": "Les réponses de workflow ne peuvent pas être modifiées.",
+    "errorGenerationInProgress": "Attends la fin de la réponse en cours avant de modifier la tienne.",
     "copyQuestions": "Copier les questions",
     "pushback": "Répondre différemment",
     "pushbackPlaceholder": "Dis à l'IA ce que tu souhaites à la place...",
@@ -6697,6 +6712,13 @@
     "deleteSuccess": "Secret supprimé"
   },
   "tasks": {
+    "attachments": {
+      "label": "Pièces jointes",
+      "add": "Ajouter des pièces jointes",
+      "remove": "Supprimer la pièce jointe",
+      "uploading": "Téléversement…",
+      "dropHint": "Déposez des images ou des documents, ou cliquez pour parcourir"
+    },
     "title": "Tâches",
     "entityLabel": "tâches",
     "status": {
