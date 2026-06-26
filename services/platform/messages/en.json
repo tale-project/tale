@@ -5146,6 +5146,7 @@
       "PROJECT_FORBIDDEN": "You don't have access to this project.",
       "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
       "PROJECT_HAS_BOUND_APPS": "Uninstall the apps using this project first, then delete it.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Uninstall the apps using this project first, then delete it: {apps}.",
       "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
