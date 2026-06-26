@@ -23,6 +23,7 @@ import {
   useCreateEventSubscription,
   useUpdateEventSubscription,
 } from '../hooks/slug-mutations';
+import { mapTriggerError } from '../lib/map-trigger-error';
 
 interface EditingSubscription {
   _id: string;
@@ -167,9 +168,9 @@ export function EventCreateDialog({
         });
       }
       resetAndClose();
-    } catch {
+    } catch (err) {
       toast({
-        title: tCommon('errors.generic'),
+        title: mapTriggerError(err, t, tCommon('errors.generic')),
         variant: 'destructive',
       });
     } finally {

@@ -1,7 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import type { WorkflowId } from '@convex-dev/workflow';
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
@@ -48,31 +48,31 @@ async function handleSubmission({
 }: HandleArgs) {
   const approval = await ctx.db.get(approvalId);
   if (!approval) {
-    throw new Error('Approval not found');
+    throw new ConvexError({ code: 'NOT_FOUND' });
   }
 
   if (isEdit) {
     if (approval.status !== 'completed') {
-      throw new Error('Only a completed response can be edited');
+      throw new ConvexError({ code: 'NOT_EDITABLE' });
     }
     // A paused workflow already consumed the original response event; there
     // is no safe way to replay it, so edits are chat-context only.
     if (approval.wfExecutionId) {
-      throw new Error('Workflow responses cannot be edited');
+      throw new ConvexError({ code: 'WORKFLOW_NOT_EDITABLE' });
     }
   } else if (approval.status !== 'pending') {
-    throw new Error('Human input request has already been responded to');
+    throw new ConvexError({ code: 'ALREADY_RESPONDED' });
   }
 
   if (approval.resourceType !== 'human_input_request') {
-    throw new Error('Invalid approval type');
+    throw new ConvexError({ code: 'INVALID_TYPE' });
   }
 
   const threadId = approval.threadId;
   const organizationId = approval.organizationId;
 
   if (!threadId) {
-    throw new Error('Human input request is not associated with a thread');
+    throw new ConvexError({ code: 'NO_THREAD' });
   }
 
   // Editing while the agent is still generating (e.g. from the original
@@ -83,9 +83,7 @@ async function handleSubmission({
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
     if (liveMeta?.generationStatus === 'generating') {
-      throw new Error(
-        'Wait for the current response to finish before editing your answer',
-      );
+      throw new ConvexError({ code: 'GENERATION_IN_PROGRESS' });
     }
   }
 
@@ -168,9 +166,7 @@ async function handleSubmission({
   if (approval.wfExecutionId) {
     const execution = await ctx.db.get(approval.wfExecutionId);
     if (!execution?.componentWorkflowId) {
-      throw new Error(
-        'Workflow execution not found or missing component workflow ID',
-      );
+      throw new ConvexError({ code: 'WORKFLOW_EXECUTION_NOT_FOUND' });
     }
 
     const manager = workflowManagers[safeShardIndex(execution.shardIndex)];
@@ -251,7 +247,10 @@ async function handleSubmission({
       userRole,
     );
     if (!budgetResult.allowed) {
-      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+      throw new ConvexError({
+        code: 'BUDGET_EXCEEDED',
+        message: budgetResult.reason ?? 'Budget limit exceeded',
+      });
     }
   }
 

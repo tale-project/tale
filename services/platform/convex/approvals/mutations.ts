@@ -1,5 +1,5 @@
 import { saveMessage } from '@convex-dev/agent';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -22,12 +22,12 @@ export const updateApprovalStatus = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) {
-      throw new Error('Approval not found');
+      throw new ConvexError({ code: 'NOT_FOUND' });
     }
 
     await getOrganizationMember(ctx, approval.organizationId);
@@ -107,12 +107,12 @@ export const removeRecommendedProduct = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) {
-      throw new Error('Approval not found');
+      throw new ConvexError({ code: 'NOT_FOUND' });
     }
 
     await getOrganizationMember(ctx, approval.organizationId);

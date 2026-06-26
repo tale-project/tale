@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { ConvexError } from 'convex/values';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toast } from '@/app/hooks/use-toast';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
@@ -13,11 +15,27 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+// Controllable mutate so a test can drive its onError callback. The dialog uses
+// the callback form `mutate(args, { onSuccess, onError })`.
+const createWebsiteMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
-  useCreateWebsite: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateWebsite: () => ({ mutate: createWebsiteMock, isPending: false }),
 }));
 
 import { AddWebsiteDialog } from './website-add-dialog';
+
+async function fillAndSubmit(user: ReturnType<typeof render>['user']) {
+  const domain = document.querySelector(
+    'input[name="domain"]',
+  ) as HTMLInputElement;
+  await user.type(domain, 'example.com');
+
+  const submit = document.querySelector(
+    'button[type="submit"]',
+  ) as HTMLButtonElement;
+  await waitFor(() => expect(submit).toBeEnabled());
+  await user.click(submit);
+}
 
 describe('AddWebsiteDialog', () => {
   describe('accessibility', () => {
@@ -60,6 +78,74 @@ describe('AddWebsiteDialog', () => {
       // Scan-interval field renders with its label (e2e:
       // getByText(t('websites.scanInterval'))).
       expect(screen.getByText('Scan interval')).toBeInTheDocument();
+    });
+  });
+
+  // Regression for #2056: the duplicate-domain toast relied on
+  // `error.message.includes('already exists')`, which is dead in prod because
+  // Convex redacts raw Error messages to "Server Error". The backend now throws
+  // ConvexError({ code: 'WEBSITE_DUPLICATE_DOMAIN' }) and the dialog reads it.
+  describe('duplicate domain (#2056)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
+      createWebsiteMock.mockImplementation(
+        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
+          opts.onError(
+            new ConvexError({
+              code: 'WEBSITE_DUPLICATE_DOMAIN',
+              domain: 'example.com',
+            }),
+          );
+        },
+      );
+
+      const { user } = render(
+        <AddWebsiteDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await fillAndSubmit(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'This website has already been added',
+            variant: 'destructive',
+          }),
+        ),
+      );
+    });
+
+    it('falls back to the generic error toast for a non-duplicate failure', async () => {
+      createWebsiteMock.mockImplementation(
+        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
+          opts.onError(new ConvexError({ code: 'SOMETHING_ELSE' }));
+        },
+      );
+
+      const { user } = render(
+        <AddWebsiteDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await fillAndSubmit(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Failed to add website',
+            variant: 'destructive',
+          }),
+        ),
+      );
     });
   });
 });

@@ -501,6 +501,8 @@
     "errorNotAuthenticated": "User not authenticated",
     "errorRejectFailed": "Failed to reject",
     "errorSubmitFailed": "Failed to submit response",
+    "errorNotFound": "This request could no longer be found. It may have already been resolved.",
+    "errorAlreadyResolved": "This request has already been resolved.",
     "copied": "Copied!",
     "copyConfiguration": "Copy configuration",
     "viewWorkflow": "View workflow",
@@ -734,6 +736,15 @@
     },
     "triggers": {
       "title": "Triggers",
+      "errors": {
+        "unauthenticated": "You're not signed in. Refresh the page and try again.",
+        "invalidSlug": "This automation's identifier is invalid.",
+        "notInstalled": "This automation isn't installed yet.",
+        "notFound": "That trigger could no longer be found. It may have been deleted.",
+        "appOwnedWorkflow": "App automations run only from within the app, so they can't subscribe to events.",
+        "invalidEventType": "That event type isn't valid.",
+        "duplicateSubscription": "This automation already has a trigger for that event."
+      },
       "schedules": {
         "title": "Schedules",
         "createButton": "Add schedule",
@@ -3948,6 +3959,10 @@
     "errorFillRequiredFields": "Please fill in all required fields",
     "errorSelectRequired": "Please make a selection",
     "errorFeedbackRequired": "Please enter your feedback",
+    "errorAlreadyResponded": "This request has already been answered.",
+    "errorNotEditable": "Only a completed response can be edited.",
+    "errorWorkflowNotEditable": "Workflow responses can't be edited.",
+    "errorGenerationInProgress": "Wait for the current response to finish before editing your answer.",
     "copyQuestions": "Copy questions",
     "pushback": "Reply differently",
     "pushbackPlaceholder": "Tell the AI what you'd like instead...",
