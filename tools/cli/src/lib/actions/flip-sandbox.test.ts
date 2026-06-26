@@ -124,6 +124,52 @@ describe('flipSandboxTier teardown vs linger', () => {
     expect(warned.some((l) => l.includes('lingering'))).toBe(true);
   });
 
+  test('revokes the bare `sandbox` alias from a lingering old colour', async () => {
+    arrangeDocker({ drainStatusJson: '{"inFlight":0,"sessions":2}' });
+
+    await flipSandboxTier({
+      config,
+      deployDir: '/tmp/tale-flip-test',
+      currentColor: 'blue',
+      nextColor: 'green',
+      dryRun: false,
+      streamLogs: false,
+      healthTimeout: 1,
+    });
+
+    const connectCallFor = (container: string): string[] | undefined =>
+      dockerMock.mock.calls
+        .map((c) => c.map(String))
+        .find(
+          (a) =>
+            a[0] === 'network' &&
+            a[1] === 'connect' &&
+            a[a.length - 1] === container,
+        );
+
+    // The lingering (draining) old colour is reconnected with ONLY its colour
+    // alias — never the bare `sandbox` — so new creates can't round-robin onto
+    // it. (`sandbox-blue` is a distinct string from the bare `sandbox`.)
+    const oldConnect = connectCallFor('tale-sandbox-blue');
+    expect(oldConnect).toBeDefined();
+    expect(oldConnect).toContain('sandbox-blue');
+    expect(oldConnect).not.toContain('sandbox');
+
+    // No per-alias edit in docker, so the revoke disconnects first.
+    const oldDisconnected = dockerMock.mock.calls
+      .map((c) => c.map(String))
+      .some(
+        (a) =>
+          a[0] === 'network' &&
+          a[1] === 'disconnect' &&
+          a[a.length - 1] === 'tale-sandbox-blue',
+      );
+    expect(oldDisconnected).toBe(true);
+
+    // The new (active) colour still carries the bare `sandbox` alias.
+    expect(connectCallFor('tale-sandbox-green')).toContain('sandbox');
+  });
+
   test('lingers (does not tear down) when the session count stays unknown', async () => {
     // Drain POST succeeds (default mock) but every drain-status read is
     // unparseable → the final status is unknown. Tearing down here could kill

@@ -179,6 +179,14 @@ export interface SessionInfo {
 }
 
 const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+// Blue-green drain-retry for session create. A 503 "draining" means the bare
+// `sandbox` alias briefly resolves to the OLD colour mid-flip (the deploy moves
+// it to the new colour and revokes it from the lingering old one — see
+// flip-sandbox.ts's releaseSandboxAlias). Re-POST so it re-resolves onto the
+// now-active colour, mirroring spawner_client's one-shot drain-retry. Bounded so
+// a genuinely down tier still fails fast instead of looping.
+const CREATE_DRAIN_RETRY_MAX = 5;
+const CREATE_DRAIN_RETRY_DELAY_MS = 400;
 // Grace added to the caller's exec timeoutMs for the SSE fetch, so the stream
 // outlives the sandbox-side exec deadline and delivers the terminal result
 // instead of aborting first (the old code hardcoded 60s here too).
@@ -214,25 +222,42 @@ export async function sessionCreate(
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
   const bodyJson = JSON.stringify(body);
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson),
-    body: bodyJson,
-    signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-  });
-  if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-  if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
-  if (!res.ok) {
-    throw new Error(
-      `sandbox session create failed (${res.status}): ${await safeText(res)}`,
-    );
+  // Re-sign per attempt: each retry needs a fresh timestamp (clock-skew window)
+  // and a fresh nonce (spawner replay cache) — see signedHeaders.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${getSpawnerUrl()}${path}`, {
+      method: 'POST',
+      headers: signedHeaders('POST', path, bodyJson),
+      body: bodyJson,
+      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+    });
+    if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
+    if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
+    // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
+    // `sandbox` alias re-resolves onto the now-active colour. A non-draining
+    // 503 (or exhausted retries) falls through to the generic failure below.
+    if (res.status === 503 && attempt < CREATE_DRAIN_RETRY_MAX) {
+      const peek = await safeText(res);
+      if (peek.includes('draining')) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CREATE_DRAIN_RETRY_DELAY_MS),
+        );
+        continue;
+      }
+      throw new Error(`sandbox session create failed (503): ${peek}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        `sandbox session create failed (${res.status}): ${await safeText(res)}`,
+      );
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const parsed = (await res.json()) as { session: SessionInfo };
+    return {
+      session: parsed.session,
+      spawnerColor: res.headers.get('x-sandbox-color'),
+    };
   }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { session: SessionInfo };
-  return {
-    session: parsed.session,
-    spawnerColor: res.headers.get('x-sandbox-color'),
-  };
 }
 
 /** DELETE /v1/sessions/:id — idempotent teardown. */

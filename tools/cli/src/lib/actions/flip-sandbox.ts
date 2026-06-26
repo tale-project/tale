@@ -47,7 +47,12 @@ interface FlipSandboxOptions {
  *   5. If the old colour has NO live sessions, tear it down (spawner + egress +
  *      its session containers). If it DOES, LINGER it: leave the spawner +
  *      egress + session containers running on the still-resolvable
- *      `sandbox-<old>` alias so a long agent turn survives the deploy. The old
+ *      `sandbox-<old>` alias so a long agent turn survives the deploy, AND
+ *      revoke its bare `sandbox` alias (it acquired one when IT was active) so
+ *      `sandbox` resolves to EXACTLY the new colour. Without the revoke both
+ *      colours answer to `sandbox`, Docker's embedded DNS round-robins NEW
+ *      session-creates across both, and the ones hitting the draining old colour
+ *      fail with 503 "spawner is draining; create on the active colour". The old
  *      spawner keeps serving exec/cancel/attach for its sessions while 503ing
  *      NEW work; Convex routes session ops to `sandbox-<spawnerColor>` (the
  *      colour recorded on the session row at create).
@@ -130,6 +135,11 @@ export async function flipSandboxTier(opts: FlipSandboxOptions): Promise<void> {
       logger.warn(
         `sandbox ${currentColor} has ${outcome.status.sessions} live session(s) — lingering on sandbox-${currentColor} until they end or its max-linger TTL; not tearing it down. A subsequent flip back to ${currentColor} reclaims it.`,
       );
+      await releaseSandboxAlias(
+        internalNet,
+        `${pid}-sandbox-${currentColor}`,
+        currentColor,
+      );
     } else if (outcome.status === null) {
       // Drain was acknowledged but its session count stayed UNKNOWN to the
       // deadline (status endpoint unreachable / malformed). Treat unknown as
@@ -137,6 +147,11 @@ export async function flipSandboxTier(opts: FlipSandboxOptions): Promise<void> {
       // live agent turn. The spawner's own max-linger reap is the backstop.
       logger.warn(
         `sandbox ${currentColor} drained but its session count is unknown — lingering on sandbox-${currentColor} rather than risk tearing down live sessions. Its max-linger TTL (or the next flip back) reclaims it.`,
+      );
+      await releaseSandboxAlias(
+        internalNet,
+        `${pid}-sandbox-${currentColor}`,
+        currentColor,
       );
     } else {
       await teardownColor(pid, currentColor);
@@ -181,6 +196,55 @@ async function moveSandboxAlias(
   if (!con.success) {
     throw new Error(
       `Failed to move the \`sandbox\` alias to ${container}: ${con.stderr.trim()}`,
+    );
+  }
+}
+
+/**
+ * Revoke the bare `sandbox` alias from a LINGERING old colour while keeping its
+ * colour-suffixed `sandbox-<color>` alias. The old colour acquired `sandbox`
+ * when IT was active (its own prior flip); if it keeps it, both colours answer
+ * to `sandbox`, Docker's embedded DNS round-robins NEW session-creates across
+ * both, and the ones hitting the now-draining old colour fail with 503 "spawner
+ * is draining; create on the active colour" — persistently, because the
+ * platform's fetch keep-alive pool pins to the old colour's IP.
+ *
+ * Docker has no per-alias edit, so we disconnect + reconnect with only the
+ * colour alias. The resulting internal-network IP change is deliberately
+ * harmless here and in fact helps: it severs the platform's pinned keep-alive
+ * socket to the draining colour (forcing a fresh DNS resolve onto the active
+ * colour) and the lingering session's own stream, which the resilient exec
+ * drain re-attaches via the retained `sandbox-<color>`. Safe to run because the
+ * caller invokes it only AFTER the one-shot drain reached inFlight === 0, so no
+ * in-flight one-shot is cut. Best-effort: a gone/unattached container is a no-op.
+ */
+async function releaseSandboxAlias(
+  network: string,
+  container: string,
+  color: DeploymentColor,
+): Promise<void> {
+  const dis = await docker('network', 'disconnect', network, container);
+  if (!dis.success) {
+    // Already gone / not attached — nothing is holding the `sandbox` alias.
+    logger.debug(
+      `release \`sandbox\` alias: ${container} not disconnected (continuing): ${dis.stderr.trim()}`,
+    );
+    return;
+  }
+  const con = await docker(
+    'network',
+    'connect',
+    '--alias',
+    `sandbox-${color}`,
+    network,
+    container,
+  );
+  if (!con.success) {
+    // Reconnect failed after a successful disconnect: the old colour is now off
+    // the internal network, so its lingering sessions are unreachable until the
+    // spawner's max-linger reap or the next flip back reclaims it. Surface it.
+    logger.warn(
+      `Failed to re-attach ${container} with its \`sandbox-${color}\` alias — its lingering sessions may be unreachable until the next flip: ${con.stderr.trim()}`,
     );
   }
 }
