@@ -1,27 +1,39 @@
 # =============================================================================
-# LOCAL DEVELOPMENT ONLY
+# LOCAL DEVELOPMENT BASE STACK — NOT FOR PRODUCTION
 # =============================================================================
-# This compose file is for LOCAL DEVELOPMENT only. It exposes ports that should
-# NEVER be exposed in production (5432, 8001-8003).
+# This is the BASE local-dev stack. It builds every image from source and runs
+# that frozen build — editing host source does NOT hot-reload here (rebuild with
+# `--build`). It also exposes ports that must NEVER be public (5432, 8001-8003).
 #
-# For PRODUCTION deployments, use the Tale CLI:
-#   tale deploy
+# Three ways to run Tale locally — pick by what you're doing:
 #
-# The CLI generates secure compose configs inline with only ports 80/443 exposed.
+#   1. Host-native, fastest inner loop ...... bun run dev
+#        No proxy, no real container topology; secrets auto-derived
+#        (services/platform/scripts/dev-secrets.ts).
+#
+#   2. Full containerized stack, frozen ..... docker compose up --build
+#        This file alone. Prod-shaped topology incl. proxy. Code is baked at
+#        build time. Honest about secrets: needs a real .env (DB_PASSWORD etc.).
+#        Use it to smoke-test "does my built image work end to end?".
+#
+#   3. Full stack + LIVE source (HMR) ....... bun run docker:dev   (recommended)
+#        = docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml \
+#            up --build
+#        Adds source bind-mounts so edits hot-reload, AND ships insecure dev
+#        defaults for every secret — so this path boots with ZERO .env setup.
+#        (compose.docs.yml is included only to satisfy the `docs` override in
+#        compose.dev.yml; the chain matches docs/.../docker-compose-reference.)
+#
+# For PRODUCTION, use the Tale CLI: `tale deploy`. It generates a secure compose
+# inline (only 80/443 exposed) and never uses this file or compose.dev.yml.
+#
+# `.env` is OPTIONAL for all three (env_file `required: false` below). When
+# present its values win; when absent, mode 3 fills the gaps and modes 1/2 fall
+# back to their own defaults (mode 2 still hard-requires DB_PASSWORD/SITE_URL).
 # =============================================================================
-#
-# Docker Compose configuration for Tale Services
-# This file defines the services needed to run the Tale platform
-#
-# Usage modes:
-#   Development (default): docker compose up
-#     - Builds images locally from Dockerfiles
-#     - Uses PULL_POLICY=build (default)
-#
-#   Production: Use Tale CLI instead (see above)
 #
 # Environment variables:
-#   PULL_POLICY: 'build' (default) or 'always'
+#   PULL_POLICY: 'build' (default, local dev) or 'always' (pull from GHCR)
 #   VERSION: Image tag to pull (default: 'latest')
 
 services:
@@ -63,10 +75,14 @@ services:
       # Backup directory (optional)
       - db-backup:/var/lib/postgresql/backup
 
-    # Environment file
-    # Create a .env file in the project root with your database credentials
+    # Environment file (optional — see env_file note below)
+    # Override DB_PASSWORD here via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     environment:
       # Platform DB: skip the knowledge-corpus dbmate migrations — the
@@ -147,7 +163,11 @@ services:
       - knowledge-db-backup:/var/lib/postgresql/backup
 
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     environment:
       # Knowledge DB: apply the tale_knowledge corpus migrations
@@ -230,7 +250,11 @@ services:
       - caddy-data:/caddy-data:ro
 
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     restart: unless-stopped
 
@@ -297,10 +321,14 @@ services:
     volumes:
       - convex-data:/app/data:ro
 
-    # Environment file
-    # Create a .env file in the project root with your configuration
+    # Environment file (optional — see env_file note below)
+    # Provide real secrets via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -404,10 +432,14 @@ services:
       # Caddy config directory
       - caddy-config:/config
 
-    # Environment file
-    # Create a .env file in the project root with your domain configuration
+    # Environment file (optional — see env_file note below)
+    # Override HOST/SITE_URL/TLS_MODE via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -467,7 +499,11 @@ services:
       dockerfile: services/sandbox-egress/Dockerfile
     container_name: tale-sandbox-egress
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     restart: unless-stopped
     # Drop the full default capability set, then add back ONLY what the
     # container provably needs (least privilege; shrinks the attack surface of
@@ -554,7 +590,11 @@ services:
     ports:
       - '127.0.0.1:8003:8003'
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
       # Native docker/docker compose inside session containers. Unset here so the
@@ -648,7 +688,11 @@ services:
         VERSION: ${VERSION:-dev}
     container_name: tale-llm-gateway
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     # No gateway-read env knobs: auth + VK enforcement are config-store fields
     # the platform pushes via applyGatewayConfig() (admin creds come from the
     # platform's LLM_GATEWAY_ADMIN_USERNAME / LLM_GATEWAY_ADMIN_PASSWORD, never
@@ -706,7 +750,11 @@ services:
     profiles:
       - controller
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     environment:
       CONTROLLER_PORT: '8004'
       # Scope restarts to this compose project so another stack is never touched.
