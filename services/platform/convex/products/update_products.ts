@@ -7,6 +7,7 @@ import { set, merge } from 'lodash';
 import { Doc, Id } from '../_generated/dataModel';
 import { MutationCtx } from '../_generated/server';
 import { UpdateProductsResult, ProductStatus } from './types';
+import { validateProductName } from './validate_product_name';
 
 export interface UpdateProductsArgs {
   // Option 1: Update by product ID (safest, most common)
@@ -169,7 +170,8 @@ export async function updateProducts(
       const patch: Record<string, unknown> = {};
 
       // Copy direct field updates
-      if (args.updates.name !== undefined) patch.name = args.updates.name;
+      if (args.updates.name !== undefined)
+        patch.name = validateProductName(args.updates.name);
       if (args.updates.description !== undefined)
         patch.description = args.updates.description;
       if (args.updates.imageUrl !== undefined)

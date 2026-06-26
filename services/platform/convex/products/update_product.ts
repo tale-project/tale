@@ -2,6 +2,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import type { ProductStatus, ProductTranslation } from './types';
+import { validateProductName } from './validate_product_name';
 
 export interface UpdateProductArgs {
   productId: Id<'products'>;
@@ -32,7 +33,7 @@ export async function updateProduct(
     lastUpdated: now,
   };
 
-  if (args.name !== undefined) updates.name = args.name;
+  if (args.name !== undefined) updates.name = validateProductName(args.name);
   if (args.description !== undefined) updates.description = args.description;
   if (args.imageUrl !== undefined) updates.imageUrl = args.imageUrl;
   if (args.stock !== undefined) updates.stock = args.stock;
