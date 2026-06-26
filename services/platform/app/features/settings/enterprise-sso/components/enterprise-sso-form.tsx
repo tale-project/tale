@@ -605,6 +605,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   id="sso-protocol"
                   label={t('integrations.enterpriseSso.protocolLabel')}
                   description={t('integrations.enterpriseSso.protocolHelp')}
+                  // Default to a defined value so the Select is controlled from
+                  // the first render — `field.value` is undefined while `data`
+                  // is still loading (avoids the uncontrolled→controlled warning).
                   value={field.value ?? 'entra-id'}
                   onValueChange={(value) => {
                     const next = narrowStringUnion<UiProtocol>(
@@ -716,7 +719,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 name="pkce"
                 render={({ field }) => (
                   <Switch
-                    checked={field.value}
+                    // `false` until `data` loads so the Switch stays controlled
+                    // from the first render (no uncontrolled→controlled warning).
+                    checked={field.value ?? false}
                     onCheckedChange={field.onChange}
                     label={t('integrations.enterpriseSso.pkceLabel')}
                   />
@@ -795,6 +800,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 <Select
                   id="sso-default-role"
                   label={t('integrations.enterpriseSso.defaultRoleLabel')}
+                  // Default to a defined value so the Select is controlled from
+                  // the first render — `field.value` is undefined while `data`
+                  // is still loading (avoids the uncontrolled→controlled warning).
                   value={field.value ?? 'member'}
                   onValueChange={(value) => {
                     const r = narrowStringUnion<PlatformRole>(value, [
@@ -814,6 +822,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               name="autoRole"
               render={({ field }) => (
                 <Switch
+                  // `false` until `data` loads so the Switch stays controlled
+                  // from the first render (no uncontrolled→controlled warning).
                   checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoRoleLabel')}
@@ -826,6 +836,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               name="autoTeam"
               render={({ field }) => (
                 <Switch
+                  // `false` until `data` loads so the Switch stays controlled
+                  // from the first render (no uncontrolled→controlled warning).
                   checked={field.value ?? false}
                   onCheckedChange={field.onChange}
                   label={t('integrations.enterpriseSso.autoTeamLabel')}

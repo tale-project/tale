@@ -319,6 +319,42 @@ describe('EnterpriseSsoForm validation + save', () => {
     });
   });
 
+  it('does not log uncontrolled→controlled warnings when config resolves after load', async () => {
+    // Regression (#2095): the Select/Switch fields must be controlled from the
+    // first render. When `config` is undefined the seeded `data` is undefined,
+    // so `field.value` is undefined — without a defined fallback the controls
+    // mount uncontrolled, then warn once `config` hydrates them.
+    // Radix's `useControllableState` reports the transition via `console.warn`
+    // (React's native uncontrolled→controlled warning targets DOM inputs; these
+    // are button-based Radix controls), so spy on `warn`.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { rerender } = renderForm(undefined);
+
+      // Resolve the config — the form seeds its real values.
+      rerender(
+        <AbilityContext.Provider value={adminAbility}>
+          <ActiveEditorProvider>
+            <HeaderSlot />
+            <EnterpriseSsoForm organizationId="org-1" config={connectedOidc} />
+          </ActiveEditorProvider>
+        </AbilityContext.Provider>,
+      );
+
+      await screen.findByDisplayValue('Acme SSO');
+
+      const warned = warnSpy.mock.calls.some((call) =>
+        call.some(
+          (arg) =>
+            typeof arg === 'string' && /uncontrolled.*controlled/i.test(arg),
+        ),
+      );
+      expect(warned).toBe(false);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('blocks the test action and does not call testConnection when invalid', async () => {
     testConnMock.mockClear();
     const { user } = renderForm(unconfigured);
