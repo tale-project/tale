@@ -85,6 +85,7 @@ beforeEach(() => {
   useUploadPolicyMock.mockReturnValue({
     policyEnabled: false,
     maxFileSize: 100 * MB,
+    documentMaxFileSize: 100 * MB,
     allowedTypes: [],
     blockedExtensions: [],
     allowedExtensions: [],
@@ -117,6 +118,7 @@ describe('useConvexFileUpload — per-type size ceiling (#2048)', () => {
     useUploadPolicyMock.mockReturnValue({
       policyEnabled: true,
       maxFileSize: 50 * MB,
+      documentMaxFileSize: 50 * MB,
       allowedTypes: ['audio/mpeg'],
       blockedExtensions: [],
       allowedExtensions: [],
