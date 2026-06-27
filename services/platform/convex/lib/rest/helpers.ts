@@ -320,7 +320,7 @@ export function withRestAuth(
   });
 }
 
-function httpStatusForConvexCode(code: string | undefined): number {
+export function httpStatusForConvexCode(code: string | undefined): number {
   switch (code) {
     case 'unauthenticated':
     case 'UNAUTHENTICATED':
@@ -338,6 +338,7 @@ function httpStatusForConvexCode(code: string | undefined): number {
     case 'validation':
     case 'EMAIL_REQUIRED':
     case 'MISSING_FILTER':
+    case 'too_long':
       return 400;
     case 'DUPLICATE_EMAIL':
     case 'DUPLICATE_EXTERNAL_ID':
