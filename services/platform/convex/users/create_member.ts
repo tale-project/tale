@@ -72,6 +72,14 @@ export async function createMember(
     throw new Error('Only admins can create members');
   }
 
+  // The owner role can only be assigned through the owner-gated
+  // transferOwnership flow — never via createMember. Mirror updateMemberRole's
+  // rejection so a non-owner admin cannot self-escalate by passing
+  // role: 'owner' (see members/mutations.ts updateMemberRole).
+  if ((args.role ?? '').toLowerCase() === 'owner') {
+    throw new Error('The owner role cannot be assigned manually');
+  }
+
   const email = args.email.toLowerCase().trim();
 
   // Check if user already exists by querying Better Auth directly

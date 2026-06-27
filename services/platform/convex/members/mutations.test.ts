@@ -555,6 +555,42 @@ describe('addMember handler', () => {
     );
   });
 
+  it('rejects assigning the owner role', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // caller is admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'admin' }],
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { ...defaultArgs, role: 'owner' }),
+    ).rejects.toThrow('The owner role cannot be assigned manually');
+  });
+
+  it('rejects adding a user who is already a member', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // caller is admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'admin' }],
+    });
+    // target user lookup
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'user_target', email: 'target@example.com' }],
+    });
+    // existing-membership lookup returns a row
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_existing', role: 'member' }],
+    });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
+      'User is already a member of this organization',
+    );
+  });
+
   it('allows owner to add members', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
@@ -566,6 +602,8 @@ describe('addMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'user_target', email: 'target@example.com' }],
     });
+    // existing-membership lookup — none, so the add proceeds
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
     // create
     ctx.runMutation.mockResolvedValueOnce({ _id: 'm_new' });
     const handler = await getHandler();
