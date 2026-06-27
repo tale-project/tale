@@ -11,7 +11,7 @@ FROM oven/bun:1.3.12 AS bun-bin
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS workspace-deps
+FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS workspace-deps
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS builder
+FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS builder
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -169,7 +169,7 @@ RUN HUSKY=0 bun install --production \
 # `generate_key` (glibc Rust binary) is available for computing the admin
 # key used when pushing functions/env vars to the remote convex service.
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS runner
+FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
