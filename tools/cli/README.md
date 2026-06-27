@@ -105,7 +105,7 @@ deploy` to roll the containers.
 | `-s, --services <list>` | Specific services to update (comma-separated)                 |
 | `--dry-run`             | Preview deployment without making changes                     |
 | `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly) |
-| `--host <hostname>`     | Host alias for proxy (default: `tale.local` or `$HOST`)       |
+| `--host <hostname>`     | Host alias for proxy (default: `localhost` or `$HOST`)        |
 
 ### `tale update`
 
@@ -209,7 +209,7 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 | `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age                        | `5`                         |
 | `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count             | `14`                        |
 | `PROJECT_NAME`         | Docker project name                                     | `tale`                      |
-| `HOST`                 | Host alias for proxy                                    | `tale.local`                |
+| `HOST`                 | Host alias for proxy                                    | `localhost`                 |
 | `TALE_DAEMON_API_KEY`  | `tale daemon` API key (keeps it out of the config file) | _(unset)_                   |
 | `TALE_DAEMON_HOME`     | Override the `tale daemon` config directory             | `~/.tale-daemon`            |
 

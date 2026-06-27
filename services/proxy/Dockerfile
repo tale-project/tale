@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 
 # Set environment variables with sensible defaults
 ENV TALE_VERSION=${VERSION} \
-    HOST=tale.local \
+    HOST=localhost \
     TLS_MODE=selfsigned
 
 # Copy Caddyfile

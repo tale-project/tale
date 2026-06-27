@@ -15,8 +15,8 @@ Reach for it on small instances and air-gapped deployments where adding an IdP i
 
 ```bash
 # .env — no flags needed for local password
-HOST=tale.local
-SITE_URL=https://tale.local
+HOST=localhost
+SITE_URL=https://localhost
 BETTER_AUTH_SECRET=...
 ```
 

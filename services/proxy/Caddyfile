@@ -12,7 +12,7 @@
 #
 # Users always access via HTTPS regardless of TLS mode.
 #
-# Development: https://tale.local (TLS_MODE=selfsigned)
+# Development: https://localhost (TLS_MODE=selfsigned)
 # Production:  https://yourdomain.com (TLS_MODE=letsencrypt)
 #
 # Blue-Green Deployment:
@@ -22,7 +22,7 @@
 
 # Global options
 {
-	default_sni {$HOST:tale.local}
+	default_sni {$HOST:localhost}
 }
 
 # Health check endpoint (internal only, not exposed externally)
@@ -36,7 +36,7 @@
 # The Caddy entrypoint substitutes the TLS placeholder line below and the
 # {$DOCS_ORIGIN} placeholder on the next line.
 # ============================================================================
-{$DOCS_ORIGIN:https://docs.tale.local} {
+{$DOCS_ORIGIN:https://docs.localhost} {
 	# TLS_PLACEHOLDER
 
 	log {
@@ -72,7 +72,7 @@
 	}
 }
 
-{$SITE_ORIGIN:https://tale.local} {
+{$SITE_ORIGIN:https://localhost} {
 	# TLS Configuration - This line is replaced by entrypoint based on TLS_MODE
 	# DO NOT MODIFY - entrypoint will replace this placeholder
 	# TLS_PLACEHOLDER

@@ -19,11 +19,11 @@ Le fichier `.env.example` ship des commentaires inline qui expliquent chaque var
 
 ## Identité de domaine (obligatoire au premier boot)
 
-| Nom         | Défaut               | Description                                                                                                                               |
-| ----------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `HOST`      | `tale.local`         | **Obligatoire.** Nom d'hôte sans protocole. Utilisé pour le réseau Docker et le mail sortant.                                             |
-| `SITE_URL`  | `https://tale.local` | **Obligatoire.** URL canonique complète incluant le schéma et tout port non standard. Les callbacks d'auth l'utilisent.                   |
-| `BASE_PATH` | non défini           | **Optionnel.** Préfixe de chemin pour les déploiements en sous-chemin derrière un reverse proxy (ex. `/app`). Laisse vide pour la racine. |
+| Nom         | Défaut              | Description                                                                                                                               |
+| ----------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`      | `localhost`         | **Obligatoire.** Nom d'hôte sans protocole. Utilisé pour le réseau Docker et le mail sortant.                                             |
+| `SITE_URL`  | `https://localhost` | **Obligatoire.** URL canonique complète incluant le schéma et tout port non standard. Les callbacks d'auth l'utilisent.                   |
+| `BASE_PATH` | non défini          | **Optionnel.** Préfixe de chemin pour les déploiements en sous-chemin derrière un reverse proxy (ex. `/app`). Laisse vide pour la racine. |
 
 Le `SITE_URL` doit correspondre exactement à ce que l'utilisateur tape dans le navigateur. Un slash en queue, un port manquant ou `http` au lieu de `https` cassent le callback d'auth et produisent des boucles de sign-in.
 

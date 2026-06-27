@@ -19,11 +19,11 @@ Die `.env.example`-Datei bringt Inline-Kommentare mit, die jede Variable im Kont
 
 ## Domain-Identität (Pflicht beim ersten Boot)
 
-| Name        | Default              | Beschreibung                                                                                                                   |
-| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `HOST`      | `tale.local`         | **Pflicht.** Hostname ohne Protokoll. Wird für Docker-Networking und ausgehende Mails verwendet.                               |
-| `SITE_URL`  | `https://tale.local` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
-| `BASE_PATH` | unset                | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
+| Name        | Default             | Beschreibung                                                                                                                   |
+| ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `HOST`      | `localhost`         | **Pflicht.** Hostname ohne Protokoll. Wird für Docker-Networking und ausgehende Mails verwendet.                               |
+| `SITE_URL`  | `https://localhost` | **Pflicht.** Vollständige kanonische URL inklusive Schema und Port. Auth-Callbacks und externe Links nutzen das.               |
+| `BASE_PATH` | unset               | **Optional.** Pfad-Präfix für Subpath-Deployments hinter einem Reverse-Proxy (z. B. `/app`). Bei Root-Deployment unset lassen. |
 
 Die `SITE_URL` muss exakt mit dem übereinstimmen, was der Benutzer im Browser eingibt. Ein nachgestellter Slash, ein fehlender Port oder `http` statt `https` brechen den Auth-Callback und produzieren Sign-in-Schleifen.
 

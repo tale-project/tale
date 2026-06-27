@@ -37,8 +37,8 @@
 # Each value is `${VAR:-default}`: an env var or .env entry overrides it.
 # -----------------------------------------------------------------------------
 x-dev-secrets: &dev-secrets
-  HOST: ${HOST:-tale.local}
-  SITE_URL: ${SITE_URL:-https://tale.local}
+  HOST: ${HOST:-localhost}
+  SITE_URL: ${SITE_URL:-https://localhost}
   TLS_MODE: ${TLS_MODE:-selfsigned}
   DB_PASSWORD: ${DB_PASSWORD:-tale_dev_password}
   KNOWLEDGE_DB_NAME: ${KNOWLEDGE_DB_NAME:-tale_knowledge}
