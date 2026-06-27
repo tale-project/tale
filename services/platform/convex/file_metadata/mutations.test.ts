@@ -15,6 +15,13 @@ vi.mock('convex/values', () => {
       array: stub,
       null: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : 'ConvexError');
+        this.data = data;
+      }
+    },
   };
 });
 
@@ -109,7 +116,9 @@ describe('saveFileMetadata (public)', () => {
     const { ctx } = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, baseArgs)).rejects.toThrow('Unauthenticated');
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
   });
 
   it('inserts new file metadata when none exists', async () => {

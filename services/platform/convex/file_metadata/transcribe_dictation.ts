@@ -1,6 +1,6 @@
 'use node';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { TRANSCRIPTION_SLUG } from '../../lib/shared/constants/usage';
 import { internal } from '../_generated/api';
@@ -37,7 +37,7 @@ export const transcribeDictation = action({
   returns: v.object({ text: v.string() }),
   handler: async (ctx, args): Promise<{ text: string }> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     await ctx.runQuery(
       internal.approvals.internal_queries.verifyOrganizationMembership,
@@ -53,7 +53,10 @@ export const transcribeDictation = action({
       return { text: '' };
     }
     if (args.audio.byteLength > MAX_DICTATION_BYTES) {
-      throw new Error('Dictation audio exceeds 8 MiB limit');
+      throw new ConvexError({
+        code: 'DICTATION_TOO_LARGE',
+        maxBytes: MAX_DICTATION_BYTES,
+      });
     }
 
     const modelData = await resolveTranscriptionModel(ctx, {
