@@ -15,6 +15,16 @@ import {
  * gets an empty result, never another org's data.
  */
 
+/**
+ * Support cases are ORG-scoped — staff see every case in the org, the largest
+ * cardinality surface here — so the board scan is bounded and flags `truncated`,
+ * exactly like the analogous `tasks` board (`TASK_BOARD_CAP`), to stay off the
+ * 1s query-budget cliff rather than scanning an unbounded result set.
+ */
+const SUPPORT_CASE_BOARD_CAP = 2000;
+/** Per-case activity timeline cap (mirrors `tasks` `TASK_ACTIVITY_CAP`). */
+const SUPPORT_CASE_ACTIVITY_CAP = 500;
+
 /** Whole-row projection for a case. Kept ⊇ the schema so Convex's strict return
  * validation never throws on a stored field (the empty-board failure mode
  * documented in `tasks/queries.test.ts`). */
@@ -75,7 +85,9 @@ export const supportCaseActivityValidator = v.object({
 /**
  * List an organization's support cases, newest activity first. Filters are
  * applied in-handler; the common "by status" view is index-served. Archived
- * (soft-deleted) cases are excluded unless `includeArchived` is set.
+ * (soft-deleted) cases are excluded unless `includeArchived` is set. The scan is
+ * bounded at {@link SUPPORT_CASE_BOARD_CAP}; `truncated` is `true` when the org
+ * has more matching cases than the cap returned.
  */
 export const listCases = query({
   args: {
@@ -86,12 +98,16 @@ export const listCases = query({
     escalatedOnly: v.optional(v.boolean()),
     includeArchived: v.optional(v.boolean()),
   },
-  returns: v.array(supportCaseRowValidator),
+  returns: v.object({
+    cases: v.array(supportCaseRowValidator),
+    truncated: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const authUser = await authorizeSupportRead(ctx, args.organizationId);
-    if (!authUser) return [];
+    if (!authUser) return { cases: [], truncated: false };
 
     const rows: Doc<'supportCases'>[] = [];
+    let truncated = false;
     const statusFilter = args.status;
     const iterator = statusFilter
       ? ctx.db
@@ -116,10 +132,14 @@ export const listCases = query({
         continue;
       if (args.escalatedOnly && !(supportCase.escalationLevel ?? 0)) continue;
       rows.push(supportCase);
+      if (rows.length >= SUPPORT_CASE_BOARD_CAP) {
+        truncated = true;
+        break;
+      }
     }
 
     rows.sort((a, b) => b.updatedAt - a.updatedAt);
-    return rows;
+    return { cases: rows, truncated };
   },
 });
 
@@ -168,7 +188,11 @@ export const listCaseComments = query({
   },
 });
 
-/** List a case's activity timeline oldest-first. */
+/**
+ * List a case's activity timeline oldest-first, bounded at
+ * {@link SUPPORT_CASE_ACTIVITY_CAP} so a long-lived case can't blow the query
+ * budget (mirrors the `tasks` activity feed's `.take(TASK_ACTIVITY_CAP)`).
+ */
 export const listCaseActivity = query({
   args: { organizationId: v.string(), caseId: v.id('supportCases') },
   returns: v.array(supportCaseActivityValidator),
@@ -182,12 +206,9 @@ export const listCaseActivity = query({
     );
     if (!supportCase) return [];
 
-    const rows: Doc<'supportCaseActivity'>[] = [];
-    for await (const row of ctx.db
+    return await ctx.db
       .query('supportCaseActivity')
-      .withIndex('by_case', (q) => q.eq('caseId', args.caseId))) {
-      rows.push(row);
-    }
-    return rows;
+      .withIndex('by_case', (q) => q.eq('caseId', args.caseId))
+      .take(SUPPORT_CASE_ACTIVITY_CAP);
   },
 });

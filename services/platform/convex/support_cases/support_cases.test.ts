@@ -89,7 +89,8 @@ describe('createCase / listCases / getCase', () => {
     const list = await asUser.query(api.support_cases.queries.listCases, {
       organizationId: ORG,
     });
-    expect(list.map((c) => c._id)).toContain(caseId);
+    expect(list.cases.map((c) => c._id)).toContain(caseId);
+    expect(list.truncated).toBe(false);
 
     // The creation activity row is recorded.
     const activity = await asUser.query(
@@ -114,7 +115,8 @@ describe('createCase / listCases / getCase', () => {
     const list = await asOutsider.query(api.support_cases.queries.listCases, {
       organizationId: ORG,
     });
-    expect(list).toEqual([]);
+    expect(list.cases).toEqual([]);
+    expect(list.truncated).toBe(false);
   });
 
   it('rejects an empty subject', async () => {
@@ -127,6 +129,77 @@ describe('createCase / listCases / getCase', () => {
         subject: '   ',
       }),
     ).rejects.toThrow();
+  });
+
+  it('rejects a half-specified assignee (type/id must be set together)', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const asUser = t.withIdentity({ subject: USER });
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'Lonely assignee type',
+        assigneeType: 'user',
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects a customerId that belongs to another organization', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    // A customer in a DIFFERENT org must not be linkable from ORG's case.
+    const foreignCustomerId = await t.run(async (ctx) =>
+      ctx.db.insert('customers', {
+        organizationId: 'org_other',
+        name: 'Foreign Co',
+        source: 'manual_import',
+      }),
+    );
+    const asUser = t.withIdentity({ subject: USER });
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'Cross-org link attempt',
+        customerId: foreignCustomerId,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('never surfaces another org’s cases in listCases (org isolation)', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    // Seed a second org with its own member + case.
+    const OTHER_ORG = 'org_other';
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'm_other',
+        userId: OTHER,
+        organizationId: OTHER_ORG,
+        role: 'member',
+        createdAt: 0,
+      });
+    });
+    const asOther = t.withIdentity({ subject: OTHER });
+    const { caseId: otherOrgCaseId } = await asOther.mutation(
+      api.support_cases.mutations.createCase,
+      { organizationId: OTHER_ORG, subject: 'Other org case' },
+    );
+    const ourCaseId = await openCase(t);
+
+    const asUser = t.withIdentity({ subject: USER });
+    const list = await asUser.query(api.support_cases.queries.listCases, {
+      organizationId: ORG,
+    });
+    const ids = list.cases.map((c) => c._id);
+    expect(ids).toContain(ourCaseId);
+    expect(ids).not.toContain(otherOrgCaseId);
+
+    // And a direct fetch across the boundary returns null, not the row.
+    const leaked = await asUser.query(api.support_cases.queries.getCase, {
+      organizationId: ORG,
+      caseId: otherOrgCaseId,
+    });
+    expect(leaked).toBeNull();
   });
 });
 
@@ -182,6 +255,39 @@ describe('updateCase', () => {
     expect(activity.filter((a) => a.action === 'status_changed').length).toBe(
       3,
     );
+  });
+
+  it('clears the stale closedAt when a closed case is resolved', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const caseId = await openCase(t);
+    const asUser = t.withIdentity({ subject: USER });
+
+    await asUser.mutation(api.support_cases.mutations.updateCase, {
+      organizationId: ORG,
+      caseId,
+      status: 'closed',
+    });
+    let got = await asUser.query(api.support_cases.queries.getCase, {
+      organizationId: ORG,
+      caseId,
+    });
+    expect(got?.closedAt).toBeTypeOf('number');
+
+    // closed → resolved must drop the terminal closedAt so SLA reporting is
+    // honest (the case is no longer closed).
+    await asUser.mutation(api.support_cases.mutations.updateCase, {
+      organizationId: ORG,
+      caseId,
+      status: 'resolved',
+    });
+    got = await asUser.query(api.support_cases.queries.getCase, {
+      organizationId: ORG,
+      caseId,
+    });
+    expect(got?.status).toBe('resolved');
+    expect(got?.resolvedAt).toBeTypeOf('number');
+    expect(got?.closedAt).toBeUndefined();
   });
 
   it('assigns and unassigns, logging each change', async () => {
@@ -261,7 +367,7 @@ describe('escalateCase', () => {
       organizationId: ORG,
       escalatedOnly: true,
     });
-    expect(escalated.map((c) => c._id)).toContain(caseId);
+    expect(escalated.cases.map((c) => c._id)).toContain(caseId);
   });
 
   it('refuses to escalate a closed case', async () => {
@@ -322,6 +428,67 @@ describe('comments', () => {
       caseId,
     });
     expect(got?.commentCount).toBe(0);
+  });
+
+  it('does not stamp first-response for an internal-only note', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const caseId = await openCase(t);
+    const asUser = t.withIdentity({ subject: USER });
+
+    await asUser.mutation(api.support_cases.mutations.addComment, {
+      organizationId: ORG,
+      caseId,
+      body: 'Internal triage note',
+      internal: true,
+    });
+    let got = await asUser.query(api.support_cases.queries.getCase, {
+      organizationId: ORG,
+      caseId,
+    });
+    // An internal note is staff-only and must NOT count as the first response.
+    expect(got?.firstRespondedAt).toBeUndefined();
+    expect(got?.commentCount).toBe(1);
+
+    // The first PUBLIC reply is what stamps the SLA milestone.
+    await asUser.mutation(api.support_cases.mutations.addComment, {
+      organizationId: ORG,
+      caseId,
+      body: 'Hello, looking into this.',
+    });
+    got = await asUser.query(api.support_cases.queries.getCase, {
+      organizationId: ORG,
+      caseId,
+    });
+    expect(got?.firstRespondedAt).toBeTypeOf('number');
+  });
+
+  it('does not let a non-author delete a comment', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'm_support2',
+        userId: OTHER,
+        organizationId: ORG,
+        role: 'member',
+        createdAt: 0,
+      });
+    });
+    const caseId = await openCase(t);
+    const asUser = t.withIdentity({ subject: USER });
+    const { commentId } = await asUser.mutation(
+      api.support_cases.mutations.addComment,
+      { organizationId: ORG, caseId, body: 'mine to delete' },
+    );
+
+    const asOther = t.withIdentity({ subject: OTHER });
+    await expect(
+      asOther.mutation(api.support_cases.mutations.deleteComment, {
+        organizationId: ORG,
+        commentId,
+      }),
+    ).rejects.toThrow();
   });
 
   it('does not let a non-author edit a comment', async () => {

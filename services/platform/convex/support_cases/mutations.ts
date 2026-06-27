@@ -103,7 +103,7 @@ export const createCase = mutation({
 
 /**
  * Manage a case: update any of subject / description / priority / status /
- * assignee / customer / SLA. Only the provided fields change. Status and
+ * assignee / SLA. Only the provided fields change. Status and
  * assignee changes are recorded on the activity timeline and stamp the
  * corresponding lifecycle timestamps.
  */
@@ -157,10 +157,16 @@ export const updateCase = mutation({
     if (args.status !== undefined && args.status !== supportCase.status) {
       patch.status = args.status;
       patch.statusChangedAt = now;
-      if (args.status === 'resolved') patch.resolvedAt = now;
-      if (args.status === 'closed') patch.closedAt = now;
-      // Reopening clears the terminal timestamps so SLA reporting stays honest.
-      if (args.status === 'open' || args.status === 'pending') {
+      // Stamp the timestamp the new state owns and clear the ones that no longer
+      // apply, so SLA reporting stays honest on every transition (including
+      // `closed → resolved`, which must drop the stale `closedAt`).
+      if (args.status === 'resolved') {
+        patch.resolvedAt = now;
+        patch.closedAt = undefined;
+      } else if (args.status === 'closed') {
+        patch.closedAt = now;
+      } else {
+        // Reopening (open / pending) clears both terminal timestamps.
         patch.resolvedAt = undefined;
         patch.closedAt = undefined;
       }
