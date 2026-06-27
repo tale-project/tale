@@ -6,6 +6,13 @@ import {
   authorizeSupportWrite,
   recordCaseActivity,
   requireCaseInOrg,
+  SUPPORT_CASE_COMMENT_MAX,
+  SUPPORT_CASE_DESCRIPTION_MAX,
+  SUPPORT_CASE_REQUESTER_EMAIL_MAX,
+  SUPPORT_CASE_REQUESTER_NAME_MAX,
+  validateCommentBody,
+  validateOptionalText,
+  validateSubject,
 } from './helpers';
 import {
   supportCaseActorTypeValidator,
@@ -39,13 +46,22 @@ export const createCase = mutation({
   handler: async (ctx, args): Promise<{ caseId: Id<'supportCases'> }> => {
     const authUser = await authorizeSupportWrite(ctx, args.organizationId);
 
-    const subject = args.subject.trim();
-    if (!subject) {
-      throw new ConvexError({
-        code: 'invalid_subject',
-        message: 'A case subject is required.',
-      });
-    }
+    const subject = validateSubject(args.subject);
+    const description = validateOptionalText(
+      args.description,
+      SUPPORT_CASE_DESCRIPTION_MAX,
+      'description_too_long',
+    );
+    const requesterEmail = validateOptionalText(
+      args.requesterEmail,
+      SUPPORT_CASE_REQUESTER_EMAIL_MAX,
+      'requester_email_too_long',
+    );
+    const requesterName = validateOptionalText(
+      args.requesterName,
+      SUPPORT_CASE_REQUESTER_NAME_MAX,
+      'requester_name_too_long',
+    );
     // Assignee is polymorphic and set/cleared together (mirrors `tasks`).
     if ((args.assigneeType === undefined) !== (args.assigneeId === undefined)) {
       throw new ConvexError({
@@ -69,15 +85,15 @@ export const createCase = mutation({
     const caseId = await ctx.db.insert('supportCases', {
       organizationId: args.organizationId,
       subject,
-      description: args.description,
+      description,
       status: 'open',
       priority: args.priority,
       escalationLevel: 0,
       assigneeType: args.assigneeType,
       assigneeId: args.assigneeId,
       customerId: args.customerId,
-      requesterEmail: args.requesterEmail,
-      requesterName: args.requesterName,
+      requesterEmail,
+      requesterName,
       slaDueAt: args.slaDueAt,
       commentCount: 0,
       statusChangedAt: now,
@@ -140,16 +156,15 @@ export const updateCase = mutation({
     const patch: Record<string, unknown> = { updatedAt: now };
 
     if (args.subject !== undefined) {
-      const subject = args.subject.trim();
-      if (!subject) {
-        throw new ConvexError({
-          code: 'invalid_subject',
-          message: 'A case subject is required.',
-        });
-      }
-      patch.subject = subject;
+      patch.subject = validateSubject(args.subject);
     }
-    if (args.description !== undefined) patch.description = args.description;
+    if (args.description !== undefined) {
+      patch.description = validateOptionalText(
+        args.description,
+        SUPPORT_CASE_DESCRIPTION_MAX,
+        'description_too_long',
+      );
+    }
     if (args.priority !== undefined) patch.priority = args.priority;
     if (args.slaDueAt !== undefined) patch.slaDueAt = args.slaDueAt;
 
@@ -248,7 +263,11 @@ export const escalateCase = mutation({
       updatedAt: now,
     });
 
-    const note = args.note?.trim();
+    const note = validateOptionalText(
+      args.note,
+      SUPPORT_CASE_COMMENT_MAX,
+      'note_too_long',
+    );
     if (note) {
       await ctx.db.insert('supportCaseComments', {
         organizationId: args.organizationId,
@@ -301,13 +320,7 @@ export const addComment = mutation({
       args.organizationId,
     );
 
-    const body = args.body.trim();
-    if (!body) {
-      throw new ConvexError({
-        code: 'empty_comment',
-        message: 'A comment cannot be empty.',
-      });
-    }
+    const body = validateCommentBody(args.body);
 
     const now = Date.now();
     const commentId = await ctx.db.insert('supportCaseComments', {
@@ -358,13 +371,7 @@ export const editComment = mutation({
         message: 'Only the author can edit this comment.',
       });
     }
-    const body = args.body.trim();
-    if (!body) {
-      throw new ConvexError({
-        code: 'empty_comment',
-        message: 'A comment cannot be empty.',
-      });
-    }
+    const body = validateCommentBody(args.body);
     await ctx.db.patch(args.commentId, { body, editedAt: Date.now() });
     return null;
   },

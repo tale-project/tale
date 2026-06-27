@@ -24,6 +24,11 @@ import {
 const SUPPORT_CASE_BOARD_CAP = 2000;
 /** Per-case activity timeline cap (mirrors `tasks` `TASK_ACTIVITY_CAP`). */
 const SUPPORT_CASE_ACTIVITY_CAP = 500;
+/**
+ * Per-case comment-thread cap. Bounds the scan so a long-lived, high-comment
+ * case can't blow the 1s query budget, mirroring the activity feed's `.take()`.
+ */
+const SUPPORT_CASE_COMMENT_CAP = 1000;
 
 /** Whole-row projection for a case. Kept ⊇ the schema so Convex's strict return
  * validation never throws on a stored field (the empty-board failure mode
@@ -155,9 +160,10 @@ export const getCase = query({
 });
 
 /**
- * List a case's comments oldest-first. `includeInternal` defaults to true
- * (staff view); a customer-facing caller passes `false` to hide staff-only
- * notes.
+ * List a case's comments oldest-first, bounded at
+ * {@link SUPPORT_CASE_COMMENT_CAP} so a high-comment case can't blow the query
+ * budget (mirrors the activity feed). `includeInternal` defaults to true (staff
+ * view); a customer-facing caller passes `false` to hide staff-only notes.
  */
 export const listCaseComments = query({
   args: {
@@ -177,14 +183,14 @@ export const listCaseComments = query({
     if (!supportCase) return [];
 
     const includeInternal = args.includeInternal ?? true;
-    const rows: Doc<'supportCaseComments'>[] = [];
-    for await (const comment of ctx.db
+    // Bound the scan (mirrors the activity feed's `.take()`) so a high-comment
+    // case stays off the query-budget cliff, then drop staff-only notes for a
+    // customer-facing caller.
+    const rows = await ctx.db
       .query('supportCaseComments')
-      .withIndex('by_case', (q) => q.eq('caseId', args.caseId))) {
-      if (!includeInternal && comment.internal) continue;
-      rows.push(comment);
-    }
-    return rows;
+      .withIndex('by_case', (q) => q.eq('caseId', args.caseId))
+      .take(SUPPORT_CASE_COMMENT_CAP);
+    return includeInternal ? rows : rows.filter((c) => !c.internal);
   },
 });
 

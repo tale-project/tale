@@ -165,6 +165,43 @@ describe('createCase / listCases / getCase', () => {
     ).rejects.toThrow();
   });
 
+  it('rejects free-text inputs that exceed their length caps', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const asUser = t.withIdentity({ subject: USER });
+
+    // Over-long subject.
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'x'.repeat(201),
+      }),
+    ).rejects.toThrow();
+    // Over-long description.
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'Valid subject',
+        description: 'x'.repeat(20_001),
+      }),
+    ).rejects.toThrow();
+    // Over-long requester email / name.
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'Valid subject',
+        requesterEmail: 'x'.repeat(321),
+      }),
+    ).rejects.toThrow();
+    await expect(
+      asUser.mutation(api.support_cases.mutations.createCase, {
+        organizationId: ORG,
+        subject: 'Valid subject',
+        requesterName: 'x'.repeat(201),
+      }),
+    ).rejects.toThrow();
+  });
+
   it('never surfaces another org’s cases in listCases (org isolation)', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t);
@@ -370,6 +407,20 @@ describe('escalateCase', () => {
     expect(escalated.cases.map((c) => c._id)).toContain(caseId);
   });
 
+  it('rejects an over-long escalation note', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const caseId = await openCase(t);
+    const asUser = t.withIdentity({ subject: USER });
+    await expect(
+      asUser.mutation(api.support_cases.mutations.escalateCase, {
+        organizationId: ORG,
+        caseId,
+        note: 'x'.repeat(10_001),
+      }),
+    ).rejects.toThrow();
+  });
+
   it('refuses to escalate a closed case', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t);
@@ -487,6 +538,28 @@ describe('comments', () => {
       asOther.mutation(api.support_cases.mutations.deleteComment, {
         organizationId: ORG,
         commentId,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects an empty comment and an over-long one', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    const caseId = await openCase(t);
+    const asUser = t.withIdentity({ subject: USER });
+
+    await expect(
+      asUser.mutation(api.support_cases.mutations.addComment, {
+        organizationId: ORG,
+        caseId,
+        body: '   ',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      asUser.mutation(api.support_cases.mutations.addComment, {
+        organizationId: ORG,
+        caseId,
+        body: 'x'.repeat(10_001),
       }),
     ).rejects.toThrow();
   });

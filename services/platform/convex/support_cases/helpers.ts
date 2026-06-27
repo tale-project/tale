@@ -17,6 +17,83 @@ import type { AuthenticatedUser } from '../lib/rls/types';
  */
 
 /**
+ * Length caps for free-text inputs, mirroring the sibling `tasks`
+ * (`TASK_TITLE_MAX`/`TASK_DESCRIPTION_MAX`/`TASK_COMMENT_MAX`) and `discussions`
+ * (`DISCUSSION_TITLE_MAX`/`DISCUSSION_MESSAGE_MAX`) modules. Cases can capture
+ * customer-originated content (`requesterEmail`/`requesterName`, inbound
+ * subject/body), so bounding every write keeps storage and the query budget off
+ * the unbounded-string cliff the sibling modules already guard against.
+ */
+export const SUPPORT_CASE_SUBJECT_MAX = 200;
+export const SUPPORT_CASE_DESCRIPTION_MAX = 20_000;
+export const SUPPORT_CASE_COMMENT_MAX = 10_000;
+export const SUPPORT_CASE_REQUESTER_EMAIL_MAX = 320;
+export const SUPPORT_CASE_REQUESTER_NAME_MAX = 200;
+
+/**
+ * Trim + bound-check a required case subject; throws on empty or over-length
+ * (mirrors `tasks` `validateTitle`).
+ */
+export function validateSubject(raw: string): string {
+  const subject = raw.trim();
+  if (!subject) {
+    throw new ConvexError({
+      code: 'invalid_subject',
+      message: 'A case subject is required.',
+    });
+  }
+  if (subject.length > SUPPORT_CASE_SUBJECT_MAX) {
+    throw new ConvexError({
+      code: 'subject_too_long',
+      message: `A case subject cannot exceed ${SUPPORT_CASE_SUBJECT_MAX} characters.`,
+    });
+  }
+  return subject;
+}
+
+/**
+ * Trim + bound-check a required comment / note body; throws on empty or
+ * over-length (mirrors `tasks` `TASK_COMMENT_MAX`).
+ */
+export function validateCommentBody(raw: string): string {
+  const body = raw.trim();
+  if (!body) {
+    throw new ConvexError({
+      code: 'empty_comment',
+      message: 'A comment cannot be empty.',
+    });
+  }
+  if (body.length > SUPPORT_CASE_COMMENT_MAX) {
+    throw new ConvexError({
+      code: 'comment_too_long',
+      message: `A comment cannot exceed ${SUPPORT_CASE_COMMENT_MAX} characters.`,
+    });
+  }
+  return body;
+}
+
+/**
+ * Bound-check then trim an OPTIONAL free-text field. The length cap is checked
+ * before trimming (so padding can't smuggle past the limit); returns `undefined`
+ * when the field is omitted or blank, mirroring `tasks` `validateDescription`.
+ */
+export function validateOptionalText(
+  raw: string | undefined,
+  max: number,
+  code: string,
+): string | undefined {
+  if (raw === undefined) return undefined;
+  if (raw.length > max) {
+    throw new ConvexError({
+      code,
+      message: `Value cannot exceed ${max} characters.`,
+    });
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
  * Authorize a READ against the support portal. Returns the authenticated user
  * on success, or `null` when the caller is unauthenticated or not an org member
  * — read handlers translate `null` into an empty result rather than throwing,
