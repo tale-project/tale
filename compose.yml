@@ -330,6 +330,16 @@ services:
       - path: .env
         required: false
 
+    # Live browser view (read-only mirror). Read here too — the entrypoint pushes
+    # it to Convex (run_external_agent gates on it), and the sandbox spawner reads
+    # the SAME var, so the two MUST stay in lockstep. Unset ⇒ default ON; set
+    # SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out. Interpolates from the
+    # same root .env as the sandbox service so one value drives both. Empty ⇒ the
+    # entrypoint skips pushing it, leaving the Convex-side default ON. Mirrors the
+    # CLI generator (create-platform-service.ts).
+    environment:
+      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
+
     # Restart policy
     # Automatically restart the container if it crashes
     # Graceful shutdown: drain in-flight HTTP/SSE chat streams before SIGKILL.
@@ -615,6 +625,14 @@ services:
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
       SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
+      # Live browser view (read-only mirror). Unset here so BOTH sides apply
+      # their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
+      # ONE value drives both sides — this spawner reads it directly and the
+      # platform pushes it to Convex — so they MUST share a source. It is read on
+      # the platform service too (NOT a sandbox-only var like the ones above), and
+      # both interpolate from the same root .env, so a single value keeps them in
+      # lockstep. Mirrors the CLI generator (create-sandbox-service.ts).
+      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:

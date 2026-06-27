@@ -334,11 +334,12 @@ export function loadConfig(): SpawnerConfig {
     // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
-    // Live browser view (default off). When on, session containers launch with
-    // TALE_BROWSER_CDP=1 (the entrypoint's headed-Chromium + x11vnc mirror).
-    // The PLATFORM's own SANDBOX_BROWSER_VIEW must be set together so the
-    // adapter attaches Playwright MCP over CDP — a deployment-level decision.
-    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? false,
+    // Live browser view (default on; opt out with SANDBOX_BROWSER_VIEW=0). When
+    // on, session containers launch with TALE_BROWSER_CDP=1 (the entrypoint's
+    // headed-Chromium + x11vnc mirror). The PLATFORM reads the SAME env so the
+    // adapter attaches Playwright MCP over CDP — one deployment-level decision
+    // drives both sides, and they agree when the operator sets nothing.
+    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? true,
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,
