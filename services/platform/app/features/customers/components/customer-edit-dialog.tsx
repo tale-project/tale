@@ -52,7 +52,13 @@ export function CustomerEditDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().trim(),
+        name: z
+          .string()
+          .trim()
+          .min(
+            1,
+            tCommon('validation.required', { field: tCustomers('name') }),
+          ),
         email: z.string().email(tCommon('validation.email')),
         locale: z
           .string()
@@ -99,10 +105,9 @@ export function CustomerEditDialog({
 
   const onSubmit = async (data: CustomerFormData) => {
     try {
-      const trimmedName = data.name.trim();
       await updateCustomer.mutateAsync({
         customerId: customer._id,
-        name: trimmedName || undefined,
+        name: data.name.trim(),
         email: data.email.trim(),
         locale: data.locale,
         status: data.status,
@@ -146,6 +151,7 @@ export function CustomerEditDialog({
         {...register('name')}
         disabled={isSubmitting}
         errorMessage={errors.name?.message}
+        required
       />
 
       <Input
