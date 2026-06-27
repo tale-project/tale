@@ -888,6 +888,7 @@ function MessageBubbleComponent({
                 <FileAttachmentDisplay
                   key={attachment.fileId}
                   attachment={attachment}
+                  organizationId={organizationId}
                   onImageClick={
                     galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
                   }
