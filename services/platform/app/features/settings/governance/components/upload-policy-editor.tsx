@@ -203,7 +203,6 @@ export function UploadPolicyEditor({
   const {
     getValues,
     register,
-    handleSubmit,
     formState: { errors },
   } = editor.form;
   const canManage = !cannotManage;
@@ -247,7 +246,7 @@ export function UploadPolicyEditor({
         }
       >
         {enabled && (
-          <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+          <form id={FORM_ID} onSubmit={editor.submit}>
             <fieldset
               disabled={!canManage || editor.isLoading}
               className="contents"

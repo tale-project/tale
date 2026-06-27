@@ -39,7 +39,6 @@ function Harness() {
       memberContext={null}
       canDelete={false}
       isCurrentOrganization
-      onSave={save}
     />
   );
 }
@@ -65,7 +64,6 @@ function LoadHarness({ orgName }: { orgName: string }) {
       memberContext={null}
       canDelete={false}
       isCurrentOrganization
-      onSave={save}
     />
   );
 }

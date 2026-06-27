@@ -89,6 +89,10 @@ function EnvEditor({
 
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
+  // Drives the Save button: stays disabled until the user actually edits a row,
+  // so Save isn't clickable with zero changes. The dialog closes on a
+  // successful save, so there's nothing to reset.
+  const [isDirty, setIsDirty] = useState(false);
   const initialized = useRef(false);
   // Keys present at load — the delete set is computed against THIS, not the
   // current rows (a removed row is gone from `rows`, so it must be remembered
@@ -107,9 +111,12 @@ function EnvEditor({
     setRows(loaded);
   }, [data, isLoading]);
 
-  const patch = (i: number, p: Partial<Row>): void =>
+  const patch = (i: number, p: Partial<Row>): void => {
+    setIsDirty(true);
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const addRow = (): void =>
+  };
+  const addRow = (): void => {
+    setIsDirty(true);
     setRows((rs) => [
       ...rs,
       {
@@ -120,8 +127,11 @@ function EnvEditor({
         secretDirty: false,
       },
     ]);
-  const removeRow = (i: number): void =>
+  };
+  const removeRow = (i: number): void => {
+    setIsDirty(true);
     setRows((rs) => rs.filter((_, j) => j !== i));
+  };
 
   const onSave = async (): Promise<void> => {
     const active = rows.filter((r) => r.key.trim() !== '');
@@ -259,7 +269,7 @@ function EnvEditor({
         <Button variant="ghost" onClick={onClose} disabled={saving}>
           {t('agents.env.cancel')}
         </Button>
-        <Button onClick={() => void onSave()} disabled={saving}>
+        <Button onClick={() => void onSave()} disabled={saving || !isDirty}>
           {saving ? t('agents.env.saving') : t('agents.env.save')}
         </Button>
       </HStack>

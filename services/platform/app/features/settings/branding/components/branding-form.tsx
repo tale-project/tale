@@ -152,7 +152,7 @@ export function BrandingForm({
   useRegisterActiveEditor(editor);
 
   const {
-    form: { handleSubmit, watch, setValue, getValues, control },
+    form: { watch, setValue, getValues, control },
   } = editor;
 
   const watchedValues = watch();
@@ -260,7 +260,7 @@ export function BrandingForm({
   return (
     <Form
       id="branding-form"
-      onSubmit={handleSubmit((values) => save(values))}
+      onSubmit={editor.submit}
       className="w-full max-w-sm shrink-0 space-y-0 self-start"
     >
       <Stack gap={0} justify="between" className="h-full">
