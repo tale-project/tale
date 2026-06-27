@@ -321,9 +321,11 @@ export async function verifyAuditChain(
   let isFirstEntry = args.fromTimestamp === undefined;
 
   // Build per-subject scrub windows from SIGNED pii_scrub checkpoints
-  // only. A row carrying `actorId === X` is allowed to skip hash
-  // recompute only when there is a signed checkpoint covering
-  // `(X, timestamp ≤ maxDeletedTimestamp)`. Without this scoping
+  // only. A row whose actor OR (user-)resource is subject X is allowed
+  // to skip hash recompute only when there is a signed checkpoint
+  // covering `(X, timestamp ≤ maxDeletedTimestamp)` — see the per-row
+  // coverage test below, which mirrors the scrub's two selection
+  // passes. Without this scoping
   // (the prior membership-only Set), a single pii_scrub checkpoint
   // for subject X authorized hash skip on every row that subject ever
   // touched, including future rows the checkpoint never attested.
@@ -395,32 +397,56 @@ export async function verifyAuditChain(
     // Scrubbed rows: chain order + previousHash linkage stays intact,
     // but recomputing the SHA-256 over the now-blanked body would
     // mismatch. Trust the stored integrityHash only when there is a
-    // signed pii_scrub checkpoint whose subject matches this row's
-    // actorId AND whose maxDeletedTimestamp is at or after this row.
+    // signed pii_scrub checkpoint whose subject covers this row AND
+    // whose maxDeletedTimestamp is at or after this row.
+    //
+    // Coverage MUST mirror `scrubSubjectAuditLogs`'s two selection
+    // passes, both keyed on the scrubbed subject:
+    //   - pass 1: the subject is the row's ACTOR
+    //     (`actorId === scrubbedSubjectId`), or
+    //   - pass 2: the subject is the row's RESOURCE
+    //     (`resourceType === 'user' && resourceId === scrubbedSubjectId`).
+    // The scrub windows are keyed by `scrubbedSubjectId`, so we probe
+    // them under both candidate keys. Pre-fix the lookup used `actorId`
+    // only, so every pass-2 row (admin actor, subject resource) missed
+    // its window and fell through to the `!hasSigningKey` legacy branch
+    // — unreachable on a signed deployment — leaving `isScrubbed` false.
+    // The hash was then recomputed over the blanked body and mismatched
+    // the stored `integrityHash`, raising a false "hash chain broken"
+    // alarm after every GDPR erasure (#1843). The signed checkpoint
+    // binds `scrubbedSubjectId` into the v2 HMAC, so widening coverage
+    // to pass-2 rows only trusts rows the scrub actually attested.
+    //
     // A bare `piiScrubbed: true` flag with no covering window is
     // suspicious and fails closed (recompute), unless the deployment
     // has no signing key configured at all (legacy unsigned mode).
     const actorId = typeof entry.actorId === 'string' ? entry.actorId : null;
+    const resourceId =
+      typeof entry.resourceId === 'string' ? entry.resourceId : null;
     let isScrubbed = false;
     if (piiScrubbed === true) {
-      if (actorId !== null) {
-        const windows = subjectScrubWindows.get(actorId);
-        if (windows && windows.some((w) => entry.timestamp <= w.maxTimestamp)) {
-          isScrubbed = true;
-        } else if (!hasSigningKey) {
-          // Legacy / unsigned-mode deployment: no signing key
-          // configured, so signed-checkpoint coverage is impossible
-          // and the bare `piiScrubbed` flag is the best signal we
-          // have. Surface the count so operators see the unsigned
-          // trust window. Round-2 v02 H2 F6: this branch is strictly
-          // gated on `!hasSigningKey` so a checkpoint-downgrade
-          // attacker on a signed deployment cannot plant an unsigned
-          // `pii_scrub` row to bypass recompute.
-          isScrubbed = true;
-          unsignedScrubCount++;
-        }
+      const candidateSubjectKeys: string[] = [];
+      if (actorId !== null) candidateSubjectKeys.push(actorId);
+      if (entry.resourceType === 'user' && resourceId !== null) {
+        candidateSubjectKeys.push(resourceId);
+      }
+      const covered = candidateSubjectKeys.some((key) => {
+        const windows = subjectScrubWindows.get(key);
+        return (
+          windows !== undefined &&
+          windows.some((w) => entry.timestamp <= w.maxTimestamp)
+        );
+      });
+      if (covered) {
+        isScrubbed = true;
       } else if (!hasSigningKey) {
-        // No actorId on the row + legacy unsigned deployment.
+        // Legacy / unsigned-mode deployment: no signing key configured,
+        // so signed-checkpoint coverage is impossible and the bare
+        // `piiScrubbed` flag is the best signal we have. Surface the
+        // count so operators see the unsigned trust window. Round-2 v02
+        // H2 F6: this branch is strictly gated on `!hasSigningKey` so a
+        // checkpoint-downgrade attacker on a signed deployment cannot
+        // plant an unsigned `pii_scrub` row to bypass recompute.
         isScrubbed = true;
         unsignedScrubCount++;
       }
