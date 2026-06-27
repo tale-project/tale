@@ -148,6 +148,52 @@ describe('BudgetEditor', () => {
     });
   });
 
+  // Issue #2061: the editor must not persist a "silently dead" rule — a
+  // user/team/role scope with no target, or a rule with no positive limit.
+  describe('rule dialog validation (#2061)', () => {
+    it('blocks saving a rule with no limit set and shows an inline error', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      // The Add dialog is open (default scope, no limits → invalid).
+      expect(
+        await screen.findByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // The limit-required error surfaces and the dialog stays open (no save).
+      expect(
+        await screen.findByText(/set at least one limit/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+      // No rule was committed — the table still shows the empty state.
+      expect(
+        screen.getByText(/no budget rules configured/i),
+      ).toBeInTheDocument();
+    });
+
+    it('saves a default-scope rule once a positive limit is provided', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const tokenInput = await screen.findByLabelText(/max tokens/i);
+      await user.type(tokenInput, '1000000');
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // Dialog closed (saved) and the new rule row is shown.
+      expect(
+        screen.queryByRole('button', { name: /confirm/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('default')).toBeInTheDocument();
+    });
+  });
+
   describe('structural parity (skeleton matches content)', () => {
     it('renders the same column count in both states', () => {
       setLoaded([
