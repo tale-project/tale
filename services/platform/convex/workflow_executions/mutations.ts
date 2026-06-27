@@ -1,6 +1,6 @@
 import { saveMessage } from '@convex-dev/agent';
 import type { WorkflowId } from '@convex-dev/workflow';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
@@ -33,13 +33,14 @@ export const cancelExecution = mutationWithRLS({
   handler: async (ctx, args) => {
     const execution = await ctx.db.get(args.executionId);
     if (!execution) {
-      throw new Error('Execution not found');
+      throw new ConvexError({ code: 'EXECUTION_NOT_FOUND' });
     }
 
     if (execution.status !== 'running' && execution.status !== 'pending') {
-      throw new Error(
-        `Cannot cancel execution with status "${execution.status}"`,
-      );
+      throw new ConvexError({
+        code: 'EXECUTION_NOT_CANCELABLE',
+        status: execution.status,
+      });
     }
 
     // Cancel the underlying component workflow
