@@ -70,7 +70,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       ]),
     );
     const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
-    expect(fnPaths).toContain('tasks/queries:listTasksByProject');
+    expect(fnPaths).toContain('tasks/queries:listTasksByProjectPaginated');
     // App agents are listed via the app-scoped action; the global `listAgents`
     // would never return them.
     expect(fnPaths).toContain('agents/file_actions:listAppAgents');
@@ -159,6 +159,17 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     const columns = collection?.props?.columns;
     expect(Array.isArray(columns)).toBe(true);
     expect(columns).not.toContain('externalId');
+  });
+
+  it('Tasks board paginates (cursor-paginated query + perPage), so the tail is reachable', () => {
+    const collection = blockOfType('Collection');
+    const query = collection?.props?.query as { path?: string } | undefined;
+    // The board binds the cursor-paginated query, not the bounded 2000-row scan.
+    expect(query?.path).toBe('tasks/queries:listTasksByProjectPaginated');
+    // `perPage` is what flips the block into its accumulate-with-"Load more"
+    // path; without it the list silently caps at the 50-row render limit.
+    expect(typeof collection?.props?.perPage).toBe('number');
+    expect(collection?.props?.perPage as number).toBeGreaterThan(0);
   });
 
   it('has no org-wide approvals ReviewQueue (it leaked unrelated approvals)', () => {

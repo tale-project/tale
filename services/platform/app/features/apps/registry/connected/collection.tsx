@@ -7,10 +7,19 @@
  * so any list query can drive it. The reactive binding lives here (Puck only
  * composes the block). Row rendering is delegated to the shared `DataTable`.
  *
+ * Pagination is opt-in (set `perPage`): when on, the block reads through
+ * `useBoundPaginatedQuery` (Convex cursor pagination, still a LIVE subscription)
+ * and accumulates pages behind a "Load more" button; when off, it's a single
+ * reactive read — the original contract, unchanged. The two paths live in
+ * separate inner components so each calls exactly one data hook (no conditional
+ * hooks, no wasted subscription).
+ *
  * When `subjectType` is set, each row is expandable to show its workflow run
  * inline (`SubjectRun` → the reused execution view), so a domain list (tasks
  * now; others later) shows execution detail in-context — no separate run page.
  */
+import { Button } from '@tale/ui/button';
+import { HStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { ListChecks } from 'lucide-react';
@@ -18,6 +27,7 @@ import { ListChecks } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { useBoundPaginatedQuery } from '../../hooks/use-bound-paginated-query';
 import { useBoundQuery } from '../../hooks/use-bound-query';
 import {
   resolveColumnLabels,
@@ -42,6 +52,9 @@ export interface CollectionProps {
   subjectType?: string;
   /** Row field holding the subject id (default `_id`). */
   subjectIdField?: string;
+  /** Page size; when set, the block paginates (cursor) and accumulates pages
+   *  behind a "Load more" button. Omit for a single-shot reactive read. */
+  perPage?: number;
 }
 
 function pickArray(data: unknown): Record<string, unknown>[] {
@@ -62,7 +75,65 @@ function pickArray(data: unknown): Record<string, unknown>[] {
   return [];
 }
 
-export function Collection({
+/** The shared row table for both Collection paths: applies the optional
+ *  subject-row expansion + capacity-chip accessory and renders via `DataTable`.
+ *  `maxRows` is passed through (paginated lists pass `rows.length` so accumulated
+ *  pages aren't re-truncated; the single-shot list omits it → DataTable's default
+ *  cap). */
+function CollectionTable({
+  rows,
+  columns,
+  resolvedColumnLabels,
+  actions,
+  subjectType,
+  subjectIdField,
+  maxRows,
+}: {
+  rows: Record<string, unknown>[];
+  columns?: string[];
+  resolvedColumnLabels?: Record<string, string>;
+  actions?: BoundActionSpec[];
+  subjectType?: string;
+  subjectIdField: string;
+  maxRows?: number;
+}) {
+  return (
+    <DataTable
+      rows={rows}
+      columns={columns}
+      columnLabels={resolvedColumnLabels}
+      actions={actions}
+      maxRows={maxRows}
+      expansion={
+        subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId) => (
+                <SubjectRun subjectType={subjectType} subjectId={subjectId} />
+              ),
+            }
+          : undefined
+      }
+      rowAccessory={
+        subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId, statusBadge) => (
+                <SubjectCapacityChip
+                  subjectType={subjectType}
+                  subjectId={subjectId}
+                  fallback={statusBadge}
+                />
+              ),
+            }
+          : undefined
+      }
+    />
+  );
+}
+
+/** Single-shot reactive read — the original Collection behavior. */
+function CollectionSingle({
   title,
   query,
   columns,
@@ -87,40 +158,89 @@ export function Collection({
       ) : rows.length === 0 ? (
         <Text variant="muted">{t('binding.empty')}</Text>
       ) : (
-        <DataTable
+        <CollectionTable
           rows={rows}
           columns={columns}
-          columnLabels={resolveColumnLabels(columnLabels, labelOf)}
+          resolvedColumnLabels={resolveColumnLabels(columnLabels, labelOf)}
           actions={actions}
-          expansion={
-            subjectType
-              ? {
-                  idField: subjectIdField,
-                  render: (subjectId) => (
-                    <SubjectRun
-                      subjectType={subjectType}
-                      subjectId={subjectId}
-                    />
-                  ),
-                }
-              : undefined
-          }
-          rowAccessory={
-            subjectType
-              ? {
-                  idField: subjectIdField,
-                  render: (subjectId, statusBadge) => (
-                    <SubjectCapacityChip
-                      subjectType={subjectType}
-                      subjectId={subjectId}
-                      fallback={statusBadge}
-                    />
-                  ),
-                }
-              : undefined
-          }
+          subjectType={subjectType}
+          subjectIdField={subjectIdField}
         />
       )}
     </Section>
+  );
+}
+
+/** Cursor-paginated read: accumulates pages behind a "Load more" button while
+ *  staying a live subscription. */
+function CollectionPaginated({
+  title,
+  query,
+  columns,
+  columnLabels,
+  actions,
+  subjectType,
+  subjectIdField = '_id',
+  perPage,
+}: CollectionProps) {
+  const { t } = useT('apps');
+  const labelOf = usePackLabelString();
+  const { results, status, loadMore, blocked, needsConfig } =
+    useBoundPaginatedQuery(query.path, query.args, { perPage });
+
+  return (
+    <Section title={labelOf(title)} icon={ListChecks}>
+      {blocked ? (
+        <Text variant="error">
+          {t('binding.blocked', { path: query.path })}
+        </Text>
+      ) : needsConfig ? (
+        // A `$config:`/`$projectId` binding the query references is still unset —
+        // prompt to configure rather than firing a request that would fail arg
+        // validation.
+        <Text variant="muted">{t('list.needsConfig')}</Text>
+      ) : status === 'LoadingFirstPage' ? (
+        <SkeletonText lines={3} />
+      ) : results.length === 0 ? (
+        <Text variant="muted">{t('binding.empty')}</Text>
+      ) : (
+        <>
+          <CollectionTable
+            rows={results}
+            columns={columns}
+            resolvedColumnLabels={resolveColumnLabels(columnLabels, labelOf)}
+            actions={actions}
+            subjectType={subjectType}
+            subjectIdField={subjectIdField}
+            // Render the whole accumulated list — the default 50-row cap would
+            // silently swallow rows pulled in by "Load more".
+            maxRows={results.length}
+          />
+          {(status === 'CanLoadMore' || status === 'LoadingMore') && (
+            <HStack gap={3} className="items-center justify-center">
+              <Button
+                variant="ghost"
+                disabled={status === 'LoadingMore'}
+                onClick={() => loadMore(perPage ?? 50)}
+              >
+                {status === 'LoadingMore'
+                  ? t('list.loadingMore')
+                  : t('list.loadMore')}
+              </Button>
+            </HStack>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+export function Collection(props: CollectionProps) {
+  // `perPage` comes from view config and never changes at runtime, so picking the
+  // path here is stable — each inner component owns a consistent hook set.
+  return props.perPage !== undefined ? (
+    <CollectionPaginated {...props} />
+  ) : (
+    <CollectionSingle {...props} />
   );
 }
