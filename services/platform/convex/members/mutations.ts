@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -137,7 +137,7 @@ export const removeMember = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const member = findOneMember(
@@ -148,7 +148,7 @@ export const removeMember = mutation({
       }),
     );
     if (!member?.organizationId) {
-      throw new Error('Member not found');
+      throw new ConvexError({ code: 'MEMBER_NOT_FOUND' });
     }
 
     const callerMember = findOneMember(
@@ -166,11 +166,11 @@ export const removeMember = mutation({
       }),
     );
     if (!isAdmin(callerMember?.role)) {
-      throw new Error('Only admins can remove members');
+      throw new ConvexError({ code: 'MEMBER_REMOVE_FORBIDDEN' });
     }
 
     if (member.role?.toLowerCase() === 'owner') {
-      throw new Error('The organization owner cannot be removed');
+      throw new ConvexError({ code: 'MEMBER_OWNER_REMOVAL_FORBIDDEN' });
     }
 
     const targetUser = member.userId
@@ -245,7 +245,7 @@ export const updateMemberRole = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const member = findOneMember(
@@ -256,7 +256,7 @@ export const updateMemberRole = mutation({
       }),
     );
     if (!member?.organizationId) {
-      throw new Error('Member not found');
+      throw new ConvexError({ code: 'MEMBER_NOT_FOUND' });
     }
 
     const callerMember = findOneMember(
@@ -274,15 +274,15 @@ export const updateMemberRole = mutation({
       }),
     );
     if (!isAdmin(callerMember?.role)) {
-      throw new Error('Only admins can update member roles');
+      throw new ConvexError({ code: 'MEMBER_ROLE_UPDATE_FORBIDDEN' });
     }
 
     if (member.role?.toLowerCase() === 'owner') {
-      throw new Error('The organization owner role cannot be changed');
+      throw new ConvexError({ code: 'MEMBER_OWNER_ROLE_IMMUTABLE' });
     }
 
     if (args.role.toLowerCase() === 'owner') {
-      throw new Error('The owner role cannot be assigned manually');
+      throw new ConvexError({ code: 'MEMBER_OWNER_ROLE_ASSIGN_FORBIDDEN' });
     }
 
     const orgResult = await ctx.runQuery(
@@ -303,13 +303,16 @@ export const updateMemberRole = mutation({
     if (isRecord(orgRaw)) {
       const rawMetadata = getString(orgRaw, 'metadata');
       if (rawMetadata) {
+        let creatorId: unknown;
         try {
           const parsed: unknown = JSON.parse(rawMetadata);
-          if (isRecord(parsed) && parsed.creatorId === member.userId) {
-            throw new Error('The organization creator role cannot be changed');
-          }
+          if (isRecord(parsed)) creatorId = parsed.creatorId;
         } catch (e) {
-          if (e instanceof Error && e.message.includes('creator')) throw e;
+          // Malformed metadata can't pin a creator; log and skip the guard.
+          console.warn('Failed to parse organization metadata', e);
+        }
+        if (creatorId === member.userId) {
+          throw new ConvexError({ code: 'MEMBER_CREATOR_ROLE_IMMUTABLE' });
         }
       }
     }
@@ -346,9 +349,7 @@ export const updateMemberRole = mutation({
         (m: { role?: string }) => isAdmin(m.role),
       ).length;
       if (adminCount <= 1) {
-        throw new Error(
-          'Cannot demote the last admin. The organization must have at least one admin or owner.',
-        );
+        throw new ConvexError({ code: 'MEMBER_LAST_ADMIN' });
       }
     }
 
@@ -401,7 +402,7 @@ export const transferOwnership = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const targetMember = findOneMember(
@@ -412,7 +413,7 @@ export const transferOwnership = mutation({
       }),
     );
     if (!targetMember?.organizationId) {
-      throw new Error('Member not found');
+      throw new ConvexError({ code: 'MEMBER_NOT_FOUND' });
     }
 
     const callerMember = findOneMember(
@@ -430,11 +431,11 @@ export const transferOwnership = mutation({
       }),
     );
     if (callerMember?.role?.toLowerCase() !== 'owner') {
-      throw new Error('Only the organization owner can transfer ownership');
+      throw new ConvexError({ code: 'OWNERSHIP_TRANSFER_FORBIDDEN' });
     }
 
     if (targetMember.role?.toLowerCase() === 'owner') {
-      throw new Error('Target member is already the owner');
+      throw new ConvexError({ code: 'MEMBER_ALREADY_OWNER' });
     }
 
     // Promote target to owner
@@ -517,7 +518,7 @@ export const updateMemberDisplayName = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const member = findOneMember(
@@ -528,7 +529,7 @@ export const updateMemberDisplayName = mutation({
       }),
     );
     if (!member?.userId || !member.organizationId) {
-      throw new Error('Member not found');
+      throw new ConvexError({ code: 'MEMBER_NOT_FOUND' });
     }
 
     const targetUser = findOneUser(
@@ -559,7 +560,7 @@ export const updateMemberDisplayName = mutation({
       );
       callerRole = callerMember?.role;
       if (!isAdmin(callerMember?.role)) {
-        throw new Error('Only admins can update other members names');
+        throw new ConvexError({ code: 'MEMBER_NAME_UPDATE_FORBIDDEN' });
       }
     }
 

@@ -27,7 +27,16 @@ vi.mock('../audit_logs/helpers', () => ({
 
 vi.mock('convex/values', () => {
   const stub = () => 'validator';
+  class ConvexError extends Error {
+    data: unknown;
+    constructor(data: unknown) {
+      super(typeof data === 'string' ? data : JSON.stringify(data));
+      this.name = 'ConvexError';
+      this.data = data;
+    }
+  }
   return {
+    ConvexError,
     v: {
       string: stub,
       number: stub,
@@ -123,7 +132,7 @@ describe('removeMember handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { memberId: 'm_1' })).rejects.toThrow(
-      'Unauthenticated',
+      'UNAUTHENTICATED',
     );
   });
 
@@ -134,7 +143,7 @@ describe('removeMember handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { memberId: 'm_1' })).rejects.toThrow(
-      'Member not found',
+      'MEMBER_NOT_FOUND',
     );
   });
 
@@ -159,7 +168,7 @@ describe('removeMember handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { memberId: 'm_target' })).rejects.toThrow(
-      'Only admins can remove members',
+      'MEMBER_REMOVE_FORBIDDEN',
     );
   });
 
@@ -184,7 +193,7 @@ describe('removeMember handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { memberId: 'm_owner' })).rejects.toThrow(
-      'The organization owner cannot be removed',
+      'MEMBER_OWNER_REMOVAL_FORBIDDEN',
     );
   });
 
@@ -250,7 +259,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_1', role: 'editor' }),
-    ).rejects.toThrow('Unauthenticated');
+    ).rejects.toThrow('UNAUTHENTICATED');
   });
 
   it('throws when caller is not admin', async () => {
@@ -275,7 +284,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', role: 'admin' }),
-    ).rejects.toThrow('Only admins can update member roles');
+    ).rejects.toThrow('MEMBER_ROLE_UPDATE_FORBIDDEN');
   });
 
   it('throws when trying to change the owner role', async () => {
@@ -300,7 +309,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_owner', role: 'member' }),
-    ).rejects.toThrow('The organization owner role cannot be changed');
+    ).rejects.toThrow('MEMBER_OWNER_ROLE_IMMUTABLE');
   });
 
   it('throws when trying to assign owner role manually', async () => {
@@ -325,7 +334,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', role: 'owner' }),
-    ).rejects.toThrow('The owner role cannot be assigned manually');
+    ).rejects.toThrow('MEMBER_OWNER_ROLE_ASSIGN_FORBIDDEN');
   });
 
   it('throws when target is the organization creator', async () => {
@@ -359,7 +368,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_creator', role: 'member' }),
-    ).rejects.toThrow('The organization creator role cannot be changed');
+    ).rejects.toThrow('MEMBER_CREATOR_ROLE_IMMUTABLE');
   });
 
   it('throws when demoting the last admin', async () => {
@@ -404,9 +413,7 @@ describe('updateMemberRole handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', role: 'member' }),
-    ).rejects.toThrow(
-      'Cannot demote the last admin. The organization must have at least one admin or owner.',
-    );
+    ).rejects.toThrow('MEMBER_LAST_ADMIN');
   });
 
   it('allows demoting admin when owner exists', async () => {
@@ -596,7 +603,7 @@ describe('transferOwnership handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
-      'Unauthenticated',
+      'UNAUTHENTICATED',
     );
   });
 
@@ -607,7 +614,7 @@ describe('transferOwnership handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
-      'Member not found',
+      'MEMBER_NOT_FOUND',
     );
   });
 
@@ -632,7 +639,7 @@ describe('transferOwnership handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
-      'Only the organization owner can transfer ownership',
+      'OWNERSHIP_TRANSFER_FORBIDDEN',
     );
   });
 
@@ -657,7 +664,7 @@ describe('transferOwnership handler', () => {
     const handler = await getHandler();
 
     await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
-      'Target member is already the owner',
+      'MEMBER_ALREADY_OWNER',
     );
   });
 
