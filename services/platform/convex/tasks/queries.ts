@@ -200,7 +200,6 @@ export const listTasksByProjectPaginated = query({
     projectId: v.id('projects'),
     externalSystem: v.optional(v.string()),
     status: v.optional(taskStatusValidator),
-    excludeStatuses: v.optional(v.array(taskStatusValidator)),
     includeArchived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {

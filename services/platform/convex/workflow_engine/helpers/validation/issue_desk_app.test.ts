@@ -172,14 +172,18 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(collection?.props?.perPage as number).toBeGreaterThan(0);
   });
 
-  it('Tasks board hides done tasks via config (excludeStatuses), not hardcoded', () => {
+  it('Tasks board offers a config-driven status filter (no status hardcoded in code)', () => {
     const collection = blockOfType('Collection');
-    const args = (
-      collection?.props?.query as { args?: Record<string, unknown> }
-    )?.args;
-    // The exclusion lives in the view config (data), so the component stays
-    // generic — no status name is baked into the Collection block's code.
-    expect(args?.excludeStatuses).toEqual(['done']);
+    const filters = collection?.props?.filters as
+      | Array<{ field?: string; values?: string[] }>
+      | undefined;
+    // The filterable field + its values live in the view config (data), so the
+    // generic Collection block carries no status names.
+    const statusFilter = filters?.find((f) => f.field === 'status');
+    expect(statusFilter).toBeDefined();
+    expect(statusFilter?.values).toEqual(
+      expect.arrayContaining(['in_progress', 'done']),
+    );
   });
 
   it('has no org-wide approvals ReviewQueue (it leaked unrelated approvals)', () => {

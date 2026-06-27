@@ -25,11 +25,9 @@ export interface ListTasksByProjectPaginatedArgs {
   projectId: Id<'projects'>;
   /** Scope to tasks linked to an external system (e.g. 'github'). */
   externalSystem?: string;
-  /** Keep only this status (a positive filter). */
-  status?: string;
-  /** Drop these statuses (a negative filter) — lets a view hide e.g. `done`
-   *  tasks via config, with no status names hardcoded in the component. */
-  excludeStatuses?: string[];
+  /** Keep only this status (drives the view's status filter). Pinned into the
+   *  index range so a filtered list stays dense — no post-filter page thinning. */
+  status?: Doc<'tasks'>['status'];
   includeArchived?: boolean;
 }
 
@@ -37,12 +35,17 @@ export async function listTasksByProjectPaginated(
   ctx: QueryCtx,
   args: ListTasksByProjectPaginatedArgs,
 ): Promise<PaginationResult<Doc<'tasks'>>> {
+  // Narrow the index to (projectId[, status]); ascending → (status, rank) order,
+  // matching the board's client-side sort. Pinning `status` keeps a status-
+  // filtered page dense instead of thinning it with a post-filter.
   let query = ctx.db
     .query('tasks')
-    .withIndex('by_project_status_rank', (q) =>
-      q.eq('projectId', args.projectId),
-    )
-    // Ascending → (status, rank) order, matching the board's client-side sort.
+    .withIndex('by_project_status_rank', (q) => {
+      const scoped = q.eq('projectId', args.projectId);
+      return args.status !== undefined
+        ? scoped.eq('status', args.status)
+        : scoped;
+    })
     .order('asc');
 
   if (args.externalSystem !== undefined) {
@@ -50,16 +53,6 @@ export async function listTasksByProjectPaginated(
     query = query.filter((q) =>
       q.eq(q.field('externalSystem'), externalSystem),
     );
-  }
-  if (args.status !== undefined) {
-    const status = args.status;
-    query = query.filter((q) => q.eq(q.field('status'), status));
-  }
-  // Negative status filter (e.g. hide `done`). `const` is per-iteration, so each
-  // closure captures its own value. Like the other facets it can thin a page —
-  // the paginated client just loads the next slice.
-  for (const excluded of args.excludeStatuses ?? []) {
-    query = query.filter((q) => q.neq(q.field('status'), excluded));
   }
   if (!args.includeArchived) {
     query = query.filter((q) => q.eq(q.field('archivedAt'), undefined));

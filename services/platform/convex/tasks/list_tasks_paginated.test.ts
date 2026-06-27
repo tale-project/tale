@@ -83,7 +83,7 @@ describe('listTasksByProjectPaginated', () => {
     expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
-  it('filters by status when provided', async () => {
+  it('pins status into the index range, not a post-filter', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listTasksByProjectPaginated(ctx as unknown as QueryCtx, {
@@ -93,24 +93,15 @@ describe('listTasksByProjectPaginated', () => {
       includeArchived: true,
     });
 
-    expect(builder.filter).toHaveBeenCalledTimes(1);
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_project_status_rank',
+      expect.any(Function),
+    );
+    // status is narrowed in the index range — no `.filter()` for it.
+    expect(builder.filter).not.toHaveBeenCalled();
   });
 
-  it('drops each excluded status with its own .filter() (hide done)', async () => {
-    const { ctx, builder } = createMockQueryBuilder();
-
-    await listTasksByProjectPaginated(ctx as unknown as QueryCtx, {
-      paginationOpts: DEFAULT_PAGINATION_OPTS,
-      projectId: PROJECT_ID,
-      excludeStatuses: ['done', 'cancelled'],
-      includeArchived: true,
-    });
-
-    // One negative filter per excluded status — config-driven, nothing hardcoded.
-    expect(builder.filter).toHaveBeenCalledTimes(2);
-  });
-
-  it('stacks externalSystem + status + archived as three filters', async () => {
+  it('applies externalSystem + archived as filters (status stays in the index)', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listTasksByProjectPaginated(ctx as unknown as QueryCtx, {
@@ -121,7 +112,7 @@ describe('listTasksByProjectPaginated', () => {
       // includeArchived omitted ⇒ archived exclusion applies too.
     });
 
-    expect(builder.filter).toHaveBeenCalledTimes(3);
+    expect(builder.filter).toHaveBeenCalledTimes(2);
   });
 
   it('returns the pagination result unchanged', async () => {
