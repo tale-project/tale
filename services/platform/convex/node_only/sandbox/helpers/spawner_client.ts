@@ -237,31 +237,10 @@ function signRequest(
 function spawnerBaseUrl(): string {
   // Default to host loopback so `bun dev`'s local convex-local-backend
   // (running on the host) can reach the spawner via the published port.
-  // Docker compose sets
-  // SANDBOX_URL=http://sandbox:8003 on the tale-convex container so the
-  // dockerized convex resolves through Docker DNS instead. In blue-green
-  // mode `sandbox` is the bare alias that the deploy flip points at the
-  // ACTIVE colour — so new executions always reach the live spawner.
+  // Docker compose sets SANDBOX_URL=http://sandbox:8003 on the tale-convex
+  // container so the dockerized convex resolves the single sandbox spawner
+  // through Docker DNS instead.
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
-}
-
-/**
- * Resolve the spawner URL for a SPECIFIC blue-green colour — used by cancel /
- * session ops so they reach the exact colour an execution started on, even
- * after a flip moved the bare `sandbox` alias to the new colour. `null`/empty
- * colour (single-colour mode, or the docker DNS host isn't `sandbox`) falls
- * back to the base URL.
- */
-export function spawnerUrlForColor(color: string | null | undefined): string {
-  const base = spawnerBaseUrl();
-  if (!color) return base;
-  try {
-    const u = new URL(base);
-    if (u.hostname !== 'sandbox') return base; // dev/loopback → no per-colour host
-    return `${u.protocol}//sandbox-${color}:${u.port || '8003'}`;
-  } catch {
-    return base;
-  }
 }
 
 function getSpawnerToken(): string | null {
@@ -287,20 +266,12 @@ interface SpawnerExecuteCallbacks {
   onStdout?: (text: string) => void;
   /** Live stderr tail. Fires per spawner-side chunk (not line-buffered). */
   onStderr?: (text: string) => void;
-  /**
-   * Fired once, as soon as the spawner's response headers arrive, with the
-   * blue-green colour it reported via `X-Sandbox-Color` (or `null` in
-   * single-colour mode). The action persists it on the execution row BEFORE
-   * the body streams, so a concurrent user-Stop routes its cancel to the SAME
-   * colour even after a deploy flip.
-   */
-  onSpawnerColor?: (color: string | null) => Promise<void> | void;
 }
 
 // How many times to re-POST /v1/execute when the spawner answers 503 "draining"
-// (it's mid-flip and refusing new work). A handful of fast retries re-resolves
-// the `sandbox` DNS alias onto the freshly-active colour. Bounded so a genuinely
-// down tier still fails fast into SPAWNER_UNAVAILABLE.
+// (it's being rolled in place at deploy time and refusing new work). A handful
+// of fast retries bridges the in-place restart. Bounded so a genuinely down tier
+// still fails fast into SPAWNER_UNAVAILABLE.
 const DRAIN_RETRY_MAX = 5;
 const DRAIN_RETRY_DELAY_MS = 400;
 
@@ -424,20 +395,6 @@ export async function spawnerExecute(
   }
   if (!res.body) {
     throw new Error('sandbox spawner returned no body');
-  }
-
-  // Blue-green: report the colour the spawner self-identified (X-Sandbox-Color)
-  // so the caller can persist it on the execution row BEFORE streaming begins —
-  // a concurrent user-Stop then routes its cancel to this exact colour.
-  if (callbacks.onSpawnerColor) {
-    const reported = res.headers.get('x-sandbox-color');
-    try {
-      await callbacks.onSpawnerColor(
-        reported && reported.length > 0 ? reported : null,
-      );
-    } catch (err) {
-      console.warn(`[spawnerExecute] onSpawnerColor callback failed:`, err);
-    }
   }
 
   // SSE parser: events are separated by `\n\n`; each event has `event:` and
@@ -672,13 +629,8 @@ function validateExecuteResponse(
   return raw as unknown as SpawnerExecuteResponse;
 }
 
-export async function spawnerCancel(
-  executionId: string,
-  spawnerColor?: string | null,
-): Promise<void> {
-  // Route to the SAME colour the execution started on (persisted on the row),
-  // so a cancel still lands after a deploy flip moved the bare `sandbox` alias.
-  const url = `${spawnerUrlForColor(spawnerColor)}/v1/cancel/${encodeURIComponent(executionId)}`;
+export async function spawnerCancel(executionId: string): Promise<void> {
+  const url = `${spawnerBaseUrl()}/v1/cancel/${encodeURIComponent(executionId)}`;
   const path = new URL(url).pathname;
   const token = getSpawnerToken();
   const body = '';

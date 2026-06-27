@@ -329,35 +329,6 @@ export const markSessionRowStopped = internalMutation({
  * lets the turn call it on resume without re-reading the post-reconcile status.
  * Returns whether a row was patched.
  */
-/**
- * Persist the blue-green spawner colour a session landed on (self-reported via
- * `X-Sandbox-Color` at create/resume). Session ops then route to
- * `sandbox-<spawnerColor>` so a long agent turn survives a deploy flip that
- * lingered the old colour. Patches the LIVE row only (mirrors setSessionPinned),
- * and no-ops on a `null` colour (single-colour mode) so it never clobbers a
- * real colour with nothing.
- */
-export const setSessionSpawnerColor = internalMutation({
-  args: {
-    organizationId: v.string(),
-    sessionId: v.string(),
-    spawnerColor: v.union(v.string(), v.null()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    if (args.spawnerColor === null) return null;
-    for await (const row of ctx.db
-      .query('sandboxSessions')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
-      if (row.organizationId !== args.organizationId) continue;
-      if (!isLiveSessionStatus(row.status)) continue;
-      if (row.spawnerColor === args.spawnerColor) continue;
-      await ctx.db.patch(row._id, { spawnerColor: args.spawnerColor });
-    }
-    return null;
-  },
-});
-
 export const resumeStoppedSession = internalMutation({
   args: { organizationId: v.string(), sessionId: v.string() },
   returns: v.boolean(),

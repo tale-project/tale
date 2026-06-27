@@ -201,8 +201,7 @@ export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
 }
 
 async function listLabeledContainers(...labels: string[]): Promise<string[]> {
-  // Each `-f label=…` is AND-ed by docker, so passing the colour label
-  // restricts the sweep to this spawner colour's own containers.
+  // Each `-f label=…` is AND-ed by docker.
   const filters = labels.flatMap((l) => ['-f', `label=${l}`]);
   const result = await runDocker(['ps', '-aq', ...filters]);
   if (result.exitCode !== 0) return [];
@@ -210,11 +209,6 @@ async function listLabeledContainers(...labels: string[]): Promise<string[]> {
     .split('\n')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-}
-
-/** The colour label filter for this spawner, or empty in single-colour mode. */
-function colorLabelFilter(cfg?: SpawnerConfig): string[] {
-  return cfg?.color ? [`tale.color=${cfg.color}`] : [];
 }
 
 async function sweepHostSessionDirs(
@@ -267,14 +261,12 @@ async function sweepHostSessionDirs(
 }
 
 export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
-  // Scope to this spawner's colour so a green boot never reaps blue's
-  // in-flight one-shot containers (and vice-versa). Single-colour mode reaps
-  // all, as before.
-  const colorFilter = colorLabelFilter(cfg);
-  const containers = await listLabeledContainers(
-    'tale.sandbox=1',
-    ...colorFilter,
-  );
+  // The sandbox tier is a single container that rolls in-place; there is no
+  // colour to scope the sweep to. The boot sweep only reaps the ONE-SHOT
+  // `tale.sandbox=1` (+ staging) leftovers — persistent session containers
+  // carry the distinct `tale.sandbox-session=1` label and are never touched
+  // here, so re-adoption can recover them.
+  const containers = await listLabeledContainers('tale.sandbox=1');
   for (const c of containers) {
     try {
       await dockerRm(c);
@@ -284,7 +276,6 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   }
   const stagingContainers = await listLabeledContainers(
     'tale.sandbox-staging=1',
-    ...colorFilter,
   );
   for (const c of stagingContainers) {
     try {
@@ -336,15 +327,11 @@ export async function dockerSweepOrphans(
   // is unreachable.
   let containerProbeOk = false;
   try {
-    const colorFilter = cfg.color
-      ? ['--filter', `label=tale.color=${cfg.color}`]
-      : [];
     const result = await runDocker([
       'ps',
       '-a',
       '--filter',
       'label=tale.sandbox=1',
-      ...colorFilter,
       '--format',
       '{{.Names}}\t{{.Labels}}',
     ]);

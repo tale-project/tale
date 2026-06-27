@@ -176,11 +176,6 @@ export interface RunAgentInSessionArgs {
    * skip mid-turn steering / the human-control card for autonomous runs.
    * Independent of permissionMode. */
   interactionMode?: 'interactive' | 'autonomous';
-  /** Blue-green colour the session lives on. Routes the session exec/attach,
-   * cancel, and file ops to `sandbox-<spawnerColor>` so a turn (or its resume)
-   * reaches a session lingering on the old colour after a deploy flip.
-   * `undefined` ⇒ single-colour / pre-blue-green → the bare `sandbox` alias. */
-  spawnerColor?: string | null;
   /** Extra system-prompt text appended to the agent CLI's own prompt. */
   systemPromptAppend?: string;
   /** Credential mode (default 'managed'). 'byo' skips the gateway entirely. */
@@ -625,12 +620,9 @@ export async function runAgentInSessionImpl(
       console.warn(
         `[run_agent] exec ${args.execId} still alive ${STDIN_EOF_GRACE_MS}ms after stdin EOF — reaping`,
       );
-      void sessionCancelExec(
-        args.sessionId,
-        args.execId,
-        args.spawnerColor,
-      ).catch((err: unknown) =>
-        console.warn('[run_agent] post-EOF reap failed:', err),
+      void sessionCancelExec(args.sessionId, args.execId).catch(
+        (err: unknown) =>
+          console.warn('[run_agent] post-EOF reap failed:', err),
       );
     }, STDIN_EOF_GRACE_MS);
   };
@@ -685,7 +677,6 @@ export async function runAgentInSessionImpl(
             'utf8',
           ).toString('base64'),
         })),
-        args.spawnerColor,
       );
     }
     const rows = [...fileRows, ...queued].sort(
@@ -1232,7 +1223,6 @@ export async function runAgentInSessionImpl(
           const entries = await sessionListFiles(
             args.sessionId,
             steerDirFor(args.execId),
-            args.spawnerColor,
           );
           const consumedIds = matchConsumedSteerFiles(fileDelivered, entries);
           if (consumedIds.length > 0) {
@@ -1369,7 +1359,6 @@ export async function runAgentInSessionImpl(
     {
       cursor,
       ...(resuming && { resumeSinceSeq: args.resumeFrom?.lastSeq ?? 0 }),
-      ...(args.spawnerColor != null && { spawnerColor: args.spawnerColor }),
     },
   );
   let hardDeadlineTimer: ReturnType<typeof setTimeout> | undefined;

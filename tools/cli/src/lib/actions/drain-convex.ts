@@ -7,7 +7,7 @@
  * chat turns (the client retries onto the restart) and waits for in-flight
  * generations to finish before the recreate; `endDrainConvex` clears the flag
  * once convex is healthy again. Mirrors the sandbox tier's `/v1/drain` flow
- * (flip-sandbox.ts), but the control channel is `bunx convex run` through the
+ * (drain-sandbox.ts), but the control channel is `bunx convex run` through the
  * platform container (docker/convex-run.ts).
  *
  * Best-effort by design: an older backend that predates the drain control
@@ -26,7 +26,7 @@ import { findPlatformContainer } from '../docker/find-platform-container';
 
 // Plain chat turns are short (seconds–~2 min); 3 min covers the tail without
 // stalling the deploy. Past the budget we recreate anyway and let the watchdog
-// finalize stragglers (mirrors flip-sandbox.ts's drain ceiling).
+// finalize stragglers (mirrors drain-sandbox.ts's drain ceiling).
 const DRAIN_POLL_MS = 2_000;
 const DRAIN_TIMEOUT_MS = 3 * 60_000;
 
