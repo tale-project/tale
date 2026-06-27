@@ -112,6 +112,11 @@ import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import {
+  supportCaseActivityTable,
+  supportCaseCommentsTable,
+  supportCasesTable,
+} from './support_cases/schema';
+import {
   agentTaskMetricsDailyTable,
   taskAgentRunsTable,
   taskMetricsDailyTable,
@@ -271,6 +276,12 @@ export default defineSchema({
   // (migrated by versions/.../enterprise_sso_unify).
   ssoConnections: ssoConnectionsTable,
   ssoProvisioningLinks: ssoProvisioningLinksTable,
+  // Customer support portal (issue #1923): org-scoped cases worked by support
+  // staff through their lifecycle, with escalation, SLA and a comment thread.
+  // See `support_cases/schema.ts`.
+  supportCases: supportCasesTable,
+  supportCaseComments: supportCaseCommentsTable,
+  supportCaseActivity: supportCaseActivityTable,
   vendors: vendorsTable,
   sandboxExecutions: sandboxExecutionsTable,
   sandboxSessions: sandboxSessionsTable,
