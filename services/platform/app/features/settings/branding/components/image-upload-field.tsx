@@ -7,6 +7,8 @@ import { Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
+import { useToast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useSaveImage } from '../hooks/mutations';
@@ -43,6 +45,8 @@ export function ImageUploadField({
   const objectUrlRef = useRef<string | null>(null);
   const prevCurrentUrlRef = useRef(currentUrl);
   const saveImage = useSaveImage();
+  const { toast } = useToast();
+  const { t: tToast } = useT('toast');
 
   if (prevCurrentUrlRef.current !== currentUrl) {
     prevCurrentUrlRef.current = currentUrl;
@@ -96,13 +100,18 @@ export function ImageUploadField({
           mimeType: file.type,
         });
         onUpload(result.filename, file);
-      } catch {
+      } catch (err) {
+        console.error('[branding image upload]', err);
         setPreviewUrl(null);
         onPreviewUrlChange?.(null);
         if (objectUrlRef.current) {
           URL.revokeObjectURL(objectUrlRef.current);
           objectUrlRef.current = null;
         }
+        toast({
+          title: tToast('error.imageUploadFailed'),
+          variant: 'destructive',
+        });
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
@@ -110,7 +119,15 @@ export function ImageUploadField({
         }
       }
     },
-    [organizationId, saveImage, imageType, onUpload, onPreviewUrlChange],
+    [
+      organizationId,
+      saveImage,
+      imageType,
+      onUpload,
+      onPreviewUrlChange,
+      toast,
+      tToast,
+    ],
   );
 
   const handleRemove = useCallback(() => {

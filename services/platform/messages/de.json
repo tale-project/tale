@@ -6958,6 +6958,7 @@
       "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte überprüfe dein aktuelles Passwort und versuche es erneut.",
       "organizationUpdateFailed": "Organisation konnte nicht aktualisiert werden",
       "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
+      "imageUploadFailed": "Bild-Upload fehlgeschlagen. Bitte versuche es erneut.",
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",

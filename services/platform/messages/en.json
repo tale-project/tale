@@ -7220,6 +7220,7 @@
       "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
       "organizationUpdateFailed": "Failed to update organization",
       "brandingUpdateFailed": "Failed to update branding",
+      "imageUploadFailed": "Image upload failed. Please try again.",
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationDeleteFailed": "Failed to delete automation",

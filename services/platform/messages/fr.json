@@ -6959,6 +6959,7 @@
       "passwordChangeFailed": "Échec du changement de mot de passe. Merci de vérifier ton mot de passe actuel et réessayer.",
       "organizationUpdateFailed": "Échec de la mise à jour de l'organisation",
       "brandingUpdateFailed": "Échec de la mise à jour de l'image de marque",
+      "imageUploadFailed": "Échec du téléchargement de l'image. Veuillez réessayer.",
       "addMemberFailed": "Échec de l'ajout du membre",
       "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
       "automationDeleteFailed": "Échec de la suppression de l'automatisation",
