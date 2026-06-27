@@ -11,7 +11,7 @@ import type { AgentRunSpec } from './types';
 const base = {
   prompt: 'Fix issue #1 and open a PR',
   model: 'claude-sonnet-4-6',
-  gateway: { baseUrl: 'http://llm-gateway:8080', token: 'sk-bf-test' },
+  gateway: { baseUrl: 'http://sandbox-llm-gateway:8080', token: 'sk-bf-test' },
   workdir: '/user/workspace',
 } satisfies AgentRunSpec;
 
@@ -75,7 +75,9 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     });
     expect(argv).not.toContain(base.prompt);
     // gateway env + key + blanked API key + default-model slots.
-    expect(env.ANTHROPIC_BASE_URL).toBe('http://llm-gateway:8080/anthropic');
+    expect(env.ANTHROPIC_BASE_URL).toBe(
+      'http://sandbox-llm-gateway:8080/anthropic',
+    );
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_API_KEY).toBe('');
     expect(env.CLAUDE_CONFIG_DIR).toBe('/user/.runtime/home/.claude');
@@ -334,7 +336,10 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     const { argv, env } = new ClaudeCodeAdapter().buildExec({
       ...byoBase,
       authMode: 'managed',
-      gateway: { baseUrl: 'http://llm-gateway:8080', token: 'sk-bf-test' },
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
     });
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8');
@@ -366,7 +371,7 @@ describe('OpenCodeAdapter.buildExec', () => {
     expect(config.model).toBe('tale/claude-sonnet-4-6');
     expect(config.permission).toBe('allow');
     expect(config.provider.tale.options.baseURL).toBe(
-      'http://llm-gateway:8080/openai/v1',
+      'http://sandbox-llm-gateway:8080/openai/v1',
     );
     // token referenced via {env:…}, not inlined into the (loggable) config.
     expect(config.provider.tale.options.apiKey).toBe(

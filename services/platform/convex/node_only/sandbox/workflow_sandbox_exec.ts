@@ -95,7 +95,7 @@ import {
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
 // can be brokered into the container env (gated per-run by the agent's bindings).
 const EXTERNAL_AGENT_GATEWAY_URL =
-  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://llm-gateway:8080';
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
 const INTEGRATIONS_BASE_URL = (
   process.env.EXTERNAL_AGENT_INTEGRATIONS_URL || 'http://convex:3211'
 ).replace(/\/$/, '');

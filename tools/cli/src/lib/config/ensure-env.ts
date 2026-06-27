@@ -200,6 +200,39 @@ async function applyEnvUpdates(
 }
 
 /**
+ * One-release migration shim for the `LLM_GATEWAY_*` → `SANDBOX_LLM_GATEWAY_*`
+ * env rename (landed with the `llm-gateway` → `sandbox-llm-gateway` service
+ * rename). On an upgrade an existing `.env` still carries the old names; copy
+ * each old value to its new name when the new name isn't already set, so the
+ * auto-secret-fill below doesn't mistake the renamed
+ * `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for a brand-new required secret and
+ * regenerate it — which would silently rotate the gateway admin credential and
+ * lock the platform out of an already-provisioned gateway. The old keys are left
+ * in place; the backend reads the new name first and falls back to the old for
+ * the same transition window. Mutates `existing` so the missing-var computation
+ * that follows sees the migrated keys as present.
+ */
+async function migrateRenamedEnvVars(
+  envPath: string,
+  existing: Record<string, string>,
+): Promise<void> {
+  const OLD_PREFIX = 'LLM_GATEWAY_';
+  const NEW_PREFIX = 'SANDBOX_LLM_GATEWAY_';
+  const updates: Record<string, string> = {};
+  for (const [key, value] of Object.entries(existing)) {
+    if (!key.startsWith(OLD_PREFIX)) continue;
+    const renamed = `${NEW_PREFIX}${key.slice(OLD_PREFIX.length)}`;
+    if (existing[renamed] === undefined) updates[renamed] = value;
+  }
+  if (Object.keys(updates).length === 0) return;
+  await applyEnvUpdates(envPath, existing, updates);
+  Object.assign(existing, updates);
+  logger.info(
+    `Migrated ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix.`,
+  );
+}
+
+/**
  * Configure the production domain + TLS ahead of a deploy. `tale init` leaves a
  * local default (localhost + self-signed); deploy is where a real domain is
  * picked. Non-interactive with `--host` or when HOST is already public;
@@ -250,6 +283,10 @@ export async function ensureEnv(
     const content = await readFile(envPath, 'utf-8');
     const existing = parseEnvFile(content);
 
+    // Carry forward any renamed vars before computing what's "missing", so a
+    // rename isn't mistaken for a fresh required secret and regenerated.
+    await migrateRenamedEnvVars(envPath, existing);
+
     // Split required vars by who can satisfy them:
     //   - User-supplied: needs human input (HOST, TLS choice). Non-TTY
     //     upgrade can't fill these in; refuse and prompt for interactive.
@@ -275,12 +312,12 @@ export async function ensureEnv(
       // "Audit log integrity check failed" alert on an otherwise-clean stack.
       // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
       'TALE_AUDIT_SIGNING_KEY',
-      // Admin password for the LLM gateway's management API (the platform
+      // Admin password for the sandbox LLM gateway's management API (the platform
       // pushes provider keys / mints virtual keys through it). Auto-generated
       // so the gateway is locked by default and the credential is STABLE
-      // across deploys; the matching LLM_GATEWAY_ADMIN_USERNAME=admin is a
+      // across deploys; the matching SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin is a
       // static line written by generateEnvContent.
-      'LLM_GATEWAY_ADMIN_PASSWORD',
+      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -343,7 +380,7 @@ async function runHeadlessAutoSecretFill(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
-    LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
   };
 
   const updates: Record<string, string> = {};
@@ -468,7 +505,7 @@ async function runPartialEnvSetup(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
-    LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
   };
 
   let generatedCount = 0;
@@ -664,14 +701,14 @@ function generateEnvContent(config: EnvConfig): string {
     '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
     '',
     '# ============================================================================',
-    '# LLM Gateway (model-routing proxy)',
+    '# Sandbox LLM Gateway (model-routing proxy for in-sandbox coding agents)',
     '# ============================================================================',
-    '# Admin credentials for the LLM gateway management API. The platform uses',
-    '# these to push provider keys and mint per-session virtual keys. The',
+    '# Admin credentials for the sandbox LLM gateway management API. The platform',
+    '# uses these to push provider keys and mint per-session virtual keys. The',
     '# username is fixed; the password is auto-generated and must stay STABLE',
     '# across deploys (a changed password locks the platform out of the gateway).',
-    'LLM_GATEWAY_ADMIN_USERNAME=admin',
-    `LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
+    'SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin',
+    `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
     '# host and registered with dockerd). gVisor provides',

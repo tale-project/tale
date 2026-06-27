@@ -51,7 +51,7 @@ describe('generateSandboxColorCompose', () => {
       'tale-sandbox-egress-green',
     );
 
-    // Shared sandbox network (not per-colour) so llm-gateway/convex stay single-homed.
+    // Shared sandbox network (not per-colour) so sandbox-llm-gateway/convex stay single-homed.
     expect(parsed.networks.sandbox.name).toBe('tale-sandbox-net');
     expect(parsed.networks.internal.name).toBe('tale_internal');
   });

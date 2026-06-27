@@ -31,7 +31,7 @@ never exposes; prod configs come from `tale deploy`). Overlay with `-f`:
   satisfy this file's `docs` override.
 - `compose.test.yml` — container-e2e: shifts ports off the host to avoid CI collisions.
 - `compose.test.mock.yml` — DB-only port mock (`db` on `15432`).
-- `compose.llm-gateway.dev.yml` — applied **only** when Convex + Vite run on the host (`scripts/dev.ts`),
+- `compose.sandbox-llm-gateway.dev.yml` — applied **only** when Convex + Vite run on the host (`scripts/dev.ts`),
   never by the fully-dockerized dev command; publishes the LLM gateway on loopback (`127.0.0.1:8080`).
 - `compose.docs.yml` / `compose.web.yml` (+ their `*.test.yml`) — standalone docs / marketing sites.
 
