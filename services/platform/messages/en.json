@@ -861,7 +861,7 @@
     "executions": {
       "title": "Executions",
       "entityLabel": "executions",
-      "searchPlaceholder": "Search executions"
+      "searchPlaceholder": "Search by execution ID"
     },
     "createDialog": {
       "title": "Create automation",

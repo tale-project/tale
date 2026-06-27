@@ -861,7 +861,7 @@
     "executions": {
       "title": "Ausführungen",
       "entityLabel": "Ausführungen",
-      "searchPlaceholder": "Ausführungen suchen"
+      "searchPlaceholder": "Nach Ausführungs-ID suchen"
     },
     "createDialog": {
       "title": "Automatisierung erstellen",
