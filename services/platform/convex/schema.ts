@@ -18,7 +18,11 @@ import {
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { appInstallationsTable, appProjectBindingsTable } from './apps/schema';
-import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
+import {
+  auditIntegrityProgressTable,
+  auditLogChainGenesisTable,
+  auditLogsTable,
+} from './audit_logs/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -161,6 +165,7 @@ export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
+  auditIntegrityProgress: auditIntegrityProgressTable,
   // Generic file→cache mirror for all `v8-sync` config domains (governance
   // today). Source of truth is the per-org JSON files under
   // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See

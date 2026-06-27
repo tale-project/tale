@@ -131,15 +131,30 @@ export const verifyIntegrity = query({
     organizationId: v.string(),
     maxEntries: v.optional(v.number()),
     /**
-     * Page-resume cursor: when set, the walk skips rows with timestamp
-     * < `fromTimestamp` and assumes the caller has already verified the
-     * chain up to that point. The `isFirstEntry` anchor check is skipped
-     * because the caller starts mid-chain. Pre-fix, the response promised
-     * "page from `lastVerifiedTimestamp + 1`" but the query had no such
-     * arg — large-org chains could not be paged, only re-walked from
-     * scratch with bigger `maxEntries`. Round-2 review C.4.1.
+     * Page-resume cursor (lower bound). When set, the walk loads rows with
+     * `timestamp >= fromTimestamp` and skips the head-anchor check because
+     * the caller is resuming mid-chain. Pass the previous page's
+     * `lastVerifiedTimestamp`. For a correct resume, pair it with `afterId`
+     * + `previousExpectedHash` (see below) — `fromTimestamp` alone trusts
+     * the first row of the resumed page as the boundary rather than
+     * cross-checking its linkage. #1846 item 3.
      */
     fromTimestamp: v.optional(v.number()),
+    /**
+     * `_id` of the last row verified on the previous page. Rows up to and
+     * INCLUDING it are skipped. Keyed on `_id` (not a coarse `timestamp + 1`
+     * bump) so same-`timestamp` siblings of the last verified row — which
+     * `gte(fromTimestamp)` re-returns — are verified rather than silently
+     * skipped past. #1846 item 3.
+     */
+    afterId: v.optional(v.string()),
+    /**
+     * `integrityHash` of the last row verified on the previous page. Seeds
+     * the linkage check so the first row of the resumed page is verified
+     * against the real previous hash, not the empty-string genesis sentinel
+     * (which guaranteed a false `firstBrokenAt` pre-fix). #1846 item 3.
+     */
+    previousExpectedHash: v.optional(v.string()),
   },
   returns: v.object({
     valid: v.boolean(),
@@ -155,6 +170,18 @@ export const verifyIntegrity = query({
     truncated: v.boolean(),
     /** Timestamp of the last row the walk verified — useful for paging. */
     lastVerifiedTimestamp: v.optional(v.number()),
+    /**
+     * `_id` of the last row the walk verified. Pass back as `afterId` on the
+     * next page so the resume cursor is exact even across same-`timestamp`
+     * rows. Undefined when nothing was verified this call. #1846 item 3.
+     */
+    lastVerifiedId: v.optional(v.string()),
+    /**
+     * `integrityHash` of the last row the walk verified. Pass back as
+     * `previousExpectedHash` on the next page to seed its linkage check.
+     * Undefined when nothing was verified this call. #1846 item 3.
+     */
+    lastVerifiedHash: v.optional(v.string()),
     /**
      * Count of rows that verified ONLY because their `piiScrubbed` flag
      * was set without a corresponding signed scrub checkpoint covering
@@ -205,13 +232,21 @@ export const verifyIntegrity = query({
  */
 export async function verifyAuditChain(
   ctx: QueryCtx,
-  args: { organizationId: string; maxEntries?: number; fromTimestamp?: number },
+  args: {
+    organizationId: string;
+    maxEntries?: number;
+    fromTimestamp?: number;
+    afterId?: string;
+    previousExpectedHash?: string;
+  },
 ) {
   const maxEntries = args.maxEntries ?? 1000;
   let verifiedCount = 0;
   let checkpointsVerified = 0;
   let unsignedScrubCount = 0;
   let lastVerifiedTimestamp: number | undefined;
+  let lastVerifiedId: string | undefined;
+  let lastVerifiedHash: string | undefined;
   const signingKey = process.env[SIGNING_KEY_ENV];
   const hasSigningKey = typeof signingKey === 'string' && signingKey.length > 0;
 
@@ -254,6 +289,8 @@ export async function verifyAuditChain(
         truncated: false,
         unsignedScrubCount,
         lastVerifiedTimestamp,
+        lastVerifiedId,
+        lastVerifiedHash,
         checkpointMismatch: {
           checkpointId: cp._id,
           reason: 'HMAC signature does not match the active or previous key.',
@@ -268,6 +305,8 @@ export async function verifyAuditChain(
         truncated: false,
         unsignedScrubCount,
         lastVerifiedTimestamp,
+        lastVerifiedId,
+        lastVerifiedHash,
         checkpointMismatch: {
           checkpointId: cp._id,
           reason:
@@ -283,24 +322,54 @@ export async function verifyAuditChain(
   //    chain that we only walked the head of would silently mask
   //    tampering past the cut. Resume from `fromTimestamp` when the
   //    caller is paging mid-chain.
+  //
+  //    Resume skip: drop the already-verified prefix up to AND including
+  //    `afterId`, and do NOT count those skipped rows toward `maxEntries` so a
+  //    resumed page still verifies a full window of NEW rows. Keyed on `_id`
+  //    (not a coarse `timestamp + 1` bump) so same-`timestamp` siblings of the
+  //    last verified row — which `gte(fromTimestamp)` re-returns — are
+  //    verified rather than skipped past and never checked. #1846 item 3.
+  const buildIndexQuery = () =>
+    ctx.db
+      .query('auditLogs')
+      .withIndex('by_organizationId_and_timestamp', (q) =>
+        args.fromTimestamp !== undefined
+          ? q
+              .eq('organizationId', args.organizationId)
+              .gte('timestamp', args.fromTimestamp)
+          : q.eq('organizationId', args.organizationId),
+      )
+      .order('asc');
+
   const entries: Doc<'auditLogs'>[] = [];
   let truncated = false;
-  const indexQuery = ctx.db
-    .query('auditLogs')
-    .withIndex('by_organizationId_and_timestamp', (q) =>
-      args.fromTimestamp !== undefined
-        ? q
-            .eq('organizationId', args.organizationId)
-            .gte('timestamp', args.fromTimestamp)
-        : q.eq('organizationId', args.organizationId),
-    )
-    .order('asc');
-  for await (const log of indexQuery) {
+  let skipping = args.afterId !== undefined;
+  for await (const log of buildIndexQuery()) {
+    if (skipping) {
+      if (String(log._id) === args.afterId) skipping = false;
+      continue;
+    }
     if (entries.length >= maxEntries) {
       truncated = true;
       break;
     }
     entries.push(log);
+  }
+
+  // `afterId` was given but never seen (e.g. retention hard-deleted it since
+  // the last run): re-walk from the range start without skipping. The seeded
+  // `previousExpectedHash` still anchors the first surviving row's linkage, so
+  // coverage continues instead of the cursor stalling on a deleted row.
+  if (args.afterId !== undefined && skipping) {
+    entries.length = 0;
+    truncated = false;
+    for await (const log of buildIndexQuery()) {
+      if (entries.length >= maxEntries) {
+        truncated = true;
+        break;
+      }
+      entries.push(log);
+    }
   }
 
   // 4. Re-anchor across deletion boundaries. The chain head's
@@ -312,13 +381,23 @@ export async function verifyAuditChain(
   //    We verify the most recent checkpoint's anchor invariant
   //    against the live head: a re-write attack post-cut would bend
   //    `previousHash` away from `lastDeletedHash`, surfacing here.
-  let previousExpectedHash = '';
-  // Suppress the head-anchor check when paging mid-chain: the caller
-  // is resuming from `fromTimestamp` and has already verified the
-  // anchor on a prior page. Treating row N (mid-chain) as a "first
-  // entry" would force its previousHash to match a checkpoint, which
-  // it never does for non-anchor rows.
-  let isFirstEntry = args.fromTimestamp === undefined;
+  const isResume = args.fromTimestamp !== undefined;
+  // Suppress the head-anchor check when paging mid-chain: the caller is
+  // resuming and has already verified the anchor on a prior page. Treating
+  // row N (mid-chain) as a "first entry" would force its previousHash to
+  // match a checkpoint, which it never does for non-anchor rows.
+  let isFirstEntry = !isResume;
+  // Seed the linkage check. On a resume the caller passes the previous page's
+  // last `integrityHash` as `previousExpectedHash`, so the first row of this
+  // page is cross-checked against the REAL previous hash. Pre-fix this stayed
+  // `''` and the only seeding site lived inside the skipped `isFirstEntry`
+  // block, so the first resumed row's real previousHash was compared against
+  // `''` → a guaranteed false `firstBrokenAt` with zero tampering. When
+  // resuming without a supplied hash we adopt the first row's own previousHash
+  // (boundary trusted) via `needsSeed` rather than emitting a false break.
+  // #1846 item 3.
+  let previousExpectedHash = args.previousExpectedHash ?? '';
+  let needsSeed = args.previousExpectedHash === undefined;
 
   // Build per-subject scrub windows from SIGNED pii_scrub checkpoints
   // only. A row carrying `actorId === X` is allowed to skip hash
@@ -445,6 +524,8 @@ export async function verifyAuditChain(
             truncated,
             unsignedScrubCount,
             lastVerifiedTimestamp,
+            lastVerifiedId,
+            lastVerifiedHash,
             firstBrokenAt: {
               logId: _id,
               timestamp: entry.timestamp,
@@ -454,8 +535,16 @@ export async function verifyAuditChain(
           };
         }
       }
-      previousExpectedHash = entryPreviousHash;
       isFirstEntry = false;
+    }
+
+    // Seed the expected hash from the first verified row when the caller did
+    // not supply one (fresh walk, or a resume without `previousExpectedHash`):
+    // adopt this row's own previousHash so its linkage check passes and the
+    // walk anchors forward from here.
+    if (needsSeed) {
+      previousExpectedHash = entryPreviousHash;
+      needsSeed = false;
     }
 
     if (entryPreviousHash !== previousExpectedHash) {
@@ -466,6 +555,8 @@ export async function verifyAuditChain(
         truncated,
         unsignedScrubCount,
         lastVerifiedTimestamp,
+        lastVerifiedId,
+        lastVerifiedHash,
         firstBrokenAt: {
           logId: _id,
           timestamp: entry.timestamp,
@@ -485,6 +576,8 @@ export async function verifyAuditChain(
           truncated,
           unsignedScrubCount,
           lastVerifiedTimestamp,
+          lastVerifiedId,
+          lastVerifiedHash,
           firstBrokenAt: {
             logId: _id,
             timestamp: entry.timestamp,
@@ -497,6 +590,8 @@ export async function verifyAuditChain(
 
     previousExpectedHash = integrityHash;
     lastVerifiedTimestamp = entry.timestamp;
+    lastVerifiedId = String(_id);
+    lastVerifiedHash = integrityHash;
     verifiedCount++;
   }
 
@@ -507,5 +602,7 @@ export async function verifyAuditChain(
     truncated,
     unsignedScrubCount,
     lastVerifiedTimestamp,
+    lastVerifiedId,
+    lastVerifiedHash,
   };
 }
