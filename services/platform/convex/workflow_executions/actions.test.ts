@@ -1,6 +1,7 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { rerunExecution } from './actions';
 
 /** Pull the structured `code` off a thrown ConvexError (the issue #2013 fix:
@@ -105,6 +106,16 @@ describe('rerunExecution', () => {
       triggerData: EXECUTION.triggerData,
       subject: { type: 'task', id: 'task_1' },
     });
+  });
+
+  it('throws UNAUTHENTICATED when the caller is not signed in', async () => {
+    // Force the auth gate (actions.ts:100) to fail; the code must surface as a
+    // structured ConvexError, not an opaque "Server Error".
+    vi.mocked(getAuthUserIdentity).mockResolvedValueOnce(null);
+    const { ctx } = createCtx({ execution: EXECUTION });
+    await expect(
+      catchCode(() => handler(ctx, { executionId: 'exec_old' })),
+    ).resolves.toBe('UNAUTHENTICATED');
   });
 
   it('throws EXECUTION_NOT_FOUND when the execution is missing', async () => {

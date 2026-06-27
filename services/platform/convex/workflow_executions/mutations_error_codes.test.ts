@@ -40,7 +40,7 @@ const IDENTITY = {
   name: 'Exec Tester',
 };
 
-function codeOf(err: unknown): string | undefined {
+function dataOf(err: unknown): Record<string, unknown> | undefined {
   if (err === null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
@@ -53,10 +53,14 @@ function codeOf(err: unknown): string | undefined {
       return undefined;
     }
   }
-  if (typeof data !== 'object' || data === null || !('code' in data)) {
+  if (typeof data !== 'object' || data === null) {
     return undefined;
   }
-  const candidate: unknown = (data as { code: unknown }).code;
+  return data as Record<string, unknown>;
+}
+
+function codeOf(err: unknown): string | undefined {
+  const candidate: unknown = dataOf(err)?.code;
   return typeof candidate === 'string' ? candidate : undefined;
 }
 
@@ -67,6 +71,19 @@ async function catchCode(
     await fn();
   } catch (err) {
     return codeOf(err);
+  }
+  return undefined;
+}
+
+/** Like `catchCode` but returns the full decoded payload so a test can assert
+ * the extra fields (e.g. `status`) the contract carries alongside `code`. */
+async function catchData(
+  fn: () => Promise<unknown>,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    await fn();
+  } catch (err) {
+    return dataOf(err);
   }
   return undefined;
 }
@@ -136,16 +153,21 @@ describe('cancelExecution error codes (#2013)', () => {
     expect(code).toBe('EXECUTION_NOT_FOUND');
   });
 
-  it('throws EXECUTION_NOT_CANCELABLE for an execution in a terminal state', async () => {
+  it('throws EXECUTION_NOT_CANCELABLE (carrying the offending status) for an execution in a terminal state', async () => {
     const executionId = await seedExecution(t, 'completed');
 
-    const code = await catchCode(() =>
+    const data = await catchData(() =>
       t
         .withIdentity(IDENTITY)
         .mutation(api.workflow_executions.mutations.cancelExecution, {
           executionId,
         }),
     );
-    expect(code).toBe('EXECUTION_NOT_CANCELABLE');
+    // Assert the `status` extra field too so the contract can't silently drift —
+    // the UI relies on `code`, but `status` is part of the payload shape.
+    expect(data).toMatchObject({
+      code: 'EXECUTION_NOT_CANCELABLE',
+      status: 'completed',
+    });
   });
 });

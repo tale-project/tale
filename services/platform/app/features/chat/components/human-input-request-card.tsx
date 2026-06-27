@@ -32,6 +32,7 @@ import remarkGfm from 'remark-gfm';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { mapExecutionError } from '@/app/features/operator/lib/map-execution-error';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
@@ -113,6 +114,7 @@ function HumanInputRequestCardComponent({
 }: HumanInputRequestCardProps) {
   const { t } = useT('humanInputRequest');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tShared } = useT('common');
   const { formatDate } = useFormatDate();
   const [error, setError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<
@@ -216,14 +218,14 @@ function HumanInputRequestCardComponent({
         executionId: wfExecutionId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
-      );
+      // cancelExecution raises a structured code (not found / already settled);
+      // map it instead of surfacing the raw ConvexError JSON blob.
+      setError(mapExecutionError(err, tShared, tCommon('errorSubmitFailed')));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);
     }
-  }, [wfExecutionId, cancelExecution, tCommon]);
+  }, [wfExecutionId, cancelExecution, tCommon, tShared]);
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
