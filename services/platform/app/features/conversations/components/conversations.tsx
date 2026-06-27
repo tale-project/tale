@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
+import { useNavigate } from '@tanstack/react-router';
 import type { UsePaginatedQueryResult } from 'convex/react';
 import {
   ArchiveIcon,
@@ -84,13 +85,35 @@ export function Conversations({
   conversationCount,
   totalConversationCount,
 }: ConversationsProps) {
+  const navigate = useNavigate();
+
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
 
+  // `searchQuery` is the single source of truth for the filter. It is seeded
+  // once from the `?search=` URL param; thereafter the URL is kept in sync from
+  // state (not the other way around) so that clearing the box actually clears
+  // the filter instead of falling back to the stale URL param on every render.
   const [searchQuery, setSearchQuery] = useState(initialSearch || '');
   const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>(
     'all',
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status: status ?? 'open' },
+        search: (prev) => ({
+          ...prev,
+          search: value.length > 0 ? value : undefined,
+        }),
+        replace: true,
+      });
+    },
+    [navigate, organizationId, status],
   );
 
   const { t: tChat } = useT('chat');
@@ -110,9 +133,8 @@ export function Conversations({
   const filteredConversations = useMemo(() => {
     let results = paginatedResult.results;
 
-    const searchTerm = searchQuery || initialSearch;
-    if (searchTerm) {
-      results = filterByTextSearch(results, searchTerm, [
+    if (searchQuery) {
+      results = filterByTextSearch(results, searchQuery, [
         'title',
         'description',
         'subject',
@@ -127,7 +149,7 @@ export function Conversations({
     }
 
     return results;
-  }, [paginatedResult.results, searchQuery, initialSearch, readFilter]);
+  }, [paginatedResult.results, searchQuery, readFilter]);
 
   const {
     selectionState,
@@ -358,7 +380,7 @@ export function Conversations({
             <SearchInput
               placeholder={tChat('searchConversations')}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               wrapperClassName="flex-1"
               className="bg-transparent pr-3 text-sm shadow-none"
               disabled={controlsDisabled}
