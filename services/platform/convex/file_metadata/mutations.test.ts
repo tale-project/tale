@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { checkUploadPolicy } from '../governance/upload_enforcement';
+
 vi.mock('convex/values', () => {
   const stub = () => 'validator';
   return {
@@ -46,6 +48,12 @@ vi.mock('../_generated/api', () => ({
         uploadFileToRag: 'mock',
         extractFileMetadata: 'extract_mock',
       },
+      internal_mutations: {
+        updateFileTranscription: 'updateFileTranscription_mock',
+      },
+      transcribe_audio: {
+        transcribeAudio: 'transcribeAudio_mock',
+      },
     },
   },
 }));
@@ -65,6 +73,9 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
     first: vi.fn().mockResolvedValue(existingDoc),
+    // The thread-org cross-check (`threadMetadata` lookup) resolves via
+    // `.unique()`; default to no matching thread so the gate is a no-op.
+    unique: vi.fn().mockResolvedValue(null),
   };
 
   const ctx = {
@@ -79,6 +90,7 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
     },
+    runMutation: vi.fn().mockResolvedValue(undefined),
     scheduler: {
       runAfter: vi.fn().mockResolvedValue(undefined),
     },
@@ -90,6 +102,16 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
 async function getHandler() {
   const { saveFileMetadata } = await import('./mutations');
   return (saveFileMetadata as unknown as { handler: Function }).handler;
+}
+
+async function getSkipHandler() {
+  const { skipTranscription } = await import('./mutations');
+  return (skipTranscription as unknown as { handler: Function }).handler;
+}
+
+async function getRetryHandler() {
+  const { retryTranscription } = await import('./mutations');
+  return (retryTranscription as unknown as { handler: Function }).handler;
 }
 
 const baseArgs = {
@@ -119,6 +141,53 @@ describe('saveFileMetadata (public)', () => {
     await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
       data: { code: 'UNAUTHENTICATED' },
     });
+  });
+
+  it('rejects uploads blocked by organization policy, preserving the reason', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    vi.mocked(checkUploadPolicy).mockResolvedValueOnce({
+      allowed: false,
+      reason: 'File type not permitted',
+    });
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: { code: 'UPLOAD_REJECTED', reason: 'File type not permitted' },
+    });
+    // The rejection happens before any DB write.
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a generic reason when the policy omits one', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    vi.mocked(checkUploadPolicy).mockResolvedValueOnce({ allowed: false });
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: {
+        code: 'UPLOAD_REJECTED',
+        reason: 'Upload rejected by organization policy',
+      },
+    });
+  });
+
+  it('rejects a threadId that belongs to a different organization', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    // The threadMetadata lookup resolves a row owned by another org; the
+    // fileMetadata insert/query path is never reached.
+    const { ctx, builder } = createMockCtx(null);
+    builder.unique.mockResolvedValueOnce({
+      threadId: 'thread_1',
+      organizationId: 'org_other',
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { ...baseArgs, threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_ORG_MISMATCH' } });
+    expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
   it('inserts new file metadata when none exists', async () => {
@@ -440,5 +509,199 @@ describe('saveFileMetadata (public)', () => {
       ragProgress: undefined,
       ragQueuedAt: expect.any(Number),
     });
+  });
+});
+
+const skipArgs = { storageId: 'storage_1', organizationId: 'org_1' };
+
+describe('skipTranscription (public)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    mockGetAuthUser.mockResolvedValue(null);
+    const { ctx } = createMockCtx();
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('throws FILE_NOT_FOUND when no row matches the storageId', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
+      data: { code: 'FILE_NOT_FOUND' },
+    });
+  });
+
+  it('throws NOT_AUTHORIZED when the row belongs to another org', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_other',
+      transcriptionStatus: 'running',
+    });
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
+      data: { code: 'NOT_AUTHORIZED' },
+    });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('throws TRANSCRIPTION_NOT_SKIPPABLE with the current status for a non-skippable row', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      transcriptionStatus: 'completed',
+    });
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
+      data: { code: 'TRANSCRIPTION_NOT_SKIPPABLE', status: 'completed' },
+    });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('reports status "none" when the row has no transcriptionStatus', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+    });
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
+      data: { code: 'TRANSCRIPTION_NOT_SKIPPABLE', status: 'none' },
+    });
+  });
+
+  it('marks a running transcription as skipped via updateFileTranscription', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      transcriptionStatus: 'running',
+    });
+    const handler = await getSkipHandler();
+
+    await handler(ctx, skipArgs);
+
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'updateFileTranscription_mock',
+      {
+        storageId: 'storage_1',
+        transcriptionStatus: 'skipped',
+        transcriptionError: 'User skipped transcription',
+      },
+    );
+  });
+});
+
+const retryArgs = { storageId: 'storage_1', organizationId: 'org_1' };
+
+describe('retryTranscription (public)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    mockGetAuthUser.mockResolvedValue(null);
+    const { ctx } = createMockCtx();
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('throws FILE_NOT_FOUND when no row matches the storageId', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx(null);
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
+      data: { code: 'FILE_NOT_FOUND' },
+    });
+  });
+
+  it('throws NOT_AUTHORIZED when the row belongs to another org', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_other',
+      transcriptionStatus: 'failed',
+    });
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
+      data: { code: 'NOT_AUTHORIZED' },
+    });
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('throws TRANSCRIPTION_NOT_RETRYABLE with the current status for a non-retryable row', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      transcriptionStatus: 'running',
+    });
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
+      data: { code: 'TRANSCRIPTION_NOT_RETRYABLE', status: 'running' },
+    });
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('reports status "none" when the row has no transcriptionStatus', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+    });
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
+      data: { code: 'TRANSCRIPTION_NOT_RETRYABLE', status: 'none' },
+    });
+  });
+
+  it('re-queues a failed transcription and reschedules the action', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      fileName: 'clip.mp3',
+      contentType: 'audio/mpeg',
+      transcriptionStatus: 'failed',
+    });
+    const handler = await getRetryHandler();
+
+    await handler(ctx, retryArgs);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      transcriptionStatus: 'queued',
+      transcriptionError: undefined,
+      transcriptionRunId: undefined,
+      transcriptionLeaseExpiresAt: undefined,
+    });
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'transcribeAudio_mock',
+      expect.objectContaining({
+        storageId: 'storage_1',
+        organizationId: 'org_1',
+      }),
+    );
   });
 });

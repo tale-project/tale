@@ -286,7 +286,9 @@ describe('transcribeDictation handler', () => {
           mimeType: 'audio/webm',
           organizationId: ORG_ID,
         }),
-      ).rejects.toMatchObject({ data: { code: 'DICTATION_TOO_LARGE' } });
+      ).rejects.toMatchObject({
+        data: { code: 'DICTATION_TOO_LARGE', maxBytes: 8 * 1024 * 1024 },
+      });
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
