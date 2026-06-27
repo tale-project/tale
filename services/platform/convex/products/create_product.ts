@@ -1,5 +1,6 @@
 import type { MutationCtx } from '../_generated/server';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import { validateProductFields } from './field_limits';
 import type { CreateProductResult, ProductStatus } from './types';
 import { validateProductName } from './validate_product_name';
 
@@ -22,7 +23,9 @@ export async function createProduct(
   ctx: MutationCtx,
   args: CreateProductArgs,
 ): Promise<CreateProductResult> {
+  validateProductFields(args);
   const name = validateProductName(args.name);
+
   const productId = await ctx.db.insert('products', {
     organizationId: args.organizationId,
     name,

@@ -8,6 +8,7 @@ import { set, merge } from 'lodash';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertUniqueProductName } from './assert_unique_product_name';
+import { validateProductFields } from './field_limits';
 import type { UpdateProductsResult, ProductStatus } from './types';
 import { validateProductName } from './validate_product_name';
 
@@ -41,6 +42,8 @@ export async function updateProducts(
   ctx: MutationCtx,
   args: UpdateProductsArgs,
 ): Promise<UpdateProductsResult> {
+  validateProductFields(args.updates);
+
   // Validate: must provide either productId or organizationId
   if (!args.productId && !args.organizationId) {
     throw new Error(

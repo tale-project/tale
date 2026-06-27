@@ -13,6 +13,13 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import {
+  PRODUCT_CATEGORY_MAX,
+  PRODUCT_CURRENCY_MAX,
+  PRODUCT_DESCRIPTION_MAX,
+  PRODUCT_IMAGE_URL_MAX,
+  PRODUCT_NAME_MAX,
+} from '@/convex/products/field_limits';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProduct } from '../hooks/mutations';
@@ -69,13 +76,44 @@ export function ProductEditDialog({
             tCommon('validation.required', {
               field: tProducts('edit.labels.name'),
             }),
+          )
+          .max(
+            PRODUCT_NAME_MAX,
+            tCommon('validation.maxLength', {
+              field: tProducts('edit.labels.name'),
+              max: PRODUCT_NAME_MAX,
+            }),
           ),
-        description: z.string(),
-        imageUrl: z.string(),
+        description: z.string().max(
+          PRODUCT_DESCRIPTION_MAX,
+          tCommon('validation.maxLength', {
+            field: tProducts('edit.labels.description'),
+            max: PRODUCT_DESCRIPTION_MAX,
+          }),
+        ),
+        imageUrl: z.string().max(
+          PRODUCT_IMAGE_URL_MAX,
+          tCommon('validation.maxLength', {
+            field: tProducts('edit.labels.imageUrl'),
+            max: PRODUCT_IMAGE_URL_MAX,
+          }),
+        ),
         stock: z.string(),
         price: z.string(),
-        currency: z.string(),
-        category: z.string(),
+        currency: z.string().max(
+          PRODUCT_CURRENCY_MAX,
+          tCommon('validation.maxLength', {
+            field: tProducts('edit.labels.currency'),
+            max: PRODUCT_CURRENCY_MAX,
+          }),
+        ),
+        category: z.string().max(
+          PRODUCT_CATEGORY_MAX,
+          tCommon('validation.maxLength', {
+            field: tProducts('edit.labels.category'),
+            max: PRODUCT_CATEGORY_MAX,
+          }),
+        ),
         status: z.enum(PRODUCT_STATUSES),
       }),
     [tProducts, tCommon],
@@ -204,6 +242,7 @@ export function ProductEditDialog({
         placeholder={tProducts('edit.descriptionPlaceholder')}
         disabled={isSubmitting}
         rows={3}
+        errorMessage={errors.description?.message}
       />
 
       <ProductImageField
@@ -229,7 +268,8 @@ export function ProductEditDialog({
           {...register('currency')}
           placeholder={tProducts('edit.currencyPlaceholder')}
           disabled={isSubmitting}
-          maxLength={3}
+          maxLength={PRODUCT_CURRENCY_MAX}
+          errorMessage={errors.currency?.message}
         />
       </Grid>
 
@@ -249,6 +289,8 @@ export function ProductEditDialog({
           {...register('category')}
           placeholder={tProducts('edit.categoryPlaceholder')}
           disabled={isSubmitting}
+          maxLength={PRODUCT_CATEGORY_MAX}
+          errorMessage={errors.category?.message}
         />
       </Grid>
 
