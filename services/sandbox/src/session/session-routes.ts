@@ -52,17 +52,17 @@ export class SessionRoutes {
     return this.registry.size();
   }
 
-  /** Live session ids — the deploy flip reads these from `/v1/drain-status` to
-   * decide whether to LINGER this colour (keep it serving its sessions) rather
-   * than tear it down. */
+  /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
+   * whether to LINGER this spawner (keep it serving its sessions) rather than
+   * tear it down during an in-place roll. */
   sessionIds(): string[] {
     return this.registry.list().map((s) => s.sessionId);
   }
 
   /** Force-stop every non-finished session (compute reclaimed, workspace
-   * preserved). Used by the spawner's max-linger self-reap so a colour that
+   * preserved). Used by the spawner's max-linger self-reap so a spawner that
    * lingered past its TTL can shut down without orphaning containers — even if
-   * the deploy CLI died mid-flip. Returns the number stopped. */
+   * the deploy died mid-roll. Returns the number stopped. */
   async stopAllSessions(): Promise<number> {
     let stopped = 0;
     for (const s of this.registry.list()) {
@@ -401,14 +401,7 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
-      // Report the blue-green colour the session landed on so the platform can
-      // route later session ops to `sandbox-<color>` even after a flip lingers
-      // this colour (mirrors the execution path's X-Sandbox-Color).
-      return jsonResponse(
-        { session: this.toInfo(req.sessionId) },
-        201,
-        this.cfg.color ? { 'x-sandbox-color': this.cfg.color } : undefined,
-      );
+      return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);
     }

@@ -2,7 +2,6 @@
 // every knob is overridable so an operator can tune without rebuilding.
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import {
   dindDefaultEnabled,
@@ -229,18 +228,11 @@ export function loadConfig(): SpawnerConfig {
     );
   }
 
-  // Blue-green colour (optional). Trimmed + validated to a short alnum token so
-  // it's a safe path/label segment; unset ⇒ single-colour mode.
-  const rawColor = (process.env.SANDBOX_COLOR ?? '').trim();
-  const sandboxColor =
-    rawColor.length > 0 && /^[a-z0-9][a-z0-9-]{0,31}$/.test(rawColor)
-      ? rawColor
-      : null;
-  if (rawColor.length > 0 && sandboxColor === null) {
-    console.warn(
-      `[sandbox.config] ignoring invalid SANDBOX_COLOR "${rawColor}" (expected [a-z0-9][a-z0-9-]*); running single-colour.`,
-    );
-  }
+  // The sandbox tier is a SINGLE container that rolls in-place via a serialized
+  // drain — there is no blue/green colour here (the platform tier keeps it).
+  // The session root is therefore the single flat path; sessions created by a
+  // previous (colour-rooted) build are still adoptable, see the legacy-compat
+  // fallback in docker-session-backend.ts.
   const sessionRootBase =
     process.env.SANDBOX_HOST_SESSION_ROOT ?? '/var/lib/tale-sandbox/sessions';
 
@@ -353,12 +345,9 @@ export function loadConfig(): SpawnerConfig {
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 2, { min: 1 }),
-    color: sandboxColor,
-    // Per-colour session root so blue/green don't share the `.spawner.lock` or
-    // the host-dir sweep (single-colour mode keeps the flat base path).
-    hostSessionRoot: sandboxColor
-      ? join(sessionRootBase, sandboxColor)
-      : sessionRootBase,
+    // Single flat session root — the sandbox tier no longer has a blue/green
+    // colour, so there is no per-colour sub-directory to scope.
+    hostSessionRoot: sessionRootBase,
     cacheVolumePrefix: {
       pip:
         process.env.SANDBOX_PIP_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-pip-cache',
@@ -412,9 +401,9 @@ export function loadConfig(): SpawnerConfig {
       maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
         min: 60_000,
       }),
-      // How long a drained (lingering) colour keeps serving its sessions after
-      // a flip before reclaiming their compute itself. 30 min covers a typical
-      // long agent turn; the deploy CLI normally tears the colour down sooner
+      // How long a drained (lingering) spawner keeps serving its sessions after
+      // a deploy before reclaiming their compute itself. 30 min covers a typical
+      // long agent turn; the deploy CLI normally tears the spawner down sooner
       // once its sessions end. Min 1 min so it can't thrash.
       maxLingerMs: numEnv('SANDBOX_SESSION_MAX_LINGER_MS', 30 * 60 * 1000, {
         min: 60_000,

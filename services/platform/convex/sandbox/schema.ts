@@ -176,11 +176,10 @@ export const sandboxExecutionsTable = defineTable({
   errorMessage: v.optional(v.string()),
 
   /**
-   * Blue-green colour of the spawner this execution is running on, self-reported
-   * by the spawner via the `X-Sandbox-Color` response header at execute start.
-   * `undefined` in single-colour mode. The user-Stop / cancel path reads it so
-   * `spawnerCancel` reaches the SAME colour even after a deploy flip moved the
-   * bare `sandbox` alias to the new colour.
+   * @deprecated Blue-green is gone: the sandbox tier is a single container
+   * reached via the bare `sandbox` alias (deploys roll it in place after a
+   * serialized drain). No longer read or written. Kept optional so existing
+   * rows still read-validate; a follow-up clears the values and drops the field.
    */
   spawnerColor: v.optional(v.string()),
 })

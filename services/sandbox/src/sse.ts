@@ -53,9 +53,9 @@ export function sseResponse(
   });
   return new Response(stream, {
     status: 200,
-    // Core SSE headers spread LAST so a caller's `extraHeaders` (e.g. the
-    // blue-green `X-Sandbox-Color`) can add fields but never clobber the
-    // content-type / cache-control / buffering headers streaming depends on.
+    // Core SSE headers spread LAST so a caller's `extraHeaders` can add fields
+    // but never clobber the content-type / cache-control / buffering headers
+    // streaming depends on.
     headers: {
       ...extraHeaders,
       'content-type': 'text/event-stream',

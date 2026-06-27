@@ -204,11 +204,6 @@ export const listAbandonedAgentOps = internalQuery({
       progressText: v.optional(v.string()),
       exitCode: v.optional(v.number()),
       heartbeatAt: v.optional(v.number()),
-      // Blue-green colour the session lives on — the watchdog probes/cancels via
-      // `sandbox-<spawnerColor>` so it reaches a session lingering on the old
-      // colour after a deploy flip (else the bare alias hits the new colour →
-      // spurious 404 → the live turn gets finalized as failed).
-      spawnerColor: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -221,18 +216,15 @@ export const listAbandonedAgentOps = internalQuery({
       if (row.kind !== 'agent-run') continue;
       if (row.finalizedAt !== undefined) continue;
       // Join the session's agentKind (the op doesn't store it) so a resumed
-      // continuation runs the right adapter, and its spawnerColor so recovery
-      // routes to the colour the session lives on. Default 'claude-code' if
-      // unknown. Pick the LIVE row's colour (skip historical dead incarnations
-      // under the reused deterministic id).
+      // continuation runs the right adapter. Default 'claude-code' if unknown.
+      // Pick the LIVE row (skip historical dead incarnations under the reused
+      // deterministic id).
       let agentKind: string | undefined;
-      let spawnerColor: string | undefined;
       for await (const session of ctx.db
         .query('sandboxSessions')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
         if (!isLiveSessionStatus(session.status)) continue;
         agentKind = session.agentKind;
-        spawnerColor = session.spawnerColor;
         break;
       }
       out.push({
@@ -267,7 +259,6 @@ export const listAbandonedAgentOps = internalQuery({
         }),
         ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
         ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
-        ...(spawnerColor !== undefined && { spawnerColor }),
       });
       if (out.length >= args.limit) break;
     }
