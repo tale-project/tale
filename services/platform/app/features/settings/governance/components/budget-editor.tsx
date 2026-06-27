@@ -81,8 +81,11 @@ function scopeNeedsTarget(scope: BudgetRule['scope']): boolean {
   return scope === 'user' || scope === 'team' || scope === 'role';
 }
 
-/** A rule only enforces if at least one positive limit is set. With every
- *  limit unset (or zero) the enforcer resolves no cap and the rule is dead. */
+/** A rule only enforces meaningfully if at least one *positive* limit is set.
+ *  With every limit unset the enforcer resolves no cap and the rule is dead.
+ *  A limit of `0` is worse than unset: the enforcer treats it as the strictest
+ *  cap (`projectedCost >= 0` etc. is always true) and blocks every request — so
+ *  a set-but-non-positive limit is rejected per-field in `validateBudgetRule`. */
 function hasUsableLimit(rule: BudgetRule): boolean {
   return (
     (rule.maxTokens != null && rule.maxTokens > 0) ||
@@ -113,13 +116,18 @@ function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
     errors.scopeId = t('budgets.targetRequired');
   }
 
-  if (rule.maxTokens != null && rule.maxTokens < 0) {
+  // A *set* limit must be positive. `0` (typed directly — `"0"` is truthy so it
+  // survives the `onChange` guard — or a sub-cent cost that rounds down to `0`
+  // cents) is not "no limit": the enforcer reads it as the strictest possible
+  // cap and blocks every request. Reject `<= 0` to mirror `hasUsableLimit`'s
+  // `> 0` premise so a per-field zero can't slip past as a usable limit.
+  if (rule.maxTokens != null && rule.maxTokens <= 0) {
     errors.maxTokens = t('budgets.invalidTokenLimit');
   }
-  if (rule.maxCostCents != null && rule.maxCostCents < 0) {
+  if (rule.maxCostCents != null && rule.maxCostCents <= 0) {
     errors.maxCostCents = t('budgets.invalidCostLimit');
   }
-  if (rule.maxRequests != null && rule.maxRequests < 0) {
+  if (rule.maxRequests != null && rule.maxRequests <= 0) {
     errors.maxRequests = t('budgets.invalidMaxRequests');
   }
   if (
