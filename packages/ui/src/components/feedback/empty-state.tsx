@@ -14,10 +14,11 @@ interface EmptyStateProps {
   action?: ReactNode;
   className?: string;
   /**
-   * Heading level for the title (1-6). Defaults to `2` so an empty state that
-   * sits directly under a page `h1` (the common case — e.g. a list view's
-   * empty body) does not skip from `h1` to `h3`. Pass an explicit level when
-   * the empty state nests under a deeper section heading.
+   * Heading level for the title (1-6). Defaults to `3` — most empty states sit
+   * inside a section (under an `h2`) or a dialog, where `h3` keeps the heading
+   * order non-skipping. Pass an explicit level for other contexts: an empty
+   * state rendered directly under a page `h1` (with no intervening section
+   * heading) should use `2` so the outline doesn't skip `h1`→`h3`.
    */
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -28,7 +29,7 @@ export function EmptyState({
   description,
   action,
   className,
-  headingLevel = 2,
+  headingLevel = 3,
 }: EmptyStateProps) {
   return (
     <div

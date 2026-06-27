@@ -8,6 +8,13 @@ export interface DataTableEmptyStateProps {
   title: string;
   /** Description text or rich content */
   description?: ReactNode;
+  /**
+   * Heading level for the empty-state title. Defaults (via `EmptyState`) to
+   * `3`, which is correct for the common case of a table inside a settings
+   * section (under an `h2`). A table rendered directly under a page `h1` with
+   * no intervening section heading should pass `2` to avoid an `h1`→`h3` skip.
+   */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 /**
@@ -24,6 +31,14 @@ export function DataTableEmptyState({
   icon,
   title,
   description,
+  headingLevel,
 }: DataTableEmptyStateProps) {
-  return <EmptyState icon={icon} title={title} description={description} />;
+  return (
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      headingLevel={headingLevel}
+    />
+  );
 }

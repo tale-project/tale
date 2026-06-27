@@ -391,6 +391,10 @@ export function DocumentsTable({
           icon: FileText,
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
+          // The documents table sits directly under the page `h1` ("Knowledge")
+          // with no intervening section heading, so the empty-state title is an
+          // `h2` — otherwise the heading outline skips `h1`→`h3`.
+          headingLevel: 2,
         }}
         {...list.tableProps}
       />

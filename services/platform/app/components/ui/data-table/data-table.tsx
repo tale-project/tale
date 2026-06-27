@@ -920,6 +920,7 @@ export function DataTable<TData, TValue = unknown>({
                     icon={emptyState?.icon}
                     title={emptyState?.title ?? ''}
                     description={emptyState?.description}
+                    headingLevel={emptyState?.headingLevel}
                   />
                 </div>
               </TableCell>
@@ -932,6 +933,7 @@ export function DataTable<TData, TValue = unknown>({
                   <DataTableEmptyState
                     title={t('search.noResults')}
                     description={t('search.tryAdjusting')}
+                    headingLevel={emptyState?.headingLevel}
                   />
                 </div>
               </TableCell>
