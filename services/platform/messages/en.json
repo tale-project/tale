@@ -179,6 +179,7 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
+      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
     },
