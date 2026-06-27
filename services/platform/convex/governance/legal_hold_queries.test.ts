@@ -47,6 +47,13 @@ vi.mock('convex/values', () => {
       null: stub,
       id: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : JSON.stringify(data));
+        this.data = data;
+      }
+    },
   };
 });
 
