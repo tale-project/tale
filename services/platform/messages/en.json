@@ -7149,13 +7149,21 @@
     "usernameLabel": "Username",
     "passwordLabel": "Password",
     "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
+    "nameShapeHint": "Uppercase letters, numbers, and underscores; must start with a letter.",
     "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
     "editButton": "Edit",
     "editTitle": "Edit secret",
     "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
     "updateSuccess": "Secret updated",
-    "deleteSuccess": "Secret deleted"
+    "deleteSuccess": "Secret deleted",
+    "errors": {
+      "nameInvalid": "Use uppercase letters, numbers, and underscores only, starting with a letter (max 64 characters).",
+      "valueInvalid": "Enter a value between 1 and 8192 characters.",
+      "unauthenticated": "Your session has expired. Sign in again, then retry.",
+      "forbidden": "You don't have permission to manage this project's secrets.",
+      "projectNotFound": "We couldn't find that project. It may have been deleted."
+    }
   },
   "tasks": {
     "attachments": {

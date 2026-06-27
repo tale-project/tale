@@ -15,6 +15,10 @@ export function useSetProjectSecret() {
   return useConvexAction(api.projects.secrets.actions.setProjectSecret);
 }
 
+export function useSetProjectSecretPair() {
+  return useConvexAction(api.projects.secrets.actions.setProjectSecretPair);
+}
+
 export function useDeleteProjectSecret() {
   return useConvexAction(api.projects.secrets.actions.deleteProjectSecret);
 }

@@ -6885,13 +6885,21 @@
     "usernameLabel": "Benutzername",
     "passwordLabel": "Passwort",
     "basicNameHint": "Wird als zwei Secrets gespeichert — dein Name plus die Suffixe _USERNAME und _PASSWORD.",
+    "nameShapeHint": "Großbuchstaben, Zahlen und Unterstriche; muss mit einem Buchstaben beginnen.",
     "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
     "editButton": "Bearbeiten",
     "editTitle": "Secret bearbeiten",
     "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
     "updateSuccess": "Secret aktualisiert",
-    "deleteSuccess": "Secret gelöscht"
+    "deleteSuccess": "Secret gelöscht",
+    "errors": {
+      "nameInvalid": "Nur Großbuchstaben, Zahlen und Unterstriche verwenden, beginnend mit einem Buchstaben (max. 64 Zeichen).",
+      "valueInvalid": "Einen Wert mit 1 bis 8192 Zeichen eingeben.",
+      "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an und versuche es noch einmal.",
+      "forbidden": "Du hast keine Berechtigung, die Secrets dieses Projekts zu verwalten.",
+      "projectNotFound": "Dieses Projekt wurde nicht gefunden. Es wurde möglicherweise gelöscht."
+    }
   },
   "tasks": {
     "attachments": {

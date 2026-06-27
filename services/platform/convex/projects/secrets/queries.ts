@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { query, type QueryCtx } from '../../_generated/server';
@@ -12,9 +12,9 @@ async function assertProjectAdmin(
   projectId: Id<'projects'>,
 ): Promise<void> {
   const project = await ctx.db.get(projectId);
-  if (!project) throw new Error('PROJECT_NOT_FOUND');
+  if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
   const member = await getOrganizationMember(
     ctx,
     project.organizationId,
@@ -22,7 +22,7 @@ async function assertProjectAdmin(
   );
   const teamIds = await getUserTeamIds(ctx, member.userId);
   if (!checkProjectAccess(project, teamIds, member.role).canAdminister) {
-    throw new Error('SECRET_FORBIDDEN');
+    throw new ConvexError({ code: 'SECRET_FORBIDDEN' });
   }
 }
 
