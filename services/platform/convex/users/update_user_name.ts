@@ -2,6 +2,8 @@
  * Update user name - Business logic
  */
 
+import { ConvexError } from 'convex/values';
+
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -17,15 +19,24 @@ export async function updateUserName(
 ): Promise<void> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
   }
 
   const trimmed = args.name.trim();
   if (trimmed.length === 0) {
-    throw new Error('Name is required');
+    throw new ConvexError({
+      code: 'validation',
+      message: 'Name is required',
+    });
   }
   if (trimmed.length > 100) {
-    throw new Error('Name must be 100 characters or less');
+    throw new ConvexError({
+      code: 'too_long',
+      message: 'Name must be 100 characters or less',
+    });
   }
 
   // Look up the user record to get its _id
@@ -38,7 +49,10 @@ export async function updateUserName(
   const user = isRecord(userRaw) ? userRaw : undefined;
   const userId = user ? getString(user, '_id') : undefined;
   if (!userId) {
-    throw new Error('User not found');
+    throw new ConvexError({
+      code: 'not_found',
+      message: 'User not found',
+    });
   }
 
   await ctx.runMutation(components.betterAuth.adapter.updateMany, {
