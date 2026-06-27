@@ -99,6 +99,37 @@ export const verifyAuditChainForOrg = internalQuery({
     organizationId: v.string(),
     maxEntries: v.optional(v.number()),
   },
+  returns: v.object({
+    valid: v.boolean(),
+    verifiedCount: v.number(),
+    checkpointsVerified: v.number(),
+    truncated: v.boolean(),
+    unsignedScrubCount: v.number(),
+    lastVerifiedTimestamp: v.optional(v.number()),
+    lastVerifiedId: v.optional(v.string()),
+    lastVerifiedHash: v.optional(v.string()),
+    firstBrokenAt: v.optional(
+      v.object({
+        logId: v.string(),
+        timestamp: v.number(),
+        expected: v.string(),
+        actual: v.string(),
+      }),
+    ),
+    checkpointMismatch: v.optional(
+      v.object({
+        checkpointId: v.string(),
+        reason: v.string(),
+      }),
+    ),
+    // The cursor the action persists via `recordIntegrityProgress`.
+    nextCursor: v.object({
+      lastVerifiedTimestamp: v.optional(v.number()),
+      lastVerifiedId: v.optional(v.string()),
+      previousExpectedHash: v.optional(v.string()),
+      headReached: v.boolean(),
+    }),
+  }),
   handler: async (ctx, args) => {
     const progress = await ctx.db
       .query('auditIntegrityProgress')
@@ -167,6 +198,46 @@ export const recordIntegrityProgress = internalMutation({
       await ctx.db.insert('auditIntegrityProgress', {
         organizationId: args.organizationId,
         ...patch,
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Rotate an org to the back of the round-robin queue WITHOUT advancing its
+ * paging cursor. Used when `verifyAuditChainForOrg` throws: selection ranks by
+ * `updatedAt` ascending (sentinel -1 for never-checked orgs), so an org whose
+ * verification deterministically throws would sort to the front of EVERY run
+ * and — with more than `MAX_ORGS_PER_RUN` such orgs — permanently occupy all
+ * slots, starving healthy orgs past the first window and re-introducing #1846
+ * item 1's gap under error conditions. Bumping `updatedAt` (and only that, so a
+ * later successful run resumes from the same cursor) lets the erroring org
+ * rotate out so the rest of the fleet is still reached. PR #2218 review
+ * BLOCKING 2.
+ */
+export const touchIntegrityProgress = internalMutation({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const existing = await ctx.db
+      .query('auditIntegrityProgress')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { updatedAt: Date.now() });
+    } else {
+      // Never-checked org that throws on its first verification: insert a
+      // cursor-less progress row so its `updatedAt` rotates it to the back
+      // instead of leaving it at the sentinel -1 front of the queue forever.
+      await ctx.db.insert('auditIntegrityProgress', {
+        organizationId: args.organizationId,
+        headReached: false,
+        updatedAt: Date.now(),
       });
     }
     return null;
@@ -276,6 +347,21 @@ export const runAuditIntegrityCheck = internalAction({
           `[AuditIntegrity] could not verify org ${organizationId}:`,
           err,
         );
+        // Rotate the erroring org to the back of the round-robin queue so a
+        // deterministically-throwing org can't sort to the front of every run
+        // and starve the rest of the fleet (PR #2218 review BLOCKING 2).
+        // Isolated try/catch — a failed touch must not abort the sweep.
+        try {
+          await ctx.runMutation(
+            internal.audit_logs.integrity_check.touchIntegrityProgress,
+            { organizationId },
+          );
+        } catch (touchErr) {
+          console.error(
+            `[AuditIntegrity] could not rotate erroring org ${organizationId}:`,
+            touchErr,
+          );
+        }
         continue;
       }
 

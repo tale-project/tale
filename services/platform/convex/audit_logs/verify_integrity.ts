@@ -357,10 +357,22 @@ export async function verifyAuditChain(
   }
 
   // `afterId` was given but never seen (e.g. retention hard-deleted it since
-  // the last run): re-walk from the range start without skipping. The seeded
-  // `previousExpectedHash` still anchors the first surviving row's linkage, so
-  // coverage continues instead of the cursor stalling on a deleted row.
-  if (args.afterId !== undefined && skipping) {
+  // the last run): re-walk from the range start without skipping so coverage
+  // continues instead of the cursor stalling on a deleted row.
+  //
+  // Crucially we MUST NOT trust the supplied `previousExpectedHash` for the
+  // first surviving row here: when retention deleted the cursor row AND one or
+  // more rows after it (the realistic case — a daily cutoff jumps past the
+  // cursor by more than one row), the first surviving row's `previousHash` is
+  // the hash of some row BETWEEN the deleted cursor and itself, not the stale
+  // cursor hash, so comparing them yields a guaranteed false `firstBrokenAt`
+  // with zero tampering — a critical false tamper alarm that re-fires every run
+  // (the cursor never advances past a "break"). Instead re-seed from the first
+  // surviving row's own `previousHash` (boundary trusted, exactly as the
+  // `fromTimestamp`-only resume path does) via `afterIdDeleted` → `needsSeed`
+  // below. #1846 item 3 / PR #2218 review BLOCKING 1.
+  const afterIdDeleted = args.afterId !== undefined && skipping;
+  if (afterIdDeleted) {
     entries.length = 0;
     truncated = false;
     for await (const log of buildIndexQuery()) {
@@ -396,8 +408,12 @@ export async function verifyAuditChain(
   // resuming without a supplied hash we adopt the first row's own previousHash
   // (boundary trusted) via `needsSeed` rather than emitting a false break.
   // #1846 item 3.
+  //
+  // `afterIdDeleted` forces the same re-seed even though a hash WAS supplied:
+  // the supplied hash belongs to a retention-deleted cursor row and no longer
+  // links to the first surviving row (PR #2218 review BLOCKING 1).
   let previousExpectedHash = args.previousExpectedHash ?? '';
-  let needsSeed = args.previousExpectedHash === undefined;
+  let needsSeed = args.previousExpectedHash === undefined || afterIdDeleted;
 
   // Build per-subject scrub windows from SIGNED pii_scrub checkpoints
   // only. A row carrying `actorId === X` is allowed to skip hash

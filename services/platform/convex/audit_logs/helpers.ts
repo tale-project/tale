@@ -261,6 +261,14 @@ async function insertAuditLog(
   // permanently orphaned, and the ascending verify walk reports a false
   // linkage break at it. `lastInsertedAt` is already read + patched here for
   // OCC, so the monotonicity clamp costs nothing. #1846 item 4.
+  //
+  // Tradeoff (PR #2218 review): the clamp is one-directional. A large FORWARD
+  // clock step pins `lastInsertedAt` high and ratchets every later row's
+  // timestamp to `+1ms` detached from real time until the wall clock catches
+  // up. That keeps the chain monotonic and verifiable (the property that
+  // matters here), at the cost of timestamps drifting ahead of real time in
+  // that window; we accept it rather than capping forward, since a forward cap
+  // would re-open the same sort-before-head orphan hazard this clamp closes.
   let timestamp = now;
   if (genesis) {
     timestamp = Math.max(now, genesis.lastInsertedAt + 1);

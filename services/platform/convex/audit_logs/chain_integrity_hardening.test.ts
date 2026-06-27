@@ -2,8 +2,10 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 import { createAuditLog } from './helpers';
+import * as verifyIntegrityModule from './verify_integrity';
 import { verifyAuditChain } from './verify_integrity';
 
 // convex-test module map keyed relative to the convex/ root. This file lives
@@ -210,6 +212,125 @@ describe('paged resume (#1846 item 3)', () => {
     expect(p1.valid).toBe(true);
     expect(naive.valid).toBe(true);
     expect(naive.firstBrokenAt).toBeUndefined();
+  });
+});
+
+// PR #2218 review BLOCKING 1 — when retention hard-deletes the persisted
+// cursor row AND one or more rows after it, the resume must NOT compare the
+// first surviving row against the stale supplied previousExpectedHash (the
+// deleted cursor's hash), which produced a false `firstBrokenAt` / critical
+// tamper alert that re-fired every run.
+describe('deleted-cursor resume (#1846 item 3 / PR #2218 BLOCKING 1)', () => {
+  it('does not report a false break when retention deletes the cursor row and rows after it', async () => {
+    const t = convexTest(schema, modules);
+    const ORG = 'org_deleted_cursor';
+    for (let i = 0; i < 6; i++) await seed(t, ORG, `row.${i}`);
+
+    // Page 1 verifies the oldest 2 rows and yields a full cursor.
+    const p1 = await t.run((ctx) =>
+      verifyAuditChain(ctx, { organizationId: ORG, maxEntries: 2 }),
+    );
+    expect(p1).toMatchObject({ valid: true, verifiedCount: 2 });
+
+    // Retention hard-deletes indices 0–3 — the cursor row (index 1) AND rows
+    // after it — leaving only indices 4–5.
+    const before = await rowsAsc(t, ORG);
+    await t.run(async (ctx) => {
+      for (const r of before.slice(0, 4)) {
+        await ctx.db.delete(r._id as Id<'auditLogs'>);
+      }
+    });
+    const remaining = await rowsAsc(t, ORG);
+    expect(remaining).toHaveLength(2);
+
+    // Resume with the FULL cron cursor (afterId now points at a deleted row).
+    const p2 = await t.run((ctx) =>
+      verifyAuditChain(ctx, {
+        organizationId: ORG,
+        maxEntries: 2,
+        fromTimestamp: p1.lastVerifiedTimestamp,
+        afterId: p1.lastVerifiedId,
+        previousExpectedHash: p1.lastVerifiedHash,
+      }),
+    );
+
+    expect(p2.firstBrokenAt).toBeUndefined();
+    expect(p2.valid).toBe(true);
+    expect(p2.verifiedCount).toBe(2);
+  });
+
+  it('still verifies when retention deletes exactly up to the cursor row', async () => {
+    const t = convexTest(schema, modules);
+    const ORG = 'org_deleted_cursor_boundary';
+    for (let i = 0; i < 6; i++) await seed(t, ORG, `row.${i}`);
+
+    const p1 = await t.run((ctx) =>
+      verifyAuditChain(ctx, { organizationId: ORG, maxEntries: 2 }),
+    );
+
+    // Delete exactly indices 0–1 (up to and including the cursor row).
+    const before = await rowsAsc(t, ORG);
+    await t.run(async (ctx) => {
+      for (const r of before.slice(0, 2)) {
+        await ctx.db.delete(r._id as Id<'auditLogs'>);
+      }
+    });
+
+    const p2 = await t.run((ctx) =>
+      verifyAuditChain(ctx, {
+        organizationId: ORG,
+        maxEntries: 10,
+        fromTimestamp: p1.lastVerifiedTimestamp,
+        afterId: p1.lastVerifiedId,
+        previousExpectedHash: p1.lastVerifiedHash,
+      }),
+    );
+
+    expect(p2.valid).toBe(true);
+    expect(p2.firstBrokenAt).toBeUndefined();
+    expect(p2.verifiedCount).toBe(4);
+  });
+});
+
+// PR #2218 review BLOCKING 2 — an org whose verification throws must still
+// rotate to the back of the round-robin queue (its progress `updatedAt` is
+// bumped) so it can't sort to the front of every run and starve healthy orgs
+// past the per-run cap.
+describe('erroring-org rotation (#1846 item 1 / PR #2218 BLOCKING 2)', () => {
+  it('rotates a throwing org to the back instead of starving the queue', async () => {
+    const t = convexTest(schema, modules);
+    const ORG = 'org_throwing';
+    await seed(t, ORG, 'row.0');
+
+    // Force the per-org verification to throw for this run.
+    vi.spyOn(verifyIntegrityModule, 'verifyAuditChain').mockRejectedValue(
+      new Error('boom'),
+    );
+
+    await t.action(
+      internal.audit_logs.integrity_check.runAuditIntegrityCheck,
+      {},
+    );
+
+    // The erroring org now carries a progress row with a bumped `updatedAt`
+    // (rotated to the back) but no advanced cursor.
+    const progress = await progressFor(t, ORG);
+    expect(progress).not.toBeNull();
+    expect(progress?.updatedAt).toBeGreaterThan(0);
+    expect(progress?.headReached).toBe(false);
+    expect(progress?.lastVerifiedId).toBeUndefined();
+
+    vi.restoreAllMocks();
+
+    // A never-checked org (sentinel -1) must now sort AHEAD of the touched
+    // throwing org — proving the throwing org rotated to the back rather than
+    // pinning the front of the queue forever.
+    await seed(t, 'org_fresh', 'row.0');
+    const selection = await t.query(
+      internal.audit_logs.integrity_check.selectOrgsForIntegrityRun,
+      {},
+    );
+    expect(selection.organizationIds[0]).toBe('org_fresh');
   });
 });
 
