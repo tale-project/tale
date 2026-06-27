@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { ConvexError } from 'convex/values';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -156,8 +157,13 @@ export function ProductCreateDialog({
         },
         onError: (err) => {
           console.error('Create error:', err);
+          const isDuplicate =
+            err instanceof ConvexError &&
+            err.data?.code === 'DUPLICATE_PRODUCT_NAME';
           toast({
-            title: tProducts('create.toast.error'),
+            title: isDuplicate
+              ? tProducts('create.toast.duplicateName')
+              : tProducts('create.toast.error'),
             variant: 'destructive',
           });
         },

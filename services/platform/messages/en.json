@@ -2512,7 +2512,7 @@
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
       "dropZoneTitle": "Upload a file",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV up to {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT up to {maxSize} MB",
       "retryUpload": "Retry upload",
       "retry": "Retry",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded — indexing runs in the background",
@@ -4683,7 +4683,8 @@
       },
       "toast": {
         "success": "Product updated successfully",
-        "error": "Failed to update product"
+        "error": "Failed to update product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "create": {
@@ -4694,7 +4695,8 @@
       },
       "toast": {
         "success": "Product created successfully",
-        "error": "Failed to create product"
+        "error": "Failed to create product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "createWizard": {
@@ -5549,6 +5551,7 @@
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
+        "displayNameDuplicateWarning": "Another agent already uses this display name. The slug stays unique, but the duplicate name can be ambiguous in chat and lists.",
         "description": "Description",
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
@@ -6971,6 +6974,10 @@
     "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
     "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
+    "editButton": "Edit",
+    "editTitle": "Edit secret",
+    "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
+    "updateSuccess": "Secret updated",
     "deleteSuccess": "Secret deleted"
   },
   "tasks": {

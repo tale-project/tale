@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid } from '@tale/ui/layout';
+import { ConvexError } from 'convex/values';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -94,6 +95,7 @@ export function ProductEditDialog({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<ProductFormData>({
@@ -148,6 +150,15 @@ export function ProductEditDialog({
         },
         onError: (err) => {
           console.error('Update error:', err);
+          if (
+            err instanceof ConvexError &&
+            err.data?.code === 'DUPLICATE_PRODUCT_NAME'
+          ) {
+            setError('name', {
+              message: tProducts('edit.toast.duplicateName'),
+            });
+            return;
+          }
           toast({
             title: tProducts('edit.toast.error'),
             variant: 'destructive',
