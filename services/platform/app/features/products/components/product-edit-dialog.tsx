@@ -249,6 +249,7 @@ export function ProductEditDialog({
         value={watch('imageUrl')}
         onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
         disabled={isSubmitting}
+        errorMessage={errors.imageUrl?.message}
       />
 
       <Grid cols={2} gap={4}>

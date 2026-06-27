@@ -263,6 +263,7 @@ export function ProductCreateDialog({
             value={watch('imageUrl')}
             onChange={(v) => setValue('imageUrl', v, { shouldDirty: true })}
             disabled={isSubmitting}
+            errorMessage={errors.imageUrl?.message}
           />
         </WizardStep>
 

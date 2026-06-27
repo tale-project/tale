@@ -21,6 +21,7 @@ interface ProductImageFieldProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  errorMessage?: string;
 }
 
 /**
@@ -32,6 +33,7 @@ export function ProductImageField({
   value,
   onChange,
   disabled,
+  errorMessage,
 }: ProductImageFieldProps) {
   const { t: tProducts } = useT('products');
   const { uploadImage, isUploading } = useProductImageUpload();
@@ -81,6 +83,7 @@ export function ProductImageField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={tProducts('edit.imageUrlPlaceholder')}
         disabled={isDisabled}
+        errorMessage={errorMessage}
       />
       <Row gap={3}>
         {value && (
