@@ -1173,6 +1173,7 @@ import type * as tasks_helpers from "../tasks/helpers.js";
 import type * as tasks_internal_mutations from "../tasks/internal_mutations.js";
 import type * as tasks_internal_queries from "../tasks/internal_queries.js";
 import type * as tasks_issue_ref from "../tasks/issue_ref.js";
+import type * as tasks_list_tasks_paginated from "../tasks/list_tasks_paginated.js";
 import type * as tasks_mentions from "../tasks/mentions.js";
 import type * as tasks_mutations from "../tasks/mutations.js";
 import type * as tasks_public_actions from "../tasks/public_actions.js";
@@ -2767,6 +2768,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/internal_mutations": typeof tasks_internal_mutations;
   "tasks/internal_queries": typeof tasks_internal_queries;
   "tasks/issue_ref": typeof tasks_issue_ref;
+  "tasks/list_tasks_paginated": typeof tasks_list_tasks_paginated;
   "tasks/mentions": typeof tasks_mentions;
   "tasks/mutations": typeof tasks_mutations;
   "tasks/public_actions": typeof tasks_public_actions;

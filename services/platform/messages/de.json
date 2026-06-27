@@ -126,7 +126,8 @@
       "created": "Erstellt",
       "start": "Starten",
       "markDone": "Als erledigt markieren",
-      "merge": "Pull Request mergen"
+      "merge": "Pull Request mergen",
+      "all": "Alle"
     },
     "agents": {
       "none": "Keine Agenten konfiguriert.",

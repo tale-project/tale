@@ -126,7 +126,8 @@
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
-      "merge": "Merge pull request"
+      "merge": "Merge pull request",
+      "all": "All"
     },
     "agents": {
       "none": "No agents configured.",

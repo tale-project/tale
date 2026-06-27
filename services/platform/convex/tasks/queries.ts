@@ -8,6 +8,7 @@
  * orders by `rank` client-side.
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -23,6 +24,7 @@ import { UnauthorizedError } from '../lib/rls/errors';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
+import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
@@ -181,6 +183,28 @@ export const listTasksByProject = query({
     );
 
     return { tasks: rows, truncated };
+  },
+});
+
+/**
+ * Cursor-paginated sibling of {@link listTasksByProject} for the config-driven
+ * `Collection` block. Walks `by_project_status_rank` so rows arrive in
+ * `(status, rank)` order — the board grouping — preserved across pages, with the
+ * facets applied as `.filter()` (see `list_tasks_paginated`). Project-ACL gated
+ * exactly like the bounded list; `returns` is omitted (the paginated-query
+ * convention, mirroring `customers`/`products`).
+ */
+export const listTasksByProjectPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    projectId: v.id('projects'),
+    externalSystem: v.optional(v.string()),
+    status: v.optional(taskStatusValidator),
+    includeArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await loadAccessibleProject(ctx, args.projectId);
+    return await listTasksByProjectPaginatedHelper(ctx, args);
   },
 });
 

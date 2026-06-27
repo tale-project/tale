@@ -14,7 +14,7 @@
     "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
-      { "path": "tasks/queries:listTasksByProject", "mode": "query" },
+      { "path": "tasks/queries:listTasksByProjectPaginated", "mode": "query" },
       {
         "path": "tasks/queries:listExternalKeysByProject",
         "mode": "query"

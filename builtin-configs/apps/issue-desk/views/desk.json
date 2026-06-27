@@ -88,12 +88,26 @@
               "id": "tasks",
               "title": "$label:issueDesk.tasksListTitle",
               "query": {
-                "path": "tasks/queries:listTasksByProject",
+                "path": "tasks/queries:listTasksByProjectPaginated",
                 "args": {
                   "projectId": "$projectId",
                   "externalSystem": "github"
                 }
               },
+              "perPage": 50,
+              "filters": [
+                {
+                  "field": "status",
+                  "values": [
+                    "backlog",
+                    "todo",
+                    "in_progress",
+                    "in_review",
+                    "done",
+                    "cancelled"
+                  ]
+                }
+              ],
               "columns": ["title", "status"],
               "columnLabels": {
                 "title": "$label:issueDesk.col.title",

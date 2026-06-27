@@ -126,7 +126,8 @@
       "created": "Créé",
       "start": "Démarrer",
       "markDone": "Marquer comme terminé",
-      "merge": "Merger la pull request"
+      "merge": "Merger la pull request",
+      "all": "Tous"
     },
     "agents": {
       "none": "Aucun agent configuré.",
