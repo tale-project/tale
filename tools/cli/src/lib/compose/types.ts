@@ -78,7 +78,7 @@ export const STATEFUL_SERVICES = [
   'db',
   'proxy',
   'convex',
-  'llm-gateway',
+  'sandbox-llm-gateway',
   // Listed only for service-name recognition (isStatefulService /
   // isValidService); the default deploy rolls these via flipSandboxTier,
   // never through the stateful compose path.
@@ -102,13 +102,13 @@ export const STOP_GATED_SERVICES = ['db', 'proxy'] as const;
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
  * default deploy. `convex` must never version-skew from platform but can't be
  * two-color (it owns the single `convex-data` volume), so it's recreated in
- * place and only when its image actually changed. `llm-gateway` is the same
- * shape — a singleton that owns the single `llm-gateway-data` volume, so it
+ * place and only when its image actually changed. `sandbox-llm-gateway` is the
+ * same shape — a singleton that owns the single `llm-gateway-data` volume, so it
  * also rolls in place. `sandbox` / `sandbox-egress` are NOT here: they roll
  * through their own zero-gap blue-green flip (`flipSandboxTier`, alongside
  * platform's colour), not the stateful path.
  */
-export const ALWAYS_ROLL_SERVICES = ['convex', 'llm-gateway'] as const;
+export const ALWAYS_ROLL_SERVICES = ['convex', 'sandbox-llm-gateway'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

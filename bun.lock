@@ -169,10 +169,6 @@
         "@types/bun": "1.3.11",
       },
     },
-    "services/llm-gateway": {
-      "name": "@tale/llm-gateway",
-      "version": "0.1.0",
-    },
     "services/platform": {
       "name": "@tale/platform",
       "version": "0.1.0",
@@ -369,6 +365,10 @@
     },
     "services/sandbox-egress": {
       "name": "@tale/sandbox-egress",
+      "version": "0.1.0",
+    },
+    "services/sandbox-llm-gateway": {
+      "name": "@tale/sandbox-llm-gateway",
       "version": "0.1.0",
     },
     "services/sandbox-runtime": {
@@ -1931,8 +1931,6 @@
 
     "@tale/e2e": ["@tale/e2e@workspace:packages/e2e"],
 
-    "@tale/llm-gateway": ["@tale/llm-gateway@workspace:services/llm-gateway"],
-
     "@tale/opengrep": ["@tale/opengrep@workspace:tools/opengrep"],
 
     "@tale/platform": ["@tale/platform@workspace:services/platform"],
@@ -1946,6 +1944,8 @@
     "@tale/sandbox-buildkitd": ["@tale/sandbox-buildkitd@workspace:services/sandbox-buildkitd"],
 
     "@tale/sandbox-egress": ["@tale/sandbox-egress@workspace:services/sandbox-egress"],
+
+    "@tale/sandbox-llm-gateway": ["@tale/sandbox-llm-gateway@workspace:services/sandbox-llm-gateway"],
 
     "@tale/sandbox-runtime": ["@tale/sandbox-runtime@workspace:services/sandbox-runtime"],
 

@@ -35,7 +35,7 @@ jobs:
             controller,
             platform,
             proxy,
-            llm-gateway,
+            sandbox-llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-buildkitd,

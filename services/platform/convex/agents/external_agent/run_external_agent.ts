@@ -96,17 +96,17 @@ const debugLog = createDebugLog(
 const OWNER_TYPE_USER = 'user';
 const OWNER_TYPE_THREAD = 'thread';
 // Data plane — the LLM gateway as seen from INSIDE the session container. (The
-// management plane URL, LLM_GATEWAY_URL, is read in llm_gateway_admin.ts.)
+// management plane URL, SANDBOX_LLM_GATEWAY_URL, is read in llm_gateway_admin.ts.)
 // Always the sandbox-network alias (it's hardcoded in the runtime NO_PROXY);
-// kept separate from LLM_GATEWAY_URL so host-run convex doesn't leak a host-only
-// URL into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
+// kept separate from SANDBOX_LLM_GATEWAY_URL so host-run convex doesn't leak a
+// host-only URL into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
 const EXTERNAL_AGENT_GATEWAY_URL =
-  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://llm-gateway:8080';
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
 // Convex HTTP-ACTIONS base the in-sandbox MCP bridge calls for integration
 // dispatch (/api/integrations/*). Resolved on the SANDBOX network, so it must
 // be an on-net alias — the `--internal`, SSRF-locked agent container can reach
 // neither the host (host.docker.internal) nor :3210; only on-net dual-homed
-// aliases (like `llm-gateway`) work. Default `convex:3211` (the convex http-actions
+// aliases (like `sandbox-llm-gateway`) work. Default `convex:3211` (the convex http-actions
 // port): in prod the convex container is dual-homed onto the sandbox net; in
 // dev a `convex` relay alias on the sandbox net forwards to the host-run convex.
 // Override per environment with EXTERNAL_AGENT_INTEGRATIONS_URL.

@@ -123,3 +123,50 @@ describe('ensureEnv — audit signing key auto-gen', () => {
     }
   });
 });
+
+describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration', () => {
+  test('carries the old admin password to the new name without regenerating it', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-gw-rename-'));
+    try {
+      const age = generateAgeKeypair();
+      // Every required var present, but the gateway admin password is still
+      // under its PRE-RENAME name. The migration must copy the value to the new
+      // name so the auto-secret-fill doesn't rotate the gateway credential.
+      writeFileSync(
+        join(dir, '.env'),
+        [
+          'HOST=demo.tale.dev',
+          'SITE_URL=https://demo.tale.dev',
+          'TLS_MODE=letsencrypt',
+          'BETTER_AUTH_SECRET=existing-better-auth',
+          'ENCRYPTION_SECRET_HEX=existing-encryption',
+          'INSTANCE_SECRET=existing-instance',
+          'DB_PASSWORD=existing-password',
+          `SOPS_AGE_KEY=${age.secretKey}`,
+          'SANDBOX_TOKEN=existing-sandbox',
+          'TALE_AUDIT_SIGNING_KEY=existing-audit-key',
+          'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      const env = readFileSync(join(dir, '.env'), 'utf-8');
+      // New name now carries the SAME value — not a freshly generated one.
+      expect(env).toContain(
+        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+      );
+      // The migrated value is NOT regenerated (no new auto-secret for it).
+      expect(res.regeneratedAutoSecrets ?? []).not.toContain(
+        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
+      );
+      // Old name is left in place for the one-release fallback window.
+      expect(env).toContain(
+        'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -285,7 +285,7 @@ services:
 
     # Also on the sandbox network so the in-sandbox MCP integration bridge can
     # reach convex http actions directly (http://convex:3211/api/integrations),
-    # mirroring how `llm-gateway` is dual-homed for the gateway. Safe: convex is
+    # mirroring how `sandbox-llm-gateway` is dual-homed for the gateway. Safe: convex is
     # single-instance/stateful (no LB) and the dispatch route is VK-authed.
     networks:
       - internal
@@ -669,7 +669,7 @@ services:
   # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
   # LLM. Dual-homed onto `internal` (platform provisions providers + mints
   # session virtual keys via the governance API) and `sandbox` (agents reach it
-  # at http://llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
+  # at http://sandbox-llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
   #
   # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
   # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
@@ -683,20 +683,20 @@ services:
   # env knobs). applyGatewayConfig() pushes, idempotently on session create:
   #   - client.enforce_auth_on_inference=true → inference rejects anything but a
   #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) when LLM_GATEWAY_ADMIN_PASSWORD
+  #   - auth_config (admin basic-auth over /api/*) when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
   #     is set → the management plane stops being anonymous on the internal network.
-  # No published port (loopback publish lives in compose.llm-gateway.dev.yml for
+  # No published port (loopback publish lives in compose.sandbox-llm-gateway.dev.yml for
   # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
   # — the project has had VK auth regressions.
   # ============================================================================
-  llm-gateway:
-    image: ghcr.io/tale-project/tale/tale-llm-gateway:${VERSION:-latest}
+  sandbox-llm-gateway:
+    image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION:-latest}
     build:
       context: .
-      dockerfile: services/llm-gateway/Dockerfile
+      dockerfile: services/sandbox-llm-gateway/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    container_name: tale-llm-gateway
+    container_name: tale-sandbox-llm-gateway
     env_file:
       # Optional: the stack boots without a .env. Present values win; absent
       # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
@@ -705,11 +705,14 @@ services:
         required: false
     # No gateway-read env knobs: auth + VK enforcement are config-store fields
     # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's LLM_GATEWAY_ADMIN_USERNAME / LLM_GATEWAY_ADMIN_PASSWORD, never
-    # set on the gateway container itself).
+    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
+    # never set on the gateway container itself).
     volumes:
       # SQLite config/log store (providers + minted keys + auth config survive
-      # restarts). Wipe this volume to re-bootstrap auth from scratch.
+      # restarts). Wipe this volume to re-bootstrap auth from scratch. Volume name
+      # predates the service rename (was `llm-gateway`); kept as-is to avoid an
+      # otherwise-pointless data migration (the store is a derived cache the
+      # platform re-provisions per session anyway).
       - llm-gateway-data:/app/data
     restart: unless-stopped
     mem_limit: 512m
@@ -730,8 +733,16 @@ services:
         max-size: '10m'
         max-file: '3'
     networks:
-      - internal
-      - sandbox
+      # Transitional `llm-gateway` alias: keeps the pre-rename hostname resolving
+      # for one release so in-flight sandbox sessions (whose injected gateway URL
+      # / NO_PROXY still say `llm-gateway`) survive the deploy that lands the
+      # rename. Drop the aliases once no old-name traffic remains.
+      internal:
+        aliases:
+          - llm-gateway
+      sandbox:
+        aliases:
+          - llm-gateway
 
   # ============================================================================
   # Tale Controller — privileged control-plane sidecar (OPT-IN)
@@ -840,7 +851,9 @@ volumes:
     driver: local
 
   # LLM gateway SQLite store (provisioned providers + minted session virtual
-  # keys). Survives restarts so in-flight sessions keep working.
+  # keys). Survives restarts so in-flight sessions keep working. Name predates
+  # the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to avoid a
+  # pointless data migration (derived cache, re-provisioned per session).
   llm-gateway-data:
     driver: local
 

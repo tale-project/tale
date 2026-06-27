@@ -9,16 +9,16 @@ Read this when you are on call. Come back when you are deciding which container 
 
 ## The eight containers, with their jobs
 
-| Container             | Job                                                                                            | Crashes affect                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `tale-proxy`          | TLS termination + edge routing                                                                 | All ingress — no client can reach the UI                       |
-| `tale-platform`       | UI server, static asset delivery                                                               | Browser sees 502; the API is still reachable                   |
-| `tale-convex`         | Backend actions/queries/mutations + WebSocket, plus in-process RAG, crawling, and document gen | UI loads, but no data; in-flight chats stall; ingestion stalls |
-| `tale-db`             | Operational Postgres for Convex                                                                | Convex falls back to read-only; writes block                   |
-| `tale-knowledge-db`   | Knowledge corpus Postgres (document chunks, embeddings, crawled pages)                         | Knowledge search returns empty; ingestion fails                |
-| `tale-llm-gateway`    | LLM gateway for in-sandbox coding agents                                                       | Sandboxed agents can't reach a model; chat is unaffected       |
-| `tale-sandbox-egress` | Network egress for sandboxed code                                                              | `Run code` tool errors with "egress denied"; web render fails  |
-| `tale-sandbox`        | Sandbox runtime + headless browser for web render and document generation                      | `Run code`, web crawl render, and document generation all fail |
+| Container                  | Job                                                                                            | Crashes affect                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `tale-proxy`               | TLS termination + edge routing                                                                 | All ingress — no client can reach the UI                       |
+| `tale-platform`            | UI server, static asset delivery                                                               | Browser sees 502; the API is still reachable                   |
+| `tale-convex`              | Backend actions/queries/mutations + WebSocket, plus in-process RAG, crawling, and document gen | UI loads, but no data; in-flight chats stall; ingestion stalls |
+| `tale-db`                  | Operational Postgres for Convex                                                                | Convex falls back to read-only; writes block                   |
+| `tale-knowledge-db`        | Knowledge corpus Postgres (document chunks, embeddings, crawled pages)                         | Knowledge search returns empty; ingestion fails                |
+| `tale-sandbox-llm-gateway` | LLM gateway for in-sandbox coding agents                                                       | Sandboxed agents can't reach a model; chat is unaffected       |
+| `tale-sandbox-egress`      | Network egress for sandboxed code                                                              | `Run code` tool errors with "egress denied"; web render fails  |
+| `tale-sandbox`             | Sandbox runtime + headless browser for web render and document generation                      | `Run code`, web crawl render, and document generation all fail |
 
 One container is exposed to the public network (`tale-proxy` for HTTPS, and optionally `tale-sandbox-egress` outbound for the sandbox); the rest are internal-only. The opt-in `tale-controller` sidecar (the `controller` profile) is off by default; when enabled it restarts `tale-convex` on a signed request so a data-residency change can apply without handing the platform Docker access.
 
@@ -55,7 +55,7 @@ The sandbox runtime carries Chromium and Playwright, so the convex backend reuse
 
 **`tale-sandbox` / `tale-sandbox-egress` down.** `Run code` tool calls return an error and skill scripts fail. Because the convex backend renders web pages and generates documents through the sandbox runtime, a web crawl that needs JavaScript rendering and document generation also fail closed while the sandbox is down. Agents that use none of these keep working.
 
-**`tale-llm-gateway` down.** In-sandbox coding agents lose their path to a model provider. Regular chat — which calls providers directly from convex, not through the LLM gateway — is unaffected.
+**`tale-sandbox-llm-gateway` down.** In-sandbox coding agents lose their path to a model provider. Regular chat — which calls providers directly from convex, not through the LLM gateway — is unaffected.
 
 ## Where this fits
 

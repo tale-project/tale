@@ -1,11 +1,11 @@
 # ============================================================================
-# Tale LLM Gateway
+# Tale Sandbox LLM Gateway
 # ============================================================================
 # Thin wrapper around the upstream maximhq/bifrost gateway image. The gateway
 # is the only path from an in-sandbox coding agent (Claude Code / OpenCode) to
 # an LLM: the platform provisions providers + mints per-session virtual keys
-# over its management API. We re-tag the upstream image as tale-llm-gateway so
-# it carries Tale OCI metadata and ships through the same build/scan pipeline
+# over its management API. We re-tag the upstream image as tale-sandbox-llm-gateway
+# so it carries Tale OCI metadata and ships through the same build/scan pipeline
 # as the other services; the runtime is unchanged.
 # ============================================================================
 
@@ -19,8 +19,8 @@ FROM maximhq/bifrost:v1.5.13
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="tale-llm-gateway" \
-      org.opencontainers.image.description="Tale LLM gateway — managed provider auth + per-session virtual keys" \
+      org.opencontainers.image.title="tale-sandbox-llm-gateway" \
+      org.opencontainers.image.description="Tale sandbox LLM gateway — managed provider auth + per-session virtual keys" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"

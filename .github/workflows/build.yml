@@ -95,8 +95,8 @@ jobs:
               - 'services/convex/**'
             controller:
               - 'services/controller/**'
-            llm-gateway:
-              - 'services/llm-gateway/**'
+            sandbox-llm-gateway:
+              - 'services/sandbox-llm-gateway/**'
             web:
               - 'services/web/**'
               - 'packages/ui/**'
@@ -127,7 +127,7 @@ jobs:
               - 'services/convex/**'
               - 'services/platform/**'
               - 'services/proxy/**'
-              - 'services/llm-gateway/**'
+              - 'services/sandbox-llm-gateway/**'
               - 'services/sandbox/**'
               - 'services/sandbox-egress/**'
               - 'services/sandbox-buildkitd/**'
@@ -145,7 +145,7 @@ jobs:
           # trio that `build` actually pushes to GHCR. Web and docs use their
           # own compose stacks and are reachable via security.yml's
           # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "platform" or . == "proxy" or . == "llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -202,7 +202,7 @@ jobs:
             controller,
             platform,
             proxy,
-            llm-gateway,
+            sandbox-llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-buildkitd,
@@ -349,7 +349,7 @@ jobs:
           # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db convex controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -570,7 +570,7 @@ jobs:
           # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db convex controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"

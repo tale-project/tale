@@ -100,7 +100,7 @@ export default createPlaywrightConfig({
       env: {
         // The E2E stack is hermetic (anonymous Convex + mock LLM, no external
         // services). The docker backing services dev.ts brings up for full
-        // local dev (llm-gateway/sandbox/db/rag/crawler) have no built images in
+        // local dev (sandbox-llm-gateway/sandbox/db/knowledge-db) have no built images in
         // the E2E CI job, so the bring-up can only fail and waste the cold-boot
         // budget — skip it. Applies in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',

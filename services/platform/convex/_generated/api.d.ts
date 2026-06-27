@@ -1165,6 +1165,7 @@ import type * as task_metrics_queries from "../task_metrics/queries.js";
 import type * as task_metrics_rollup from "../task_metrics/rollup.js";
 import type * as task_metrics_rollup_math from "../task_metrics/rollup_math.js";
 import type * as tasks_access from "../tasks/access.js";
+import type * as tasks_attachments from "../tasks/attachments.js";
 import type * as tasks_audit_actions from "../tasks/audit_actions.js";
 import type * as tasks_dependencies from "../tasks/dependencies.js";
 import type * as tasks_directory from "../tasks/directory.js";
@@ -2758,6 +2759,7 @@ declare const fullApi: ApiFromModules<{
   "task_metrics/rollup": typeof task_metrics_rollup;
   "task_metrics/rollup_math": typeof task_metrics_rollup_math;
   "tasks/access": typeof tasks_access;
+  "tasks/attachments": typeof tasks_attachments;
   "tasks/audit_actions": typeof tasks_audit_actions;
   "tasks/dependencies": typeof tasks_dependencies;
   "tasks/directory": typeof tasks_directory;
