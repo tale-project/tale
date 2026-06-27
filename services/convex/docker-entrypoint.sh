@@ -18,7 +18,7 @@ FORCE_SEED="${FORCE_SEED:-false}"
 # ----------------------------------------------------------------------------
 # Responsibilities (see plan: "Convex as a database"):
 #   1. Privilege drop (root → uid 1001 app)
-#   2. CA cert trust (for Rust backend → tale.local outbound HTTPS)
+#   2. CA cert trust (for Rust backend → proxy outbound HTTPS, self-signed)
 #   3. Builtin JSON seed (version-marker gated, idempotent)
 #   4. Start convex-local-backend
 #   5. Start Convex Dashboard (Next.js standalone) with basePath injection
@@ -184,8 +184,11 @@ if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && \
 
   log_info "Waiting for Caddy CA certificate at ${CA_CERT_PATH}..."
   while [ ! -f "${CA_CERT_PATH}" ] && [ "$waited" -lt "$CA_WAIT_TIMEOUT" ]; do
-    # Trigger certificate generation by making an insecure request to Caddy
-    curl -sk "https://${HOST:-tale.local}/health" >/dev/null 2>&1 || true
+    # Trigger certificate generation by making an insecure request to Caddy.
+    # Reach the proxy by its Docker service name, not ${HOST}: with the default
+    # HOST=localhost, `https://localhost` resolves to this container's own
+    # loopback (never the proxy), so the warmup would hit nothing.
+    curl -sk "https://proxy/health" >/dev/null 2>&1 || true
     sleep "$CA_WAIT_INTERVAL"
     waited=$((waited + CA_WAIT_INTERVAL))
   done

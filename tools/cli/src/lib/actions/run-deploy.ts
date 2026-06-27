@@ -119,7 +119,7 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
     services = serviceList.filter(isValidService);
   }
 
-  const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
+  const hostAlias = options.host ?? process.env.HOST ?? 'localhost';
   await deploy({
     version,
     // --override-all implies --stop so the stop-gated tier rolls and the

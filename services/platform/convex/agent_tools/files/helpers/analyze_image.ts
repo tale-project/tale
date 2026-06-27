@@ -3,7 +3,7 @@
  * Extracts detailed content from images (text, data, etc.)
  *
  * NOTE: We use binary data instead of the SDK's getFile() approach because:
- * - getFile() returns URLs like https://tale.local/... which are internal URLs
+ * - getFile() returns URLs like https://localhost/... which are internal URLs
  * - External vision APIs (OpenRouter, etc.) cannot access these internal URLs
  * - Binary data embeds the image directly, bypassing URL accessibility issues
  *

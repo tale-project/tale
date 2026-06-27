@@ -15,8 +15,8 @@ Greif danach auf kleinen Instanzen und Air-gapped-Deployments, wo das Hinzufüge
 
 ```bash
 # .env — keine Flags für lokales Passwort nötig
-HOST=tale.local
-SITE_URL=https://tale.local
+HOST=localhost
+SITE_URL=https://localhost
 BETTER_AUTH_SECRET=...
 ```
 

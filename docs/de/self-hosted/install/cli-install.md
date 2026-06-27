@@ -100,7 +100,7 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 - `-d, --detach` — im Hintergrund laufen statt Logs zu streamen.
 - `-p, --port <port>` — auszugebender HTTPS-Port (Standard `443`).
-- `--host <hostname>` — Host-Alias für den Proxy (Standard `tale.local`).
+- `--host <hostname>` — Host-Alias für den Proxy (Standard `localhost`).
 - `-y, --yes` — nicht-interaktiv: Abfragen automatisch akzeptieren (z. B. Docker installieren oder starten).
 
 `tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version. Beim ersten Deploy fragt es nach deiner Produktiv-Domain und der Let's-Encrypt-E-Mail (oder übergib `--host`).

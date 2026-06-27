@@ -19,11 +19,11 @@ The `.env.example` file ships with inline comments that explain each variable in
 
 ## Domain identity (required at first boot)
 
-| Name        | Default              | Description                                                                                                               |
-| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `HOST`      | `tale.local`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
-| `SITE_URL`  | `https://tale.local` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
-| `BASE_PATH` | unset                | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
+| Name        | Default             | Description                                                                                                               |
+| ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`      | `localhost`         | **Required.** Hostname without protocol. Used for Docker networking and outbound email.                                   |
+| `SITE_URL`  | `https://localhost` | **Required.** Full canonical URL including scheme and any non-standard port. Auth callbacks and external links use this.  |
+| `BASE_PATH` | unset               | **Optional.** Path prefix for subpath deployments behind a reverse proxy (e.g. `/app`). Leave unset for root deployments. |
 
 The `SITE_URL` must match what the user types in the browser exactly. A trailing slash, a missing port, or `http` instead of `https` will break the auth callback and produce sign-in loops.
 

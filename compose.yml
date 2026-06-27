@@ -246,7 +246,7 @@ services:
       # Independent convex data volume. Once Phase 2 migration completes, this
       # contains everything platform-data previously held under /app/data/.
       - convex-data:/app/data
-      # Caddy self-signed CA (for Rust backend → tale.local outbound HTTPS).
+      # Caddy self-signed CA (so the Rust backend trusts outbound HTTPS to the proxy).
       - caddy-data:/caddy-data:ro
 
     env_file:
@@ -309,7 +309,7 @@ services:
       args:
         VERSION: ${VERSION:-dev}
 
-    # No port mapping needed - accessed via proxy at https://tale.local (or your domain)
+    # No port mapping needed - accessed via proxy at https://localhost (or your domain)
     # internally via http://platform:3000
 
     # Volume mounts — Phase 2 split:
@@ -395,7 +395,7 @@ services:
   #
   # For local development:
   #   - Run: docker compose up
-  #   - Access: https://tale.local (self-signed cert, browser warning expected)
+  #   - Access: https://localhost (self-signed cert, browser warning expected)
   #   - To trust certs: docker exec tale-proxy caddy trust
   #
   # For production with HTTPS:
@@ -475,13 +475,15 @@ services:
     # Networks
     networks:
       internal:
-        # Hairpin NAT resolution via network alias
-        # This allows containers to resolve HOST to the proxy container
-        # via Docker's internal DNS, solving the hairpin NAT issue.
-        # Use app.localhost (or another real hostname) instead of localhost
-        # because localhost is always in /etc/hosts and can't be overridden.
+        # Network alias so a container resolving the *public* HOST lands on the
+        # proxy via Docker's internal DNS (hairpin NAT). For the default
+        # `localhost` this alias is inert — every container's /etc/hosts pins
+        # `localhost` to 127.0.0.1, which shadows Docker DNS — and that is fine:
+        # the platform makes no server-side calls to its own public URL (no SSR;
+        # internal traffic uses Docker service names / the internal Convex URL).
+        # The alias still does real work when HOST is a custom domain.
         aliases:
-          - ${HOST:-tale.local}
+          - ${HOST:-localhost}
 
   # ============================================================================
   # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy

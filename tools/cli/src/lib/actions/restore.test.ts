@@ -58,7 +58,7 @@ mock.module('../../utils/logger', () => ({
 
 const env: DeploymentEnv = {
   GHCR_REGISTRY: 'ghcr.io/tale-project/tale',
-  SITE_URL: 'https://tale.local',
+  SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,
   DRAIN_TIMEOUT: 0,
   DEPLOY_DIR: '/tmp/tale-restore-test',
