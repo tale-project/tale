@@ -13,7 +13,7 @@
 # ============================================================================
 # Stage 1: Convex Dashboard assets (Next.js standalone build)
 # ============================================================================
-FROM ghcr.io/get-convex/convex-dashboard:5f66740ae8dd506577d27294adc55b81e4fbe91b AS convex-dashboard
+FROM ghcr.io/get-convex/convex-dashboard:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS convex-dashboard
 
 # ============================================================================
 # Stage 2: Runtime — Convex backend + Dashboard + builtin seed
@@ -22,7 +22,7 @@ FROM ghcr.io/get-convex/convex-dashboard:5f66740ae8dd506577d27294adc55b81e4fbe91
 # Must stay on Debian-based convex-backend image (glibc); Alpine would break
 # the binaries. Platform service uses the same base for `generate_key`.
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS runner
+FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS runner
 
 WORKDIR /app
 
