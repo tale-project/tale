@@ -2,6 +2,8 @@
  * Create user without session - Business logic
  */
 
+import { ConvexError } from 'convex/values';
+
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -61,7 +63,12 @@ export async function createUserWithoutSession(
   );
 
   if (existingUserResult && existingUserResult.page.length > 0) {
-    throw new Error('A user with this email already exists');
+    // Surface a structured code so callers can show a field-level error on
+    // the email input instead of a generic toast.
+    throw new ConvexError({
+      code: 'DUPLICATE_EMAIL',
+      message: 'A user with this email already exists',
+    });
   }
 
   // Create Better Auth instance
@@ -78,7 +85,10 @@ export async function createUserWithoutSession(
   });
 
   if (!signupResult) {
-    throw new Error('Failed to create user account');
+    throw new ConvexError({
+      code: 'USER_CREATION_FAILED',
+      message: 'Failed to create user account',
+    });
   }
 
   // Query Better Auth to get the created user's internal ID
@@ -101,12 +111,14 @@ export async function createUserWithoutSession(
   );
 
   if (!userResult || userResult.page.length === 0) {
-    throw new Error(
-      'Failed to retrieve user after signup. ' +
+    throw new ConvexError({
+      code: 'USER_CREATION_FAILED',
+      message:
+        'Failed to retrieve user after signup. ' +
         'The user was created in Better Auth but could not be found. ' +
         'Email: ' +
         email,
-    );
+    });
   }
 
   // Use the Better Auth user's internal ID (_id) as the identityId

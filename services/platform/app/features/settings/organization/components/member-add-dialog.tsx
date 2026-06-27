@@ -153,6 +153,17 @@ export function AddMemberDialog({
         });
         return;
       }
+      // The email is already a member of this org; surface it on the email
+      // field rather than a generic toast (#2018).
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'DUPLICATE_MEMBER'
+      ) {
+        setError('email', {
+          message: tAuth('validation.emailAlreadyMember'),
+        });
+        return;
+      }
       toast({
         title: tToast('error.addMemberFailed'),
         variant: 'destructive',
