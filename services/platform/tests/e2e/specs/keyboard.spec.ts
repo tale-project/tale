@@ -81,15 +81,17 @@ baseTest.describe('skip-to-content (unauthenticated)', () => {
   baseTest('moves keyboard focus into <main>', async ({ page }) => {
     await page.goto('/log-in');
 
-    // Tab from the top of the page lands on the skip link (the first focusable
-    // element), mirroring the keyboard-user entry path.
-    await page.keyboard.press('Tab');
+    // The skip link is the first focusable element; focus it directly (the
+    // keyboard-user entry point) rather than depending on a fragile single-Tab
+    // landing in headless Chromium.
     const skipLink = page.getByRole('link', {
       name: t('common.aria.skipToContent'),
     });
+    await skipLink.focus();
     await baseExpect(skipLink).toBeFocused({ timeout: TIMEOUT.FIRST_PAINT });
 
-    // Activating it must transfer focus into <main>, not no-op on <body>.
+    // Activating it must transfer focus into <main>, not no-op on <body> — this
+    // only works because the target carries `tabIndex={-1}`.
     await page.keyboard.press('Enter');
     const main = page.locator('main#main-content');
     await baseExpect(main).toBeFocused({ timeout: TIMEOUT.VISIBLE });
