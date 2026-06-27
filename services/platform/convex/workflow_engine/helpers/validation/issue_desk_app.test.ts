@@ -172,6 +172,16 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(collection?.props?.perPage as number).toBeGreaterThan(0);
   });
 
+  it('Tasks board hides done tasks via config (excludeStatuses), not hardcoded', () => {
+    const collection = blockOfType('Collection');
+    const args = (
+      collection?.props?.query as { args?: Record<string, unknown> }
+    )?.args;
+    // The exclusion lives in the view config (data), so the component stays
+    // generic — no status name is baked into the Collection block's code.
+    expect(args?.excludeStatuses).toEqual(['done']);
+  });
+
   it('has no org-wide approvals ReviewQueue (it leaked unrelated approvals)', () => {
     expect(blockOfType('ReviewQueue')).toBeUndefined();
     const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];

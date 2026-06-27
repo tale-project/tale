@@ -25,7 +25,11 @@ export interface ListTasksByProjectPaginatedArgs {
   projectId: Id<'projects'>;
   /** Scope to tasks linked to an external system (e.g. 'github'). */
   externalSystem?: string;
+  /** Keep only this status (a positive filter). */
   status?: string;
+  /** Drop these statuses (a negative filter) — lets a view hide e.g. `done`
+   *  tasks via config, with no status names hardcoded in the component. */
+  excludeStatuses?: string[];
   includeArchived?: boolean;
 }
 
@@ -50,6 +54,12 @@ export async function listTasksByProjectPaginated(
   if (args.status !== undefined) {
     const status = args.status;
     query = query.filter((q) => q.eq(q.field('status'), status));
+  }
+  // Negative status filter (e.g. hide `done`). `const` is per-iteration, so each
+  // closure captures its own value. Like the other facets it can thin a page —
+  // the paginated client just loads the next slice.
+  for (const excluded of args.excludeStatuses ?? []) {
+    query = query.filter((q) => q.neq(q.field('status'), excluded));
   }
   if (!args.includeArchived) {
     query = query.filter((q) => q.eq(q.field('archivedAt'), undefined));

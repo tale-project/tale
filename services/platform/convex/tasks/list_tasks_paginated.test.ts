@@ -96,6 +96,20 @@ describe('listTasksByProjectPaginated', () => {
     expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
+  it('drops each excluded status with its own .filter() (hide done)', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listTasksByProjectPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      projectId: PROJECT_ID,
+      excludeStatuses: ['done', 'cancelled'],
+      includeArchived: true,
+    });
+
+    // One negative filter per excluded status — config-driven, nothing hardcoded.
+    expect(builder.filter).toHaveBeenCalledTimes(2);
+  });
+
   it('stacks externalSystem + status + archived as three filters', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
