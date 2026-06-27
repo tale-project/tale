@@ -1986,6 +1986,7 @@
       "completed": "Abgeschlossen",
       "back": "Zurück",
       "backTo": "Zurück zu {page}",
+      "breadcrumb": "Brotkrumennavigation",
       "automationsNavigation": "Automatisierungen-Navigation",
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",

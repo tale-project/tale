@@ -13,6 +13,20 @@ describe('EmptyState', () => {
       expect(screen.getByRole('heading')).toHaveTextContent('No results found');
     });
 
+    it('renders the title as an h2 by default (no h1->h3 skip under a page heading)', () => {
+      render(<EmptyState title="No documents yet" />);
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
+        'No documents yet',
+      );
+    });
+
+    it('honors an explicit headingLevel', () => {
+      render(<EmptyState title="No documents yet" headingLevel={3} />);
+      expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(
+        'No documents yet',
+      );
+    });
+
     it('renders description when provided', () => {
       render(
         <EmptyState

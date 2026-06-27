@@ -108,51 +108,75 @@ function AgentDetailLayout() {
   // `AgentConfigProvider` and therefore cannot mount until the config loads.
   const breadcrumb = (
     <AdaptiveHeaderRoot standalone={false} className="gap-2">
-      <Heading level={1} size="base" truncate>
-        <Link
-          to="/dashboard/$id/agents"
-          params={{ id: organizationId }}
-          className={cn(
-            'hidden md:inline text-foreground rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-            resolvedDisplayName && 'text-muted-foreground cursor-pointer',
-          )}
-        >
-          {t('agents.title')}&nbsp;&nbsp;
-        </Link>
-        {folderSegments.map((segment, i) => {
-          const path = folderSegments.slice(0, i + 1).join('/');
-          return (
+      {/* Semantic breadcrumb: a `nav > ol` of crumbs. The parent "Agents" link
+          (and any folder links) are plain links; only the leaf carries
+          `aria-current="page"`, and the leaf is also the page's single `h1`.
+          `activeOptions={{ exact: true }}` stops TanStack's `<Link>` from
+          auto-tagging the parent crumb with `aria-current="page"` just because
+          this detail route is nested under `/agents`. */}
+      <nav
+        aria-label={tCommon('aria.breadcrumb')}
+        className="flex min-w-0 items-center"
+      >
+        <ol className="flex min-w-0 items-center">
+          <li className="hidden items-center md:flex">
             <Link
-              key={path}
-              to="/dashboard/$id/agents/all"
+              to="/dashboard/$id/agents"
               params={{ id: organizationId }}
-              search={{ folder: path }}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring hidden cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset md:inline"
-            >
-              /&nbsp;&nbsp;{segment}&nbsp;&nbsp;
-            </Link>
-          );
-        })}
-        <span className="text-foreground">
-          <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-          {/* `contents` so the Skeletonize wrapper adds no block box — its
-              default <div> is block-level and would drop the agent name onto a
-              second line inside this inline breadcrumb. With `contents` the
-              name flows inline and the truncating <Heading> keeps it to one
-              line. */}
-          <Skeletonize
-            loading={isLoading}
-            label={t('agents.title')}
-            className="contents"
-          >
-            <SkeletonBox>
-              {resolvedDisplayName || (
-                <span className="inline-block h-4 w-32 align-middle" />
+              activeOptions={{ exact: true }}
+              className={cn(
+                'text-foreground focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                resolvedDisplayName &&
+                  'text-muted-foreground hover:text-foreground cursor-pointer',
               )}
-            </SkeletonBox>
-          </Skeletonize>
-        </span>
-      </Heading>
+            >
+              {t('agents.title')}
+            </Link>
+          </li>
+          {folderSegments.map((segment, i) => {
+            const path = folderSegments.slice(0, i + 1).join('/');
+            return (
+              <li key={path} className="hidden items-center md:flex">
+                <span className="text-muted-foreground mx-2" aria-hidden="true">
+                  /
+                </span>
+                <Link
+                  to="/dashboard/$id/agents/all"
+                  params={{ id: organizationId }}
+                  search={{ folder: path }}
+                  className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                >
+                  {segment}
+                </Link>
+              </li>
+            );
+          })}
+          <li className="flex min-w-0 items-center">
+            <span
+              className="text-muted-foreground mx-2 hidden md:inline"
+              aria-hidden="true"
+            >
+              /
+            </span>
+            {/* The leaf is the page title — a single `h1` — and the current
+                breadcrumb item. `contents` keeps the Skeletonize wrapper from
+                adding a block box so the truncating heading stays one line. */}
+            <Heading level={1} size="base" truncate aria-current="page">
+              <Skeletonize
+                loading={isLoading}
+                label={t('agents.title')}
+                className="contents"
+              >
+                <SkeletonBox>
+                  {resolvedDisplayName || (
+                    <span className="inline-block h-4 w-32 align-middle" />
+                  )}
+                </SkeletonBox>
+              </Skeletonize>
+            </Heading>
+          </li>
+        </ol>
+      </nav>
     </AdaptiveHeaderRoot>
   );
 
