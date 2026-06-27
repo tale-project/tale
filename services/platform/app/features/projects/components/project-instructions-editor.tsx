@@ -99,10 +99,7 @@ export function ProjectInstructionsEditor({
         description={t('instructions.placeholder')}
       />
 
-      <form
-        id={FORM_ID}
-        onSubmit={editor.form.handleSubmit((values) => save(values))}
-      >
+      <form id={FORM_ID} onSubmit={editor.submit}>
         <fieldset disabled={!canEdit || editor.isLoading} className="contents">
           <FormSection>
             {(() => {

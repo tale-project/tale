@@ -146,7 +146,6 @@ export function PasswordPolicyEditor({
 
   const {
     register,
-    handleSubmit,
     watch,
     setValue,
     formState: { errors },
@@ -180,7 +179,7 @@ export function PasswordPolicyEditor({
         title={t('passwordPolicy.title')}
         description={t('passwordPolicy.description')}
       >
-        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+        <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset
             disabled={!canEdit || editor.isLoading}
             className="contents"

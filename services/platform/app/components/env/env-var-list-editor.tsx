@@ -19,6 +19,7 @@ import { Text } from '@tale/ui/text';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useRegisterDirtySource } from '@/app/components/ui/editor/use-dirty-source';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -136,9 +137,21 @@ export function EnvVarListEditor({
   // After a save we clear this so the post-write reactive update re-snapshots
   // with the freshly-computed secret previews.
   const dirty = useRef(false);
+  // Re-rendering dirty flag that drives the Save button + the navigation
+  // blocker. Distinct from the `dirty` ref above: the ref guards the
+  // server-reload snapshot and is set on ANY interaction (including the mask
+  // focus/blur display toggles); this state flips true only on a real, savable
+  // edit, so merely focusing a stored secret never enables Save or arms the
+  // blocker.
+  const [isDirty, setIsDirty] = useState(false);
   // Keys present at the last snapshot — the delete set is computed against THIS,
   // not the current rows (a removed row is gone from `localRows`).
   const loadedKeys = useRef(new Set<string>());
+
+  // Warn on navigation away while env edits are unsaved; clears once `isDirty`
+  // flips false after a successful save. No-ops gracefully outside a
+  // DirtyBlockerProvider (e.g. a dialog surface).
+  useRegisterDirtySource(isDirty);
 
   // Snapshot the query into editable local state whenever it changes AND the
   // user has no pending edits.
@@ -149,12 +162,24 @@ export function EnvVarListEditor({
     setLocalRows(loaded);
   }, [rows, isLoading]);
 
+  // A real, savable edit: guards the snapshot AND enables Save / arms the blocker.
+  const markDirty = (): void => {
+    dirty.current = true;
+    setIsDirty(true);
+  };
   const patch = (i: number, p: Partial<Row>): void => {
+    markDirty();
+    setLocalRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  };
+  // Display-only row mutation: a stored secret's mask preview toggling on
+  // focus/blur. Guards the snapshot like a real edit, but must NOT mark the form
+  // dirty — the mask is never saved, so focusing a secret can't enable Save.
+  const patchDisplay = (i: number, p: Partial<Row>): void => {
     dirty.current = true;
     setLocalRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
   const addRow = (): void => {
-    dirty.current = true;
+    markDirty();
     setLocalRows((rs) => [
       ...rs,
       {
@@ -169,7 +194,7 @@ export function EnvVarListEditor({
     ]);
   };
   const removeRow = (i: number): void => {
-    dirty.current = true;
+    markDirty();
     setLocalRows((rs) => rs.filter((_, j) => j !== i));
   };
 
@@ -216,6 +241,7 @@ export function EnvVarListEditor({
       // freshly-computed secret previews (secrets are write-only — only the
       // server can produce them).
       dirty.current = false;
+      setIsDirty(false);
       toast({ title: t('saved'), variant: 'success' });
     } catch (err) {
       toast({
@@ -333,7 +359,7 @@ export function EnvVarListEditor({
                 disabled={busy}
                 className="font-mono"
                 onFocus={() => {
-                  if (r.masked) patch(i, { value: '', masked: false });
+                  if (r.masked) patchDisplay(i, { value: '', masked: false });
                 }}
                 onChange={(e) =>
                   patch(i, {
@@ -349,7 +375,7 @@ export function EnvVarListEditor({
                     !r.secretDirty &&
                     r.value === ''
                   ) {
-                    patch(i, { value: r.maskedDisplay, masked: true });
+                    patchDisplay(i, { value: r.maskedDisplay, masked: true });
                   }
                 }}
               />
@@ -392,7 +418,7 @@ export function EnvVarListEditor({
           <Plus className="size-4" />
           {t('add')}
         </Button>
-        <Button onClick={() => void onSave()} disabled={busy}>
+        <Button onClick={() => void onSave()} disabled={busy || !isDirty}>
           {saving ? t('saving') : t('save')}
         </Button>
       </HStack>
