@@ -9,6 +9,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
+import { isHttpUrl } from '@/lib/utils/url';
 
 import type { McpServerListItem } from './types';
 
@@ -142,8 +143,12 @@ export function McpServerForm({
       newErrors.displayName = t('form.displayName') + ' is required';
     }
 
-    if (isHttpTransport && !url.trim()) {
-      newErrors.url = t('form.url') + ' is required';
+    if (isHttpTransport) {
+      if (!url.trim()) {
+        newErrors.url = t('form.url') + ' is required';
+      } else if (!isHttpUrl(url.trim())) {
+        newErrors.url = t('form.invalidUrl');
+      }
     }
 
     if (transportType === 'stdio' && !command.trim()) {
@@ -157,6 +162,8 @@ export function McpServerForm({
     if (authType === 'oauth2') {
       if (!tokenUrl.trim()) {
         newErrors.tokenUrl = t('oauth2.tokenUrl') + ' is required';
+      } else if (!isHttpUrl(tokenUrl.trim())) {
+        newErrors.tokenUrl = t('form.invalidUrl');
       }
       if (!clientId.trim()) {
         newErrors.clientId = t('oauth2.clientId') + ' is required';
@@ -164,9 +171,13 @@ export function McpServerForm({
       if (!clientSecret.trim() && !server) {
         newErrors.clientSecret = t('oauth2.clientSecret') + ' is required';
       }
-      if (grantType === 'authorization_code' && !authorizationUrl.trim()) {
-        newErrors.authorizationUrl =
-          t('oauth2.authorizationUrl') + ' is required';
+      if (grantType === 'authorization_code') {
+        if (!authorizationUrl.trim()) {
+          newErrors.authorizationUrl =
+            t('oauth2.authorizationUrl') + ' is required';
+        } else if (!isHttpUrl(authorizationUrl.trim())) {
+          newErrors.authorizationUrl = t('form.invalidUrl');
+        }
       }
     }
 

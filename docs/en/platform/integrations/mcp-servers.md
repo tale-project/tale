@@ -18,7 +18,7 @@ The server can also expose **resources** (read-only context the agent can pull) 
 Open **Settings > MCP servers** and click **Add server**. The form asks for:
 
 - **Name** — a human label that appears on the agent's tool list and on every approval card.
-- **Transport** — HTTP or stdio. HTTP servers carry a URL; stdio servers carry a command Tale spawns.
+- **Transport** — HTTP or stdio. HTTP servers carry a URL; stdio servers carry a command Tale spawns. The URL must be a valid `http://` or `https://` address — the form flags a malformed one inline before you can save.
 - **Authentication** — none, bearer token, or OAuth. Tokens go into a secret field; OAuth walks the dance like a first-party integration.
 - **Allowed agents** — which agents may bind to this server. The default is no agents; reach for **All agents** only when the server is generic enough that every agent benefits.
 

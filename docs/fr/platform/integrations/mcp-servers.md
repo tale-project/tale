@@ -18,7 +18,7 @@ Le serveur peut aussi exposer des **ressources** (contexte en lecture seule que 
 Ouvre **Paramètres > Serveurs MCP** et clique sur **Ajouter un serveur**. Le formulaire demande :
 
 - **Nom** — une étiquette humaine qui apparaît dans la liste de tools de l'agent et sur chaque carte d'approbation.
-- **Transport** — HTTP ou stdio. Les serveurs HTTP portent une URL ; les serveurs stdio portent une commande que Tale spawn.
+- **Transport** — HTTP ou stdio. Les serveurs HTTP portent une URL ; les serveurs stdio portent une commande que Tale spawn. L'URL doit être une adresse `http://` ou `https://` valide — le formulaire signale une URL malformée en ligne avant que tu puisses enregistrer.
 - **Authentification** — aucune, jeton bearer, ou OAuth. Les jetons vont dans un champ secret ; OAuth déroule la danse comme une intégration premier-party.
 - **Agents autorisés** — quels agents peuvent se lier à ce serveur. Le défaut est aucun agent ; va vers **Tous les agents** seulement quand le serveur est assez générique pour que chaque agent en bénéficie.
 

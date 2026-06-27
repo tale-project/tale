@@ -4114,7 +4114,8 @@
       "saving": "Saving...",
       "cancel": "Cancel",
       "connectionSection": "Connection",
-      "authSection": "Authentication"
+      "authSection": "Authentication",
+      "invalidUrl": "Enter a valid HTTP or HTTPS URL"
     },
     "oauth2": {
       "tokenUrl": "Token URL",

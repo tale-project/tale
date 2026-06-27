@@ -40,6 +40,7 @@ import type {
 } from '@/lib/shared/schemas/enterprise_sso';
 import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
+import { isHttpUrl } from '@/lib/utils/url';
 
 import {
   useDisableScim,
@@ -139,17 +140,6 @@ const ROLE_RULE_TARGETS = [
 
 const isOidcProtocol = (p: UiProtocol): p is Exclude<UiProtocol, 'saml'> =>
   p !== 'saml';
-
-/** Loose URL check — accepts http(s) URLs (and bare hosts the IdP may use). */
-function looksLikeUrl(value: string): boolean {
-  try {
-    // Accept values with an explicit scheme; reject anything else.
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 function useCopy() {
   const { toast } = useToast();
@@ -268,7 +258,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
         if (isOidcProtocol(data.protocol)) {
           if (!data.issuer.trim()) req('issuer');
-          else if (!looksLikeUrl(data.issuer.trim())) url('issuer');
+          else if (!isHttpUrl(data.issuer.trim())) url('issuer');
           if (!data.clientId.trim()) req('clientId');
           // Required unless an OIDC secret is already stored. A blank secret on
           // an existing OIDC connection means "keep the stored one"; switching
@@ -285,14 +275,14 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             ] as const) {
               const value = data[field].trim();
               if (!value) req(field);
-              else if (!looksLikeUrl(value)) url(field);
+              else if (!isHttpUrl(value)) url(field);
             }
           }
         } else {
           // SAML
           if (!data.idpEntityId.trim()) req('idpEntityId');
           if (!data.idpSsoUrl.trim()) req('idpSsoUrl');
-          else if (!looksLikeUrl(data.idpSsoUrl.trim())) url('idpSsoUrl');
+          else if (!isHttpUrl(data.idpSsoUrl.trim())) url('idpSsoUrl');
           if (!data.idpCertificate.trim()) req('idpCertificate');
         }
       });

@@ -4115,7 +4115,8 @@
       "saving": "Enregistrement...",
       "cancel": "Annuler",
       "connectionSection": "Connexion",
-      "authSection": "Authentification"
+      "authSection": "Authentification",
+      "invalidUrl": "Saisis une URL HTTP ou HTTPS valide"
     },
     "oauth2": {
       "tokenUrl": "URL du jeton",
