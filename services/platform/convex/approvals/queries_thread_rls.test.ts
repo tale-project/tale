@@ -146,6 +146,21 @@ for (const { name, handler, resourceType } of cases) {
       expect(out.map((r) => r._id)).toEqual(['mine']);
     });
 
+    it('returns matching rows for an accessible org-less thread', async () => {
+      // canAccessThread grants the owner access to an org-less thread and
+      // returns no organizationId; the divergence check must not drop rows.
+      mockCanAccessThread.mockResolvedValue({
+        threadId: 'thread_1',
+        organizationId: undefined,
+      });
+      const ctx = makeCtx([
+        approvalRow({ _id: 'a', resourceType, organizationId: 'org_1' }),
+        approvalRow({ _id: 'b', resourceType, organizationId: 'org_2' }),
+      ]);
+      const out = (await handler(ctx, { threadId: 'thread_1' })) as Row[];
+      expect(out.map((r) => r._id)).toEqual(['a', 'b']);
+    });
+
     it('ignores rows of a different resourceType on the same thread', async () => {
       const ctx = makeCtx([
         approvalRow({ _id: 'keep', resourceType }),

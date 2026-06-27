@@ -242,7 +242,12 @@ export const getPendingIntegrationApprovalsForThread = query({
         continue;
       }
       // Defence in depth: drop any row whose org diverges from the thread's.
-      if (approval.organizationId !== thread.organizationId) {
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
@@ -283,7 +288,12 @@ export const getWorkflowCreationApprovalsForThread = query({
         continue;
       }
       // Defence in depth: drop any row whose org diverges from the thread's.
-      if (approval.organizationId !== thread.organizationId) {
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
@@ -324,7 +334,12 @@ export const getHumanInputRequestsForThread = query({
         continue;
       }
       // Defence in depth: drop any row whose org diverges from the thread's.
-      if (approval.organizationId !== thread.organizationId) {
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
