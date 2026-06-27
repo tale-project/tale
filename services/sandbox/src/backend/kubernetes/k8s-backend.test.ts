@@ -409,7 +409,8 @@ describe('stdout accumulation across kubelet log rotation', () => {
         if (p?.container === 'harvest') {
           return Promise.resolve(harvestResultLine);
         }
-        // Runner log sequence: empty → pre-rotation → rotation (shorter, final poll)
+        // Runner log sequence: pre-rotation ('AAAAA') → rotation ('BBB',
+        // shorter, returned on the final poll after the loop exits).
         runnerLogCount += 1;
         if (runnerLogCount === 1) return Promise.resolve('AAAAA');
         // Final poll after loop: kubelet has rotated — shorter than 'AAAAA'.
@@ -462,6 +463,37 @@ describe('stdout accumulation across kubelet log rotation', () => {
     const stdout = Buffer.from(res.stdoutBase64, 'base64').toString('utf8');
     // Pre-rotation 'AAAAAA' + post-rotation delta 'BBBBBBBB' (full new file on reset).
     expect(stdout).toBe('AAAAAABBBBBBBB');
+    expect(res.truncated.stdout).toBe(true);
+  });
+
+  test('canonical accumulation is capped at stdoutMaxBytes; truncated.stdout is set', async () => {
+    // A tiny stdoutMaxBytes forces the cap branch: the runner emits more bytes
+    // than the cap, so only the first N are kept and truncated.stdout is set.
+    const cappedCfg: SpawnerConfig = { ...cfg, stdoutMaxBytes: 4 };
+    let readPodCount = 0;
+    const stub = stubClient({
+      readPod: () => {
+        readPodCount += 1;
+        // waitForRunnerStart sees runner running; main loop then breaks.
+        return Promise.resolve(
+          readPodCount <= 1 ? runningPod() : terminatedPod(),
+        );
+      },
+      readLog: (p) => {
+        if (p?.container === 'harvest') {
+          return Promise.resolve(harvestResultLine);
+        }
+        // 10 bytes of output, but the cap is 4.
+        return Promise.resolve('AAAAAAAAAA');
+      },
+    });
+    const backend = new KubernetesBackend(cappedCfg, stub);
+    const res = await backend.execute(cappedCfg, req, execOpts());
+
+    expect(res.status).toBe('completed');
+    const stdout = Buffer.from(res.stdoutBase64, 'base64').toString('utf8');
+    // Only the first 4 bytes are retained.
+    expect(stdout).toBe('AAAA');
     expect(res.truncated.stdout).toBe(true);
   });
 });

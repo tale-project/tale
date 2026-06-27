@@ -455,12 +455,11 @@ export class KubernetesBackend implements ExecutionBackend {
           return;
         }
         if (logs.length > lastLogLen) {
-          const delta = logs.slice(lastLogLen);
-          scanner.onStdoutChunk?.(Buffer.from(delta, 'utf8'));
+          const deltaBuf = Buffer.from(logs.slice(lastLogLen), 'utf8');
+          scanner.onStdoutChunk?.(deltaBuf);
           // Accumulate into the canonical buffer up to the cap.
           const remaining = cfg.stdoutMaxBytes - canonicalByteCount;
           if (remaining > 0) {
-            const deltaBuf = Buffer.from(delta, 'utf8');
             if (deltaBuf.byteLength <= remaining) {
               canonicalChunks.push(deltaBuf);
               canonicalByteCount += deltaBuf.byteLength;
