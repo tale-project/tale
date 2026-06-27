@@ -1483,6 +1483,7 @@
     "uploadingFile": "Uploading file",
     "indexing": "Indexing...",
     "indexingFailed": "Index failed",
+    "indexingFailedDescription": "{filename} could not be indexed for search.",
     "viewImage": "View image",
     "fileTypes": {
       "image": "IMG",

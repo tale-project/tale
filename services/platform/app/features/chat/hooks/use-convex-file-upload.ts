@@ -17,6 +17,7 @@ import {
   detectMediaMime,
   getMaxFileSizeForType,
   isAudioOrVideo,
+  isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
@@ -478,10 +479,30 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
             pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 
-            toast({
-              title: t('fileUploaded'),
-              description: t('uploadedSuccessfully', { filename: file.name }),
-            });
+            // Files that get RAG-indexed (PDFs, docs, text — anything the
+            // backend queues; mirrors `shouldIndex` in saveFileMetadata) are
+            // not "done" once the bytes land: indexing runs asynchronously and
+            // can still fail with an "Index failed" badge. Showing
+            // "uploaded successfully" here would contradict that outcome
+            // (#1457). For those files we defer the success toast until
+            // indexing reaches a terminal state — `useFileIndexingStatus`
+            // fires success on `completed` and an error toast on `failed`.
+            // Non-indexed files (images, audio/video, unsupported types) have
+            // no further processing gate, so they keep the immediate toast.
+            const willIndex =
+              !config.disableIndexing &&
+              !isAudioOrVideo(resolvedType) &&
+              isRagIndexableFile(
+                fileToUpload.name,
+                resolvedType || 'application/octet-stream',
+              );
+
+            if (!willIndex) {
+              toast({
+                title: t('fileUploaded'),
+                description: t('uploadedSuccessfully', { filename: file.name }),
+              });
+            }
           } catch (error) {
             console.error('Upload error:', error);
             toast({

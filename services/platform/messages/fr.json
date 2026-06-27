@@ -1465,6 +1465,7 @@
     "uploadingFile": "Téléversement du fichier",
     "indexing": "Indexation...",
     "indexingFailed": "Échec de l'indexation",
+    "indexingFailedDescription": "{filename} n'a pas pu être indexé pour la recherche.",
     "viewImage": "Voir l'image",
     "fileTypes": {
       "image": "IMG",

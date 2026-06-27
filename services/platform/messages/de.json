@@ -1464,6 +1464,7 @@
     "uploadingFile": "Datei wird hochgeladen",
     "indexing": "Indizierung...",
     "indexingFailed": "Indizierung fehlgeschlagen",
+    "indexingFailedDescription": "{filename} konnte nicht für die Suche indiziert werden.",
     "viewImage": "Bild anzeigen",
     "fileTypes": {
       "image": "BILD",
