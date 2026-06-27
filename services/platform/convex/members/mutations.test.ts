@@ -262,6 +262,18 @@ describe('updateMemberRole handler', () => {
     ).rejects.toThrow('UNAUTHENTICATED');
   });
 
+  it('throws when member not found', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member lookup — empty
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { memberId: 'm_1', role: 'editor' }),
+    ).rejects.toThrow('MEMBER_NOT_FOUND');
+  });
+
   it('throws when caller is not admin', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
@@ -586,6 +598,112 @@ describe('addMember handler', () => {
 // ---------------------------------------------------------------------------
 // transferOwnership
 // ---------------------------------------------------------------------------
+
+describe('updateMemberDisplayName handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function getHandler() {
+    const { updateMemberDisplayName } = await import('./mutations');
+    return (updateMemberDisplayName as unknown as { handler: Function })
+      .handler;
+  }
+
+  it('throws when unauthenticated', async () => {
+    mockGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { memberId: 'm_1', displayName: 'New Name' }),
+    ).rejects.toThrow('UNAUTHENTICATED');
+  });
+
+  it('throws when member not found', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member lookup — empty
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { memberId: 'm_1', displayName: 'New Name' }),
+    ).rejects.toThrow('MEMBER_NOT_FOUND');
+  });
+
+  it('throws when a non-admin edits another members name', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member is someone else
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_target',
+          organizationId: 'org_1',
+          userId: 'user_target',
+          role: 'member',
+        },
+      ],
+    });
+    // target user lookup
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'user_target', name: 'Old Name' }],
+    });
+    // caller member lookup — non-admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'member' }],
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { memberId: 'm_target', displayName: 'New Name' }),
+    ).rejects.toThrow('MEMBER_NAME_UPDATE_FORBIDDEN');
+  });
+
+  it('allows a member to update their own name without an admin check', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member is the caller themselves
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_self',
+          organizationId: 'org_1',
+          userId: 'user_caller',
+          role: 'member',
+        },
+      ],
+    });
+    // target user lookup (own profile)
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'user_caller', name: 'Old Name' }],
+    });
+    // updateMany for the name change
+    ctx.runMutation.mockResolvedValueOnce(undefined);
+    const handler = await getHandler();
+
+    const result = await handler(ctx, {
+      memberId: 'm_self',
+      displayName: 'New Name',
+    });
+
+    expect(result).toBeNull();
+    // Own-profile edit skips the caller-admin lookup: only member + user
+    // queries run (no third caller-member query).
+    expect(ctx.runQuery).toHaveBeenCalledTimes(2);
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'betterAuth:adapter:updateMany',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          model: 'user',
+          where: [{ field: '_id', value: 'user_caller', operator: 'eq' }],
+          update: { name: 'New Name' },
+        }),
+      }),
+    );
+  });
+});
 
 describe('transferOwnership handler', () => {
   beforeEach(() => {
