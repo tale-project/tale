@@ -6,22 +6,29 @@
 // createNamespacedPod / readNamespacedPodLog / deleteNamespacedPod + presigned-
 // URL I/O done inside the Pod — every primitive below is plain HTTP.
 //
-// TLS NOTE (Bun + @kubernetes/client-node@1.4.0): The library sends HTTP via
-// node-fetch@2, which uses node:https.request with an https.Agent carrying the
-// kubeconfig TLS options.  Empirical testing (Bun 1.3.14) confirms that Bun's
-// node:https shim does NOT apply the agent's `ca` or `rejectUnauthorized`
-// fields — they are stored on the Agent object but silently ignored at the TLS
-// layer.  Concrete consequences:
+// TLS NOTE (Bun + @kubernetes/client-node@1.4.0): The library sends every HTTP
+// request through node-fetch@2 (gen/http/isomorphic-fetch.js does
+// `import fetch from "node-fetch"` and passes `agent: request.getAgent()`).
+// The kubeconfig's TLS knobs are applied as options on that https.Agent. Under
+// Bun, node-fetch resolves to a fetch-backed shim that does NOT propagate the
+// Agent's TLS options to the handshake, so those knobs are INERT. Verified
+// empirically against a self-signed HTTPS server under Bun 1.3.14 (issue #1849;
+// see the end-to-end tests in k8s-client.test.ts):
 //
 //   • caFile / caData in the kubeconfig  → INERT; custom CA is NOT loaded.
 //     Real CA trust requires NODE_EXTRA_CA_CERTS (e.g. pointed at the SA
-//     ca.crt: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt).
+//     ca.crt: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt), which
+//     Bun's fetch DOES honor at the process level.
 //
 //   • skipTLSVerify: true in the kubeconfig → INERT; TLS is still verified.
 //     It looks like a security bypass but does nothing — do not rely on it.
 //
 //   • Client certificates (cert/key) in the kubeconfig → INERT; the cluster
 //     treats the request as system:anonymous.
+//
+// (Note: a direct node:https.request DOES honor an Agent's `ca`/
+// `rejectUnauthorized` under Bun — but that is not the path this library
+// takes, so it does not help here.)
 //
 // The real in-cluster path works because it uses a ServiceAccount bearer token
 // (an Authorization header Bun sends correctly) and sets NODE_EXTRA_CA_CERTS
