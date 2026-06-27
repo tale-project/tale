@@ -6,8 +6,9 @@ import { bulkCreateProducts as bulkCreateProductsHelper } from './bulk_create_pr
 import * as ProductsHelpers from './helpers';
 import {
   bulkCreateProductsResponseValidator,
+  productLocaleValidator,
   productStatusValidator,
-  productTranslationValidator,
+  productTranslationInputValidator,
 } from './validators';
 
 export const createProduct = mutationWithRLS({
@@ -22,7 +23,7 @@ export const createProduct = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     status: v.optional(productStatusValidator),
-    translations: v.optional(v.array(productTranslationValidator)),
+    translations: v.optional(v.array(productTranslationInputValidator)),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
@@ -43,7 +44,7 @@ export const updateProduct = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     status: v.optional(productStatusValidator),
-    translations: v.optional(v.array(productTranslationValidator)),
+    translations: v.optional(v.array(productTranslationInputValidator)),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
@@ -91,7 +92,7 @@ export const bulkCreateProducts = mutationWithRLS({
 export const upsertProductTranslation = mutationWithRLS({
   args: {
     productId: v.id('products'),
-    language: v.string(),
+    language: productLocaleValidator,
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.string()),

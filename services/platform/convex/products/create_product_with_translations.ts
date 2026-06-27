@@ -1,6 +1,7 @@
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { assertSupportedProductLocale } from './locale_validation';
 import type { ProductStatus, ProductTranslation } from './types';
 
 export interface CreateProductWithTranslationsArgs {
@@ -22,6 +23,10 @@ export async function createProductWithTranslations(
   ctx: MutationCtx,
   args: CreateProductWithTranslationsArgs,
 ): Promise<Id<'products'>> {
+  for (const translation of args.translations ?? []) {
+    assertSupportedProductLocale(translation.language);
+  }
+
   const now = Date.now();
 
   return await ctx.db.insert('products', {
