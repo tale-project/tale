@@ -10,7 +10,7 @@
  */
 export const SUPPORTED_LOCALES = ['en', 'de', 'fr'] as const;
 
-export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 /**
  * Soft check — does NOT throw. Narrows an arbitrary string to a
