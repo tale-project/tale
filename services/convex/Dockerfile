@@ -155,6 +155,16 @@ ENV NODE_ENV=production \
     APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
     APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
     APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
+    # Index retention window (seconds; default upstream is 4*60=240s). Bumped to
+    # 24h so reads pinned to an older snapshot — slow paginated queries, a
+    # migration/export paginating at a consistent timestamp, long-lived
+    # subscriptions — don't get forced to restart with "reads too far behind"
+    # once they fall outside the default 4-minute window. Trade-off: a larger
+    # window keeps more index tombstones around between sweeps, so index scans on
+    # high-churn tables do more work (upstream knobs.rs warns of UDF slowdowns
+    # with many tombstones). Override at runtime via .env if churn-driven query
+    # latency becomes an issue. DOCUMENT_RETENTION_DELAY (default 14d) is separate.
+    INDEX_RETENTION_DELAY=86400 \
     DO_NOT_TRACK=1 \
     # CA cert path for self-signed mode (entrypoint checks if file exists)
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
