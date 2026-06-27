@@ -112,7 +112,7 @@ function CollectionFilterBar({
   const { t } = useT('apps');
   const labelOf = usePackLabelString();
   return (
-    <Row gap={2} wrap className="mb-3">
+    <Row gap={2} wrap>
       {filters.map((f) => {
         const selected = values[f.field];
         const label = f.labelKey ? labelOf(f.labelKey) : f.field;
@@ -234,29 +234,28 @@ function CollectionSingle({
   const rows = pickArray(data);
 
   return (
-    <Section title={labelOf(title)} icon={ListChecks}>
+    <Section
+      title={labelOf(title)}
+      icon={ListChecks}
+      action={blocked ? undefined : filterBar}
+    >
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}
         </Text>
+      ) : isLoading && rows.length === 0 ? (
+        <SkeletonText lines={3} />
+      ) : rows.length === 0 ? (
+        <Text variant="muted">{t('binding.empty')}</Text>
       ) : (
-        <>
-          {filterBar}
-          {isLoading && rows.length === 0 ? (
-            <SkeletonText lines={3} />
-          ) : rows.length === 0 ? (
-            <Text variant="muted">{t('binding.empty')}</Text>
-          ) : (
-            <CollectionTable
-              rows={rows}
-              columns={columns}
-              resolvedColumnLabels={resolveColumnLabels(columnLabels, labelOf)}
-              actions={actions}
-              subjectType={subjectType}
-              subjectIdField={subjectIdField}
-            />
-          )}
-        </>
+        <CollectionTable
+          rows={rows}
+          columns={columns}
+          resolvedColumnLabels={resolveColumnLabels(columnLabels, labelOf)}
+          actions={actions}
+          subjectType={subjectType}
+          subjectIdField={subjectIdField}
+        />
       )}
     </Section>
   );
@@ -281,7 +280,11 @@ function CollectionPaginated({
     useBoundPaginatedQuery(query.path, query.args, { perPage });
 
   return (
-    <Section title={labelOf(title)} icon={ListChecks}>
+    <Section
+      title={labelOf(title)}
+      icon={ListChecks}
+      action={blocked || needsConfig ? undefined : filterBar}
+    >
       {blocked ? (
         <Text variant="error">
           {t('binding.blocked', { path: query.path })}
@@ -293,7 +296,6 @@ function CollectionPaginated({
         <Text variant="muted">{t('list.needsConfig')}</Text>
       ) : (
         <>
-          {filterBar}
           {status === 'LoadingFirstPage' ? (
             <SkeletonText lines={3} />
           ) : results.length === 0 ? (
