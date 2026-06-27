@@ -64,6 +64,18 @@ describe('PersonalizationPolicyEditor', () => {
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+
+    it('reflects the server-stored enabled value on the first loaded render', () => {
+      // Regression for #2023: the toggle used to copy server state into
+      // `useState` via `useEffect`, so it rendered the `false` default first.
+      // It now derives `enabled` from server state directly, so a stored
+      // `enabled: true` is checked immediately — no stale `false` flash.
+      setLoaded();
+      render(<PersonalizationPolicyEditor organizationId="org-1" />);
+      for (const toggle of screen.getAllByRole('switch')) {
+        expect(toggle).toHaveAttribute('aria-checked', 'true');
+      }
+    });
   });
 
   describe('loading state (skeletonized)', () => {
