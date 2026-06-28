@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
@@ -64,6 +65,9 @@ export function ProjectSecretsTab({
   // description. A re-save re-encrypts via the same upsert path as Add — there
   // is no reveal, because stored values are never returned to the client.
   const [editingName, setEditingName] = useState<string | null>(null);
+  // Gate that the user has acknowledged overwriting an existing secret. Reset
+  // whenever the target name changes so each collision is confirmed afresh.
+  const [confirmOverwrite, setConfirmOverwrite] = useState(false);
 
   const typeOptions = useMemo(
     () => [
@@ -83,6 +87,7 @@ export function ProjectSecretsTab({
     setPassword('');
     setDescription('');
     setEditingName(null);
+    setConfirmOverwrite(false);
   };
 
   const openEdit = (secret: { name: string; description?: string }) => {
@@ -94,6 +99,32 @@ export function ProjectSecretsTab({
     setDialogOpen(true);
   };
 
+  const isEditing = editingName !== null;
+
+  const baseName = name.trim().toUpperCase();
+  const existingNames = useMemo(
+    () => new Set(secrets.map((s) => s.name)),
+    [secrets],
+  );
+  // Names that already exist and would be overwritten by saving. Empty unless a
+  // collision is in play, which is what surfaces the warning + confirm gate.
+  const collidingNames = useMemo(() => {
+    if (isEditing || baseName.length === 0) return [];
+    const candidates =
+      type === 'basic'
+        ? [`${baseName}_USERNAME`, `${baseName}_PASSWORD`]
+        : [baseName];
+    return candidates.filter((candidate) => existingNames.has(candidate));
+  }, [baseName, type, existingNames, isEditing]);
+  const hasCollision = collidingNames.length > 0;
+
+  // For `basic`, the stored names carry the `_USERNAME`/`_PASSWORD` suffix, so
+  // validate those full names rather than the bare base.
+  const fullNames =
+    type === 'basic' && !isEditing
+      ? [`${baseName}_USERNAME`, `${baseName}_PASSWORD`]
+      : [baseName];
+
   // The single-value field is relabelled per type so the form reads like a
   // dedicated form for each credential shape.
   const valueLabel =
@@ -102,16 +133,6 @@ export function ProjectSecretsTab({
       : type === 'bearer'
         ? t('tokenLabel')
         : t('valueLabel');
-
-  const isEditing = editingName !== null;
-
-  const baseName = name.trim().toUpperCase();
-  // For `basic`, the stored names carry the `_USERNAME`/`_PASSWORD` suffix, so
-  // validate those full names rather than the bare base.
-  const fullNames =
-    type === 'basic' && !isEditing
-      ? [`${baseName}_USERNAME`, `${baseName}_PASSWORD`]
-      : [baseName];
 
   // Mirror the server's env-var-name rule (SECRET_NAME_RE) client-side so an
   // invalid or whitespace-only name is caught inline — disabling Save and showing
@@ -298,7 +319,14 @@ export function ProjectSecretsTab({
         title={isEditing ? t('editTitle') : t('addButton')}
         isSubmitting={isSaving}
         isDirty={isDirty}
-        isValid={nameValid}
+        // Invalid names block submit; a name collision also requires explicit
+        // confirmation before overwriting a stored credential.
+        isValid={
+          nameValid && (isEditing || !hasCollision || confirmOverwrite)
+        }
+        submitText={
+          !isEditing && hasCollision ? t('overwriteButton') : undefined
+        }
         onSubmit={handleSave}
       >
         {!isEditing && (
@@ -306,10 +334,11 @@ export function ProjectSecretsTab({
             id="secret-type"
             label={t('typeLabel')}
             value={type}
-            onValueChange={(next) =>
+            onValueChange={(next) => {
+              setConfirmOverwrite(false);
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are the SecretType union
-              setType(next as SecretType)
-            }
+              setType(next as SecretType);
+            }}
             options={typeOptions}
             disabled={isSaving}
           />
@@ -319,7 +348,10 @@ export function ProjectSecretsTab({
           label={t('nameLabel')}
           placeholder={NAME_PLACEHOLDER[type]}
           value={name}
-          onChange={(e) => setName(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            setConfirmOverwrite(false);
+            setName(e.target.value.toUpperCase());
+          }}
           // The name is the env-var key agents resolve — editing it would orphan
           // references, so it's fixed once created.
           disabled={isSaving || isEditing}
@@ -389,6 +421,32 @@ export function ProjectSecretsTab({
           onChange={(e) => setDescription(e.target.value)}
           disabled={isSaving}
         />
+        {hasCollision && (
+          <Alert
+            variant="warning"
+            icon={ShieldAlert}
+            live="assertive"
+            title={t('overwriteWarningTitle')}
+            description={
+              <Stack gap={3}>
+                <Text as="p" variant="muted" className="text-sm">
+                  {t('overwriteWarningBody', {
+                    names: collidingNames.join(', '),
+                  })}
+                </Text>
+                <Checkbox
+                  id="secret-confirm-overwrite"
+                  label={t('overwriteConfirmLabel')}
+                  checked={confirmOverwrite}
+                  onCheckedChange={(checked) =>
+                    setConfirmOverwrite(checked === true)
+                  }
+                  disabled={isSaving}
+                />
+              </Stack>
+            }
+          />
+        )}
       </FormDialog>
     </ContentArea>
   );

@@ -379,6 +379,67 @@ describe('ProjectSecretsTab', () => {
     });
   });
 
+  describe('overwrite protection', () => {
+    it('warns and blocks Save until the user confirms when the name collides with an existing secret', async () => {
+      secretsFixture = [{ name: 'EXISTING_SECRET' }];
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      // No warning until a colliding name is typed.
+      expect(screen.queryByText('Name already in use')).not.toBeInTheDocument();
+
+      await user.type(
+        screen.getByLabelText('Name', { exact: false }),
+        'existing_secret',
+      );
+      await user.type(
+        screen.getByLabelText('API key', { exact: false }),
+        'replacement-value',
+      );
+
+      // The collision is surfaced and the submit button becomes "Overwrite".
+      expect(screen.getByText('Name already in use')).toBeInTheDocument();
+      const overwriteButton = screen.getByRole('button', { name: 'Overwrite' });
+      expect(overwriteButton).toBeDisabled();
+
+      // Clicking while unconfirmed must not persist anything.
+      await user.click(overwriteButton);
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+
+      // Confirming the overwrite enables the submit and lets the save through.
+      await user.click(
+        screen.getByRole('checkbox', { name: 'Overwrite the existing secret' }),
+      );
+      expect(overwriteButton).toBeEnabled();
+      await user.click(overwriteButton);
+
+      await waitFor(() => {
+        expect(mockSetMutateAsync).toHaveBeenCalledTimes(1);
+      });
+      expect(mockSetMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'EXISTING_SECRET' }),
+      );
+    });
+
+    it('does not warn when the name does not collide with an existing secret', async () => {
+      secretsFixture = [{ name: 'EXISTING_SECRET' }];
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      await user.type(
+        screen.getByLabelText('Name', { exact: false }),
+        'fresh_secret',
+      );
+
+      expect(screen.queryByText('Name already in use')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    });
+  });
+
   describe('delete', () => {
     it('invokes deleteProjectSecret with the row name when its delete button is clicked', async () => {
       secretsFixture = [{ name: 'E2E_DEPTH_SECRET_ABC' }];

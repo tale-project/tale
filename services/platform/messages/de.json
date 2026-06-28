@@ -6893,6 +6893,7 @@
     "nameShapeHint": "Großbuchstaben, Zahlen und Unterstriche; muss mit einem Buchstaben beginnen.",
     "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
+<<<<<<< HEAD
     "editButton": "Bearbeiten",
     "editTitle": "Secret bearbeiten",
     "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
@@ -6905,6 +6906,13 @@
       "forbidden": "Du hast keine Berechtigung, die Secrets dieses Projekts zu verwalten.",
       "projectNotFound": "Dieses Projekt wurde nicht gefunden. Es wurde möglicherweise gelöscht."
     }
+=======
+    "deleteSuccess": "Secret gelöscht",
+    "overwriteWarningTitle": "Name bereits vergeben",
+    "overwriteWarningBody": "Ein Secret mit dem Namen {names} existiert bereits. Beim Speichern wird sein gespeicherter Wert ersetzt — das kann nicht rückgängig gemacht werden.",
+    "overwriteConfirmLabel": "Vorhandenes Secret überschreiben",
+    "overwriteButton": "Überschreiben"
+>>>>>>> b60bb76a3 (fix: confirm before overwriting an existing project secret (#1983))
   },
   "tasks": {
     "attachments": {
