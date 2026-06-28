@@ -67,9 +67,11 @@ test.describe.serial('automation editor', () => {
     // a stable signal the flow editor (not a skeleton) mounted. The shared
     // Button suppresses the native `title` attribute (it routes `title` into
     // aria-label + a tooltip), so locate by role + accessible name, not title.
+    // On-canvas step editing isn't wired up yet, so the add-step button is
+    // present but disabled and labelled with the "unavailable" message.
     await expect(
       page.getByRole('button', {
-        name: t('automations.steps.toolbar.addStep'),
+        name: t('automations.steps.toolbar.addStepUnavailable'),
         exact: true,
       }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
