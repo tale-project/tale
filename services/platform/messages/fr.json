@@ -4424,7 +4424,13 @@
     "dsarPolicyLoosenApplied": "Politique d'effacement assouplie",
     "dsarPolicyLoosenAppliedBody": "Une politique d'effacement (DSAR) assouplie a pris effet après le délai de grâce de 24 heures.",
     "dsarPolicyLoosenCancelled": "Modification en attente de la politique d'effacement annulée",
-    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet."
+    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet.",
+    "agentBudgetWarnTitle": "L'agent approche de son budget",
+    "agentBudgetWarnBody": "{agentSlug} a utilisé {pct} % de son budget mensuel ({spent} sur {monthly}).",
+    "agentBudgetExceededTitle": "Budget de l'agent dépassé — exécutions en pause",
+    "agentBudgetExceededBody": "{agentSlug} a atteint son budget mensuel ({spent} sur {monthly}) et a été mis en pause. Les exécutions reprennent le mois prochain ou lorsque tu augmentes la limite.",
+    "agentCircuitTrippedTitle": "Exécutions de l'agent en pause — limite de sécurité atteinte",
+    "agentCircuitTrippedBody": "{agentSlug} a atteint la limite de sécurité de {windowRuns} exécutions en {windowHours} h sur « {taskTitle} ». Change le statut de la tâche pour reprendre l'automatisation."
   },
   "personalization": {
     "page": {
@@ -6667,6 +6673,7 @@
     "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
+    "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
     "taskReviewApproved": "Revue approuvée",
     "taskReviewApprovedBody": "« {taskTitle} » a été approuvée et terminée.",
     "taskReviewChangesRequested": "Modifications demandées",
