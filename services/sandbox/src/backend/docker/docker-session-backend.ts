@@ -529,4 +529,28 @@ export class DockerSessionBackend implements SessionBackend {
     }
     return out;
   }
+
+  /**
+   * Heal the shared buildkitd for every org with a running session, so an
+   * adopted session never builds against a daemon whose egress fence went stale
+   * across a stack restart. ensureBuildkitd recreates a drifted daemon (its
+   * `[dns]`/redsocks pinned to a since-moved sandbox-egress IP) and is a cheap
+   * no-op when the daemon is already healthy. Gated on DinD + the build-cache
+   * flag (no daemon otherwise); per-org best-effort — the cache is an
+   * optimization, so a failure is logged, never thrown.
+   */
+  async reconcileBuildCache(orgIds: readonly string[]): Promise<void> {
+    if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
+    for (const organizationId of new Set(orgIds)) {
+      try {
+        await ensureBuildkitd(this.cfg, organizationId);
+      } catch (err) {
+        console.warn(
+          `[sandbox.session] build-cache reconcile for org ${organizationId} ` +
+            `failed (continuing; sessions fall back to their inner builder):`,
+          err,
+        );
+      }
+    }
+  }
 }

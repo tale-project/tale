@@ -30,6 +30,51 @@ const BUILDKITD_PORT = 1234;
 // entrypoint.
 export const EGRESS_READY_MARKER = '/run/tale-buildkitd-egress-ready';
 
+// The live buildkitd config the entrypoint regenerates on every start: it
+// appends a `[dns] nameservers = ["<egress-ip>"]` block pinned to the egress
+// IP resolved AT THAT MOMENT. We read it back to detect drift — sandbox-egress
+// is recreated (and can land on a new IP) by every stack restart (`bun dev`,
+// `docker:dev`, `docker compose up`, `tale deploy`) while this --restart
+// unless-stopped daemon keeps running with the now-stale nameserver. Keep this
+// path in sync with LIVE_TOML in the entrypoint.
+export const BUILDKITD_LIVE_TOML = '/etc/buildkit/buildkitd.toml';
+
+const IPV4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+
+/**
+ * Hostname the buildkitd resolves the egress proxy by (e.g. `sandbox-egress`
+ * from `http://sandbox-egress:3128`). Returns null if the URL has no host — the
+ * caller then skips drift detection rather than guessing.
+ */
+export function egressProxyHostname(proxyUrl: string): string | null {
+  try {
+    const host = new URL(proxyUrl).hostname;
+    return host.length > 0 ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** First IPv4 token of `getent hosts <name>` output (`172.18.0.7  name`). */
+export function firstIpv4(getentOutput: string): string | null {
+  const token = getentOutput.trim().split(/\s+/)[0] ?? '';
+  return IPV4_RE.test(token) ? token : null;
+}
+
+/**
+ * The IP the live `[dns]` block pins RUN-step resolution to, parsed from the
+ * buildkitd.toml the entrypoint writes. Null when there is no `[dns]` block —
+ * i.e. the egress fence was never installed (TALE_SKIP_EGRESS dev mode, or a
+ * boot where the egress was unreachable), in which case there is nothing to
+ * compare and drift detection is skipped.
+ */
+export function parseDnsNameserver(tomlText: string): string | null {
+  const match = tomlText.match(
+    /nameservers\s*=\s*\[\s*"(\d{1,3}(?:\.\d{1,3}){3})"/,
+  );
+  return match?.[1] ?? null;
+}
+
 // Pull-through registry mirrors. buildkit's image-PULL DNS runs in the daemon
 // process via Go's resolver against docker's embedded resolver (127.0.0.11),
 // which SERVFAILs Go's queries for EXTERNAL names on a user-defined network
@@ -244,23 +289,62 @@ export async function ensureBuildkitd(
 }
 
 /**
- * Is a RUNNING buildkitd's egress fence actually installed? The entrypoint writes
- * EGRESS_READY_MARKER only after redsocks + the default route + the current-IP
- * [dns] block are in place. Absent ⇒ the daemon restarted while sandbox-egress
- * was unreachable and is serving builds with no internet — so we recreate it
- * rather than reuse it. Best-effort: a probe error is treated as healthy so a
- * transient `docker exec` hiccup never needlessly tears down a working daemon.
+ * Is a RUNNING buildkitd's egress fence actually installed AND still pointing at
+ * the current egress? Two failure modes, both of which leave the daemon serving
+ * builds that can't reach the internet while it looks "Running":
+ *
+ *  1. Fence missing — the entrypoint writes EGRESS_READY_MARKER only after
+ *     redsocks + the default route + the [dns] block are in place. Absent ⇒ the
+ *     daemon restarted (--restart unless-stopped) while sandbox-egress was
+ *     unreachable and came up with no fence at all.
+ *  2. Fence stale — the [dns] nameserver (and the redsocks target, written from
+ *     the same egress IP) is pinned to the egress IP resolved when the fence was
+ *     LAST installed. sandbox-egress is recreated by every stack restart
+ *     (`bun dev` / `docker:dev` / `docker compose up` / `tale deploy`) and can
+ *     land on a different IP; this daemon, not being a compose service, keeps
+ *     running with the old IP. RUN-step DNS then goes to whatever now holds that
+ *     IP (a non-resolver) and every external lookup fails ("Temporary failure
+ *     resolving 'archive.ubuntu.com'"). The marker is still present, so marker
+ *     presence alone can't catch this — we compare the pinned IP to the live one.
+ *
+ * Either ⇒ recreate (the entrypoint reinstalls the fence against the CURRENT
+ * egress IP; the persistent cache volume is preserved). Best-effort: any probe
+ * we can't conclusively read is treated as healthy so a transient `docker exec`
+ * hiccup never needlessly tears down a working daemon.
  */
-async function buildkitdEgressHealthy(name: string): Promise<boolean> {
-  const probe = await runDocker(
+async function buildkitdEgressHealthy(
+  cfg: SpawnerConfig,
+  name: string,
+): Promise<boolean> {
+  // (1) Fence present at all?
+  const present = await runDocker(
     ['exec', name, 'test', '-f', EGRESS_READY_MARKER],
-    {
-      timeoutMs: 5_000,
-    },
+    { timeoutMs: 5_000 },
   );
-  // exit 0 = present (healthy); exit 1 = absent (broken). Other codes (exec
-  // failure) → assume healthy to avoid tearing down a daemon over a probe glitch.
-  return probe.exitCode !== 1;
+  if (present.exitCode === 1) return false; // definitively absent ⇒ broken
+  if (present.exitCode !== 0) return true; // exec glitch ⇒ assume healthy
+
+  // (2) Fence not stale? Compare the egress IP the live [dns] is pinned to with
+  // the egress's CURRENT IP, both read from inside the daemon (its embedded
+  // resolver answers the sibling `sandbox-egress` name).
+  const host = egressProxyHostname(cfg.egressProxy);
+  if (!host) return true; // no proxy host configured ⇒ nothing to compare
+  const toml = await runDocker(['exec', name, 'cat', BUILDKITD_LIVE_TOML], {
+    timeoutMs: 5_000,
+  });
+  const pinnedIp = parseDnsNameserver(toml.stdout);
+  if (!pinnedIp) return true; // no [dns] (skip-egress dev mode) ⇒ nothing to compare
+  const resolved = await runDocker(['exec', name, 'getent', 'hosts', host], {
+    timeoutMs: 5_000,
+  });
+  const currentIp = firstIpv4(resolved.stdout);
+  if (!currentIp || currentIp === pinnedIp) return true; // unresolvable now, or matches
+  console.warn(
+    `[sandbox.buildkitd] ${name} egress fence is stale: [dns] pinned to ${pinnedIp} ` +
+      `but ${host} now resolves to ${currentIp} (sandbox-egress was recreated). ` +
+      `Recreating so build RUN steps regain DNS + egress.`,
+  );
+  return false;
 }
 
 async function ensureBuildkitdUnlocked(
@@ -270,10 +354,12 @@ async function ensureBuildkitdUnlocked(
 ): Promise<string> {
   const endpoint = buildkitdEndpoint(organizationId);
 
-  // Already running? Reuse it ONLY if its egress fence is still installed. A
-  // daemon that restarted (--restart unless-stopped) while sandbox-egress was
-  // unreachable comes up with no fence and silently serves builds with no
-  // internet (RUN steps fail to resolve any external host) — recreate it.
+  // Already running? Reuse it ONLY if its egress fence is still installed AND
+  // still pinned to the current egress IP. A daemon that restarted (--restart
+  // unless-stopped) with sandbox-egress unreachable, or that kept running while
+  // a stack restart moved sandbox-egress to a new IP, silently serves builds
+  // with no working DNS/egress (RUN steps fail to resolve any external host) —
+  // recreate it. See buildkitdEgressHealthy.
   const inspect = await runDocker([
     'inspect',
     '-f',
@@ -282,11 +368,11 @@ async function ensureBuildkitdUnlocked(
   ]);
   if (inspect.exitCode === 0) {
     if (inspect.stdout.trim() === 'true') {
-      if (await buildkitdEgressHealthy(name)) return endpoint;
+      if (await buildkitdEgressHealthy(cfg, name)) return endpoint;
       console.warn(
-        `[sandbox.buildkitd] ${name} is running but its egress fence is missing ` +
-          `(likely restarted while sandbox-egress was unreachable); recreating so ` +
-          `build RUN steps regain internet. The persistent cache volume is preserved.`,
+        `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
+          `stale; recreating so build RUN steps regain internet. The persistent ` +
+          `cache volume is preserved.`,
       );
     }
     // Stopped/dead OR running-but-egress-broken: reap it so the `run --name`
