@@ -7399,6 +7399,7 @@
       "shareToggleDisclosure": "Si tu partages ce chat, tes souvenirs et instructions personnels resteront cachés des autres membres.",
       "shareSuccess": "Chat partagé avec le projet",
       "unshareSuccess": "Chat retiré du projet",
+      "shareDisabledPersonalization": "La personnalisation a été désactivée pour ce chat, afin que tes souvenirs et instructions restent privés vis-à-vis des autres membres.",
       "shareError": "Impossible de mettre à jour le partage"
     },
     "agents": {

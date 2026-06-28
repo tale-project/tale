@@ -7398,6 +7398,7 @@
       "shareToggleDisclosure": "Wenn du diesen Chat teilst, bleiben deine persönlichen Erinnerungen und Anweisungen für andere Mitglieder unsichtbar.",
       "shareSuccess": "Chat mit Projekt geteilt",
       "unshareSuccess": "Chat aus Projekt ausgeblendet",
+      "shareDisabledPersonalization": "Die Personalisierung wurde für diesen Chat deaktiviert, damit deine Erinnerungen und Anweisungen für andere Mitglieder privat bleiben.",
       "shareError": "Freigabe konnte nicht aktualisiert werden"
     },
     "agents": {
