@@ -10,10 +10,10 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { ActivityLogView } from '@/app/features/settings/audit-logs/components/activity-log-view';
 import { AuditIntegrityPanel } from '@/app/features/settings/audit-logs/components/audit-integrity-panel';
-import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
+import { AuditLogTab } from '@/app/features/settings/audit-logs/components/audit-log-tab';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { ErrorLogTable } from '@/app/features/settings/audit-logs/components/error-log-table';
-import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
+import { LogsTableBoundary } from '@/app/features/settings/audit-logs/components/logs-table-boundary';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -75,12 +75,6 @@ export function AuditLogsPage({
   // actually filters something.
   const activeTab = tab ?? 'audit';
   const showCategoryFilter = activeTab === 'audit' || activeTab === 'errors';
-
-  const paginatedResult = useListAuditLogsPaginated({
-    organizationId,
-    category,
-    initialNumItems: 30,
-  });
 
   const membersQuery = useConvexQuery(api.members.queries.listByOrganization, {
     organizationId,
@@ -228,13 +222,15 @@ export function AuditLogsPage({
               value: 'audit',
               label: t('logs.auditLogs'),
               content: (
-                <AuditLogTable
-                  paginatedResult={paginatedResult}
-                  userEmailMap={userEmailMap}
-                  organizationId={organizationId}
-                  revealLogId={reveal?.logId}
-                  revealNonce={reveal?.seq}
-                />
+                <LogsTableBoundary resetKeys={[category]}>
+                  <AuditLogTab
+                    organizationId={organizationId}
+                    category={category}
+                    userEmailMap={userEmailMap}
+                    revealLogId={reveal?.logId}
+                    revealNonce={reveal?.seq}
+                  />
+                </LogsTableBoundary>
               ),
             },
             {
@@ -256,11 +252,13 @@ export function AuditLogsPage({
               value: 'errors',
               label: t('logs.errorLogs'),
               content: (
-                <ErrorLogTable
-                  organizationId={organizationId}
-                  category={category}
-                  userEmailMap={userEmailMap}
-                />
+                <LogsTableBoundary variant="errors" resetKeys={[category]}>
+                  <ErrorLogTable
+                    organizationId={organizationId}
+                    category={category}
+                    userEmailMap={userEmailMap}
+                  />
+                </LogsTableBoundary>
               ),
             },
           ]}

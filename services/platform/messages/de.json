@@ -6347,6 +6347,11 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
+      "loadError": {
+        "title": "Protokolle konnten nicht geladen werden",
+        "description": "Das Laden der Protokolle hat zu lange gedauert. Das ist meist nur vorübergehend.",
+        "retry": "Erneut versuchen"
+      },
       "activity": {
         "period": {
           "label": "Zeitraum",
