@@ -201,6 +201,24 @@ describe('knowledge entry structured errors (#2000)', () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
+  it('updateKnowledgeEntry throws UNAUTHENTICATED when there is no auth user', async () => {
+    const ctx = createMockCtx(null);
+    ctx.auth.getUserIdentity = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(updateKnowledgeEntry)(ctx, {
+        entryId: 'entry_existing',
+        topic: 'Refunds',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('UNAUTHENTICATED');
+  });
+
   it('updateKnowledgeEntry throws KNOWLEDGE_ENTRY_NOT_FOUND for a missing entry', async () => {
     const ctx = createMockCtx(null);
     ctx.db.get = vi.fn().mockResolvedValue(null);
@@ -242,6 +260,20 @@ describe('knowledge entry structured errors (#2000)', () => {
     }
 
     expect(code).toBe('KNOWLEDGE_ENTRY_NOT_ACTIVE');
+  });
+
+  it('deleteKnowledgeEntry throws UNAUTHENTICATED when there is no auth user', async () => {
+    const ctx = createMockCtx(null);
+    ctx.auth.getUserIdentity = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: 'entry_existing' });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('UNAUTHENTICATED');
   });
 
   it('deleteKnowledgeEntry throws KNOWLEDGE_ENTRY_NOT_FOUND for a missing entry', async () => {
