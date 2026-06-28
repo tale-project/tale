@@ -50,10 +50,10 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
     useAppCatalog(organizationId);
   const isLoading = installedLoading || catalogLoading;
   const apps = useMemo(() => {
-    const bySlug = new Map<string, AppSummary>();
-    for (const app of catalog) bySlug.set(app.slug, app);
-    for (const app of installed) bySlug.set(app.slug, app);
-    return Array.from(bySlug.values()).sort((a, b) =>
+    const unionBySlug = new Map<string, AppSummary>();
+    for (const app of catalog) unionBySlug.set(app.slug, app);
+    for (const app of installed) unionBySlug.set(app.slug, app);
+    return Array.from(unionBySlug.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
   }, [installed, catalog]);
