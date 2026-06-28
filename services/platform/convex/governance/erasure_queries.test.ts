@@ -189,6 +189,12 @@ describe('listErasureRequests', () => {
         organizationId: 'org_1',
       }),
     ).rejects.toThrow('Unauthenticated');
+    await expect(
+      listErasureRequests.handler(ctx, {
+        paginationOpts: PAGINATION,
+        organizationId: 'org_1',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
   });
 
   it('throws when caller is not an admin', async () => {
@@ -202,6 +208,12 @@ describe('listErasureRequests', () => {
         organizationId: 'org_1',
       }),
     ).rejects.toThrow('Admin role required.');
+    await expect(
+      listErasureRequests.handler(ctx, {
+        paginationOpts: PAGINATION,
+        organizationId: 'org_1',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
   });
 
   it('shapes summaries with names resolved and threadsTargeted as a count', async () => {
@@ -293,6 +305,9 @@ describe('getErasureRequest', () => {
     await expect(
       getErasureRequest.handler(ctx, { requestId: 'er_1' }),
     ).rejects.toThrow('Admin role required.');
+    await expect(
+      getErasureRequest.handler(ctx, { requestId: 'er_1' }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
   });
 
   it('returns row plus the gdpr_erasure_* audit chain', async () => {
