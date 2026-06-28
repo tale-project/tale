@@ -53,7 +53,7 @@ export function filterByFields<T>(items: T[], filters: FieldFilter<T>[]): T[] {
  * of the item, or an accessor that returns the value to match (used to reach
  * nested fields such as a related customer's name).
  */
-export type SearchField<T> =
+type SearchField<T> =
   | keyof T
   | ((item: T) => string | number | null | undefined);
 
