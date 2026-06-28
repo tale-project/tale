@@ -2117,6 +2117,8 @@
     "bulkSend": {
       "title": "Envoyer {count} messages",
       "description": "Tu es sur le point d'envoyer des réponses pour {count, plural, one {# conversation} other {# conversations}}. Cette action est irréversible.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Saisis ta réponse...",
       "send": "Envoyer"
     },
     "updating": "Mise à jour des conversations...",

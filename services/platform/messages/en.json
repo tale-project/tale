@@ -2116,6 +2116,8 @@
     "bulkSend": {
       "title": "Send {count} Messages",
       "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Type your reply...",
       "send": "Send"
     },
     "updating": "Updating conversations...",
