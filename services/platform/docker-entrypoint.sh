@@ -47,7 +47,16 @@ log_section() { echo; echo "═════════════════�
 # problem.
 # ----------------------------------------------------------------------------
 if [ "$(id -u)" = '0' ]; then
-  exec gosu app "$0" "$@"
+  # Dev image opt-out: the hot-reload watchers (`vite build --watch`) must write
+  # to dist/ and read the host-owned bind-mounted source, and running as root
+  # sidesteps uid-mismatch permission errors. vite only writes container-local
+  # paths (dist/, node_modules cache), never the bind-mounts, so the host tree
+  # is not polluted. Set only in compose.dev.yml; prod always drops to `app`.
+  if [ "${TALE_DEV_NO_PRIVDROP:-0}" = '1' ]; then
+    log_warn "TALE_DEV_NO_PRIVDROP=1 — running as root (dev hot-reload mode)"
+  else
+    exec gosu app "$0" "$@"
+  fi
 fi
 
 log_section "Tale Platform starting (version ${TALE_VERSION:-unknown})"
@@ -60,10 +69,25 @@ READY_MARKER="/tmp/platform-ready"
 rm -f "$SHUTDOWN_MARKER" "$READY_MARKER"
 
 VITE_PID=""
+# Set by the dev hot-reload watchers (empty in prod).
+CONVEX_DEV_PID=""
+FRONTEND_WATCH_PID=""
 
 shutdown() {
   log_section "Platform graceful shutdown"
   touch "$SHUTDOWN_MARKER"
+
+  # Stop the dev-only watchers first — they are non-critical and must not
+  # outlive the entrypoint (an orphaned `convex dev` keeps re-pushing; an
+  # orphaned `vite build --watch` keeps rebuilding dist).
+  if [ -n "$CONVEX_DEV_PID" ]; then
+    log_info "Stopping Convex function watcher..."
+    kill -TERM "$CONVEX_DEV_PID" 2>/dev/null || true
+  fi
+  if [ -n "$FRONTEND_WATCH_PID" ]; then
+    log_info "Stopping frontend build watcher..."
+    kill -TERM "$FRONTEND_WATCH_PID" 2>/dev/null || true
+  fi
 
   local drain_wait="${SHUTDOWN_DRAIN_SECONDS:-6}"
   log_info "Draining ${drain_wait}s for load balancer to stop routing..."
@@ -103,6 +127,26 @@ trap shutdown SIGTERM SIGINT
 source "$(dirname "$0")/env.sh"
 env_normalize_common
 ensure_instance_secret
+
+# ----------------------------------------------------------------------------
+# Layout detection (prod runner vs dev image)
+# ----------------------------------------------------------------------------
+# The production runner flattens the platform into /app: server.ts at
+# /app/server.ts, functions at /app/convex, cwd /app. The dev image (Dockerfile
+# `dev` stage) is the unpruned `builder` and keeps the monorepo layout:
+# server.ts + vite config + functions live under /app/services/platform. One
+# entrypoint serves both, so resolve the two roots from a marker that ONLY the
+# flat layout has (/app/server.ts) and cd into the platform dir. Bind-mounting
+# the convex tree over /app/services/platform/convex (compose.dev.yml) does NOT
+# create /app/server.ts, so the detection stays correct under that mount.
+if [ -f /app/server.ts ]; then
+  PLATFORM_DIR=/app
+else
+  PLATFORM_DIR=/app/services/platform
+fi
+CONVEX_DIR="${PLATFORM_DIR}/convex"
+cd "$PLATFORM_DIR" || { log_error "Platform dir ${PLATFORM_DIR} missing"; exit 1; }
+log_info "Platform dir: ${PLATFORM_DIR} (convex: ${CONVEX_DIR})"
 
 echo "Environment after normalization:"
 echo "   HOST=${HOST}"
@@ -195,8 +239,8 @@ ENV_SYNC_DENYLIST=()
 deploy_convex_functions() {
   log_section "Deploying Convex functions (remote push to ${CONVEX_URL})"
 
-  if [ ! -d "/app/convex" ]; then
-    log_warn "No /app/convex directory found, skipping function deployment"
+  if [ ! -d "$CONVEX_DIR" ]; then
+    log_warn "No ${CONVEX_DIR} directory found, skipping function deployment"
     return 0
   fi
 
@@ -512,6 +556,143 @@ deploy_convex_functions() {
 }
 
 deploy_convex_functions
+
+# ============================================================================
+# Dev-only: Convex function watcher (hot push)
+# ----------------------------------------------------------------------------
+# In `docker:dev` the host's services/platform/convex tree is bind-mounted over
+# /app/convex (see compose.dev.yml — the same path the boot deploy above reads).
+# That deploy is ONE-SHOT, so convex edits made after boot never reach the
+# running backend without a container restart. When NODE_ENV=development we
+# leave a `convex dev` watcher running: it re-pushes changed modules to the
+# sibling convex service on every save — the identical push model as the boot
+# deploy, just continuous. Never runs in production (the runner sets
+# NODE_ENV=production); opt out in dev with TALE_DEV_HOT_RELOAD=0.
+#
+# Flag choices mirror the boot deploy and keep host state untouched:
+#   --codegen disable   never rewrite the bind-mounted convex/_generated/ tree;
+#                       that is owned by the host's own `bun dev`/IDE, and the
+#                       container app user writing into it causes host-side
+#                       churn and ownership surprises.
+#   --typecheck disable same as the boot deploy — tsc is the host's job.
+#   --tail-logs disable keep this entrypoint's log readable; function logs live
+#                       in the convex container (`docker compose logs convex`).
+# ============================================================================
+start_convex_dev_watcher() {
+  if [ "${NODE_ENV:-}" != "development" ] || [ "${TALE_DEV_HOT_RELOAD:-1}" = "0" ]; then
+    return 0
+  fi
+  if [ ! -d "$CONVEX_DIR" ]; then
+    log_warn "Hot reload requested but ${CONVEX_DIR} is missing; skipping Convex watcher"
+    return 0
+  fi
+
+  log_section "Starting Convex function watcher (dev hot reload)"
+  log_info "Watching ${CONVEX_DIR} → re-pushing to ${CONVEX_URL} on every save"
+
+  # HOME is already exported to /home/app by deploy_convex_functions above, so
+  # the watcher reuses the same Bun/convex CLI home the boot deploy used.
+  bunx convex dev \
+    --url "$CONVEX_URL" \
+    --admin-key "$ADMIN_KEY" \
+    --typecheck disable \
+    --codegen disable \
+    --tail-logs disable &
+  CONVEX_DEV_PID=$!
+  log_ok "Convex watcher started (pid ${CONVEX_DEV_PID}); convex edits now hot-push"
+}
+
+start_convex_dev_watcher
+
+# ============================================================================
+# Dev-only: frontend build watcher (hard-refresh hot reload)
+# ----------------------------------------------------------------------------
+# `server.ts` serves the SPA from ${PLATFORM_DIR}/dist and (in dev) re-reads
+# index.html per request, so a fresh `dist/` shows up on the next browser
+# refresh. The boot already ships a prebuilt dist/, so the app serves
+# immediately; we only rebuild once the host's bind-mounted app/ + lib/ trees
+# (compose.dev.yml) actually change. This is intentionally NOT a Vite dev
+# server with HMR: it keeps the production server.ts serving path (API routes,
+# WebDAV, canvas-preview, …) untouched and avoids proxying an HMR websocket
+# through Caddy's self-signed TLS. Trade-off: a manual refresh, no React Fast
+# Refresh / state retention. For full HMR use host `bun dev`.
+#
+# Why a poll loop + full `vite build` (not `vite build --watch`), and why the
+# atomic dir swap:
+#   * `vite build --watch` (rolldown) crashes the *incremental* rebuild in the
+#     vite:css-post plugin ("Unable to get file name for unknown file …") and
+#     leaves dist/ without index.html → the SPA 500s. A fresh one-shot
+#     `vite build` does not hit that path and is reliable.
+#   * But a plain `vite build` into the live dist/ empties it for the ~7s build
+#     (emptyOutDir), so a refresh mid-build hits a missing/half-written dist →
+#     500/blank. To avoid that we keep two build slots (dist-a / dist-b) and
+#     make `dist` a symlink: build into the *inactive* slot, then swap the
+#     symlink with a single `mv -T` (rename(2)). A request therefore always
+#     resolves dist/ to a *complete* build — the previous one during the
+#     rebuild, the new one after the swap — never a half-written tree. server.ts
+#     re-reads index.html per request (and uses a fixed dist path), so it needs
+#     no change. A failed build never swaps, so the previous build keeps serving.
+#   * Polling (vs inotify): Docker Desktop bind mounts deliver host file events
+#     unreliably; a 2s mtime poll is plenty for a manual-refresh workflow.
+#
+# Only runs in the dev image (vite + the source live there); the pruned prod
+# runner has neither, and sets NODE_ENV=production. Opt out with
+# TALE_DEV_HOT_RELOAD=0. `--mode development` skips minification for speed.
+# ============================================================================
+start_frontend_watcher() {
+  if [ "${NODE_ENV:-}" != "development" ] || [ "${TALE_DEV_HOT_RELOAD:-1}" = "0" ]; then
+    return 0
+  fi
+  if [ ! -f "${PLATFORM_DIR}/vite.config.ts" ]; then
+    log_warn "Hot reload requested but ${PLATFORM_DIR}/vite.config.ts is missing (pruned image?); skipping frontend watcher"
+    return 0
+  fi
+
+  log_section "Starting frontend build watcher (dev hot reload)"
+  log_info "Watching app/ + lib/ → full 'vite build' on change (refresh the browser to see changes)"
+
+  # Convert the baked prebuilt dist/ (a real dir) into the symlink + two-slot
+  # layout, synchronously (before server.ts starts) so dist/ is never absent
+  # under a live request. Idempotent: on restart dist/ is already a symlink.
+  if [ -d "${PLATFORM_DIR}/dist" ] && [ ! -L "${PLATFORM_DIR}/dist" ]; then
+    rm -rf "${PLATFORM_DIR}/dist-a" "${PLATFORM_DIR}/dist-b"
+    mv "${PLATFORM_DIR}/dist" "${PLATFORM_DIR}/dist-a"
+    ln -sfn dist-a "${PLATFORM_DIR}/dist"
+  fi
+
+  local stamp="/tmp/frontend-build-stamp"
+  : > "$stamp" # baseline now: prebuilt dist/ serves until the first real change
+
+  (
+    cd "$PLATFORM_DIR" || exit 0
+    while [ ! -f "$SHUTDOWN_MARKER" ]; do
+      # `|| true` so a transient find error never trips the loop's set -e.
+      changed="$(find app lib -type f -newer "$stamp" 2>/dev/null | head -n1 || true)"
+      if [ -n "$changed" ]; then
+        : > "$stamp" # re-baseline before building so mid-build edits re-fire
+        # Build into the inactive slot; the active one keeps serving meanwhile.
+        if [ "$(readlink dist 2>/dev/null)" = "dist-a" ]; then
+          next="dist-b"
+        else
+          next="dist-a"
+        fi
+        log_info "Frontend source changed → rebuilding (${next}) ..."
+        if bun --bun vite build --mode development --outDir "$next" --emptyOutDir; then
+          # Atomic publish: one rename(2) flips dist/ to the finished build.
+          ln -sfn "$next" dist.tmp && mv -T dist.tmp dist
+          log_ok "Frontend rebuilt; refresh the browser to see changes"
+        else
+          log_warn "Frontend rebuild failed (see vite output above); previous build still served"
+        fi
+      fi
+      sleep 2
+    done
+  ) &
+  FRONTEND_WATCH_PID=$!
+  log_ok "Frontend watcher started (pid ${FRONTEND_WATCH_PID}); frontend edits rebuild on save"
+}
+
+start_frontend_watcher
 
 # ============================================================================
 # Vite application
