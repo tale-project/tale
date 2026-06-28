@@ -28,6 +28,20 @@ for (const [key, loader] of Object.entries(rawModules)) {
 const ORG = 'org_external_keys';
 type T = TestConvex<typeof schema>;
 
+// Seed the local member mirror so the org-membership gate resolves without the
+// (test-unavailable) Better Auth component — mirrors apps/config.test.ts.
+async function seedMember(t: T, userId: string, role: string): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('memberMirror', {
+      memberId: `m_${userId}`,
+      userId,
+      organizationId: ORG,
+      role,
+      createdAt: 0,
+    });
+  });
+}
+
 async function seedProject(t: T, name: string): Promise<Id<'projects'>> {
   return await t.run((ctx) =>
     ctx.db.insert('projects', {
@@ -128,5 +142,33 @@ describe('listExternalKeysByProject', () => {
         externalSystem: 'github',
       }),
     ).rejects.toThrow();
+  });
+});
+
+// The board/list hide write controls (Create, the priority/assignee pickers,
+// drag-reorder) for read-only viewers off this flag — the server still rejects
+// any unauthorized write, so it's a UX/consistency affordance (#2069[57]).
+describe('listTasksByProject canEdit', () => {
+  it('reports canEdit true for an editor on an org-wide project', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'A'); // org-wide (no teamId)
+    await seedMember(t, 'user_editor', 'editor');
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksByProject, { projectId });
+    expect(result.canEdit).toBe(true);
+  });
+
+  it('reports canEdit false for a read-only member who can still read', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'A'); // org-wide → readable by all
+    await seedMember(t, 'user_member', 'member');
+
+    const result = await t
+      .withIdentity({ subject: 'user_member' })
+      .query(api.tasks.queries.listTasksByProject, { projectId });
+    // Reads succeed (no throw) but writes are gated off.
+    expect(result.canEdit).toBe(false);
   });
 });

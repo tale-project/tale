@@ -77,6 +77,15 @@ export function useTaskBoardDnd(tasks: TaskRow[]): TaskBoardDnd {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
+      // Space picks up / drops a card and arrow keys move it; Escape cancels.
+      // Enter is deliberately NOT a drag key so the card/row keydown handler can
+      // use it to OPEN the task — without this, dnd-kit's default (Space+Enter
+      // start a drag) would collide with opening.
+      keyboardCodes: {
+        start: ['Space'],
+        cancel: ['Escape'],
+        end: ['Space'],
+      },
     }),
   );
 
