@@ -16,6 +16,22 @@ export const TASK_LABELS_MAX = 50;
 export const TASK_LABEL_CHARS_MAX = 50;
 
 /**
+ * Coerce an externally-sourced task title (e.g. a GitHub issue title) to fit
+ * `TASK_TITLE_MAX`. Unlike the human/agent create paths — which *reject* an
+ * over-long title so the author can shorten it — an imported title is not under
+ * anyone's control at the import site (GitHub allows longer titles than our
+ * board), so truncating with an ellipsis keeps the import working instead of
+ * failing the whole task. The full title stays reachable via `externalUrl`.
+ * Returns an empty string only when the input is blank; callers supply a
+ * fallback for that (GitHub issues always carry a title, so it's defensive).
+ */
+export function truncateImportedTitle(title: string): string {
+  const trimmed = title.trim();
+  if (trimmed.length <= TASK_TITLE_MAX) return trimmed;
+  return `${trimmed.slice(0, TASK_TITLE_MAX - 1).trimEnd()}…`;
+}
+
+/**
  * Claim the next per-project task number by incrementing the project's
  * `taskCounter` in the same transaction as the insert. Monotonic and
  * gap-tolerant — numbers are never recycled, so identifiers stay stable even
