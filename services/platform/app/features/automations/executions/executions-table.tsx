@@ -176,17 +176,19 @@ export function ExecutionsTable({
             ? 'paused_debug'
             : 'waiting_for_input'
           : statusVal;
+      // Map snake_case backend statuses (waiting_for_input, paused_debug) to
+      // the camelCase common.status.* keys; fall back to the raw value for any
+      // status without a translation.
+      const statusKey = displayStatus.replace(/_([a-z])/g, (_match, char) =>
+        char.toUpperCase(),
+      );
       return (
         <Badge
           dot
           variant={STATUS_BADGE_VARIANTS[displayStatus] || 'outline'}
-          className="text-xs capitalize"
+          className="text-xs"
         >
-          {displayStatus === 'waiting_for_input'
-            ? tCommon('status.waitingForInput')
-            : displayStatus === 'paused_debug'
-              ? tCommon('status.pausedDebug')
-              : statusVal}
+          {tCommon(`status.${statusKey}`, { defaultValue: displayStatus })}
         </Badge>
       );
     },
