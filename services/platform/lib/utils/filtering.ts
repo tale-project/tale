@@ -49,11 +49,21 @@ export function filterByFields<T>(items: T[], filters: FieldFilter<T>[]): T[] {
 }
 
 /**
+ * A field to search within {@link filterByTextSearch}: either a top-level key
+ * of the item, or an accessor that returns the value to match (used to reach
+ * nested fields such as a related customer's name).
+ */
+export type SearchField<T> =
+  | keyof T
+  | ((item: T) => string | number | null | undefined);
+
+/**
  * Filter items by text search across multiple fields
  *
  * @param items - Array of items to filter
  * @param searchTerm - Search term (case-insensitive)
- * @param fields - Array of fields to search in
+ * @param fields - Fields to search in: top-level keys or accessor functions
+ *   (the latter let callers match nested values, e.g. `(c) => c.customer.name`)
  * @param matchMode - Match mode: 'includes' (substring) or 'startsWith'
  * @returns Filtered array
  *
@@ -68,7 +78,7 @@ export function filterByFields<T>(items: T[], filters: FieldFilter<T>[]): T[] {
 export function filterByTextSearch<T>(
   items: T[],
   searchTerm: string,
-  fields: (keyof T)[],
+  fields: SearchField<T>[],
   matchMode: 'includes' | 'startsWith' = 'includes',
 ): T[] {
   if (!searchTerm || searchTerm.trim() === '') return items;
@@ -77,7 +87,7 @@ export function filterByTextSearch<T>(
 
   return items.filter((item) => {
     return fields.some((field) => {
-      const value = item[field];
+      const value = typeof field === 'function' ? field(item) : item[field];
       if (value == null) return false;
 
       const normalizedValue = String(value).toLowerCase();
