@@ -7,7 +7,14 @@ import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useMatch } from '@tanstack/react-router';
 import { useAction } from 'convex/react';
-import { MonitorPlay, MonitorOff, RefreshCw, RotateCcw } from 'lucide-react';
+import {
+  Eye,
+  Hand,
+  MonitorPlay,
+  MonitorOff,
+  RefreshCw,
+  RotateCcw,
+} from 'lucide-react';
 import {
   memo,
   useCallback,
@@ -343,18 +350,41 @@ function ScreencastViewport({
   );
 }
 
-/** The control badge ("View only" / "You're in control") shown in the shell
- *  tab-bar header while the live-browser tab is active. */
-function ControlBadge({ control }: { control: boolean }) {
+/**
+ * Take / release writable control of the live browser. Control is ALWAYS
+ * available to the thread owner while a session is active — it is not gated on
+ * an agent `request_human_control` handoff (that flow still exists for the agent
+ * to ASK and to pause/resume). Flipping this reconnects the RFB socket to the
+ * writable (`control=1`) or read-only endpoint via the context `control` state.
+ * Once in control, drive the browser's own menu bar (omnibox, back/forward,
+ * reload) directly in the stream.
+ */
+function ControlToggle({
+  control,
+  onToggle,
+}: {
+  control: boolean;
+  onToggle: (next: boolean) => void;
+}) {
   const { t } = useT('chat');
   return control ? (
-    <span className="border-primary/40 text-primary bg-primary/10 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-      {t('liveBrowser.controlling')}
-    </span>
+    <Button
+      variant="secondary"
+      size="sm"
+      icon={Eye}
+      onClick={() => onToggle(false)}
+    >
+      {t('liveBrowser.releaseControl', { defaultValue: 'Release control' })}
+    </Button>
   ) : (
-    <span className="border-border text-muted-foreground bg-muted/60 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-      {t('liveBrowser.viewOnly', { defaultValue: 'View only' })}
-    </span>
+    <Button
+      variant="primary"
+      size="sm"
+      icon={Hand}
+      onClick={() => onToggle(true)}
+    >
+      {t('liveBrowser.takeControl', { defaultValue: 'Take control' })}
+    </Button>
   );
 }
 
@@ -428,7 +458,7 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
   });
   const threadId = threadMatch?.params?.threadId;
 
-  const { control, isOpen } = useLiveBrowser();
+  const { control, isOpen, setControl } = useLiveBrowser();
 
   // "Active" = there's something worth streaming: a turn is actively running,
   // or the sandbox is warm (`active`). A `stopped`/`creating`/`degraded`
@@ -479,7 +509,9 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
 
     const headerActions: ReactNode = (
       <>
-        <ControlBadge control={control} />
+        {sessionActive && (
+          <ControlToggle control={control} onToggle={setControl} />
+        )}
         {sessionActive && (
           <Tooltip
             content={t('liveBrowser.reset', {
@@ -527,6 +559,7 @@ function LiveBrowserPaneComponent({ available }: LiveBrowserPaneProps) {
     threadId,
     t,
     control,
+    setControl,
     sessionActive,
     confirmOpen,
     resetting,

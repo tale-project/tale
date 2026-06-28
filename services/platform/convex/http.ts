@@ -753,11 +753,11 @@ http.route({
     }
 
     // Writable control (`?control=1`) is a SEPARATE, stricter grant than view:
-    // the human gets a writable VNC only while the agent has a pending
-    // request_human_control handoff, only if they OWN the thread, and only one
-    // controller at a time (the single-controller lease). A denied control
-    // request still streams read-only (control:false) — the pane just stays a
-    // mirror — so a second viewer can watch while one person drives.
+    // it's available to the thread OWNER at any time (not gated on an agent
+    // request_human_control handoff), so a human can grab the wheel whenever the
+    // session is active. A denied control request (a non-owner viewer) still
+    // streams read-only (control:false) — the pane just stays a mirror — so a
+    // second viewer can watch while the owner drives.
     let control = false;
     if (url.searchParams.get('control') === '1') {
       try {

@@ -1803,6 +1803,8 @@
       "ariaLabel": "Vue en direct du navigateur de l'agent (lecture seule)",
       "ariaLabelControl": "Navigateur en direct — tu le contrôles",
       "controlling": "Tu as le contrôle",
+      "takeControl": "Prendre le contrôle",
+      "releaseControl": "Rendre le contrôle",
       "reset": "Réinitialiser le navigateur (efface les connexions)",
       "resetConfirmTitle": "Réinitialiser le navigateur ?",
       "resetConfirmBody": "Redémarre le navigateur avec un profil vierge et te déconnecte de tous les sites où l'agent s'était connecté. À n'utiliser que si le navigateur est bloqué et ne se rétablit pas tout seul.",

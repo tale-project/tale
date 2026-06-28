@@ -608,7 +608,10 @@ start_browser_stack() {
   # the network (loopback unix socket only); -ac disables host access control
   # (only the in-container procs can reach the socket anyway).
   # shellcheck disable=SC2086 # $DROP must word-split (empty, or the setpriv prefix)
-  _supervise $DROP Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac
+  # 800 tall (not 720) leaves room for Chromium's own toolbar+tab strip (~72px)
+  # so the page viewport the agent renders into stays ~720 once the browser chrome
+  # is shown (see --window-size below; we no longer run fullscreen/kiosk).
+  _supervise $DROP Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -ac
   export DISPLAY=:99
 
   # Read-only mirror on :5900 — the DEFAULT path every watcher gets. -localhost
@@ -640,14 +643,20 @@ start_browser_stack() {
   # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):
   # forward the egress proxy + bypass list as flags so the managed browser has
   # the same egress posture the self-launched one would.
+  #
+  # We deliberately do NOT run fullscreen/kiosk: a human taking control needs the
+  # browser's own menu bar (omnibox + back/forward/reload) to navigate, so we show
+  # the native chrome and size the window to fill the display (no WM runs here, so
+  # --window-size + --window-position place it). The toolbar also surfaces the
+  # current URL to read-only watchers for free.
   set -- "${CHROME_BIN}" \
     --remote-debugging-port=9222 \
     --remote-debugging-address=127.0.0.1 \
     --user-data-dir="${TALE_BROWSER_PROFILE}" \
     --no-sandbox \
     --disable-gpu \
-    --start-fullscreen \
-    --window-size=1280,720 \
+    --window-position=0,0 \
+    --window-size=1280,800 \
     --ignore-certificate-errors \
     --test-type \
     --disable-infobars \
