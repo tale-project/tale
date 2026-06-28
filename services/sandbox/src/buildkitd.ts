@@ -20,6 +20,16 @@ const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 // buildkitd.toml). On the internal sandbox network only; never host-published.
 const BUILDKITD_PORT = 1234;
 
+// Marker the buildkitd entrypoint (services/sandbox-buildkitd/
+// docker-entrypoint.sh) writes ONLY after its transparent-egress fence is fully
+// installed (redsocks + default route + a [dns] block pinned to the CURRENT
+// egress IP). We probe it before reusing a running daemon: one that restarted
+// (--restart unless-stopped) while sandbox-egress was unreachable comes up with
+// no fence and silently serves builds with no internet (RUN steps fail to
+// resolve any external host). Keep this path in sync with EGRESS_READY in the
+// entrypoint.
+export const EGRESS_READY_MARKER = '/run/tale-buildkitd-egress-ready';
+
 // Pull-through registry mirrors. buildkit's image-PULL DNS runs in the daemon
 // process via Go's resolver against docker's embedded resolver (127.0.0.11),
 // which SERVFAILs Go's queries for EXTERNAL names on a user-defined network
@@ -233,6 +243,26 @@ export async function ensureBuildkitd(
   return work;
 }
 
+/**
+ * Is a RUNNING buildkitd's egress fence actually installed? The entrypoint writes
+ * EGRESS_READY_MARKER only after redsocks + the default route + the current-IP
+ * [dns] block are in place. Absent ⇒ the daemon restarted while sandbox-egress
+ * was unreachable and is serving builds with no internet — so we recreate it
+ * rather than reuse it. Best-effort: a probe error is treated as healthy so a
+ * transient `docker exec` hiccup never needlessly tears down a working daemon.
+ */
+async function buildkitdEgressHealthy(name: string): Promise<boolean> {
+  const probe = await runDocker(
+    ['exec', name, 'test', '-f', EGRESS_READY_MARKER],
+    {
+      timeoutMs: 5_000,
+    },
+  );
+  // exit 0 = present (healthy); exit 1 = absent (broken). Other codes (exec
+  // failure) → assume healthy to avoid tearing down a daemon over a probe glitch.
+  return probe.exitCode !== 1;
+}
+
 async function ensureBuildkitdUnlocked(
   cfg: SpawnerConfig,
   organizationId: string,
@@ -240,7 +270,10 @@ async function ensureBuildkitdUnlocked(
 ): Promise<string> {
   const endpoint = buildkitdEndpoint(organizationId);
 
-  // Already running? reuse it.
+  // Already running? Reuse it ONLY if its egress fence is still installed. A
+  // daemon that restarted (--restart unless-stopped) while sandbox-egress was
+  // unreachable comes up with no fence and silently serves builds with no
+  // internet (RUN steps fail to resolve any external host) — recreate it.
   const inspect = await runDocker([
     'inspect',
     '-f',
@@ -248,13 +281,21 @@ async function ensureBuildkitdUnlocked(
     name,
   ]);
   if (inspect.exitCode === 0) {
-    if (inspect.stdout.trim() === 'true') return endpoint;
-    // Exists but not running (stopped/dead) — it would block `run --name`. Reap
-    // it; the cache lives in the volume, not the container, so nothing is lost.
+    if (inspect.stdout.trim() === 'true') {
+      if (await buildkitdEgressHealthy(name)) return endpoint;
+      console.warn(
+        `[sandbox.buildkitd] ${name} is running but its egress fence is missing ` +
+          `(likely restarted while sandbox-egress was unreachable); recreating so ` +
+          `build RUN steps regain internet. The persistent cache volume is preserved.`,
+      );
+    }
+    // Stopped/dead OR running-but-egress-broken: reap it so the `run --name`
+    // below recreates it. The cache lives in the volume, not the container, so
+    // nothing is lost.
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
       console.warn(
-        `[sandbox.buildkitd] could not reap dead container ${name}: ${rm.stderr.trim()}`,
+        `[sandbox.buildkitd] could not reap container ${name}: ${rm.stderr.trim()}`,
       );
     }
   }

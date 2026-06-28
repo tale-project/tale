@@ -10,6 +10,7 @@ import {
   buildkitdEndpoint,
   buildkitdMirrorContainerName,
   buildkitdMirrorRef,
+  EGRESS_READY_MARKER,
   MIRROR_REGISTRIES,
 } from './buildkitd.ts';
 
@@ -56,5 +57,17 @@ describe('buildkitd naming seam', () => {
     expect(buildkitdMirrorContainerName('quay.io')).toBe(
       'tale-buildkitd-mirror-quay-io',
     );
+  });
+
+  // The egress-health probe is a cross-file contract: the spawner probes the
+  // exact marker path the buildkitd entrypoint writes. A drift here would make
+  // ensureBuildkitd think every healthy daemon is broken (recreate-loop) or
+  // every broken one is healthy (the original silent-no-internet bug).
+  test('egress-ready marker path matches the buildkitd entrypoint', async () => {
+    const entrypoint = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    expect(EGRESS_READY_MARKER).toMatch(/^\/[\w./-]+$/);
+    expect(entrypoint).toContain(`EGRESS_READY=${EGRESS_READY_MARKER}`);
   });
 });
