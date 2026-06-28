@@ -173,6 +173,15 @@ export const removeMember = mutation({
       throw new Error('The organization owner cannot be removed');
     }
 
+    // Defense in depth for the UI bulk-select gate: an admin cannot remove
+    // their own membership. Self-removal is a self-lockout that also fires
+    // `cascadeOnMemberRemoved`, irreversibly wiping the caller's own
+    // userMemories/userPreferences/TTS for the org. Enforce server-side
+    // regardless of how the request is issued.
+    if (member.userId === authUser.userId) {
+      throw new Error('You cannot remove your own membership');
+    }
+
     const targetUser = member.userId
       ? findOneUser(
           await ctx.runQuery(components.betterAuth.adapter.findMany, {
