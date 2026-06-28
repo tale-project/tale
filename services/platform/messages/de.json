@@ -5035,10 +5035,10 @@
     "account": {
       "profile": {
         "title": "Profil",
-        "description": "Dein Anzeigename und deine E-Mail — sichtbar für deine Teamkollegen.",
+        "description": "Dein Name und deine E-Mail — sichtbar für deine Teamkollegen.",
         "nameDescription": "Der Name, der deinen Teamkollegen angezeigt wird.",
         "emailDescription": "Wird zur Anmeldung und für Benachrichtigungen verwendet.",
-        "name": "Anzeigename",
+        "name": "Name",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
         "nameRequired": "Name ist erforderlich"
@@ -5063,10 +5063,11 @@
       }
     },
     "organization": {
-      "title": "Organisation (optional)",
+      "title": "Organisationsname",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "nameDescription": "Der Anzeigename deiner Organisation.",
+      "nameRequired": "Organisationsname ist erforderlich",
       "localeDescription": "Die Hauptsprache deiner Organisation.",
       "organizationId": "Organisations-ID",
       "membersSectionTitle": "Mitglieder",
@@ -7023,7 +7024,7 @@
     "setup": {
       "title": "Zwei-Faktor-Authentifizierung einrichten",
       "qrInstructions": "Scanne den QR-Code mit einer Authenticator-App (Google Authenticator, 1Password, Authy) und gib anschließend den 6-stelligen Code unten ein.",
-      "manualEntry": "Kein Scan möglich? Gib dieses Geheimnis manuell ein:",
+      "manualEntry": "Oder manuell eingeben:",
       "verifyCodeLabel": "Bestätigungscode",
       "verifyButton": "Prüfen und aktivieren"
     },

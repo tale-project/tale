@@ -5297,10 +5297,10 @@
     "account": {
       "profile": {
         "title": "Profile",
-        "description": "Your display name and email — visible to your teammates.",
+        "description": "Your name and email — visible to your teammates.",
         "nameDescription": "The name shown to your teammates.",
         "emailDescription": "Used to sign in and receive notifications.",
-        "name": "Display name",
+        "name": "Name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
         "nameRequired": "Name is required"
@@ -5329,6 +5329,7 @@
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
       "nameDescription": "The display name for your organization.",
+      "nameRequired": "Organization name is required",
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
       "membersSectionTitle": "Members",
@@ -7285,7 +7286,7 @@
     "setup": {
       "title": "Set up two-factor authentication",
       "qrInstructions": "Scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code below.",
-      "manualEntry": "Can't scan? Enter this secret manually:",
+      "manualEntry": "Or enter manually:",
       "verifyCodeLabel": "Verification code",
       "verifyButton": "Verify and enable"
     },

@@ -5,6 +5,7 @@ import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -117,7 +118,10 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
       title={t('enrollment.title')}
       description={t('enrollment.description')}
       action={
-        <Button onClick={() => setState({ step: 'password' })}>
+        <Button
+          variant="secondary"
+          onClick={() => setState({ step: 'password' })}
+        >
           {t('enrollment.enableButton')}
         </Button>
       }
@@ -360,14 +364,12 @@ function VerifyTotpDialog({
           <QRCodeSVG value={qrURI} size={180} level="M" />
         </div>
         {secret && (
-          <VStack gap={1} align="center" className="w-full min-w-0">
-            <Text variant="muted" className="text-xs">
-              {t('setup.manualEntry')}
-            </Text>
-            <code className="bg-muted block w-full rounded border px-2 py-1 text-center text-xs break-all select-all">
-              {secret}
-            </code>
-          </VStack>
+          <CopyableField
+            className="w-full min-w-0"
+            label={t('setup.manualEntry')}
+            value={secret}
+            copyAriaLabel={t('setup.manualEntry')}
+          />
         )}
       </VStack>
       <Input
