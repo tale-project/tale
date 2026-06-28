@@ -131,6 +131,15 @@ COPY services/platform/server.ts \
 # /home/app (HOME for the convex CLI), and convex.json (node.externalPackages,
 # read by `convex deploy`). The container runs as root (see
 # TALE_DEV_NO_PRIVDROP) so no app user / chown dance is needed.
+#
+# It also symlinks node_modules to the convex project root. Deps are hoisted to
+# /app/node_modules (monorepo root), but `convex deploy`/`convex dev` run from
+# /app/services/platform and resolve `node.externalPackages` against
+# <project-root>/node_modules. Without the link the externals (jsdom, canvas,
+# pg, …) aren't found there, get bundled inline, and the push fails at analyze
+# (jsdom's computed-style.js reads default-stylesheet.css at module load →
+# ENOENT). The pruned runner is a flat /app with node_modules already at the
+# project root, so it needs no link.
 # ============================================================================
 FROM builder AS dev
 
@@ -143,6 +152,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && chmod +x /convex/generate_key \
     && ln -s /convex/generate_key /usr/local/bin/generate_key \
     && mkdir -p /home/app && chmod 777 /home/app \
+    && ln -sfn /app/node_modules /app/services/platform/node_modules \
     && chmod +x /app/services/platform/docker-entrypoint.sh \
                 /app/services/platform/generate-admin-key.sh \
                 /app/services/platform/reset-owner.sh

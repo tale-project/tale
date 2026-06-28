@@ -297,6 +297,19 @@ function getBasePath(): string {
 
 let indexHtmlTemplate: string | null = null;
 
+// In `docker:dev` hot-reload, the entrypoint's frontend watcher rebuilds
+// dist/index.html on every change with freshly content-hashed chunk names (and
+// deletes the old chunks). Memoizing the template would keep serving a stale
+// index.html that
+// references already-deleted chunks → the browser gets the SPA fallback (HTML)
+// for a missing `.js` and the page goes blank. So in that mode (and only then)
+// re-read index.html per request. Gating matches the entrypoint's watcher
+// gate (NODE_ENV=development + TALE_DEV_HOT_RELOAD≠0); production keeps the
+// one-time cache untouched.
+const DEV_HOT_RELOAD =
+  process.env.NODE_ENV === 'development' &&
+  process.env.TALE_DEV_HOT_RELOAD !== '0';
+
 function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
@@ -711,13 +724,18 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       }
     }
 
-    if (!indexHtmlTemplate) {
+    let template = indexHtmlTemplate;
+    if (template === null || DEV_HOT_RELOAD) {
       const indexFile = Bun.file(join(distDir, 'index.html'));
       if (!(await indexFile.exists())) {
         console.error(`Missing dist/index.html in ${distDir}`);
         return c.text('Internal Server Error', 500);
       }
-      indexHtmlTemplate = await indexFile.text();
+      template = await indexFile.text();
+      // Only memoize in production; in dev the next rebuild invalidates it.
+      if (!DEV_HOT_RELOAD) {
+        indexHtmlTemplate = template;
+      }
     }
 
     const acceptLanguage = c.req.header('accept-language') ?? '';
@@ -728,7 +746,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     // __ENV__ injection and any other inline scripts in index.html.
     const nonce = c.get('secureHeadersNonce');
 
-    let html = indexHtmlTemplate
+    let html = template
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
         `window.__ENV__ = ${JSON.stringify(env)};`,

@@ -607,21 +607,28 @@ start_convex_dev_watcher
 # ============================================================================
 # Dev-only: frontend build watcher (hard-refresh hot reload)
 # ----------------------------------------------------------------------------
-# `server.ts` always serves the prebuilt SPA from ${PLATFORM_DIR}/dist. In the
-# dev image the host's app/ + lib/ trees are bind-mounted over the source (see
-# compose.dev.yml), so a backgrounded `vite build --watch` rebuilds dist/ on
-# every save and `server.ts` serves the fresh bundle on the next request — a
-# browser refresh shows the change. This is intentionally NOT a Vite dev server
-# with HMR: it keeps the production server.ts serving path (and its API routes,
-# WebDAV, canvas-preview, etc.) untouched and avoids proxying an HMR websocket
+# `server.ts` serves the SPA from ${PLATFORM_DIR}/dist and (in dev) re-reads
+# index.html per request, so a fresh `dist/` shows up on the next browser
+# refresh. The boot already ships a prebuilt dist/, so the app serves
+# immediately; we only rebuild once the host's bind-mounted app/ + lib/ trees
+# (compose.dev.yml) actually change. This is intentionally NOT a Vite dev
+# server with HMR: it keeps the production server.ts serving path (API routes,
+# WebDAV, canvas-preview, …) untouched and avoids proxying an HMR websocket
 # through Caddy's self-signed TLS. Trade-off: a manual refresh, no React Fast
 # Refresh / state retention. For full HMR use host `bun dev`.
 #
+# Why a poll loop + full `vite build` instead of `vite build --watch`:
+#   * `vite build --watch` (rolldown) crashes the *incremental* rebuild in the
+#     vite:css-post plugin ("Unable to get file name for unknown file …") and
+#     leaves dist/ without index.html → the SPA 500s. A fresh one-shot
+#     `vite build` does not hit that path and is reliable, so we re-run a full
+#     build on each change instead.
+#   * Polling (vs inotify): Docker Desktop bind mounts deliver host file events
+#     unreliably; a 2s mtime poll is plenty for a manual-refresh workflow.
+#
 # Only runs in the dev image (vite + the source live there); the pruned prod
 # runner has neither, and sets NODE_ENV=production. Opt out with
-# TALE_DEV_HOT_RELOAD=0. `--mode development` skips minification for fast
-# incremental rebuilds. The boot already ships a built dist/, so server.ts
-# serves immediately while the first watch build runs in the background.
+# TALE_DEV_HOT_RELOAD=0. `--mode development` skips minification for speed.
 # ============================================================================
 start_frontend_watcher() {
   if [ "${NODE_ENV:-}" != "development" ] || [ "${TALE_DEV_HOT_RELOAD:-1}" = "0" ]; then
@@ -633,9 +640,28 @@ start_frontend_watcher() {
   fi
 
   log_section "Starting frontend build watcher (dev hot reload)"
-  log_info "Rebuilding ${PLATFORM_DIR}/dist on every save (refresh the browser to see changes)"
+  log_info "Watching app/ + lib/ → full 'vite build' on change (refresh the browser to see changes)"
 
-  bun --bun vite build --watch --mode development &
+  local stamp="/tmp/frontend-build-stamp"
+  : > "$stamp" # baseline now: prebuilt dist/ serves until the first real change
+
+  (
+    cd "$PLATFORM_DIR" || exit 0
+    while [ ! -f "$SHUTDOWN_MARKER" ]; do
+      # `|| true` so a transient find error never trips the loop's set -e.
+      changed="$(find app lib -type f -newer "$stamp" 2>/dev/null | head -n1 || true)"
+      if [ -n "$changed" ]; then
+        : > "$stamp" # re-baseline before building so mid-build edits re-fire
+        log_info "Frontend source changed → rebuilding dist/ ..."
+        if bun --bun vite build --mode development; then
+          log_ok "Frontend rebuilt; refresh the browser to see changes"
+        else
+          log_warn "Frontend rebuild failed (see vite output above); will retry on next change"
+        fi
+      fi
+      sleep 2
+    done
+  ) &
   FRONTEND_WATCH_PID=$!
   log_ok "Frontend watcher started (pid ${FRONTEND_WATCH_PID}); frontend edits rebuild on save"
 }
