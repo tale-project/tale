@@ -40,6 +40,15 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 
+// The dialog reads the existing agents to warn on duplicate display names.
+// `useListAgents` is an action-backed query (needs a ConvexProvider), so stub
+// it here the same way the other data hooks are stubbed. `existingAgents` is
+// mutable so individual tests can seed a clashing display name.
+let existingAgents: Array<Record<string, unknown>> = [];
+vi.mock('../hooks/queries', () => ({
+  useListAgents: () => ({ agents: existingAgents }),
+}));
+
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
   useModelCapabilities: () => new Map(),
   useListProviders: () => ({
@@ -57,6 +66,7 @@ describe('CreateAgentDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     saveAgentMock.mockResolvedValue({ hash: 'h' });
+    existingAgents = [];
   });
 
   describe('accessibility', () => {
@@ -126,6 +136,64 @@ describe('CreateAgentDialog', () => {
       );
 
       await waitFor(() => expect(submit).toBeDisabled());
+    });
+  });
+
+  // Display names aren't unique (only the slug is), so a clash is silent
+  // ambiguity. The dialog surfaces a non-blocking warning — Continue stays
+  // enabled — when the entered display name already belongs to another agent.
+  describe('duplicate display-name warning (#1999)', () => {
+    it('warns (case-insensitively) without blocking submit when the display name clashes', async () => {
+      existingAgents = [{ name: 'support-bot', displayName: 'Support Bot' }];
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      const submit = screen.getByRole('button', {
+        name: 'settings.agents.createDialog.continue',
+      });
+
+      await user.type(
+        screen.getByLabelText('settings.agents.form.name'),
+        'support-bot-2',
+      );
+      // Different casing/whitespace still resolves to the same display name.
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        '  support bot  ',
+      );
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('settings.agents.form.displayNameDuplicateWarning'),
+        ).toBeInTheDocument(),
+      );
+      // Non-blocking: the warning does not gate Continue.
+      await waitFor(() => expect(submit).toBeEnabled());
+    });
+
+    it('shows no warning when the display name is unique', async () => {
+      existingAgents = [{ name: 'support-bot', displayName: 'Support Bot' }];
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        'Sales Bot',
+      );
+
+      expect(
+        screen.queryByText('settings.agents.form.displayNameDuplicateWarning'),
+      ).not.toBeInTheDocument();
     });
   });
 
