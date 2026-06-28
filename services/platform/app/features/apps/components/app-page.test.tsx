@@ -74,6 +74,29 @@ describe('AppPage catalog discovery (#1979)', () => {
     expect(screen.queryByText('App not found')).not.toBeInTheDocument();
   });
 
+  it('resolves the installed entry over a same-slug catalog entry (installed wins)', () => {
+    // The same slug exists in both the org's installed list and the catalog;
+    // the page must resolve the installed entry (it carries the full per-install
+    // data) rather than the catalog projection.
+    useAppsMock.mockReturnValue({
+      apps: [
+        catalogApp({ name: 'Installed Sample', description: 'Org install.' }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    useAppCatalogMock.mockReturnValue({
+      apps: [catalogApp({ name: 'Catalog Sample', description: 'Catalog.' })],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<AppPage organizationId="org_1" appSlug="sample-app" />);
+
+    expect(screen.getByText('Installed Sample')).toBeInTheDocument();
+    expect(screen.queryByText('Catalog Sample')).not.toBeInTheDocument();
+  });
+
   it('still shows "App not found" for a slug in neither the org nor the catalog', () => {
     useAppsMock.mockReturnValue({ apps: [], isLoading: false, error: null });
     useAppCatalogMock.mockReturnValue({
