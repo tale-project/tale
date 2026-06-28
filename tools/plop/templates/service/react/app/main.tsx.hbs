@@ -18,9 +18,10 @@ if (!root) throw new Error('Missing #root element');
 // the `locale` prop and mount `<LocaleSync locale={useCurrentLocale()} />`
 // from the root route instead if this service ships its language in the
 // URL (web/docs pattern). Drop `theme` if pinned to a single theme.
+const locale = { mode: 'client' } as const;
 createRoot(root).render(
   <StrictMode>
-    <AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
+    <AppShell i18n={i18n} locale={locale} theme>
       <RouterProvider router={router} />
     </AppShell>
   </StrictMode>,

@@ -1,8 +1,8 @@
 # @tale/e2e
 
 Shared Playwright building blocks for Tale's frontend **services** (`platform`,
-`web`, `docs`, and any service scaffolded from the plop `react-service`
-template). The goal is that every service's `playwright.config.ts` is a thin,
+`web`, `docs`, and any service scaffolded from the plop `service` generator's
+`react` kind). The goal is that every service's `playwright.config.ts` is a thin,
 declarative call instead of a copy of the same boilerplate.
 
 > Scope: this package is for the frontend _services_. `packages/ui` keeps its

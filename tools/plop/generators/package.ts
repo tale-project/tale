@@ -93,11 +93,13 @@ export function registerPackage(plop: NodePlopAPI): void {
         default: 'react',
       },
       {
+        // Unconditional (no `when`) so the generator stays fully bypassable for
+        // non-interactive / agent use: `gen package <name> <desc> <kind>
+        // <storybook>`. Ignored unless kind === 'react'.
         type: 'confirm',
         name: 'storybook',
-        message: 'Include Storybook?',
+        message: 'Include Storybook? (react only)',
         default: true,
-        when: (answers: Partial<Answers>) => answers.kind === 'react',
       },
     ],
     actions: (data) => {

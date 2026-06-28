@@ -284,7 +284,7 @@ class DOCXSchemaValidator(BaseSchemaValidator):
                                     f"durableId={val} >= 0x7FFFFFFF"
                                 )
             except Exception:
-                pass
+                pass  # best-effort: skip a file we cannot parse; keep validating the rest
 
         if errors:
             print(f"FAILED - {len(errors)} ID constraint violations:")

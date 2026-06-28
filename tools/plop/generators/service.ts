@@ -114,11 +114,13 @@ export function registerService(plop: NodePlopAPI): void {
         default: 'react',
       },
       {
+        // Unconditional (no `when`) so the generator stays fully bypassable for
+        // non-interactive / agent use. `port` and `storybook` are ignored
+        // unless kind === 'react'.
         type: 'input',
         name: 'port',
-        message: 'Dev port (3000–3999):',
+        message: 'Dev port (react only, 3000–3999):',
         default: '3001',
-        when: (answers: Partial<Answers>) => answers.kind === 'react',
         validate: (v: string) => {
           const port = parseInt(v, 10);
           return (port >= 3000 && port <= 3999) || 'Port must be 3000–3999';
@@ -127,9 +129,8 @@ export function registerService(plop: NodePlopAPI): void {
       {
         type: 'confirm',
         name: 'storybook',
-        message: 'Include Storybook?',
+        message: 'Include Storybook? (react only)',
         default: false,
-        when: (answers: Partial<Answers>) => answers.kind === 'react',
       },
     ],
     actions: (data) => {
