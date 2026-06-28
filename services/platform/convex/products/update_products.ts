@@ -4,9 +4,9 @@
 
 import { set, merge } from 'lodash';
 
-import { Doc, Id } from '../_generated/dataModel';
-import { MutationCtx } from '../_generated/server';
-import { UpdateProductsResult, ProductStatus } from './types';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import type { UpdateProductsResult, ProductStatus } from './types';
 
 export interface UpdateProductsArgs {
   // Option 1: Update by product ID (safest, most common)

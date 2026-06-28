@@ -1,13 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "allowJs": true,
-    "module": "esnext",
     "jsx": "react-jsx",
-    "incremental": true,
-    "types": ["bun"],
     "paths": {
       "@/*": ["./*"]
     }

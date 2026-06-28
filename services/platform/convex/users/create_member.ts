@@ -6,7 +6,7 @@ import { ConvexError } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';

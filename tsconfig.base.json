@@ -3,9 +3,17 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "incremental": true,
     "isolatedModules": true,
-    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["bun"],
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true
   }
 }

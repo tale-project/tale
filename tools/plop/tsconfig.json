@@ -1,11 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "verbatimModuleSyntax": true,
-    "lib": ["ESNext"],
-    "types": ["bun"]
+    "verbatimModuleSyntax": true
   },
   "include": ["**/*.ts", "../../plopfile.ts"],
   "exclude": ["node_modules", "templates"]

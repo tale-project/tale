@@ -2,7 +2,7 @@ import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { StepType } from '../workflow_engine/helpers/data_source/types';
-import {
+import type {
   approvalItemValidator,
   approvalPriorityValidator,
   approvalResourceTypeValidator,

@@ -5,7 +5,8 @@ import { v, type Infer } from 'convex/values';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { ActionCtx, action } from '../_generated/server';
+import type { ActionCtx } from '../_generated/server';
+import { action } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import type { AuthenticatedUser } from '../lib/rls/types';
 

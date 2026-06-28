@@ -9,7 +9,7 @@ import {
   useDeleteDialog,
   useDeleteDialogTranslations,
 } from '@/app/components/ui/entity/use-delete-dialog';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteCustomer } from '../hooks/mutations';

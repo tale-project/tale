@@ -4,14 +4,12 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import type { Connection, Edge, Node } from '@xyflow/react';
 import {
   ReactFlowProvider,
   useNodesState,
   useEdgesState,
-  Connection,
   ConnectionLineType,
-  Edge,
-  Node,
   BackgroundVariant,
   Panel,
   useReactFlow,
