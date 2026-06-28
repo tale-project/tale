@@ -114,6 +114,70 @@ COPY services/platform/server.ts \
      ./services/platform/
 
 # ============================================================================
+# Stage 2b: Dev (local hot-reload image — NOT used by prod/CI)
+# ----------------------------------------------------------------------------
+# Selected only by compose.dev.yml (`build.target: dev`). Unlike the pruned
+# runner, this keeps the builder intact: full (unpruned) node_modules — vite +
+# the rolldown bundler + lightningcss + @parcel/watcher — and the complete
+# frontend source under /app/services/platform. That is what lets the entrypoint
+# run `vite build --watch` (frontend hot reload) and `convex dev` (function hot
+# push) against the host source bind-mounted by compose.dev.yml. The image ships
+# the already-built dist/ from the builder, so server.ts serves immediately
+# while the first watch rebuild runs in the background.
+#
+# Runtime extras the pruned runner installs but the builder lacks: curl (the
+# entrypoint's health waits), tini (PID 1 signal handling), the generate_key
+# symlink (admin-key derivation for the remote convex push), a writable
+# /home/app (HOME for the convex CLI), and convex.json (node.externalPackages,
+# read by `convex deploy`). The container runs as root (see
+# TALE_DEV_NO_PRIVDROP) so no app user / chown dance is needed.
+# ============================================================================
+FROM builder AS dev
+
+ARG VERSION=dev
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -o Acquire::Retries=3 update \
+    && apt-get install -y --no-install-recommends curl tini ca-certificates \
+    && chmod +x /convex/generate_key \
+    && ln -s /convex/generate_key /usr/local/bin/generate_key \
+    && mkdir -p /home/app && chmod 777 /home/app \
+    && chmod +x /app/services/platform/docker-entrypoint.sh \
+                /app/services/platform/generate-admin-key.sh \
+                /app/services/platform/reset-owner.sh
+
+# convex.json carries `node.externalPackages`; `convex deploy`/`convex dev` read
+# it from the platform dir. Absent → heavy node-only libs (jsdom, …) get bundled
+# inline and the push fails at analyze. (The runner copies it for the same
+# reason.)
+COPY services/platform/convex.json /app/services/platform/convex.json
+
+# Override the builder's production defaults. These mirror the runner's runtime
+# ENV (so the entrypoint behaves identically) except NODE_ENV, which gates the
+# dev hot-reload watchers, and TALE_DEV_NO_PRIVDROP, which keeps the container
+# as root for bind-mount write access.
+ENV NODE_ENV=development \
+    TALE_VERSION=${VERSION} \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0" \
+    CONVEX_URL=http://convex:3210 \
+    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
+    INSTANCE_NAME=tale_platform \
+    DO_NOT_TRACK=1 \
+    TALE_CONFIG_DIR=/app/data \
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    TALE_DEV_NO_PRIVDROP=1
+
+WORKDIR /app/services/platform
+
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/services/platform/docker-entrypoint.sh"]
+
+# ============================================================================
 # Stage 3: Pruner
 # ============================================================================
 FROM builder AS pruner
