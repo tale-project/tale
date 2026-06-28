@@ -27,6 +27,7 @@ import {
   MAX_FILE_SIZE_BYTES,
   parseBrandingJson,
   resolveBrandingFilePath,
+  validateImageFilename,
   type BrandingJsonConfig,
 } from '../../branding/file_utils';
 import { readJsonFile } from '../../lib/file_io';
@@ -88,9 +89,13 @@ function presentColor(value: string | undefined): string | undefined {
  * way the rest of the app resolves branding image URLs). Returns `''` when no
  * usable branding field is set, so the caller can append unconditionally.
  *
- * The section is operator-authored data, not a user instruction — colors are
- * validated hex and the logo URL is a same-origin path, so there's nothing to
- * escape, but the prompt frames it as defaults the user may override.
+ * The section is operator-authored data, not a user instruction. Colors are
+ * validated hex on write (`hexColorSchema`), but `logoFilename` is only
+ * length-checked there (`imageFilenameSchema`), so it could carry newlines or
+ * markdown that would land verbatim in the system prompt. It is therefore
+ * re-validated against {@link validateImageFilename} here — the same guard
+ * `resolveImagePath` uses — and a non-conforming filename is dropped rather
+ * than escaped. The prompt frames the values as defaults the user may override.
  */
 export function buildBrandingPromptSection(
   orgSlug: string,
@@ -100,7 +105,15 @@ export function buildBrandingPromptSection(
 
   const brandColor = presentColor(config.brandColor);
   const accentColor = presentColor(config.accentColor);
-  const logoUrl = buildBrandingImageUrl(orgSlug, config.logoFilename);
+  // `logoFilename` is persisted org config that is only length-validated on
+  // write, so re-check its format before it reaches the prompt. A filename
+  // carrying a newline or markdown (a prompt-injection vector) fails this and
+  // is dropped entirely — we never embed an unvalidated filename.
+  const safeLogoFilename =
+    config.logoFilename && validateImageFilename(config.logoFilename)
+      ? config.logoFilename
+      : undefined;
+  const logoUrl = buildBrandingImageUrl(orgSlug, safeLogoFilename);
 
   if (!brandColor && !accentColor && !logoUrl) return '';
 
