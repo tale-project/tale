@@ -160,6 +160,27 @@ ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Maximum reasoning effort by DEFAULT for the in-sandbox coding agent (drives
+# adaptive thinking at full depth on Opus-class models; a model without effort
+# support just ignores it). This lives in the daemon's process env, which the
+# exec manager uses as the LOWEST-precedence floor (`{ ...process.env,
+# ...envStore.resolve(req.env) }`), so a user-supplied CLAUDE_CODE_EFFORT_LEVEL
+# in the session env or per-exec overlay still wins. Deliberately NOT placed in
+# managed-settings.json — that layer is highest-precedence and would make the
+# default impossible to override.
+ENV CLAUDE_CODE_EFFORT_LEVEL=max
+# Apply max effort even when the gateway hands Claude Code a model id it does NOT
+# recognise as effort-capable. CC's built-in capability check matches exact names
+# (`claude-opus-4-8`, …); a gateway-aliased id (e.g. `anthropic/claude-opus-4-8`)
+# falls through and silently drops effort. This forces it on for any model.
+ENV CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1
+# Force-enable dynamic workflows ("ultracode") + subagent orchestration. The
+# feature is otherwise gated by a server/plan flag (tengu_workflows_enabled) that
+# does not resolve in the headless sandbox, so the agent would report "Ultracode
+# needs dynamic workflows enabled". Adaptive "ultrathinking" needs NO flag — it is
+# on by default on Opus-class models and driven to full depth by max effort; we
+# simply never set CLAUDE_CODE_DISABLE_THINKING / CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING.
+ENV CLAUDE_CODE_WORKFLOWS=1
 
 # --- coding-agent CLIs (pinned) ---------------------------------------------
 # Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).
