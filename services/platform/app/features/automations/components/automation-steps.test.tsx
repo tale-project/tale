@@ -76,7 +76,10 @@ describe('AutomationSteps canvas editing affordances', () => {
     render(<AutomationSteps steps={[]} hasActiveTrigger={false} />);
 
     // Connecting nodes and deleting edges silently no-op'd before — the canvas
-    // must not present those affordances at all.
+    // must not present those affordances at all. `nodesConnectable={false}`
+    // alone is not sufficient (each node must also mark its handles
+    // non-connectable) — that the rendered handles are non-connectable is
+    // asserted in `automation-step-handles.test.tsx`.
     expect(h.flowCanvasProps.nodesConnectable).toBe(false);
     expect(h.flowCanvasProps.deleteKeyCode).toBeNull();
     expect(h.flowCanvasProps.onConnect).toBeUndefined();

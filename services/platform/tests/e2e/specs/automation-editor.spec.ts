@@ -5,9 +5,9 @@ import { t } from '../helpers/i18n';
 
 /**
  * Automation EDITOR depth: create a blank automation, edit+save+persist its
- * config, run it via the tester, and fire it via a webhook trigger. The canvas
- * step-edit path is a TODO stub (`AutomationSteps#handleCreateStep` only toasts
- * "editing not available"), so the wired save path is the Configuration form; a
+ * config, run it via the tester, and fire it via a webhook trigger. On-canvas
+ * step editing isn't wired up yet, so the canvas is read-only (the add-step
+ * button is disabled), and the wired save path is the Configuration form; a
  * blank automation is start-only, so it runs to `completed` under the mock LLM.
  *
  * The webhook-trigger fire IS deterministic in the hermetic stack: creating a
@@ -69,12 +69,12 @@ test.describe.serial('automation editor', () => {
     // aria-label + a tooltip), so locate by role + accessible name, not title.
     // On-canvas step editing isn't wired up yet, so the add-step button is
     // present but disabled and labelled with the "unavailable" message.
-    await expect(
-      page.getByRole('button', {
-        name: t('automations.steps.toolbar.addStepUnavailable'),
-        exact: true,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    const addStepButton = page.getByRole('button', {
+      name: t('automations.steps.toolbar.addStepUnavailable'),
+      exact: true,
+    });
+    await expect(addStepButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(addStepButton).toBeDisabled();
     await expect(
       page.getByRole('button', {
         name: t('automations.steps.toolbar.testAutomation'),
