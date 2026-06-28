@@ -411,3 +411,72 @@ export const deleteComment = mutation({
     return null;
   },
 });
+
+/**
+ * Soft-delete a case by stamping `archivedAt` (mirrors `tasks` `archiveTask`).
+ * An archived case drops out of the default board (`listCases` excludes it
+ * unless `includeArchived` is set). Idempotent: archiving an already-archived
+ * case is a no-op.
+ */
+export const archiveCase = mutation({
+  args: {
+    organizationId: v.string(),
+    caseId: v.id('supportCases'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authorizeSupportWrite(ctx, args.organizationId);
+    const supportCase = await requireCaseInOrg(
+      ctx,
+      args.caseId,
+      args.organizationId,
+    );
+    if (supportCase.archivedAt !== undefined) return null;
+
+    const now = Date.now();
+    await ctx.db.patch(args.caseId, { archivedAt: now, updatedAt: now });
+    await recordCaseActivity(ctx, {
+      organizationId: args.organizationId,
+      caseId: args.caseId,
+      actorType: 'user',
+      actorId: authUser.userId,
+      action: 'archived',
+      at: now,
+    });
+    return null;
+  },
+});
+
+/**
+ * Restore a soft-deleted case, clearing `archivedAt` so it returns to the
+ * default board (mirrors `tasks` `restoreTask`). Idempotent: restoring a case
+ * that isn't archived is a no-op.
+ */
+export const unarchiveCase = mutation({
+  args: {
+    organizationId: v.string(),
+    caseId: v.id('supportCases'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authorizeSupportWrite(ctx, args.organizationId);
+    const supportCase = await requireCaseInOrg(
+      ctx,
+      args.caseId,
+      args.organizationId,
+    );
+    if (supportCase.archivedAt === undefined) return null;
+
+    const now = Date.now();
+    await ctx.db.patch(args.caseId, { archivedAt: undefined, updatedAt: now });
+    await recordCaseActivity(ctx, {
+      organizationId: args.organizationId,
+      caseId: args.caseId,
+      actorType: 'user',
+      actorId: authUser.userId,
+      action: 'restored',
+      at: now,
+    });
+    return null;
+  },
+});

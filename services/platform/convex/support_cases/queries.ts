@@ -88,11 +88,12 @@ export const supportCaseActivityValidator = v.object({
 });
 
 /**
- * List an organization's support cases, newest activity first. Filters are
- * applied in-handler; the common "by status" view is index-served. Archived
- * (soft-deleted) cases are excluded unless `includeArchived` is set. The scan is
- * bounded at {@link SUPPORT_CASE_BOARD_CAP}; `truncated` is `true` when the org
- * has more matching cases than the cap returned.
+ * List an organization's support cases, newest activity first. The scan walks
+ * `by_org_updatedAt` descending and applies every filter in-handler, so the cap
+ * always keeps the most-recently-updated cases. Archived (soft-deleted) cases
+ * are excluded unless `includeArchived` is set. The scan is bounded at
+ * {@link SUPPORT_CASE_BOARD_CAP}; `truncated` is `true` when the org has more
+ * matching cases than the cap returned.
  */
 export const listCases = query({
   args: {
@@ -113,24 +114,21 @@ export const listCases = query({
 
     const rows: Doc<'supportCases'>[] = [];
     let truncated = false;
-    const statusFilter = args.status;
-    const iterator = statusFilter
-      ? ctx.db
-          .query('supportCases')
-          .withIndex('by_org_status', (q) =>
-            q
-              .eq('organizationId', args.organizationId)
-              .eq('status', statusFilter),
-          )
-      : ctx.db
-          .query('supportCases')
-          .withIndex('by_organization', (q) =>
-            q.eq('organizationId', args.organizationId),
-          );
-
-    for await (const supportCase of iterator) {
+    // Scan `by_org_updatedAt` in DESCENDING order so the cap keeps the
+    // most-recently-updated cases (the documented "newest activity first"
+    // contract). All facets — including status — are applied in-loop, exactly
+    // like `tasks/queries.ts` `listTasksByOrg`. Scanning `by_org_status` here
+    // instead would iterate in creation order and, once an org exceeds the cap,
+    // capture the OLDEST cases and silently drop the newest.
+    for await (const supportCase of ctx.db
+      .query('supportCases')
+      .withIndex('by_org_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')) {
       if (!args.includeArchived && supportCase.archivedAt !== undefined)
         continue;
+      if (args.status && supportCase.status !== args.status) continue;
       if (args.assigneeId && supportCase.assigneeId !== args.assigneeId)
         continue;
       if (args.customerId && supportCase.customerId !== args.customerId)
@@ -143,7 +141,6 @@ export const listCases = query({
       }
     }
 
-    rows.sort((a, b) => b.updatedAt - a.updatedAt);
     return { cases: rows, truncated };
   },
 });
