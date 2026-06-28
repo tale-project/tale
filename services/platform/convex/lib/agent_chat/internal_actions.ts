@@ -64,6 +64,7 @@ import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
 import { NonRetryableError } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
+import { buildBrandingContext } from './branding_context';
 import { buildHooksFromConfig } from './build_hooks';
 import {
   buildIntegrationTools,
@@ -370,6 +371,7 @@ export async function runGenerationCore(
       skillSnapshot,
       delegationResult,
       workflowExtraTools,
+      brandingSystemPromptAppend,
     ] = await Promise.all([
       fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
       buildMcpTools(ctx, organizationId),
@@ -384,6 +386,11 @@ export async function runGenerationCore(
         buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
       ),
       orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
+      // Corporate-identity defaults for presentation generation. Empty unless
+      // the agent binds the `pptx` skill AND the org has branding configured.
+      orgSlugPromise.then((s) =>
+        buildBrandingContext(s, agentConfig.skillBindings),
+      ),
     ]);
 
     // Extract delegation tools and instructions append
@@ -453,6 +460,14 @@ export async function runGenerationCore(
     // (plan Phase 5 ordering). Empty string when no skills bound.
     if (skillSnapshot.systemPromptAppend) {
       finalInstructions = finalInstructions + skillSnapshot.systemPromptAppend;
+    }
+    // Append the org's corporate-identity defaults for presentation generation
+    // after the skills section, so the pptx skill's branding lands alongside
+    // (and just after) its "Available Skills" entry. Empty unless the agent
+    // binds `pptx` and the org has branding configured. Branding edits are
+    // per-turn/volatile relative to the cacheable persona+governance prefix.
+    if (brandingSystemPromptAppend) {
+      finalInstructions = finalInstructions + brandingSystemPromptAppend;
     }
 
     // Build hooks object from FunctionHandle strings
