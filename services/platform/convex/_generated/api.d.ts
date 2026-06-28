@@ -320,7 +320,6 @@ import type * as crawler_websites from "../crawler/websites.js";
 import type * as crons from "../crons.js";
 import type * as customers_bulk_create_customers from "../customers/bulk_create_customers.js";
 import type * as customers_create_customer from "../customers/create_customer.js";
-import type * as customers_create_customer_public from "../customers/create_customer_public.js";
 import type * as customers_delete_customer from "../customers/delete_customer.js";
 import type * as customers_filter_customers from "../customers/filter_customers.js";
 import type * as customers_find_or_create_customer from "../customers/find_or_create_customer.js";
@@ -1956,7 +1955,6 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "customers/bulk_create_customers": typeof customers_bulk_create_customers;
   "customers/create_customer": typeof customers_create_customer;
-  "customers/create_customer_public": typeof customers_create_customer_public;
   "customers/delete_customer": typeof customers_delete_customer;
   "customers/filter_customers": typeof customers_filter_customers;
   "customers/find_or_create_customer": typeof customers_find_or_create_customer;
