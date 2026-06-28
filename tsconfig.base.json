@@ -16,7 +16,7 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "@/*": ["${configDir}/*"]
+      "@/*": ["${configDir}/src/*", "${configDir}/*"]
     }
   }
 }
