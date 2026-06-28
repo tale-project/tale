@@ -26,7 +26,7 @@ never exposes; prod configs come from `tale deploy`). Overlay with `-f`:
 
 - `compose.dev.yml` — source mounts + debug logs + dev hot reload, **and** insecure dev secret
   defaults (the `x-dev-secrets` anchor) so the stack boots with zero `.env`. Run via `bun run
-  docker:dev` (= `-f compose.yml -f compose.dev.yml -f compose.docs.yml up --build`). `.env` is
+docker:dev` (= `-f compose.yml -f compose.dev.yml -f compose.docs.yml up --build`). `.env` is
   optional (`env_file: required: false`); when present its values win. `compose.docs.yml` is required
   only to satisfy this file's `docs` override.
   Hot reload (platform): the overlay sets `build.target: dev` so platform builds the Dockerfile `dev`
