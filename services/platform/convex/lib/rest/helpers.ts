@@ -338,7 +338,15 @@ function httpStatusForConvexCode(code: string | undefined): number {
     case 'validation':
     case 'EMAIL_REQUIRED':
     case 'MISSING_FILTER':
+    case 'CUSTOMER_EMAIL_REQUIRED':
       return 400;
+    // Duplicate-add rejections: a conflicting row already exists. Map to 409
+    // so REST clients get an actionable conflict instead of an opaque 500.
+    case 'CUSTOMER_DUPLICATE_EMAIL':
+    case 'CUSTOMER_DUPLICATE_EXTERNAL_ID':
+    case 'VENDOR_DUPLICATE_EMAIL':
+    case 'VENDOR_DUPLICATE_EXTERNAL_ID':
+    case 'WEBSITE_DUPLICATE_DOMAIN':
     case 'DUPLICATE_EMAIL':
     case 'DUPLICATE_EXTERNAL_ID':
     case 'DUPLICATE_DOMAIN':

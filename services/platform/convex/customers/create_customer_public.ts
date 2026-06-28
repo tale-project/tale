@@ -33,10 +33,9 @@ export async function createCustomerPublic(
 ): Promise<Id<'customers'>> {
   const email = args.email.toLowerCase().trim();
   if (!email) {
-    throw new ConvexError({
-      code: 'EMAIL_REQUIRED',
-      message: 'Email is required',
-    });
+    // Structured code so callers (REST + UI) get an actionable rejection
+    // instead of a raw `Error` that Convex redacts to "Server Error" in prod.
+    throw new ConvexError({ code: 'CUSTOMER_EMAIL_REQUIRED' });
   }
 
   // Check if customer with same email already exists
@@ -49,10 +48,7 @@ export async function createCustomerPublic(
       .first();
 
     if (existingCustomer) {
-      throw new ConvexError({
-        code: 'DUPLICATE_EMAIL',
-        message: `Customer with email ${email} already exists`,
-      });
+      throw new ConvexError({ code: 'CUSTOMER_DUPLICATE_EMAIL', email });
     }
   }
 
@@ -69,8 +65,8 @@ export async function createCustomerPublic(
 
     if (existingCustomer) {
       throw new ConvexError({
-        code: 'DUPLICATE_EXTERNAL_ID',
-        message: `Customer with external ID ${args.externalId} already exists`,
+        code: 'CUSTOMER_DUPLICATE_EXTERNAL_ID',
+        externalId: args.externalId,
       });
     }
   }
