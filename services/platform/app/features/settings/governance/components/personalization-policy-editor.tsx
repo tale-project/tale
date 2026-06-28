@@ -73,7 +73,8 @@ function PersonalizationPolicyToggle({
           description: t('personalization.saved'),
           variant: 'success',
         });
-      } catch {
+      } catch (error) {
+        console.error('[personalization_policy] save failed', error);
         toast({
           title: t('toastSaveFailedTitle'),
           description: t('personalization.saveFailed'),
