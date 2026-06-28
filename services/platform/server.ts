@@ -479,10 +479,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       camera: [],
       microphone: ['self'],
       // Active features: location-request approval card uses geolocation;
-      // copy-to-clipboard hook is wired into many UI surfaces.
+      // copy-to-clipboard hook is wired into many UI surfaces; live-browser
+      // human takeover reads the host clipboard (`navigator.clipboard.readText`)
+      // to bridge a paste into the remote session — both need same-origin grants.
       geolocation: ['self'],
       clipboardWrite: ['self'],
-      clipboardRead: [],
+      clipboardRead: ['self'],
       usb: [],
       payment: [],
       bluetooth: [],
