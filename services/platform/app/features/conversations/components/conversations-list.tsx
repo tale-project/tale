@@ -167,6 +167,11 @@ const ConversationRow = memo(function ConversationRow({
 }: ConversationRowProps) {
   const { t: tCommon } = useT('common');
 
+  // Localized fallback for a name-less customer. The backend now returns an
+  // undefined name (instead of a hardcoded "Unknown Customer"), so the label is
+  // translated here per locale.
+  const unknownCustomer = t ? t('unknownCustomer') : '';
+
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     if (typeof checked === 'boolean' && conversation) {
       onCheck?.(conversation.id, checked);
@@ -196,11 +201,14 @@ const ConversationRow = memo(function ConversationRow({
           if (conversation) onSelect?.(conversation);
         }}
         aria-pressed={isSelected}
+        // Derive the accessible name from the conversation subject first so
+        // rows stay distinguishable to screen readers even when several share
+        // the same (or no) customer name.
         aria-label={
           conversation
-            ? conversation.customer?.name ||
-              conversation.title ||
-              'Conversation'
+            ? conversation.title ||
+              conversation.customer?.name ||
+              unknownCustomer
             : undefined
         }
         className="absolute inset-0 z-0"
@@ -231,7 +239,7 @@ const ConversationRow = memo(function ConversationRow({
                   {conversation
                     ? conversation.customer?.name ||
                       conversation?.title ||
-                      'Unknown'
+                      unknownCustomer
                     : 'Conversation name'}
                 </SkeletonBox>
               </Heading>
@@ -346,6 +354,7 @@ export function ConversationsList({
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
   const { t: tDialogs } = useT('dialogs');
+  const { t: tCommon } = useT('common');
 
   const tRef = useRef(t);
   tRef.current = t;
@@ -442,7 +451,7 @@ export function ConversationsList({
                 <Loader2
                   className="text-muted-foreground size-5 animate-spin motion-reduce:animate-none"
                   role="status"
-                  aria-label={t('history.loadingMore')}
+                  aria-label={tCommon('pagination.loading')}
                 />
               </Center>
             )}

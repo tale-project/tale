@@ -2095,6 +2095,7 @@
   },
   "conversations": {
     "title": "Konversationen",
+    "unknownCustomer": "Unbekannter Kunde",
     "messagePlaceholder": "Nachricht eingeben",
     "suggestEditsPlaceholder": "Änderungen am Text vorschlagen (optional)",
     "fallbackImageAttachment": "Bildanhang",

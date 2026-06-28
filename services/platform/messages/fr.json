@@ -2096,6 +2096,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Client inconnu",
     "messagePlaceholder": "Saisis un message",
     "suggestEditsPlaceholder": "Suggère des modifications au texte (optionnel)",
     "fallbackImageAttachment": "Pièce jointe image",
