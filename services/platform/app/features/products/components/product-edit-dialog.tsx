@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid } from '@tale/ui/layout';
-import { ConvexError } from 'convex/values';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -11,6 +10,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -150,10 +150,9 @@ export function ProductEditDialog({
         },
         onError: (err) => {
           console.error('Update error:', err);
-          if (
-            err instanceof ConvexError &&
-            err.data?.code === 'DUPLICATE_PRODUCT_NAME'
-          ) {
+          // Duck-typed code check — Vite chunk splitting can yield multiple
+          // ConvexError copies that break `instanceof` (see extract-error-code).
+          if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
             setError('name', {
               message: tProducts('edit.toast.duplicateName'),
             });

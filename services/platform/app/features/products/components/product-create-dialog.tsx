@@ -3,7 +3,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -16,6 +15,7 @@ import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -157,9 +157,10 @@ export function ProductCreateDialog({
         },
         onError: (err) => {
           console.error('Create error:', err);
+          // Duck-typed code check — Vite chunk splitting can yield multiple
+          // ConvexError copies that break `instanceof` (see extract-error-code).
           const isDuplicate =
-            err instanceof ConvexError &&
-            err.data?.code === 'DUPLICATE_PRODUCT_NAME';
+            extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME';
           toast({
             title: isDuplicate
               ? tProducts('create.toast.duplicateName')
