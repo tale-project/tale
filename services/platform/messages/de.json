@@ -891,16 +891,12 @@
       "namePlaceholder": "Automatisierungsname eingeben"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "Verbindungen bearbeiten noch nicht verfügbar",
-        "apiNotWired": "Öffentliche APIs zum Bearbeiten von Workflow-Schritten sind noch nicht verbunden."
-      },
       "banners": {
         "hasActiveTriggers": "Diese Automatisierung ist aktiv — gespeicherte Änderungen gelten für neue Ausführungen."
       },
       "toolbar": {
         "testAutomation": "Automatisierung testen",
-        "addStep": "Schritt hinzufügen"
+        "addStepUnavailable": "Das Bearbeiten von Schritten auf der Arbeitsfläche ist noch nicht verfügbar — nutze den KI-Assistenten oder bearbeite die Workflow-Konfiguration."
       },
       "execution": {
         "viewingRun": "Lauf {id} wird angezeigt",

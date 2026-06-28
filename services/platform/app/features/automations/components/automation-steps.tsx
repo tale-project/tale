@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import type { Connection, Edge, Node } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
 import {
   ReactFlowProvider,
   useNodesState,
@@ -15,27 +15,15 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { TestTubeDiagonal, X, AlertTriangle, Plus } from 'lucide-react';
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-} from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 import { FlowCanvas } from '@/app/components/flow/flow-canvas';
-import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLayout } from '../hooks/use-automation-layout';
-import {
-  getStepActionType,
-  type StepConfig,
-  type StepDef,
-  type StepType,
-} from '../utils/step-icons';
+import { type StepDef } from '../utils/step-icons';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
@@ -45,7 +33,6 @@ import {
   AUTOMATION_EXECUTION_URL_DEFINITIONS,
   useViewedExecution,
 } from './execution-status-context';
-import { CreateStepDialog } from './step-create-dialog';
 
 interface AutomationStepsProps {
   steps: StepDef[];
@@ -128,7 +115,6 @@ function AutomationStepsInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
 
   const { setStates: setPanelStates } = useUrlState({
     definitions: AUTOMATION_PANEL_URL_DEFINITIONS,
@@ -140,13 +126,6 @@ function AutomationStepsInner({
     definitions: AUTOMATION_EXECUTION_URL_DEFINITIONS,
   });
 
-  const [_parentStepForNewStep, setParentStepForNewStep] = useState<
-    string | null
-  >(null);
-  const [_edgeToInsertStep, setEdgeToInsertStep] = useState<{
-    sourceId: string;
-    targetId: string;
-  } | null>(null);
   const [showActivityBanner, setShowActivityBanner] = useState(true);
   const [minimapDimensions, setMinimapDimensions] = useState({
     width: 192,
@@ -243,41 +222,6 @@ function AutomationStepsInner({
     setPanelStates({ panel: 'test', step: null });
   }, [setPanelStates]);
 
-  const handleAddStepOnEdge = useCallback(
-    (sourceId: string, targetId: string) => {
-      setEdgeToInsertStep({ sourceId, targetId });
-      setIsCreateStepDialogOpen(true);
-    },
-    [],
-  );
-
-  const handleAddStep = useCallback((stepSlug: string) => {
-    setParentStepForNewStep(stepSlug);
-    setIsCreateStepDialogOpen(true);
-  }, []);
-
-  const handleDeleteEdge = useCallback(
-    async (_edgeId: string) => {
-      toast({
-        title: t('steps.toast.editingNotAvailable'),
-        description: t('steps.toast.apiNotWired'),
-      });
-      return;
-    },
-    [t],
-  );
-
-  const stepOptions = useMemo(
-    () =>
-      steps.map((s) => ({
-        stepSlug: s.stepSlug,
-        name: s.name,
-        stepType: s.stepType,
-        actionType: getStepActionType(s),
-      })),
-    [steps],
-  );
-
   // Surface waiting-for-input and debug pauses as their own banner states;
   // the run row in the executions table applies the same mapping.
   const viewedRunStatus = viewedExecution
@@ -295,53 +239,8 @@ function AutomationStepsInner({
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-  const onConnect = async (params: Connection) => {
-    if (!params.source || !params.target) return;
-
-    toast({
-      title: t('steps.toast.editingNotAvailable'),
-      description: t('steps.toast.apiNotWired'),
-    });
-
-    setEdges((eds) =>
-      eds.filter(
-        (edge) =>
-          !(edge.source === params.source && edge.target === params.target),
-      ),
-    );
-
-    return;
-  };
-
-  const onEdgesDelete = async (_edgesToDelete: Edge[]) => {
-    toast({
-      title: t('steps.toast.editingNotAvailable'),
-      description: t('steps.toast.apiNotWired'),
-    });
-
-    return;
-  };
-
-  const handleCreateStep = async (_data: {
-    name: string;
-    stepType: StepType;
-    config: StepConfig;
-    nextSteps?: Record<string, string>;
-  }) => {
-    // TODO: Replace with file-based workflow save (modify workflow JSON and save via useSaveWorkflow)
-    toast({
-      title: t('steps.toast.editingNotAvailable'),
-      description: t('steps.toast.apiNotWired'),
-    });
-  };
-
   return (
-    <AutomationCallbacksProvider
-      onNodeClick={handleNodeClick}
-      onAddStep={handleAddStep}
-      onAddStepOnEdge={handleAddStepOnEdge}
-      onDeleteEdge={handleDeleteEdge}
-    >
+    <AutomationCallbacksProvider onNodeClick={handleNodeClick}>
       <Row
         gap={0}
         align="stretch"
@@ -353,11 +252,16 @@ function AutomationStepsInner({
             onOpenAi={onOpenAIChat}
             centerActions={
               <>
+                {/* On-canvas step editing is not wired up yet. Keep the
+                    affordance visible but disabled — with a tooltip pointing to
+                    the working paths — instead of opening a create form that
+                    silently no-ops on submit. */}
                 <Button
                   size="icon"
                   variant="secondary"
-                  title={t('steps.toolbar.addStep')}
-                  onClick={() => setIsCreateStepDialogOpen(true)}
+                  title={t('steps.toolbar.addStepUnavailable')}
+                  aria-label={t('steps.toolbar.addStepUnavailable')}
+                  disabled
                 >
                   <Plus className="size-4" />
                 </Button>
@@ -377,8 +281,6 @@ function AutomationStepsInner({
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onEdgesDelete={onEdgesDelete}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             connectionLineType={ConnectionLineType.SmoothStep}
@@ -399,9 +301,16 @@ function AutomationStepsInner({
               style: { strokeWidth: 2 },
               zIndex: 0,
             }}
-            deleteKeyCode={['Backspace', 'Delete']}
+            // The on-canvas editor is read-only: steps and connections are
+            // edited via the AI assistant or the workflow config, not by
+            // drag-connecting nodes or deleting edges here. Disabling these
+            // ReactFlow affordances keeps the canvas honest rather than
+            // presenting controls that silently no-op. `deleteKeyCode={null}`
+            // is required — omitting it leaves ReactFlow's default 'Backspace'
+            // edge deletion enabled.
+            deleteKeyCode={null}
             nodesDraggable={false}
-            nodesConnectable
+            nodesConnectable={false}
             nodesFocusable
             edgesFocusable
             multiSelectionKeyCode={['Meta', 'Ctrl']}
@@ -503,19 +412,6 @@ function AutomationStepsInner({
             )}
           </FlowCanvas>
         </div>
-
-        <CreateStepDialog
-          open={isCreateStepDialogOpen}
-          onOpenChange={(open) => {
-            setIsCreateStepDialogOpen(open);
-            if (!open) {
-              setParentStepForNewStep(null);
-              setEdgeToInsertStep(null);
-            }
-          }}
-          onCreateStep={handleCreateStep}
-          stepOptions={stepOptions}
-        />
       </Row>
     </AutomationCallbacksProvider>
   );
