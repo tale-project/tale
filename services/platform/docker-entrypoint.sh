@@ -617,12 +617,21 @@ start_convex_dev_watcher
 # through Caddy's self-signed TLS. Trade-off: a manual refresh, no React Fast
 # Refresh / state retention. For full HMR use host `bun dev`.
 #
-# Why a poll loop + full `vite build` instead of `vite build --watch`:
+# Why a poll loop + full `vite build` (not `vite build --watch`), and why the
+# atomic dir swap:
 #   * `vite build --watch` (rolldown) crashes the *incremental* rebuild in the
 #     vite:css-post plugin ("Unable to get file name for unknown file …") and
 #     leaves dist/ without index.html → the SPA 500s. A fresh one-shot
-#     `vite build` does not hit that path and is reliable, so we re-run a full
-#     build on each change instead.
+#     `vite build` does not hit that path and is reliable.
+#   * But a plain `vite build` into the live dist/ empties it for the ~7s build
+#     (emptyOutDir), so a refresh mid-build hits a missing/half-written dist →
+#     500/blank. To avoid that we keep two build slots (dist-a / dist-b) and
+#     make `dist` a symlink: build into the *inactive* slot, then swap the
+#     symlink with a single `mv -T` (rename(2)). A request therefore always
+#     resolves dist/ to a *complete* build — the previous one during the
+#     rebuild, the new one after the swap — never a half-written tree. server.ts
+#     re-reads index.html per request (and uses a fixed dist path), so it needs
+#     no change. A failed build never swaps, so the previous build keeps serving.
 #   * Polling (vs inotify): Docker Desktop bind mounts deliver host file events
 #     unreliably; a 2s mtime poll is plenty for a manual-refresh workflow.
 #
@@ -642,6 +651,15 @@ start_frontend_watcher() {
   log_section "Starting frontend build watcher (dev hot reload)"
   log_info "Watching app/ + lib/ → full 'vite build' on change (refresh the browser to see changes)"
 
+  # Convert the baked prebuilt dist/ (a real dir) into the symlink + two-slot
+  # layout, synchronously (before server.ts starts) so dist/ is never absent
+  # under a live request. Idempotent: on restart dist/ is already a symlink.
+  if [ -d "${PLATFORM_DIR}/dist" ] && [ ! -L "${PLATFORM_DIR}/dist" ]; then
+    rm -rf "${PLATFORM_DIR}/dist-a" "${PLATFORM_DIR}/dist-b"
+    mv "${PLATFORM_DIR}/dist" "${PLATFORM_DIR}/dist-a"
+    ln -sfn dist-a "${PLATFORM_DIR}/dist"
+  fi
+
   local stamp="/tmp/frontend-build-stamp"
   : > "$stamp" # baseline now: prebuilt dist/ serves until the first real change
 
@@ -652,11 +670,19 @@ start_frontend_watcher() {
       changed="$(find app lib -type f -newer "$stamp" 2>/dev/null | head -n1 || true)"
       if [ -n "$changed" ]; then
         : > "$stamp" # re-baseline before building so mid-build edits re-fire
-        log_info "Frontend source changed → rebuilding dist/ ..."
-        if bun --bun vite build --mode development; then
+        # Build into the inactive slot; the active one keeps serving meanwhile.
+        if [ "$(readlink dist 2>/dev/null)" = "dist-a" ]; then
+          next="dist-b"
+        else
+          next="dist-a"
+        fi
+        log_info "Frontend source changed → rebuilding (${next}) ..."
+        if bun --bun vite build --mode development --outDir "$next" --emptyOutDir; then
+          # Atomic publish: one rename(2) flips dist/ to the finished build.
+          ln -sfn "$next" dist.tmp && mv -T dist.tmp dist
           log_ok "Frontend rebuilt; refresh the browser to see changes"
         else
-          log_warn "Frontend rebuild failed (see vite output above); will retry on next change"
+          log_warn "Frontend rebuild failed (see vite output above); previous build still served"
         fi
       fi
       sleep 2
