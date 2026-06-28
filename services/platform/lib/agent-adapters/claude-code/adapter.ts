@@ -62,6 +62,44 @@ const HUMAN_CONTROL_MCP_SERVER = {
   command: 'tale-human-control-mcp',
 };
 
+/** Model families whose context window Claude Code expands to 1M when the model
+ * string carries a trailing `[1m]` marker. Haiku is 200K-only and is left
+ * untouched (it would just ignore the marker). */
+const CONTEXT_1M_FAMILIES = ['opus', 'sonnet', 'fable'] as const;
+
+/** Default the in-sandbox agent to the maximum (1M) context window. Claude Code
+ * gates its 1M window on a `[1m]` suffix on the model string, and strips that
+ * suffix via its own normalizeModelStringForAPI BEFORE the request — so the
+ * gateway / single-model virtual-key allowlist only ever sees the bare model id
+ * (appending it cannot 404 the VK). 1M carries no long-context premium on
+ * current Opus, so it is on by default; an operator can force the 200K default
+ * back with TALE_SANDBOX_CONTEXT_1M=0, and a model string that already encodes a
+ * window (`…[1m]`) is left as-is. (Reasoning depth is the separate
+ * CLAUDE_CODE_EFFORT_LEVEL knob — set as an overridable env floor in the sandbox
+ * image, NOT here: a per-exec env value would override the user's session env.) */
+function withMaxContext(model: string): string {
+  if (process.env.TALE_SANDBOX_CONTEXT_1M === '0') return model;
+  const lower = model.toLowerCase();
+  if (lower.includes('[1m]')) return model; // caller already chose a window
+  if (!CONTEXT_1M_FAMILIES.some((family) => lower.includes(family))) {
+    return model; // e.g. haiku — 200K only
+  }
+  return `${model}[1m]`;
+}
+
+/** Prepend Claude Code's `ultrathink` keyword to the turn prompt so every turn
+ * requests maximum reasoning depth. On Opus-class (adaptive-thinking) models the
+ * keyword is SAFE: Claude Code injects a "reason thoroughly" reminder for the
+ * turn — it does NOT set a `budget_tokens` (which would 400 on Opus 4.8). This is
+ * complementary to CLAUDE_CODE_EFFORT_LEVEL=max (the primary depth lever).
+ * Default-on; disable with TALE_SANDBOX_ULTRATHINK=0, and skipped when the prompt
+ * already contains the keyword. */
+function withUltrathink(prompt: string): string {
+  if (process.env.TALE_SANDBOX_ULTRATHINK === '0') return prompt;
+  if (/\bultrathink\b/i.test(prompt)) return prompt; // caller already asked
+  return `Ultrathink: ${prompt}`;
+}
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
 
@@ -103,7 +141,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       argv.push('--add-dir', dir);
     }
     if (spec.agentSessionId) argv.push('--resume', spec.agentSessionId);
-    if (spec.model) argv.push('--model', spec.model);
+    // Every session (managed AND BYO) defaults to the max 1M context window:
+    // withMaxContext appends the `[1m]` marker, which Claude Code strips before
+    // the API call, so the provider / gateway only ever sees the bare model id —
+    // it does not change what a BYO user's own provider receives.
+    if (spec.model) {
+      argv.push('--model', withMaxContext(spec.model));
+    }
     if (spec.systemPromptAppend) {
       argv.push('--append-system-prompt', spec.systemPromptAppend);
     }
@@ -210,7 +254,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // (claude-sonnet-4-6), bypassing every alias pin. Observed live on
       // 2.1.173: the replayed turn requested sonnet through the gateway and
       // the org's open-models-only key 403'd the whole turn.
-      env.ANTHROPIC_MODEL = spec.model;
+      env.ANTHROPIC_MODEL = withMaxContext(spec.model);
       if (!byo) {
         // MANAGED: pin every default-model slot to the gateway model so Claude
         // Code doesn't 404 resolving opus/sonnet/haiku/fable aliases against the
@@ -231,7 +275,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       argv,
       env,
       cwd: spec.workdir,
-      stdin: buildStdinUserMessage(spec.prompt),
+      // Every session prepends the `Ultrathink:` keyword for max reasoning depth
+      // (a safe per-turn reminder on Opus-class models; see the helper).
+      stdin: buildStdinUserMessage(withUltrathink(spec.prompt)),
       stdinMode: 'hold',
     };
   }
