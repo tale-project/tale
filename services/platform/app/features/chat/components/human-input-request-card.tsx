@@ -43,7 +43,6 @@ import type {
 } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
-import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { getString, isRecord } from '@/lib/utils/type-utils';
 
@@ -54,41 +53,10 @@ import {
 } from '../hooks/mutations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
+import { mapHumanInputError } from '../lib/map-human-input-error';
 import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
-
-/**
- * Map a thrown human-input submit/edit error to a localized message. The
- * backend raises `ConvexError({ code })` for expected failures (a raw message
- * is redacted to "Server Error" in prod), so we key off the structured code.
- * `BUDGET_EXCEEDED` carries a server-computed `message` shown verbatim.
- */
-export function mapHumanInputError(
-  err: unknown,
-  t: (key: string) => string,
-  tCommon: (key: string) => string,
-  fallback: string,
-): string {
-  switch (convexErrorCode(err)) {
-    case 'UNAUTHENTICATED':
-      return tCommon('errorNotAuthenticated');
-    case 'NOT_FOUND':
-      return tCommon('errorNotFound');
-    case 'ALREADY_RESPONDED':
-      return t('errorAlreadyResponded');
-    case 'NOT_EDITABLE':
-      return t('errorNotEditable');
-    case 'WORKFLOW_NOT_EDITABLE':
-      return t('errorWorkflowNotEditable');
-    case 'GENERATION_IN_PROGRESS':
-      return t('errorGenerationInProgress');
-    case 'BUDGET_EXCEEDED':
-      return convexErrorMessage(err, fallback);
-    default:
-      return fallback;
-  }
-}
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;

@@ -50,6 +50,7 @@ import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { mapApprovalError } from '../lib/map-approval-error';
+import { mapHumanInputError } from '../lib/map-human-input-error';
 import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
@@ -97,6 +98,7 @@ function WorkflowRunApprovalCardComponent({
 }: WorkflowRunApprovalCardProps) {
   const { t } = useT('workflowRunApproval');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tHumanInput } = useT('humanInputRequest');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -293,9 +295,12 @@ function WorkflowRunApprovalCardComponent({
                 },
                 onError: (err) => {
                   setError(
-                    err instanceof Error
-                      ? err.message
-                      : tCommon('errorSubmitFailed'),
+                    mapHumanInputError(
+                      err,
+                      tHumanInput,
+                      tCommon,
+                      tCommon('errorSubmitFailed'),
+                    ),
                   );
                 },
               },
