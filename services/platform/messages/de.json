@@ -5433,7 +5433,7 @@
         "notPublished": "Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren.",
         "createButton": "Webhook erstellen",
         "createdTitle": "Webhook erstellt",
-        "urlWarning": "Kopiere diese URL jetzt — sie wird nur einmal angezeigt.",
+        "urlWarning": "Speichere diese Webhook-URL. Das Token in der URL dient als Authentifizierungsnachweis.",
         "webhookUrl": "Webhook-URL",
         "copyUrl": "Webhook-URL kopieren",
         "copyExample": "Beispiel kopieren",

@@ -5695,7 +5695,7 @@
         "notPublished": "Publish this agent to enable webhook access.",
         "createButton": "Create webhook",
         "createdTitle": "Webhook created",
-        "urlWarning": "Copy this URL now. It will only be shown once.",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
         "webhookUrl": "Webhook URL",
         "copyUrl": "Copy webhook URL",
         "copyExample": "Copy example",

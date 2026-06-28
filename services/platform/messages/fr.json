@@ -5434,7 +5434,7 @@
         "notPublished": "Publie cet agent pour activer l'accès par webhook.",
         "createButton": "Créer un webhook",
         "createdTitle": "Webhook créé",
-        "urlWarning": "Copie cette URL maintenant. Elle ne sera affichée qu'une seule fois.",
+        "urlWarning": "Enregistre cette URL de webhook. Le jeton dans l'URL sert d'identifiant d'authentification.",
         "webhookUrl": "URL du webhook",
         "copyUrl": "Copier l'URL du webhook",
         "copyExample": "Copier l'exemple",
