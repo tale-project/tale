@@ -626,9 +626,15 @@ start_browser_stack() {
   # process means watchers retain a structural read-only guarantee — there is no
   # flag a watcher's client can flip to gain input. Same display ⇒ a human's
   # clicks here and the agent's CDP drive both land on the one Chromium.
+  #
+  # -xkb is REQUIRED for correct keysym entry: without it x11vnc falls back to
+  # legacy modtweak, which can't synthesize shifted-symbol keysyms (_, +, @, #,
+  # {, }, |, etc.) against a modern XKB keymap and mangles them (e.g. `_` lands
+  # as a space). The XKEYBOARD path maps each keysym to the right keycode+level.
+  # Only the writable :5901 injects input, so :5900 (-viewonly) doesn't need it.
   # shellcheck disable=SC2086
   _supervise $DROP x11vnc -display :99 -rfbport 5901 -localhost \
-    -forever -shared -nopw -noxdamage
+    -forever -shared -nopw -noxdamage -xkb
 
   # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors
   # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):

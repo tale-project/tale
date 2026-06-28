@@ -52,6 +52,10 @@ describe('security headers', () => {
     expect(pp).toContain('camera=()');
     expect(pp).toContain('geolocation=(self)');
     expect(pp).toContain('clipboard-write=(self)');
+    // Live-browser human takeover bridges a host paste via
+    // navigator.clipboard.readText(); an empty allowlist would emit
+    // `clipboard-read=()` and silently block the read.
+    expect(pp).toContain('clipboard-read=(self)');
   });
 
   // Regression guard for issue #1925 — "Verify the web client passes the
