@@ -328,6 +328,19 @@ export interface SessionBackend {
   /** List live session objects (label-selected), for boot re-adoption, the
    * GET /v1/sessions route, and the TTL/idle sweep. */
   listSessions(organizationId?: string): Promise<BackendSession[]>;
+  /**
+   * Reconcile the shared cross-session build cache (the per-org buildkitd) at
+   * spawner startup, after running sessions are re-adopted. The daemon is
+   * launched once and outlives the spawner (`--restart unless-stopped`), so a
+   * stack restart that recreated sandbox-egress on a new IP leaves the daemon's
+   * egress fence stale while it keeps running — and an adopted session that
+   * reuses it would build with no DNS/egress. `createSession` only heals freshly
+   * created sessions; this closes the gap for adopted ones (ensureBuildkitd
+   * recreates a drifted daemon). Best-effort — the cache is an optimization, so
+   * a failure is never fatal. A no-op on backends without a shared build cache
+   * (Kubernetes) or when the cache is disabled.
+   */
+  reconcileBuildCache(orgIds: readonly string[]): Promise<void>;
 }
 
 export type { SpawnerConfig };
