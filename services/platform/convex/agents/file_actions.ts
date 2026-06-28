@@ -164,6 +164,49 @@ function captureCapability(
   };
 }
 
+/**
+ * Capability snapshot of a serialized agent config, or `undefined` when the
+ * content can't be parsed under the current schema. The `undefined` return is
+ * meaningful at the call site: a caller deciding whether a restore changes
+ * capability grants must fail closed (require the developer-settings gate) when
+ * it can't prove the snapshot leaves capability fields unchanged.
+ */
+function capabilityCaptureFromContent(
+  content: string,
+): Record<string, unknown> | undefined {
+  try {
+    return captureCapability(parseAgentJson(content));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Structural equality for two capability captures. String arrays are compared
+ * as sets (order-insensitive) and object keys are sorted, mirroring
+ * `saveAgent`'s `arrayEq` so a pure reordering isn't treated as a grant change.
+ */
+function capabilityCapturesEqual(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined,
+): boolean {
+  const canonical = (value: unknown): string =>
+    JSON.stringify(value, (_key, val: unknown) => {
+      if (Array.isArray(val) && val.every((item) => typeof item === 'string')) {
+        return [...val].sort();
+      }
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        return Object.fromEntries(
+          Object.entries(val).sort(([keyA], [keyB]) =>
+            keyA < keyB ? -1 : keyA > keyB ? 1 : 0,
+          ),
+        );
+      }
+      return val;
+    });
+  return canonical(a ?? {}) === canonical(b ?? {});
+}
+
 // ---------------------------------------------------------------------------
 // Public actions (called from frontend)
 // ---------------------------------------------------------------------------
@@ -1033,8 +1076,8 @@ export const restoreFromHistory = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const { orgSlug } = auth;
+    const memberAuth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = memberAuth;
     if (!validateTimestamp(args.timestamp)) {
       throw new Error('Invalid timestamp');
     }
@@ -1066,6 +1109,31 @@ export const restoreFromHistory = action({
 
     // Snapshot current state before overwriting
     const currentContent = await readFileSafe(agentPath);
+
+    // Capability-change gate (mirrors `saveAgent` at :537). A restore is a
+    // wholesale overwrite of the live config with an arbitrary historical
+    // snapshot — including the capability fields (`toolNames`,
+    // `integrationBindings`, `workflows`, `skillBindings`, `budget`,
+    // `maxConcurrentTasks`, `runtime`, delegation edges) that `saveAgent`
+    // only lets admin/developer roles change. Without this gate a plain
+    // `member` could re-grant a binding a developer had revoked simply by
+    // restoring an older snapshot, laundering a capability change past the
+    // `developerSettings` gate. Only require the elevated capability when the
+    // restore actually alters those fields, matching `saveAgent`'s semantics
+    // (members may still restore description/instruction-only changes). Fail
+    // closed: if the current config or the snapshot can't be parsed we cannot
+    // prove the grants are unchanged, so require the capability.
+    const restoredCapability = capabilityCaptureFromContent(historyContent);
+    const currentCapability = currentContent
+      ? capabilityCaptureFromContent(currentContent)
+      : undefined;
+    const isCapabilityChange =
+      restoredCapability === undefined ||
+      currentCapability === undefined ||
+      !capabilityCapturesEqual(currentCapability, restoredCapability);
+    const auth = isCapabilityChange
+      ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
+      : memberAuth;
 
     // Write the restored version
     await atomicWrite(agentPath, historyContent);
