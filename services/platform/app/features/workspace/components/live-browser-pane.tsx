@@ -367,24 +367,25 @@ function ControlToggle({
   onToggle: (next: boolean) => void;
 }) {
   const { t } = useT('chat');
-  return control ? (
-    <Button
-      variant="secondary"
-      size="sm"
-      icon={Eye}
-      onClick={() => onToggle(false)}
-    >
-      {t('liveBrowser.releaseControl', { defaultValue: 'Release control' })}
-    </Button>
-  ) : (
-    <Button
-      variant="primary"
-      size="sm"
-      icon={Hand}
-      onClick={() => onToggle(true)}
-    >
-      {t('liveBrowser.takeControl', { defaultValue: 'Take control' })}
-    </Button>
+  const label = control
+    ? t('liveBrowser.releaseControl', { defaultValue: 'Release control' })
+    : t('liveBrowser.takeControl', { defaultValue: 'Take control' });
+  // Match the sibling header actions (Reset/expand/collapse): a ghost icon
+  // button, not a heavy filled CTA. A primary-tinted icon signals when the human
+  // is actively driving; the tooltip/aria carry the label.
+  const Icon = control ? Eye : Hand;
+  return (
+    <Tooltip content={label} side="bottom">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={control ? 'text-primary size-7' : 'size-7'}
+        onClick={() => onToggle(!control)}
+        aria-label={label}
+      >
+        <Icon className="size-3.5" />
+      </Button>
+    </Tooltip>
   );
 }
 
