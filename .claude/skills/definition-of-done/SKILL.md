@@ -47,7 +47,7 @@ skill that owns it; that owner enforces the detail.
 | Error wording / validation / rate limit                  | docs(3) · tests · i18n                                                                    |
 | A date display                                           | `useFormatDate()` — never `toLocale*`                                                     |
 | A new query/mutation                                     | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in loader       |
-| A path/command/pattern a skill documents                 | update that guide + the `AGENTS.md` skill index · run `bun .claude/check-skill-links.mjs` |
+| A path/command/pattern a skill documents                 | update that guide + the `AGENTS.md` skill index · `bun run skills:check`                  |
 
 ## Patterns
 

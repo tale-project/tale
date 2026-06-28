@@ -1,4 +1,4 @@
-import { RenderResult } from '@testing-library/react';
+import type { RenderResult } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 
 // WCAG 2.1 AA rules we assert on. `color-contrast` is intentionally OFF: jsdom

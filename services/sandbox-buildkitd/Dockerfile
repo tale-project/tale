@@ -53,7 +53,11 @@ RUN apt-get update \
       redsocks iptables iproute2 util-linux tini ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY services/sandbox-buildkitd/buildkitd.toml /etc/buildkit/buildkitd.toml
+# Shipped read-only base. The live --config (/etc/buildkit/buildkitd.toml) is
+# regenerated from this on every start by docker-entrypoint.sh, so a restart
+# never inherits a stale dynamic [dns]/[registry] block (the egress IP can change
+# across sandbox-egress recreation, and the daemon restarts independently).
+COPY services/sandbox-buildkitd/buildkitd.toml /etc/buildkit/buildkitd.base.toml
 COPY services/sandbox-buildkitd/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-buildkitd/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh

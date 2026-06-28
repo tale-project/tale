@@ -16,8 +16,8 @@ import {
   Square,
   Volume2,
 } from 'lucide-react';
+import type { ComponentPropsWithoutRef } from 'react';
 import {
-  ComponentPropsWithoutRef,
   useRef,
   useState,
   useEffect,

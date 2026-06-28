@@ -9,7 +9,7 @@
  */
 
 import { components } from '../_generated/api';
-import { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 
 export async function hasAnyOrganization(ctx: QueryCtx): Promise<boolean> {
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {

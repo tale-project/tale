@@ -4,14 +4,8 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowUp, CircleStop } from 'lucide-react';
-import {
-  ComponentPropsWithoutRef,
-  useCallback,
-  useId,
-  useRef,
-  useMemo,
-  useState,
-} from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
+import { useCallback, useId, useRef, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';

@@ -42,6 +42,7 @@ import {
   type SandboxErrorCode,
   type SandboxStepResult,
 } from '../../sandbox/wire';
+import { browserViewEnabled } from './browser_view';
 import {
   sessionBrowserClosePages,
   sessionCancelExec,
@@ -643,7 +644,7 @@ export const cancelSessionExecsForThread = internalAction({
     // cookies/logins are preserved (close-pages, not reset). Best-effort: a
     // no-managed-browser session no-ops spawner-side, and any failure is logged
     // (the Stop itself already succeeded above).
-    if (process.env.SANDBOX_BROWSER_VIEW === '1') {
+    if (browserViewEnabled()) {
       for (const sessionId of cancelledSessions) {
         try {
           const closed = await sessionBrowserClosePages(sessionId);

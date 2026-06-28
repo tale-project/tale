@@ -5,14 +5,8 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
-import {
-  InputHTMLAttributes,
-  ReactNode,
-  forwardRef,
-  useState,
-  useId,
-  useEffect,
-} from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, useState, useId, useEffect } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';

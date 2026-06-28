@@ -3,7 +3,7 @@
  */
 
 import { evaluateExpression } from '../../../../lib/variables/evaluate_expression';
-import { ConditionNodeConfig, StepExecutionResult } from '../../../types';
+import type { ConditionNodeConfig, StepExecutionResult } from '../../../types';
 
 /**
  * Execute condition step logic (helper function)

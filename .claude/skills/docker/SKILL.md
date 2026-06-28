@@ -24,11 +24,16 @@ knowledge schemas — a sign a migration didn't ship or didn't run.
 `compose.yml` is the base, **local-dev-only** stack (exposes `5432` + app ports `8001-8003` that prod
 never exposes; prod configs come from `tale deploy`). Overlay with `-f`:
 
-- `compose.dev.yml` — source mounts + debug logs for HMR, **and** insecure dev secret defaults
-  (the `x-dev-secrets` anchor) so the stack boots with zero `.env`. Run via `bun run docker:dev`
-  (= `-f compose.yml -f compose.dev.yml -f compose.docs.yml up --build`). `.env` is optional
-  (`env_file: required: false`); when present its values win. `compose.docs.yml` is required only to
-  satisfy this file's `docs` override.
+- `compose.dev.yml` — source mounts + debug logs + dev hot reload, **and** insecure dev secret
+  defaults (the `x-dev-secrets` anchor) so the stack boots with zero `.env`. Run via `bun run
+docker:dev` (= `-f compose.yml -f compose.dev.yml -f compose.docs.yml up --build`). `.env` is
+  optional (`env_file: required: false`); when present its values win. `compose.docs.yml` is required
+  only to satisfy this file's `docs` override.
+  Hot reload (platform): the overlay sets `build.target: dev` so platform builds the Dockerfile `dev`
+  stage (the unpruned `builder` + vite/source) instead of the pruned prod runner. Its entrypoint then
+  runs two watchers off the bind-mounted source — `vite build --watch` (frontend → rebuilds `dist/`;
+  hard refresh, **not** HMR) and `convex dev` (functions → hot-push). Gate with `TALE_DEV_HOT_RELOAD=0`.
+  True HMR + Fast Refresh still belongs to host `bun dev`.
 - `compose.test.yml` — container-e2e: shifts ports off the host to avoid CI collisions.
 - `compose.test.mock.yml` — DB-only port mock (`db` on `15432`).
 - `compose.sandbox-llm-gateway.dev.yml` — applied **only** when Convex + Vite run on the host (`scripts/dev.ts`),

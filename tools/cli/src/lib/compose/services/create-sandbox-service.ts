@@ -80,6 +80,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
       SANDBOX_BUILDKITD_MIRROR_IMAGE:
         '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+      // Live browser view (read-only mirror). Unset here so BOTH sides apply
+      // their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt
+      // out. ONE value drives both sides — this spawner reads it directly and
+      // the platform pushes it to Convex — and it is read on the platform
+      // service too (NOT a sandbox-only var), so both interpolate from the same
+      // root .env to stay in lockstep. Mirrors compose.yml.
+      SANDBOX_BROWSER_VIEW: '${SANDBOX_BROWSER_VIEW:-}',
       // Shared sandbox network; the egress sidecar is addressed by its bare
       // `sandbox-egress` alias so spawned runtime containers route outbound
       // through it.

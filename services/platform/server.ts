@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -297,6 +297,53 @@ function getBasePath(): string {
 
 let indexHtmlTemplate: string | null = null;
 
+// In `docker:dev` hot-reload, the entrypoint's frontend watcher rebuilds
+// dist/index.html on every change with freshly content-hashed chunk names (and
+// deletes the old chunks). Memoizing the template would keep serving a stale
+// index.html that
+// references already-deleted chunks → the browser gets the SPA fallback (HTML)
+// for a missing `.js` and the page goes blank. So in that mode (and only then)
+// re-read index.html per request. Gating matches the entrypoint's watcher
+// gate (NODE_ENV=development + TALE_DEV_HOT_RELOAD≠0); production keeps the
+// one-time cache untouched.
+const DEV_HOT_RELOAD =
+  process.env.NODE_ENV === 'development' &&
+  process.env.TALE_DEV_HOT_RELOAD !== '0';
+
+// Dev live-reload: a build id that changes whenever the frontend watcher
+// publishes a new dist/ (the atomic symlink swap rewrites index.html, so its
+// mtime moves). Returns '0' if dist/index.html is momentarily absent. The
+// injected client script (below) polls this and hard-reloads when it changes —
+// so an edit shows up on its own ~1s after the rebuild lands, with no HMR
+// websocket (which we deliberately avoid through Caddy's self-signed TLS).
+function devBuildId(): string {
+  try {
+    return String(statSync(join(distDir, 'index.html')).mtimeMs);
+  } catch {
+    return '0';
+  }
+}
+
+// Polls the build id and reloads when it changes. Relative URL resolves against
+// the injected <base href>, so it is base-path safe. Gets a CSP nonce from the
+// same pass that nonces index.html's own scripts. Only injected when
+// DEV_HOT_RELOAD is on.
+const DEV_RELOAD_SCRIPT = `<script>
+(() => {
+  let current = null;
+  const poll = () =>
+    fetch('__dev/reload-id', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.text() : null))
+      .then((id) => {
+        if (id == null) return;
+        if (current === null) current = id;
+        else if (id !== current) location.reload();
+      })
+      .catch(() => {});
+  setInterval(poll, 1000);
+})();
+</script>`;
+
 function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
@@ -432,10 +479,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       camera: [],
       microphone: ['self'],
       // Active features: location-request approval card uses geolocation;
-      // copy-to-clipboard hook is wired into many UI surfaces.
+      // copy-to-clipboard hook is wired into many UI surfaces; live-browser
+      // human takeover reads the host clipboard (`navigator.clipboard.readText`)
+      // to bridge a paste into the remote session — both need same-origin grants.
       geolocation: ['self'],
       clipboardWrite: ['self'],
-      clipboardRead: [],
+      clipboardRead: ['self'],
       usb: [],
       payment: [],
       bluetooth: [],
@@ -697,6 +746,14 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
+  // Dev live-reload build-id endpoint (polled by DEV_RELOAD_SCRIPT). Registered
+  // before the SPA catch-all so it is not swallowed by it; dev-only.
+  if (DEV_HOT_RELOAD) {
+    app.get('/__dev/reload-id', (c) =>
+      c.text(devBuildId(), 200, { 'Cache-Control': 'no-store' }),
+    );
+  }
+
   // Static files + index.html fallback (TanStack Router SPA).
   app.get('*', async (c) => {
     const pathname = new URL(c.req.url).pathname;
@@ -711,13 +768,18 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       }
     }
 
-    if (!indexHtmlTemplate) {
+    let template = indexHtmlTemplate;
+    if (template === null || DEV_HOT_RELOAD) {
       const indexFile = Bun.file(join(distDir, 'index.html'));
       if (!(await indexFile.exists())) {
         console.error(`Missing dist/index.html in ${distDir}`);
         return c.text('Internal Server Error', 500);
       }
-      indexHtmlTemplate = await indexFile.text();
+      template = await indexFile.text();
+      // Only memoize in production; in dev the next rebuild invalidates it.
+      if (!DEV_HOT_RELOAD) {
+        indexHtmlTemplate = template;
+      }
     }
 
     const acceptLanguage = c.req.header('accept-language') ?? '';
@@ -728,7 +790,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     // __ENV__ injection and any other inline scripts in index.html.
     const nonce = c.get('secureHeadersNonce');
 
-    let html = indexHtmlTemplate
+    let html = template
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
         `window.__ENV__ = ${JSON.stringify(env)};`,
@@ -737,6 +799,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
         `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
+
+    // Inject the dev live-reload poller before nonce-stamping so it is covered
+    // by the same CSP nonce pass as index.html's own scripts.
+    if (DEV_HOT_RELOAD) {
+      html = html.replace('</body>', `    ${DEV_RELOAD_SCRIPT}\n  </body>`);
+    }
 
     if (nonce) {
       html = html.replace(
@@ -752,7 +820,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     );
 
     return new Response(html, {
-      headers: { 'Content-Type': 'text/html' },
+      headers: {
+        'Content-Type': 'text/html',
+        // In dev, never let the browser reuse a cached shell — a live-reload
+        // must fetch the freshly-published index.html (new chunk hashes).
+        ...(DEV_HOT_RELOAD ? { 'Cache-Control': 'no-store' } : {}),
+      },
     });
   });
 

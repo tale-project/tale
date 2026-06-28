@@ -1,7 +1,7 @@
 'use client';
 
 import { Grid } from '@tale/ui/layout';
-import { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { cn } from '@/lib/utils/cn';

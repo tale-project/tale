@@ -79,16 +79,29 @@ that _delegates_ to its skill. Author a skill only when the agent (or another sk
 its own. And if a built-in/harness skill already does the job (`react-doctor`, `code-review`,
 `claude-api`), reference it — a custom skill must add Tale-specific value.
 
+## Repo-only here; shared/product skills live in `skills/`
+
+A skill in `.claude/skills/` is a **repo-dev coding guide** (docs only). A skill that must also ship to
+**product agents** — or that ships to them only (like `pptx`) — instead has its source of truth under
+the root [`skills/`](../../../skills/) dir: author `skills/<name>/`, register it in
+[`tools/skills/src/manifest.ts`](../../../tools/skills/src/manifest.ts) with its `targets` (`'claude'`
+and/or `'builtin'`), and run `bun run skills:sync` to generate the committed copies + the cross-tool
+pointers. Scaffold one with `bun run gen skill`. Such a skill may ship runnable code in
+`<skill>/scripts/`, invoked skill-relative (`bun scripts/<name>.ts` / `python scripts/<name>.py`); bun
+scripts must be self-contained (only `node:*`, `bun`/`bun:*`, relative imports — `skills:check` enforces
+it). **Never hand-edit a synced copy** under `.claude/skills/` or `builtin-configs/skills/`.
+
 ## Register it — non-negotiable
 
 Adding a skill means **adding its row to the skill index in [`/AGENTS.md`](../../../AGENTS.md)**;
 removing one removes that row; renaming updates it. The index is the map every agent reads — if it
 lies, agents load the wrong thing. Then set the skill's file globs in
-[`skill-globs.json`](../../skill-globs.json) (empty array = activity-scoped) and regenerate the
-cross-tool adapters with `bun .claude/gen-skill-adapters.mjs`. Same change, every time.
+[`skill-globs.json`](../../skill-globs.json) (empty array = activity-scoped) and run `bun run skills:sync`
+(the [`@tale/skills`](../../../tools/skills/) tool) to regenerate the Cursor/Codex/Copilot pointers.
+Same change, every time.
 
 ## After writing
 
-Run [`.claude/check-skill-links.mjs`](../../check-skill-links.mjs): it fails on a dead link, a `name`
-≠ directory, an index out of sync, a missing globs entry, or stale adapters. A skill ships only when
-it passes.
+Run `bun run skills:check` (it also runs in CI as a test): it fails on an out-of-date Cursor/Codex/Copilot
+pointer, a synced copy that drifted from its `skills/` source, a `SKILL.md` command pointing at a missing
+script, or a shipped bun script that isn't self-contained. A skill ships only when it passes.

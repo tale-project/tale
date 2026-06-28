@@ -3,10 +3,10 @@
  * This should be called after successfully processing a document.
  */
 
-import { Id } from '../../_generated/dataModel';
-import { MutationCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { ConvexJsonRecord } from '../../lib/validators/json';
-import { ExtendedTableName } from './types';
+import type { ExtendedTableName } from './types';
 
 export interface RecordProcessedArgs {
   organizationId: string;

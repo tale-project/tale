@@ -17,10 +17,8 @@
  */
 
 import type { RetentionPolicyConfig } from '@/lib/shared/schemas/governance';
-import {
-  type RetentionCategory,
-  RETENTION_CATEGORIES,
-} from '@/lib/shared/schemas/retention';
+import type { RETENTION_CATEGORIES } from '@/lib/shared/schemas/retention';
+import { type RetentionCategory } from '@/lib/shared/schemas/retention';
 
 export type CategoryId = RetentionCategory;
 

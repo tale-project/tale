@@ -307,12 +307,13 @@ export interface SpawnerConfig {
   // pulls resolve by name on the internal net (buildkit can't resolve external
   // registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
-  // Live browser view (env SANDBOX_BROWSER_VIEW; default false). When true the
-  // session container is launched with TALE_BROWSER_CDP=1, so the entrypoint
-  // brings up a headed Chromium with a loopback CDP endpoint mirrored read-only
-  // by x11vnc; the platform must also set its own SANDBOX_BROWSER_VIEW so the
-  // adapter attaches Playwright MCP over CDP (the two sides MUST agree — a
-  // deployment-level operator decision). Off ⇒ today's headless behavior.
+  // Live browser view (env SANDBOX_BROWSER_VIEW; default true — opt out with
+  // SANDBOX_BROWSER_VIEW=0). When true the session container is launched with
+  // TALE_BROWSER_CDP=1, so the entrypoint brings up a headed Chromium with a
+  // loopback CDP endpoint mirrored read-only by x11vnc; the platform reads the
+  // same SANDBOX_BROWSER_VIEW so the adapter attaches Playwright MCP over CDP
+  // (the two sides MUST agree — a deployment-level operator decision, and they
+  // do agree on the shared default when it is unset). Off ⇒ headless behavior.
   browserView: boolean;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs

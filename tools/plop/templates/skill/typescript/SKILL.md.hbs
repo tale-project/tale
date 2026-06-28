@@ -1,0 +1,28 @@
+---
+name: {{kebabCase name}}
+description: {{description}}
+---
+
+# {{kebabCase name}}
+
+{{description}}
+
+## When this applies
+
+<!-- Replace with the concrete triggers (paths, verbs, symptoms) that should load
+     this skill. The `description` above is what an agent reads to decide. -->
+
+## Usage
+
+The bundled script is self-contained and invoked skill-relative, so it resolves
+the same way wherever the skill is installed (`.claude/skills/`,
+`builtin-configs/skills/`, or a per-org runtime dir):
+
+```bash
+bun scripts/main.ts
+```
+
+## The rules
+
+<!-- Replace with the non-negotiables, each with its *why* in the same breath.
+     Keep the whole file scannable (≤ ~150 lines). -->

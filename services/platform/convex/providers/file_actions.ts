@@ -52,8 +52,8 @@ import {
   resolveGatewayRouting,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import type { requireDeveloperSettingsAccess } from './auth';
 import {
-  requireDeveloperSettingsAccess,
   requireDeveloperSettingsAccessById,
   requireOrgMembership,
   requireOrgMembershipById,
