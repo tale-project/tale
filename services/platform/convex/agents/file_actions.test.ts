@@ -210,6 +210,31 @@ describe('deleteAgent', () => {
     ).rejects.toThrow('Authentication required.');
   });
 
+  it('rejects a plain member lacking the developerSettings capability', async () => {
+    // deleteAgent now gates on `developerSettings` (requireOrgAdminOrDeveloper),
+    // matching create/duplicate/save. The real gate runs on top of the mocked
+    // membership helper, so a `member` role must be rejected before any deletion.
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    const ctx = createMockCtx();
+
+    await expect(
+      deleteHandler(
+        ctx as never,
+        { organizationId: 'org-123', agentName: 'my-agent' } as never,
+      ),
+    ).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
+    });
+    expect(mockUnlink).not.toHaveBeenCalled();
+  });
+
   it('ignores ENOENT from unlink (file already absent)', async () => {
     const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
     mockUnlink.mockRejectedValue(enoent);

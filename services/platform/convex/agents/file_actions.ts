@@ -876,7 +876,14 @@ export const deleteAgent = action({
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    // Deleting a custom agent destroys it and its full history, and can carry
+    // away skill-laundered grants — strictly more destructive than the
+    // create/duplicate/save paths, all of which gate on `developerSettings`
+    // (see :764 duplicateAgent, :537 saveAgent). A plain `member` is hidden
+    // from the matching UI by `cannot('read','developerSettings')` but could
+    // previously call this action directly via the Convex client. Gate it on
+    // the same capability so action-layer auth matches route-layer auth.
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const filePath = await resolveAgentPath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
