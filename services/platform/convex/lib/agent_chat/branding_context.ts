@@ -57,8 +57,13 @@ export async function readOrgBrandingConfig(
   let filePath: string;
   try {
     filePath = resolveBrandingFilePath(orgSlug);
-  } catch {
-    // Invalid org slug — branding is optional, so degrade silently.
+  } catch (err) {
+    // Invalid org slug — branding is optional, so degrade to "no branding",
+    // but log it (never swallow): a malformed slug here points at a caller bug.
+    console.warn(
+      `[branding_context] Invalid org slug "${orgSlug}"; skipping branding:`,
+      err instanceof Error ? err.message : err,
+    );
     return null;
   }
 
