@@ -6893,26 +6893,27 @@
     "nameShapeHint": "Großbuchstaben, Zahlen und Unterstriche; muss mit einem Buchstaben beginnen.",
     "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
-<<<<<<< HEAD
     "editButton": "Bearbeiten",
     "editTitle": "Secret bearbeiten",
     "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
     "updateSuccess": "Secret aktualisiert",
     "deleteSuccess": "Secret gelöscht",
+    "overwriteWarningTitle": "Name bereits vergeben",
+    "overwriteWarningBody": "Ein Secret mit dem Namen {names} existiert bereits. Beim Speichern wird sein gespeicherter Wert ersetzt — das kann nicht rückgängig gemacht werden.",
+    "overwriteConfirmLabel": "Vorhandenes Secret überschreiben",
+    "overwriteButton": "Überschreiben",
     "errors": {
+      "accessDeniedTitle": "Admin-Zugriff erforderlich",
       "nameInvalid": "Nur Großbuchstaben, Zahlen und Unterstriche verwenden, beginnend mit einem Buchstaben (max. 64 Zeichen).",
       "valueInvalid": "Einen Wert mit 1 bis 8192 Zeichen eingeben.",
       "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an und versuche es noch einmal.",
       "forbidden": "Du hast keine Berechtigung, die Secrets dieses Projekts zu verwalten.",
-      "projectNotFound": "Dieses Projekt wurde nicht gefunden. Es wurde möglicherweise gelöscht."
+      "projectNotFound": "Dieses Projekt wurde nicht gefunden. Es wurde möglicherweise gelöscht.",
+      "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf die Secrets dieses Projekts. Nur Projekt-Administratoren können sie ansehen oder verwalten.",
+      "PROJECT_NOT_FOUND": "Dieses Projekt existiert nicht mehr.",
+      "SECRET_NAME_INVALID": "Secret-Namen müssen mit einem Buchstaben beginnen und dürfen nur Großbuchstaben, Zahlen und Unterstriche enthalten (max. 64 Zeichen).",
+      "SECRET_VALUE_INVALID": "Gib einen Secret-Wert mit 1 bis 8192 Zeichen ein."
     }
-=======
-    "deleteSuccess": "Secret gelöscht",
-    "overwriteWarningTitle": "Name bereits vergeben",
-    "overwriteWarningBody": "Ein Secret mit dem Namen {names} existiert bereits. Beim Speichern wird sein gespeicherter Wert ersetzt — das kann nicht rückgängig gemacht werden.",
-    "overwriteConfirmLabel": "Vorhandenes Secret überschreiben",
-    "overwriteButton": "Überschreiben"
->>>>>>> b60bb76a3 (fix: confirm before overwriting an existing project secret (#1983))
   },
   "tasks": {
     "attachments": {

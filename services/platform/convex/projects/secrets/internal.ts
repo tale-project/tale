@@ -38,7 +38,7 @@ export const requireProjectAdminInternal = internalQuery({
     });
     const teamIds = await getUserTeamIds(ctx, member.userId);
     if (!checkProjectAccess(project, teamIds, member.role).canAdminister) {
-      throw new ConvexError({ code: 'SECRET_FORBIDDEN' });
+      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
     }
     return { projectName: project.name };
   },

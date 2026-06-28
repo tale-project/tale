@@ -23,9 +23,15 @@ const mockSetMutateAsync = vi.fn().mockResolvedValue(undefined);
 const mockSetPairMutateAsync = vi.fn().mockResolvedValue(undefined);
 const mockDeleteMutateAsync = vi.fn().mockResolvedValue(undefined);
 let secretsFixture: { name: string; description?: string }[] = [];
+let secretsErrorFixture: unknown = undefined;
 
 vi.mock('../hooks/secrets', () => ({
-  useProjectSecrets: () => ({ secrets: secretsFixture, isLoading: false }),
+  useProjectSecrets: () => ({
+    secrets: secretsFixture,
+    isLoading: false,
+    error: secretsErrorFixture,
+    isError: secretsErrorFixture !== undefined,
+  }),
   useSetProjectSecret: () => ({
     mutateAsync: mockSetMutateAsync,
     isPending: false,
@@ -75,6 +81,7 @@ describe('ProjectSecretsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     secretsFixture = [];
+    secretsErrorFixture = undefined;
   });
 
   describe('rendering', () => {
@@ -106,6 +113,54 @@ describe('ProjectSecretsTab', () => {
       expect(screen.queryByText('No secrets yet.')).not.toBeInTheDocument();
 
       await checkAccessibility(container, NO_HEADING_ORDER);
+    });
+  });
+
+  describe('access denied', () => {
+    it('shows a translated access-denied notice and no Add-secret button when the query is forbidden', async () => {
+      secretsErrorFixture = new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      const { container } = renderTab();
+
+      expect(screen.getByText('Admin access required')).toBeInTheDocument();
+      expect(
+        screen.getByText(/Only project administrators can view or manage/),
+      ).toBeInTheDocument();
+      // The dead-end affordances must be gone: no empty state, no Add button,
+      // and no agent-access warning.
+      expect(
+        screen.queryByRole('button', { name: 'Add secret' }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText('No secrets yet.')).not.toBeInTheDocument();
+
+      await checkAccessibility(container, NO_HEADING_ORDER);
+    });
+
+    it('shows the distinct not-found message when the query reports PROJECT_NOT_FOUND', async () => {
+      secretsErrorFixture = new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+      const { container } = renderTab();
+
+      expect(screen.getByText('Admin access required')).toBeInTheDocument();
+      expect(
+        screen.getByText('This project no longer exists.'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Only project administrators can view or manage/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Add secret' }),
+      ).not.toBeInTheDocument();
+
+      await checkAccessibility(container, NO_HEADING_ORDER);
+    });
+
+    it('treats an UNAUTHENTICATED query error as access denied', async () => {
+      secretsErrorFixture = new ConvexError({ code: 'UNAUTHENTICATED' });
+      renderTab();
+
+      expect(screen.getByText('Admin access required')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Add secret' }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -438,6 +493,77 @@ describe('ProjectSecretsTab', () => {
       expect(screen.queryByText('Name already in use')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
     });
+  });
+
+  describe('save error handling', () => {
+    async function fillAndSave(user: ReturnType<typeof renderTab>['user']) {
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+      await user.type(
+        screen.getByLabelText('Name', { exact: false }),
+        'my_secret',
+      );
+      await user.type(
+        screen.getByLabelText('API key', { exact: false }),
+        'some-secret-value',
+      );
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+    }
+
+    const cases: { error: unknown; title: string }[] = [
+      {
+        error: new ConvexError({ code: 'SECRET_NAME_INVALID' }),
+        title:
+          'Secret names must start with a letter and contain only uppercase letters, numbers, and underscores (max 64 characters).',
+      },
+      {
+        error: new ConvexError({ code: 'SECRET_VALUE_INVALID' }),
+        title: 'Enter a secret value between 1 and 8192 characters.',
+      },
+      {
+        error: new ConvexError({ code: 'PROJECT_FORBIDDEN' }),
+        title:
+          "You don't have access to this project's secrets. Only project administrators can view or manage them.",
+      },
+      {
+        error: new ConvexError({ code: 'PROJECT_NOT_FOUND' }),
+        title: 'This project no longer exists.',
+      },
+      {
+        error: new Error('Missing ENCRYPTION_SECRET_HEX environment variable'),
+        title:
+          "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
+      },
+      {
+        error: new Error('boom'),
+        title: 'Something went wrong. Please try again.',
+      },
+    ];
+
+    for (const { error, title } of cases) {
+      const label =
+        error instanceof ConvexError
+          ? // oxlint-disable-next-line typescript/no-unsafe-member-access -- test fixture code
+            (error.data.code as string)
+          : (error as Error).message;
+      it(`maps a ${label} failure to its translated toast`, async () => {
+        const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockSetMutateAsync.mockRejectedValueOnce(error);
+        const { user } = renderTab();
+
+        await fillAndSave(user);
+
+        await waitFor(() => {
+          expect(mockToast).toHaveBeenCalledWith(
+            expect.objectContaining({ title, variant: 'destructive' }),
+          );
+        });
+        expect(mockToast).not.toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'success' }),
+        );
+        errSpy.mockRestore();
+      });
+    }
   });
 
   describe('delete', () => {
