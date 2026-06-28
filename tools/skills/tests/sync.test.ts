@@ -63,7 +63,7 @@ async function run(
 function scaffoldDemo(): void {
   writeUnder(
     'skills/demo-skill/SKILL.md',
-    '# Demo\nRun `bun scripts/hello.ts`.\n',
+    '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\nRun `bun scripts/hello.ts`.\n',
   );
   writeUnder(
     'skills/demo-skill/scripts/hello.ts',
@@ -149,7 +149,10 @@ describe('runSync', () => {
   });
 
   test('binary assets round-trip byte-identical', async () => {
-    writeUnder('skills/demo-skill/SKILL.md', '# Demo\n');
+    writeUnder(
+      'skills/demo-skill/SKILL.md',
+      '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\n',
+    );
     const bytes = new Uint8Array([0, 1, 2, 250, 255]);
     writeUnder('skills/demo-skill/assets/logo.bin', bytes);
     await run([{ name: 'demo-skill', targets: ['builtin'] }], false);
@@ -160,7 +163,10 @@ describe('runSync', () => {
   });
 
   test('check fails the portability guard on a bare import', async () => {
-    writeUnder('skills/demo-skill/SKILL.md', '# Demo\n');
+    writeUnder(
+      'skills/demo-skill/SKILL.md',
+      '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\n',
+    );
     writeUnder(
       'skills/demo-skill/scripts/bad.ts',
       `import { z } from 'zod';\n`,

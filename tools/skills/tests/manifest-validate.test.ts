@@ -100,6 +100,18 @@ describe('validateManifest', () => {
       validateManifest([entry('ghost-skill', ['builtin'])], root),
     ).toThrow(/no skills\/ghost-skill\/SKILL\.md/);
   });
+
+  test('rejects a SKILL.md whose frontmatter name disagrees with the directory', () => {
+    const dir = join(root, 'skills', 'demo-skill');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'SKILL.md'),
+      '---\nname: not-demo-skill\ndescription: x\n---\n',
+    );
+    expect(() =>
+      validateManifest([entry('demo-skill', ['builtin'])], root),
+    ).toThrow(/exactly equal the directory name/);
+  });
 });
 
 describe('the committed SKILLS_MANIFEST', () => {

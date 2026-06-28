@@ -3,7 +3,7 @@
  * malformed manifest fails with a named error before any disk diff.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { SkillManifestEntry, SkillTarget } from './manifest';
@@ -114,5 +114,41 @@ export function validateManifest(
         `skills manifest: skill "${name}" has no skills/${name}/SKILL.md`,
       );
     }
+
+    // The SKILL.md `name` MUST equal the directory name exactly. The name is the
+    // skill's identity everywhere it ships, so a repo/org skill of the same name
+    // (`.claude/skills/pptx`, or an org-uploaded `pptx`) overrides the builtin
+    // (`builtin-configs/skills/pptx`) by an exact-name match — at sandbox-staging
+    // time and at chat upload-overwrite time alike. A renamed or prefixed builtin
+    // would silently dodge that precedence, so it is a hard error.
+    const frontmatterName = readSkillName(readFileSync(skillMd, 'utf8'));
+    if (frontmatterName !== name) {
+      throw new Error(
+        `skills manifest: skills/${name}/SKILL.md frontmatter name is ` +
+          `${frontmatterName === null ? 'missing' : `"${frontmatterName}"`}, but it must ` +
+          `exactly equal the directory name "${name}" — the skill's identity for ` +
+          `repo/org-over-builtin precedence.`,
+      );
+    }
   }
+}
+
+/** Extract the frontmatter `name:` value from a SKILL.md (null if absent). */
+function readSkillName(md: string): string | null {
+  if (!md.startsWith('---')) return null;
+  const end = md.indexOf('\n---', 3);
+  if (end === -1) return null;
+  for (const line of md.slice(3, end).split('\n')) {
+    const match = /^name:\s*(.+?)\s*$/.exec(line);
+    if (!match) continue;
+    let value = match[1].trim();
+    if (
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('"') && value.endsWith('"'))
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value;
+  }
+  return null;
 }
