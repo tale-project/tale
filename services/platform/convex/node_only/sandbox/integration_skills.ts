@@ -17,6 +17,7 @@ import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
+import { selectStageableSkills } from '../../lib/skills/precedence';
 import {
   sessionDeleteFiles,
   sessionListFiles,
@@ -171,10 +172,45 @@ ${SLUG_APPENDIX[entry.slug] ?? ''}`;
 }
 
 /**
+ * Workspace-relative dirs (under WORKSPACE_ROOT=/user) where a checked-out repo
+ * declares its OWN skills. The repo is authoritative — Tale defers to it.
+ */
+const REPO_SKILL_DIRS = ['workspace/.claude/skills', 'workspace/.codex/skills'];
+
+/**
+ * Names of skills the workspace repo provides (project-level), so Tale's
+ * user-level staged skills can defer to them on a name collision. Best-effort:
+ * returns an empty set on any failure (or when there is no repo), so the
+ * precedence check never fails a turn. `.claude/skills/<name>/` are directories;
+ * `.codex/skills/<name>.md` are files.
+ */
+async function repoOwnedSkillNames(sessionId: string): Promise<Set<string>> {
+  const names = new Set<string>();
+  for (const dir of REPO_SKILL_DIRS) {
+    try {
+      const entries = await sessionListFiles(sessionId, dir);
+      for (const entry of entries ?? []) {
+        if (entry.type === 'dir') {
+          names.add(entry.name);
+        } else if (entry.name.endsWith('.md')) {
+          names.add(entry.name.slice(0, -'.md'.length));
+        }
+      }
+    } catch (err) {
+      console.warn(`[skill-precedence] listing ${dir} failed (ignoring):`, err);
+    }
+  }
+  return names;
+}
+
+/**
  * Stage every org integration as a CC-native skill into the session's
  * CLAUDE_CONFIG_DIR (/user/.runtime/home/.claude/skills/<name>/SKILL.md). Run
  * per-turn so a connect/disconnect/binding change is reflected next turn.
  * Best-effort — callers swallow failures so skill staging never fails a turn.
+ *
+ * Repo precedence: a skill the workspace repo already defines (by name) wins —
+ * Tale does not stage its own copy (see lib/skills/precedence.ts).
  */
 export async function stageIntegrationSkills(
   ctx: ActionCtx,
@@ -215,7 +251,24 @@ export async function stageIntegrationSkills(
   }
 
   if (catalog.length === 0) return;
-  const files: SessionStageFile[] = catalog.map((entry) => ({
+
+  // Repo precedence: if the workspace already defines a skill with the same
+  // name, defer to it — don't stage Tale's copy.
+  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  const { kept, dropped } = selectStageableSkills(
+    catalog,
+    (entry) => `${INTEGRATION_SKILL_PREFIX}${entry.slug}`,
+    repoSkills,
+  );
+  if (dropped.length > 0) {
+    console.info(
+      '[stageIntegrationSkills] workspace repo provides these skills; deferring to it:',
+      dropped,
+    );
+  }
+  if (kept.length === 0) return;
+
+  const files: SessionStageFile[] = kept.map((entry) => ({
     path: `${SKILLS_DIR}/${INTEGRATION_SKILL_PREFIX}${entry.slug}/SKILL.md`,
     contentBase64: Buffer.from(
       buildIntegrationSkillMd(entry, { nativeWebTools: args.nativeWebTools }),
@@ -245,6 +298,14 @@ export async function stageBrowserControlSkill(
   // for parity with stageIntegrationSkills and in case the text ever needs org
   // context. Reference it to satisfy no-unused-vars without changing callers.
   void ctx;
+  // Repo precedence: defer to a workspace skill of the same name.
+  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  if (repoSkills.has(BROWSER_CONTROL_SKILL)) {
+    console.info(
+      '[stageBrowserControlSkill] workspace repo provides browser-human-control; deferring to it.',
+    );
+    return;
+  }
   const result = await sessionStageFiles(args.sessionId, [
     {
       path: `${SKILLS_DIR}/${BROWSER_CONTROL_SKILL}/SKILL.md`,

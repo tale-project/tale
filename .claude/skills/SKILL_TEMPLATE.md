@@ -67,5 +67,6 @@ Plus the structural rules:
 - **Don't duplicate the ecosystem.** If a built-in/harness skill already does the job (`react-doctor`,
   `code-review`, `claude-api`), reference it; a custom skill must add Tale-specific value.
 - **Register it.** Add the skill's row to the index in `/AGENTS.md`, set its globs in
-  `.claude/skill-globs.json`, and run `bun .claude/gen-skill-adapters.mjs` — same change. Then
-  `bun .claude/check-skill-links.mjs` must pass (links resolve, `name` == dir, index + adapters in sync).
+  `.claude/skill-globs.json`, and run `bun run skills:sync` — same change. Then `bun run skills:check`
+  must pass (links resolve, `name` == dir, copies + Cursor/Codex/Copilot pointers in sync). A
+  shared/product skill instead lives under `skills/` + `tools/skills/src/manifest.ts` — see `write-skill`.

@@ -1,4 +1,4 @@
-import { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 import { createAuth } from '../../auth';
 import { signCookieValue } from '../sign_cookie_value';
 

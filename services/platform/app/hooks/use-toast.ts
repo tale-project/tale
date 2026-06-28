@@ -1,7 +1,8 @@
 'use client';
 
 import type { ToastActionElement, ToastProps } from '@tale/ui/toast';
-import { ReactNode, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 const TOAST_LIMIT = 1;
 // Time to wait between Radix's `open=false` flip and removing the toast from

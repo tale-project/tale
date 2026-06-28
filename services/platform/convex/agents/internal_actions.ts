@@ -22,7 +22,7 @@ import {
   resolveAgentFilePathFromRelative,
   walkAgentRelativePaths,
 } from './file_utils';
-import { knowledgeFileRagStatusValidator } from './schema';
+import type { knowledgeFileRagStatusValidator } from './schema';
 import { agentSlugFromFileName } from './validators';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;

@@ -1,0 +1,16 @@
+"""{{kebabCase name}} — example skill script.
+
+Invoke it from the skill directory:
+
+    python scripts/main.py [name]
+"""
+
+import sys
+
+
+def greet(target: str) -> str:
+    return f"hello {target} from {{kebabCase name}}"
+
+
+if __name__ == "__main__":
+    print(greet(sys.argv[1] if len(sys.argv) > 1 else "world"))

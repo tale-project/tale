@@ -76,6 +76,7 @@ If you didn't verify it, it isn't done — say so rather than claiming it. Paste
 - [ ] Updated `/docs/{en,de,fr}/` for every user-visible change, with a real opening + closing — or N/A.
 - [ ] Tests carry the change: unit (happy + one edge + one error), and a manual QA guide for user-visible behaviour — or N/A.
 - [ ] Updated `README.md`, `README.de.md`, `README.fr.md` — or N/A.
+- [ ] A new "part" (service / package / tool / skill) was scaffolded from a template (`bun run gen …`), not hand-rolled — so it carries the standard `.oxlintrc.json` / `tsconfig` / `.gitignore` / `tests/` / `README` — or N/A.
 - [ ] Verified the real outcome (ran it / browser / Convex MCP), not just inspected the diff.
 - [ ] Instructions current — if you changed a path, command, or pattern a skill or `AGENTS.md` documents, updated it (skills are docs too) — or N/A.
 
@@ -97,8 +98,8 @@ A change is rarely one file. Expand a local edit into its blast radius:
 | Error wording / validation / rate limit                                                                                                                                                                                                                                                                                                   | docs(3) · tests · i18n                                                                                                                                                                                                                         |
 | A date display                                                                                                                                                                                                                                                                                                                            | `useFormatDate()` — never `toLocale*`                                                                                                                                                                                                          |
 | A new query/mutation                                                                                                                                                                                                                                                                                                                      | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader                                                                                                                                                        |
-| A path/command/pattern a skill or `AGENTS.md` documents                                                                                                                                                                                                                                                                                   | update that guide + the skill index · run `bun .claude/check-skill-links.mjs`                                                                                                                                                                  |
-| A skill added/renamed/rescoped                                                                                                                                                                                                                                                                                                            | set globs in `.claude/skill-globs.json` · `bun .claude/gen-skill-adapters.mjs` (Cursor/Copilot)                                                                                                                                                |
+| A path/command/pattern a skill or `AGENTS.md` documents                                                                                                                                                                                                                                                                                   | update that guide + the skill index · `bun run skills:check`                                                                                                                                                                                   |
+| A skill added/renamed/rescoped, or a `skills/` source / `SKILL.md` edited                                                                                                                                                                                                                                                                 | register in `tools/skills/src/manifest.ts` + set globs in `.claude/skill-globs.json` · `bun run skills:sync` (regenerates the `.claude/skills` / `builtin-configs/skills` copies + Cursor/Codex/Copilot pointers)                              |
 
 → Full guide: [`definition-of-done`](.claude/skills/definition-of-done/SKILL.md), [`ship`](.claude/skills/ship/SKILL.md)
 
@@ -345,14 +346,28 @@ Load the relevant guide before working in an area. Adding or removing a skill up
 is the map every agent reads). Skills live in [`.claude/skills/`](.claude/skills/); authoring standard
 in [`SKILL_TEMPLATE.md`](.claude/skills/SKILL_TEMPLATE.md).
 
-**Cross-tool auto-attach.** A `SKILL.md` is the single source of truth, surfaced four ways: Claude Code
-loads it natively; Cursor and Copilot pull it in by file context via generated pointers
-([`.cursor/rules/<skill>.mdc`](.cursor/rules/) with `globs:`, [`.github/instructions/<skill>.instructions.md`](.github/instructions/)
-with `applyTo:`); Codex/Gemini reach it through this index. The pointers are **generated** — never edit
-them by hand. After adding/renaming a skill or changing its scope, set its file globs in
+**Shared & product skills.** Most skills here are repo-dev coding guides (docs only) authored directly
+in `.claude/skills/`. A skill that must also ship to **product agents** — or that ships to them only
+(like `pptx`) — instead has its source of truth under [`skills/`](skills/), synced into its targets by
+`bun run skills:sync` (the [`@tale/skills`](tools/skills/) tool):
+
+- repo-only guide → author in `.claude/skills/<name>/`; never synced.
+- shared / product skill → author under `skills/<name>/`, register it in
+  [`tools/skills/src/manifest.ts`](tools/skills/src/manifest.ts) with its `targets` (`'claude'` →
+  `.claude/skills/`, `'builtin'` → `builtin-configs/skills/`), then `bun run skills:sync`. Scaffold one
+  with `bun run gen skill`. It can ship runnable code in `<skill>/scripts/`, invoked skill-relative
+  (`bun scripts/<name>.ts` / `python scripts/<name>.py`) so it resolves the same way wherever it lands;
+  bun scripts stay self-contained (only `node:*`, `bun`/`bun:*`, relative imports).
+
+**Cross-tool auto-attach.** A `SKILL.md` is the single source of truth, surfaced to every harness:
+Claude Code loads `.claude/skills/` natively; Cursor, Codex, and Copilot pull it in via **generated**
+pointers ([`.cursor/rules/<skill>.mdc`](.cursor/rules/) with `globs:`,
+[`.codex/skills/<skill>.md`](.codex/skills/), and [`.github/instructions/<skill>.instructions.md`](.github/instructions/)
+with `applyTo:` — the last for glob-scoped skills only); Gemini reaches it through this index. Never
+edit a pointer by hand. After adding/renaming a skill or changing its scope, set its file globs in
 [`.claude/skill-globs.json`](.claude/skill-globs.json) (empty array = activity-scoped, no auto-attach)
-and run `bun .claude/gen-skill-adapters.mjs`. `bun .claude/check-skill-links.mjs` fails if the globs
-file or the generated adapters are out of sync.
+and run `bun run skills:sync`; `bun run skills:check` (run in CI as a test) fails if any pointer or
+synced copy is out of date.
 
 **Working method** — read before planning or finishing work:
 | Skill | Read before… |

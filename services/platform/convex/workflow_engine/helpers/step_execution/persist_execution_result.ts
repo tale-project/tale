@@ -4,10 +4,10 @@
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
-import { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 import { serializeVariables } from '../serialization/serialize_variables';
-import { StepDefinition, StepExecutionResult } from './types';
+import type { StepDefinition, StepExecutionResult } from './types';
 
 export async function persistExecutionResult(
   ctx: ActionCtx,

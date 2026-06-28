@@ -19,6 +19,9 @@
     "**/dist-ssr",
     "**/search-index-*.json",
     "tools/plop/templates",
-    "tools/opengrep/rules"
+    "tools/opengrep/rules",
+    ".cursor",
+    ".codex",
+    ".github/instructions"
   ]
 }

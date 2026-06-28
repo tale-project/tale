@@ -4,12 +4,13 @@
 
 import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
-import { Infer, v } from 'convex/values';
+import type { Infer } from 'convex/values';
+import { v } from 'convex/values';
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
-import { jsonValueValidator } from '../../../lib/validators/json';
+import type { jsonValueValidator } from '../../../lib/validators/json';
 import {
   SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS,
   SANDBOX_ADMISSION_POLL_BACKOFF_MS,

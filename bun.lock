@@ -429,6 +429,14 @@
         "typescript": "6.0.2",
       },
     },
+    "tools/skills": {
+      "name": "@tale/skills",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "1.3.11",
+        "typescript": "6.0.2",
+      },
+    },
   },
   "trustedDependencies": [
     "esbuild",
@@ -1952,6 +1960,8 @@
     "@tale/sandbox-runtime-daemon": ["@tale/sandbox-runtime-daemon@workspace:services/sandbox-runtime/daemon"],
 
     "@tale/shared": ["@tale/shared@workspace:packages/shared"],
+
+    "@tale/skills": ["@tale/skills@workspace:tools/skills"],
 
     "@tale/ui": ["@tale/ui@workspace:packages/ui"],
 
