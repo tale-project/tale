@@ -103,6 +103,12 @@ interface ConversationsListProps {
   loadMore?: (numItems: number) => void;
   /** Number of placeholder rows to render while `conversations` is undefined. */
   skeletonRows?: number;
+  /**
+   * Whether a client-side search/read-filter is active. When true, remaining
+   * backend pages are eagerly drained so the filter scans the full dataset
+   * rather than only already-loaded pages (#2054).
+   */
+  isFiltering?: boolean;
 }
 
 const priorityConfig = {
@@ -342,6 +348,7 @@ export function ConversationsList({
   paginationStatus,
   loadMore,
   skeletonRows = 12,
+  isFiltering = false,
 }: ConversationsListProps) {
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
@@ -383,6 +390,16 @@ export function ConversationsList({
     return () => observer.disconnect();
   }, [handleIntersect]);
 
+  // While a search/read-filter is active the client-side filter only matches
+  // already-loaded pages, and a filter that empties the loaded buffer hides the
+  // scroll sentinel above — so drive pagination directly here, draining pages
+  // until a match loads or the list is exhausted (#2054).
+  useEffect(() => {
+    if (isFiltering && paginationStatus === 'CanLoadMore' && loadMore) {
+      loadMore(PAGE_SIZE);
+    }
+  }, [isFiltering, paginationStatus, loadMore]);
+
   // One real tree, always. Loading, empty and populated states all render
   // inside the SAME <Skeletonize> wrapper so the base layout never shifts
   // between states (mirrors the DataTable body-state pattern):
@@ -394,6 +411,14 @@ export function ConversationsList({
   const isEmpty = conversations !== undefined && conversations.length === 0;
   const placeholderCount = Math.min(skeletonRows, 12);
 
+  // A filter narrowed the loaded buffer to zero, but more pages are still
+  // draining — show loading, not "no conversations", so a match on an un-loaded
+  // page isn't prematurely reported as empty (#2054).
+  const isSearchingMore =
+    isEmpty &&
+    isFiltering &&
+    (paginationStatus === 'CanLoadMore' || paginationStatus === 'LoadingMore');
+
   return (
     <Skeletonize
       loading={isLoading}
@@ -404,17 +429,29 @@ export function ConversationsList({
       className={cn(isEmpty && 'flex min-h-0 flex-1 flex-col')}
     >
       {isEmpty ? (
-        // Centered in the available space, no row dividers/border — it's a
-        // message, not a row, so it shouldn't read as a boxed-off list item.
-        <Stack
-          gap={0}
-          align="center"
-          justify="center"
-          className="flex-1 px-4 py-16 text-center"
-        >
-          <Inbox className="text-muted-foreground/60 mb-3 size-6" />
-          <Text variant="muted">{t('list.empty')}</Text>
-        </Stack>
+        isSearchingMore ? (
+          // Still draining backend pages for a match — show a spinner rather
+          // than the empty message so we don't flash a false "no results".
+          <Center className="min-h-0 flex-1 px-4 py-16">
+            <Loader2
+              className="text-muted-foreground size-5 animate-spin motion-reduce:animate-none"
+              role="status"
+              aria-label={t('history.loadingMore')}
+            />
+          </Center>
+        ) : (
+          // Centered in the available space, no row dividers/border — it's a
+          // message, not a row, so it shouldn't read as a boxed-off list item.
+          <Stack
+            gap={0}
+            align="center"
+            justify="center"
+            className="flex-1 px-4 py-16 text-center"
+          >
+            <Inbox className="text-muted-foreground/60 mb-3 size-6" />
+            <Text variant="muted">{t('list.empty')}</Text>
+          </Stack>
+        )
       ) : (
         <div className="divide-border divide-y border-b">
           <>

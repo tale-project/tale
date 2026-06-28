@@ -129,6 +129,12 @@ export function Conversations({
     return results;
   }, [paginatedResult.results, searchQuery, initialSearch, readFilter]);
 
+  // Search and the read-status filter run client-side over the loaded pages
+  // only, so while either is active we must keep draining backend pages — a
+  // match beyond the first page would otherwise be silently missed (#2054).
+  const isFiltering =
+    Boolean(searchQuery || initialSearch) || readFilter !== 'all';
+
   const {
     selectionState,
     handleConversationCheck,
@@ -375,6 +381,7 @@ export function Conversations({
           paginationStatus={paginatedResult.status}
           loadMore={paginatedResult.loadMore}
           skeletonRows={skeletonRows}
+          isFiltering={isFiltering}
         />
       </ConversationListPanel>
 
