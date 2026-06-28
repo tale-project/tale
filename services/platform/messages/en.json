@@ -1790,7 +1790,6 @@
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
-      "viewOnly": "View only",
       "connecting": "Connecting…",
       "streaming": "Live",
       "disconnected": "Stream ended",
@@ -1801,7 +1800,6 @@
       "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
       "ariaLabel": "Live view of the agent’s browser (read-only)",
       "ariaLabelControl": "Live browser — you are controlling it",
-      "controlling": "You’re in control",
       "takeControl": "Take control",
       "releaseControl": "Release control",
       "reset": "Reset browser (clears logins)",
