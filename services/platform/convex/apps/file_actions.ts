@@ -23,6 +23,7 @@ import {
   resolveAppDir,
   resolveAppManifestPath,
   resolveAppsDir,
+  resolveCatalogAppsDir,
 } from './file_utils';
 
 const MAX_VIEW_BYTES = 256 * 1024;
@@ -174,6 +175,75 @@ export const listApps = action({
         requiredConfig: manifest.requires?.config ?? [],
         views,
         ...(Object.keys(messages).length > 0 && { messages }),
+      });
+    }
+
+    return apps;
+  },
+});
+
+/**
+ * The built-in app CATALOG — every installable app from `<builtin>/apps/<slug>`,
+ * projected to the same summary shape as {@link listApps} (minus the per-install
+ * `views`/`messages`, which only materialize once an app is copied into the org).
+ *
+ * This is the in-UI discovery source: the Apps hub unions it with the org's
+ * installed apps so a fresh org can browse and install from the catalog instead
+ * of only ever seeing apps seeded out-of-band. Membership-gated; malformed
+ * manifests are skipped (never fail the whole list); a missing catalog dir
+ * yields an empty list.
+ */
+export const listCatalogApps = action({
+  args: { organizationId: v.string() },
+  returns: v.any(),
+  // oxlint-disable-next-line typescript/no-explicit-any -- heterogeneous app shapes at the API boundary
+  handler: async (ctx, args): Promise<any[]> => {
+    // Gate on org membership (discovery is an in-org action); the catalog itself
+    // is org-independent, so we don't need the resolved slug.
+    await requireOrgMembershipById(ctx, args.organizationId);
+
+    const catalogDir = resolveCatalogAppsDir();
+    let slugs: string[];
+    try {
+      const entries = await readdir(catalogDir, { withFileTypes: true });
+      slugs = entries
+        .filter((e) => e.isDirectory() && isValidAppSlug(e.name))
+        .map((e) => e.name);
+    } catch (err) {
+      if (errnoCode(err) === 'ENOENT') return [];
+      throw err;
+    }
+
+    const apps: Array<Record<string, unknown>> = [];
+    for (const slug of slugs.sort()) {
+      let manifest;
+      try {
+        const content = await readFile(
+          path.join(catalogDir, slug, 'app.json'),
+          'utf8',
+        );
+        manifest = appManifestSchema.parse(JSON.parse(content));
+      } catch (err) {
+        console.warn(`[listCatalogApps] skipping app "${slug}":`, err);
+        continue;
+      }
+      apps.push({
+        slug,
+        name: manifest.name,
+        description: manifest.description ?? '',
+        scope: appScope(manifest),
+        ...(manifest.icon !== undefined && { icon: manifest.icon }),
+        ...(manifest.messageNamespace !== undefined && {
+          messageNamespace: manifest.messageNamespace,
+        }),
+        workflows: manifest.workflows ?? [],
+        agents: manifest.agents ?? [],
+        functions: manifest.capabilities?.functions ?? [],
+        requiredIntegrations: manifest.requires?.integrations ?? [],
+        requiredConfig: manifest.requires?.config ?? [],
+        // Catalog entries carry no view docs: views are bundled per-install and
+        // only read off the org dir once the app is copied in.
+        views: [],
       });
     }
 

@@ -13,11 +13,11 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { type AppSummary, useApps } from '../hooks/use-apps';
+import { type AppSummary, useAppCatalog, useApps } from '../hooks/use-apps';
 import {
   type AppInstallState,
   useAppInstallActions,
@@ -39,7 +39,24 @@ function InstallBadge({ state }: { state: AppInstallState }) {
 
 export function AppsGrid({ organizationId }: { organizationId: string }) {
   const { t } = useT('apps');
-  const { apps, isLoading } = useApps(organizationId);
+  // The hub shows the UNION of the org's installed apps and the built-in
+  // catalog, keyed by slug. An installed entry wins (it carries the full
+  // per-install data); a catalog-only entry renders the discovery card with an
+  // Install button. This is what makes a fresh org's hub browsable instead of
+  // empty until apps are seeded out-of-band.
+  const { apps: installed, isLoading: installedLoading } =
+    useApps(organizationId);
+  const { apps: catalog, isLoading: catalogLoading } =
+    useAppCatalog(organizationId);
+  const isLoading = installedLoading || catalogLoading;
+  const apps = useMemo(() => {
+    const bySlug = new Map<string, AppSummary>();
+    for (const app of catalog) bySlug.set(app.slug, app);
+    for (const app of installed) bySlug.set(app.slug, app);
+    return Array.from(bySlug.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [installed, catalog]);
   const { bySlug } = useAppInstallStates(organizationId);
   const { install, isPending } = useAppInstallActions(organizationId);
   // The app whose install wizard is open. Project-scoped apps (need a target

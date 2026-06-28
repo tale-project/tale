@@ -87,3 +87,28 @@ export function useApps(organizationId: string): {
     error: q.error,
   };
 }
+
+/**
+ * The built-in app CATALOG — every installable app, whether or not it is already
+ * installed into this org. The Apps hub unions this with {@link useApps} so a
+ * fresh org can discover and install apps from the UI (the not-yet-installed
+ * ones show an Install button). Catalog summaries carry no `views`/`messages` —
+ * those materialize once an app is copied into the org and are read via
+ * {@link useApps} / {@link useAppPackLabels}.
+ */
+export function useAppCatalog(organizationId: string): {
+  apps: AppSummary[];
+  isLoading: boolean;
+  error: Error | null;
+} {
+  const q = useActionQuery(
+    ['apps', 'catalog', organizationId],
+    api.apps.file_actions.listCatalogApps,
+    { organizationId },
+  );
+  return {
+    apps: (q.data as AppSummary[] | undefined) ?? [],
+    isLoading: q.isLoading,
+    error: q.error,
+  };
+}

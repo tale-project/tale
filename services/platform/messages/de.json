@@ -175,6 +175,7 @@
       "error": "Workflow konnte nicht geladen werden: {error}"
     },
     "runs": {
+      "backToApp": "Zurück zur App",
       "none": "Noch keine Läufe.",
       "colRun": "Lauf",
       "colStatus": "Status",
