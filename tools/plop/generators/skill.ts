@@ -6,7 +6,7 @@ import type { ActionType, NodePlopAPI } from 'plop';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(here, '../templates/skill');
 
-type SkillKind = 'typescript' | 'python';
+type SkillKind = 'typescript' | 'plain';
 
 interface Answers {
   name: string;
@@ -14,12 +14,22 @@ interface Answers {
   kind: SkillKind;
 }
 
-// Files scaffolded per kind. A SKILL.md + a runnable, skill-relative entry
-// script (`bun scripts/main.ts` / `python scripts/main.py`); Python skills also
-// get the package marker every skill scripts/ dir carries.
+// Files scaffolded per kind. `typescript` is a `skills/*` workspace: SKILL.md +
+// README + package.json + tsconfig + a runnable, skill-relative `src/main.ts`
+// entry. TypeScript skills are Bun-native and test with `bun test` (co-located
+// `src/*.test.ts`). `plain` is a docs-only skill — just SKILL.md + README, no
+// code (e.g. a coding guide, or guidance for a runtime-provided tool).
 const FILES_BY_KIND: Record<SkillKind, string[]> = {
-  typescript: ['SKILL.md.hbs', 'scripts/main.ts.hbs'],
-  python: ['SKILL.md.hbs', 'scripts/main.py.hbs', 'scripts/__init__.py'],
+  typescript: [
+    'SKILL.md.hbs',
+    'README.md.hbs',
+    'package.json.hbs',
+    'tsconfig.json.hbs',
+    '.gitignore',
+    'src/main.ts.hbs',
+    'src/main.test.ts.hbs',
+  ],
+  plain: ['SKILL.md.hbs', 'README.md.hbs'],
 };
 
 export function registerSkill(plop: NodePlopAPI): void {
@@ -45,10 +55,10 @@ export function registerSkill(plop: NodePlopAPI): void {
       {
         type: 'list',
         name: 'kind',
-        message: 'Skill code kind:',
+        message: 'Skill kind:',
         choices: [
-          { name: 'TypeScript (run with bun)', value: 'typescript' },
-          { name: 'Python (run with uv/python)', value: 'python' },
+          { name: 'TypeScript (Bun workspace, bun test)', value: 'typescript' },
+          { name: 'Plain (docs-only, SKILL.md + README)', value: 'plain' },
         ],
         default: 'typescript',
       },

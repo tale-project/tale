@@ -127,7 +127,7 @@ const SPECS: GenSpec[] = [
     dir: 'skill',
     combos: [
       { name: 'x', description: 'd', kind: 'typescript' },
-      { name: 'x', description: 'd', kind: 'python' },
+      { name: 'x', description: 'd', kind: 'plain' },
     ],
   },
 ];

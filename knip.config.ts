@@ -140,6 +140,16 @@ export default {
       entry: ['tests/**/*.test.ts'],
       project: ['**/*.ts'],
     },
+    'skills/visual-aspect-analyzer': {
+      // Self-contained Bun/TS skill bundle: a library with a public embed API
+      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
+      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
+      // externally (by the agent / the sandbox-runtime image), not reached
+      // through the monorepo import graph, with co-located tests. Its source is
+      // the public surface, so it anchors the dead-code sweep directly.
+      entry: ['src/**/*.ts'],
+      project: ['**/*.ts'],
+    },
     'tools/cli': {
       project: ['**/*.ts'],
     },

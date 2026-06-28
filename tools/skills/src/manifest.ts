@@ -26,9 +26,12 @@ export interface SkillManifestEntry {
   readonly targets: readonly SkillTarget[];
 }
 
-export const SKILLS_MANIFEST = [
-  // The document-authoring skill shipped to product agents. Python bundle
-  // (scripts/**/*.py + reference .md); builtin-only — not used while developing
-  // the repo, so it is not synced into .claude/skills/.
-  { name: 'pptx', targets: ['builtin'] },
-] as const satisfies readonly SkillManifestEntry[];
+// Register a skill here ONLY when it is SHARED across targets — its source under
+// `skills/<name>/` is synced into `.claude/skills/` and/or `builtin-configs/skills/`.
+// Two kinds of skill are deliberately NOT here:
+//   - builtin-ONLY skills (e.g. pptx) live directly under `builtin-configs/skills/`,
+//     hand-maintained, and ship to product agents from there (CLI embed + per-org seed).
+//   - the `@tale/visual-aspect-analyzer` workspace under `skills/` is baked into the
+//     sandbox-runtime image, not synced.
+export const SKILLS_MANIFEST =
+  [] as const satisfies readonly SkillManifestEntry[];

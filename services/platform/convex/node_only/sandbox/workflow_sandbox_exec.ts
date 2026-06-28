@@ -65,7 +65,10 @@ import {
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
-import { stageIntegrationSkills } from './integration_skills';
+import {
+  reconcileBuiltinSkills,
+  stageIntegrationSkills,
+} from './integration_skills';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -992,13 +995,16 @@ export const runSandboxAgent = internalAction({
           );
         }
 
-        // 4. Stage the agent's bound integration skills (best-effort).
+        // 4. Stage the agent's bound integration skills (best-effort) and
+        // reconcile repo precedence for the image-baked builtin skills (the
+        // entrypoint symlinks those; this only drops ones the repo shadows).
         try {
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
             sessionId,
             nativeWebTools: byo || nativeWebTools === true,
           });
+          await reconcileBuiltinSkills(ctx, { sessionId });
         } catch (skillErr) {
           console.warn(
             '[runSandboxAgent] integration skill staging failed (continuing):',

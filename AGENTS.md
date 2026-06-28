@@ -347,17 +347,24 @@ is the map every agent reads). Skills live in [`.claude/skills/`](.claude/skills
 in [`SKILL_TEMPLATE.md`](.claude/skills/SKILL_TEMPLATE.md).
 
 **Shared & product skills.** Most skills here are repo-dev coding guides (docs only) authored directly
-in `.claude/skills/`. A skill that must also ship to **product agents** — or that ships to them only
-(like `pptx`) — instead has its source of truth under [`skills/`](skills/), synced into its targets by
-`bun run skills:sync` (the [`@tale/skills`](tools/skills/) tool):
+in `.claude/skills/`. Skills that ship to **product agents** live in one of these homes:
 
 - repo-only guide → author in `.claude/skills/<name>/`; never synced.
-- shared / product skill → author under `skills/<name>/`, register it in
+- builtin-ONLY product skill (e.g. `pptx`) → author directly under
+  [`builtin-configs/skills/<name>/`](builtin-configs/skills/); it ships from there (embedded in the CLI
+  binary, per-org seeded at chat time), hand-maintained, NOT synced from `skills/` or in the manifest.
+- shared skill (repo-dev **and** product) → author under `skills/<name>/`, register it in
   [`tools/skills/src/manifest.ts`](tools/skills/src/manifest.ts) with its `targets` (`'claude'` →
-  `.claude/skills/`, `'builtin'` → `builtin-configs/skills/`), then `bun run skills:sync`. Scaffold one
-  with `bun run gen skill`. It can ship runnable code in `<skill>/scripts/`, invoked skill-relative
-  (`bun scripts/<name>.ts` / `python scripts/<name>.py`) so it resolves the same way wherever it lands;
-  bun scripts stay self-contained (only `node:*`, `bun`/`bun:*`, relative imports).
+  `.claude/skills/`, `'builtin'` → `builtin-configs/skills/`), then `bun run skills:sync` (the
+  [`@tale/skills`](tools/skills/) tool).
+- self-contained Bun **workspace** skill (e.g. `@tale/visual-aspect-analyzer`) → author under
+  `skills/<name>/` as a `skills/*` workspace (`src/` entry + co-located `bun test`); baked into the
+  `services/sandbox-runtime` image, not synced.
+
+Scaffold a `skills/` skill with `bun run gen skill` — `typescript` (a Bun workspace: SKILL.md + README +
+`src/main.ts` + co-located `bun test`) or `plain` (docs-only: SKILL.md + README). Shipped TypeScript
+stays self-contained (only `node:*`, `bun`/`bun:*`, relative imports) so `bun src/main.ts` resolves the
+same way wherever it lands.
 
 **Cross-tool auto-attach.** A `SKILL.md` is the single source of truth, surfaced to every harness:
 Claude Code loads `.claude/skills/` natively; Cursor, Codex, and Copilot pull it in via **generated**
