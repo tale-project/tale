@@ -58,9 +58,9 @@ const PRODUCT = {
   status: 'active' as const,
 };
 
-function renderDialog() {
+function renderDialog(product: typeof PRODUCT = PRODUCT) {
   return render(
-    <ProductEditDialog isOpen={true} onClose={vi.fn()} product={PRODUCT} />,
+    <ProductEditDialog isOpen={true} onClose={vi.fn()} product={product} />,
   );
 }
 
@@ -95,5 +95,49 @@ describe('ProductEditDialog', () => {
         screen.getByText('products.edit.toast.duplicateName'),
       ).toBeInTheDocument();
     });
+  });
+
+  it('keeps the duplicate-name error and typed name across the optimistic update + rollback', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onError(new ConvexError({ code: 'DUPLICATE_PRODUCT_NAME' }));
+    });
+
+    const { user, rerender } = renderDialog();
+
+    const nameInput = screen.getByLabelText('products.edit.labels.name', {
+      exact: false,
+    });
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Existing product');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('products.edit.toast.duplicateName'),
+      ).toBeInTheDocument();
+    });
+
+    // The real `useUpdateProduct` optimistic update patches the cached product's
+    // name to the submitted value, then rolls it back when the server rejects.
+    // Each of those is a new `product` prop identity; the dialog must NOT reset
+    // the form (which would clear the field error and revert the typed name).
+    rerender(
+      <ProductEditDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        product={{ ...PRODUCT, name: 'Existing product' }}
+      />,
+    );
+    rerender(
+      <ProductEditDialog isOpen={true} onClose={vi.fn()} product={PRODUCT} />,
+    );
+
+    // Error survives and the user's input is preserved (not reverted).
+    expect(
+      screen.getByText('products.edit.toast.duplicateName'),
+    ).toBeInTheDocument();
+    expect(nameInput).toHaveValue('Existing product');
   });
 });

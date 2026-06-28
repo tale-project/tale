@@ -11,7 +11,12 @@ import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 export function useCreateProduct() {
-  return useConvexMutation(api.products.mutations.createProduct);
+  return useConvexMutation(api.products.mutations.createProduct, {
+    // The create dialog shows its own specific error toast (duplicate-name vs
+    // generic). Without this, the shared hook also fires a generic toast, so a
+    // duplicate name surfaces two contradictory toasts.
+    errorToast: false,
+  });
 }
 
 export function useBulkCreateProducts() {

@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid } from '@tale/ui/layout';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -114,18 +114,27 @@ export function ProductEditDialog({
 
   const status = watch('status');
 
+  // Seed the form from the product only on the open transition. Resetting on
+  // every `product` change would wipe field errors (e.g. the duplicate-name
+  // error) and the user's typed name mid-edit: a duplicate rename triggers the
+  // mutation's optimistic update (patches the cached product) then its rollback
+  // (reverts it), and each prop-identity change would otherwise fire `reset()`.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    reset({
-      name: product.name,
-      description: product.description || '',
-      imageUrl: product.imageUrl || '',
-      stock: product.stock?.toString() || '',
-      price: product.price?.toString() || '',
-      currency: product.currency || 'USD',
-      category: product.category || '',
-      status: product.status || 'draft',
-    });
-  }, [product, reset]);
+    if (isOpen && !wasOpen.current) {
+      reset({
+        name: product.name,
+        description: product.description || '',
+        imageUrl: product.imageUrl || '',
+        stock: product.stock?.toString() || '',
+        price: product.price?.toString() || '',
+        currency: product.currency || 'USD',
+        category: product.category || '',
+        status: product.status || 'draft',
+      });
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen, product, reset]);
 
   const onSubmit = (data: ProductFormData) => {
     updateProduct(
