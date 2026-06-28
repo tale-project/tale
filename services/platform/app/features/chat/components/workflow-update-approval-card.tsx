@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
 
 interface WorkflowUpdateApprovalCardProps {
@@ -144,7 +145,7 @@ function WorkflowUpdateApprovalCardComponent({
       });
       window.dispatchEvent(new CustomEvent('workflow-updated'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorApplyFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorApplyFailed')));
       console.error('Failed to approve workflow update:', err);
     } finally {
       setIsApproving(false);
@@ -164,9 +165,7 @@ function WorkflowUpdateApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
-      );
+      setError(mapApprovalError(err, tCommon, tCommon('errorRejectFailed')));
       console.error('Failed to reject workflow update:', err);
     } finally {
       setIsRejecting(false);

@@ -31,34 +31,11 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { convexErrorCode } from '@/lib/utils/convex-error';
 
+import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
 import { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
-
-/**
- * Map a thrown approval mutation error to a localized message. The backend
- * raises `ConvexError({ code })` for expected failures; a raw message would be
- * redacted to "Server Error" in prod, so we key off the structured code and
- * fall back to the caller's generic message for anything unrecognized.
- */
-export function mapApprovalError(
-  err: unknown,
-  tCommon: (key: string) => string,
-  fallback: string,
-): string {
-  switch (convexErrorCode(err)) {
-    case 'UNAUTHENTICATED':
-      return tCommon('errorNotAuthenticated');
-    case 'NOT_FOUND':
-      return tCommon('errorNotFound');
-    case 'ALREADY_RESOLVED':
-      return tCommon('errorAlreadyResolved');
-    default:
-      return fallback;
-  }
-}
 
 function ParameterImagePreview({ src, alt }: { src: string; alt: string }) {
   const [isOpen, setIsOpen] = useState(false);

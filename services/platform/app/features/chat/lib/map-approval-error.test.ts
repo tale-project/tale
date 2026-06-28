@@ -1,15 +1,14 @@
-// @vitest-environment jsdom
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { mapApprovalError } from './integration-approval-card';
+import { mapApprovalError } from './map-approval-error';
 
 // Identity translators tag the namespace so assertions show which message was
 // chosen: `c:` = approvalCommon (tCommon), bare fallback = the caller's default.
 const tCommon = (key: string) => `c:${key}`;
 const FALLBACK = 'fallback';
 
-describe('mapApprovalError (#2056)', () => {
+describe('mapApprovalError (#2009)', () => {
   it('maps UNAUTHENTICATED to the not-authenticated message', () => {
     const err = new ConvexError({ code: 'UNAUTHENTICATED' });
     expect(mapApprovalError(err, tCommon, FALLBACK)).toBe(

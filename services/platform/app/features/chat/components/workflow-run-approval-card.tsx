@@ -49,6 +49,7 @@ import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
@@ -169,7 +170,7 @@ function WorkflowRunApprovalCardComponent({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorRunFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorRunFailed')));
       console.error('Failed to approve workflow run:', err);
     } finally {
       setIsApproving(false);
@@ -189,9 +190,7 @@ function WorkflowRunApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
-      );
+      setError(mapApprovalError(err, tCommon, tCommon('errorRejectFailed')));
       console.error('Failed to reject workflow run:', err);
     } finally {
       setIsRejecting(false);
@@ -205,7 +204,7 @@ function WorkflowRunApprovalCardComponent({
     try {
       await cancelExecution({ executionId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorStopFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorStopFailed')));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);
