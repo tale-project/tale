@@ -3974,7 +3974,13 @@
     "updateResponse": "Mettre à jour la réponse",
     "cancelEdit": "Annuler",
     "versionPrevious": "Version de réponse précédente",
-    "versionNext": "Version de réponse suivante"
+    "versionNext": "Version de réponse suivante",
+    "errorTodoListRequired": "Merci d’ajouter au moins un élément",
+    "errorTodoListMinItems": "Merci d’ajouter au moins {count} éléments",
+    "todoItemPlaceholder": "Sous-question {n}",
+    "todoItemAriaLabel": "{label} élément {n}",
+    "todoRemoveItem": "Supprimer l’élément {n}",
+    "todoAddItem": "Ajouter un élément"
   },
   "integrationApproval": {
     "approve": "Approuver",
