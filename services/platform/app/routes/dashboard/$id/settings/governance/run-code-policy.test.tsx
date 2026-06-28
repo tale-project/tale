@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 import type { ComponentType } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { cleanup, render, screen } from '@/tests/utils/render';
 
 // `RunCodePolicyRoute` is created via `createFileRoute(...)`; stub the factory
 // so we can pull the component off `Route.component` and render it without a
@@ -66,6 +68,10 @@ beforeEach(async () => {
     await import('@/app/routes/dashboard/$id/settings/governance/run-code-policy');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   RunCodePolicyRoute = (mod.Route as any).component as ComponentType;
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 function pythonAllow() {
