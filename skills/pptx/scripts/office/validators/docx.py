@@ -436,7 +436,7 @@ class DOCXSchemaValidator(BaseSchemaValidator):
                     xml_file.write_bytes(dom.toxml(encoding="UTF-8"))
 
             except Exception:
-                pass
+                pass  # best-effort: leave the file unchanged if the rewrite fails
 
         return repairs
 
