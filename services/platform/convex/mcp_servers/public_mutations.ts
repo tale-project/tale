@@ -4,9 +4,10 @@ import { ConvexError, v } from 'convex/values';
 
 import { isHttpUrl } from '../../lib/utils/url';
 import { internal } from '../_generated/api';
-import { action } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { action, type ActionCtx } from '../_generated/server';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { encryptString } from '../lib/crypto/encrypt_string';
-import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { jsonRecordValidator } from '../lib/validators/json';
 import { MCP_SERVER_NAME_MAX_LENGTH, validateMcpServerName } from './constants';
 
@@ -22,6 +23,31 @@ function assertValidMcpServerName(name: string): void {
         ? `Name must be at most ${MCP_SERVER_NAME_MAX_LENGTH} characters.`
         : 'Name must be lowercase alphanumeric with hyphens (e.g. my-mcp-server).';
   throw new ConvexError({ code: 'invalid', message });
+}
+
+/**
+ * Resolve an existing server's owning org and assert the caller is an
+ * admin/developer member of it before any id-based mutation touches it.
+ * Deriving the org from the stored document (not a client-supplied arg) makes
+ * the ownership match implicit — a member of another org cannot edit, delete,
+ * or re-status this server. Mirrors the `requireSessionInOrg` defense-in-depth
+ * pattern in `node_only/sandbox/session_admin_actions.ts`.
+ */
+async function requireServerAdmin(
+  ctx: ActionCtx,
+  id: Id<'mcpServers'>,
+): Promise<void> {
+  const server = await ctx.runQuery(
+    internal.mcp_servers.internal_queries.getById,
+    { id },
+  );
+  if (!server) {
+    throw new ConvexError({
+      code: 'not_found',
+      message: 'MCP server not found.',
+    });
+  }
+  await requireOrgAdminOrDeveloper(ctx, server.organizationId);
 }
 
 const transportTypeValidator = v.union(
@@ -99,10 +125,10 @@ export const create = action({
     oauth2Config: v.optional(oauth2InputValidator),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    }
+    // Confirm the caller is an admin/developer member of the org they are
+    // creating the server in — the organizationId arrives from the client and
+    // was previously trusted blindly.
+    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
 
     const name = args.name.trim();
     assertValidMcpServerName(name);
@@ -177,10 +203,7 @@ export const update = action({
     oauth2Config: v.optional(oauth2InputValidator),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    }
+    await requireServerAdmin(ctx, args.id);
 
     if (args.url) {
       assertHttpUrl(args.url, 'URL');
@@ -247,10 +270,7 @@ export const remove = action({
     id: v.id('mcpServers'),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    }
+    await requireServerAdmin(ctx, args.id);
 
     await ctx.runMutation(internal.mcp_servers.mutations.remove, {
       id: args.id,
@@ -266,10 +286,7 @@ export const updateStatus = action({
     status: v.union(v.literal('active'), v.literal('inactive')),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    }
+    await requireServerAdmin(ctx, args.id);
 
     await ctx.runMutation(internal.mcp_servers.mutations.setStatus, {
       id: args.id,

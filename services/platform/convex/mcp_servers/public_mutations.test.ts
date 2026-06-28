@@ -61,6 +61,14 @@ vi.mock('../lib/rls/auth/get_auth_user_identity', () => ({
   getAuthUserIdentity: (_ctx: unknown) => getAuthUserIdentity(),
 }));
 
+// Org-membership/role gate (#2040). Default to an authorized admin; the gate's
+// own rejection behaviour is covered in authorization.test.ts.
+const requireOrgAdminOrDeveloper = vi.fn();
+vi.mock('../lib/auth/require_org_admin_or_developer', () => ({
+  requireOrgAdminOrDeveloper: (...args: unknown[]) =>
+    requireOrgAdminOrDeveloper(...args),
+}));
+
 type HandlerFn = (
   ctx: unknown,
   args: Record<string, unknown>,
@@ -95,6 +103,7 @@ describe('mcp_servers/public_mutations (actions)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAuthUserIdentity.mockResolvedValue({ userId: 'user_1' });
+    requireOrgAdminOrDeveloper.mockResolvedValue({ member: { role: 'admin' } });
   });
 
   describe('create', () => {
@@ -166,7 +175,12 @@ describe('mcp_servers/public_mutations (actions)', () => {
       await expect(
         handler(ctx, { id: 'server_1', name: 'Not A Slug' }),
       ).rejects.toMatchObject({ data: { code: 'invalid' } });
-      expect(ctx.runQuery).not.toHaveBeenCalled();
+      // The slug is validated before the duplicate-name lookup runs (the
+      // ownership gate's getById may already have fired).
+      expect(ctx.runQuery).not.toHaveBeenCalledWith(
+        'getIdByOrgAndName',
+        expect.anything(),
+      );
       expect(mutationCalls).toHaveLength(0);
     });
 
