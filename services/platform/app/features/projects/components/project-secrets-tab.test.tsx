@@ -1,6 +1,7 @@
 import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -139,6 +140,8 @@ describe('ProjectSecretsTab', () => {
       secretsErrorFixture = new ConvexError({ code: 'PROJECT_NOT_FOUND' });
       const { container } = renderTab();
 
+      // The access-denied notice still renders (same heading), but with the
+      // not-found description rather than the forbidden one.
       expect(screen.getByText('Admin access required')).toBeInTheDocument();
       expect(
         screen.getByText('This project no longer exists.'),
