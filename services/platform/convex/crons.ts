@@ -192,6 +192,22 @@ cron(
   {},
 );
 
+// Sandbox capacity-wake reconciler — the backstop for the event-driven park.
+// A parked workflow sandbox step BLOCKS on `step.awaitEvent(...)` instead of
+// re-polling; slot-release mutations schedule an instant wake, but the only
+// failure mode (a wake that is never sent) needs a sweep. This re-fires the
+// FIFO-head wake for every (org, kind) with open slots, AND refreshes the
+// `lastSeenAt` heartbeat the no-longer-polling workflow ticket needs to stay
+// valid for the staleness reaper. Convex cron granularity is 1 minute (no
+// sub-minute schedule), so this runs minutely — the per-release scheduled wake
+// covers the common case; this only catches the rare dropped wake.
+cron(
+  'reconcile sandbox capacity wakes (minutely)',
+  '*/1 * * * *',
+  internal.workflow_engine.sandbox_capacity_wake.reconcileAdmissionWakes,
+  {},
+);
+
 // External-agent turn recovery — the connection-independent counterpart. A
 // turn whose draining action died (crash / redeploy / 30min ceiling) without
 // finalizing is found by its stale heartbeat and finalized exactly-once

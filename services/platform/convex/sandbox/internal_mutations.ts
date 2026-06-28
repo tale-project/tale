@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import {
   internalMutation,
@@ -461,6 +462,18 @@ export const finalize = internalMutation({
       ...(args.uploadStats !== undefined && { uploadStats: args.uploadStats }),
       ...(args.timing !== undefined && { timing: args.timing }),
     });
+    // A terminal one-shot execution frees a per-org concurrency slot → schedule
+    // an instant capacity wake of one FIFO-head 'oneshot' waiter so a parked
+    // workflow script step resumes immediately. Best-effort + scheduled (never
+    // inline) so a wake failure can't fail the finalize, and via the scheduler
+    // ref so sandbox/* never imports workflow_engine/engine by value (no cycle).
+    if (row.organizationId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
+        { organizationId: row.organizationId, kind: 'oneshot', count: 1 },
+      );
+    }
     return null;
   },
 });

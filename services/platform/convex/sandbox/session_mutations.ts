@@ -11,8 +11,9 @@
 import type { WithoutSystemFields } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
-import { internalMutation } from '../_generated/server';
+import { internalMutation, type MutationCtx } from '../_generated/server';
 import {
   type AdmissionTicketArgs,
   assertFifoEligible,
@@ -142,6 +143,26 @@ export const reserveSessionSlotAndInsert = internalMutation({
   },
 });
 
+/**
+ * Best-effort: schedule an instant capacity wake of one FIFO-head session
+ * waiter after this org freed a session slot, so a parked workflow sandbox step
+ * resumes immediately instead of waiting for the reconciler tick. Scheduled (not
+ * called inline) so a wake failure can never fail the slot-release mutation, and
+ * via the scheduler ref so sandbox/* never imports workflow_engine/engine by
+ * value (no import cycle). No-op when the org id is empty (can't queue a wake).
+ */
+async function scheduleSessionCapacityWake(
+  ctx: MutationCtx,
+  organizationId: string,
+): Promise<void> {
+  if (!organizationId) return;
+  await ctx.scheduler.runAfter(
+    0,
+    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
+    { organizationId, kind: 'session', count: 1 },
+  );
+}
+
 /** Flip a session row to a new lifecycle status (creating → active on
  * runnerd-ready; → degraded/destroyed/expired/failed otherwise). */
 export const setSessionStatus = internalMutation({
@@ -169,6 +190,11 @@ export const setSessionStatus = internalMutation({
       patch.destroyedAt = Date.now();
     }
     await ctx.db.patch(args.rowId, patch);
+    // A destroyed/expired session frees a per-org session slot → wake a waiter.
+    if (args.status === 'destroyed' || args.status === 'expired') {
+      const row = await ctx.db.get(args.rowId);
+      if (row) await scheduleSessionCapacityWake(ctx, row.organizationId);
+    }
     return null;
   },
 });
@@ -289,6 +315,8 @@ export const markSessionRowDestroyed = internalMutation({
       await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
       destroyed = true;
     }
+    // A freed per-org session slot → wake a parked waiter immediately.
+    if (destroyed) await scheduleSessionCapacityWake(ctx, args.organizationId);
     return destroyed;
   },
 });
@@ -315,6 +343,9 @@ export const markSessionRowStopped = internalMutation({
       await ctx.db.patch(row._id, { status: 'stopped' });
       stopped = true;
     }
+    // `stopped` drops the row out of the (creating|active) in-flight count, so it
+    // frees a per-org session slot → wake a parked waiter immediately.
+    if (stopped) await scheduleSessionCapacityWake(ctx, args.organizationId);
     return stopped;
   },
 });

@@ -11,10 +11,7 @@ import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { jsonValueValidator } from '../../../lib/validators/json';
-import {
-  SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS,
-  SANDBOX_ADMISSION_POLL_BACKOFF_MS,
-} from '../../../sandbox/sessions_schema';
+import { sandboxCapacityWakeEventName } from '../../../sandbox/sessions_schema';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -323,26 +320,22 @@ export async function handleDynamicWorkflow(
 
     // PARK-on-capacity: the sandbox step hit its org's concurrency cap (or a
     // global host 429) and chose to WAIT instead of fail. Unlike 'running' it
-    // built NO session and burned NO run budget — there's nothing to re-attach,
-    // so just sleep a backoff and re-enter the SAME step to re-poll the admission
-    // queue (no `currentStepSlug` advance). Like 'running', this is an INTERNAL
-    // control port the author never maps, so handle it before nextSteps
-    // resolution. Honor a spawner `retryAfterMs` hint (global 429) over the short
-    // per-org poll interval. The wait is unbounded by design — only a workflow
-    // cancel, or a slot freeing (incl. the ticket reaper clearing a dead head),
-    // ends it.
+    // built NO session and burned NO run budget — there's nothing to re-attach.
+    // Surface "Queued" on the execution row, then BLOCK on an event instead of
+    // re-running executeStep on a backoff timer (the old poll loop re-ran the
+    // whole action every wake, ~84% no-progress re-checks saturating the
+    // committer). A slot release / the reconciler `sendEvent`s the deterministic
+    // wake name; awaitEvent is race-safe (a wake sent before the await is
+    // buffered and resolves immediately), so the only failure mode — a wake that
+    // is never sent — is covered by the reconciler cron backstop. On wake we
+    // re-enter the SAME step (no `currentStepSlug` advance): the atomic reserve
+    // claims the freed slot or re-parks if it lost the race. Like 'running', this
+    // is an INTERNAL control port the author never maps, so handle it before
+    // nextSteps resolution.
     if (stepResult.port === 'awaiting_capacity') {
-      const backoffMs = Math.min(
-        Math.max(
-          stepResult.retryAfterMs ?? SANDBOX_ADMISSION_POLL_BACKOFF_MS,
-          1000,
-        ),
-        SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS * 6,
-      );
       debugLog('dynamicWorkflow Parking sandbox step (awaiting capacity)', {
         executionId,
         stepSlug: stepDef.stepSlug,
-        backoffMs,
       });
       await step.runMutation(
         internal.workflow_executions.internal_mutations.updateExecutionStatus,
@@ -353,7 +346,9 @@ export async function handleDynamicWorkflow(
           currentStepName: stepDef.name,
         },
       );
-      await step.sleep(backoffMs);
+      await step.awaitEvent({
+        name: sandboxCapacityWakeEventName(executionId, stepDef.stepSlug),
+      });
       continue;
     }
 

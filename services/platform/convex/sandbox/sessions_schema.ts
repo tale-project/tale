@@ -365,6 +365,21 @@ export const sandboxIntegrationCallsTable = defineTable({
   .index('by_sessionId', ['sessionId'])
   .index('by_organizationId', ['organizationId']);
 
+/**
+ * Deterministic name of the workflow event that wakes a parked sandbox step
+ * waiting on capacity. A parked durable step does `step.awaitEvent({ name })`;
+ * a slot-release / reconciler `sendEvent`s the SAME name to resume it. The name
+ * is per-(execution, step) but NOT per-park: a spurious/duplicate wake is SAFE —
+ * buffered event delivery + the atomic reserve mean an extra wake just costs one
+ * cheap reserve attempt that re-parks if the org is still full.
+ */
+export function sandboxCapacityWakeEventName(
+  wfExecutionId: string,
+  stepSlug: string,
+): string {
+  return `sandbox_capacity:${wfExecutionId}:${stepSlug}`;
+}
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
