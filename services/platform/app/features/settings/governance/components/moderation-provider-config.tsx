@@ -21,6 +21,7 @@ import {
   type ModerationResponseShape,
 } from '@/lib/shared/schemas/governance';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { ApiKeyPanel } from './moderation-api-key-panel';
@@ -289,11 +290,14 @@ export function ModerationProviderConfigView({
           variant: 'success',
         });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : t('moderationProvider.saveFailed');
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: mapGovernanceSaveError(
+            error,
+            t,
+            t('moderationProvider.saveFailed'),
+          ),
+          variant: 'destructive',
+        });
       }
     },
     [upsertMutation, organizationId, toast, t],

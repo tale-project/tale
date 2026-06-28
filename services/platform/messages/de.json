@@ -2760,7 +2760,8 @@
       "searchTeams": "Teams suchen...",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeamAriaLabel": "Team auswählen",
-      "saved": "Budgetregeln wurden aktualisiert"
+      "saved": "Budgetregeln wurden aktualisiert",
+      "saveFailed": "Budgetregeln konnten nicht gespeichert werden"
     },
     "defaultModels": {
       "title": "Standardmodelle",
@@ -3947,6 +3948,9 @@
         "description": "Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden abbrechen.",
         "cancel": "Vorgemerkte Änderung abbrechen"
       }
+    },
+    "errors": {
+      "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
     }
   },
   "humanInputRequest": {

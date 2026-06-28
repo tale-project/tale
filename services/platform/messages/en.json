@@ -2760,7 +2760,8 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
-      "saved": "Budget rules have been updated"
+      "saved": "Budget rules have been updated",
+      "saveFailed": "Failed to save budget rules"
     },
     "defaultModels": {
       "title": "Default Models",
@@ -3947,6 +3948,9 @@
         "description": "Proposed by {name}. Any admin can cancel before this takes effect.",
         "cancel": "Cancel pending change"
       }
+    },
+    "errors": {
+      "saveForbidden": "You don't have permission to change this setting."
     }
   },
   "humanInputRequest": {

@@ -2761,7 +2761,8 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
-      "saved": "Les règles de budget ont été mises à jour"
+      "saved": "Les règles de budget ont été mises à jour",
+      "saveFailed": "Échec de l'enregistrement des règles de budget"
     },
     "defaultModels": {
       "title": "Modèles par défaut",
@@ -3948,6 +3949,9 @@
         "description": "Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne effet.",
         "cancel": "Annuler la modification en attente"
       }
+    },
+    "errors": {
+      "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
     }
   },
   "humanInputRequest": {

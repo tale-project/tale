@@ -11,6 +11,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import type { PiiConfigPanelValue } from './pii/pii-config-panel';
@@ -115,11 +116,9 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
           variant: 'success',
         });
       } catch (error: unknown) {
-        const description =
-          error instanceof Error ? error.message : t('pii.saveFailed');
         toast({
           title: t('toastSaveFailedTitle'),
-          description,
+          description: mapGovernanceSaveError(error, t, t('pii.saveFailed')),
           variant: 'destructive',
         });
       }
