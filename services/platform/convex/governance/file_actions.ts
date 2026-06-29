@@ -162,7 +162,7 @@ export const saveGovernancePolicy = action({
     }
 
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    if (defineAbilityFor(auth.member.role).cannot('read', 'orgSettings')) {
+    if (defineAbilityFor(auth.member.role).cannot('write', 'orgSettings')) {
       throw new ConvexError({
         code: 'ORG_FORBIDDEN',
         message: `Role "${auth.member.role}" cannot modify governance policies.`,
