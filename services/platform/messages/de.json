@@ -3993,7 +3993,13 @@
     "updateResponse": "Antwort aktualisieren",
     "cancelEdit": "Abbrechen",
     "versionPrevious": "Vorherige Antwortversion",
-    "versionNext": "Nächste Antwortversion"
+    "versionNext": "Nächste Antwortversion",
+    "errorTodoListRequired": "Bitte füge mindestens einen Eintrag hinzu",
+    "errorTodoListMinItems": "Bitte füge mindestens {count} Einträge hinzu",
+    "todoItemPlaceholder": "Teilfrage {n}",
+    "todoItemAriaLabel": "{label} Eintrag {n}",
+    "todoRemoveItem": "Eintrag {n} entfernen",
+    "todoAddItem": "Eintrag hinzufügen"
   },
   "integrationApproval": {
     "approve": "Genehmigen",

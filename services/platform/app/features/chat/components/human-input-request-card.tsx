@@ -56,7 +56,7 @@ import {
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
 import { ApprovalCard } from './approval-card';
-import { HumanInputFields } from './human-input-fields';
+import { HumanInputFields, countFilledTodoRows } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 /**
@@ -347,6 +347,26 @@ function HumanInputRequestCardComponent({
       } else if (field.type === 'multi_select') {
         if (!value || !Array.isArray(value) || value.length === 0) {
           setError(t('errorSelectRequired'));
+          return;
+        }
+      } else if (field.type === 'todo_list') {
+        // The TodoListFieldInput always seeds a row and serializes via
+        // JSON.stringify, so `value` is a non-empty string even when every
+        // row is blank — the generic "non-empty string" check below would
+        // wrongly pass. Count the rows with real content instead.
+        const filled =
+          typeof value === 'string' ? countFilledTodoRows(value) : 0;
+        const minItems =
+          'minItems' in field && typeof field.minItems === 'number'
+            ? field.minItems
+            : 0;
+        const threshold = Math.max(1, minItems);
+        if (filled < threshold) {
+          setError(
+            threshold > 1
+              ? t('errorTodoListMinItems', { count: threshold })
+              : t('errorTodoListRequired'),
+          );
           return;
         }
       } else {

@@ -3993,7 +3993,13 @@
     "updateResponse": "Update response",
     "cancelEdit": "Cancel",
     "versionPrevious": "Previous response version",
-    "versionNext": "Next response version"
+    "versionNext": "Next response version",
+    "errorTodoListRequired": "Please add at least one item",
+    "errorTodoListMinItems": "Please add at least {count} items",
+    "todoItemPlaceholder": "Sub-question {n}",
+    "todoItemAriaLabel": "{label} item {n}",
+    "todoRemoveItem": "Remove item {n}",
+    "todoAddItem": "Add item"
   },
   "integrationApproval": {
     "approve": "Approve",
