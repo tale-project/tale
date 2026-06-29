@@ -90,8 +90,9 @@ function TwoFactorVerifyPage() {
           position: 'top-center',
         });
       } else {
+        // TOTP success during sign-in: confirm the sign-in, not enrollment.
         toast({
-          title: t('enrollment.enabled'),
+          title: t('verify.success'),
           variant: 'success',
           position: 'top-center',
         });
