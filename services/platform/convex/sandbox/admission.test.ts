@@ -319,3 +319,89 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
     expect(await ticketsForOwner(t, 'wf_dead')).toHaveLength(0);
   });
 });
+
+describe('listParkedExecutionsNeedingRecovery (durable-marker recovery selection)', () => {
+  async function seedExec(
+    t: T,
+    opts: {
+      status: 'running' | 'completed';
+      awaitingCapacityStepSlug?: string;
+      componentWorkflowId?: string;
+      shardIndex?: number;
+    },
+  ): Promise<string> {
+    return t.run((ctx) =>
+      ctx.db.insert('wfExecutions', {
+        organizationId: ORG,
+        wfDefinitionId: 'issue-desk/desk-process',
+        status: opts.status,
+        currentStepSlug: opts.awaitingCapacityStepSlug ?? 'start',
+        startedAt: 1_000,
+        updatedAt: 1_000,
+        ...(opts.awaitingCapacityStepSlug !== undefined && {
+          awaitingCapacityStepSlug: opts.awaitingCapacityStepSlug,
+        }),
+        ...(opts.componentWorkflowId !== undefined && {
+          componentWorkflowId: opts.componentWorkflowId,
+        }),
+        ...(opts.shardIndex !== undefined && { shardIndex: opts.shardIndex }),
+      }),
+    );
+  }
+
+  it('selects only running, marked executions that have NO live ticket', async () => {
+    const t = convexTest(schema, modules);
+    // A: parked, no ticket → RECOVER.
+    const a = await seedExec(t, {
+      status: 'running',
+      awaitingCapacityStepSlug: 'implement',
+      componentWorkflowId: 'cw_a',
+      shardIndex: 2,
+    });
+    // B: parked but a live ticket exists (the heartbeat/re-wake passes own it).
+    const b = await seedExec(t, {
+      status: 'running',
+      awaitingCapacityStepSlug: 'review',
+      componentWorkflowId: 'cw_b',
+    });
+    await t.run((ctx) =>
+      ctx.db.insert('sandboxAdmissionTickets', {
+        organizationId: ORG,
+        kind: 'session',
+        ownerType: 'workflow_run',
+        ownerId: `${b}:review`,
+        source: 'workflow',
+        status: 'waiting',
+        createdAt: 1_000,
+        lastSeenAt: Date.now(),
+      }),
+    );
+    // C: parked but never started (no componentWorkflowId → nothing to wake).
+    await seedExec(t, {
+      status: 'running',
+      awaitingCapacityStepSlug: 'work',
+    });
+    // D: running but NOT parked (no marker) — outside the index range.
+    await seedExec(t, { status: 'running', componentWorkflowId: 'cw_d' });
+    // E: terminal — a settled run that never cleared its marker.
+    await seedExec(t, {
+      status: 'completed',
+      awaitingCapacityStepSlug: 'implement',
+      componentWorkflowId: 'cw_e',
+    });
+
+    const targets = await t.query(
+      internal.workflow_engine.sandbox_capacity_wake
+        .listParkedExecutionsNeedingRecovery,
+      {},
+    );
+    expect(targets).toEqual([
+      {
+        executionId: a,
+        stepSlug: 'implement',
+        componentWorkflowId: 'cw_a',
+        shardIndex: 2,
+      },
+    ]);
+  });
+});

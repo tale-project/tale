@@ -21,7 +21,13 @@
 import type { WorkflowId } from '@convex-dev/workflow';
 import { v } from 'convex/values';
 
-import { internalMutation, type MutationCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+  type QueryCtx,
+} from '../_generated/server';
 import {
   type AdmissionKind,
   admissionCap,
@@ -138,10 +144,105 @@ export const wakeHeadWaiters = internalMutation({
  * on the next tick. */
 const RECONCILE_SCAN_LIMIT = 500;
 
+/** Bound on running executions scanned by the recovery pass per tick. */
+const RECOVERY_SCAN_LIMIT = 500;
+/** Bound on ticketless parked executions re-woken per tick. One wake re-tickets
+ * an execution (its re-entered step re-polls), so a backlog only needs chipping
+ * down over a few ticks, not clearing in one. */
+const MAX_RECOVERED_PARKS_PER_CALL = 16;
+
+/**
+ * RECOVERY backstop — drives off the DURABLE execution marker, not the ticket.
+ *
+ * The heartbeat + re-wake passes can only act on a parked step that still has a
+ * `sandboxAdmissionTickets` row. But a step blocked on `step.awaitEvent(...)`
+ * whose ticket was LOST — reaped in a reconcile gap longer than the staleness
+ * window, or before that window was widened — is invisible to them and wedges
+ * forever (the wake keys off the ticket; no ticket ⇒ no wake ⇒ no re-poll ⇒ no
+ * new ticket). So recover from the durable signal instead: a `wfExecutions` row
+ * still `running` with a non-empty `awaitingCapacityStepSlug`. For each such
+ * execution lacking a live ticket, send the wake directly; the re-entered step
+ * re-polls `pollAdmission`, which re-creates the ticket (correct kind, inherited
+ * FIFO priority) and hands it back to the normal machinery — or re-parks if
+ * still capped. Ticket-independent ⇒ self-heals any lost-ticket backlog.
+ * Bounded + best-effort; skips executions that already have a ticket so a
+ * healthy queue does no extra work.
+ */
+/** A parked execution the recovery pass should re-wake: still `running` with a
+ * marker, and no live admission ticket. */
+interface RecoveryTarget {
+  executionId: Id<'wfExecutions'>;
+  stepSlug: string;
+  componentWorkflowId: string;
+  shardIndex: number | undefined;
+}
+
+/**
+ * SELECTION half of the recovery backstop (read-only, so it is unit-testable
+ * against a real index without the workflow component): the parked executions
+ * that have LOST their admission ticket. Scans `running` executions still
+ * flagged `awaitingCapacityStepSlug` (via the dedicated index), skipping those
+ * that still have a `workflow_run` ticket (owned by the heartbeat/re-wake passes)
+ * and those missing a `componentWorkflowId` (never started — nothing to wake).
+ * Returns at most `limit`, scanning at most `RECOVERY_SCAN_LIMIT`.
+ */
+async function collectTicketlessParkedExecutions(
+  ctx: QueryCtx,
+  limit: number,
+): Promise<RecoveryTarget[]> {
+  const targets: RecoveryTarget[] = [];
+  let scanned = 0;
+  for await (const exec of ctx.db
+    .query('wfExecutions')
+    .withIndex('by_status_awaitingCapacity', (q) =>
+      q.eq('status', 'running').gt('awaitingCapacityStepSlug', ''),
+    )) {
+    if (targets.length >= limit) break;
+    if (scanned >= RECOVERY_SCAN_LIMIT) break;
+    scanned += 1;
+    const stepSlug = exec.awaitingCapacityStepSlug;
+    if (!stepSlug || !exec.componentWorkflowId) continue;
+    const ownerId = `${exec._id}:${stepSlug}`;
+    const ticket = await ctx.db
+      .query('sandboxAdmissionTickets')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', 'workflow_run').eq('ownerId', ownerId),
+      )
+      .first();
+    if (ticket) continue;
+    targets.push({
+      executionId: exec._id,
+      stepSlug,
+      componentWorkflowId: exec.componentWorkflowId,
+      shardIndex: exec.shardIndex,
+    });
+  }
+  return targets;
+}
+
+/** Exposed for tests: the recovery SELECTION (no side effects). The wake itself
+ * lives in `reconcileAdmissionWakes` because `sendEvent` needs a mutation ctx. */
+export const listParkedExecutionsNeedingRecovery = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(
+    v.object({
+      executionId: v.id('wfExecutions'),
+      stepSlug: v.string(),
+      componentWorkflowId: v.string(),
+      shardIndex: v.optional(v.number()),
+    }),
+  ),
+  handler: (ctx, args) =>
+    collectTicketlessParkedExecutions(
+      ctx,
+      args.limit ?? MAX_RECOVERED_PARKS_PER_CALL,
+    ),
+});
+
 /**
  * Cron backstop + liveness heartbeat for event-driven workflow tickets.
  *
- * Two jobs, both bounded:
+ * Three jobs, all bounded:
  *  1. HEARTBEAT — the parked workflow no longer re-polls `pollAdmission`, so it
  *     no longer re-stamps `lastSeenAt`. This refreshes `lastSeenAt` for every
  *     WAITING workflow ticket whose execution is still running, keeping the
@@ -151,6 +252,10 @@ const RECONCILE_SCAN_LIMIT = 500;
  *     wake. This is the safety net for the only failure mode of the event model:
  *     a wake that was never sent (release-path scheduler dropped, or the slot
  *     freed via a path that doesn't schedule a wake).
+ *  3. RECOVERY — re-ticket parked executions whose ticket was lost entirely, by
+ *     driving off the durable `awaitingCapacityStepSlug` marker (jobs 1-2 only
+ *     see executions that still HAVE a ticket). Self-heals a lost-ticket
+ *     backlog that would otherwise wedge the queue forever.
  */
 export const reconcileAdmissionWakes = internalMutation({
   args: {},
@@ -195,6 +300,35 @@ export const reconcileAdmissionWakes = internalMutation({
 
     for (const { organizationId, kind } of groups.values()) {
       await wakeHeadsForOrgKind(ctx, organizationId, kind, MAX_WAKES_PER_CALL);
+    }
+
+    // RECOVERY: re-ticket parked executions whose ticket vanished entirely (the
+    // passes above only see ticketed waiters). Drives off the durable marker —
+    // send the wake directly; the re-entered step re-polls and re-creates its
+    // ticket. Best-effort: a dead/cleaned workflow just logs.
+    const recoveryTargets = await collectTicketlessParkedExecutions(
+      ctx,
+      MAX_RECOVERED_PARKS_PER_CALL,
+    );
+    for (const target of recoveryTargets) {
+      try {
+        await workflowManagers[safeShardIndex(target.shardIndex)].sendEvent(
+          ctx,
+          {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- componentWorkflowId stored as string, WorkflowId is a branded type
+            workflowId: target.componentWorkflowId as unknown as WorkflowId,
+            name: sandboxCapacityWakeEventName(
+              target.executionId,
+              target.stepSlug,
+            ),
+          },
+        );
+      } catch (err) {
+        console.warn(
+          `[sandbox.wake] recovery sendEvent failed for execution ${target.executionId} step ${target.stepSlug}:`,
+          err,
+        );
+      }
     }
     return null;
   },
