@@ -1,7 +1,9 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 
 export const getUserStorageUsage = query({
   args: {
@@ -65,6 +67,7 @@ export const getByDocumentId = query({
 
 export const getByStorageIds = query({
   args: {
+    organizationId: v.string(),
     storageIds: v.array(v.id('_storage')),
   },
   returns: v.array(
@@ -116,13 +119,25 @@ export const getByStorageIds = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
+    // Membership gate: this query is keyed only by opaque storage ids, so
+    // without an org check any authenticated user could read another org's file
+    // metadata (fileName, transcript, …) by id. Require membership in the
+    // active org, then surface only that org's rows below.
+    if (!(await isOrgMember(ctx, authUser.userId, args.organizationId))) {
+      return [];
+    }
+
     const results = await Promise.all(
       args.storageIds.slice(0, 20).map(async (storageId) => {
         const meta = await ctx.db
           .query('fileMetadata')
           .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
           .first();
-        if (!meta) return null;
+        // Drop any row that isn't in the caller's active org, even if it shares
+        // the requested batch.
+        if (!meta || !isActiveOrg(meta.organizationId, args.organizationId)) {
+          return null;
+        }
         return {
           storageId: meta.storageId,
           documentId: meta.documentId,

@@ -286,10 +286,11 @@ export function DocumentsTable({
       void queryClient.prefetchQuery(
         convexQuery(api.documents.queries.getDocumentById, {
           documentId: toId<'documents'>(row.original.id),
+          organizationId,
         }),
       );
     },
-    [queryClient],
+    [queryClient, organizationId],
   );
 
   const closePreview = useCallback(() => {

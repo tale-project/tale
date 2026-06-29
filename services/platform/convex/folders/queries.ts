@@ -5,6 +5,7 @@ import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 
@@ -44,6 +45,7 @@ export const listFolders = query({
 export const getFolder = query({
   args: {
     folderId: v.id('folders'),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -52,7 +54,10 @@ export const getFolder = query({
     }
 
     const folder = await ctx.db.get(args.folderId);
-    if (!folder) return null;
+    // Active-org coherence: deny a folder carried over from another org.
+    if (!folder || !isActiveOrg(folder.organizationId, args.organizationId)) {
+      return null;
+    }
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
 
@@ -72,6 +77,7 @@ export const getFolder = query({
 export const getFolderBreadcrumb = query({
   args: {
     folderId: v.id('folders'),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -80,7 +86,8 @@ export const getFolderBreadcrumb = query({
     }
 
     const folder = await ctx.db.get(args.folderId);
-    if (!folder) {
+    // Active-org coherence: deny a folder carried over from another org.
+    if (!folder || !isActiveOrg(folder.organizationId, args.organizationId)) {
       return [];
     }
 

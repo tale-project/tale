@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getBranchAncestorThreadIds } from '../threads/get_branch_ancestor_thread_ids';
 import { getDelegateSubThreadIds } from '../threads/get_delegate_sub_thread_ids';
 import { todoItemValidator } from './schema';
@@ -12,7 +13,7 @@ import { todoItemValidator } from './schema';
  * thread-ownership/shared access. Returns null if caller cannot access.
  */
 export const get = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   returns: v.union(
     v.object({
       threadId: v.string(),
@@ -47,7 +48,14 @@ export const get = query({
       );
     }
     const organizationId = threadMetadata.organizationId;
-    if (!hasAccess || !organizationId) return null;
+    // Active-org coherence: deny a thread's todos carried over from another org.
+    if (
+      !hasAccess ||
+      !organizationId ||
+      !isActiveOrg(organizationId, args.organizationId)
+    ) {
+      return null;
+    }
 
     const readTodos = (threadId: string) =>
       ctx.db

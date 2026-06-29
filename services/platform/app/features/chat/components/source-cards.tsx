@@ -102,7 +102,9 @@ function SourceCardsComponent({ citations, organizationId }: SourceCardsProps) {
   }, [sourceList]);
   const fileMetas = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    uniqueRagFileIds.length > 0 ? { storageIds: uniqueRagFileIds } : 'skip',
+    uniqueRagFileIds.length > 0 && organizationId
+      ? { storageIds: uniqueRagFileIds, organizationId }
+      : 'skip',
   );
   const metaByFileId = useMemo(() => {
     const map = new Map<

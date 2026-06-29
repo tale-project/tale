@@ -4,6 +4,7 @@ import { useAction } from 'convex/react';
 import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -36,9 +37,12 @@ export function useFileIndexingStatus(attachments: FileAttachment[]) {
     [attachments],
   );
 
+  const organizationId = useOrganizationId();
   const metadata = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    fileIds.length > 0 ? { storageIds: fileIds } : 'skip',
+    fileIds.length > 0 && organizationId
+      ? { storageIds: fileIds, organizationId }
+      : 'skip',
   );
 
   const statusMap = useMemo(() => {
