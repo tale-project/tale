@@ -57,6 +57,23 @@ export const cancelExecution = mutationWithRLS({
       );
     }
 
+    // Tear down the execution's sandbox NOW. Cancelling the durable workflow
+    // above stops re-entry but never touches the sandbox layer, so any in-flight
+    // ephemeral `workflow_run` session would keep its container running (agent
+    // burning budget) and keep holding a per-org concurrency slot until the TTL
+    // reaper — wedging the org's capacity queue after a Stop. Scheduled (not
+    // awaited): it calls the spawner over HTTP, and a teardown failure must not
+    // fail the user's Stop. No-op when the run held no sandbox.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.workflow_sandbox_exec
+        .cancelSandboxForExecution,
+      {
+        organizationId: execution.organizationId,
+        executionId: args.executionId,
+      },
+    );
+
     await ctx.db.patch(args.executionId, {
       status: 'failed',
       error: 'Cancelled by user',
