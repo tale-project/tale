@@ -8,7 +8,7 @@
 > by feature pages. `@tale/ui` is the source of truth for code. Build pages by composing those
 > components — never hand-roll layout HTML. The concept→component catalog, the one `gap` spacing scale,
 > and the button-size policy live in the
-> [`ui-components` skill](../../.claude/skills/ui-components/SKILL.md); the working contract is in
+> [`ui-components` skill](../../.agents/skills/ui-components/SKILL.md); the working contract is in
 > [`AGENTS.md`](../../AGENTS.md).
 
 ---

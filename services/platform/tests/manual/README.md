@@ -25,7 +25,7 @@ here.
 
 An AI agent can run a whole guide with the `/qa <area>` command, which loads the
 guide and drives it through the Playwright MCP — see the
-[browser-qa](../../.claude/skills/browser-qa/SKILL.md) skill. New guides copy
+[browser-qa](../../.agents/skills/browser-qa/SKILL.md) skill. New guides copy
 [TEMPLATE.md](TEMPLATE.md) (which documents the authoring conventions).
 
 ## Guides

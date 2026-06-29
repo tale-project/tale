@@ -19,6 +19,11 @@ function modelArg(argv: string[]): string | undefined {
   return i >= 0 ? argv[i + 1] : undefined;
 }
 
+function appendArg(argv: string[]): string | undefined {
+  const i = argv.indexOf('--append-system-prompt');
+  return i >= 0 ? argv[i + 1] : undefined;
+}
+
 function stdinText(stdin: string | undefined): string {
   return JSON.parse((stdin ?? '').trim()).message.content[0].text;
 }
@@ -103,5 +108,69 @@ describe('ClaudeCodeAdapter buildExec — ultrathink prompt prefix', () => {
       baseSpec({ prompt: 'fix the bug', authMode: 'byo' }),
     );
     expect(stdinText(exec.stdin)).toBe('Ultrathink: fix the bug');
+  });
+});
+
+describe('ClaudeCodeAdapter buildExec — baseline house rules', () => {
+  const prev = process.env.TALE_SANDBOX_HOUSE_RULES;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    else process.env.TALE_SANDBOX_HOUSE_RULES = prev;
+  });
+
+  it('appends the house rules to the system prompt by default', () => {
+    delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    const append = appendArg(adapter.buildExec(baseSpec()).argv) ?? '';
+    expect(append).toContain('Co-Authored-By');
+    expect(append).toContain('Generated with Claude Code');
+    expect(append).toContain('AGENTS.md');
+    expect(append).toContain('empty catch block');
+  });
+
+  it('applies even when no per-agent system prompt was composed', () => {
+    delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    // baseSpec carries no systemPromptAppend, yet the flag is still present.
+    const exec = adapter.buildExec(baseSpec());
+    expect(exec.argv).toContain('--append-system-prompt');
+    expect(appendArg(exec.argv)).toContain('AGENTS.md');
+  });
+
+  it('rides ahead of the composed append payload', () => {
+    delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    const append =
+      appendArg(
+        adapter.buildExec(baseSpec({ systemPromptAppend: 'COMPOSED-MARKER' }))
+          .argv,
+      ) ?? '';
+    expect(append).toContain('COMPOSED-MARKER');
+    // House rules come first; the composed payload (which ends with the
+    // untrusted-content safety block) keeps its trailing position.
+    expect(append.indexOf('AGENTS.md')).toBeLessThan(
+      append.indexOf('COMPOSED-MARKER'),
+    );
+  });
+
+  it('does not double-append when the rules are already present', () => {
+    delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    const composed = appendArg(adapter.buildExec(baseSpec()).argv) ?? '';
+    const append =
+      appendArg(
+        adapter.buildExec(baseSpec({ systemPromptAppend: composed })).argv,
+      ) ?? '';
+    expect(append.split('AGENTS.md').length - 1).toBe(1);
+  });
+
+  it('respects the TALE_SANDBOX_HOUSE_RULES=0 operator override', () => {
+    process.env.TALE_SANDBOX_HOUSE_RULES = '0';
+    // No composed append + rules disabled → no --append-system-prompt at all.
+    expect(adapter.buildExec(baseSpec()).argv).not.toContain(
+      '--append-system-prompt',
+    );
+  });
+
+  it('applies to BYO sessions too', () => {
+    delete process.env.TALE_SANDBOX_HOUSE_RULES;
+    const exec = adapter.buildExec(baseSpec({ authMode: 'byo' }));
+    expect(appendArg(exec.argv)).toContain('AGENTS.md');
   });
 });
