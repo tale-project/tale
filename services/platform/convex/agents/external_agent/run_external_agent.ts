@@ -42,6 +42,7 @@ import {
   sessionStageFiles,
 } from '../../node_only/sandbox/helpers/session_client';
 import {
+  reconcileBuiltinSkills,
   stageBrowserControlSkill,
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
@@ -735,8 +736,14 @@ export const runExternalAgentTurn = internalAction({
           // managed force-denies WebSearch/WebFetch (governed via integrations).
           nativeWebTools: byo || args.nativeWebTools === true,
         });
-        // The browser-human-control skill only applies when the live headed
-        // browser is on (the request_human_control tool is wired in that mode).
+        // visual-aspect-analyzer ships baked into the sandbox-runtime image and
+        // is symlinked into the session skill dir by the entrypoint; here we
+        // only enforce repo precedence — drop a baked skill the workspace repo
+        // also defines.
+        await reconcileBuiltinSkills(ctx, { sessionId });
+        // browser-human-control is inline + tightly coupled to the live browser:
+        // stage it only on turns where the headed browser (browserCdp) is on,
+        // since that's when the request_human_control tool exists.
         if (BROWSER_VIEW_ENABLED) {
           await stageBrowserControlSkill(ctx, { sessionId });
         }

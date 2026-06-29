@@ -847,6 +847,7 @@ import type * as lib_search_strategies_documents from "../lib/search/strategies/
 import type * as lib_search_types from "../lib/search/types.js";
 import type * as lib_secret_box from "../lib/secret_box.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
+import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
@@ -1501,6 +1502,7 @@ import type * as workflow_engine_helpers_variables_decrypt_inline_secrets from "
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
 import type * as workflow_engine_internal_mutations from "../workflow_engine/internal_mutations.js";
 import type * as workflow_engine_internal_queries from "../workflow_engine/internal_queries.js";
+import type * as workflow_engine_sandbox_capacity_wake from "../workflow_engine/sandbox_capacity_wake.js";
 import type * as workflow_engine_types_execution from "../workflow_engine/types/execution.js";
 import type * as workflow_engine_types_index from "../workflow_engine/types/index.js";
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
@@ -2443,6 +2445,7 @@ declare const fullApi: ApiFromModules<{
   "lib/search/types": typeof lib_search_types;
   "lib/secret_box": typeof lib_secret_box;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
+  "lib/skills/precedence": typeof lib_skills_precedence;
   "lib/sops": typeof lib_sops;
   "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
@@ -3097,6 +3100,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
   "workflow_engine/internal_mutations": typeof workflow_engine_internal_mutations;
   "workflow_engine/internal_queries": typeof workflow_engine_internal_queries;
+  "workflow_engine/sandbox_capacity_wake": typeof workflow_engine_sandbox_capacity_wake;
   "workflow_engine/types/execution": typeof workflow_engine_types_execution;
   "workflow_engine/types/index": typeof workflow_engine_types_index;
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;

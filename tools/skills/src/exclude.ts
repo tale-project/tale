@@ -1,11 +1,11 @@
 /**
- * Ship-exclusion rules — files that exist in a skill's source under `skills/`
- * but must NOT be copied into a synced target (`.claude/skills/`,
- * `builtin-configs/skills/`).
+ * Ship-exclusion rules — files that exist in a skill's source under
+ * `.agents/skills/` but must NOT be copied into the generated `.claude/skills/`
+ * mirror (unit/spec tests, SOPS secret blobs).
  *
  * Mirrors the skip set in `tools/cli/scripts/generate-embedded.ts` (the CLI
- * embed of `builtin-configs`) so the two shipped forms of a skill bundle agree
- * on what it contains.
+ * embed of `builtin-configs`) so the mirror and the shipped CLI bundle agree on
+ * what a skill contains.
  */
 
 /** Directories never walked into (huge / irrelevant / generated). */

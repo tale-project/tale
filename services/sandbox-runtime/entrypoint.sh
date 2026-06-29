@@ -770,6 +770,22 @@ if [ "$1" = "daemon" ]; then
   export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
   export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
 
+  # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
+  # each into the agent's user-level skill dir so Claude Code / Codex discover
+  # them as native skills, runnable in place (their deps live in the baked dir).
+  # Idempotent + best-effort; Tale's per-turn reconcile (convex
+  # integration_skills.ts) drops any the workspace repo also defines so the
+  # repo's project-level skill wins. An unmatched glob stays literal in sh, so
+  # the `-d` guard skips it when nothing is baked.
+  if [ -d /opt/agents/skills ]; then
+    $DROP mkdir -p /user/.runtime/home/.claude/skills
+    for _skill in /opt/agents/skills/*/; do
+      [ -d "$_skill" ] || continue
+      $DROP ln -sfn "${_skill%/}" \
+        "/user/.runtime/home/.claude/skills/$(basename "$_skill")"
+    done
+  fi
+
   # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
   # browser + runnerd start, so every client (and Chromium's direct connections)
   # egresses through the proxy. The DinD path installs it after the inner dockerd

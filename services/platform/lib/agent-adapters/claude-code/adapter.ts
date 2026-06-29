@@ -100,6 +100,43 @@ function withUltrathink(prompt: string): string {
   return `Ultrathink: ${prompt}`;
 }
 
+/** Baseline working rules every Claude Code session carries, independent of the
+ * per-agent (org-editable, seeded) systemInstructions: git-attribution hygiene,
+ * formatter-hook etiquette, the empty-catch ban, and honoring the working repo's
+ * own AGENTS.md. Session-level like withUltrathink / withMaxContext — applied in
+ * code, so it reaches every Claude Code run in every org and an org admin cannot
+ * drop it by editing their agent config. */
+const CLAUDE_CODE_HOUSE_RULES = [
+  '## Notes',
+  '',
+  '- If the repository you are working in contains an AGENTS.md file, read it and follow its instructions.',
+  "- Respect hooks that change formatting; don't hand-format or re-run a formatter.",
+  '',
+  '## Git',
+  '',
+  '- **Never** add `Co-Authored-By` to commit messages.',
+  '- **Never** add "Generated with Claude Code" or any similar attribution to commits or PR descriptions.',
+  '',
+  '## Other',
+  '',
+  '- **Never** use an empty catch block — log (`console.warn`/`console.error`) or re-throw.',
+].join('\n');
+
+/** Prepend the baseline house rules to the composed system-prompt append so they
+ * ride on every session ahead of the turn's posture/safety addenda (the composed
+ * payload ends with the untrusted-content block, which stays last). Default-on;
+ * idempotent (skipped when already present); disabled with
+ * TALE_SANDBOX_HOUSE_RULES=0. Returns the rules alone when nothing was composed,
+ * so they apply even to an agent with empty systemInstructions. */
+function withHouseRules(systemPromptAppend: string | undefined): string {
+  const base = systemPromptAppend ?? '';
+  if (process.env.TALE_SANDBOX_HOUSE_RULES === '0') return base;
+  if (base.includes(CLAUDE_CODE_HOUSE_RULES)) return base;
+  return base
+    ? `${CLAUDE_CODE_HOUSE_RULES}\n\n${base}`
+    : CLAUDE_CODE_HOUSE_RULES;
+}
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
 
@@ -148,8 +185,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     if (spec.model) {
       argv.push('--model', withMaxContext(spec.model));
     }
-    if (spec.systemPromptAppend) {
-      argv.push('--append-system-prompt', spec.systemPromptAppend);
+    // Baseline house rules ride on every session (like withUltrathink /
+    // withMaxContext), so they apply even when no per-agent systemPromptAppend
+    // was composed.
+    const systemPromptAppend = withHouseRules(spec.systemPromptAppend);
+    if (systemPromptAppend) {
+      argv.push('--append-system-prompt', systemPromptAppend);
     }
     // One merged --mcp-config (Playwright + the integration bridge), isolated
     // from the repo's own .mcp.json via --strict-mcp-config so a run is

@@ -6,10 +6,12 @@ import { defineConfig } from 'vite';
 
 import { createDocsArtifactsServer } from './lib/seo/artifacts-server';
 
-// Built once at config load; the underlying server caches walks unless
-// `cache: false` is set. We disable caching in dev so source edits to
-// `docs/` are picked up without a restart.
-const devArtifactsServer = await createDocsArtifactsServer({ cache: false });
+// Constructed synchronously at config load — the `docs/` walk is deferred to
+// the first artifact request, so this never blocks Vite from starting its dev
+// server (a top-level `await` here intermittently stalled CI's docs e2e past
+// the Playwright webServer timeout). `cache: false` so source edits to `docs/`
+// are picked up without a restart.
+const devArtifactsServer = createDocsArtifactsServer({ cache: false });
 
 export default defineConfig({
   // Build-time mount point. Defaults to '/' for root deployments. Set to a

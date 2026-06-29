@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import {
   internalMutation,
@@ -359,6 +360,28 @@ export const heartbeat = internalMutation({
 });
 
 /**
+ * Best-effort: schedule an instant capacity wake of one FIFO-head 'oneshot'
+ * waiter after this org freed a per-org concurrency slot (a one-shot execution
+ * just went terminal — completed/failed/cancelled/reaped), so a parked workflow
+ * sandbox step resumes immediately instead of waiting for the minutely
+ * reconciler tick. Scheduled (not called inline) so a wake failure can never
+ * fail the slot-release mutation, and via the scheduler ref so sandbox/* never
+ * imports workflow_engine/engine by value (no import cycle). No-op when the org
+ * id is empty (can't queue a wake). Mirror of `scheduleSessionCapacityWake`.
+ */
+async function scheduleOneshotCapacityWake(
+  ctx: MutationCtx,
+  organizationId: string,
+): Promise<void> {
+  if (!organizationId) return;
+  await ctx.scheduler.runAfter(
+    0,
+    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
+    { organizationId, kind: 'oneshot', count: 1 },
+  );
+}
+
+/**
  * Settles an audit row into a terminal state. Idempotent w.r.t. duplicate
  * Convex retries AND races with the watchdog: if the row is already in a
  * terminal state we leave it alone (no-op + warn). The watchdog reaping a
@@ -461,6 +484,9 @@ export const finalize = internalMutation({
       ...(args.uploadStats !== undefined && { uploadStats: args.uploadStats }),
       ...(args.timing !== undefined && { timing: args.timing }),
     });
+    // A terminal one-shot execution frees a per-org concurrency slot → wake a
+    // parked 'oneshot' waiter immediately.
+    await scheduleOneshotCapacityWake(ctx, row.organizationId);
     return null;
   },
 });
@@ -490,6 +516,9 @@ export const recoverStuckSandboxes = internalMutation({
   handler: async (ctx) => {
     const cutoff = Date.now() - SANDBOX_WATCHDOG_CUTOFF_MS;
     let recovered = 0;
+    // Distinct orgs that had a slot freed by this sweep — wake each once at the
+    // end (deduped so reaping many rows can't fan out into many wakes).
+    const freedOrgs = new Set<string>();
     for (const status of ['running', 'installing', 'queued'] as const) {
       const candidates = await ctx.db
         .query('sandboxExecutions')
@@ -521,8 +550,14 @@ export const recoverStuckSandboxes = internalMutation({
         // (otherwise the runnable card spins until the audit row TTLs out).
         // Artifact cascade removed — artifacts module deleted in the
         // thread-workspace refactor.
+        if (row.organizationId) freedOrgs.add(row.organizationId);
         recovered += 1;
       }
+    }
+    // Each reaped row freed a per-org concurrency slot → wake a parked waiter so
+    // the queue advances on the watchdog tick, not just the reconciler tick.
+    for (const organizationId of freedOrgs) {
+      await scheduleOneshotCapacityWake(ctx, organizationId);
     }
     return recovered;
   },
@@ -708,6 +743,11 @@ export const cancelExecutionRecord = internalMutation({
       ),
     });
     // Artifact cascade removed — artifacts module deleted.
+    // A user-Stop cancel frees a per-org concurrency slot exactly like a
+    // `finalize` does; without this wake the now-event-driven parked workflow
+    // steps stay blocked on `awaitEvent` until the minutely reconciler tick,
+    // so the queue looks permanently stuck after a manual Stop.
+    await scheduleOneshotCapacityWake(ctx, row.organizationId);
     return null;
   },
 });
