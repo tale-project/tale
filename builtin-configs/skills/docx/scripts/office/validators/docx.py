@@ -284,6 +284,8 @@ class DOCXSchemaValidator(BaseSchemaValidator):
                                     f"durableId={val} >= 0x7FFFFFFF"
                                 )
             except Exception:
+                # Best-effort: skip XML files we cannot parse and keep checking
+                # the rest; unreadable parts are surfaced by validate_xml.
                 pass
 
         if errors:
@@ -349,7 +351,6 @@ class DOCXSchemaValidator(BaseSchemaValidator):
                     f'  document.xml: commentRangeStart id="{comment_id}" has no matching commentRangeEnd'
                 )
 
-            comment_ids = set()
             if comments_xml and comments_xml.exists():
                 comments_root = lxml.etree.parse(str(comments_xml)).getroot()
                 comment_ids = {
@@ -436,6 +437,8 @@ class DOCXSchemaValidator(BaseSchemaValidator):
                     xml_file.write_bytes(dom.toxml(encoding="UTF-8"))
 
             except Exception:
+                # Best-effort: skip files we cannot parse so one bad file does
+                # not stop repairing durableIds in the remaining XML parts.
                 pass
 
         return repairs

@@ -53,6 +53,8 @@ class RedliningValidator:
                 return True
 
         except Exception:
+            # Best-effort fast path: if the quick lxml scan fails, fall through
+            # to the full git-based validation below.
             pass
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -190,6 +192,8 @@ class RedliningValidator:
                     return "\n".join(content_lines)
 
         except (subprocess.CalledProcessError, FileNotFoundError, Exception):
+            # Best-effort: git word-diff is optional; return None so the caller
+            # falls back to its non-git comparison path.
             pass
 
         return None

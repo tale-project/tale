@@ -114,6 +114,8 @@ def _get_next_rid(rels_path: Path) -> int:
             try:
                 max_rid = max(max_rid, int(rid[3:]))
             except ValueError:
+                # Ignore relationship ids whose suffix is not numeric; they do
+                # not participate in computing the next numeric rId.
                 pass
     return max_rid + 1
 

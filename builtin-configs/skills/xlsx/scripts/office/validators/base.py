@@ -143,6 +143,8 @@ class BaseSchemaValidator:
                     xml_file.write_bytes(dom.toxml(encoding="UTF-8"))
 
             except Exception:
+                # Best-effort: skip files we cannot parse so one bad file does
+                # not stop the repair loop over the remaining XML parts.
                 pass
 
         return repairs
