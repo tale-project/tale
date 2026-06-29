@@ -21,6 +21,5 @@ bun run --filter @tale/{{kebabCase name}} typecheck
 bun scripts/main.ts [name]
 ```
 
-See [`SKILL.md`](SKILL.md) for the agent-facing guidance. If the skill ships to
-product agents, register it in `tools/skills/src/manifest.ts` and run
-`bun run skills:sync`.
+See [`SKILL.md`](SKILL.md) for the agent-facing guidance. A `skills/*` workspace is
+baked into the `services/sandbox-runtime` image — see `AGENTS.md` (the skills section).

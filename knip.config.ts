@@ -137,10 +137,9 @@ export default {
       ],
     },
     'tools/skills': {
-      // The sync + adapter tooling is invoked as `bun tools/skills/src/sync.ts
-      // [--check]` from the root package.json scripts, never imported — declare
-      // the CLI entry + its bun:test files so knip doesn't flag the engine,
-      // guards, and adapter generator as unused.
+      // The sync engine is invoked as `bun tools/skills/src/index.ts [--check]`
+      // from the root package.json scripts, never imported — declare its bun:test
+      // files so knip doesn't flag the engine + guards as unused.
       entry: ['tests/**/*.test.ts'],
       project: ['**/*.ts'],
     },

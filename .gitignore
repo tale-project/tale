@@ -105,11 +105,9 @@ trivy-reports/
 !.claude/settings.json
 !.claude/hooks/
 !.claude/skills/
-!.claude/commands/
 
-.agent/*
-!.agent/rules/
-!.agent/rules/README.md
+.agents/*
+!.agents/skills/
 
 # ---------------------------------------------------------------------------
 # Built-in configs — the seed catalog (TALE_CONFIG_BUILTIN_DIR), fully tracked

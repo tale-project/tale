@@ -2,8 +2,9 @@
 
 The single source of truth for working in this repository, for **every** coding agent (Claude Code,
 Cursor, Codex, Copilot, Gemini CLI). Read it in full before your first change. Depth lives in the
-on-demand guides under [`.claude/skills/`](.claude/skills/) — this file is the contract; the skills
-are the how-to. The index is at the bottom.
+on-demand guides — authored under [`.agents/skills/`](.agents/skills/) and mirrored to
+a generated `.claude/skills/` copy for Claude Code. This file is the contract; the skills are the
+how-to. The index is at the bottom.
 
 Tale is a monorepo on Bun workspaces; every workspace script runs through `bun run --filter @tale/<workspace> <script>`.
 
@@ -40,11 +41,11 @@ alternative; pick the **smallest correct, most reversible** change. Name the ris
 
 **3. Self-review twice.** Critique your own _plan_ before editing (right altitude? least-radical?
 consistent with the repo?). Re-read your own _diff_ before "done" (correctness, edge cases, security,
-reuse, simplicity, convention-match, Ripple satisfied), then run [`review`](.claude/skills/review/SKILL.md).
+reuse, simplicity, convention-match, Ripple satisfied), then run [`review`](.agents/skills/review/SKILL.md).
 
 **4. Know when to stop and ask.** Irreversible/destructive ops, ambiguous intent, architectural
 forks, or anything contradicting what you were told → pause and surface it. Thinking is cheaper than a
-wrong radical change. → Full guide: [`engineering-approach`](.claude/skills/engineering-approach/SKILL.md), [`plan`](.claude/skills/plan/SKILL.md)
+wrong radical change. → Full guide: [`engineering-approach`](.agents/skills/engineering-approach/SKILL.md), [`plan`](.agents/skills/plan/SKILL.md)
 
 ## Before you open a PR
 
@@ -99,9 +100,9 @@ A change is rarely one file. Expand a local edit into its blast radius:
 | A date display                                                                                                                                                                                                                                                                                                                            | `useFormatDate()` — never `toLocale*`                                                                                                                                                                                                          |
 | A new query/mutation                                                                                                                                                                                                                                                                                                                      | `queryWithRLS`/`mutationWithRLS` · validators · no `.collect()` · preload in the loader                                                                                                                                                        |
 | A path/command/pattern a skill or `AGENTS.md` documents                                                                                                                                                                                                                                                                                   | update that guide + the skill index · `bun run skills:check`                                                                                                                                                                                   |
-| A skill added/renamed/rescoped, or a `skills/` source / `SKILL.md` edited                                                                                                                                                                                                                                                                 | register in `tools/skills/src/manifest.ts` + set globs in `.claude/skill-globs.json` · `bun run skills:sync` (regenerates the `.claude/skills` / `builtin-configs/skills` copies + Cursor/Codex/Copilot pointers)                              |
+| A skill added/renamed/edited (`.agents/skills/` guide, or a `builtin-configs/skills/` / `skills/` product skill)                                                                                                                                                                                                                          | update the skill index below · `bun run skills:sync` (regenerates the `.claude/skills/` mirror) · `bun run skills:check`                                                                                                                       |
 
-→ Full guide: [`definition-of-done`](.claude/skills/definition-of-done/SKILL.md), [`ship`](.claude/skills/ship/SKILL.md)
+→ Full guide: [`definition-of-done`](.agents/skills/definition-of-done/SKILL.md), [`ship`](.agents/skills/ship/SKILL.md)
 
 ## Reuse and centralization
 
@@ -128,7 +129,7 @@ app already does — find the existing concept first:
 - **Mirror the neighbours exactly.** Before adding the Nth of a recurring thing (catalog, list page, domain query, route, locale file), open the existing ones and match structure, naming, order, and wrappers. Same concept, same shape — diverge only when you can say why.
 - **Extract on the second use, generalize on the third** — for internal helpers, where a little duplication is cheaper than the wrong abstraction. Copy-pasting a block a second time is the signal to lift it into the shared home.
 
-→ Full guide: [`clean-code`](.claude/skills/clean-code/SKILL.md)
+→ Full guide: [`clean-code`](.agents/skills/clean-code/SKILL.md)
 
 ## Verification is mandatory
 
@@ -137,7 +138,7 @@ outcome and can show the evidence**. Never claim a success you have not verified
 the change: static (`bun run check`) → unit → backend (run it on the live deployment via the **Convex
 MCP**) → UI (drive the real app via the **Playwright MCP**) → codify the check as a rerunnable test.
 Report outcome vs. expectation; if a layer couldn't be verified, say which and why.
-→ Full guide: [`verify`](.claude/skills/verify/SKILL.md)
+→ Full guide: [`verify`](.agents/skills/verify/SKILL.md)
 
 ## Non-negotiable rules
 
@@ -146,7 +147,7 @@ These hold across every workspace and language. They are not style preferences.
 - **Never destroy state without explicit permission.** Local databases, Convex state, caches, config files, branded seed data — ask before wiping. Assume every file on disk may be the user's in-progress work.
 - **Never hardcode secrets or credentials.** Environment variables only. Scrub logs before committing.
 - **Validate at every system boundary.** User input, external APIs, webhook payloads. Parameterized queries only; never string-concatenate SQL or shell.
-- **Docs and translations ship with the code.** A user-visible change updates `docs/` in all three base locales and keeps every `en.json` key present in `de.json` and `fr.json` on the same commit. Variant files (`de-CH`) hold only overrides. **The agent instructions (`AGENTS.md`, `.claude/skills/`) are docs too** — when you change a path, command, or pattern they describe, update them in the same commit.
+- **Docs and translations ship with the code.** A user-visible change updates `docs/` in all three base locales and keeps every `en.json` key present in `de.json` and `fr.json` on the same commit. Variant files (`de-CH`) hold only overrides. **The agent instructions (`AGENTS.md`, `.agents/skills/`) are docs too** — when you change a path, command, or pattern they describe, update them in the same commit.
 - **Accessibility is Level AA, not a nice-to-have.** Real HTML, keyboard reachability, visible focus, labelled controls, AA contrast.
 
 ## Rules are self-enforcing
@@ -168,7 +169,7 @@ knip · strict typecheck. **When you add a rule, add the guard.**
 - **No locale-aware date methods.** `toLocaleDateString`/`toLocaleTimeString`/`toLocaleString` are banned. Use `useFormatDate()` in React or `formatDate()` from `lib/utils/date/format`.
 - **No `\uXXXX` escapes in JSON.** Write non-ASCII literally as UTF-8 (`ät`, `é`, `—`, `«»`). JSON's required escapes (`\n`, `\t`, `\"`, `\\`) stay.
 
-→ Full guide: [`clean-code`](.claude/skills/clean-code/SKILL.md)
+→ Full guide: [`clean-code`](.agents/skills/clean-code/SKILL.md)
 
 ## Security
 
@@ -178,7 +179,7 @@ a boundary (request handler, file system, shell), assume adversarial input and p
 strict SAST gate (Opengrep) blocks on any finding — runner and rules in [`tools/opengrep/`](tools/opengrep/),
 run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly with `// nosemgrep:
 <rule-id>` plus an adjacent comment explaining why — never a blanket ignore.
-→ Full guide: [`security`](.claude/skills/security/SKILL.md)
+→ Full guide: [`security`](.agents/skills/security/SKILL.md)
 
 ## Git and commits
 
@@ -188,7 +189,7 @@ run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly
 - **Imperative mood.** `add X`, not `added`/`adds`. Body explains _why_; header states _what_.
 - **Branch off `main`;** never commit straight to it. Stash or use a worktree to keep unrelated work apart.
 
-→ Full guide: [`git`](.claude/skills/git/SKILL.md)
+→ Full guide: [`git`](.agents/skills/git/SKILL.md)
 
 ## Testing
 
@@ -197,7 +198,7 @@ run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly
 - **A green suite is the only merge signal.** `bun run check` fans the `test` task across every workspace; while iterating, run the one you touched: `bun run --filter @tale/<workspace> test`.
 - **Test homes:** co-located `*.test.{ts,tsx}` (the default) and a workspace-root `tests/` for what can't sit beside source (`e2e/` Playwright `*.spec.ts`, `integration/` `*-test.ts`, `manual/`, `stress/`). No `__tests__/` dirs.
 
-→ Full guide: [`testing`](.claude/skills/testing/SKILL.md)
+→ Full guide: [`testing`](.agents/skills/testing/SKILL.md)
 
 ## TypeScript
 
@@ -206,7 +207,7 @@ run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly
 - **Named exports only;** default exports resist renaming and break grep. **Avoid barrel files.** Imports at the top, exports at the bottom.
 - **Validate at boundaries with Zod;** shared schemas in `services/platform/lib/shared/schemas/`, imported on both client and server.
 
-→ Full guide: [`typescript`](.claude/skills/typescript/SKILL.md)
+→ Full guide: [`typescript`](.agents/skills/typescript/SKILL.md)
 
 ## React and TanStack Start
 
@@ -217,7 +218,7 @@ run locally with `bun run lint:sast`. Suppress a genuine false-positive narrowly
 - **Loading is centralized** — split into presentational + container, wrap the plain part in `<Skeletonize loading>` (`@tale/ui/skeleton-context`); skeleton-aware leaves mask to their own size. Never the bare `<Skeleton>` or a magic `h-[…]`.
 - **CVA for named variants** (`variant`/`size`/`tone`); a conditional `cn()` for boolean states. Reach for `useMemo`/`memo` only when the profile justifies it, and avoid the `useEffect` reflex.
 
-→ Full guide: [`react`](.claude/skills/react/SKILL.md), [`ui-components`](.claude/skills/ui-components/SKILL.md)
+→ Full guide: [`react`](.agents/skills/react/SKILL.md), [`ui-components`](.agents/skills/ui-components/SKILL.md)
 
 ## Design system & UI composition
 
@@ -242,7 +243,7 @@ component. **Build pages by composing components; never hand-roll layout HTML.**
   UX (label/error/skeleton) — it never re-implements a primitive's styling. A second divergent
   control (its own input/checkbox/tooltip) is a defect; find the `@tale/ui` primitive and wrap it.
 
-→ Full catalog + how-to: [`ui-components`](.claude/skills/ui-components/SKILL.md)
+→ Full catalog + how-to: [`ui-components`](.agents/skills/ui-components/SKILL.md)
 
 ## Convex
 
@@ -252,7 +253,7 @@ component. **Build pages by composing components; never hand-roll layout HTML.**
 - **Never `import 'node:*'` in V8 code** — load file I/O in a `'use node'` module and pass data in.
 - **Org config is files, not tables** — all per-org configuration is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (schemas in `lib/shared/schemas/`); never store org config in a Convex table.
 
-→ Full guide: [`convex`](.claude/skills/convex/SKILL.md), [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md)
+→ Full guide: [`convex`](.agents/skills/convex/SKILL.md), [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)
 
 ## Databases and migrations
 
@@ -287,7 +288,7 @@ which renders each schema to JSON Schema and fails on breaking drift. The Zod ru
 **new required field, a real retype, a narrowed enum/literal, or optional→required** breaks existing files
 and needs the migration. (Limitation: strip vs `.strict()` is indistinguishable in JSON Schema and
 `.refine()` rules aren't representable, so judge those two by hand.)
-→ Full guide: [`docker`](.claude/skills/docker/SKILL.md), [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md)
+→ Full guide: [`docker`](.agents/skills/docker/SKILL.md), [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)
 
 ## Internationalization
 
@@ -296,7 +297,7 @@ in code, tests, or stories. **`en.json` is the schema** — every key exists in 
 on the same commit; `de-CH` carries only differing values (fallback `de-CH → de → en`). Remove dead
 keys everywhere (orphan-key test). Sentence case; **informal form** (`du`, `tu` — never `Sie`/`vous`);
 ICU placeholders copy exactly; brand names don't translate. `useT(namespace)` from `lib/i18n/client`.
-→ Full guide: [`translation`](.claude/skills/translation/SKILL.md)
+→ Full guide: [`translation`](.agents/skills/translation/SKILL.md)
 
 ## Documentation
 
@@ -304,7 +305,7 @@ Docs are not a follow-up. Every change a user would notice updates `docs/` in ev
 same PR, with a real opening (≥2 sentences of prose) and a real closing (a recap, not a `## Next`
 stub). Before a PR touching `services/docs/`, run its `lint` / `test` / `build`
 (`bun run --filter @tale/docs test`); formatting is handled repo-wide by `oxfmt` (and the edit hook).
-→ Full guide: [`docs`](.claude/skills/docs/SKILL.md), [`docs-check`](.claude/skills/docs-check/SKILL.md)
+→ Full guide: [`docs`](.agents/skills/docs/SKILL.md), [`docs-check`](.agents/skills/docs-check/SKILL.md)
 
 ## Accessibility
 
@@ -315,7 +316,7 @@ interactive is keyboard-reachable with a visible ≥3:1 focus ring and a ≥24×
 say what and how, wired via `aria-describedby`/`aria-invalid`/`role="alert"`; text contrast ≥4.5:1;
 respect `prefers-reduced-motion`. Every component has an `accessibility` describe block calling
 `checkAccessibility()`; a red bar in Storybook's a11y addon is a blocker.
-→ Full guide: [`ui-components`](.claude/skills/ui-components/SKILL.md)
+→ Full guide: [`ui-components`](.agents/skills/ui-components/SKILL.md)
 
 ## Anti-patterns — you'll be tempted to X; don't
 
@@ -343,78 +344,70 @@ respect `prefers-reduced-motion`. Every component has an `accessibility` describ
 ## Skills and guides index
 
 Load the relevant guide before working in an area. Adding or removing a skill updates this table (it
-is the map every agent reads). Skills live in [`.claude/skills/`](.claude/skills/); authoring standard
-in [`SKILL_TEMPLATE.md`](.claude/skills/SKILL_TEMPLATE.md).
+is the map every agent reads). The authoring standard is
+[`SKILL_TEMPLATE.md`](.agents/skills/SKILL_TEMPLATE.md); the how-to is
+[`write-skill`](.agents/skills/write-skill/SKILL.md).
 
-**Shared & product skills.** Most skills here are repo-dev coding guides (docs only) authored directly
-in `.claude/skills/`. Skills that ship to **product agents** live in one of these homes:
+**Three skill homes, by audience.** A skill's source of truth lives in exactly one place — pick by who
+runs it:
 
-- repo-only guide → author in `.claude/skills/<name>/`; never synced.
-- builtin-ONLY product skill (e.g. `pptx`) → author directly under
-  [`builtin-configs/skills/<name>/`](builtin-configs/skills/); it ships from there (embedded in the CLI
-  binary, per-org seeded at chat time), hand-maintained, NOT synced from `skills/` or in the manifest.
-- shared skill (repo-dev **and** product) → author under `skills/<name>/`, register it in
-  [`tools/skills/src/manifest.ts`](tools/skills/src/manifest.ts) with its `targets` (`'claude'` →
-  `.claude/skills/`, `'builtin'` → `builtin-configs/skills/`), then `bun run skills:sync` (the
-  [`@tale/skills`](tools/skills/) tool).
-- self-contained Bun **workspace** skill (e.g. `@tale/visual-aspect-analyzer`) → author under
-  `skills/<name>/` as a `skills/*` workspace (`src/` entry + co-located `bun test`); baked into the
-  `services/sandbox-runtime` image, not synced.
+- **repo-dev guide** → [`.agents/skills/<name>/`](.agents/skills/) (docs only). The source every
+  coding agent reads: Cursor, Codex, and Copilot open `.agents/skills/` directly; Claude Code reads a
+  generated `.claude/skills/` mirror. `bun run skills:sync` regenerates that mirror — **never
+  hand-edit `.claude/skills/`** (`bun run skills:check`, run in CI as a test, fails on drift).
+- **product skill** → [`builtin-configs/skills/<name>/`](builtin-configs/skills/) (e.g. `pptx`). Ships
+  to org agents from there — embedded in the CLI binary, seeded per-org at chat time. May carry
+  runnable `<name>/scripts/` invoked skill-relative (`bun scripts/<x>.ts` / `python scripts/<x>.py`).
+  Hand-maintained; not mirrored.
+- **integrated skill** → [`skills/<name>/`](skills/), a self-contained Bun **workspace** (e.g.
+  `@tale/visual-aspect-analyzer`) baked into the `services/sandbox-runtime` image. Bun scripts stay
+  self-contained (only `node:*`, `bun`/`bun:*`, relative imports) so they resolve wherever the skill
+  lands; `skills:check` enforces it.
 
-Scaffold a `skills/` skill with `bun run gen skill` — `typescript` (a Bun workspace: SKILL.md + README +
-`src/main.ts` + co-located `bun test`) or `plain` (docs-only: SKILL.md + README). Shipped TypeScript
-stays self-contained (only `node:*`, `bun`/`bun:*`, relative imports) so `bun src/main.ts` resolves the
-same way wherever it lands.
-
-**Cross-tool auto-attach.** A `SKILL.md` is the single source of truth, surfaced to every harness:
-Claude Code loads `.claude/skills/` natively; Cursor, Codex, and Copilot pull it in via **generated**
-pointers ([`.cursor/rules/<skill>.mdc`](.cursor/rules/) with `globs:`,
-[`.codex/skills/<skill>.md`](.codex/skills/), and [`.github/instructions/<skill>.instructions.md`](.github/instructions/)
-with `applyTo:` — the last for glob-scoped skills only); Gemini reaches it through this index. Never
-edit a pointer by hand. After adding/renaming a skill or changing its scope, set its file globs in
-[`.claude/skill-globs.json`](.claude/skill-globs.json) (empty array = activity-scoped, no auto-attach)
-and run `bun run skills:sync`; `bun run skills:check` (run in CI as a test) fails if any pointer or
-synced copy is out of date.
+Scaffold any of them with `bun run gen skill` (it prompts for the category — local / project /
+integrated — and the kind). A skill's `name` must equal its directory name everywhere it ships — a
+repo/org skill overrides a builtin by exact-name match.
 
 **Working method** — read before planning or finishing work:
 | Skill | Read before… |
 |---|---|
-| [`engineering-approach`](.claude/skills/engineering-approach/SKILL.md) | starting any non-trivial task — classify, think, self-review |
-| [`plan`](.claude/skills/plan/SKILL.md) | planning a multi-step change |
-| [`definition-of-done`](.claude/skills/definition-of-done/SKILL.md) | deciding whether a change is complete |
-| [`verify`](.claude/skills/verify/SKILL.md) | confirming a change works (the `/verify` command) |
-| [`review`](.claude/skills/review/SKILL.md) | reviewing a diff or PR |
-| [`ship`](.claude/skills/ship/SKILL.md) | opening a PR (the `/ship` command) |
-| [`release`](.claude/skills/release/SKILL.md) | tagging a new version (the `/release` command) |
-| [`debug`](.claude/skills/debug/SKILL.md) | chasing a bug to root cause |
-| [`handoff`](.claude/skills/handoff/SKILL.md) | persisting learnings / continuing a long task |
-| [`write-skill`](.claude/skills/write-skill/SKILL.md) | adding or editing a skill |
+| [`engineering-approach`](.agents/skills/engineering-approach/SKILL.md) | starting any non-trivial task — classify, think, self-review |
+| [`plan`](.agents/skills/plan/SKILL.md) | planning a multi-step change |
+| [`definition-of-done`](.agents/skills/definition-of-done/SKILL.md) | deciding whether a change is complete |
+| [`verify`](.agents/skills/verify/SKILL.md) | confirming a change works (the `/verify` command) |
+| [`review`](.agents/skills/review/SKILL.md) | reviewing a diff or PR |
+| [`ship`](.agents/skills/ship/SKILL.md) | opening a PR (the `/ship` command) |
+| [`release`](.agents/skills/release/SKILL.md) | tagging a new version (the `/release` command) |
+| [`debug`](.agents/skills/debug/SKILL.md) | chasing a bug to root cause |
+| [`handoff`](.agents/skills/handoff/SKILL.md) | persisting learnings / continuing a long task |
+| [`write-skill`](.agents/skills/write-skill/SKILL.md) | adding or editing a skill |
 
 **Languages & frameworks** — read before writing code in that area:
 | Skill | Read before… |
 |---|---|
-| [`clean-code`](.claude/skills/clean-code/SKILL.md) | writing any code — naming, functions, reuse, errors |
-| [`typescript`](.claude/skills/typescript/SKILL.md) | TypeScript types, Zod, exports |
-| [`react`](.claude/skills/react/SKILL.md) | React + TanStack Router/Query, hooks, data fetching |
-| [`ui-components`](.claude/skills/ui-components/SKILL.md) | UI primitives — Radix, CVA, Tailwind, Storybook, a11y |
-| [`convex`](.claude/skills/convex/SKILL.md) | Convex queries/mutations/actions, RLS, Hono routes |
-| [`convex-migrations`](.claude/skills/convex-migrations/SKILL.md) | a Convex data-model change |
-| [`docker`](.claude/skills/docker/SKILL.md) | the local stack, compose, Dockerfiles, Postgres/dbmate |
-| [`testing`](.claude/skills/testing/SKILL.md) | Vitest, Testing Library, Playwright e2e |
-| [`performance`](.claude/skills/performance/SKILL.md) | cold-load, per-query cost, prompt-cache, prefetch |
-| [`security`](.claude/skills/security/SKILL.md) | a boundary, secrets, SSRF, the SAST gate |
-| [`git`](.claude/skills/git/SKILL.md) | commits, branching, stash vs worktree, rebase |
-| [`python`](.claude/skills/python/SKILL.md) | editing a `.py` file (the pptx skill scripts under `builtin-configs/skills/pptx/`) |
-| [`bash`](.claude/skills/bash/SKILL.md) | shell scripts and Docker entrypoints |
+| [`clean-code`](.agents/skills/clean-code/SKILL.md) | writing any code — naming, functions, reuse, errors |
+| [`typescript`](.agents/skills/typescript/SKILL.md) | TypeScript types, Zod, exports |
+| [`react`](.agents/skills/react/SKILL.md) | React + TanStack Router/Query, hooks, data fetching |
+| [`ui-components`](.agents/skills/ui-components/SKILL.md) | UI primitives — Radix, CVA, Tailwind, Storybook, a11y |
+| [`convex`](.agents/skills/convex/SKILL.md) | Convex queries/mutations/actions, RLS, Hono routes |
+| [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md) | a Convex data-model change |
+| [`docker`](.agents/skills/docker/SKILL.md) | the local stack, compose, Dockerfiles, Postgres/dbmate |
+| [`testing`](.agents/skills/testing/SKILL.md) | Vitest, Testing Library, Playwright e2e |
+| [`performance`](.agents/skills/performance/SKILL.md) | cold-load, per-query cost, prompt-cache, prefetch |
+| [`security`](.agents/skills/security/SKILL.md) | a boundary, secrets, SSRF, the SAST gate |
+| [`git`](.agents/skills/git/SKILL.md) | commits, branching, stash vs worktree, rebase |
+| [`python`](.agents/skills/python/SKILL.md) | editing a `.py` file (the pptx skill scripts under `builtin-configs/skills/pptx/`) |
+| [`bash`](.agents/skills/bash/SKILL.md) | shell scripts and Docker entrypoints |
 
 **Domain** — read before that specific work:
 | Skill | Read before… |
 |---|---|
-| [`docs`](.claude/skills/docs/SKILL.md) | writing or editing a docs page |
-| [`docs-check`](.claude/skills/docs-check/SKILL.md) | running the docs test suite / fixing its failures |
-| [`translation`](.claude/skills/translation/SKILL.md) | editing any non-English locale file or doc |
-| [`browser-qa`](.claude/skills/browser-qa/SKILL.md) | manual QA in a real browser (the `/qa` command) |
-| [`auth-schema`](.claude/skills/auth-schema/SKILL.md) | regenerating the Better Auth schema for Convex |
+| [`docs`](.agents/skills/docs/SKILL.md) | writing or editing a docs page |
+| [`docs-check`](.agents/skills/docs-check/SKILL.md) | running the docs test suite / fixing its failures |
+| [`translation`](.agents/skills/translation/SKILL.md) | editing any non-English locale file or doc |
+| [`qa`](.agents/skills/qa/SKILL.md) | running one manual test guide in a real browser (the `/qa` command) |
+| [`browser-qa`](.agents/skills/browser-qa/SKILL.md) | the browser-driving mechanics `/qa` and UI verification lean on |
+| [`auth-schema`](.agents/skills/auth-schema/SKILL.md) | regenerating the Better Auth schema for Convex |
 
 Built-in harness skills cover the rest — `react-doctor`, `code-review`, `claude-api`, `deep-research`,
 `update-config`. Don't reimplement them; the custom skills above add Tale-specific value.
