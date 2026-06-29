@@ -33,21 +33,37 @@ interface DocsArtifactsServerOptions {
 }
 
 /**
- * Construct an on-demand artifact server for the docs site. The initial
- * `buildDocsSeo` walk runs eagerly so `robots.disallow` can be seeded
- * with noindex paths discovered from frontmatter — the underlying server
- * takes a static `RobotsConfig`.
+ * Construct an on-demand artifact server for the docs site.
+ *
+ * Construction is **synchronous and side-effect-free**: the `buildDocsSeo`
+ * walk is deferred to the first request that needs it (via `getBuilt`),
+ * exactly like the marketing site's server. This matters because
+ * `vite.config.ts` instantiates this at config-evaluation time — making it
+ * `async` forced a top-level `await` there, which blocks Vite from creating
+ * and listening on the dev server until the walk resolves. Under CI runner
+ * contention that top-level await intermittently stalled the docs dev server
+ * past Playwright's `webServer` timeout (the search/landing smoke never even
+ * touches these artifacts). Keeping it sync removes that startup hazard.
+ *
+ * `robots.disallow` still reflects noindex frontmatter: it's backed by a
+ * stable array that the first lazy build fills. The robots plugin awaits
+ * `ctx.routes()` (→ `getBuilt`) before reading `ctx.robots.disallow`, so the
+ * list is populated by the time `/robots.txt` is rendered.
  */
-export async function createDocsArtifactsServer(
+export function createDocsArtifactsServer(
   options: DocsArtifactsServerOptions = {},
-): Promise<ArtifactsServer> {
+): ArtifactsServer {
   const siteUrl = docsSiteUrl();
-  const initial = await buildDocsSeo(siteUrl);
 
-  let cached: BuiltDocsSeo | null = options.cache === false ? null : initial;
+  // Stable reference handed to the underlying server's static `RobotsConfig`;
+  // refilled from each build so dev edits to `noindex` frontmatter show up.
+  const disallow: string[] = [];
+
+  let cached: BuiltDocsSeo | null = null;
   async function getBuilt(): Promise<BuiltDocsSeo> {
     if (cached) return cached;
     const next = await buildDocsSeo(siteUrl);
+    disallow.splice(0, disallow.length, ...next.noindexPaths);
     if (options.cache !== false) cached = next;
     return next;
   }
@@ -65,6 +81,6 @@ export async function createDocsArtifactsServer(
       const { bodiesByUrl } = await getBuilt();
       return bodiesByUrl.get(url) ?? null;
     },
-    robots: { disallow: initial.noindexPaths },
+    robots: { disallow },
   });
 }

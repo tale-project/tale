@@ -1,4 +1,8 @@
 export default {
+  // `uvx` (the uv tool runner) is invoked by the root `format`/`format:check`
+  // scripts to run pinned `ruff` for Python — it's a system binary provided by
+  // uv, not an npm-installed package, so knip can't resolve it.
+  ignoreBinaries: ['uvx'],
   ignore: [
     'builtin-configs/**',
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
@@ -138,6 +142,16 @@ export default {
       // the CLI entry + its bun:test files so knip doesn't flag the engine,
       // guards, and adapter generator as unused.
       entry: ['tests/**/*.test.ts'],
+      project: ['**/*.ts'],
+    },
+    'skills/visual-aspect-analyzer': {
+      // Self-contained Bun/TS skill bundle: a library with a public embed API
+      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
+      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
+      // externally (by the agent / the sandbox-runtime image), not reached
+      // through the monorepo import graph, with co-located tests. Its source is
+      // the public surface, so it anchors the dead-code sweep directly.
+      entry: ['src/**/*.ts'],
       project: ['**/*.ts'],
     },
     'tools/cli': {

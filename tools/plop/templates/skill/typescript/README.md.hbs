@@ -1,0 +1,26 @@
+# {{kebabCase name}}
+
+{{description}}
+
+This skill is a `skills/*` workspace, so its `bun test` units + `tsc` typecheck
+run with the repo gate. TypeScript skills use **bun test** (they are Bun-native);
+keep the runtime entry self-contained (only `node:*` / `bun` builtins) so it runs
+wherever the skill is installed.
+
+## Develop
+
+```bash
+bun install                                          # from the repo root
+bun run --filter @tale/{{kebabCase name}} test       # bun test
+bun run --filter @tale/{{kebabCase name}} typecheck
+```
+
+## Run
+
+```bash
+bun scripts/main.ts [name]
+```
+
+See [`SKILL.md`](SKILL.md) for the agent-facing guidance. If the skill ships to
+product agents, register it in `tools/skills/src/manifest.ts` and run
+`bun run skills:sync`.
