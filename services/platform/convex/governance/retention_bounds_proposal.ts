@@ -303,7 +303,26 @@ export const getPendingBoundsProposal = action({
     });
 
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
+    // A not-yet-installed retention config is an expected empty state on
+    // normal page loads (e.g. a fresh org), not an error: there is no
+    // proposal to surface until the operator installs the config. Return
+    // null (banner stays silent) instead of throwing a
+    // RETENTION_CONFIG_MISSING ConvexError on every load. The write paths
+    // (apply/reject/seed) still throw — you cannot act on bounds that the
+    // operator has not installed yet.
+    let proposedBounds: AppliedBoundsByCategory;
+    try {
+      proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
+    } catch (err) {
+      if (
+        err instanceof ConvexError &&
+        isRecord(err.data) &&
+        err.data.code === 'RETENTION_CONFIG_MISSING'
+      ) {
+        return null;
+      }
+      throw err;
+    }
     const proposedHash = await hashAppliedBounds(proposedBounds);
 
     const applied: {
