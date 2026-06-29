@@ -7028,7 +7028,7 @@
     "setup": {
       "title": "Configurer l'authentification à double facteur",
       "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
-      "manualEntry": "Impossible de scanner ? Saisis ce secret manuellement :",
+      "manualEntry": "Ou saisir manuellement :",
       "verifyCodeLabel": "Code de vérification",
       "verifyButton": "Vérifier et activer"
     },
