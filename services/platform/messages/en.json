@@ -1665,7 +1665,7 @@
       "description": "Select messages and download in your preferred format.",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
-      "messagesCount": "{count} of {total} messages selected",
+      "messagesCount": "{count, plural, one {# of {total} message selected} other {# of {total} messages selected}}",
       "downloadPdf": "Print to PDF",
       "downloadMarkdown": "Download Markdown",
       "noMessages": "No messages to export",
@@ -2124,7 +2124,7 @@
       "accept": "Accept changes"
     },
     "bulkSend": {
-      "title": "Send {count} Messages",
+      "title": "Send {count, plural, one {# Message} other {# Messages}}",
       "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
       "send": "Send"
     },
@@ -4983,7 +4983,7 @@
       "columnActivity": "Last activity",
       "sharingOrgWide": "Org-wide",
       "sharingTeamPrefix": "Team:",
-      "sharingMultipleTeams": "{count} teams"
+      "sharingMultipleTeams": "{count, plural, one {# team} other {# teams}}"
     },
     "create": {
       "title": "Create project",

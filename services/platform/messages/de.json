@@ -1646,7 +1646,7 @@
       "description": "Nachrichten auswählen und im gewünschten Format herunterladen.",
       "selectAll": "Alle auswählen",
       "deselectAll": "Alle abwählen",
-      "messagesCount": "{count} von {total} Nachrichten ausgewählt",
+      "messagesCount": "{count, plural, one {# von {total} Nachricht ausgewählt} other {# von {total} Nachrichten ausgewählt}}",
       "downloadPdf": "Als PDF drucken",
       "downloadMarkdown": "Markdown herunterladen",
       "noMessages": "Keine Nachrichten zum Exportieren",
@@ -2124,7 +2124,7 @@
       "accept": "Änderungen übernehmen"
     },
     "bulkSend": {
-      "title": "{count} Nachrichten senden",
+      "title": "{count, plural, one {# Nachricht senden} other {# Nachrichten senden}}",
       "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
       "send": "Senden"
     },
@@ -7362,7 +7362,7 @@
       "columnActivity": "Letzte Aktivität",
       "sharingOrgWide": "Organisationsweit",
       "sharingTeamPrefix": "Team:",
-      "sharingMultipleTeams": "{count} Teams"
+      "sharingMultipleTeams": "{count, plural, one {# Team} other {# Teams}}"
     },
     "create": {
       "title": "Projekt erstellen",
