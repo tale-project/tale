@@ -15,7 +15,7 @@
  */
 
 import { paginationOptsValidator } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { getNumber, getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -62,7 +62,10 @@ async function requireAdmin(
 ): Promise<{ userId: string; role: string }> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthenticated',
+    });
   }
   const member = await getOrganizationMember(ctx, organizationId, {
     userId: authUser.userId,
@@ -70,7 +73,10 @@ async function requireAdmin(
     name: authUser.name ?? undefined,
   });
   if (!isAdmin(member.role)) {
-    throw new Error('Admin role required.');
+    throw new ConvexError({
+      code: 'FORBIDDEN',
+      message: 'Admin role required.',
+    });
   }
   return { userId: authUser.userId, role: member.role };
 }
@@ -81,7 +87,10 @@ async function requireMember(
 ): Promise<{ userId: string; role: string; isAdmin: boolean }> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthenticated',
+    });
   }
   const member = await getOrganizationMember(ctx, organizationId, {
     userId: authUser.userId,
