@@ -894,16 +894,12 @@
       "namePlaceholder": "Saisis le nom de l'automatisation"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "La modification des connexions n'est pas encore disponible",
-        "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
-      },
       "banners": {
         "hasActiveTriggers": "Cette automatisation est active — les modifications enregistrées s’appliquent aux nouvelles exécutions."
       },
       "toolbar": {
         "testAutomation": "Tester l'automatisation",
-        "addStep": "Ajouter une étape"
+        "addStepUnavailable": "La modification des étapes sur le canevas n'est pas encore disponible — utilise l'assistant IA ou modifie la configuration du workflow."
       },
       "execution": {
         "viewingRun": "Affichage de l'exécution {id}",

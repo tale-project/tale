@@ -893,16 +893,12 @@
       "namePlaceholder": "Enter automation name"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "Editing connections not yet available",
-        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
-      },
       "banners": {
         "hasActiveTriggers": "This automation is active — saved changes apply to new runs."
       },
       "toolbar": {
         "testAutomation": "Test automation",
-        "addStep": "Add step"
+        "addStepUnavailable": "Editing steps on the canvas isn't available yet — use the AI assistant or edit the workflow configuration."
       },
       "execution": {
         "viewingRun": "Viewing run {id}",
