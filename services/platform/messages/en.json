@@ -5111,7 +5111,6 @@
       "duplicateSuccess": "Project duplicated",
       "duplicateError": "Couldn't duplicate project",
       "renameDialogTitle": "Rename project",
-      "renameDialogDescription": "Change the project name.",
       "renameSubmit": "Save",
       "renameSubmitting": "Saving…"
     },

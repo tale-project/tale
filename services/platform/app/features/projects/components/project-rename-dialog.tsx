@@ -101,7 +101,6 @@ export function ProjectRenameDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('rowActions.renameDialogTitle')}
-      description={t('rowActions.renameDialogDescription')}
       submitText={t('rowActions.renameSubmit')}
       submittingText={t('rowActions.renameSubmitting')}
       isSubmitting={isSubmitting}
