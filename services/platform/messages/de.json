@@ -26,6 +26,7 @@
     "install": {
       "install": "Installieren",
       "installed": "Installiert",
+      "installFailed": "App konnte nicht installiert werden",
       "reinstall": "Neu installieren",
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",

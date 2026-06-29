@@ -26,6 +26,7 @@
     "install": {
       "install": "Installer",
       "installed": "Installé",
+      "installFailed": "Impossible d'installer l'application",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
