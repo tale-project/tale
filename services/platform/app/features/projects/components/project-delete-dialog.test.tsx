@@ -42,6 +42,13 @@ function renderDialog() {
   );
 }
 
+// Detach mode (default): the confirm phrase isn't required, so the confirm
+// button is enabled. The dialog title is a heading, so the only element with
+// the button role and the "Delete project" name is the confirm button.
+function getDeleteButton() {
+  return screen.getByRole('button', { name: 'Delete project' });
+}
+
 describe('ProjectDeleteDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,10 +64,7 @@ describe('ProjectDeleteDialog', () => {
 
     const { user } = renderDialog();
 
-    // Detach mode (default): the confirm phrase isn't required, so the delete
-    // button is enabled. It shares the "Delete project" label with the title.
-    const buttons = screen.getAllByRole('button', { name: 'Delete project' });
-    await user.click(buttons[buttons.length - 1]);
+    await user.click(getDeleteButton());
 
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -82,8 +86,27 @@ describe('ProjectDeleteDialog', () => {
 
     const { user } = renderDialog();
 
-    const buttons = screen.getAllByRole('button', { name: 'Delete project' });
-    await user.click(buttons[buttons.length - 1]);
+    await user.click(getDeleteButton());
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Uninstall the apps using this project first, then delete it.',
+        variant: 'destructive',
+      }),
+    );
+  });
+
+  it('falls back to the generic actionable message when apps is malformed', async () => {
+    // The runtime guard narrows error.data.apps to string[]; a non-array (or a
+    // non-string element) must not reach the named variant — it falls back to
+    // the generic message rather than rendering "[object Object]" or "123".
+    mockDeleteProject.mockRejectedValueOnce(
+      new ConvexError({ code: 'PROJECT_HAS_BOUND_APPS', apps: [123] }),
+    );
+
+    const { user } = renderDialog();
+
+    await user.click(getDeleteButton());
 
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
