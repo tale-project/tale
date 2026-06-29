@@ -66,9 +66,17 @@ infoLine(
     : `Sandbox runtime image ${IMAGE} missing — building it once (a few minutes on first run)…`,
 );
 
+// `--load` is required, not optional: when the build routes through a buildx
+// builder backed by a remote/container driver (e.g. a shared buildkitd selected
+// via BUILDX_BUILDER), the result stays in the builder's cache and is NOT
+// imported into the local daemon image store — so the spawner's later
+// `docker run tale-sandbox-runtime:latest` finds nothing locally and 502s on a
+// failed implicit `docker pull`. `--load` (shorthand for `--output=type=docker`)
+// pulls the built image back into the local daemon on every driver, and is a
+// harmless no-op on the default `docker` driver where it already lands locally.
 const build = spawnSync(
   'docker',
-  ['build', '-t', IMAGE, '-f', DOCKERFILE, '.'],
+  ['build', '--load', '-t', IMAGE, '-f', DOCKERFILE, '.'],
   { cwd: repoRoot, stdio: 'inherit' },
 );
 if (build.error) {

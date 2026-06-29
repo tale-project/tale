@@ -307,6 +307,38 @@ export const listReconcilableSessionsForOrg = internalQuery({
   },
 });
 
+/** Live `workflow_run` sessions belonging to ONE workflow execution. Every
+ * step's ephemeral sandbox is keyed `${executionId}:${stepSlug}` on `ownerId`
+ * (see `workflowRunOwnerId`), so they all share the `${executionId}:` prefix —
+ * scanned here via a range on the `by_owner` index. Used by the user-Stop
+ * cascade to tear them ALL down at once: `cancelExecution` cancels the durable
+ * workflow but never touches the sandbox, so without this a stopped run's agent
+ * keeps running and its session keeps holding a per-org slot until the TTL
+ * reaper — wedging the org's capacity queue. The org filter is defensive (the
+ * executionId already makes the prefix globally unique). */
+export const listWorkflowRunSessionsForExecution = internalQuery({
+  args: { organizationId: v.string(), executionId: v.string() },
+  returns: v.array(v.object({ sessionId: v.string() })),
+  handler: async (ctx, args) => {
+    const lower = `${args.executionId}:`;
+    const upper = `${args.executionId};`; // ';' = ':' + 1 → captures every step
+    const out: { sessionId: string }[] = [];
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q
+          .eq('ownerType', 'workflow_run')
+          .gte('ownerId', lower)
+          .lt('ownerId', upper),
+      )) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      out.push({ sessionId: row.sessionId });
+    }
+    return out;
+  },
+});
+
 /** Ephemeral `workflow_run` sessions whose bounded TTL has elapsed (`now >
  * expiresAt`) and that aren't pinned — the opportunistic backstop the next
  * `sandbox`-step run reaps before creating its own. The happy path tears these

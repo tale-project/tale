@@ -8,95 +8,16 @@ import {
   detectMentionTrigger,
   type MentionTrigger,
 } from '@/app/features/chat/hooks/use-kb-mentions';
-import { useProject } from '@/app/features/projects/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useActorDirectory } from '../hooks/use-actor-directory';
-import { memberInsertHandle } from '../lib/mention-handles';
+import {
+  filterMentionActorOptions,
+  type MentionActorOption,
+  useMentionActorOptions,
+} from '../lib/mention-actor-options';
 import { AssigneeAvatar } from './assignee-avatar';
-
-const MAX_OPTIONS = 8;
-
-interface MentionActorOption {
-  type: 'user' | 'agent';
-  id: string;
-  name: string;
-  email?: string;
-  /** The `@token` inserted into the text — picked to match a handle the
-   *  server directory resolves (`convex/tasks/directory.ts::memberHandles`). */
-  handle: string;
-}
-
-/**
- * Mentionable actors for a project, in picker order: org members first, then
- * agents — the same population the server resolves mentions against
- * (`convex/tasks/directory.ts`). Agent scoping follows the workforce
- * semantics: the default `agentMode: 'all'` exposes every org agent
- * (recommended ones first); `'restricted'` limits the list to the project's
- * `allowedAgentSlugs`.
- */
-function useMentionActorOptions(
-  organizationId: string,
-  projectId: Id<'projects'>,
-): MentionActorOption[] {
-  const { members, agents } = useActorDirectory(organizationId, projectId);
-  const { project } = useProject(projectId);
-
-  return useMemo(() => {
-    const options: MentionActorOption[] = [];
-    for (const member of members) {
-      const handle = memberInsertHandle(member);
-      if (handle) {
-        options.push({
-          type: 'user',
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          handle,
-        });
-      }
-    }
-    const restricted = project?.agentMode === 'restricted';
-    const allowed = new Set(project?.allowedAgentSlugs ?? []);
-    const recommended = new Set(project?.recommendedAgentSlugs ?? []);
-    const mentionableAgents = restricted
-      ? agents.filter((a) => allowed.has(a.id))
-      : [...agents].sort(
-          (a, b) =>
-            Number(recommended.has(b.id)) - Number(recommended.has(a.id)),
-        );
-    for (const agent of mentionableAgents) {
-      options.push({
-        type: 'agent',
-        id: agent.id,
-        name: agent.name,
-        handle: agent.id.toLowerCase(),
-      });
-    }
-    return options;
-  }, [members, agents, project]);
-}
-
-function filterOptions(
-  options: MentionActorOption[],
-  query: string,
-): MentionActorOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return options.slice(0, MAX_OPTIONS);
-  const matches = options.filter(
-    (o) =>
-      o.name.toLowerCase().includes(q) ||
-      o.handle.includes(q) ||
-      o.email?.toLowerCase().includes(q),
-  );
-  // Prefix matches (on the handle or name) read as "what I'm typing" — float
-  // them above mere substring hits.
-  const score = (o: MentionActorOption) =>
-    o.handle.startsWith(q) || o.name.toLowerCase().startsWith(q) ? 0 : 1;
-  return matches.sort((a, b) => score(a) - score(b)).slice(0, MAX_OPTIONS);
-}
 
 interface MentionTextareaProps extends Omit<
   React.ComponentPropsWithoutRef<'textarea'>,
@@ -142,7 +63,7 @@ export function MentionTextarea({
 
   const options = useMentionActorOptions(organizationId, projectId);
   const results = useMemo(
-    () => filterOptions(options, trigger?.query ?? ''),
+    () => filterMentionActorOptions(options, trigger?.query ?? ''),
     [options, trigger?.query],
   );
   const clampedHighlight = Math.min(highlight, Math.max(results.length - 1, 0));

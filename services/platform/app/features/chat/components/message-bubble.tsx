@@ -119,6 +119,21 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
    * that omit the prop never accidentally fire synthesis on history.
    */
   isFreshSinceMount?: boolean;
+  /**
+   * Multi-party alignment override: when defined, drives bubble alignment by
+   * AUTHORSHIP (own → right, others → left) instead of the default role-based
+   * rule (`role === 'user'` → right). 1:1 chat omits this and keeps the
+   * role-based behavior byte-for-byte. Discussions pass it so a teammate's
+   * (role:'user') reply left-aligns and a human-authored opening post
+   * (role:'assistant') can right-align when it's mine.
+   */
+  isOwn?: boolean;
+  /**
+   * Name-only author label rendered above the bubble for NON-own entries
+   * (teammates + agents). Omitted for own entries — right-alignment already
+   * signals "you". Undefined in 1:1 chat → no label, no layout change.
+   */
+  authorName?: string;
 }
 
 function useMessageGallery(message: Message) {
@@ -186,11 +201,20 @@ function MessageBubbleComponent({
   toolbarExtra,
   isLastAssistantMessage = false,
   isFreshSinceMount = false,
+  isOwn,
+  authorName,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
   const { t: tChat } = useT('chat');
   const isUser = message.role === 'user';
+  // Author-aware alignment override. `isOwn` (multi-party callers like
+  // Discussions) wins; when absent, fall back to the role-based default so 1:1
+  // chat is unchanged. `isUser` itself stays intact — it gates body rendering
+  // (markdown-vs-plain, copy, "Show more", toolbar), which a left-aligned
+  // teammate reply must keep.
+  const alignRight = isOwn ?? isUser;
+  const showAuthorLabel = isOwn === false && !!authorName;
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
   const voiceMode = useVoiceModeEffective(message.threadId);
@@ -703,7 +727,7 @@ function MessageBubbleComponent({
     <div
       className={cn(
         'group/message',
-        isUser ? 'flex flex-col items-end' : 'flex justify-start',
+        alignRight ? 'flex flex-col items-end' : 'flex justify-start',
         className,
       )}
       {...restProps}
@@ -711,6 +735,11 @@ function MessageBubbleComponent({
       data-message-role={message.role}
       data-message-id={message.id}
     >
+      {showAuthorLabel ? (
+        <div className="text-muted-foreground mb-0.5 px-1 text-xs font-medium">
+          {authorName}
+        </div>
+      ) : null}
       <div
         className={cn(
           'rounded-2xl',
@@ -1159,7 +1188,9 @@ export const MessageBubble = memo(
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
       prevProps.toolbarExtra === nextProps.toolbarExtra &&
       prevProps.isLastAssistantMessage === nextProps.isLastAssistantMessage &&
-      prevProps.isFreshSinceMount === nextProps.isFreshSinceMount
+      prevProps.isFreshSinceMount === nextProps.isFreshSinceMount &&
+      prevProps.isOwn === nextProps.isOwn &&
+      prevProps.authorName === nextProps.authorName
     );
   },
 );
