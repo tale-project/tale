@@ -7529,6 +7529,7 @@
       "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf dieses Projekt.",
       "PROJECT_NOT_FOUND": "Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.",
       "PROJECT_HAS_BOUND_APPS": "Deinstalliere zuerst die Apps, die dieses Projekt nutzen, dann lösche es.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Deinstalliere zuerst die Apps, die dieses Projekt nutzen, dann lösche es: {apps}.",
       "PROJECT_MISMATCH": "Dieser Chat liegt in einem anderen Projekt. Wechsle den Kontext, um fortzufahren.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} ist in diesem Projekt nicht verfügbar. Wähle einen anderen Agenten.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} ist in diesem Projekt nicht verfügbar. Wähle ein anderes Modell.",
