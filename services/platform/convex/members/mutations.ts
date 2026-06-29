@@ -69,6 +69,14 @@ export const addMember = mutation({
       throw new Error('Only admins can add members');
     }
 
+    // The owner role can only be assigned through the owner-gated
+    // transferOwnership flow — reject it here so a non-owner admin cannot
+    // self-escalate by passing role: 'owner' (mirrors updateMemberRole).
+    const role = (args.role ?? 'member').toLowerCase();
+    if (role === 'owner') {
+      throw new Error('The owner role cannot be assigned manually');
+    }
+
     const targetUser = findOneUser(
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'user',
@@ -77,7 +85,28 @@ export const addMember = mutation({
       }),
     );
 
-    const role = (args.role ?? 'member').toLowerCase();
+    // Reject re-adding a user who already has a membership in this org, mirroring
+    // createMember's existing-user branch. Without this, an admin could mint a
+    // second membership row for an existing member (including themselves),
+    // producing a duplicate mirror row regardless of role.
+    const existingMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
+          { field: 'userId', value: args.userId, operator: 'eq' },
+        ],
+      }),
+    );
+    if (existingMember) {
+      throw new Error('User is already a member of this organization');
+    }
+
     const createdAt = Date.now();
     const created = await ctx.runMutation(
       components.betterAuth.adapter.create,
