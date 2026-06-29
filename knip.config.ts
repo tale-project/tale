@@ -1,4 +1,8 @@
 export default {
+  // `uvx` (the uv tool runner) is invoked by the root `format`/`format:check`
+  // scripts to run pinned `ruff` for Python — it's a system binary provided by
+  // uv, not an npm-installed package, so knip can't resolve it.
+  ignoreBinaries: ['uvx'],
   ignore: [
     'builtin-configs/**',
     // The e2e fixtures' `default/integrations` is a symlink to the shipped
