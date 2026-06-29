@@ -50,6 +50,22 @@ export const EmptyWithLabel: Story = {
   },
 };
 
+export const WithImage: Story = {
+  args: {
+    currentUrl:
+      'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%3E%3Crect%20width%3D%2248%22%20height%3D%2248%22%20rx%3D%228%22%20fill%3D%22%236366f1%22/%3E%3C/svg%3E',
+    ariaLabel: 'Upload logo',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'With an uploaded image. Hover or focus the control to reveal the replace overlay; a remove button sits in the corner.',
+      },
+    },
+  },
+};
+
 export const SmallSize: Story = {
   args: {
     size: 'sm',
