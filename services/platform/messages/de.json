@@ -2516,7 +2516,7 @@
       "noTeamsAvailable": "Du bist kein Mitglied eines Teams",
       "allMembersHint": "Organisationsweite Dokumente sind für alle in der Organisation zugänglich.",
       "dropZoneTitle": "Datei hochladen",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV bis zu {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund",
@@ -4710,7 +4710,8 @@
       },
       "toast": {
         "success": "Produkt aktualisiert",
-        "error": "Produkt konnte nicht aktualisiert werden"
+        "error": "Produkt konnte nicht aktualisiert werden",
+        "duplicateName": "Ein Produkt mit diesem Namen existiert bereits"
       }
     },
     "create": {
@@ -4721,7 +4722,8 @@
       },
       "toast": {
         "success": "Produkt erstellt",
-        "error": "Produkt konnte nicht erstellt werden"
+        "error": "Produkt konnte nicht erstellt werden",
+        "duplicateName": "Ein Produkt mit diesem Namen existiert bereits"
       }
     },
     "createWizard": {
@@ -5314,6 +5316,7 @@
         "displayName": "Anzeigename",
         "displayNameTooltip": "Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.",
         "displayNamePlaceholder": "Mein Agent",
+        "displayNameDuplicateWarning": "Ein anderer Agent verwendet diesen Anzeigenamen bereits. Der Slug bleibt eindeutig, aber der doppelte Name kann im Chat und in Listen mehrdeutig sein.",
         "description": "Beschreibung",
         "descriptionPlaceholder": "Was macht dieser Agent?",
         "systemInstructions": "Systemanweisungen",
@@ -6735,6 +6738,10 @@
     "basicNameHint": "Wird als zwei Secrets gespeichert — dein Name plus die Suffixe _USERNAME und _PASSWORD.",
     "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
+    "editButton": "Bearbeiten",
+    "editTitle": "Secret bearbeiten",
+    "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
+    "updateSuccess": "Secret aktualisiert",
     "deleteSuccess": "Secret gelöscht"
   },
   "tasks": {
