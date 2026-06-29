@@ -122,7 +122,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const validFiles: { file: File; resolvedType: string }[] = [];
-      const rejectedTooLarge: File[] = [];
+      const rejectedTooLarge: { file: File; limit: number }[] = [];
       const rejectedType: File[] = [];
       const rejectedAudioDuration: File[] = [];
 
@@ -162,7 +162,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           ? Math.min(mergedConfig.maxFileSize, typeCeiling)
           : typeCeiling;
         if (file.size > perTypeLimit) {
-          rejectedTooLarge.push(file);
+          rejectedTooLarge.push({ file, limit: perTypeLimit });
         } else if (!isAllowedType) {
           rejectedType.push(file);
         } else {
@@ -205,16 +205,31 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       }
 
       if (rejectedTooLarge.length > 0) {
-        const maxSizeMB = Math.round(mergedConfig.maxFileSize / (1024 * 1024));
-        const names = rejectedTooLarge.map((f) => f.name).join(', ');
-        toast({
-          title: t('invalidFiles'),
-          description: t('fileSizeExceededMultiple', {
-            names,
-            maxSize: maxSizeMB,
-          }),
-          variant: 'destructive',
-        });
+        // Report the ceiling each file actually exceeded, not a single global
+        // `maxFileSize`. Media gets the elevated per-type cap, so a rejected
+        // video and a rejected document have different bounds; group by the
+        // limit so each toast states the right number rather than always 100 MB.
+        const byLimit = new Map<number, File[]>();
+        for (const { file, limit } of rejectedTooLarge) {
+          const group = byLimit.get(limit);
+          if (group) {
+            group.push(file);
+          } else {
+            byLimit.set(limit, [file]);
+          }
+        }
+        for (const [limit, groupFiles] of byLimit) {
+          const maxSizeMB = Math.round(limit / (1024 * 1024));
+          const names = groupFiles.map((f) => f.name).join(', ');
+          toast({
+            title: t('invalidFiles'),
+            description: t('fileSizeExceededMultiple', {
+              names,
+              maxSize: maxSizeMB,
+            }),
+            variant: 'destructive',
+          });
+        }
       }
 
       if (rejectedAudioDuration.length > 0) {
