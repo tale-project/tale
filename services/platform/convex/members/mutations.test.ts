@@ -197,6 +197,33 @@ describe('removeMember handler', () => {
     );
   });
 
+  it('throws when an admin tries to remove their own membership', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member is the caller themself (same userId as AUTH_USER._id)
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_self',
+          organizationId: 'org_1',
+          userId: 'user_caller',
+          role: 'admin',
+        },
+      ],
+    });
+    // caller is admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_self', role: 'admin' }],
+    });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { memberId: 'm_self' })).rejects.toThrow(
+      'You cannot remove your own membership',
+    );
+    // No deletion should be attempted for a self-removal.
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
   it('allows owner to remove a non-owner member', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
