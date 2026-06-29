@@ -2104,6 +2104,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Unknown customer",
     "messagePlaceholder": "Type a message",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
     "fallbackImageAttachment": "Image attachment",
