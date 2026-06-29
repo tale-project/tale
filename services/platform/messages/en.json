@@ -5015,6 +5015,7 @@
       "ragStatusCompleted": "Indexed",
       "ragStatusFailed": "Failed",
       "detachAction": "Remove from project",
+      "previewAction": "Preview file",
       "detachSuccess": "Document removed from project",
       "detachError": "Couldn't remove document",
       "attachSuccess": "Document added to project",
