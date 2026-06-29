@@ -4459,7 +4459,13 @@
     "dsarPolicyLoosenApplied": "Löschrichtlinie gelockert",
     "dsarPolicyLoosenAppliedBody": "Eine schwächere Löschrichtlinie (DSAR) wurde nach dem 24-Stunden-Karenzfenster wirksam.",
     "dsarPolicyLoosenCancelled": "Vorgemerkte Änderung der Löschrichtlinie abgebrochen",
-    "dsarPolicyLoosenCancelledBody": "Eine vorgemerkte Änderung der Löschrichtlinie (DSAR) wurde abgebrochen, bevor sie wirksam wurde."
+    "dsarPolicyLoosenCancelledBody": "Eine vorgemerkte Änderung der Löschrichtlinie (DSAR) wurde abgebrochen, bevor sie wirksam wurde.",
+    "agentBudgetWarnTitle": "Agent nähert sich seinem Budget",
+    "agentBudgetWarnBody": "{agentSlug} hat {pct} % seines Monatsbudgets verbraucht ({spent} von {monthly}).",
+    "agentBudgetExceededTitle": "Agent-Budget überschritten — Ausführungen pausiert",
+    "agentBudgetExceededBody": "{agentSlug} hat sein Monatsbudget erreicht ({spent} von {monthly}) und wurde pausiert. Ausführungen laufen nächsten Monat weiter oder sobald du das Limit erhöhst.",
+    "agentCircuitTrippedTitle": "Agent-Ausführungen pausiert — Sicherheitslimit erreicht",
+    "agentCircuitTrippedBody": "{agentSlug} hat das Sicherheitslimit von {windowRuns} Ausführungen in {windowHours}h bei \"{taskTitle}\" erreicht. Ändere den Aufgabenstatus, um die Automatisierung fortzusetzen."
   },
   "personalization": {
     "page": {
@@ -6704,6 +6710,7 @@
     "mentionByBody": "{actor} hat dich in \"{title}\" erwähnt.",
     "taskReviewRequested": "Review angefragt",
     "taskReviewRequestedBody": "{agentSlug} hat \"{taskTitle}\" abgeschlossen — freigeben oder Änderungen anfordern.",
+    "taskReviewRequestedBodyNoAgent": "Agenten-Arbeit an \"{taskTitle}\" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.",
     "taskReviewApproved": "Review freigegeben",
     "taskReviewApprovedBody": "\"{taskTitle}\" wurde freigegeben und abgeschlossen.",
     "taskReviewChangesRequested": "Änderungen angefordert",
