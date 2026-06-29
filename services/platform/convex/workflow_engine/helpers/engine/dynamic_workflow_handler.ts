@@ -324,10 +324,13 @@ export async function handleDynamicWorkflow(
     // Surface "Queued" on the execution row, then BLOCK on an event instead of
     // re-running executeStep on a backoff timer (the old poll loop re-ran the
     // whole action every wake, ~84% no-progress re-checks saturating the
-    // committer). A slot release / the reconciler `sendEvent`s the deterministic
-    // wake name; awaitEvent is race-safe (a wake sent before the await is
-    // buffered and resolves immediately), so the only failure mode — a wake that
-    // is never sent — is covered by the reconciler cron backstop. On wake we
+    // committer). The deterministic wake name is `sendEvent`d on every edge that
+    // can make a slot serviceable — slot RELEASE, a fresh waiter's ARRIVAL
+    // (`pollAdmission`), and the ticket REAPER's backstop pass; awaitEvent is
+    // race-safe (a wake sent before the await is buffered and resolves
+    // immediately). Because this awaitEvent has NO timeout, those edges are the
+    // whole liveness story — a missed release wake is recovered by the next
+    // arrival or the reaper nudge, not by a heavyweight reconcile cron. On wake we
     // re-enter the SAME step (no `currentStepSlug` advance): the atomic reserve
     // claims the freed slot or re-parks if it lost the race. Like 'running', this
     // is an INTERNAL control port the author never maps, so handle it before

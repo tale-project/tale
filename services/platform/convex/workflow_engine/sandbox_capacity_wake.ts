@@ -4,15 +4,24 @@
 // `awaiting_capacity`; the durable handler then BLOCKS on
 // `step.awaitEvent({ name: sandboxCapacityWakeEventName(...) })` instead of
 // re-running the whole executeStep action on a backoff timer. `wakeHeadWaiters`
-// sends that wake event so a parked step resumes the instant a slot frees — it
-// is scheduled (best-effort, `runAfter(0, ...)`) by EVERY slot-release mutation.
+// sends that wake event so a parked step resumes the instant a slot frees.
 //
-// There is NO reconcile/heartbeat cron. A parked-but-running step keeps its
-// admission ticket without any periodic refresh — the reaper culls a workflow
-// ticket only once its EXECUTION is terminal/missing (see
-// `recoverStuckAdmissionTickets`), not on a staleness timer — so this
-// ticket-driven wake always finds the live waiter. Correctness therefore rests
-// on every slot-release mutation scheduling this wake; keep that invariant.
+// Because that awaitEvent has NO timeout, a parked step's liveness rests
+// entirely on this wake being sent — so it is scheduled (best-effort,
+// `runAfter(0, ...)`) on EVERY edge that can make a slot serviceable, not just
+// one:
+//   1. slot RELEASE — session destroy/expire/stop, one-shot finalize, watchdog
+//      reap (sandbox/* mutations);
+//   2. fresh waiter ARRIVAL — `pollAdmission` parks with a slot still open
+//      (an earlier head's release wake was lost, or its head is wedged);
+//   3. ticket REAPER backstop — `recoverStuckAdmissionTickets` nudges any org
+//      with a live parked workflow waiter, and wakes after culling a dead head.
+// Relying on (1) alone is what deadlocked: a slot held open by a long-lived idle
+// session is never "released", so no release edge ever fires. (2) and (3) are
+// the lightweight, cron-free recovery (the reaper rides its EXISTING cron). A
+// parked-but-running step keeps its admission ticket without any periodic
+// refresh — the reaper culls a workflow ticket only once its EXECUTION is
+// terminal/missing — so this ticket-driven wake always finds the live waiter.
 //
 // It lives under workflow_engine/ (NOT sandbox/) on purpose: it imports the
 // workflow component `workflowManagers` by value, and sandbox/* must not import

@@ -117,6 +117,30 @@ async function ticketsForOwner(t: T, ownerId: string) {
   );
 }
 
+/** The `wakeHeadWaiters` nudges queued by the arrival/reaper edges (read off the
+ * `_scheduled_functions` system table; we never run them — the wake imports the
+ * workflow component, which isn't wired in unit tests). */
+async function scheduledWakes(
+  t: T,
+): Promise<Array<{ organizationId: string; kind: string; count: number }>> {
+  return t.run(async (ctx) => {
+    const fns = await ctx.db.system.query('_scheduled_functions').collect();
+    return (
+      fns
+        .filter((fn) => fn.name.includes('wakeHeadWaiters'))
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- _scheduled_functions.args is any[]
+        .map(
+          (fn) =>
+            fn.args[0] as {
+              organizationId: string;
+              kind: string;
+              count: number;
+            },
+        )
+    );
+  });
+}
+
 describe('pollAdmission verdict math', () => {
   it('admits when the org has a free slot', async () => {
     const t = convexTest(schema, modules);
@@ -153,6 +177,46 @@ describe('FIFO ordering', () => {
     // The older owner polls: rank 0 < slotsOpen 1 → admit.
     const older = await poll(t, 'owner_old');
     expect(older.verdict).toBe('admit');
+  });
+});
+
+describe('arrival-wake (self-heal on a fresh park)', () => {
+  it('schedules a capacity wake when it parks with a slot still open', async () => {
+    const t = convexTest(schema, modules);
+    // One slot open (cap 2, one active holder) and an older waiter ahead, so the
+    // newcomer parks even though capacity is free — exactly the state that would
+    // otherwise freeze if the older head's release wake were lost.
+    await seedActiveSession(t, 'holder');
+    await seedWaitingTicket(t, 'owner_old', 1_000);
+
+    const res = await poll(t, 'owner_new');
+    expect(res.verdict).toBe('wait');
+
+    const wakes = await scheduledWakes(t);
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]).toMatchObject({
+      organizationId: ORG,
+      kind: 'session',
+      count: 1, // slotsOpen
+    });
+  });
+
+  it('schedules NO wake when the org is genuinely full', async () => {
+    const t = convexTest(schema, modules);
+    for (let i = 0; i < SESSION_CAP; i++) {
+      await seedActiveSession(t, `holder_${i}`);
+    }
+    const res = await poll(t, 'owner_a');
+    expect(res.verdict).toBe('wait');
+    // slotsOpen <= 0 → nothing to wake; an over-eager nudge would be wasteful.
+    expect(await scheduledWakes(t)).toHaveLength(0);
+  });
+
+  it('schedules NO wake when it is admitted directly', async () => {
+    const t = convexTest(schema, modules);
+    const res = await poll(t, 'owner_a');
+    expect(res.verdict).toBe('admit');
+    expect(await scheduledWakes(t)).toHaveLength(0);
   });
 });
 
@@ -324,5 +388,27 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
     expect(await ticketsForOwner(t, 'wf_running')).toHaveLength(1);
     expect(await ticketsForOwner(t, 'wf_terminal')).toHaveLength(0);
     expect(await ticketsForOwner(t, 'wf_orphan')).toHaveLength(0);
+  });
+
+  // Backstop liveness: a parked workflow waiter whose execution is still running
+  // is SPARED, but its (kind, org) must be nudged so an open slot left idle by a
+  // lost release/arrival wake can't strand it forever — this is what closes the
+  // "frozen queue, no new arrivals" deadlock without a heavyweight reconcile cron.
+  it('nudges the queue for an org with a live parked workflow waiter, deduped', async () => {
+    const t = convexTest(schema, modules);
+    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    const running = await seedOwnerExec(t, 'running');
+    // Two live parked waiters in the same (kind, org) → one deduped nudge.
+    await seedWaitingTicket(t, 'wf_live_a', 1_000, stale, 'workflow', running);
+    await seedWaitingTicket(t, 'wf_live_b', 2_000, stale, 'workflow', running);
+
+    const reaped = await t.mutation(
+      internal.sandbox.admission.recoverStuckAdmissionTickets,
+      {},
+    );
+    expect(reaped).toHaveLength(0); // both spared (execution running)
+    const wakes = await scheduledWakes(t);
+    expect(wakes).toHaveLength(1); // deduped to one wake per (kind, org)
+    expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
   });
 });
