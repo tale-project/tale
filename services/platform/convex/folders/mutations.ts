@@ -127,16 +127,28 @@ const RESERVED_NAMES = new Set(['.', '..']);
 export function validateFolderName(name: string): string {
   const trimmed = name.trim();
   if (trimmed.length === 0) {
-    throw new Error('Folder name cannot be empty');
+    throw new ConvexError({
+      code: 'FOLDER_NAME_EMPTY',
+      message: 'Folder name cannot be empty',
+    });
   }
   if (trimmed.length > MAX_FOLDER_NAME_LENGTH) {
-    throw new Error('Folder name is too long');
+    throw new ConvexError({
+      code: 'FOLDER_NAME_TOO_LONG',
+      message: 'Folder name is too long',
+    });
   }
   if (RESERVED_NAMES.has(trimmed)) {
-    throw new Error('Invalid folder name');
+    throw new ConvexError({
+      code: 'FOLDER_NAME_INVALID',
+      message: 'Invalid folder name',
+    });
   }
   if (trimmed.includes('/') || trimmed.includes('\\')) {
-    throw new Error('Folder name cannot contain path separators');
+    throw new ConvexError({
+      code: 'FOLDER_NAME_HAS_SEPARATOR',
+      message: 'Folder name cannot contain path separators',
+    });
   }
   return trimmed;
 }
@@ -159,7 +171,10 @@ async function checkDuplicateName(
     .first();
 
   if (existing && existing._id !== excludeId) {
-    throw new Error('A folder with this name already exists');
+    throw new ConvexError({
+      code: 'FOLDER_DUPLICATE_NAME',
+      message: 'A folder with this name already exists',
+    });
   }
 }
 
@@ -174,7 +189,7 @@ export const createFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -188,12 +203,18 @@ export const createFolder = mutation({
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.organizationId !== args.organizationId) {
-        throw new Error('Parent folder not found');
+        throw new ConvexError({
+          code: 'FOLDER_PARENT_NOT_FOUND',
+          message: 'Parent folder not found',
+        });
       }
       if (parent.teamId || parent.teamTags?.length) {
         const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
         if (!hasTeamAccess(parent, userTeamIds)) {
-          throw new Error('Parent folder not accessible');
+          throw new ConvexError({
+            code: 'FOLDER_PARENT_NOT_ACCESSIBLE',
+            message: 'Parent folder not accessible',
+          });
         }
       }
 
@@ -210,14 +231,20 @@ export const createFolder = mutation({
         ancestorId = ancestor.parentId;
       }
       if (depth >= MAX_FOLDER_DEPTH) {
-        throw new Error('Maximum folder nesting depth exceeded');
+        throw new ConvexError({
+          code: 'FOLDER_MAX_DEPTH_EXCEEDED',
+          message: 'Maximum folder nesting depth exceeded',
+        });
       }
     }
 
     if (effectiveTeamId) {
       const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!userTeamIds.includes(effectiveTeamId)) {
-        throw new Error('Cannot create folder in a team you do not belong to');
+        throw new ConvexError({
+          code: 'FOLDER_TEAM_FORBIDDEN',
+          message: 'Cannot create folder in a team you do not belong to',
+        });
       }
     }
 
@@ -247,12 +274,15 @@ export const renameFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new Error('Folder not found');
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
     }
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
@@ -266,7 +296,10 @@ export const renameFolder = mutation({
     if (folder.teamId || folder.teamTags?.length) {
       const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new Error('Access denied');
+        throw new ConvexError({
+          code: 'FOLDER_ACCESS_DENIED',
+          message: 'Access denied',
+        });
       }
     }
 
@@ -293,12 +326,15 @@ export const deleteFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new Error('Folder not found');
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
     }
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
@@ -312,7 +348,10 @@ export const deleteFolder = mutation({
     if (folder.teamId || folder.teamTags?.length) {
       const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new Error('Access denied');
+        throw new ConvexError({
+          code: 'FOLDER_ACCESS_DENIED',
+          message: 'Access denied',
+        });
       }
     }
 
@@ -350,12 +389,15 @@ export const updateFolderTeams = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new Error('Folder not found');
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
     }
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
@@ -369,7 +411,10 @@ export const updateFolderTeams = mutation({
     if (folder.parentId) {
       const parent = await ctx.db.get(folder.parentId);
       if (parent?.teamId) {
-        throw new Error('Cannot change team: inherited from parent folder');
+        throw new ConvexError({
+          code: 'FOLDER_TEAM_INHERITED',
+          message: 'Cannot change team: inherited from parent folder',
+        });
       }
     }
 
@@ -377,13 +422,19 @@ export const updateFolderTeams = mutation({
 
     if (folder.teamId || folder.teamTags?.length) {
       if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new Error('Access denied');
+        throw new ConvexError({
+          code: 'FOLDER_ACCESS_DENIED',
+          message: 'Access denied',
+        });
       }
     }
 
     for (const tid of args.teamIds) {
       if (!userTeamIds.includes(tid)) {
-        throw new Error('Cannot assign folder to a team you do not belong to');
+        throw new ConvexError({
+          code: 'FOLDER_TEAM_FORBIDDEN',
+          message: 'Cannot assign folder to a team you do not belong to',
+        });
       }
     }
 
