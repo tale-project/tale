@@ -31,6 +31,13 @@
       content="#0a0a0a"
       media="(prefers-color-scheme: dark)"
     />
+    <!-- seo:start -->
+    <!--
+      Per-route SEO tags. In production the prerenderer (scripts/prerender.ts)
+      replaces everything between seo:start/seo:end with the exact `<head>`
+      the route's `useDocumentMeta` renders (incl. robots, hreflang, JSON-LD).
+      These defaults are what dev and the SPA-shell fallback show pre-JS.
+    -->
     <title>Tale documentation</title>
     <meta
       name="description"
@@ -51,6 +58,7 @@
       name="twitter:description"
       content="Documentation for Tale — the orchestration layer for AI agents."
     />
+    <!-- seo:end -->
     <link
       rel="alternate"
       type="text/plain"

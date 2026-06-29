@@ -1,5 +1,10 @@
 import { AppShell } from '@tale/ui/app-shell';
 import {
+  createHeadSink,
+  HeadSinkContext,
+  renderHeadToHtml,
+} from '@tale/ui/seo/document-meta';
+import {
   createMemoryHistory,
   createRouter,
   RouterProvider,
@@ -13,6 +18,8 @@ import { routeTree } from './routeTree.gen';
 
 interface RenderResult {
   html: string;
+  /** Serialised per-route `<head>` captured during render (see HeadSink). */
+  head: string;
 }
 
 const basepath =
@@ -26,6 +33,10 @@ export async function render(url: string): Promise<RenderResult> {
     history: createMemoryHistory({ initialEntries: [url] }),
   });
   await router.load();
+  // Collect the route's `<head>` during render — `useDocumentMeta` writes
+  // into the sink as the tree renders (effects don't run under
+  // `renderToString`). Mirror any change here in `app/main.tsx`.
+  const sink = createHeadSink();
   // `theme={{ defaultTheme: 'light' }}` matches the CSR path's pinned
   // light theme and keeps SSR/CSR hydration in sync. AppShell's default
   // `'system'` would otherwise resolve to dark for OS-dark crawlers
@@ -33,10 +44,12 @@ export async function render(url: string): Promise<RenderResult> {
   // M9.
   const html = renderToString(
     <StrictMode>
-      <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
-        <RouterProvider router={router} />
-      </AppShell>
+      <HeadSinkContext.Provider value={sink}>
+        <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+          <RouterProvider router={router} />
+        </AppShell>
+      </HeadSinkContext.Provider>
     </StrictMode>,
   );
-  return { html };
+  return { html, head: renderHeadToHtml(sink.tags) };
 }
