@@ -4193,6 +4193,10 @@
       "title": "Projets",
       "description": "Espaces de travail partagés pour fichiers, instructions et discussions."
     },
+    "apps": {
+      "title": "Applications",
+      "description": "Modules installés et les applications qu'ils ajoutent à ton organisation."
+    },
     "websites": {
       "title": "Sites web",
       "description": "Gère les sites web pour l'extraction de connaissances."

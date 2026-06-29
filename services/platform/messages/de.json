@@ -4192,6 +4192,10 @@
       "title": "Projekte",
       "description": "Geteilte Arbeitsbereiche für Dateien, Anweisungen und Chats."
     },
+    "apps": {
+      "title": "Apps",
+      "description": "Installierte Pakete und die Apps, die sie deiner Organisation hinzufügen."
+    },
     "websites": {
       "title": "Websites",
       "description": "Websites für die Wissensextraktion verwalten."
