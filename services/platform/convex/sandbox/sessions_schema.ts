@@ -393,10 +393,23 @@ export const SANDBOX_ADMISSION_POLL_BACKOFF_MS = 4_000;
  * `retry-after` is supplied. Longer than the per-org poll: a global slot frees
  * across tenants, not from this org's own queue. */
 export const SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS = 10_000;
-/** A `waiting` ticket whose `lastSeenAt` is older than this lost its poll-chain
- * (the workflow/chat that owned it died) → the reaper deletes it so the queue
- * head can advance. ~6 missed per-org polls; tune WITH the poll backoff. */
+/** Staleness window for a SELF-POLLING (`source:'chat'`) `waiting` ticket: its
+ * owner re-polls every `SANDBOX_ADMISSION_POLL_BACKOFF_MS`, re-stamping
+ * `lastSeenAt`, so a `lastSeenAt` older than this means the poll-chain died and
+ * the reaper deletes it to let the queue head advance. ~6 missed per-org polls;
+ * tune WITH the poll backoff. Does NOT apply to workflow tickets — see
+ * `SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS`. */
 export const SANDBOX_ADMISSION_TICKET_STALE_MS = 30_000;
+/** Staleness window for an EVENT-DRIVEN (`source:'workflow'`) `waiting` ticket.
+ * A parked workflow sandbox step BLOCKS on `step.awaitEvent(...)` and never
+ * re-polls, so it never self-stamps `lastSeenAt`; the ONLY refresh is the
+ * minutely `reconcileAdmissionWakes` heartbeat. The window MUST therefore exceed
+ * that 60s cron interval with margin for jitter / a missed tick — otherwise the
+ * reaper deletes a live parked ticket between heartbeats, and a ticket-less step
+ * is unwakeable (both the wake and the heartbeat key off the ticket row),
+ * wedging the org's capacity queue forever. 3 min = tolerate ~2 missed
+ * heartbeats. KEEP > the reconcile cron interval in crons.ts. */
+export const SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS = 180_000;
 
 /**
  * Statuses under which a session row is LIVE: the incarnation the reused

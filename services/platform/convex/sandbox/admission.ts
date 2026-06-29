@@ -20,7 +20,10 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { readSandboxQuotaPolicy } from './quota_policy';
-import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
+import {
+  SANDBOX_ADMISSION_TICKET_STALE_MS,
+  SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS,
+} from './sessions_schema';
 
 export type AdmissionKind = 'session' | 'oneshot';
 
@@ -373,27 +376,39 @@ export const deleteAdmissionTicket = internalMutation({
   },
 });
 
-/** Reaper (5-min cron, sibling of `recoverStuckSessions`). Deletes tickets whose
- * `lastSeenAt` went stale: a WAITING ticket whose poll-chain died (the workflow
- * step / chat turn that owned it is gone) would otherwise wedge the org's FIFO
- * head forever — and under indefinite-wait this staleness sweep is the ONLY
- * guard against permanent queue-head starvation. Stale ADMITTED tickets are
+/** Reaper (2-min cron, sibling of `recoverStuckSessions`). Deletes tickets whose
+ * `lastSeenAt` went stale: a WAITING ticket whose liveness signal stopped (the
+ * workflow step / chat turn that owned it is gone) would otherwise wedge the
+ * org's FIFO head forever — and under indefinite-wait this staleness sweep is the
+ * ONLY guard against permanent queue-head starvation. Stale ADMITTED tickets are
  * orphans whose claimer died after the claim (their slot row is reclaimed by
- * `recoverStuckSessions` / the exec watchdog); drop them too. */
+ * `recoverStuckSessions` / the exec watchdog); drop them too.
+ *
+ * Two staleness windows, because the two ticket sources refresh `lastSeenAt`
+ * differently: a `chat` ticket self-polls (fast 30s window); a `workflow` ticket
+ * is event-driven and refreshed only by the minutely reconcile heartbeat, so it
+ * needs a window WIDER than that cron interval — reaping a live parked workflow
+ * ticket between heartbeats makes its `awaitEvent` step unwakeable forever. The
+ * index range scans on the shorter (chat) cutoff; workflow rows not yet past the
+ * wider cutoff are skipped. */
 export const recoverStuckAdmissionTickets = internalMutation({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.id('sandboxAdmissionTickets')),
   handler: async (ctx, args) => {
     const now = Date.now();
     const limit = args.limit ?? 100;
-    const cutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;
+    const chatCutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;
+    const workflowCutoff = now - SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS;
     const reaped: Id<'sandboxAdmissionTickets'>[] = [];
     for (const status of ['waiting', 'admitted'] as const) {
       for await (const t of ctx.db
         .query('sandboxAdmissionTickets')
         .withIndex('by_status_lastSeen', (q) =>
-          q.eq('status', status).lt('lastSeenAt', cutoff),
+          q.eq('status', status).lt('lastSeenAt', chatCutoff),
         )) {
+        // Event-driven workflow tickets live on the wider, heartbeat-sized
+        // window — don't reap one that's merely older than the chat cutoff.
+        if (t.source === 'workflow' && t.lastSeenAt >= workflowCutoff) continue;
         await ctx.db.delete(t._id);
         reaped.push(t._id);
         if (reaped.length >= limit) return reaped;

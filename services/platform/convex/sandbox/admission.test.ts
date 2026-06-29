@@ -12,7 +12,10 @@ import { internal } from '../_generated/api';
 import schema from '../schema';
 import { isWaitFifoError, WAIT_FIFO_CODE } from './admission';
 import { DEFAULT_SANDBOX_QUOTA } from './quota_policy';
-import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
+import {
+  SANDBOX_ADMISSION_TICKET_STALE_MS,
+  SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS,
+} from './sessions_schema';
 
 // convex-test module map keyed relative to the convex/ root (this file is at
 // convex/sandbox/, mirror session_lifecycle.test.ts).
@@ -60,6 +63,7 @@ async function seedWaitingTicket(
   ownerId: string,
   createdAt: number,
   lastSeenAt = Date.now(),
+  source: 'chat' | 'workflow' = 'workflow',
 ): Promise<void> {
   await t.run((ctx) =>
     ctx.db.insert('sandboxAdmissionTickets', {
@@ -67,7 +71,7 @@ async function seedWaitingTicket(
       kind: 'session',
       ownerType: 'workflow_run',
       ownerId,
-      source: 'workflow',
+      source,
       status: 'waiting',
       createdAt,
       lastSeenAt,
@@ -258,7 +262,9 @@ describe('isWaitFifoError (the park-vs-fail discriminator)', () => {
 describe('recoverStuckAdmissionTickets (reaper)', () => {
   it('deletes stale waiting tickets and spares fresh ones', async () => {
     const t = convexTest(schema, modules);
-    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    // A workflow ticket is only stale past the WIDER heartbeat-sized window.
+    const stale =
+      Date.now() - (SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS + 5_000);
     await seedWaitingTicket(t, 'owner_dead', 1_000, stale);
     await seedWaitingTicket(t, 'owner_live', 2_000, Date.now());
 
@@ -269,5 +275,47 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
     expect(reaped).toHaveLength(1);
     expect(await ticketsForOwner(t, 'owner_dead')).toHaveLength(0);
     expect(await ticketsForOwner(t, 'owner_live')).toHaveLength(1);
+  });
+
+  // Regression gate: the event-driven park bug. A parked workflow ticket is
+  // refreshed only by the minutely reconcile heartbeat (the step itself no
+  // longer polls), so its staleness window MUST exceed that 60s interval —
+  // otherwise the reaper deletes a live parked ticket between heartbeats and the
+  // `awaitEvent` step becomes unwakeable, wedging the org's capacity queue.
+  it('spares a workflow ticket past the chat window but keeps the longer one', async () => {
+    const t = convexTest(schema, modules);
+    // Stale by the chat window (30s) but NOT the workflow window (180s): a live
+    // parked step between heartbeats. Must survive.
+    const betweenHeartbeats =
+      Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    await seedWaitingTicket(
+      t,
+      'wf_parked',
+      1_000,
+      betweenHeartbeats,
+      'workflow',
+    );
+    // A chat waiter at the same age self-polls, so this age means its poll-chain
+    // died → reap it on the short window.
+    await seedWaitingTicket(t, 'chat_dead', 2_000, betweenHeartbeats, 'chat');
+    // A workflow ticket past the wider window IS dead → reap it.
+    const pastWorkflowWindow =
+      Date.now() - (SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS + 5_000);
+    await seedWaitingTicket(
+      t,
+      'wf_dead',
+      3_000,
+      pastWorkflowWindow,
+      'workflow',
+    );
+
+    const reaped = await t.mutation(
+      internal.sandbox.admission.recoverStuckAdmissionTickets,
+      {},
+    );
+    expect(reaped).toHaveLength(2);
+    expect(await ticketsForOwner(t, 'wf_parked')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'chat_dead')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'wf_dead')).toHaveLength(0);
   });
 });
