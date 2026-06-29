@@ -2126,6 +2126,8 @@
     "bulkSend": {
       "title": "{count, plural, one {# Nachricht senden} other {# Nachrichten senden}}",
       "description": "Du sendest Antworten für {count, plural, one {# Konversation} other {# Konversationen}}. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "messageLabel": "Nachricht",
+      "messagePlaceholder": "Antwort eingeben...",
       "send": "Senden"
     },
     "updating": "Konversationen werden aktualisiert...",
