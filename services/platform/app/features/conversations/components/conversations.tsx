@@ -117,6 +117,9 @@ export function Conversations({
         'description',
         'subject',
         'externalMessageId',
+        // The customer name is the most prominent label on each row, so the
+        // search must cover it too — it lives on the nested `customer` object.
+        (c) => c.customer?.name,
       ]);
     }
 
