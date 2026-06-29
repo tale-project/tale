@@ -2028,6 +2028,12 @@
       "contactSupport": "kontaktiere den Support",
       "tryAgain": "Erneut versuchen"
     },
+    "executionErrors": {
+      "unauthenticated": "Du bist nicht angemeldet. Lade die Seite neu und versuche es erneut.",
+      "notFound": "Dieser Lauf konnte nicht mehr gefunden werden. Möglicherweise wurde er gelöscht.",
+      "notCancelable": "Dieser Lauf kann nicht mehr gestoppt werden – er ist bereits abgeschlossen.",
+      "missingWorkflow": "Dieser Lauf kann nicht erneut ausgeführt werden, da sein Workflow nicht mehr verfügbar ist."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"

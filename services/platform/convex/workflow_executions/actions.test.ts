@@ -1,6 +1,22 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { rerunExecution } from './actions';
+
+/** Pull the structured `code` off a thrown ConvexError (the issue #2013 fix:
+ * execution-management rejections carry a code, not an opaque message). */
+async function catchCode(fn: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await fn();
+  } catch (err) {
+    if (err instanceof ConvexError) {
+      return (err.data as { code?: unknown }).code;
+    }
+    throw err;
+  }
+  return undefined;
+}
 
 // Mock-ctx idiom (see external_runs/state_machine.test.ts).
 vi.mock('../_generated/server', async (importOriginal) => {
@@ -92,20 +108,30 @@ describe('rerunExecution', () => {
     });
   });
 
-  it('throws when the execution is missing', async () => {
-    const { ctx } = createCtx({ execution: null });
-    await expect(handler(ctx, { executionId: 'exec_x' })).rejects.toThrow(
-      'Execution not found',
-    );
+  it('throws UNAUTHENTICATED when the caller is not signed in', async () => {
+    // Force the auth gate (actions.ts:100) to fail; the code must surface as a
+    // structured ConvexError, not an opaque "Server Error".
+    vi.mocked(getAuthUserIdentity).mockResolvedValueOnce(null);
+    const { ctx } = createCtx({ execution: EXECUTION });
+    await expect(
+      catchCode(() => handler(ctx, { executionId: 'exec_old' })),
+    ).resolves.toBe('UNAUTHENTICATED');
   });
 
-  it('throws when the execution has no workflow slug to start from', async () => {
+  it('throws EXECUTION_NOT_FOUND when the execution is missing', async () => {
+    const { ctx } = createCtx({ execution: null });
+    await expect(
+      catchCode(() => handler(ctx, { executionId: 'exec_x' })),
+    ).resolves.toBe('EXECUTION_NOT_FOUND');
+  });
+
+  it('throws EXECUTION_MISSING_SLUG when the execution has no workflow slug to start from', async () => {
     const { ctx } = createCtx({
       execution: { ...EXECUTION, workflowSlug: undefined },
     });
-    await expect(handler(ctx, { executionId: 'exec_old' })).rejects.toThrow(
-      'no workflow slug',
-    );
+    await expect(
+      catchCode(() => handler(ctx, { executionId: 'exec_old' })),
+    ).resolves.toBe('EXECUTION_MISSING_SLUG');
   });
 
   it('refuses (already_running) when a run for the subject is in flight', async () => {

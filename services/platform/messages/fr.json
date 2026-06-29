@@ -2029,6 +2029,12 @@
       "contactSupport": "contacter le support",
       "tryAgain": "Réessayer"
     },
+    "executionErrors": {
+      "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
+      "notFound": "Cette exécution est introuvable. Elle a peut-être été supprimée.",
+      "notCancelable": "Cette exécution ne peut plus être arrêtée — elle est déjà terminée.",
+      "missingWorkflow": "Cette exécution ne peut pas être relancée car son workflow n'est plus disponible."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Entrée",
       "escape": "Échap"

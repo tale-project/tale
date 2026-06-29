@@ -2028,6 +2028,12 @@
       "contactSupport": "contact support",
       "tryAgain": "Try again"
     },
+    "executionErrors": {
+      "unauthenticated": "You're not signed in. Refresh the page and try again.",
+      "notFound": "That run could no longer be found. It may have been deleted.",
+      "notCancelable": "This run can no longer be stopped — it has already finished.",
+      "missingWorkflow": "This run can't be re-run because its workflow is no longer available."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
