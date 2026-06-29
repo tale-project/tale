@@ -20,10 +20,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { readSandboxQuotaPolicy } from './quota_policy';
-import {
-  SANDBOX_ADMISSION_TICKET_STALE_MS,
-  SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS,
-} from './sessions_schema';
+import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
 
 export type AdmissionKind = 'session' | 'oneshot';
 
@@ -376,39 +373,68 @@ export const deleteAdmissionTicket = internalMutation({
   },
 });
 
+/** Per-tick scan bound. Workflow tickets are no longer staleness-refreshed (they
+ * have no heartbeat), so they ALL fall in the stale range and get walked every
+ * run; cap the scan so one busy org can't blow the mutation's read budget —
+ * leftovers are picked up on the next run. */
+const ADMISSION_REAP_SCAN_LIMIT = 1_000;
+
+/** A `workflow` ticket's owner is dead when its execution is gone or terminal —
+ * the DURABLE signal that replaces the staleness timer for the event-driven
+ * park. A parked step blocks on `awaitEvent` and never re-stamps `lastSeenAt`,
+ * so a stale timestamp means "still waiting", not "dead"; only a terminal/missing
+ * execution is a real death. This is what lets the per-tick reconcile heartbeat
+ * cron go away: a parked-but-running step keeps its ticket with no refresh. */
+async function workflowTicketOwnerIsDead(
+  ctx: MutationCtx,
+  ticket: Doc<'sandboxAdmissionTickets'>,
+): Promise<boolean> {
+  if (!ticket.wfExecutionId) return true;
+  const execId = ctx.db.normalizeId('wfExecutions', ticket.wfExecutionId);
+  if (!execId) return true;
+  const execution = await ctx.db.get(execId);
+  if (!execution) return true;
+  return execution.status === 'completed' || execution.status === 'failed';
+}
+
 /** Reaper (2-min cron, sibling of `recoverStuckSessions`). Deletes tickets whose
- * `lastSeenAt` went stale: a WAITING ticket whose liveness signal stopped (the
- * workflow step / chat turn that owned it is gone) would otherwise wedge the
- * org's FIFO head forever — and under indefinite-wait this staleness sweep is the
- * ONLY guard against permanent queue-head starvation. Stale ADMITTED tickets are
- * orphans whose claimer died after the claim (their slot row is reclaimed by
- * `recoverStuckSessions` / the exec watchdog); drop them too.
- *
- * Two staleness windows, because the two ticket sources refresh `lastSeenAt`
- * differently: a `chat` ticket self-polls (fast 30s window); a `workflow` ticket
- * is event-driven and refreshed only by the minutely reconcile heartbeat, so it
- * needs a window WIDER than that cron interval — reaping a live parked workflow
- * ticket between heartbeats makes its `awaitEvent` step unwakeable forever. The
- * index range scans on the shorter (chat) cutoff; workflow rows not yet past the
- * wider cutoff are skipped. */
+ * owner is gone — otherwise a dead ticket wedges the org's FIFO head forever, and
+ * under indefinite-wait this is the ONLY guard against permanent queue-head
+ * starvation. The "owner is gone" signal differs BY SOURCE:
+ *  - `chat`: self-polls every poll-backoff, so a `lastSeenAt` older than the
+ *    staleness window means the poll-chain died → reap.
+ *  - `workflow`: event-driven (blocks on `awaitEvent`, never re-polls), so
+ *    staleness is meaningless — reap only when the owning EXECUTION is
+ *    terminal/missing. This durable check is why there is no reconcile/heartbeat
+ *    cron: a parked-but-running step keeps its ticket with no periodic refresh,
+ *    and the event-driven slot-release wake resumes it directly.
+ * The index range still scans on the staleness cutoff (workflow tickets all fall
+ * in it, having no heartbeat); the per-source test decides the actual reap. */
 export const recoverStuckAdmissionTickets = internalMutation({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.id('sandboxAdmissionTickets')),
   handler: async (ctx, args) => {
     const now = Date.now();
     const limit = args.limit ?? 100;
-    const chatCutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;
-    const workflowCutoff = now - SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS;
+    const cutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;
     const reaped: Id<'sandboxAdmissionTickets'>[] = [];
+    let scanned = 0;
     for (const status of ['waiting', 'admitted'] as const) {
       for await (const t of ctx.db
         .query('sandboxAdmissionTickets')
         .withIndex('by_status_lastSeen', (q) =>
-          q.eq('status', status).lt('lastSeenAt', chatCutoff),
+          q.eq('status', status).lt('lastSeenAt', cutoff),
         )) {
-        // Event-driven workflow tickets live on the wider, heartbeat-sized
-        // window — don't reap one that's merely older than the chat cutoff.
-        if (t.source === 'workflow' && t.lastSeenAt >= workflowCutoff) continue;
+        if (scanned >= ADMISSION_REAP_SCAN_LIMIT) return reaped;
+        scanned += 1;
+        // Workflow tickets reap on execution-terminal, not the staleness timer:
+        // spare a still-running parked step (it just isn't self-polling).
+        if (
+          t.source === 'workflow' &&
+          !(await workflowTicketOwnerIsDead(ctx, t))
+        ) {
+          continue;
+        }
         await ctx.db.delete(t._id);
         reaped.push(t._id);
         if (reaped.length >= limit) return reaped;

@@ -12,10 +12,7 @@ import { internal } from '../_generated/api';
 import schema from '../schema';
 import { isWaitFifoError, WAIT_FIFO_CODE } from './admission';
 import { DEFAULT_SANDBOX_QUOTA } from './quota_policy';
-import {
-  SANDBOX_ADMISSION_TICKET_STALE_MS,
-  SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS,
-} from './sessions_schema';
+import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
 
 // convex-test module map keyed relative to the convex/ root (this file is at
 // convex/sandbox/, mirror session_lifecycle.test.ts).
@@ -64,6 +61,7 @@ async function seedWaitingTicket(
   createdAt: number,
   lastSeenAt = Date.now(),
   source: 'chat' | 'workflow' = 'workflow',
+  wfExecutionId?: string,
 ): Promise<void> {
   await t.run((ctx) =>
     ctx.db.insert('sandboxAdmissionTickets', {
@@ -75,6 +73,25 @@ async function seedWaitingTicket(
       status: 'waiting',
       createdAt,
       lastSeenAt,
+      ...(wfExecutionId !== undefined && { wfExecutionId }),
+    }),
+  );
+}
+
+/** Insert a wfExecutions row and return its id (so a workflow ticket can point
+ * its `wfExecutionId` at a running/terminal owner for the reaper). */
+async function seedOwnerExec(
+  t: T,
+  status: 'running' | 'completed' | 'failed',
+): Promise<string> {
+  return t.run((ctx) =>
+    ctx.db.insert('wfExecutions', {
+      organizationId: ORG,
+      wfDefinitionId: 'issue-desk/desk-process',
+      status,
+      currentStepSlug: 'implement',
+      startedAt: 1_000,
+      updatedAt: 1_000,
     }),
   );
 }
@@ -260,148 +277,52 @@ describe('isWaitFifoError (the park-vs-fail discriminator)', () => {
 });
 
 describe('recoverStuckAdmissionTickets (reaper)', () => {
-  it('deletes stale waiting tickets and spares fresh ones', async () => {
+  it('reaps a chat ticket whose poll-chain died (stale), spares a fresh one', async () => {
     const t = convexTest(schema, modules);
-    // A workflow ticket is only stale past the WIDER heartbeat-sized window.
-    const stale =
-      Date.now() - (SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS + 5_000);
-    await seedWaitingTicket(t, 'owner_dead', 1_000, stale);
-    await seedWaitingTicket(t, 'owner_live', 2_000, Date.now());
+    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    await seedWaitingTicket(t, 'chat_dead', 1_000, stale, 'chat');
+    await seedWaitingTicket(t, 'chat_live', 2_000, Date.now(), 'chat');
 
     const reaped = await t.mutation(
       internal.sandbox.admission.recoverStuckAdmissionTickets,
       {},
     );
     expect(reaped).toHaveLength(1);
-    expect(await ticketsForOwner(t, 'owner_dead')).toHaveLength(0);
-    expect(await ticketsForOwner(t, 'owner_live')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'chat_dead')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'chat_live')).toHaveLength(1);
   });
 
-  // Regression gate: the event-driven park bug. A parked workflow ticket is
-  // refreshed only by the minutely reconcile heartbeat (the step itself no
-  // longer polls), so its staleness window MUST exceed that 60s interval —
-  // otherwise the reaper deletes a live parked ticket between heartbeats and the
-  // `awaitEvent` step becomes unwakeable, wedging the org's capacity queue.
-  it('spares a workflow ticket past the chat window but keeps the longer one', async () => {
+  // The crux of the cron-free design: a parked WORKFLOW step blocks on awaitEvent
+  // and never re-stamps `lastSeenAt`, so staleness is meaningless for it. The
+  // reaper must SPARE it while its execution runs (no heartbeat needed — this is
+  // what lets the reconcile cron go away) and reap it only once the owning
+  // execution is terminal or gone.
+  it('reaps a workflow ticket only when its execution is terminal/missing', async () => {
     const t = convexTest(schema, modules);
-    // Stale by the chat window (30s) but NOT the workflow window (180s): a live
-    // parked step between heartbeats. Must survive.
-    const betweenHeartbeats =
-      Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    // All three are "stale" (no heartbeat ever refreshes a workflow ticket), so
+    // all are scanned — the EXECUTION state alone decides the reap.
+    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    const running = await seedOwnerExec(t, 'running');
+    const finished = await seedOwnerExec(t, 'failed');
+    await seedWaitingTicket(t, 'wf_running', 1_000, stale, 'workflow', running);
     await seedWaitingTicket(
       t,
-      'wf_parked',
-      1_000,
-      betweenHeartbeats,
+      'wf_terminal',
+      2_000,
+      stale,
       'workflow',
+      finished,
     );
-    // A chat waiter at the same age self-polls, so this age means its poll-chain
-    // died → reap it on the short window.
-    await seedWaitingTicket(t, 'chat_dead', 2_000, betweenHeartbeats, 'chat');
-    // A workflow ticket past the wider window IS dead → reap it.
-    const pastWorkflowWindow =
-      Date.now() - (SANDBOX_WORKFLOW_ADMISSION_TICKET_STALE_MS + 5_000);
-    await seedWaitingTicket(
-      t,
-      'wf_dead',
-      3_000,
-      pastWorkflowWindow,
-      'workflow',
-    );
+    // No wfExecutionId → owner is gone → reap.
+    await seedWaitingTicket(t, 'wf_orphan', 3_000, stale, 'workflow');
 
     const reaped = await t.mutation(
       internal.sandbox.admission.recoverStuckAdmissionTickets,
       {},
     );
     expect(reaped).toHaveLength(2);
-    expect(await ticketsForOwner(t, 'wf_parked')).toHaveLength(1);
-    expect(await ticketsForOwner(t, 'chat_dead')).toHaveLength(0);
-    expect(await ticketsForOwner(t, 'wf_dead')).toHaveLength(0);
-  });
-});
-
-describe('listParkedExecutionsNeedingRecovery (durable-marker recovery selection)', () => {
-  async function seedExec(
-    t: T,
-    opts: {
-      status: 'running' | 'completed';
-      awaitingCapacityStepSlug?: string;
-      componentWorkflowId?: string;
-      shardIndex?: number;
-    },
-  ): Promise<string> {
-    return t.run((ctx) =>
-      ctx.db.insert('wfExecutions', {
-        organizationId: ORG,
-        wfDefinitionId: 'issue-desk/desk-process',
-        status: opts.status,
-        currentStepSlug: opts.awaitingCapacityStepSlug ?? 'start',
-        startedAt: 1_000,
-        updatedAt: 1_000,
-        ...(opts.awaitingCapacityStepSlug !== undefined && {
-          awaitingCapacityStepSlug: opts.awaitingCapacityStepSlug,
-        }),
-        ...(opts.componentWorkflowId !== undefined && {
-          componentWorkflowId: opts.componentWorkflowId,
-        }),
-        ...(opts.shardIndex !== undefined && { shardIndex: opts.shardIndex }),
-      }),
-    );
-  }
-
-  it('selects only running, marked executions that have NO live ticket', async () => {
-    const t = convexTest(schema, modules);
-    // A: parked, no ticket → RECOVER.
-    const a = await seedExec(t, {
-      status: 'running',
-      awaitingCapacityStepSlug: 'implement',
-      componentWorkflowId: 'cw_a',
-      shardIndex: 2,
-    });
-    // B: parked but a live ticket exists (the heartbeat/re-wake passes own it).
-    const b = await seedExec(t, {
-      status: 'running',
-      awaitingCapacityStepSlug: 'review',
-      componentWorkflowId: 'cw_b',
-    });
-    await t.run((ctx) =>
-      ctx.db.insert('sandboxAdmissionTickets', {
-        organizationId: ORG,
-        kind: 'session',
-        ownerType: 'workflow_run',
-        ownerId: `${b}:review`,
-        source: 'workflow',
-        status: 'waiting',
-        createdAt: 1_000,
-        lastSeenAt: Date.now(),
-      }),
-    );
-    // C: parked but never started (no componentWorkflowId → nothing to wake).
-    await seedExec(t, {
-      status: 'running',
-      awaitingCapacityStepSlug: 'work',
-    });
-    // D: running but NOT parked (no marker) — outside the index range.
-    await seedExec(t, { status: 'running', componentWorkflowId: 'cw_d' });
-    // E: terminal — a settled run that never cleared its marker.
-    await seedExec(t, {
-      status: 'completed',
-      awaitingCapacityStepSlug: 'implement',
-      componentWorkflowId: 'cw_e',
-    });
-
-    const targets = await t.query(
-      internal.workflow_engine.sandbox_capacity_wake
-        .listParkedExecutionsNeedingRecovery,
-      {},
-    );
-    expect(targets).toEqual([
-      {
-        executionId: a,
-        stepSlug: 'implement',
-        componentWorkflowId: 'cw_a',
-        shardIndex: 2,
-      },
-    ]);
+    expect(await ticketsForOwner(t, 'wf_running')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'wf_terminal')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'wf_orphan')).toHaveLength(0);
   });
 });

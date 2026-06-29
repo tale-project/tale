@@ -81,10 +81,6 @@ export const wfExecutionsTable = defineTable({
     'startedAt',
   ])
   .index('by_status', ['status'])
-  // Drives the capacity-wake RECOVERY backstop: scan executions still parked on
-  // sandbox capacity (`status='running'` AND a non-empty `awaitingCapacityStepSlug`)
-  // without walking every running workflow. See `reconcileAdmissionWakes`.
-  .index('by_status_awaitingCapacity', ['status', 'awaitingCapacityStepSlug'])
   .index('by_org_status', ['organizationId', 'status'])
   .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId'])
