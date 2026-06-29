@@ -181,6 +181,7 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen",
+      "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird."
     },

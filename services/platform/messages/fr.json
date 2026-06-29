@@ -181,6 +181,7 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct",
+      "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère."
     },
