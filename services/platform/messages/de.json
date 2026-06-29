@@ -6048,7 +6048,6 @@
       "testSystemError": "Der Verbindungstest konnte nicht ausgeführt werden. Überprüfe die Basis-URL und den API-Schlüssel des Anbieters und versuche es erneut.",
       "addKey": "API-Schlüssel hinzufügen",
       "apiKeyEnter": "API-Schlüssel eingeben",
-      "searchProvider": "Anbieter suchen...",
       "created": "Anbieter erstellt",
       "modelCount": "{count, plural, one {# Modell} other {# Modelle}}",
       "removeModel": "Modell entfernen",
