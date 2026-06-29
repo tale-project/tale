@@ -41,12 +41,11 @@ const FILES_BY_KIND: Record<PackageKind, string[]> = {
   typescript: [
     'package.json.hbs',
     'tsconfig.json.hbs',
-    'vitest.config.ts.hbs',
     '.gitignore',
     '.oxlintrc.json',
     'README.md.hbs',
     'src/index.ts',
-    'tests/setup.ts',
+    'tests/smoke.test.ts.hbs',
   ],
 };
 

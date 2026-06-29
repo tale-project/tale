@@ -241,7 +241,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 
 ## Contributing
 
-New to the repo? [Contributor setup](docs/en/develop/contributor-setup.md) is the single source of truth for getting the source running locally — prerequisites, `bun install`, the `bun run setup:check` pre-flight, and `bun run dev`. Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/docs/AGENTS.md) skill covers the documentation site; the [`translation`](.agents/translation/AGENTS.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
+New to the repo? [Contributor setup](docs/en/develop/contributor-setup.md) is the single source of truth for getting the source running locally — prerequisites, `bun install`, the `bun run setup:check` pre-flight, and `bun run dev`. Read [`AGENTS.md`](AGENTS.md) before your first PR — it is the single contract for code style, security, testing, i18n, and documentation across every workspace. The [`docs`](.agents/skills/docs/SKILL.md) skill covers the documentation site; the [`translation`](.agents/skills/translation/SKILL.md) skill covers cross-locale translation rules. Run `bun run check` (format, lint, typecheck, tests) before opening a PR; the [pull request template](.github/pull_request_template.md) lists the rest of the pre-merge checklist.
 
 ---
 

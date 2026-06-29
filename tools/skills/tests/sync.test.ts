@@ -10,7 +10,6 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import type { SkillManifestEntry, SkillTarget } from '../src/manifest';
 import { runSync, type SyncOptions } from '../src/sync';
 
 let root: string;
@@ -29,19 +28,12 @@ function writeUnder(rel: string, content: string | Uint8Array): void {
   writeFileSync(abs, content);
 }
 
-const targetDir = (target: SkillTarget, name: string): string =>
-  join(
-    root,
-    target === 'claude' ? '.claude/skills' : 'builtin-configs/skills',
-    name,
-  );
+/** Repo-relative path of a file in the generated `.claude/skills` mirror. */
+const mirrored = (rel: string): string => join(root, '.claude/skills', rel);
 
 /** Run the engine with console captured, returning the exit code + combined output. */
-async function run(
-  manifest: readonly SkillManifestEntry[],
-  check: boolean,
-): Promise<{ code: number; out: string }> {
-  const opts: SyncOptions = { repoRoot: root, manifest, check };
+async function run(check: boolean): Promise<{ code: number; out: string }> {
+  const opts: SyncOptions = { repoRoot: root, check };
   const origLog = console.log;
   const origErr = console.error;
   const lines: string[] = [];
@@ -59,123 +51,111 @@ async function run(
   }
 }
 
-/** A minimal, self-contained shared skill (claude + builtin), plus a test file. */
-function scaffoldDemo(): void {
+/** A repo-dev guide under the `.agents/skills` source, plus a stray test file. */
+function scaffoldGuide(): void {
   writeUnder(
-    'skills/demo-skill/SKILL.md',
-    '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\nRun `bun scripts/hello.ts`.\n',
+    '.agents/skills/demo/SKILL.md',
+    '---\nname: demo\ndescription: x\n---\n\n# Demo\n',
   );
+  writeUnder('.agents/skills/demo/reference.md', '# Reference\n');
   writeUnder(
-    'skills/demo-skill/scripts/hello.ts',
-    `console.log('hi', Bun.version);\n`,
-  );
-  writeUnder(
-    'skills/demo-skill/scripts/hello.test.ts',
+    '.agents/skills/demo/demo.test.ts',
     `import { test } from 'bun:test';\n`,
   );
 }
 
-const BOTH: readonly SkillManifestEntry[] = [
-  { name: 'demo-skill', targets: ['claude', 'builtin'] },
-];
-
-describe('runSync', () => {
-  test('sync writes both targets and excludes test files', async () => {
-    scaffoldDemo();
-    const { code } = await run(BOTH, false);
+describe('runSync — mirror', () => {
+  test('sync mirrors .agents/skills -> .claude/skills and excludes test files', async () => {
+    scaffoldGuide();
+    const { code } = await run(false);
     expect(code).toBe(0);
-    for (const t of ['claude', 'builtin'] as const) {
-      expect(existsSync(join(targetDir(t, 'demo-skill'), 'SKILL.md'))).toBe(
-        true,
-      );
-      expect(
-        existsSync(join(targetDir(t, 'demo-skill'), 'scripts/hello.ts')),
-      ).toBe(true);
-      expect(
-        existsSync(join(targetDir(t, 'demo-skill'), 'scripts/hello.test.ts')),
-      ).toBe(false);
-    }
+    expect(existsSync(mirrored('demo/SKILL.md'))).toBe(true);
+    expect(existsSync(mirrored('demo/reference.md'))).toBe(true);
+    expect(existsSync(mirrored('demo/demo.test.ts'))).toBe(false);
   });
 
   test('sync-then-check is clean (the core invariant)', async () => {
-    scaffoldDemo();
-    expect((await run(BOTH, false)).code).toBe(0);
-    const checked = await run(BOTH, true);
+    scaffoldGuide();
+    expect((await run(false)).code).toBe(0);
+    const checked = await run(true);
     expect(checked.code).toBe(0);
-    expect(checked.out).toContain('matches the source');
+    expect(checked.out).toContain('matches its .agents/skills source');
   });
 
-  test('check fails (naming the file) when a copy is mutated', async () => {
-    scaffoldDemo();
-    await run(BOTH, false);
-    writeFileSync(
-      join(targetDir('builtin', 'demo-skill'), 'SKILL.md'),
-      'tampered',
-    );
-    const checked = await run(BOTH, true);
+  test('check fails (naming the file) when the mirror is mutated', async () => {
+    scaffoldGuide();
+    await run(false);
+    writeFileSync(mirrored('demo/SKILL.md'), 'tampered');
+    const checked = await run(true);
     expect(checked.code).toBe(1);
-    expect(checked.out).toContain('changed: SKILL.md');
+    expect(checked.out).toContain('changed: demo/SKILL.md');
     expect(checked.out).toContain('bun run skills:sync');
   });
 
   test('check flags a stale extra, and the next sync deletes it', async () => {
-    scaffoldDemo();
-    await run(BOTH, false);
-    writeFileSync(join(targetDir('builtin', 'demo-skill'), 'stray.txt'), 'x');
-    expect((await run(BOTH, true)).code).toBe(1);
-    expect((await run(BOTH, true)).out).toContain('stale:');
+    scaffoldGuide();
+    await run(false);
+    writeFileSync(mirrored('demo/stray.txt'), 'x');
+    expect((await run(true)).code).toBe(1);
+    expect((await run(true)).out).toContain('stale:');
 
-    await run(BOTH, false); // re-sync deletes the stray
-    expect(
-      existsSync(join(targetDir('builtin', 'demo-skill'), 'stray.txt')),
-    ).toBe(false);
-    expect((await run(BOTH, true)).code).toBe(0);
+    await run(false); // re-sync deletes the stray
+    expect(existsSync(mirrored('demo/stray.txt'))).toBe(false);
+    expect((await run(true)).code).toBe(0);
   });
 
-  test('check fails when a copied file is deleted (missing)', async () => {
-    scaffoldDemo();
-    await run(BOTH, false);
-    rmSync(join(targetDir('builtin', 'demo-skill'), 'scripts/hello.ts'));
-    const checked = await run(BOTH, true);
+  test('check fails when a mirrored file is deleted (missing)', async () => {
+    scaffoldGuide();
+    await run(false);
+    rmSync(mirrored('demo/reference.md'));
+    const checked = await run(true);
     expect(checked.code).toBe(1);
-    expect(checked.out).toContain('missing: scripts/hello.ts');
-  });
-
-  test('a builtin-only skill never lands under .claude/skills', async () => {
-    scaffoldDemo();
-    await run([{ name: 'demo-skill', targets: ['builtin'] }], false);
-    expect(existsSync(targetDir('builtin', 'demo-skill'))).toBe(true);
-    expect(existsSync(targetDir('claude', 'demo-skill'))).toBe(false);
+    expect(checked.out).toContain('missing: demo/reference.md');
   });
 
   test('binary assets round-trip byte-identical', async () => {
     writeUnder(
-      'skills/demo-skill/SKILL.md',
-      '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\n',
+      '.agents/skills/demo/SKILL.md',
+      '---\nname: demo\ndescription: x\n---\n\n# Demo\n',
     );
     const bytes = new Uint8Array([0, 1, 2, 250, 255]);
-    writeUnder('skills/demo-skill/assets/logo.bin', bytes);
-    await run([{ name: 'demo-skill', targets: ['builtin'] }], false);
-    const copied = readFileSync(
-      join(targetDir('builtin', 'demo-skill'), 'assets/logo.bin'),
-    );
+    writeUnder('.agents/skills/demo/assets/logo.bin', bytes);
+    await run(false);
+    const copied = readFileSync(mirrored('demo/assets/logo.bin'));
     expect([...copied]).toEqual([...bytes]);
   });
+});
 
-  test('check fails the portability guard on a bare import', async () => {
+describe('runSync — portability guards over shipped roots', () => {
+  test('a bare import in a shipped skill fails the check', async () => {
     writeUnder(
-      'skills/demo-skill/SKILL.md',
-      '---\nname: demo-skill\ndescription: x\n---\n\n# Demo\n',
+      'skills/demo/SKILL.md',
+      '---\nname: demo\ndescription: x\n---\n\n# Demo\n',
     );
-    writeUnder(
-      'skills/demo-skill/scripts/bad.ts',
-      `import { z } from 'zod';\n`,
-    );
-    const checked = await run(
-      [{ name: 'demo-skill', targets: ['builtin'] }],
-      true,
-    );
+    writeUnder('skills/demo/scripts/bad.ts', `import { z } from 'zod';\n`);
+    const checked = await run(true);
     expect(checked.code).toBe(1);
     expect(checked.out).toContain('"zod"');
+  });
+
+  test('a SKILL.md command pointing at a missing script fails the check', async () => {
+    writeUnder(
+      'builtin-configs/skills/demo/SKILL.md',
+      '---\nname: demo\ndescription: x\n---\n\n# Demo\nRun `python scripts/missing.py`.\n',
+    );
+    const checked = await run(true);
+    expect(checked.code).toBe(1);
+    expect(checked.out).toContain('scripts/missing.py');
+  });
+
+  test('docs-only .agents/skills guides are NOT subject to the script guard', async () => {
+    // A repo-dev guide may mention a repo command that is not a skill-relative
+    // script; .agents/skills is excluded from the shipped roots, so this passes.
+    writeUnder(
+      '.agents/skills/guide/SKILL.md',
+      '---\nname: guide\ndescription: x\n---\n\n# Guide\nRun `python scripts/nope.py`.\n',
+    );
+    expect((await run(false)).code).toBe(0);
+    expect((await run(true)).code).toBe(0);
   });
 });

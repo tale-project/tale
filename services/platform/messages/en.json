@@ -2300,7 +2300,8 @@
   },
   "dialogs": {
     "addMember": {
-      "title": "Add member"
+      "title": "Add member",
+      "existingUserHint": "This person already has an account, so no password is needed — they sign in with their existing credentials."
     },
     "memberAdded": {
       "title": "Member added successfully",
