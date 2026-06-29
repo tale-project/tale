@@ -48,6 +48,7 @@ while you code, read the enforced source and match it:
 | Types                   | the `tsconfig*.json` chain (strict)                            |
 | Commit format & scopes  | `.commitlintrc.json`                                           |
 | Security / SAST         | [`tools/opengrep/`](tools/opengrep/) — `bun run lint:sast`     |
+| Design system & tokens  | [`design/`](design/) + [`designs/`](designs/) + `@tale/ui`     |
 | Everything at once      | `bun run check` (format, lint, typecheck, all tests)           |
 
 The **guards are the spec** — i18n parity/ICU, skeleton conventions, `migrations:check`, the docs
@@ -91,6 +92,8 @@ integrated Bun-workspace skills under [`skills/`](skills/) are not projected.
 | [`write-notes`](.agents/skills/write-notes/SKILL.md)               | starting work under any other skill — answer its note form and write the note first |
 | [`implement-feature`](.agents/skills/implement-feature/SKILL.md)   | adding new behaviour — a feature, screen, endpoint, flag, or capability             |
 | [`make-improvement`](.agents/skills/make-improvement/SKILL.md)     | refactoring, optimizing, or deduplicating — changing structure, not behaviour       |
+| [`implement-ui`](.agents/skills/implement-ui/SKILL.md)             | writing or editing any UI — a component, screen, page, or route (app, web, docs)    |
+| [`design-ui`](.agents/skills/design-ui/SKILL.md)                   | any visual/UI work, or reading the design files — app vs web, colours + tokens      |
 | [`fix-bug`](.agents/skills/fix-bug/SKILL.md)                       | chasing a bug to its root cause and locking it with a regression test               |
 | [`review-code`](.agents/skills/review-code/SKILL.md)               | reviewing a working diff — yours or a colleague's — before it merges                |
 | [`review-pr`](.agents/skills/review-pr/SKILL.md)                   | reviewing a GitHub pull request end-to-end                                          |

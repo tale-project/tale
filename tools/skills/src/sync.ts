@@ -69,6 +69,8 @@ const PRODUCT_SOURCE = 'builtin-configs/skills';
 const WORKFLOW_SKILLS: readonly string[] = [
   'implement-feature',
   'make-improvement',
+  'implement-ui',
+  'design-ui',
   'fix-bug',
   'review-code',
   'create-pr',
