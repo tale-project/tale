@@ -257,6 +257,9 @@ export const recoverStuckSessions = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const expired: Id<'sandboxSessions'>[] = [];
+    // Distinct orgs that had a session slot freed by this sweep — wake each once
+    // at the end (deduped so expiring many rows can't fan out into many wakes).
+    const freedOrgs = new Set<string>();
     const limit = args.limit ?? 50;
     for (const status of SANDBOX_SESSION_LIVE_STATUSES) {
       if (status === 'stopped') continue;
@@ -287,9 +290,17 @@ export const recoverStuckSessions = internalMutation({
             destroyedAt: now,
           });
           expired.push(row._id);
-          if (expired.length >= limit) return expired;
+          if (row.organizationId) freedOrgs.add(row.organizationId);
+          if (expired.length >= limit) break;
         }
       }
+      if (expired.length >= limit) break;
+    }
+    // An expired session drops out of the (creating|active) in-flight count, so
+    // it frees a per-org session slot → wake a parked waiter (same as the
+    // destroy/stop controls), not just on the next reconciler tick.
+    for (const organizationId of freedOrgs) {
+      await scheduleSessionCapacityWake(ctx, organizationId);
     }
     return expired;
   },
