@@ -54,6 +54,9 @@ describe('updateConversations — client-facing failures use ConvexError (#2049)
       updates: {},
     } as UpdateConversationsArgs;
 
+    await expect(updateConversations(ctx, args)).rejects.toBeInstanceOf(
+      ConvexError,
+    );
     await expect(updateConversations(ctx, args)).rejects.toMatchObject({
       data: { code: 'conversation_not_found' },
     });
@@ -67,6 +70,9 @@ describe('updateConversations — client-facing failures use ConvexError (#2049)
       updates: {},
     } as UpdateConversationsArgs;
 
+    await expect(updateConversations(ctx, args)).rejects.toBeInstanceOf(
+      ConvexError,
+    );
     await expect(updateConversations(ctx, args)).rejects.toMatchObject({
       data: { code: 'conversation_not_found' },
     });

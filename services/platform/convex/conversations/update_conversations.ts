@@ -64,7 +64,10 @@ export async function updateConversations(
     }
     // Cross-tenant write guard: when the caller's org is known (the agent
     // conversation_write tool always passes it), the target conversation must
-    // belong to it — mirrors addMessageToConversation. Closes the IDOR.
+    // belong to it. Unlike addMessageToConversation (which reports a
+    // distinguishable `conversation_org_mismatch`), this deliberately reuses
+    // `conversation_not_found` so a cross-tenant probe cannot confirm the
+    // record exists in another organization. Closes the IDOR.
     if (
       args.organizationId &&
       conversation.organizationId !== args.organizationId
