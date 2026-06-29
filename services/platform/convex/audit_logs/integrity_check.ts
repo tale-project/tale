@@ -26,48 +26,222 @@ import { writeNotificationForOrgs } from '../notifications/helpers';
 import { verifyAuditChain } from './verify_integrity';
 
 // Bound the per-run org fan-out so a deployment with a very large org count
-// can't blow the action's time budget. Logged when hit so coverage gaps are
-// never silent.
+// can't blow the action's time budget. Orgs are selected round-robin by
+// staleness (see `selectOrgsForIntegrityRun`) so the ones not reached this
+// run ARE reached on later runs — no org is permanently outside the control.
 const MAX_ORGS_PER_RUN = 500;
-// Cap the rows verified per org per run. `verifyAuditChain` reports
-// `truncated` when it stops early, which the alert treats as a finding so a
-// chain that outgrows this window is surfaced rather than silently
-// half-checked.
+// Cap the rows verified per org per run. The cron pages FORWARD across runs
+// from each org's persisted cursor (`auditIntegrityProgress`), so a chain
+// longer than this window is fully covered over successive runs rather than
+// leaving its newest rows — where live tampering would land — unverified.
 const MAX_ENTRIES_PER_ORG = 5000;
 
-/** Org ids that have ever written an audit log (one genesis row per org). */
-export const listAuditedOrganizationIds = internalQuery({
+/**
+ * Pick which orgs to verify this run. Every org has one `auditLogChainGenesis`
+ * row; we rank them by their integrity-progress `updatedAt` (orgs never
+ * checked, or checked longest ago, first) and take the stalest
+ * `MAX_ORGS_PER_RUN`. Because each verified org's `updatedAt` is bumped to now,
+ * it rotates to the back of the queue and the next run picks up the others —
+ * so a deployment with more than `MAX_ORGS_PER_RUN` audited orgs covers all of
+ * them across runs instead of re-checking the same first window forever
+ * (#1846 item 1). Iterating one small row per org is cheap; the expensive part
+ * is the per-org chain walk, which the cap bounds.
+ */
+export const selectOrgsForIntegrityRun = internalQuery({
   args: {},
   returns: v.object({
     organizationIds: v.array(v.string()),
+    totalOrgs: v.number(),
     truncated: v.boolean(),
   }),
   handler: async (ctx) => {
-    const organizationIds: string[] = [];
-    let truncated = false;
-    for await (const row of ctx.db.query('auditLogChainGenesis')) {
-      if (organizationIds.length >= MAX_ORGS_PER_RUN) {
-        truncated = true;
-        break;
-      }
-      organizationIds.push(row.organizationId);
+    const lastCheckedByOrg = new Map<string, number>();
+    for await (const row of ctx.db.query('auditIntegrityProgress')) {
+      lastCheckedByOrg.set(row.organizationId, row.updatedAt);
     }
-    return { organizationIds, truncated };
+
+    // Never-checked orgs sort first (sentinel -1 < any real timestamp).
+    const orgs: { organizationId: string; lastChecked: number }[] = [];
+    for await (const row of ctx.db.query('auditLogChainGenesis')) {
+      orgs.push({
+        organizationId: row.organizationId,
+        lastChecked: lastCheckedByOrg.get(row.organizationId) ?? -1,
+      });
+    }
+    orgs.sort((a, b) => a.lastChecked - b.lastChecked);
+
+    const organizationIds = orgs
+      .slice(0, MAX_ORGS_PER_RUN)
+      .map((o) => o.organizationId);
+    return {
+      organizationIds,
+      totalOrgs: orgs.length,
+      truncated: orgs.length > MAX_ORGS_PER_RUN,
+    };
   },
 });
 
 /**
- * Unauthenticated chain verification for the cron. Access control is the
- * function's `internal` visibility (only schedulable/runnable from trusted
- * server contexts), not a per-call admin gate — the public `verifyIntegrity`
- * query keeps the admin gate for user-facing access.
+ * Unauthenticated chain verification for the cron, resuming from the org's
+ * persisted progress cursor so each run pages FORWARD instead of re-walking
+ * the oldest window (#1846 item 2). Access control is the function's
+ * `internal` visibility (only schedulable/runnable from trusted server
+ * contexts), not a per-call admin gate — the public `verifyIntegrity` query
+ * keeps the admin gate for user-facing access.
+ *
+ * Returns the chain-verification result plus the `nextCursor` the action
+ * should persist: advanced to the last verified row when this run made
+ * progress, otherwise the unchanged cursor. `headReached` is true only when
+ * the walk consumed the live chain without truncation.
  */
 export const verifyAuditChainForOrg = internalQuery({
   args: {
     organizationId: v.string(),
     maxEntries: v.optional(v.number()),
   },
-  handler: async (ctx, args) => verifyAuditChain(ctx, args),
+  returns: v.object({
+    valid: v.boolean(),
+    verifiedCount: v.number(),
+    checkpointsVerified: v.number(),
+    truncated: v.boolean(),
+    unsignedScrubCount: v.number(),
+    lastVerifiedTimestamp: v.optional(v.number()),
+    lastVerifiedId: v.optional(v.string()),
+    lastVerifiedHash: v.optional(v.string()),
+    firstBrokenAt: v.optional(
+      v.object({
+        logId: v.string(),
+        timestamp: v.number(),
+        expected: v.string(),
+        actual: v.string(),
+      }),
+    ),
+    checkpointMismatch: v.optional(
+      v.object({
+        checkpointId: v.string(),
+        reason: v.string(),
+      }),
+    ),
+    // The cursor the action persists via `recordIntegrityProgress`.
+    nextCursor: v.object({
+      lastVerifiedTimestamp: v.optional(v.number()),
+      lastVerifiedId: v.optional(v.string()),
+      previousExpectedHash: v.optional(v.string()),
+      headReached: v.boolean(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    const progress = await ctx.db
+      .query('auditIntegrityProgress')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+
+    const result = await verifyAuditChain(ctx, {
+      organizationId: args.organizationId,
+      maxEntries: args.maxEntries,
+      fromTimestamp: progress?.lastVerifiedTimestamp,
+      afterId: progress?.lastVerifiedId,
+      previousExpectedHash: progress?.previousExpectedHash,
+    });
+
+    // Advance the cursor to the last row verified this run; if nothing new was
+    // verified (caught up, no new rows), keep the prior cursor. Never advance
+    // past a detected break, so the next run re-hits and re-alerts it.
+    const nextCursor = {
+      lastVerifiedTimestamp:
+        result.lastVerifiedTimestamp ?? progress?.lastVerifiedTimestamp,
+      lastVerifiedId: result.lastVerifiedId ?? progress?.lastVerifiedId,
+      previousExpectedHash:
+        result.lastVerifiedHash ?? progress?.previousExpectedHash,
+      headReached: result.valid && !result.truncated,
+    };
+
+    return { ...result, nextCursor };
+  },
+});
+
+/**
+ * Persist an org's integrity-check progress cursor. Upserts the per-org
+ * `auditIntegrityProgress` row and bumps `updatedAt` so round-robin selection
+ * rotates this org to the back of the queue. Its own internal mutation so the
+ * action can record progress right after each verification without coupling it
+ * to the (isolated) alert writes.
+ */
+export const recordIntegrityProgress = internalMutation({
+  args: {
+    organizationId: v.string(),
+    lastVerifiedTimestamp: v.optional(v.number()),
+    lastVerifiedId: v.optional(v.string()),
+    previousExpectedHash: v.optional(v.string()),
+    headReached: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const existing = await ctx.db
+      .query('auditIntegrityProgress')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    const patch = {
+      lastVerifiedTimestamp: args.lastVerifiedTimestamp,
+      lastVerifiedId: args.lastVerifiedId,
+      previousExpectedHash: args.previousExpectedHash,
+      headReached: args.headReached,
+      updatedAt: Date.now(),
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert('auditIntegrityProgress', {
+        organizationId: args.organizationId,
+        ...patch,
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Rotate an org to the back of the round-robin queue WITHOUT advancing its
+ * paging cursor. Used when `verifyAuditChainForOrg` throws: selection ranks by
+ * `updatedAt` ascending (sentinel -1 for never-checked orgs), so an org whose
+ * verification deterministically throws would sort to the front of EVERY run
+ * and — with more than `MAX_ORGS_PER_RUN` such orgs — permanently occupy all
+ * slots, starving healthy orgs past the first window and re-introducing #1846
+ * item 1's gap under error conditions. Bumping `updatedAt` (and only that, so a
+ * later successful run resumes from the same cursor) lets the erroring org
+ * rotate out so the rest of the fleet is still reached. PR #2218 review
+ * BLOCKING 2.
+ */
+export const touchIntegrityProgress = internalMutation({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const existing = await ctx.db
+      .query('auditIntegrityProgress')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { updatedAt: Date.now() });
+    } else {
+      // Never-checked org that throws on its first verification: insert a
+      // cursor-less progress row so its `updatedAt` rotates it to the back
+      // instead of leaving it at the sentinel -1 front of the queue forever.
+      await ctx.db.insert('auditIntegrityProgress', {
+        organizationId: args.organizationId,
+        headReached: false,
+        updatedAt: Date.now(),
+      });
+    }
+    return null;
+  },
 });
 
 type IntegrityFindingKind = 'tampering' | 'config';
@@ -145,13 +319,13 @@ export const runAuditIntegrityCheck = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const { organizationIds, truncated } = await ctx.runQuery(
-      internal.audit_logs.integrity_check.listAuditedOrganizationIds,
+    const { organizationIds, totalOrgs, truncated } = await ctx.runQuery(
+      internal.audit_logs.integrity_check.selectOrgsForIntegrityRun,
       {},
     );
     if (truncated) {
       console.warn(
-        `[AuditIntegrity] org list capped at ${MAX_ORGS_PER_RUN}; remaining orgs are checked on the next daily run`,
+        `[AuditIntegrity] verifying the ${MAX_ORGS_PER_RUN} stalest of ${totalOrgs} orgs this run; the rest are picked up on the next daily run`,
       );
     }
 
@@ -173,17 +347,50 @@ export const runAuditIntegrityCheck = internalAction({
           `[AuditIntegrity] could not verify org ${organizationId}:`,
           err,
         );
+        // Rotate the erroring org to the back of the round-robin queue so a
+        // deterministically-throwing org can't sort to the front of every run
+        // and starve the rest of the fleet (PR #2218 review BLOCKING 2).
+        // Isolated try/catch — a failed touch must not abort the sweep.
+        try {
+          await ctx.runMutation(
+            internal.audit_logs.integrity_check.touchIntegrityProgress,
+            { organizationId },
+          );
+        } catch (touchErr) {
+          console.error(
+            `[AuditIntegrity] could not rotate erroring org ${organizationId}:`,
+            touchErr,
+          );
+        }
         continue;
+      }
+
+      // Persist the paging cursor so the next run resumes where this one left
+      // off (forward paging across runs, #1846 item 2) and this org rotates to
+      // the back of the round-robin queue. Isolated try/catch so a failed
+      // progress write never aborts the sweep — worst case the org re-walks
+      // the same window next run.
+      try {
+        await ctx.runMutation(
+          internal.audit_logs.integrity_check.recordIntegrityProgress,
+          { organizationId, ...result.nextCursor },
+        );
+      } catch (err) {
+        console.error(
+          `[AuditIntegrity] could not record progress for org ${organizationId}:`,
+          err,
+        );
       }
 
       // `truncated` is a coverage limit, not tampering: the chain is longer
       // than the per-run window so the newest rows weren't reached this run.
+      // The forward cursor above means they ARE reached on a later run.
       // Surface it (never silent) but do NOT treat it as a failure — and
       // never as `unsignedScrubCount`, which is only non-zero on deployments
       // with no signing key, where it is the expected legacy state.
       if (result.truncated) {
         console.warn(
-          `[AuditIntegrity] org ${organizationId}: chain exceeds the ${MAX_ENTRIES_PER_ORG}-row window; verified the oldest ${result.verifiedCount}`,
+          `[AuditIntegrity] org ${organizationId}: chain exceeds the ${MAX_ENTRIES_PER_ORG}-row window; verified ${result.verifiedCount} this run, resuming next run`,
         );
       }
 
