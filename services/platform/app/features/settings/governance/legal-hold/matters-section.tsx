@@ -2,9 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { Archive, Pencil } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -92,30 +94,30 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         header: t('legalHold.columns.actions'),
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
-          <Row gap={2} align="stretch" justify="end">
-            <Button
+          <Row gap={1} align="stretch" justify="end">
+            <IconButton
               type="button"
               variant="ghost"
               size="sm"
+              icon={Pencil}
+              aria-label={t('legalHold.actions.editMatter')}
               onClick={(e) => {
                 e.stopPropagation();
                 setEditing(row.original);
               }}
-            >
-              {t('legalHold.actions.editMatter')}
-            </Button>
+            />
             {row.original.status === 'open' && (
-              <Button
+              <IconButton
                 type="button"
                 variant="ghost"
                 size="sm"
+                icon={Archive}
+                aria-label={t('legalHold.actions.closeMatter')}
                 onClick={(e) => {
                   e.stopPropagation();
                   setClosing(row.original);
                 }}
-              >
-                {t('legalHold.actions.closeMatter')}
-              </Button>
+              />
             )}
           </Row>
         ),
