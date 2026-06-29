@@ -1070,6 +1070,7 @@
       "action": "Anzeigen"
     },
     "viewer": {
+      "back": "Zurück",
       "heading": "Was ist neu",
       "subheading": "{count, plural, one {# Update} other {# Updates}} seit v{from}",
       "subheadingNew": "Release Notes für v{to}",

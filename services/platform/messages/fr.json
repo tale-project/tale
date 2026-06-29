@@ -1071,6 +1071,7 @@
       "action": "Voir"
     },
     "viewer": {
+      "back": "Retour",
       "heading": "Nouveautés",
       "subheading": "{count, plural, one {# mise à jour} other {# mises à jour}} depuis v{from}",
       "subheadingNew": "Notes de version pour v{to}",

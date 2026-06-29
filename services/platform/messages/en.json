@@ -1070,6 +1070,7 @@
       "action": "View"
     },
     "viewer": {
+      "back": "Back",
       "heading": "What's new",
       "subheading": "{count, plural, one {# update} other {# updates}} since v{from}",
       "subheadingNew": "Release notes for v{to}",
