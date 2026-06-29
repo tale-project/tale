@@ -29,7 +29,6 @@ const conversationStatusMap: Record<ValidStatus, ConversationStatus> = {
 };
 
 const searchSchema = z.object({
-  priority: z.string().optional(),
   search: z.string().optional(),
 });
 
@@ -54,7 +53,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
       );
       // Prime the paginated list cache so the first page paints without a
       // skeleton flash on first nav. Args mirror useListConversationsPaginated's
-      // base args (priority/search are in-page filters — live subscription).
+      // base args (search is an in-page filter — live subscription).
       void primeCachedPaginatedQuery(
         context.convexQueryClient.convexClient,
         api.conversations.queries.listConversationsPaginated,
@@ -68,7 +67,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { priority, search } = Route.useSearch();
+  const { search } = Route.useSearch();
 
   const mappedStatus =
     (isValidStatus(status) ? conversationStatusMap[status] : undefined) ??
@@ -92,7 +91,6 @@ function ConversationsStatusPage() {
   const paginatedResult = useListConversationsPaginated({
     organizationId,
     status: mappedStatus,
-    priority: priority && priority.length > 0 ? priority : undefined,
     initialNumItems: INITIAL_NUM_ITEMS,
   });
 
