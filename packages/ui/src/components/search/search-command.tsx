@@ -293,7 +293,7 @@ export function SearchCommand({
                       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                      className="text-fg-muted px-6 py-10 text-center"
+                      className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
                       role="alert"
                     >
                       <p className="text-fg-base text-sm font-medium">
@@ -309,7 +309,7 @@ export function SearchCommand({
                       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                      className="text-fg-muted px-6 py-10 text-center"
+                      className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
                       aria-live="polite"
                     >
                       <p className="text-fg-base text-sm font-medium">
