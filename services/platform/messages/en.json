@@ -5028,6 +5028,7 @@
       "shareToggleDisclosure": "Sharing this chat hides your personal memories and instructions from the responses other members will see.",
       "shareSuccess": "Chat shared with project",
       "unshareSuccess": "Chat hidden from project",
+      "shareDisabledPersonalization": "Personalization was turned off for this chat, so your memories and instructions stay private from other members.",
       "shareError": "Couldn't update sharing"
     },
     "agents": {
