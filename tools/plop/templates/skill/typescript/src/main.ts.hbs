@@ -1,0 +1,19 @@
+#!/usr/bin/env bun
+/**
+ * {{kebabCase name}} — example skill entry.
+ *
+ * Self-contained: imports only `node:*` / `bun` builtins (and the global `Bun`
+ * API) so it runs wherever the skill is installed, with no node_modules. The
+ * `skills:check` guard enforces that. Keep the logic in a plain exported
+ * function so the bun:test unit can exercise it without spawning the CLI.
+ *
+ *   bun src/main.ts [name]
+ */
+
+export function greet(target: string): string {
+  return `hello ${target} from {{kebabCase name}}`;
+}
+
+if (import.meta.main) {
+  await Bun.write(Bun.stdout, `${greet(process.argv[2] ?? 'world')}\n`);
+}

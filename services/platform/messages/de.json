@@ -2300,7 +2300,8 @@
   },
   "dialogs": {
     "addMember": {
-      "title": "Mitglied hinzufügen"
+      "title": "Mitglied hinzufügen",
+      "existingUserHint": "Diese Person hat bereits ein Konto, daher ist kein Passwort erforderlich — sie meldet sich mit ihren bestehenden Zugangsdaten an."
     },
     "memberAdded": {
       "title": "Mitglied hinzugefügt",

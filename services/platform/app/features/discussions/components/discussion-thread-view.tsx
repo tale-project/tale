@@ -14,7 +14,7 @@ import {
   Lock,
   RotateCcw,
 } from 'lucide-react';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -30,6 +30,7 @@ import {
   type ChatMessage,
 } from '../../chat/hooks/use-message-processing';
 import type { FileAttachment } from '../../chat/types';
+import { useActorDirectory } from '../../tasks/hooks/use-actor-directory';
 import {
   useCreateTaskFromDiscussion,
   usePostReply,
@@ -42,6 +43,8 @@ import {
   type DiscussionStatus,
   toDiscussionStatus,
 } from '../lib';
+import { describeDiscussionAuthor } from '../lib/resolve-author';
+import { createActorMentionSource } from './actor-mention-source';
 
 interface DiscussionThreadViewProps {
   organizationId: string;
@@ -71,6 +74,20 @@ export function DiscussionThreadView({
   const messages = allMessages.filter(
     (m): m is ChatMessage & { role: 'user' | 'assistant' } =>
       m.role === 'user' || m.role === 'assistant',
+  );
+
+  // Resolve per-entry author for multi-party alignment + name labels. The
+  // directory is org-wide (members + agents); `projectId` is forward-compat
+  // agent scoping.
+  const { resolveActor, currentUserId } = useActorDirectory(
+    organizationId,
+    String(projectId),
+  );
+  // Teammate + agent `@`-mention picker for the reply composer (the discussion
+  // backend re-parses the inserted `@handle`s to trigger agents).
+  const actorMentionSource = useMemo(
+    () => createActorMentionSource({ organizationId, projectId }),
+    [organizationId, projectId],
   );
 
   const {
@@ -252,13 +269,26 @@ export function DiscussionThreadView({
               <h2 id={messageHistoryLabelId} className="sr-only">
                 {t('aria.transcript')}
               </h2>
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  hideFeedback
-                />
-              ))}
+              {messages.map((message) => {
+                const author = describeDiscussionAuthor(
+                  message.authorId,
+                  currentUserId,
+                  resolveActor,
+                );
+                return (
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    hideFeedback
+                    isOwn={author.isOwn}
+                    authorName={author.authorName}
+                    // Activates @mention rendering (resolved handles render as
+                    // styled pills, matching chat). Without it, mentions like
+                    // `@image-creator` fall back to plain text.
+                    organizationId={organizationId}
+                  />
+                );
+              })}
               {linkedTaskId ? (
                 <Row
                   gap={2}
@@ -301,6 +331,7 @@ export function DiscussionThreadView({
               organizationId={organizationId}
               threadId={threadId}
               projectId={String(projectId)}
+              actorMentionSource={actorMentionSource}
               attachments={attachments}
               uploadingFiles={uploadingFiles}
               uploadFiles={uploadFiles}

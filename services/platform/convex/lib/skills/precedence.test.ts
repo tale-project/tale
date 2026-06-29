@@ -35,4 +35,32 @@ describe('selectStageableSkills', () => {
     expect(result.kept).toEqual(tale);
     expect(result.dropped).toEqual([]);
   });
+
+  // The image-baked visual-aspect-analyzer is symlinked into the session skill
+  // dir by the sandbox-runtime entrypoint; reconcileBuiltinSkills
+  // (node_only/sandbox/integration_skills.ts) runs this same filter per turn and
+  // removes the baked symlink for any name the repo also defines (`dropped`), so
+  // the repo's project-level skill wins. (browser-human-control uses the same
+  // filter inline via stageBrowserControlSkill.)
+  it('keeps the visual-aspect-analyzer builtin when the repo has no skill of that name', () => {
+    const tale: Skill[] = [{ name: 'visual-aspect-analyzer' }];
+    const result = selectStageableSkills(
+      tale,
+      nameOf,
+      new Set(['some-other-skill']),
+    );
+    expect(result.kept).toEqual(tale);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it('defers the visual-aspect-analyzer builtin to a same-named repo skill', () => {
+    const tale: Skill[] = [{ name: 'visual-aspect-analyzer' }];
+    const result = selectStageableSkills(
+      tale,
+      nameOf,
+      new Set(['visual-aspect-analyzer']),
+    );
+    expect(result.kept).toEqual([]);
+    expect(result.dropped).toEqual(['visual-aspect-analyzer']);
+  });
 });

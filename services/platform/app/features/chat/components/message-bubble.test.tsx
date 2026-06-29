@@ -75,6 +75,13 @@ vi.mock('./message-info-dialog', () => ({
   MessageInfoDialog: () => null,
 }));
 
+// User-message bodies render `@handle`s via MentionizedText, which subscribes
+// to the actor directory (Convex) — outside a provider that throws. Not under
+// test here, so stub it to the plain body text.
+vi.mock('@/app/features/tasks/components/mention-text', () => ({
+  MentionizedText: ({ body }: { body: string }) => <>{body}</>,
+}));
+
 const REPLY = 'This is the assistant reply that should be copied.';
 
 function assistantMessage(overrides: Partial<Message> = {}): Message {
@@ -186,5 +193,71 @@ describe('MessageBubble copy action', () => {
     await checkAccessibility(container, {
       rules: { 'button-name': { enabled: false } },
     });
+  });
+});
+
+// The multi-party (Discussions) props: `isOwn` overrides alignment by AUTHORSHIP
+// and `authorName` adds a name label for non-own entries. Defaults must leave
+// the 1:1 chat behavior (alignment by `role`) untouched.
+describe('MessageBubble author-aware alignment', () => {
+  it('keeps the role-based default when isOwn is omitted', async () => {
+    const { MessageBubble } = await import('./message-bubble');
+
+    render(
+      <MessageBubble
+        message={assistantMessage()}
+        organizationId="org-1"
+        hideFeedback
+      />,
+    );
+
+    // Assistant, no override → left-aligned, no name label.
+    const root = screen.getByTestId('chat-message');
+    expect(root.className).toContain('justify-start');
+    expect(root.className).not.toContain('items-end');
+  });
+
+  it('left-aligns a teammate reply (role:user, isOwn=false) and shows the name', async () => {
+    const { MessageBubble } = await import('./message-bubble');
+
+    render(
+      <MessageBubble
+        message={assistantMessage({ id: 'u1', role: 'user', content: 'Maybe' })}
+        organizationId="org-1"
+        hideFeedback
+        isOwn={false}
+        authorName="Alex"
+      />,
+    );
+
+    // Authorship beats role: a user-role message from someone else lands LEFT.
+    const root = screen.getByTestId('chat-message');
+    expect(root.className).toContain('justify-start');
+    expect(root.className).not.toContain('items-end');
+    expect(screen.getByText('Alex')).toBeInTheDocument();
+  });
+
+  it('right-aligns my own reply (isOwn=true) with no name label', async () => {
+    const { MessageBubble } = await import('./message-bubble');
+
+    render(
+      <MessageBubble
+        message={assistantMessage({
+          id: 'me1',
+          role: 'assistant',
+          content: 'My take',
+        })}
+        organizationId="org-1"
+        hideFeedback
+        isOwn
+        authorName="Me"
+      />,
+    );
+
+    // Authorship beats role: an assistant-role message that is mine lands RIGHT,
+    // and own entries never render the name label.
+    const root = screen.getByTestId('chat-message');
+    expect(root.className).toContain('items-end');
+    expect(screen.queryByText('Me')).toBeNull();
   });
 });
