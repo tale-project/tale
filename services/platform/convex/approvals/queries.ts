@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { UnauthorizedError } from '../lib/rls/errors';
 import * as ApprovalsHelpers from './helpers';
 import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
@@ -222,6 +223,14 @@ export const getPendingIntegrationApprovalsForThread = query({
       return [];
     }
 
+    // RLS: only members of the thread's org may read its approval rows. A
+    // guessed/out-of-tenant threadId resolves to no accessible thread and
+    // returns []. Capture the thread's org to cross-check each row below.
+    const thread = await canAccessThread(ctx, args.threadId, authUser);
+    if (!thread) {
+      return [];
+    }
+
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
@@ -230,6 +239,15 @@ export const getPendingIntegrationApprovalsForThread = query({
         continue;
       }
       if (args.messageId && approval.messageId !== args.messageId) {
+        continue;
+      }
+      // Defence in depth: drop any row whose org diverges from the thread's.
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
@@ -251,6 +269,14 @@ export const getWorkflowCreationApprovalsForThread = query({
       return [];
     }
 
+    // RLS: only members of the thread's org may read its approval rows. A
+    // guessed/out-of-tenant threadId resolves to no accessible thread and
+    // returns []. Capture the thread's org to cross-check each row below.
+    const thread = await canAccessThread(ctx, args.threadId, authUser);
+    if (!thread) {
+      return [];
+    }
+
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
@@ -259,6 +285,15 @@ export const getWorkflowCreationApprovalsForThread = query({
         continue;
       }
       if (args.messageId && approval.messageId !== args.messageId) {
+        continue;
+      }
+      // Defence in depth: drop any row whose org diverges from the thread's.
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
@@ -280,6 +315,14 @@ export const getHumanInputRequestsForThread = query({
       return [];
     }
 
+    // RLS: only members of the thread's org may read its approval rows. A
+    // guessed/out-of-tenant threadId resolves to no accessible thread and
+    // returns []. Capture the thread's org to cross-check each row below.
+    const thread = await canAccessThread(ctx, args.threadId, authUser);
+    if (!thread) {
+      return [];
+    }
+
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
@@ -288,6 +331,15 @@ export const getHumanInputRequestsForThread = query({
         continue;
       }
       if (args.messageId && approval.messageId !== args.messageId) {
+        continue;
+      }
+      // Defence in depth: drop any row whose org diverges from the thread's.
+      // Org-less threads (canAccessThread returns no organizationId) have
+      // nothing to diverge from, so skip the check rather than drop every row.
+      if (
+        thread.organizationId &&
+        approval.organizationId !== thread.organizationId
+      ) {
         continue;
       }
       approvals.push(approval);
