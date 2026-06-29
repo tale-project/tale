@@ -2763,7 +2763,13 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
-      "saved": "Budget rules have been updated"
+      "saved": "Budget rules have been updated",
+      "targetRequired": "Select a target for this scope, or the rule will never apply.",
+      "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
+      "invalidTokenLimit": "Token limit must be greater than zero.",
+      "invalidCostLimit": "Cost limit must be greater than zero.",
+      "invalidMaxRequests": "Request limit must be greater than zero.",
+      "invalidWarningThreshold": "Warning threshold must be between 0 and 100."
     },
     "defaultModels": {
       "title": "Default Models",

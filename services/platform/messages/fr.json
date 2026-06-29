@@ -2764,7 +2764,13 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
-      "saved": "Les règles de budget ont été mises à jour"
+      "saved": "Les règles de budget ont été mises à jour",
+      "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
+      "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
+      "invalidTokenLimit": "La limite de jetons doit être supérieure à zéro.",
+      "invalidCostLimit": "La limite de coût doit être supérieure à zéro.",
+      "invalidMaxRequests": "La limite de requêtes doit être supérieure à zéro.",
+      "invalidWarningThreshold": "Le seuil d'alerte doit être compris entre 0 et 100."
     },
     "defaultModels": {
       "title": "Modèles par défaut",

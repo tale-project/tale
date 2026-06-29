@@ -2763,7 +2763,13 @@
       "searchTeams": "Teams suchen...",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeamAriaLabel": "Team auswählen",
-      "saved": "Budgetregeln wurden aktualisiert"
+      "saved": "Budgetregeln wurden aktualisiert",
+      "targetRequired": "Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.",
+      "limitRequired": "Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen) fest, damit die Regel greifen kann.",
+      "invalidTokenLimit": "Das Token-Limit muss größer als null sein.",
+      "invalidCostLimit": "Das Kostenlimit muss größer als null sein.",
+      "invalidMaxRequests": "Das Anfragenlimit muss größer als null sein.",
+      "invalidWarningThreshold": "Der Warnschwellenwert muss zwischen 0 und 100 liegen."
     },
     "defaultModels": {
       "title": "Standardmodelle",
