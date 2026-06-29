@@ -31,6 +31,7 @@ import { routeSeedValidator, routeTuningValidator } from '../../agents/schema';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
+  buildChainExhaustionError,
   classifyFailureScope,
   isTransientProviderError,
 } from '../../providers/errors';
@@ -514,6 +515,12 @@ export async function runGenerationCore(
     // at 0) draws no credits, so `isModelScopeRetired` still attempts it (#1454).
     let lastFallbackError: unknown;
     const deadScopes = new Set<string>();
+    // Resolution (config) failures collected across the chain. When NO model
+    // ever reaches a live provider call (`attemptedCount === 0`) these are the
+    // whole story, and the chain collapses into one actionable
+    // "configure a provider" error instead of the last entry's per-model
+    // message (issue #1455).
+    const configFailures: Array<{ model: string; message: string }> = [];
 
     // RESOLUTION (no HTTP) is memoized per model index so the catch can look
     // ahead for the next attemptable model without paying for it twice. A
@@ -571,6 +578,13 @@ export async function runGenerationCore(
       const resolution = await resolveAt(attempt);
       if (!resolution.ok) {
         lastFallbackError = resolution.error;
+        configFailures.push({
+          model: currentModelId ?? 'default',
+          message:
+            resolution.error instanceof Error
+              ? resolution.error.message
+              : String(resolution.error),
+        });
         if (attempt < modelsToTry.length - 1) {
           debugLog('SKIP_UNCONFIGURED_MODEL', {
             model: currentModelId ?? 'default',
@@ -582,7 +596,10 @@ export async function runGenerationCore(
           });
           continue;
         }
-        throw resolution.error;
+        // Last entry also failed to resolve. Fall through to the unified
+        // exhaustion handler below so an all-unconfigured chain surfaces one
+        // actionable error rather than this tail model's per-model message.
+        break;
       }
       const resolved = resolution.resolved;
 
@@ -962,8 +979,15 @@ export async function runGenerationCore(
       }
     }
 
-    // Should not reach here, but satisfy TypeScript
-    throw lastFallbackError ?? new Error('No model could be resolved');
+    // Chain exhausted. When no model ever reached a live provider call, every
+    // failure was a config/resolution error — collapse the chain into a single
+    // actionable "configure a provider" error instead of the tail model's
+    // per-model message (issue #1455). Otherwise surface the real last cause.
+    throw buildChainExhaustionError({
+      attemptedCount,
+      configFailures,
+      lastError: lastFallbackError,
+    });
   } catch (error) {
     // Log full error details for debugging
     const err = isRecord(error) ? error : { message: String(error) };

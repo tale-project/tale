@@ -58,7 +58,11 @@ import {
   requireOrgMembership,
   requireOrgMembershipById,
 } from './auth';
-import { MissingApiKeyError, NoProviderAvailableError } from './errors';
+import {
+  FRIENDLY_NO_PROVIDER,
+  MissingApiKeyError,
+  NoProviderAvailableError,
+} from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -420,9 +424,6 @@ interface ProviderWithSecrets {
    */
   secrets: ProviderSecrets | null;
 }
-
-const FRIENDLY_NO_PROVIDER =
-  'No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.';
 
 async function loadAllProviders(
   orgSlug: string,
