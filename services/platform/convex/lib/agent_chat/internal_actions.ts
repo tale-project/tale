@@ -509,6 +509,9 @@ export async function runGenerationCore(
     // later model sharing that resource is skipped instead of waiting on a
     // doomed request. Keying by credential (not provider name) means a sibling
     // model with its own `secretsEnv` key is still tried after another key dies.
+    // An out-of-funds (credit) failure is the one exception that does NOT doom
+    // every sibling: a zero-cost model on the same credential (`:free` / priced
+    // at 0) draws no credits, so `isModelScopeRetired` still attempts it (#1454).
     let lastFallbackError: unknown;
     const deadScopes = new Set<string>();
 
