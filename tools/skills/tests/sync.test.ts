@@ -79,7 +79,7 @@ describe('runSync — mirror', () => {
     expect((await run(false)).code).toBe(0);
     const checked = await run(true);
     expect(checked.code).toBe(0);
-    expect(checked.out).toContain('matches its .agents/skills source');
+    expect(checked.out).toContain('match their sources');
   });
 
   test('check fails (naming the file) when the mirror is mutated', async () => {
@@ -123,6 +123,60 @@ describe('runSync — mirror', () => {
     await run(false);
     const copied = readFileSync(mirrored('demo/assets/logo.bin'));
     expect([...copied]).toEqual([...bytes]);
+  });
+});
+
+describe('runSync — workflow-skill projection', () => {
+  /** A workflow skill at its `builtin-configs/skills` source of truth. */
+  function scaffoldWorkflow(): void {
+    writeUnder(
+      'builtin-configs/skills/fix-bug/SKILL.md',
+      '---\nname: fix-bug\ndescription: x\n---\n\n# Fix a bug\n',
+    );
+  }
+
+  /** Repo-relative path of a file in the projected `.agents/skills` copy. */
+  const projected = (rel: string): string => join(root, '.agents/skills', rel);
+
+  test('sync projects a workflow skill builtin-configs -> .agents/skills -> .claude/skills', async () => {
+    scaffoldWorkflow();
+    expect((await run(false)).code).toBe(0);
+    expect(existsSync(projected('fix-bug/SKILL.md'))).toBe(true);
+    expect(existsSync(mirrored('fix-bug/SKILL.md'))).toBe(true);
+  });
+
+  test('product-only skills (docx, …) are NOT projected into the repo-dev guides', async () => {
+    writeUnder(
+      'builtin-configs/skills/docx/SKILL.md',
+      '---\nname: docx\ndescription: x\n---\n\n# Docx\n',
+    );
+    expect((await run(false)).code).toBe(0);
+    expect(existsSync(projected('docx/SKILL.md'))).toBe(false);
+    expect(existsSync(mirrored('docx/SKILL.md'))).toBe(false);
+  });
+
+  test('check fails (pointing at builtin-configs) when the projected copy is hand-edited', async () => {
+    scaffoldWorkflow();
+    await run(false);
+    writeFileSync(projected('fix-bug/SKILL.md'), 'tampered');
+    const checked = await run(true);
+    expect(checked.code).toBe(1);
+    expect(checked.out).toContain('workflow-skill projection is out of date');
+    expect(checked.out).toContain(
+      'builtin-configs/skills/<name>/ is the source of truth',
+    );
+  });
+
+  test('a deleted source with a surviving projection is a hard error (no silent wipe)', async () => {
+    scaffoldWorkflow();
+    await run(false);
+    rmSync(join(root, 'builtin-configs/skills/fix-bug'), {
+      recursive: true,
+      force: true,
+    });
+    const checked = await run(true);
+    expect(checked.code).toBe(1);
+    expect(checked.out).toContain('no builtin-configs/skills/ source');
   });
 });
 

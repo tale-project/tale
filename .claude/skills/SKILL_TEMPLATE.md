@@ -1,6 +1,6 @@
 ---
 name: skill-name
-description: Open with the capability ("How to … / The contract for …"), then "Read before …" and the concrete triggers that should load this skill — real file paths, verbs, and symptoms, one per branch, not adjectives. The agent decides relevance from this line alone — so make the first sentence stand alone, and say nothing the body repeats.
+description: Open with a directive that commands the agent into the skill ("Use this skill whenever <situation> …" / "Read before <trigger> …"), then the concrete triggers — real file paths, verbs, and symptoms, one per branch, not adjectives — and an enforcement/boundary clause ("never do X without it"; "for the adjacent case use <sibling>"). The agent decides relevance from this line alone, so make the first sentence stand alone and say nothing the body repeats.
 ---
 
 # skill-name
@@ -32,6 +32,12 @@ mark it `reviewer-caught`. Prune as you go (see the meta-standard below).
 Concrete do/don't, grounded in real files (`path:line` when useful). One good example beats three
 sentences of prose. Keep snippets minimal — the smallest code that makes the point.
 
+## Before you call it done (optional — where the skill has a done-gate)
+
+A true `- [ ]` checklist the agent ticks, opened with "tick every box, or N/A with a reason; an unticked
+box means not done." Each box a verifiable assertion. Use it wherever a skill ends in completion or a
+must-not-skip sequence — a box the agent fills in beats a paragraph it skims.
+
 ## Companion files (optional)
 
 Long reference — playbooks, catalogues, per-locale doctrine, worked examples — lives in sibling `.md`
@@ -53,7 +59,7 @@ modes — the fix for most is **delete**, not reword:
 - **Sprawl** — `SKILL.md` ≤ ~150 lines. Progressive disclosure, three tiers: in-skill steps →
   in-skill reference → companion `.md`. Inline what _every_ branch needs; push behind a pointer what
   only _some_ branches reach.
-- **Premature completion** — make "done vs. not-done" checkable so the agent can't stop a sequence early.
+- **Premature completion** — express any done-gate as a **true `- [ ]` checklist** the agent must tick (each box a verifiable assertion, N/A allowed with a reason) so it can't stop a sequence early.
 
 Plus the structural rules:
 
@@ -61,12 +67,14 @@ Plus the structural rules:
   is all every harness reads to surface the skill.
 - **One concern per skill.** If the name needs "and", it's probably two. Fold a tiny adjacent topic
   into a section rather than spawn a near-empty skill.
-- **Invocation axis.** A `.agents/skills/` skill is model-invoked (surfaces by its description); an invocable workflow typed by name (`/ship`, `/verify`) is itself a skill, not a
-  separate file. Author a skill
-  only when the agent (or another skill) must reach it on its own.
+- **Invocation axis.** A `.agents/skills/` skill is model-invoked (surfaces by its description); an
+  invocable workflow typed by name (`/fix-bug`, `/create-pr`) is itself a skill, not a separate file.
+  Author a skill only when the agent (or another skill) must reach it on its own.
 - **Don't duplicate the ecosystem.** If a built-in/harness skill already does the job (`react-doctor`,
   `code-review`, `claude-api`), reference it; a custom skill must add Tale-specific value.
 - **Register it.** Add the skill's row to the index in `/AGENTS.md`, then run `bun run skills:sync` —
-  same change. A repo-dev guide lives under `.agents/skills/` (mirrored to `.claude/skills/`); a
-  product skill lives under `builtin-configs/skills/` or `skills/` — see `write-skill`. Then
-  `bun run skills:check` must pass (the mirror is current, `SKILL.md` script refs resolve).
+  same change. A repo-dev guide lives under `.agents/skills/` (mirrored to `.claude/skills/`); a generic
+  workflow skill's source is `builtin-configs/skills/` + its name in the `WORKFLOW_SKILLS` allowlist
+  (projected into `.agents/skills/`); a product-only skill stays under `builtin-configs/skills/` or
+  `skills/` — see `write-skill`. Then `bun run skills:check` must pass (mirror + projections current,
+  `SKILL.md` script refs resolve).

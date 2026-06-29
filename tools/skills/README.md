@@ -7,15 +7,22 @@ Skills live in three independent source roots, by audience:
 - **`.agents/skills/`** — repo-dev coding guides (docs). The source every coding agent reads: Cursor,
   Codex, and Copilot open it directly; Claude Code reads the generated **`.claude/skills/`** mirror,
   which this tool regenerates.
-- **`builtin-configs/skills/`** — product skills (`docx`, `pptx`, …) shipped to org agents: embedded
-  in the CLI binary, seeded per-org at chat time. Hand-maintained.
+- **`builtin-configs/skills/`** — product skills shipped to org agents: embedded in the CLI binary,
+  seeded per-org at chat time. Hand-maintained. The document skills (`docx`, `pptx`, …) are
+  product-only; the **workflow skills** (`implement-feature`, `fix-bug`, … — the `WORKFLOW_SKILLS`
+  allowlist in `src/sync.ts`) are generic senior-dev guides that ALSO serve repo-dev agents, so this
+  tool projects each into `.agents/skills/<name>/` (and from there into the mirror).
 - **`skills/`** — self-contained Bun workspace skills (`visual-aspect-analyzer`) baked into the
   `services/sandbox-runtime` image.
 
 ## What it does
 
+- **Project the workflow skills** — copies `builtin-configs/skills/<workflow>/` →
+  `.agents/skills/<workflow>/`. Their source of truth is `builtin-configs/skills/`; the projected
+  `.agents/skills/<workflow>/` copy is generated — never hand-edit it.
 - **Mirror** — copies `.agents/skills/` → `.claude/skills/` (source-only `*.test.ts` / `*.secrets.json`
-  excluded). The only generated copy of a skill.
+  excluded). The only generated copy a repo-dev agent reads under `.claude/`. Runs after the projection,
+  so it carries the freshly-projected workflow skills.
 - **Guard the shipped roots** — for every skill under `builtin-configs/skills/` and `skills/`: shipped
   TypeScript scripts stay self-contained (only `node:*`, `bun`/`bun:*`, relative imports — a deployed
   skill has no `node_modules`), and every `bun scripts/…` / `python scripts/…` a `SKILL.md` references

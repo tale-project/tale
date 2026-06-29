@@ -241,7 +241,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 
 ## Contribuer
 
-Nouveau dans le dépôt ? [Configuration contributeur](docs/fr/develop/contributor-setup.md) est la source unique de vérité pour faire tourner le code source en local — prérequis, `bun install`, le pré-vol `bun run setup:check` et `bun run dev`. Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`docs`](.agents/skills/docs/SKILL.md) couvre le site de doc ; le skill [`translation`](.agents/skills/translation/SKILL.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
+Nouveau dans le dépôt ? [Configuration contributeur](docs/fr/develop/contributor-setup.md) est la source unique de vérité pour faire tourner le code source en local — prérequis, `bun install`, le pré-vol `bun run setup:check` et `bun run dev`. Lis [`AGENTS.md`](AGENTS.md) avant ton premier PR — c'est le contrat unique pour le style de code, la sécurité, les tests, l'i18n et la documentation à travers tous les workspaces. Le skill [`write-docs`](.agents/skills/write-docs/SKILL.md) couvre le site de doc ; le skill [`write-translations`](.agents/skills/write-translations/SKILL.md) les règles de traduction inter-langues. Lance `bun run check` (format, lint, typecheck, tests) avant d'ouvrir un PR ; le [pull request template](.github/pull_request_template.md) liste le reste de la checklist pre-merge.
 
 ---
 
