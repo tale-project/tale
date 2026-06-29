@@ -2,7 +2,7 @@
   "name": "@tale/skills",
   "version": "0.1.0",
   "private": true,
-  "description": "Skill source-of-truth sync + cross-harness adapter generator (skills/ → .claude/skills, builtin-configs/skills, .cursor, .github/instructions)",
+  "description": "Skill mirror sync (.agents/skills → .claude/skills) + portability guards for shipped skills (builtin-configs/skills, skills/)",
   "bin": {
     "tale-skills": "./src/index.ts"
   },
