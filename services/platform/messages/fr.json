@@ -2301,7 +2301,8 @@
   },
   "dialogs": {
     "addMember": {
-      "title": "Ajouter un membre"
+      "title": "Ajouter un membre",
+      "existingUserHint": "Cette personne possède déjà un compte ; aucun mot de passe n'est nécessaire — elle se connecte avec ses identifiants existants."
     },
     "memberAdded": {
       "title": "Membre ajouté avec succès",
