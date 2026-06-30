@@ -1,5 +1,5 @@
 import { createThread, saveMessage } from '@convex-dev/agent';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -16,7 +16,10 @@ export const forkOwnThread = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const metadata = await ctx.db
@@ -25,12 +28,18 @@ export const forkOwnThread = mutation({
       .first();
 
     if (!metadata) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     const userId = authUser.userId;
     if (metadata.userId !== userId) {
-      throw new Error('Not authorized to fork this thread');
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED',
+        message: 'Not authorized to fork this thread',
+      });
     }
 
     const { messages: allMessages } = await getThreadMessages(
