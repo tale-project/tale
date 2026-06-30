@@ -23,7 +23,7 @@ function AutomationsCatalogPage() {
     return <div className="p-4" />;
   }
 
-  if (ability.cannot('write', 'wfDefinitions')) {
+  if (ability.cannot('read', 'wfDefinitions')) {
     return <AccessDenied message={t('automations')} />;
   }
 

@@ -35,6 +35,14 @@ vi.mock('../hooks/file-queries', () => ({
   }),
 }));
 
+const mockCanWrite = vi.fn(() => true);
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: () => mockCanWrite(),
+    cannot: () => !mockCanWrite(),
+  }),
+}));
+
 describe('WorkflowTemplateGrid', () => {
   const defaultProps = {
     organizationId: 'org-123',
@@ -45,6 +53,7 @@ describe('WorkflowTemplateGrid', () => {
     vi.clearAllMocks();
     mockInstallWorkflow.mockResolvedValue(undefined);
     mockInvalidateWorkflows.mockResolvedValue(undefined);
+    mockCanWrite.mockReturnValue(true);
   });
 
   it('renders template buttons', () => {
@@ -127,6 +136,16 @@ describe('WorkflowTemplateGrid', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+  });
+
+  it('does not install for read-only roles that cannot write', async () => {
+    mockCanWrite.mockReturnValue(false);
+    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
+
+    await user.click(screen.getByLabelText('Welcome Flow'));
+
+    expect(mockInstallWorkflow).not.toHaveBeenCalled();
+    expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
   });
 
   describe('accessibility', () => {
