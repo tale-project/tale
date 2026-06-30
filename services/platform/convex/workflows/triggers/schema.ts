@@ -5,6 +5,17 @@ import { jsonRecordValidator } from '../../lib/validators/json';
 
 export const wfSchedulesTable = defineTable({
   organizationId: v.string(),
+  /**
+   * Project this schedule belongs to, for a `scope: 'project'` app whose config
+   * (and therefore schedule `variables`, e.g. the GitHub owner/repo) is
+   * per-project: one schedule per bound project so two projects targeting two
+   * repos never share a single org-wide schedule. Absent (undefined) for
+   * org-level schedules (org-scoped apps + legacy rows predating per-project
+   * config). Used only for lifecycle — create at bind, delete at unbind, sync the
+   * right project in `setAppConfig` — by filtering, mirroring the existing
+   * `organizationId` filter; the firing path is unchanged (it reads `variables`).
+   */
+  projectId: v.optional(v.id('projects')),
   workflowSlug: v.optional(v.string()),
   cronExpression: v.string(),
   timezone: v.string(),

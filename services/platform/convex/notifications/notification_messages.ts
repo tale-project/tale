@@ -79,6 +79,15 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     dsarPolicyLoosenCancelled: 'Pending data-erasure policy change cancelled',
     dsarPolicyLoosenCancelledBody:
       'A pending data-erasure (DSAR) policy change was cancelled before it took effect.',
+    agentBudgetWarnTitle: 'Agent approaching its budget',
+    agentBudgetWarnBody:
+      '{agentSlug} has used {pct}% of its monthly budget ({spent} of {monthly}).',
+    agentBudgetExceededTitle: 'Agent budget exceeded — runs paused',
+    agentBudgetExceededBody:
+      '{agentSlug} reached its monthly budget ({spent} of {monthly}) and has been paused. Runs resume next month or when you raise the limit.',
+    agentCircuitTrippedTitle: 'Agent runs paused — safety limit reached',
+    agentCircuitTrippedBody:
+      '{agentSlug} hit the safety limit of {windowRuns} runs in {windowHours}h on "{taskTitle}". Change the task status to resume automation.',
   },
   de: {
     title: 'Benachrichtigungen',
@@ -132,6 +141,17 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Vorgemerkte Änderung der Löschrichtlinie abgebrochen',
     dsarPolicyLoosenCancelledBody:
       'Eine vorgemerkte Änderung der Löschrichtlinie (DSAR) wurde abgebrochen, bevor sie wirksam wurde.',
+    agentBudgetWarnTitle: 'Agent nähert sich seinem Budget',
+    agentBudgetWarnBody:
+      '{agentSlug} hat {pct} % seines Monatsbudgets verbraucht ({spent} von {monthly}).',
+    agentBudgetExceededTitle:
+      'Agent-Budget überschritten — Ausführungen pausiert',
+    agentBudgetExceededBody:
+      '{agentSlug} hat sein Monatsbudget erreicht ({spent} von {monthly}) und wurde pausiert. Ausführungen laufen nächsten Monat weiter oder sobald du das Limit erhöhst.',
+    agentCircuitTrippedTitle:
+      'Agent-Ausführungen pausiert — Sicherheitslimit erreicht',
+    agentCircuitTrippedBody:
+      '{agentSlug} hat das Sicherheitslimit von {windowRuns} Ausführungen in {windowHours}h bei "{taskTitle}" erreicht. Ändere den Aufgabenstatus, um die Automatisierung fortzusetzen.',
   },
   fr: {
     title: 'Notifications',
@@ -187,6 +207,16 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Modification en attente de la politique d'effacement annulée",
     dsarPolicyLoosenCancelledBody:
       "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet.",
+    agentBudgetWarnTitle: "L'agent approche de son budget",
+    agentBudgetWarnBody:
+      '{agentSlug} a utilisé {pct} % de son budget mensuel ({spent} sur {monthly}).',
+    agentBudgetExceededTitle: "Budget de l'agent dépassé — exécutions en pause",
+    agentBudgetExceededBody:
+      '{agentSlug} a atteint son budget mensuel ({spent} sur {monthly}) et a été mis en pause. Les exécutions reprennent le mois prochain ou lorsque tu augmentes la limite.',
+    agentCircuitTrippedTitle:
+      "Exécutions de l'agent en pause — limite de sécurité atteinte",
+    agentCircuitTrippedBody:
+      "{agentSlug} a atteint la limite de sécurité de {windowRuns} exécutions en {windowHours} h sur « {taskTitle} ». Change le statut de la tâche pour reprendre l'automatisation.",
   },
 };
 

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { ConvexError } from 'convex/values';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -23,6 +23,7 @@ import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import { useCreateMember } from '../hooks/mutations';
+import { useUserExistsByEmail } from '../hooks/queries';
 
 // Type for the form data
 type AddMemberFormData = {
@@ -109,8 +110,23 @@ export function AddMemberDialog({
   } = form;
   const selectedRole = watch('role');
   const password = watch('password') ?? '';
+  const email = watch('email') ?? '';
+
+  // For an email that already belongs to a user, the backend reuses their
+  // existing credentials and ignores any password, so we hide the field
+  // entirely rather than asking for something that won't be used.
+  const emailBelongsToExistingUser = useUserExistsByEmail(email);
 
   const passwordValidationItems = usePasswordValidation(password, policy);
+
+  // Drop any password the admin had typed before we learned the email matches
+  // an existing user — otherwise a stale validation error on the now-hidden
+  // field would keep the form from submitting.
+  useEffect(() => {
+    if (emailBelongsToExistingUser && password) {
+      setValue('password', '', { shouldValidate: true });
+    }
+  }, [emailBelongsToExistingUser, password, setValue]);
 
   const onSubmit = async (data: AddMemberFormData) => {
     try {
@@ -243,25 +259,31 @@ export function AddMemberDialog({
           ]}
         />
 
-        <FormSection>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            label={tSettings('form.password')}
-            placeholder={tSettings('form.passwordPlaceholder')}
-            description={tSettings('form.forgotPassword')}
-            {...register('password')}
-            errorMessage={formState.errors.password?.message}
-            className="w-full"
-          />
-          {password && (
-            <ValidationCheckList
-              items={passwordValidationItems}
-              className="text-xs"
+        {emailBelongsToExistingUser ? (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
+            {tDialogs('addMember.existingUserHint')}
+          </div>
+        ) : (
+          <FormSection>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              label={tSettings('form.password')}
+              placeholder={tSettings('form.passwordPlaceholder')}
+              description={tSettings('form.forgotPassword')}
+              {...register('password')}
+              errorMessage={formState.errors.password?.message}
+              className="w-full"
             />
-          )}
-        </FormSection>
+            {password && (
+              <ValidationCheckList
+                items={passwordValidationItems}
+                className="text-xs"
+              />
+            )}
+          </FormSection>
+        )}
       </FormDialog>
 
       <ViewDialog

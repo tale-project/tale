@@ -2,12 +2,8 @@
 
 import * as LabelPrimitive from '@radix-ui/react-label';
 import { Info } from 'lucide-react';
-import {
-  forwardRef,
-  ComponentRef,
-  ComponentPropsWithoutRef,
-  type ReactNode,
-} from 'react';
+import type { ComponentRef, ComponentPropsWithoutRef } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

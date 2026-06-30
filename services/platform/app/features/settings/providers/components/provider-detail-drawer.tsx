@@ -9,10 +9,8 @@ import { AlertTriangle, X } from 'lucide-react';
 
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useT } from '@/lib/i18n/client';
-import {
-  modelTagLiterals,
-  type ProviderJson,
-} from '@/lib/shared/schemas/providers';
+import type { modelTagLiterals } from '@/lib/shared/schemas/providers';
+import { type ProviderJson } from '@/lib/shared/schemas/providers';
 
 import { useHasProviderSecret, useReadProvider } from '../hooks/queries';
 import { ProviderConfigProvider } from '../hooks/use-provider-config-context';

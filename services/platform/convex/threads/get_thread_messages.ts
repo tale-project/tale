@@ -10,7 +10,7 @@
 import { listMessages, toUIMessages, type MessageDoc } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
-import { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 
 export interface ThreadMessage {
   _id: string;

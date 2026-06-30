@@ -1,5 +1,5 @@
 import { internal } from '../../_generated/api';
-import { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 import { encryptString } from '../../lib/crypto/encrypt_string';
 import { ONEDRIVE_SCOPES } from '../entra_id/adapter';
 import { generatePkcePair } from '../pkce';

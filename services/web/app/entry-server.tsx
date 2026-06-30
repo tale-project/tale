@@ -1,5 +1,10 @@
 import { AppShell } from '@tale/ui/app-shell';
 import {
+  createHeadSink,
+  HeadSinkContext,
+  renderHeadToHtml,
+} from '@tale/ui/seo/document-meta';
+import {
   RouterProvider,
   createMemoryHistory,
   createRouter,
@@ -14,6 +19,8 @@ import { routeTree } from './routeTree.gen';
 
 export interface RenderResult {
   html: string;
+  /** Serialised per-route `<head>` captured during render (see HeadSink). */
+  head: string;
 }
 
 export async function render(url: string): Promise<RenderResult> {
@@ -34,13 +41,20 @@ export async function render(url: string): Promise<RenderResult> {
 
   await router.load();
 
+  // Collect the route's `<head>` as the tree renders — `useDocumentMeta`
+  // writes into the sink during render (effects don't run under
+  // `renderToString`). Mirror any change here in `app/main.tsx`.
+  const sink = createHeadSink();
+
   const html = renderToString(
     <StrictMode>
-      <AppShell i18n={i18n} theme>
-        <RouterProvider router={router} />
-      </AppShell>
+      <HeadSinkContext.Provider value={sink}>
+        <AppShell i18n={i18n} theme>
+          <RouterProvider router={router} />
+        </AppShell>
+      </HeadSinkContext.Provider>
     </StrictMode>,
   );
 
-  return { html };
+  return { html, head: renderHeadToHtml(sink.tags) };
 }

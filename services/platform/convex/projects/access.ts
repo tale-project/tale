@@ -56,6 +56,26 @@ export function isOrgWideProject(project: ProjectAccessInput | null): boolean {
 }
 
 /**
+ * Normalize a sharing target before persisting it.
+ *
+ * A "shared-with" team is always *additional* to an owning team, so a project
+ * with no owning team cannot retain shared teams: keeping them would leave the
+ * project restricted to those teams (`getProjectTeamIds` non-empty) while every
+ * surface — the Sharing Select, the overview/table "Org-wide" label — reports
+ * it as org-wide. Dropping the owning team therefore clears the shared list so
+ * "Org-wide" genuinely means org-wide and effective access matches the UI.
+ */
+export function normalizeSharing(
+  teamId: string | null,
+  sharedWithTeamIds: string[],
+): { teamId: string | null; sharedWithTeamIds: string[] } {
+  if (teamId === null) {
+    return { teamId: null, sharedWithTeamIds: [] };
+  }
+  return { teamId, sharedWithTeamIds };
+}
+
+/**
  * Check whether the user has any access to the project.
  */
 export function hasProjectAccess(

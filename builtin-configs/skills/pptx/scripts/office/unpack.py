@@ -85,7 +85,7 @@ def _pretty_print_xml(xml_file: Path) -> None:
         dom = defusedxml.minidom.parseString(content)
         xml_file.write_bytes(dom.toprettyxml(indent="  ", encoding="utf-8"))
     except Exception:
-        pass
+        pass  # best-effort: leave the XML as-is if pretty-printing fails
 
 
 def _escape_smart_quotes(xml_file: Path) -> None:
@@ -95,7 +95,7 @@ def _escape_smart_quotes(xml_file: Path) -> None:
             content = content.replace(char, entity)
         xml_file.write_text(content, encoding="utf-8")
     except Exception:
-        pass
+        pass  # best-effort: leave the XML as-is if smart-quote escaping fails
 
 
 if __name__ == "__main__":

@@ -3,12 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tale: The Orchestration Layer for AI Agents</title>
-    <meta
-      name="description"
-      content="Tale is a self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified. Swiss-based."
-    />
-    <link rel="canonical" href="https://tale.dev/" />
     <meta name="theme-color" content="#fcfcfc" />
     <script>
       (function () {
@@ -42,6 +36,19 @@
       media="(prefers-color-scheme: dark)"
     />
 
+    <!-- seo:start -->
+    <!--
+      Per-route SEO tags. In production the prerenderer (scripts/prerender.ts)
+      replaces everything between seo:start/seo:end with the exact `<head>`
+      the route's `useDocumentMeta` renders. These defaults are what dev and
+      the SPA-shell fallback (un-prerendered routes) show before JS boots.
+    -->
+    <title>Tale: The Orchestration Layer for AI Agents</title>
+    <meta
+      name="description"
+      content="Tale is a self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified. Swiss-based."
+    />
+    <link rel="canonical" href="https://tale.dev/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Tale" />
     <meta property="og:url" content="https://tale.dev/" />
@@ -53,7 +60,6 @@
       property="og:description"
       content="Self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified."
     />
-
     <meta name="twitter:card" content="summary" />
     <meta
       name="twitter:title"
@@ -63,6 +69,7 @@
       name="twitter:description"
       content="Self-hosted AI platform for data-sensitive organizations. ISO 27001 & SOC 2 certified."
     />
+    <!-- seo:end -->
 
     <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
     <link

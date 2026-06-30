@@ -148,6 +148,125 @@ describe('BudgetEditor', () => {
     });
   });
 
+  // Issue #2061: the editor must not persist a "silently dead" rule — a
+  // user/team/role scope with no target, or a rule with no positive limit.
+  describe('rule dialog validation (#2061)', () => {
+    it('blocks saving a rule with no limit set and shows an inline error', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      // The Add dialog is open (default scope, no limits → invalid).
+      expect(
+        await screen.findByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // The limit-required error surfaces and the dialog stays open (no save).
+      expect(
+        await screen.findByText(/set at least one limit/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+      // No rule was committed — the table still shows the empty state.
+      expect(
+        screen.getByText(/no budget rules configured/i),
+      ).toBeInTheDocument();
+    });
+
+    it('saves a default-scope rule once a positive limit is provided', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const tokenInput = await screen.findByLabelText(/max tokens/i);
+      await user.type(tokenInput, '1000000');
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // Dialog closed (saved) and the new rule row is shown.
+      expect(
+        screen.queryByRole('button', { name: /confirm/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('default')).toBeInTheDocument();
+    });
+
+    // The headline case of #2061: a user/team/role scope with no target is a
+    // permanently dead rule (the enforcer requires a `scopeId` match). Editing a
+    // pre-seeded role rule that has a limit but no target exercises the
+    // target-required guard without driving the Radix scope <Select>.
+    it('blocks saving a scoped (role) rule with no target and shows an inline error', async () => {
+      setLoaded([{ scope: 'role', period: 'monthly', maxTokens: 1_000_000 }]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      expect(
+        await screen.findByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // The target-required error surfaces and the dialog stays open (no save).
+      expect(
+        await screen.findByText(/select a target for this scope/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('saves a scoped (role) rule once a target and limit are present', async () => {
+      setLoaded([
+        {
+          scope: 'role',
+          scopeId: 'admin',
+          period: 'monthly',
+          maxTokens: 1_000_000,
+        },
+      ]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      expect(
+        await screen.findByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // No target/limit error — the dialog closes (saved).
+      expect(
+        screen.queryByRole('button', { name: /confirm/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    // A per-field `0` is not "no limit": the enforcer reads it as the strictest
+    // cap and blocks every request. Typing `0` must be rejected, not saved.
+    it('rejects a limit field set to zero (a "block-everything" rule)', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const tokenInput = await screen.findByLabelText(/max tokens/i);
+      await user.type(tokenInput, '0');
+
+      await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+      // The per-field "must be greater than zero" error surfaces, the dialog
+      // stays open, and nothing is committed.
+      expect(
+        await screen.findByText(/must be greater than zero/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/no budget rules configured/i),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe('structural parity (skeleton matches content)', () => {
     it('renders the same column count in both states', () => {
       setLoaded([

@@ -204,6 +204,22 @@ export function useListPage<TData>(
   const filterValues =
     filters && !isControlledFilters(filters) ? managedFilterStates : null;
 
+  // Whether a client-side search/filter is currently narrowing the dataset.
+  // When true in infinite-scroll mode we must eagerly drain ALL backend pages
+  // so the filter scans the full dataset rather than only already-loaded pages
+  // (#2054) — otherwise a match on an un-loaded page is silently missed.
+  const hasActiveClientFilter = useMemo(() => {
+    const searchActive = search
+      ? isManagedSearch(search)
+        ? managedSearchValue.trim().length > 0
+        : search.value.trim().length > 0
+      : false;
+    const managedFilterActive = filterValues
+      ? Object.values(filterValues).some((values) => values.length > 0)
+      : false;
+    return searchActive || managedFilterActive;
+  }, [search, managedSearchValue, filterValues]);
+
   // 5. Process data (search + filters)
   const processed = useMemo(() => {
     let data = [...rawData];
@@ -372,6 +388,20 @@ export function useListPage<TData>(
       filteredCount: processed.length,
       isLoading,
     };
+  }
+
+  // Infinite-scroll mode normally fetches the next backend page only as the user
+  // scrolls. But while a client-side search/filter is active we eagerly drain
+  // the remaining pages so the filter scans the entire dataset — without this,
+  // matches on un-loaded pages are silently missed, and a filter that narrows
+  // the loaded buffer to zero suppresses the scroll sentinel, stranding the user
+  // on a false "no results" (#2054).
+  if (
+    hasActiveClientFilter &&
+    dataSource.type === 'paginated' &&
+    dataSource.status === 'CanLoadMore'
+  ) {
+    dataSource.loadMore(pageSize * 3);
   }
 
   return {

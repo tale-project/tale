@@ -4,10 +4,10 @@
 
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
-import { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
-import { StepDefinition, StepExecutionResult } from './types';
+import type { StepDefinition, StepExecutionResult } from './types';
 
 export async function buildStepsMap(
   ctx: ActionCtx,

@@ -105,6 +105,7 @@ export const ResponsiveDialogContent = forwardRef<
           <DrawerPrimitive.Overlay className="bg-bg-overlay fixed inset-0 z-50" />
           <DrawerPrimitive.Content
             ref={ref}
+            aria-modal="true"
             onOpenAutoFocus={onOpenAutoFocus}
             className={cn(
               'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
@@ -135,6 +136,7 @@ export const ResponsiveDialogContent = forwardRef<
         />
         <DialogPrimitive.Content
           ref={ref}
+          aria-modal="true"
           onOpenAutoFocus={onOpenAutoFocus}
           className={cn(
             'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',

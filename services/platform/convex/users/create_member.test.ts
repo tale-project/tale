@@ -130,6 +130,20 @@ describe('createMember', () => {
     ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
   });
 
+  it('rejects assigning the owner role even for an admin caller', async () => {
+    // Caller is an admin by default (passes isAdmin, but must not mint owner).
+    // The owner-role guard throws a raw Error and must fire before any
+    // account/membership is written.
+    const ctx = createMockCtx();
+    const createMember = await getCreateMember();
+
+    await expect(
+      createMember(ctx as never, { ...BASE_ARGS, role: 'owner' }),
+    ).rejects.toThrow(/owner role cannot be assigned/i);
+
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
   it('throws DUPLICATE_MEMBER when the user is already a member of the org', async () => {
     userLookupPage = [{ _id: 'existing_user' }];
     existingMemberPage = [{ _id: 'existing_member' }];

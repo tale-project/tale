@@ -167,14 +167,21 @@ export const getDsarPolicyForUi = query({
   }),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     const member = await getOrganizationMember(
       ctx,
       args.organizationId,
       authUser,
     );
     if (member.role !== 'owner' && member.role !== 'admin') {
-      throw new Error('Reading dsar_governance requires admin or owner role.');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Reading dsar_governance requires admin or owner role.',
+      });
     }
 
     const config = await getDsarPolicy(ctx, args.organizationId);

@@ -1,7 +1,7 @@
 'use client';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { VendorInformation } from './vendor-information';

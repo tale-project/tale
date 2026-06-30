@@ -16,8 +16,12 @@ import { PageLayout } from '@/app/components/layout/page-layout';
 import { useApps } from '@/app/features/apps/hooks/use-apps';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/apps')({
+  head: () => ({
+    meta: seo('apps'),
+  }),
   component: AppsLayout,
 });
 

@@ -31,7 +31,7 @@ export const createKnowledgeEntry = mutation({
   returns: v.id('knowledgeEntries'),
   handler: async (ctx, args): Promise<Id<'knowledgeEntries'>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
     await getOrganizationMember(ctx, args.organizationId, authUser);
     await checkOrganizationRateLimit(
       ctx,
@@ -87,14 +87,14 @@ export const updateKnowledgeEntry = mutation({
   returns: v.id('knowledgeEntries'),
   handler: async (ctx, args): Promise<Id<'knowledgeEntries'>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const entry = await ctx.db.get(args.entryId);
     if (!entry || entry.deletedAt !== undefined) {
-      throw new Error('Knowledge entry not found');
+      throw new ConvexError({ code: 'KNOWLEDGE_ENTRY_NOT_FOUND' });
     }
     if (entry.status !== 'active') {
-      throw new Error('Only the active version of an entry can be edited');
+      throw new ConvexError({ code: 'KNOWLEDGE_ENTRY_NOT_ACTIVE' });
     }
 
     await getOrganizationMember(ctx, entry.organizationId, authUser);
@@ -174,11 +174,11 @@ export const deleteKnowledgeEntry = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
     const entry = await ctx.db.get(args.entryId);
     if (!entry || entry.deletedAt !== undefined) {
-      throw new Error('Knowledge entry not found');
+      throw new ConvexError({ code: 'KNOWLEDGE_ENTRY_NOT_FOUND' });
     }
 
     await getOrganizationMember(ctx, entry.organizationId, authUser);

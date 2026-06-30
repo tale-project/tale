@@ -48,6 +48,11 @@ function ConversationsLayout() {
   return (
     <PageLayout
       organizationId={organizationId}
+      // The inbox is a fixed-height, two-pane layout: the list and the reading
+      // pane each scroll independently. Override the default page-level scroll
+      // so the conversation list can't be pushed out of view when the reading
+      // pane scrolls.
+      className="overflow-hidden"
       header={
         <>
           <AdaptiveHeaderRoot standalone={false}>

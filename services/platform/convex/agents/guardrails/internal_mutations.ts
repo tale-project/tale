@@ -19,6 +19,16 @@ import { emitEvent } from '../../workflows/triggers/emit_event';
 type NoticeKind = Doc<'agentGuardrailNotices'>['kind'];
 
 /**
+ * Render integer cents as a USD amount (e.g. `1234` -> `$12.34`). Notification
+ * params are stored on the row and interpolated at bell-render time, so money
+ * is formatted here (costs are USD across the app) rather than in the locale
+ * strings, which must stay currency-symbol free.
+ */
+function formatUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
  * Check-then-insert on the dedupe index. Returns true when this call
  * created the notice (i.e. the caller owns the side effects).
  */
@@ -96,8 +106,8 @@ export const recordBudgetWarnCrossing = internalMutation({
       params: {
         agentSlug: args.agentSlug,
         pct: args.budgetPct,
-        spentCents: args.spentCents,
-        monthlyCents: args.monthlyCents,
+        spent: formatUsd(args.spentCents),
+        monthly: formatUsd(args.monthlyCents),
       },
       link: { kind: 'agent', agentSlug: args.agentSlug },
     });
@@ -132,8 +142,8 @@ export const recordBudgetPause = internalMutation({
       bodyKey: 'agentBudgetExceededBody',
       params: {
         agentSlug: args.agentSlug,
-        spentCents: args.spentCents,
-        monthlyCents: args.monthlyCents,
+        spent: formatUsd(args.spentCents),
+        monthly: formatUsd(args.monthlyCents),
       },
       link: { kind: 'agent', agentSlug: args.agentSlug },
     });
