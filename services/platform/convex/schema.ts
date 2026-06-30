@@ -17,7 +17,12 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
-import { appInstallationsTable, appProjectBindingsTable } from './apps/schema';
+import {
+  appInstallationsTable,
+  appProjectBindingsTable,
+  appUploadClaimTable,
+  appUploadIntentTable,
+} from './apps/schema';
 import {
   auditIntegrityProgressTable,
   auditLogChainGenesisTable,
@@ -167,6 +172,8 @@ import {
 export default defineSchema({
   appInstallations: appInstallationsTable,
   appProjectBindings: appProjectBindingsTable,
+  appUploadClaims: appUploadClaimTable,
+  appUploadIntents: appUploadIntentTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
