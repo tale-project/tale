@@ -44,6 +44,7 @@ import {
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
+import { SubjectRerunAction } from './subject-rerun-action';
 import { SubjectRun } from './subject-run';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
 
@@ -208,6 +209,19 @@ function CollectionTable({
                   subjectType={subjectType}
                   subjectId={subjectId}
                   fallback={statusBadge}
+                />
+              ),
+            }
+          : undefined
+      }
+      rowActions={
+        subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId) => (
+                <SubjectRerunAction
+                  subjectType={subjectType}
+                  subjectId={subjectId}
                 />
               ),
             }

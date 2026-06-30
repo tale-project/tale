@@ -6,7 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { SubjectRunStatusChip } from './subject-run-status-chip';
 
 // Drive the indicator query by hand; echo i18n keys so assertions read clearly.
-let indicator: 'parked' | 'failed' | null | undefined;
+let indicator:
+  | { state: 'parked' | 'failed' | null; failedExecutionId: string | null }
+  | undefined;
 vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: indicator }),
 }));
@@ -32,7 +34,7 @@ function renderChip() {
 
 describe('SubjectRunStatusChip', () => {
   it('swaps in the destructive "Failed" badge when the latest run failed', () => {
-    indicator = 'failed';
+    indicator = { state: 'failed', failedExecutionId: 'e1' };
     renderChip();
     expect(screen.getByText('runs.failed')).toBeInTheDocument();
     // The kanban status is replaced, not stacked, so the row reads as one state.
@@ -40,14 +42,14 @@ describe('SubjectRunStatusChip', () => {
   });
 
   it('swaps in the "Queued for capacity" badge when parked', () => {
-    indicator = 'parked';
+    indicator = { state: 'parked', failedExecutionId: null };
     renderChip();
     expect(screen.getByText('runs.queuedForCapacity')).toBeInTheDocument();
     expect(screen.queryByText('in_progress')).not.toBeInTheDocument();
   });
 
   it('shows the status badge when there is nothing to surface (incl. loading)', () => {
-    indicator = null;
+    indicator = { state: null, failedExecutionId: null };
     renderChip();
     expect(screen.getByText('in_progress')).toBeInTheDocument();
 

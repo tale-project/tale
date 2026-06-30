@@ -64,6 +64,9 @@ vi.mock('./subject-run', () => ({ SubjectRun: () => null }));
 vi.mock('./subject-run-status-chip', () => ({
   SubjectRunStatusChip: () => null,
 }));
+vi.mock('./subject-rerun-action', () => ({
+  SubjectRerunAction: () => null,
+}));
 
 // The paginated data hook — drive it by hand per test. Keep the REAL DataTable
 // so the maxRows / no-truncation assertion is meaningful. Capture the args it

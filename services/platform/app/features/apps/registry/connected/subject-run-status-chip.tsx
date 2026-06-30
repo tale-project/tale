@@ -46,14 +46,14 @@ export function SubjectRunStatusChip({
     api.workflow_executions.queries.getSubjectRunIndicator,
     { organizationId, subjectType, subjectId },
   );
-  if (data === 'failed') {
+  if (data?.state === 'failed') {
     return (
       <Badge variant="destructive" dot title={t('runs.failedHint')}>
         {t('runs.failed')}
       </Badge>
     );
   }
-  if (data === 'parked') {
+  if (data?.state === 'parked') {
     return (
       <Badge variant="orange" dot title={t('runs.queuedForCapacityHint')}>
         {t('runs.queuedForCapacity')}
