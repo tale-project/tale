@@ -183,7 +183,9 @@
       "watchLive": "Live ansehen",
       "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
-      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird."
+      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
+      "failed": "Fehlgeschlagen",
+      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
     },
     "membership": {
       "title": "Projekte",

@@ -24,7 +24,6 @@ import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -34,6 +33,7 @@ import { useT } from '@/lib/i18n/client';
 import { useExecutionProjection } from '../hooks/use-execution-projection';
 import { mapExecutionError } from '../lib/map-execution-error';
 import { OperatorView } from './operator-view';
+import { RerunButton } from './rerun-button';
 
 /** Terminal execution states — a re-run is offered only once a run has settled
  * (a still-running run is left alone; the concurrency guard refuses a second). */
@@ -42,41 +42,6 @@ const TERMINAL_STATUSES = new Set(['completed', 'failed']);
 /** In-flight states — a Stop is offered only here, mirroring the backend
  * `cancelExecution` guard (it rejects any non-running/pending status). */
 const RUNNING_STATUSES = new Set(['running', 'pending']);
-
-function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
-  const { t } = useT('operator');
-  const { t: tCommon } = useT('common');
-  const { mutateAsync, isPending } = useConvexAction(
-    api.workflow_executions.actions.rerunExecution,
-  );
-
-  const run = async () => {
-    try {
-      const result = await mutateAsync({ executionId });
-      if (result.started) {
-        toast({ title: t('rerun.started'), variant: 'success' });
-      } else if (result.reason === 'already_running') {
-        toast({ title: t('rerun.alreadyRunning') });
-      } else {
-        toast({ title: t('rerun.notStarted'), variant: 'destructive' });
-      }
-    } catch (err) {
-      // The action throws structured codes on hard errors (unauthenticated /
-      // not found / no workflow slug); map them to a specific message rather
-      // than leaking the raw ConvexError JSON blob.
-      toast({
-        title: mapExecutionError(err, tCommon, t('rerun.notStarted')),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <Button variant="secondary" disabled={isPending} onClick={() => void run()}>
-      {t('rerun.button')}
-    </Button>
-  );
-}
 
 function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   const { t } = useT('operator');
