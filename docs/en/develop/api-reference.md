@@ -36,6 +36,7 @@ Cookies authenticate the browser session; API calls from the browser inside the 
 | Agents                                             | various | `/api/v1/agents/...`                | API key       | List, get, run.                                    |
 | Chat                                               | various | `/api/v1/chat/...`                  | API key       | Stream chat completions against an agent or model. |
 | OpenAI-compatible                                  | POST    | `/api/v1/chat/completions`          | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
+| OpenAI-compatible                                  | POST    | `/api/v1/images/generations`        | API key       | Generate images; OpenAI Images shape.              |
 | OpenAI-compatible                                  | GET     | `/api/v1/models`                    | API key       | List available models in OpenAI format.            |
 | Automations                                        | various | `/api/v1/automations/...`           | API key       | List, get, trigger, executions.                    |
 | Workflow triggers                                  | POST    | `/api/v1/workflows/triggers/<name>` | Trigger key   | Webhook-triggered workflow invocations.            |
@@ -51,6 +52,16 @@ Exact field shapes for each endpoint live in the OpenAPI document the platform e
 `POST /api/v1/chat/completions` accepts a payload in OpenAI Chat Completions shape and returns a streaming or non-streaming response in the same shape. The `model` field is interpreted as the agent ID — pass an agent's ID to route through that agent's instructions, knowledge, and tools. Pass a raw model name (e.g. `gpt-4o`) to bypass agents and call the provider directly.
 
 Existing OpenAI SDKs work with one change: point the base URL at `https://your-host.example.com/api/v1` and substitute the API key. Streaming uses Server-Sent Events.
+
+### Vision
+
+To send an image, give the user message an array `content` of parts instead of a string — a `text` part plus one or more `image_url` parts, each carrying a `data:` URL or a public `https` URL. This is the standard OpenAI vision shape, so an SDK that already builds multimodal messages needs no change. A plain string `content` still works for text-only turns; only image input requires the array form.
+
+### Image generation
+
+`POST /api/v1/images/generations` takes `{ model, prompt, n?, response_format? }` and returns the OpenAI Images shape — `{ created, data: [...] }`. `response_format` is `url` (the default — each entry is a download URL) or `b64_json` (each entry is base64 image bytes); `n` is capped at 4. Call it through any OpenAI SDK's `images.generate`.
+
+Passing an image-generation model to `/api/v1/chat/completions` works too: the generated image comes back on the assistant message as `choices[0].message.images[]` — each an `image_url` — matching the convention image-capable gateways use, so the call is billed against a returned image rather than a dropped one. To edit an existing image, send that same request with a `text` part and an `image_url` part carrying a `data:` URL to a model that supports editing; the edited image returns the same way. Only `data:` URLs are read as edit inputs — Tale never fetches an `http` image URL server-side.
 
 ## Error model
 
