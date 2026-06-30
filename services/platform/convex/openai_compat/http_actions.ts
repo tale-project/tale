@@ -20,12 +20,22 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { extractClientIp } from '../workflows/triggers/helpers/validate';
 import {
+  buildAiUserContent,
+  extractText,
+  hasUsableUserContent,
+  type OpenAIMessageContent,
+} from './content';
+import {
   buildChatCompletion,
   buildChatCompletionChunk,
   buildChatCompletionWithToolCalls,
+  buildImagesGenerationsResponse,
   buildStreamingUsageChunk,
   formatSSEChunk,
   formatSSEDone,
+  mapFinishReason,
+  type OpenAIChatImage,
+  type OpenAIImageDatum,
   openAIErrorResponse,
   type OpenAIToolCall,
   type OpenAIUsage,
@@ -44,7 +54,9 @@ const CORS_HEADERS = {
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  // String, or an array of content parts (text + image_url) for multimodal
+  // (vision) input — the latter is the only way to send images.
+  content: OpenAIMessageContent | null;
   tool_calls?: Array<{
     id: string;
     type: 'function';
@@ -179,15 +191,25 @@ function convertToModelMessages(
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content ?? '' });
+      // Preserve multimodal (image) parts; no sanitization on the continuation
+      // path (matches the pre-existing behaviour for tool-calling history).
+      const content = msg.content ?? '';
+      result.push({
+        role: 'user',
+        content:
+          typeof content === 'string'
+            ? content
+            : buildAiUserContent(content, extractText(content)),
+      });
     } else if (msg.role === 'system') {
-      result.push({ role: 'system', content: msg.content ?? '' });
+      result.push({ role: 'system', content: extractText(msg.content ?? '') });
     } else if (msg.role === 'assistant') {
       if (msg.tool_calls && msg.tool_calls.length > 0) {
         // Assistant message with tool calls
         const content: Array<Record<string, unknown>> = [];
-        if (msg.content) {
-          content.push({ type: 'text', text: msg.content });
+        const assistantText = extractText(msg.content ?? '');
+        if (assistantText) {
+          content.push({ type: 'text', text: assistantText });
         }
         for (const tc of msg.tool_calls) {
           content.push({
@@ -201,7 +223,7 @@ function convertToModelMessages(
       } else {
         result.push({
           role: 'assistant',
-          content: msg.content ?? '',
+          content: extractText(msg.content ?? ''),
         });
       }
     } else if (msg.role === 'tool' && msg.tool_call_id) {
@@ -225,7 +247,7 @@ function convertToModelMessages(
             type: 'tool-result',
             toolCallId: msg.tool_call_id,
             toolName,
-            output: { type: 'text', value: msg.content ?? '' },
+            output: { type: 'text', value: extractText(msg.content ?? '') },
           },
         ],
       });
@@ -320,13 +342,21 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   }
 
   const lastUserMessage = messages.findLast((m) => m.role === 'user');
-  if (!lastUserMessage || typeof lastUserMessage.content !== 'string') {
+  if (!lastUserMessage || !hasUsableUserContent(lastUserMessage.content)) {
     return openAIErrorResponse(
-      'No user message found in messages array',
+      'No user message with usable content found in messages array',
       'invalid_request_error',
       400,
     );
   }
+  // `content` is a non-empty string or content-part array here. The action
+  // receives the joined text (for sanitization signals) plus the structured
+  // content when multimodal, so image parts reach the model.
+  const lastUserContent = lastUserMessage.content ?? '';
+  const lastUserText = extractText(lastUserContent);
+  const userContent = Array.isArray(lastUserContent)
+    ? lastUserContent
+    : undefined;
 
   const shouldStream = body.stream === true;
   const includeUsage =
@@ -356,7 +386,8 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   return handleDirectModelMode(ctx, {
     model,
     messages,
-    lastUserMessage: lastUserMessage.content,
+    lastUserMessage: lastUserText,
+    userContent,
     tools,
     toolChoice: body.tool_choice,
     shouldStream,
@@ -392,6 +423,7 @@ async function handleDirectModelMode(
     model: string;
     messages: OpenAIMessage[];
     lastUserMessage: string;
+    userContent?: OpenAIMessageContent;
     tools?: ChatCompletionsRequestBody['tools'];
     toolChoice?: unknown;
     shouldStream: boolean;
@@ -409,6 +441,7 @@ async function handleDirectModelMode(
     requestId: string;
     text: string | null;
     toolCalls: OpenAIToolCall[] | null;
+    images: OpenAIChatImage[] | null;
     finishReason: string;
     inputTokens: number;
     outputTokens: number;
@@ -426,6 +459,7 @@ async function handleDirectModelMode(
         userEmail: opts.user.email,
         userName: opts.user.name,
         message: opts.lastUserMessage,
+        userContent: opts.userContent,
         tools: opts.tools,
         toolChoice: opts.toolChoice,
         conversationMessages: opts.conversationMessages,
@@ -444,6 +478,7 @@ async function handleDirectModelMode(
     completion_tokens: result.outputTokens,
     total_tokens: result.totalTokens,
   };
+  const finishReason = mapFinishReason(result.finishReason);
 
   // Tool calls returned — return them to client
   if (result.toolCalls && result.toolCalls.length > 0) {
@@ -469,7 +504,8 @@ async function handleDirectModelMode(
     return jsonResponse(response);
   }
 
-  // No tool calls — return text
+  // No tool calls — return text (and any generated images).
+  const images = result.images ?? undefined;
   if (opts.shouldStream) {
     return streamDirectTextResponse(
       completionId,
@@ -477,6 +513,8 @@ async function handleDirectModelMode(
       result.text ?? '',
       created,
       opts.includeUsage ? usage : undefined,
+      finishReason,
+      images,
     );
   }
 
@@ -487,6 +525,7 @@ async function handleDirectModelMode(
     created,
     [],
     usage,
+    { finishReason, images },
   );
   return jsonResponse(response);
 }
@@ -608,6 +647,8 @@ function streamDirectTextResponse(
   text: string,
   created: number,
   usage?: OpenAIUsage,
+  finishReason: 'stop' | 'length' | 'tool_calls' = 'stop',
+  images?: OpenAIChatImage[],
 ): Response {
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -635,11 +676,24 @@ function streamDirectTextResponse(
         await writer.write(encoder.encode(formatSSEChunk(contentChunk)));
       }
 
+      // Generated images (image-generation models) — emitted as an `images`
+      // delta, matching the OpenRouter streaming convention.
+      if (images && images.length > 0) {
+        const imagesChunk = buildChatCompletionChunk(
+          completionId,
+          model,
+          { images },
+          null,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(imagesChunk)));
+      }
+
       const finishChunk = buildChatCompletionChunk(
         completionId,
         model,
         {},
-        'stop',
+        finishReason,
         created,
       );
       await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
@@ -781,10 +835,137 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/v1/images/generations
+// ---------------------------------------------------------------------------
+
+interface ImagesGenerationsRequestBody {
+  model?: string;
+  prompt?: string;
+  n?: number;
+  size?: string;
+  response_format?: string;
+}
+
+export const imagesGenerationsHandler = httpAction(async (ctx, request) => {
+  const ip = extractClientIp(request.headers);
+  try {
+    await checkIpRateLimit(ctx, 'openai:images', ip);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return openAIErrorResponse(
+        'Rate limit exceeded',
+        'rate_limit_exceeded',
+        429,
+        'rate_limit_exceeded',
+      );
+    }
+    throw error;
+  }
+
+  let user: { userId: string; email: string; name: string };
+  try {
+    user = await authenticateRequest(ctx, request);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return openAIErrorResponse(
+        error.message,
+        'invalid_request_error',
+        401,
+        'invalid_api_key',
+      );
+    }
+    throw error;
+  }
+
+  const orgSlugHeader =
+    request.headers.get('x-organization-slug') ??
+    request.headers.get('X-Organization-Slug');
+
+  let orgInfo: { organizationId: string; orgSlug: string };
+  try {
+    orgInfo = await ctx.runQuery(
+      internal.openai_compat.internal_queries.resolveUserOrganization,
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
+    );
+  } catch (error) {
+    return mapResolveOrgError(error);
+  }
+
+  let body: ImagesGenerationsRequestBody;
+  try {
+    body = await request.json();
+  } catch {
+    return openAIErrorResponse(
+      'Invalid JSON body',
+      'invalid_request_error',
+      400,
+    );
+  }
+
+  const model = body.model;
+  if (!model || typeof model !== 'string') {
+    return openAIErrorResponse(
+      'Missing or invalid "model" field',
+      'invalid_request_error',
+      400,
+      'model_required',
+    );
+  }
+  const prompt = body.prompt;
+  if (!prompt || typeof prompt !== 'string') {
+    return openAIErrorResponse(
+      'Missing or invalid "prompt" field',
+      'invalid_request_error',
+      400,
+    );
+  }
+  if (
+    body.response_format != null &&
+    body.response_format !== 'url' &&
+    body.response_format !== 'b64_json'
+  ) {
+    return openAIErrorResponse(
+      '"response_format" must be "url" or "b64_json"',
+      'invalid_request_error',
+      400,
+    );
+  }
+
+  let result: { requestId: string; model: string; data: OpenAIImageDatum[] };
+  try {
+    result = await ctx.runAction(
+      internal.openai_compat.internal_actions.imagesGenerateDirect,
+      {
+        modelId: model,
+        organizationId: orgInfo.organizationId,
+        userId: user.userId,
+        userEmail: user.email,
+        userName: user.name,
+        prompt,
+        n: typeof body.n === 'number' ? body.n : undefined,
+        responseFormat: body.response_format,
+      },
+    );
+  } catch (error) {
+    return handleChatError(error, model);
+  }
+
+  const created = Math.floor(Date.now() / 1000);
+  return jsonResponse(buildImagesGenerationsResponse(created, result.data));
+});
+
+// ---------------------------------------------------------------------------
 // OPTIONS handlers (CORS preflight)
 // ---------------------------------------------------------------------------
 
 export const chatCompletionsOptionsHandler = httpAction(async () => {
+  return new Response(null, {
+    status: 204,
+    headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },
+  });
+});
+
+export const imagesGenerationsOptionsHandler = httpAction(async () => {
   return new Response(null, {
     status: 204,
     headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },

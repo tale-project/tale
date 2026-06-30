@@ -424,6 +424,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  // Tighter than openai:chat — image generation is materially more expensive
+  // per call than a chat completion.
+  'openai:images': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 15,
+  },
   // Looser than openai:chat — listing models is cheap and frequently polled
   // by clients on startup.
   'openai:models': {

@@ -63,6 +63,8 @@ import { sanitizeError } from './lib/utils/sanitize_secrets';
 import {
   chatCompletionsHandler,
   chatCompletionsOptionsHandler,
+  imagesGenerationsHandler,
+  imagesGenerationsOptionsHandler,
   modelsListHandler,
   modelsOptionsHandler,
 } from './openai_compat/http_actions';
@@ -984,6 +986,18 @@ http.route({
   path: '/api/v1/chat/completions',
   method: 'OPTIONS',
   handler: chatCompletionsOptionsHandler,
+});
+
+http.route({
+  path: '/api/v1/images/generations',
+  method: 'POST',
+  handler: imagesGenerationsHandler,
+});
+
+http.route({
+  path: '/api/v1/images/generations',
+  method: 'OPTIONS',
+  handler: imagesGenerationsOptionsHandler,
 });
 
 http.route({
