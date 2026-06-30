@@ -51,12 +51,17 @@ export interface InstalledResource {
   contentHash: string;
 }
 
-/** Read + parse the app's manifest from the template catalog. */
+/**
+ * Read + parse the app's manifest from its bundle source (built-in catalog, or
+ * the org's own apps dir for a privately-uploaded app — see
+ * {@link resolveAppBundleSourceDir}).
+ */
 export async function readAppBundleManifest(
+  orgSlug: string,
   appSlug: string,
 ): Promise<AppManifest> {
-  const manifestPath = path.join(appBundleTemplateDir(appSlug), 'app.json');
-  const content = await readFile(manifestPath, 'utf-8');
+  const sourceDir = await resolveAppBundleSourceDir(orgSlug, appSlug);
+  const content = await readFile(path.join(sourceDir, 'app.json'), 'utf-8');
   return appManifestSchema.parse(JSON.parse(content));
 }
 
@@ -74,6 +79,47 @@ function appBundleTemplateDir(appSlug: string): string {
     );
   }
   return path.join(catalogRoot, 'apps', appSlug);
+}
+
+/** Whether the slug names a first-party app in the built-in catalog. */
+export async function appExistsInBuiltinCatalog(
+  appSlug: string,
+): Promise<boolean> {
+  return stat(appBundleTemplateDir(appSlug))
+    .then((s) => s.isDirectory())
+    .catch(() => false);
+}
+
+/**
+ * Resolve the directory an app's bundle is installed FROM. A first-party app
+ * lives in the built-in catalog; a privately-uploaded app (see
+ * `upload_actions.ts`) lives only in the org's own `apps/<slug>/` dir — for it
+ * the org dir IS the source. Built-in wins when both exist so a stray org-dir
+ * copy can never shadow the first-party bundle. Throws if neither has the app.
+ *
+ * When the source equals the org app dir, every downstream copy is a no-op: the
+ * `pathsOverlap` guards in {@link installAppFiles}/{@link uninstallAppFiles}
+ * skip the shell copy (it's already in place) and skip the bundle removal on
+ * uninstall (so an uploaded private app stays listed + re-installable).
+ */
+export async function resolveAppBundleSourceDir(
+  orgSlug: string,
+  appSlug: string,
+): Promise<string> {
+  const builtinDir = appBundleTemplateDir(appSlug);
+  if (
+    await stat(builtinDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false)
+  ) {
+    return builtinDir;
+  }
+  const orgAppDir = resolveAppDir(orgSlug, appSlug);
+  const hasManifest = await stat(path.join(orgAppDir, 'app.json'))
+    .then((s) => s.isFile())
+    .catch(() => false);
+  if (hasManifest) return orgAppDir;
+  throw new Error(`App "${appSlug}" not found in the catalog`);
 }
 
 function skip(name: string): boolean {
@@ -144,16 +190,13 @@ export async function installAppFiles(
   orgSlug: string,
   appSlug: string,
 ): Promise<{ resources: InstalledResource[] }> {
-  const templateDir = appBundleTemplateDir(appSlug);
-  const exists = await stat(templateDir)
-    .then((s) => s.isDirectory())
-    .catch(() => false);
-  if (!exists) {
-    throw new Error(`App "${appSlug}" not found in the catalog`);
-  }
+  // Built-in catalog for a first-party app, or the org's own apps dir for a
+  // privately-uploaded one (throws if the app is in neither).
+  const templateDir = await resolveAppBundleSourceDir(orgSlug, appSlug);
 
   const orgAppDir = resolveAppDir(orgSlug, appSlug);
-  // In local dev the bundle IS the org's app dir — skip the self-copy.
+  // When the source IS the org's app dir (local dev, or a private upload),
+  // skip the self-copy — the shell is already in place.
   if (!(await pathsOverlap(templateDir, orgAppDir))) {
     await copyShell(templateDir, orgAppDir);
   }
@@ -210,10 +253,16 @@ export async function uninstallAppFiles(
     await pruneEmptyDirs(path.dirname(target), domainDir);
   }
 
-  // Removes the shell AND the app-scoped agents/workflows nested under it.
+  // Removes the shell AND the app-scoped agents/workflows nested under it —
+  // EXCEPT when the bundle source IS the org app dir (local dev, or a private
+  // upload): then it's the only copy, so keep it (the private app stays listed
+  // + re-installable). Fall back to the built-in path if the source can't be
+  // resolved, preserving the prod first-party behaviour.
   const orgAppDir = resolveAppDir(orgSlug, appSlug);
-  const templateDir = appBundleTemplateDir(appSlug);
-  if (!(await pathsOverlap(orgAppDir, templateDir))) {
+  const sourceDir = await resolveAppBundleSourceDir(orgSlug, appSlug).catch(
+    () => appBundleTemplateDir(appSlug),
+  );
+  if (!(await pathsOverlap(orgAppDir, sourceDir))) {
     await rm(orgAppDir, { recursive: true }).catch((err) => {
       if (errnoCode(err) !== 'ENOENT') throw err;
     });
