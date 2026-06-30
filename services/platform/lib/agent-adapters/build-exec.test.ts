@@ -135,6 +135,36 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     );
   });
 
+  it('omits the vision MCP bridge unless visionTool is set', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec(base);
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(mcpConfig.mcpServers.vision).toBeUndefined();
+  });
+
+  it('auto-injects the vision MCP bridge (gateway + key + model) when visionTool is set', () => {
+    const { argv } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      visionTool: true,
+      visionModel: 'openrouter:qwen/qwen3-vl-32b-instruct',
+    });
+    const mcpConfig = JSON.parse(
+      argv[argv.indexOf('--mcp-config') + 1] ?? '{}',
+    );
+    expect(mcpConfig.mcpServers.vision.command).toBe('tale-vision-mcp');
+    // Relays to the SAME gateway the agent uses, with the session key.
+    expect(mcpConfig.mcpServers.vision.env.TALE_GATEWAY_URL).toBe(
+      'http://sandbox-llm-gateway:8080',
+    );
+    expect(mcpConfig.mcpServers.vision.env.TALE_GATEWAY_TOKEN).toBe(
+      'sk-bf-test',
+    );
+    expect(mcpConfig.mcpServers.vision.env.TALE_VISION_MODEL).toBe(
+      'openrouter:qwen/qwen3-vl-32b-instruct',
+    );
+  });
+
   it('adds --resume when continuing a session and omits browser MCP when off', () => {
     const { argv } = new ClaudeCodeAdapter().buildExec({
       ...base,

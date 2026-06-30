@@ -352,6 +352,12 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 # server-side). Runs under the image's node (global fetch).
 COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
 
+# Vision MCP bridge: a dependency-free stdio MCP server, auto-injected by the
+# claude-code adapter for a managed agent whose model lacks vision. Relays
+# vision_read({image,prompt}) to the platform LLM gateway's vision model using
+# the session virtual key — no provider key ever enters the container.
+COPY services/sandbox-runtime/tale-vision-mcp /usr/local/bin/tale-vision-mcp
+
 # Human-control MCP bridge: a dependency-free stdio MCP server exposing
 # request_human_control({reason}). The agent calls it to hand the live browser
 # to a human (CAPTCHA/login/2FA); the platform observes the tool_use, parks the
@@ -362,6 +368,7 @@ COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
+      /usr/local/bin/tale-vision-mcp \
       /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate

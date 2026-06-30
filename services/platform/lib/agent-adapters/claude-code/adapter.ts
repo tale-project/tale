@@ -225,6 +225,20 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         },
       };
     }
+    if (spec.visionTool && spec.gateway && spec.visionModel) {
+      // Vision bridge — a text-only managed agent reads images by delegating to
+      // the gateway's vision model with the session key (no provider key enters
+      // the container). The platform injects this ONLY when the agent's own model
+      // lacks vision, and scopes the session VK to also allow `visionModel`.
+      mcpServers.vision = {
+        command: 'tale-vision-mcp',
+        env: {
+          TALE_GATEWAY_URL: spec.gateway.baseUrl,
+          TALE_GATEWAY_TOKEN: spec.gateway.token,
+          TALE_VISION_MODEL: spec.visionModel,
+        },
+      };
+    }
     if (Object.keys(mcpServers).length > 0) {
       argv.push(
         '--mcp-config',

@@ -21,6 +21,10 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import {
+  formatModelRef,
+  parseModelRef,
+} from '../../../lib/shared/utils/model-ref';
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
@@ -61,6 +65,7 @@ import {
 } from '../../node_only/sandbox/token_pool_select';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForThread,
@@ -363,6 +368,58 @@ export const runExternalAgentTurn = internalAction({
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
+
+      // Vision polyfill (managed only): when the agent's own model lacks the
+      // `vision` tag, inject the vision MCP bridge (tale-vision-mcp) backed by
+      // the org's configured vision model so a text-only agent can still read
+      // images (e.g. an uploaded invoice). The bridge relays to the SAME gateway
+      // with the session key (no provider key enters the container); the VK
+      // below is scoped to also allow that model. BYO brings its own credential
+      // + model, so it is never polyfilled here.
+      let visionTool = false;
+      let visionModel: string | undefined; // gateway model id the bridge calls
+      let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+      if (!byo && args.modelRef && args.modelRef !== 'default') {
+        try {
+          const parsed = parseModelRef(args.modelRef);
+          const catalog = await ctx.runAction(
+            internal.providers.file_actions.getModelRoutingCatalog,
+            { organizationId: args.organizationId },
+          );
+          const agentEntry = catalog.find(
+            (c) =>
+              c.id === parsed.modelId &&
+              (parsed.providerName === undefined ||
+                c.providerName === parsed.providerName),
+          );
+          if (!(agentEntry?.tags.includes('vision') ?? false)) {
+            const vision = await resolveLanguageModel(ctx, {
+              tag: 'vision',
+              organizationId: args.organizationId,
+            });
+            visionModelRef = formatModelRef({
+              providerName: vision.modelData.providerName,
+              modelId: vision.modelData.modelId,
+            });
+            visionModel =
+              resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+            visionTool = true;
+          }
+        } catch (err) {
+          // No vision model configured (resolveLanguageModel throws) or the
+          // catalog is unavailable — skip the polyfill (the agent just can't
+          // read images this turn). Never fail the turn over a convenience tool.
+          console.warn(
+            '[runExternalAgentTurn] vision polyfill resolution skipped:',
+            err,
+          );
+        }
+      }
+      // The session VK allows the agent's model plus (when polyfilling) the
+      // vision model the bridge calls — else the gateway 403s the vision request.
+      const allowedModels = visionModelRef
+        ? [args.modelRef, visionModelRef]
+        : [args.modelRef];
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -788,7 +845,7 @@ export const runExternalAgentTurn = internalAction({
         }
         const vk = await mintVirtualKey({
           budgetCents: vkBudgetCents,
-          allowedModels: [args.modelRef],
+          allowedModels,
           organizationId: args.organizationId,
           sessionId,
         });
@@ -803,7 +860,7 @@ export const runExternalAgentTurn = internalAction({
             llmGatewayKeyId: vk.keyId,
             scope: {
               agentKind: args.agentKind,
-              allowedModels: [args.modelRef],
+              allowedModels,
               // The session's dispatch grant set = the agent's
               // integrationBindings (enforced by /api/integrations/execute).
               integrationGrants: args.integrationBindings ?? [],
@@ -1004,6 +1061,8 @@ export const runExternalAgentTurn = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the
