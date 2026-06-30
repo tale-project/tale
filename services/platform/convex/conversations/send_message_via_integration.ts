@@ -3,7 +3,7 @@ import { ConvexError } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import { buildThreadingHeaders } from './build_threading_headers';
 
@@ -176,7 +176,7 @@ export async function sendMessageViaIntegration(
     });
   }
 
-  await AuditLogHelpers.logSuccess(ctx, {
+  await emitAuditSuccess(ctx, {
     auditCtx: await buildAuditContext(ctx, args.organizationId),
     action: 'send_message_via_integration',
     category: 'data',

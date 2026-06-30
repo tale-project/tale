@@ -2,7 +2,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 
 export async function markConversationAsRead(
@@ -31,7 +31,7 @@ export async function markConversationAsRead(
     },
   });
 
-  await AuditLogHelpers.logSuccess(ctx, {
+  await emitAuditSuccess(ctx, {
     auditCtx: await buildAuditContext(ctx, conversation.organizationId),
     action: 'mark_conversation_as_read',
     category: 'data',
