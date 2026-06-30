@@ -4,7 +4,7 @@
  * instrumented via the after-hooks in `auth_hooks.ts`.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
@@ -67,10 +67,20 @@ export const resetForUser = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const member = await findMember(ctx, args.memberId);
-    if (!member) throw new Error('Member not found');
+    if (!member) {
+      throw new ConvexError({
+        code: 'MEMBER_NOT_FOUND',
+        message: 'Member not found',
+      });
+    }
 
     const callerMembership = await findCallerMembership(
       ctx,
@@ -78,7 +88,10 @@ export const resetForUser = mutation({
       authUser.userId,
     );
     if (!callerMembership || !isAdmin(callerMembership.role)) {
-      throw new Error('Only admins can reset two-factor for members');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can reset two-factor for members',
+      });
     }
 
     // Owner-to-owner reset: allowed only when the caller is a *different*
@@ -87,7 +100,10 @@ export const resetForUser = mutation({
       member.role === 'owner' &&
       (callerMembership.role !== 'owner' || authUser.userId === member.userId)
     ) {
-      throw new Error('Cannot reset two-factor for this member');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Cannot reset two-factor for this member',
+      });
     }
 
     // Clear the twoFactor row if one exists.
@@ -160,10 +176,20 @@ export const revokePasskeyForMember = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const member = await findMember(ctx, args.memberId);
-    if (!member) throw new Error('Member not found');
+    if (!member) {
+      throw new ConvexError({
+        code: 'MEMBER_NOT_FOUND',
+        message: 'Member not found',
+      });
+    }
 
     const callerMembership = await findCallerMembership(
       ctx,
@@ -171,14 +197,20 @@ export const revokePasskeyForMember = mutation({
       authUser.userId,
     );
     if (!callerMembership || !isAdmin(callerMembership.role)) {
-      throw new Error('Only admins can revoke passkeys for members');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can revoke passkeys for members',
+      });
     }
 
     if (
       member.role === 'owner' &&
       (callerMembership.role !== 'owner' || authUser.userId === member.userId)
     ) {
-      throw new Error('Cannot revoke passkeys for this member');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Cannot revoke passkeys for this member',
+      });
     }
 
     // IDOR guard: the passkey must belong to the target member's user.
@@ -195,7 +227,10 @@ export const revokePasskeyForMember = mutation({
       !isRecord(passkeyRow) ||
       getString(passkeyRow, 'userId') !== member.userId
     ) {
-      throw new Error('Passkey not found');
+      throw new ConvexError({
+        code: 'PASSKEY_NOT_FOUND',
+        message: 'Passkey not found',
+      });
     }
 
     await ctx.runMutation(components.betterAuth.adapter.deleteMany, {

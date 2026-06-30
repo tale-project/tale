@@ -2,6 +2,8 @@
  * Update an existing website
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id, Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { ensureUrl } from './create_website';
@@ -38,7 +40,10 @@ export async function updateWebsite(
   // Get the existing website to check organization
   const existingWebsite = await ctx.db.get(websiteId);
   if (!existingWebsite) {
-    throw new Error('Website not found');
+    throw new ConvexError({
+      code: 'WEBSITE_NOT_FOUND',
+      message: 'Website not found',
+    });
   }
   // Cross-tenant write guard: when the caller's org is known, the target row
   // must belong to it. Closes the IDOR on the agent tool / REST PATCH.
@@ -46,7 +51,10 @@ export async function updateWebsite(
     callerOrgId !== undefined &&
     existingWebsite.organizationId !== callerOrgId
   ) {
-    throw new Error('Website not found');
+    throw new ConvexError({
+      code: 'WEBSITE_NOT_FOUND',
+      message: 'Website not found',
+    });
   }
 
   // If domain provided, normalize to bare hostname and check for conflicts
@@ -65,7 +73,10 @@ export async function updateWebsite(
         .first();
 
       if (conflictingWebsite && conflictingWebsite._id !== websiteId) {
-        throw new Error(`Website with domain ${normalized} already exists`);
+        throw new ConvexError({
+          code: 'DUPLICATE_DOMAIN',
+          message: `Website with domain ${normalized} already exists`,
+        });
       }
     }
   }

@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -12,7 +12,10 @@ export const shareThread = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const metadata = await ctx.db
@@ -21,23 +24,38 @@ export const shareThread = mutation({
       .first();
 
     if (!metadata) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     if (metadata.userId !== authUser.userId) {
-      throw new Error('Not authorized to share this thread');
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED',
+        message: 'Not authorized to share this thread',
+      });
     }
 
     if (metadata.status === 'archived') {
-      throw new Error('Cannot share an archived thread');
+      throw new ConvexError({
+        code: 'THREAD_ARCHIVED',
+        message: 'Cannot share an archived thread',
+      });
     }
 
     if (metadata.arenaGroupId) {
-      throw new Error('Cannot share arena mode threads');
+      throw new ConvexError({
+        code: 'CANNOT_SHARE_ARENA_THREAD',
+        message: 'Cannot share arena mode threads',
+      });
     }
 
     if (metadata.isBranch) {
-      throw new Error('Cannot share branch threads');
+      throw new ConvexError({
+        code: 'CANNOT_SHARE_BRANCH_THREAD',
+        message: 'Cannot share branch threads',
+      });
     }
 
     if (metadata.isShared && metadata.shareToken) {
@@ -75,7 +93,10 @@ export const unshareThread = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const metadata = await ctx.db
@@ -84,15 +105,24 @@ export const unshareThread = mutation({
       .first();
 
     if (!metadata) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     if (metadata.userId !== authUser.userId) {
-      throw new Error('Not authorized to unshare this thread');
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED',
+        message: 'Not authorized to unshare this thread',
+      });
     }
 
     if (metadata.status === 'archived') {
-      throw new Error('Cannot unshare an archived thread');
+      throw new ConvexError({
+        code: 'THREAD_ARCHIVED',
+        message: 'Cannot unshare an archived thread',
+      });
     }
 
     await ctx.db.patch(metadata._id, {

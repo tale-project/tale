@@ -323,12 +323,13 @@ export const recordUploadedAction = httpAction(async (ctx, req) => {
     );
   }
 
-  const executionId = toId<'sandboxExecutions'>(b.executionId);
+  // Pass executionId as a raw string — the mutation `normalizeId`s it so an
+  // unaudited infra run (synthetic id) no-ops rather than 500-ing the harvest.
   const storageId = toId<'_storage'>(b.storageId);
   await ctx.runMutation(
     internal.sandbox.internal_mutations.applyRecordUploaded,
     {
-      executionId,
+      executionId: b.executionId,
       fileName: b.fileName,
       storageId,
       size: b.size,

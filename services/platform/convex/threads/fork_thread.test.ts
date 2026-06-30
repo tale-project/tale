@@ -122,30 +122,30 @@ describe('forkThread', () => {
   it('throws when unauthenticated', async () => {
     mockGetAuthUser.mockResolvedValue(null);
     const { ctx } = createMockCtx();
-    await expect(forkThread(ctx, { shareToken: VALID_TOKEN })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(
+      forkThread(ctx, { shareToken: VALID_TOKEN }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
   });
 
   it('throws for invalid token format', async () => {
     const { ctx } = createMockCtx();
-    await expect(forkThread(ctx, { shareToken: 'not-a-uuid' })).rejects.toThrow(
-      'Invalid share token',
-    );
+    await expect(
+      forkThread(ctx, { shareToken: 'not-a-uuid' }),
+    ).rejects.toMatchObject({ data: { code: 'INVALID_SHARE_TOKEN' } });
   });
 
   it('throws when shared thread not found', async () => {
     const { ctx } = createMockCtx(null);
-    await expect(forkThread(ctx, { shareToken: VALID_TOKEN })).rejects.toThrow(
-      'Shared thread not found',
-    );
+    await expect(
+      forkThread(ctx, { shareToken: VALID_TOKEN }),
+    ).rejects.toMatchObject({ data: { code: 'SHARED_THREAD_NOT_FOUND' } });
   });
 
   it('throws when thread is not shared', async () => {
     const { ctx } = createMockCtx({ isShared: false });
-    await expect(forkThread(ctx, { shareToken: VALID_TOKEN })).rejects.toThrow(
-      'Shared thread not found',
-    );
+    await expect(
+      forkThread(ctx, { shareToken: VALID_TOKEN }),
+    ).rejects.toMatchObject({ data: { code: 'SHARED_THREAD_NOT_FOUND' } });
   });
 
   it('throws when user is not in the same org', async () => {
@@ -154,9 +154,9 @@ describe('forkThread', () => {
       isShared: true,
       organizationId: 'org_1',
     });
-    await expect(forkThread(ctx, { shareToken: VALID_TOKEN })).rejects.toThrow(
-      'Shared thread not found',
-    );
+    await expect(
+      forkThread(ctx, { shareToken: VALID_TOKEN }),
+    ).rejects.toMatchObject({ data: { code: 'SHARED_THREAD_NOT_FOUND' } });
   });
 
   it('allows fork when thread has no organizationId (legacy)', async () => {

@@ -2,6 +2,8 @@
  * Bulk create websites
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { MutationCtx } from '../_generated/server';
 import { ensureUrl } from './create_website';
 import type { BulkCreateWebsitesResult, BulkWebsiteData } from './types';
@@ -39,7 +41,10 @@ export async function bulkCreateWebsites(
         .first();
 
       if (existing) {
-        throw new Error(`Website with domain ${normalized} already exists`);
+        throw new ConvexError({
+          code: 'DUPLICATE_DOMAIN',
+          message: `Website with domain ${normalized} already exists`,
+        });
       }
 
       await ctx.db.insert('websites', {

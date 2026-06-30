@@ -1,6 +1,6 @@
 'use node';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
@@ -28,7 +28,12 @@ export const submitLocationResponse = action({
     streamId?: string;
   }> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     // Read approval to get threadId and organizationId
     const approvalInfo: {

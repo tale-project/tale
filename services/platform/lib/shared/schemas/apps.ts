@@ -136,3 +136,17 @@ const APP_SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 export function isValidAppSlug(slug: string): boolean {
   return APP_SLUG_REGEX.test(slug) && slug.length <= 64;
 }
+
+/** The manifest file at the root of an app bundle (its dir name is the slug). */
+export const APP_MANIFEST_FILENAME = 'app.json';
+
+/**
+ * Limits for an UPLOADED app bundle (the private-app upload path). An app is
+ * richer than a skill — it can carry agents, workflows, views, messages,
+ * scripts and integration definitions — so the entry cap is higher than the
+ * skill bundle's, while the byte caps match (binary assets dominate either way).
+ * Enforced identically on the client (UX) and the server (authoritative).
+ */
+export const MAX_APP_BUNDLE_FILE_BYTES = 2 * 1024 * 1024; // 2 MiB per file
+export const MAX_APP_BUNDLE_TOTAL_BYTES = 20 * 1024 * 1024; // 20 MiB decompressed
+export const MAX_APP_BUNDLE_ENTRIES = 500;

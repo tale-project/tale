@@ -1,7 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import type { WorkflowId } from '@convex-dev/workflow';
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approvals';
 import { components, internal } from '../../_generated/api';
@@ -44,22 +44,34 @@ async function handleSubmission({
 }: HandleArgs) {
   const approval = await ctx.db.get(approvalId);
   if (!approval) {
-    throw new Error('Approval not found');
+    throw new ConvexError({
+      code: 'APPROVAL_NOT_FOUND',
+      message: 'Approval not found',
+    });
   }
 
   if (approval.status !== 'pending') {
-    throw new Error('Location request has already been responded to');
+    throw new ConvexError({
+      code: 'ALREADY_RESOLVED',
+      message: 'Location request has already been responded to',
+    });
   }
 
   if (approval.resourceType !== 'location_request') {
-    throw new Error('Invalid approval type');
+    throw new ConvexError({
+      code: 'INVALID_APPROVAL_TYPE',
+      message: 'Invalid approval type',
+    });
   }
 
   const threadId = approval.threadId;
   const organizationId = approval.organizationId;
 
   if (!threadId) {
-    throw new Error('Location request is not associated with a thread');
+    throw new ConvexError({
+      code: 'LOCATION_REQUEST_NO_THREAD',
+      message: 'Location request is not associated with a thread',
+    });
   }
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is stored as v.any() but always matches LocationRequestMetadata for location_request approvals
@@ -95,9 +107,11 @@ async function handleSubmission({
   if (approval.wfExecutionId) {
     const execution = await ctx.db.get(approval.wfExecutionId);
     if (!execution?.componentWorkflowId) {
-      throw new Error(
-        'Workflow execution not found or missing component workflow ID',
-      );
+      throw new ConvexError({
+        code: 'WORKFLOW_EXECUTION_NOT_FOUND',
+        message:
+          'Workflow execution not found or missing component workflow ID',
+      });
     }
 
     const manager = workflowManagers[safeShardIndex(execution.shardIndex)];
@@ -176,7 +190,10 @@ async function handleSubmission({
       userRole,
     );
     if (!budgetResult.allowed) {
-      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+      throw new ConvexError({
+        code: 'BUDGET_LIMIT_EXCEEDED',
+        message: budgetResult.reason ?? 'Budget limit exceeded',
+      });
     }
   }
 

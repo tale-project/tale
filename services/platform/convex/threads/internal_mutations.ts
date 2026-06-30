@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -45,9 +45,10 @@ async function gateThreadAccess(
   if (callerUserId === undefined && callerOrgId === undefined) return;
   if (callerUserId === undefined || callerOrgId === undefined) {
     // Half-specified caller is a programming error, not an auth bypass.
-    throw new Error(
-      'Both callerUserId and callerOrgId must be provided together',
-    );
+    throw new ConvexError({
+      code: 'INVALID_CALLER',
+      message: 'Both callerUserId and callerOrgId must be provided together',
+    });
   }
   await assertThreadAccess(
     ctx,
@@ -361,20 +362,31 @@ export const markGenerating = internalMutation({
   }),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const meta = await getThreadMetadataRow(ctx, args.threadId);
     if (!meta || meta.userId !== authUser.userId) {
       console.error(
         `[markGenerating] Thread not found or ownership mismatch: threadId=${args.threadId} metaExists=${!!meta} metaUserId=${meta?.userId} authUserId=${authUser.userId}`,
       );
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
     if (meta.organizationId && meta.organizationId !== args.organizationId) {
       console.error(
         `[markGenerating] Thread/org mismatch: threadId=${args.threadId} metaOrg=${meta.organizationId} argOrg=${args.organizationId} userId=${authUser.userId}`,
       );
-      throw new Error('Thread does not belong to the requested organization');
+      throw new ConvexError({
+        code: 'ORG_MISMATCH',
+        message: 'Thread does not belong to the requested organization',
+      });
     }
 
     if (args.prewarm) {
