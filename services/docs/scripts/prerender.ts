@@ -1,28 +1,30 @@
 // Prerender every doc route to a static HTML file under ./dist. Mirrors
 // services/web/scripts/prerender.ts but enumerates pages from the content
 // tree instead of a hand-maintained list.
+//
+// Each route's `<head>` is captured from the page's own `useDocumentMeta`
+// during SSR (see `app/entry-server.tsx` + `@tale/ui/seo` HeadSink), so the
+// prerendered head matches the live page exactly — including robots, hreflang
+// alternates, and Article/Breadcrumb JSON-LD, which the old regex injector
+// dropped.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { DEFAULT_DOCS_SITE_URL } from '../lib/site-url';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const DIST = resolve(ROOT, 'dist');
 const SSR_BUNDLE = resolve(ROOT, 'dist-ssr', 'entry-server.js');
-const SITE_URL = process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
 // Mount-point prefix passed to the router during SSR so it resolves URLs
 // against the same basepath the client uses. Empty for root deployments.
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/$/, '');
 
 interface Route {
   url: string;
-  title: string;
-  description: string;
-  noindex?: boolean;
+  locale: string;
 }
 
 function pathFor(locale: string, slug: string): string {
@@ -31,49 +33,23 @@ function pathFor(locale: string, slug: string): string {
   return cleaned ? `/${locale}/${cleaned}` : `/${locale}`;
 }
 
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+/** Replace the seo:start/seo:end block with the route's captured `<head>`. */
+function injectHead(template: string, head: string): string {
+  return template.replace(
+    /<!-- seo:start -->[\s\S]*?<!-- seo:end -->/,
+    () => `<!-- seo:start -->\n    ${head}\n    <!-- seo:end -->`,
+  );
 }
 
-function injectSeo(template: string, route: Route): string {
-  const canonical = `${SITE_URL}${route.url}`;
-  return template
-    .replace(
-      /<title>[^<]*<\/title>/,
-      `<title>${escapeAttr(route.title)}</title>`,
-    )
-    .replace(
-      /<meta\s+name="description"[^>]*>/,
-      `<meta name="description" content="${escapeAttr(route.description)}" />`,
-    )
-    .replace(
-      /<link\s+rel="canonical"[^>]*>/,
-      `<link rel="canonical" href="${canonical}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:url"[^>]*>/,
-      `<meta property="og:url" content="${canonical}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:title"[^>]*>/,
-      `<meta property="og:title" content="${escapeAttr(route.title)}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:description"[^>]*>/,
-      `<meta property="og:description" content="${escapeAttr(route.description)}" />`,
-    )
-    .replace(
-      /<meta\s+name="twitter:title"[^>]*>/,
-      `<meta name="twitter:title" content="${escapeAttr(route.title)}" />`,
-    )
-    .replace(
-      /<meta\s+name="twitter:description"[^>]*>/,
-      `<meta name="twitter:description" content="${escapeAttr(route.description)}" />`,
-    );
+function injectBody(template: string, html: string): string {
+  return template.replace(
+    '<div id="root"></div>',
+    () => `<div id="root">${html}</div>`,
+  );
+}
+
+function setHtmlLang(template: string, locale: string): string {
+  return template.replace(/<html lang="[^"]*"/, () => `<html lang="${locale}"`);
 }
 
 async function main() {
@@ -81,21 +57,13 @@ async function main() {
   const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
-    render: (url: string) => Promise<{ html: string }>;
+    render: (url: string) => Promise<{ html: string; head: string }>;
   };
 
   const records = await listAllContent();
   const routes: Route[] = records.map((record) => ({
     url: pathFor(record.locale, record.slug),
-    title:
-      typeof record.frontmatter.title === 'string'
-        ? `${record.frontmatter.title} | Tale`
-        : 'Tale',
-    description:
-      typeof record.frontmatter.description === 'string'
-        ? record.frontmatter.description
-        : '',
-    noindex: record.frontmatter.noindex === true,
+    locale: record.locale,
   }));
 
   // De-duplicate (the locale fallback chain doesn't apply to URLs, only content).
@@ -105,12 +73,13 @@ async function main() {
     if (seen.has(route.url)) continue;
     seen.add(route.url);
     process.stdout.write(`prerender ${route.url} ... `);
-    const { html } = await mod.render(`${BASE_PATH}${route.url}`);
-    const withSeo = injectSeo(template, route);
-    const final = withSeo.replace(
-      '<div id="root"></div>',
-      `<div id="root">${html}</div>`,
+
+    const { html, head } = await mod.render(`${BASE_PATH}${route.url}`);
+    const final = setHtmlLang(
+      injectBody(injectHead(template, head), html),
+      route.locale,
     );
+
     const outPath =
       route.url === '/'
         ? resolve(DIST, 'index.html')
