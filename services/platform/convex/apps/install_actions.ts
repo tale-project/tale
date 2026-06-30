@@ -15,7 +15,11 @@ import path from 'node:path';
 
 import { v } from 'convex/values';
 
-import { appScope, isValidAppSlug } from '../../lib/shared/schemas/apps';
+import {
+  type AppManifest,
+  appScope,
+  isValidAppSlug,
+} from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
 import { type ActionCtx, action } from '../_generated/server';
@@ -79,18 +83,97 @@ async function registerWorkflow(
       `[app-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by app workflow "${workflowSlug}": app workflows are scoped and must not subscribe to org-global events`,
     );
   }
-  for (const schedule of parsed.data.triggers?.schedules ?? []) {
-    await ctx.runMutation(
-      internal.workflows.provision_defaults_mutations.ensureSchedule,
-      {
-        organizationId,
-        workflowSlug,
-        cronExpression: schedule.cron,
-        timezone: schedule.timezone,
-        variables: schedule.variables,
-        isActive: true,
-      },
+  // Schedules are NOT created here. They are scope-aware — org-level for an
+  // org-scoped app, but one-per-bound-project for a `scope: 'project'` app whose
+  // config (e.g. the GitHub repo) is per-project — so they are provisioned by
+  // `syncAppSchedules` once the bindings are known (install/reinstall + each bind).
+}
+
+/**
+ * Read a copied app workflow's declared schedule specs (cron + variables) from
+ * the org config dir. Tolerant: a missing/malformed file yields no schedules (the
+ * install/integrity path surfaces broken files separately).
+ */
+async function readWorkflowScheduleSpecs(
+  orgSlug: string,
+  workflowSlug: string,
+): Promise<
+  { cron: string; timezone?: string; variables?: Record<string, unknown> }[]
+> {
+  if (!validateWorkflowSlug(workflowSlug)) return [];
+  let content: string;
+  try {
+    content = await readFile(
+      resolveWorkflowFilePath(orgSlug, workflowSlug),
+      'utf-8',
     );
+  } catch {
+    return [];
+  }
+  const parsed = workflowJsonSchema.safeParse(JSON.parse(content));
+  if (!parsed.success) return [];
+  return parsed.data.triggers?.schedules ?? [];
+}
+
+/**
+ * Provision an app's workflow schedules, scope-aware and idempotent:
+ *  - org-scoped app → one schedule per declared trigger (no projectId);
+ *  - project-scoped app → one schedule per (declared trigger × bound project),
+ *    seeded with that project's config so two projects targeting two repos get
+ *    two independent reconcile runs and never share a single org-wide schedule.
+ * `ensureSchedule` dedupes on (org, slug, cron, project), so this is safe to call
+ * on install, on reinstall, and again after each new bind.
+ */
+async function syncAppSchedules(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+  appSlug: string,
+  manifest: AppManifest,
+): Promise<void> {
+  const workflows = manifest.workflows ?? [];
+  if (workflows.length === 0) return;
+
+  if (appScope(manifest) === 'org') {
+    for (const slug of workflows) {
+      for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
+        await ctx.runMutation(
+          internal.workflows.provision_defaults_mutations.ensureSchedule,
+          {
+            organizationId,
+            workflowSlug: slug,
+            cronExpression: schedule.cron,
+            timezone: schedule.timezone,
+            variables: schedule.variables,
+            isActive: true,
+          },
+        );
+      }
+    }
+    return;
+  }
+
+  const bindings = await ctx.runQuery(
+    internal.apps.install_mutations.listAppBindingsInternal,
+    { organizationId, appSlug },
+  );
+  for (const binding of bindings) {
+    for (const slug of workflows) {
+      for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
+        await ctx.runMutation(
+          internal.workflows.provision_defaults_mutations.ensureSchedule,
+          {
+            organizationId,
+            workflowSlug: slug,
+            projectId: binding.projectId,
+            cronExpression: schedule.cron,
+            timezone: schedule.timezone,
+            variables: { ...schedule.variables, ...binding.config },
+            isActive: true,
+          },
+        );
+      }
+    }
   }
 }
 
@@ -239,6 +322,12 @@ async function ensureOrgResources(
     requiredIntegrations: manifest.requires?.integrations ?? [],
   });
 
+  // Provision schedules scope-aware: org-level for an org app, one-per-bound-
+  // project for a project app (re-seeding each existing binding's schedules on
+  // reinstall). A newly added binding's schedules are created by `installApp`
+  // after the bind, when the binding is visible.
+  await syncAppSchedules(ctx, organizationId, orgSlug, appSlug, manifest);
+
   return {
     workflows: workflows.length,
     agents: agents.length,
@@ -310,6 +399,15 @@ export const installApp = action({
         projectId: args.projectId,
         boundBy: install.installedBy,
       });
+      // The binding now exists; materialize its per-project schedules (this
+      // project's own reconcile run). Idempotent on a re-add.
+      await syncAppSchedules(
+        ctx,
+        args.organizationId,
+        install.orgSlug,
+        args.appSlug,
+        install.manifest,
+      );
     }
 
     return { ok: true, ...counts };
@@ -467,6 +565,16 @@ export const removeAppFromProject = action({
     if (!isValidAppSlug(args.appSlug)) {
       throw new Error(`Invalid app slug: ${args.appSlug}`);
     }
+    // Remove this project's per-project schedules before dropping the binding —
+    // a sibling project bound to the same app keeps its own (keyed by projectId).
+    await ctx.runMutation(
+      internal.apps.install_mutations.deleteProjectSchedules,
+      {
+        organizationId: args.organizationId,
+        appSlug: args.appSlug,
+        projectId: args.projectId,
+      },
+    );
     await ctx.runMutation(
       internal.apps.install_mutations.unbindAppFromProject,
       {

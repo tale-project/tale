@@ -944,6 +944,10 @@ import type * as migrations_versions_v0_2_87_04_drop_org_package_policy_meta fro
 import type * as migrations_versions_v0_2_87_05_drop_model_sync_settings_index from "../migrations/versions/v0_2_87/05_drop_model_sync_settings/index.js";
 import type * as migrations_versions_v0_2_87_05_drop_model_sync_settings_meta from "../migrations/versions/v0_2_87/05_drop_model_sync_settings/meta.js";
 import type * as migrations_versions_v0_2_87_legacy_run_code_model_sync from "../migrations/versions/v0_2_87/legacy_run_code_model_sync.js";
+import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_index from "../migrations/versions/v0_2_88/01_app_config_to_bindings/index.js";
+import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_meta from "../migrations/versions/v0_2_88/01_app_config_to_bindings/meta.js";
+import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_index from "../migrations/versions/v0_2_88/02_app_schedules_per_project/index.js";
+import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_meta from "../migrations/versions/v0_2_88/02_app_schedules_per_project/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -2549,6 +2553,10 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_87/05_drop_model_sync_settings/index": typeof migrations_versions_v0_2_87_05_drop_model_sync_settings_index;
   "migrations/versions/v0_2_87/05_drop_model_sync_settings/meta": typeof migrations_versions_v0_2_87_05_drop_model_sync_settings_meta;
   "migrations/versions/v0_2_87/legacy_run_code_model_sync": typeof migrations_versions_v0_2_87_legacy_run_code_model_sync;
+  "migrations/versions/v0_2_88/01_app_config_to_bindings/index": typeof migrations_versions_v0_2_88_01_app_config_to_bindings_index;
+  "migrations/versions/v0_2_88/01_app_config_to_bindings/meta": typeof migrations_versions_v0_2_88_01_app_config_to_bindings_meta;
+  "migrations/versions/v0_2_88/02_app_schedules_per_project/index": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_index;
+  "migrations/versions/v0_2_88/02_app_schedules_per_project/meta": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
