@@ -6,13 +6,34 @@
 // createNamespacedPod / readNamespacedPodLog / deleteNamespacedPod + presigned-
 // URL I/O done inside the Pod — every primitive below is plain HTTP.
 //
-// AUTH NOTE (Bun): Bun's fetch does NOT apply a kubeconfig's client cert or
-// custom CA, so a client-cert cluster (e.g. kind's default kubeconfig) auths
-// as system:anonymous. The real in-cluster path uses a ServiceAccount BEARER
-// TOKEN (an Authorization header Bun sends fine) + the cluster CA — for Bun to
-// trust that CA, the container must set NODE_EXTRA_CA_CERTS to the SA ca.crt
-// (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt). Local dev needs a
-// token-based kubeconfig, not kind's client-cert one.
+// TLS NOTE (Bun + @kubernetes/client-node@1.4.0): The library sends every HTTP
+// request through node-fetch@2 (gen/http/isomorphic-fetch.js does
+// `import fetch from "node-fetch"` and passes `agent: request.getAgent()`).
+// The kubeconfig's TLS knobs are applied as options on that https.Agent. Under
+// Bun, node-fetch resolves to a fetch-backed shim that does NOT propagate the
+// Agent's TLS options to the handshake, so those knobs are INERT. Verified
+// empirically against a self-signed HTTPS server under Bun 1.3.14 (issue #1849;
+// see the end-to-end tests in k8s-client.test.ts):
+//
+//   • caFile / caData in the kubeconfig  → INERT; custom CA is NOT loaded.
+//     Real CA trust requires NODE_EXTRA_CA_CERTS (e.g. pointed at the SA
+//     ca.crt: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt), which
+//     Bun's fetch DOES honor at the process level.
+//
+//   • skipTLSVerify: true in the kubeconfig → INERT; TLS is still verified.
+//     It looks like a security bypass but does nothing — do not rely on it.
+//
+//   • Client certificates (cert/key) in the kubeconfig → INERT; the cluster
+//     treats the request as system:anonymous.
+//
+// (Note: a direct node:https.request DOES honor an Agent's `ca`/
+// `rejectUnauthorized` under Bun — but that is not the path this library
+// takes, so it does not help here.)
+//
+// The real in-cluster path works because it uses a ServiceAccount bearer token
+// (an Authorization header Bun sends correctly) and sets NODE_EXTRA_CA_CERTS
+// to the SA ca.crt so Bun trusts the apiserver's TLS certificate.  Local dev
+// must use a token-based kubeconfig, not kind's default client-cert kubeconfig.
 
 import {
   type ConfigurationOptions,
@@ -75,16 +96,20 @@ export function makeK8sClient(namespace: string): K8sClient {
   const token = process.env.SANDBOX_K8S_TOKEN;
   if (server && token) {
     // Explicit bearer-token config (dev / Bun-friendly). Bun can't use a
-    // client-cert kubeconfig, so point at the apiserver with an SA token; CA
-    // trust via SANDBOX_K8S_CAFILE + NODE_EXTRA_CA_CERTS, or skipTLSVerify.
+    // client-cert kubeconfig, so point at the apiserver with an SA token.
+    // CA trust: set NODE_EXTRA_CA_CERTS to the cluster CA file — caFile here
+    // is inert under Bun (see TLS NOTE above) but is kept for documentation
+    // of intent and compatibility with non-Bun runtimes.
+    // skipTLSVerify is intentionally absent: it is also inert under Bun and
+    // looks like a security bypass without providing one.
     kc.loadFromOptions({
       clusters: [
         {
           name: 'k',
           server,
-          ...(process.env.SANDBOX_K8S_CAFILE
-            ? { caFile: process.env.SANDBOX_K8S_CAFILE }
-            : { skipTLSVerify: true }),
+          ...(process.env.SANDBOX_K8S_CAFILE && {
+            caFile: process.env.SANDBOX_K8S_CAFILE,
+          }),
         },
       ],
       users: [{ name: 'sa', token }],

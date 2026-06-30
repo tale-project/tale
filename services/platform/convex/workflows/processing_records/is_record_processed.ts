@@ -28,8 +28,8 @@
  * ```
  */
 
-import { QueryCtx } from '../../_generated/server';
-import { ExtendedTableName } from './types';
+import type { QueryCtx } from '../../_generated/server';
+import type { ExtendedTableName } from './types';
 
 export interface IsRecordProcessedArgs {
   tableName: ExtendedTableName;

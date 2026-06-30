@@ -416,10 +416,39 @@ function sentryOriginFromDsn(dsn: string | undefined): string | null {
   }
 }
 
+// Canonical origin the platform builds its own absolute asset URLs from.
+// Branding assets (custom favicons, logos, and any branding-served font) are
+// addressed by `buildBrandingImageUrl` as `<SITE_URL>/branding/...`, i.e. an
+// absolute URL pinned to the canonical SITE_URL. When the app is reached from
+// a host that differs from SITE_URL (reverse proxy, custom domain, www/apex
+// split), those assets are cross-origin to the document and `'self'` no longer
+// matches — so they're blocked by `img-src`/`font-src 'self'`. Locally
+// SITE_URL is usually unset, the URLs are relative, and everything is
+// same-origin, which is why this only bites in production. This is the
+// operator's OWN origin (never a third-party CDN), so allow-listing it keeps
+// the policy strict and needs no third-party data-transfer review.
+function siteOriginFromUrl(siteUrl: string | undefined): string | null {
+  if (!siteUrl) return null;
+  try {
+    const url = new URL(siteUrl);
+    return url.origin;
+  } catch (err) {
+    console.warn('Invalid SITE_URL, skipping CSP allow-list entry:', err);
+    return null;
+  }
+}
+
 function buildContentSecurityPolicy(env: EnvConfig) {
   const sentryOrigin = sentryOriginFromDsn(env.SENTRY_DSN);
   const sentry = sentryOrigin ? [sentryOrigin] : [];
   const figmaMcp = isLoopbackSite(env) ? ['https://mcp.figma.com'] : [];
+  // The platform's own canonical origin, so branding assets served as
+  // absolute `<SITE_URL>/branding/...` URLs load even when the document is
+  // reached from a different host than SITE_URL. Omitted (empty) when
+  // SITE_URL is unset/relative — then assets are same-origin and `'self'`
+  // already covers them.
+  const siteOrigin = siteOriginFromUrl(env.SITE_URL);
+  const branding = siteOrigin ? [siteOrigin] : [];
   return {
     defaultSrc: ["'self'"],
     scriptSrc: [
@@ -433,8 +462,8 @@ function buildContentSecurityPolicy(env: EnvConfig) {
       ...figmaMcp,
     ],
     styleSrc: ["'self'", "'unsafe-inline'"],
-    imgSrc: ["'self'", 'data:', 'blob:'],
-    fontSrc: ["'self'", 'data:'],
+    imgSrc: ["'self'", 'data:', 'blob:', ...branding],
+    fontSrc: ["'self'", 'data:', ...branding],
     connectSrc: ["'self'", ...sentry],
     workerSrc: ["'self'", 'blob:'],
     frameSrc: ["'self'"],
@@ -479,10 +508,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       camera: [],
       microphone: ['self'],
       // Active features: location-request approval card uses geolocation;
-      // copy-to-clipboard hook is wired into many UI surfaces.
+      // copy-to-clipboard hook is wired into many UI surfaces; live-browser
+      // human takeover reads the host clipboard (`navigator.clipboard.readText`)
+      // to bridge a paste into the remote session — both need same-origin grants.
       geolocation: ['self'],
       clipboardWrite: ['self'],
-      clipboardRead: [],
+      clipboardRead: ['self'],
       usb: [],
       payment: [],
       bluetooth: [],

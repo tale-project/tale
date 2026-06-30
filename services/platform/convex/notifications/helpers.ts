@@ -2,7 +2,7 @@ import type { Infer } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
-import {
+import type {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_SEVERITIES,
   notificationLinkValidator,

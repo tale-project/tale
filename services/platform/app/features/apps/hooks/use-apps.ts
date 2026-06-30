@@ -11,6 +11,9 @@ export interface AppConfigField {
   labelKey: string;
   /** Optional input placeholder (pack-label key) — a format hint. */
   placeholderKey?: string;
+  /** Render a multi-line textarea instead of a single-line input (free-text
+   *  fields like per-repo notes). `type` stays `'string'`. */
+  multiline?: boolean;
   /** Optional one-input → many-keys derivation: the entered string is split by
    *  `pattern` into the `into` keys (e.g. `owner`/`repo`) on save. The field's
    *  own key keeps the raw input for read-back; the views bind the split keys. */

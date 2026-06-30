@@ -3,7 +3,7 @@
 The canonical contract for working in this repository is [`AGENTS.md`](../AGENTS.md) at the repo
 root. Read it and follow it. It defines how to work, the Definition of Done, the Ripple Map
 ("change X → also touch Y"), the mandatory verification doctrine, and the coding standards for every
-language and framework in the monorepo, plus an index of deep guides under `.claude/skills/`.
+language and framework in the monorepo, plus an index of deep guides under `.agents/skills/`.
 
 Non-negotiable reflexes (full rules in `AGENTS.md`):
 

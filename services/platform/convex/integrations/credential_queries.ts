@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
@@ -83,6 +84,19 @@ export const getByIdInternal = internalQuery({
   },
 });
 
+/**
+ * Authorize a node-action caller against a specific credential. Backs the
+ * destructive integration actions (`saveCredentials`,
+ * `saveOAuth2ClientCredentials`, `generateOAuth2Url`, `testConnection`), which
+ * read/write the credential's stored secrets. These are capability-bearing
+ * surfaces the providers/skills paths gate on `developerSettings`, so plain org
+ * membership is insufficient: a non-disabled `member` is hidden from the
+ * integrations UI by `cannot('read','developerSettings')` but could otherwise
+ * drive these actions directly via the Convex client. Returns the credential
+ * only when the caller holds the `developerSettings` capability in the
+ * credential's own org; returns `null` (the existing "access denied" contract)
+ * otherwise.
+ */
 export const verifyCredentialAccess = internalQuery({
   args: {
     credentialId: v.id('integrationCredentials'),
@@ -106,6 +120,12 @@ export const verifyCredentialAccess = internalQuery({
     });
 
     if (!result || result.page.length === 0) return null;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown; we read only `role`
+    const member = result.page[0] as { role?: string };
+    if (!member.role || member.role === 'disabled') return null;
+    if (defineAbilityFor(member.role).cannot('read', 'developerSettings')) {
+      return null;
+    }
     return cred;
   },
 });

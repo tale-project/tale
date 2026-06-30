@@ -499,3 +499,79 @@ describe('revokeTokensForSession', () => {
     expect(res.llmGatewayKeyIds).toEqual(['vk_live']);
   });
 });
+
+describe('listWorkflowRunSessionsForExecution (user-Stop teardown enumeration)', () => {
+  async function insertWfRunSession(
+    t: T,
+    opts: {
+      sessionId: string;
+      ownerId: string;
+      status: SessionStatus;
+      organizationId?: string;
+    },
+  ) {
+    return t.run((ctx) =>
+      ctx.db.insert('sandboxSessions', {
+        organizationId: opts.organizationId ?? ORG,
+        sessionId: opts.sessionId,
+        profile: 'agent',
+        status: opts.status,
+        ownerType: 'workflow_run',
+        ownerId: opts.ownerId,
+        createdBy: 'system',
+        createdAt: 0,
+        expiresAt: 86_400_000,
+        ...(opts.status === 'destroyed' ? { destroyedAt: 1 } : {}),
+      }),
+    );
+  }
+
+  it('returns only this execution’s LIVE sessions — spanning steps, excluding terminal, other execs, prefix-collisions, and other orgs', async () => {
+    const t = convexTest(schema, modules);
+    // Two live steps of execA (owner `${executionId}:${stepSlug}`).
+    await insertWfRunSession(t, {
+      sessionId: 'sA-work',
+      ownerId: 'execA:work',
+      status: 'active',
+    });
+    await insertWfRunSession(t, {
+      sessionId: 'sA-review',
+      ownerId: 'execA:review',
+      status: 'stopped', // hibernated is still LIVE (workspace preserved)
+    });
+    // Terminal step of execA → excluded.
+    await insertWfRunSession(t, {
+      sessionId: 'sA-old',
+      ownerId: 'execA:old',
+      status: 'destroyed',
+    });
+    // A different execution → excluded.
+    await insertWfRunSession(t, {
+      sessionId: 'sB-work',
+      ownerId: 'execB:work',
+      status: 'active',
+    });
+    // Prefix collision: `execAB` must NOT fall in execA's `execA:`..`execA;` range.
+    await insertWfRunSession(t, {
+      sessionId: 'sAB-work',
+      ownerId: 'execAB:work',
+      status: 'active',
+    });
+    // Same prefix, different org → excluded by the defensive org filter.
+    await insertWfRunSession(t, {
+      sessionId: 'sA-otherorg',
+      ownerId: 'execA:work2',
+      status: 'active',
+      organizationId: OTHER_ORG,
+    });
+
+    const live = await t.query(
+      internal.sandbox.session_queries.listWorkflowRunSessionsForExecution,
+      { organizationId: ORG, executionId: 'execA' },
+    );
+    expect(live.map((s) => s.sessionId).sort()).toEqual([
+      'sA-review',
+      'sA-work',
+    ]);
+  });
+});

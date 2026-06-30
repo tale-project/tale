@@ -27,6 +27,11 @@ export const createProduct = mutationWithRLS({
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
+    await ProductsHelpers.assertUniqueProductName(
+      ctx,
+      args.organizationId,
+      args.name,
+    );
     return await ProductsHelpers.createProductWithTranslations(ctx, args);
   },
 });

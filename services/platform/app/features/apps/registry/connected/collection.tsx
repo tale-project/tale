@@ -44,8 +44,9 @@ import {
 import { type BoundActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
-import { SubjectCapacityChip } from './subject-capacity-chip';
+import { SubjectRerunAction } from './subject-rerun-action';
 import { SubjectRun } from './subject-run';
+import { SubjectRunStatusChip } from './subject-run-status-chip';
 
 /** One single-select filter: a query-arg/row `field` and its allowed `values`. */
 export interface CollectionFilterSpec {
@@ -161,7 +162,7 @@ function CollectionFilterBar({
 }
 
 /** The shared row table for both Collection paths: applies the optional
- *  subject-row expansion + capacity-chip accessory and renders via `DataTable`.
+ *  subject-row expansion + run-status-chip accessory and renders via `DataTable`.
  *  `maxRows` is passed through (paginated lists pass `rows.length` so accumulated
  *  pages aren't re-truncated; the single-shot list omits it → DataTable's default
  *  cap). */
@@ -204,10 +205,23 @@ function CollectionTable({
           ? {
               idField: subjectIdField,
               render: (subjectId, statusBadge) => (
-                <SubjectCapacityChip
+                <SubjectRunStatusChip
                   subjectType={subjectType}
                   subjectId={subjectId}
                   fallback={statusBadge}
+                />
+              ),
+            }
+          : undefined
+      }
+      rowActions={
+        subjectType
+          ? {
+              idField: subjectIdField,
+              render: (subjectId) => (
+                <SubjectRerunAction
+                  subjectType={subjectType}
+                  subjectId={subjectId}
                 />
               ),
             }

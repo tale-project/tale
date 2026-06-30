@@ -5,7 +5,7 @@
 
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
-import { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import type { ConvexJsonRecord } from '../../../lib/validators/json';
 import { resolveOrgSlug } from '../../../organizations/resolve_org_slug';

@@ -5,13 +5,8 @@ import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Circle } from 'lucide-react';
-import {
-  forwardRef,
-  ComponentRef,
-  ComponentPropsWithoutRef,
-  ReactNode,
-  useId,
-} from 'react';
+import type { ComponentRef, ComponentPropsWithoutRef, ReactNode } from 'react';
+import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 

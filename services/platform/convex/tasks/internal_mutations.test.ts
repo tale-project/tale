@@ -77,6 +77,15 @@ async function taskStatus(t: T, taskId: string | null): Promise<string> {
   });
 }
 
+async function taskTitle(t: T, taskId: string | null): Promise<string> {
+  if (!taskId) throw new Error('expected a taskId');
+  return await t.run(async (ctx) => {
+    const task = await ctx.db.get(taskId as Id<'tasks'>);
+    if (!task) throw new Error('task not found');
+    return task.title;
+  });
+}
+
 // The update-only reconcile call: org-scope, NO projectId, never creates.
 function reconcile(t: T, externalId: string, externalState: 'open' | 'closed') {
   return t.mutation(
@@ -169,5 +178,57 @@ describe('agentUpsertTaskByExternalRef — createIfMissing (update-only reconcil
     expect(res.created).toBe(false);
     expect(res.taskId).toBe(created.taskId);
     expect(await taskStatus(t, created.taskId)).toBe('done');
+  });
+});
+
+describe('agentUpsertTaskByExternalRef — title coercion', () => {
+  // Regression: a GitHub issue title longer than TASK_TITLE_MAX (200) used to
+  // throw TASK_TITLE_INVALID and make "Create task" unusable for long issues
+  // (e.g. issue #2090, 240 chars). External titles aren't editable at the
+  // import site, so they must be truncated rather than rejected.
+  it('truncates an over-long external title instead of rejecting it', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+    const longTitle = `Improvement: ${'x'.repeat(300)}`;
+
+    const res = await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'user_1',
+        projectId: projectA,
+        externalSystem: 'github',
+        externalId: 'owner/repo#2090',
+        title: longTitle,
+        externalState: 'open',
+      },
+    );
+
+    expect(res.created).toBe(true);
+    const title = await taskTitle(t, res.taskId);
+    expect(title.length).toBe(200);
+    expect(title.endsWith('…')).toBe(true);
+    expect(longTitle.startsWith(title.slice(0, -1))).toBe(true);
+  });
+
+  it('falls back to the external ref when the source title is blank', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const res = await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'user_1',
+        projectId: projectA,
+        externalSystem: 'github',
+        externalId: 'owner/repo#1',
+        title: '   ',
+        externalState: 'open',
+      },
+    );
+
+    expect(res.created).toBe(true);
+    expect(await taskTitle(t, res.taskId)).toBe('github owner/repo#1');
   });
 });

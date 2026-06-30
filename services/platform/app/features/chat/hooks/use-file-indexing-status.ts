@@ -27,7 +27,10 @@ const POLL_INTERVAL_MS = 3_000;
  *   while any file is in queued/running state. Polling stops automatically
  *   when the user leaves the page or all files finish indexing.
  */
-export function useFileIndexingStatus(attachments: FileAttachment[]) {
+export function useFileIndexingStatus(
+  attachments: FileAttachment[],
+  organizationId: string,
+) {
   const fileIds = useMemo(
     () =>
       attachments
@@ -38,7 +41,9 @@ export function useFileIndexingStatus(attachments: FileAttachment[]) {
 
   const metadata = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    fileIds.length > 0 ? { storageIds: fileIds } : 'skip',
+    organizationId && fileIds.length > 0
+      ? { organizationId, storageIds: fileIds }
+      : 'skip',
   );
 
   const statusMap = useMemo(() => {

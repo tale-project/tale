@@ -53,7 +53,7 @@ class RedliningValidator:
                 return True
 
         except Exception:
-            pass
+            pass  # best-effort: treat an unreadable document as having no tracked changes
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -190,7 +190,7 @@ class RedliningValidator:
                     return "\n".join(content_lines)
 
         except (subprocess.CalledProcessError, FileNotFoundError, Exception):
-            pass
+            pass  # best-effort: skip extraction when the external tool is unavailable
 
         return None
 

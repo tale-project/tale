@@ -26,6 +26,7 @@ export function TaskAttachments({
   uploadingFiles,
   canEdit,
   disabled,
+  organizationId,
   onUpload,
   onRemove,
 }: {
@@ -33,6 +34,7 @@ export function TaskAttachments({
   uploadingFiles: string[];
   canEdit: boolean;
   disabled?: boolean;
+  organizationId: string;
   onUpload: (files: File[]) => void;
   onRemove: (fileId: Id<'_storage'>) => void;
 }) {
@@ -52,7 +54,10 @@ export function TaskAttachments({
         <Row gap={2} wrap align="start">
           {attachments.map((attachment) => (
             <div key={attachment.fileId} className="group relative">
-              <FileAttachmentDisplay attachment={attachment} />
+              <FileAttachmentDisplay
+                attachment={attachment}
+                organizationId={organizationId}
+              />
               {canEdit && (
                 <button
                   type="button"
