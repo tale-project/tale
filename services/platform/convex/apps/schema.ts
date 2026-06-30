@@ -105,3 +105,36 @@ export const appProjectBindingsTable = defineTable({
   // Prefix-queried for all bindings of (org, appSlug) — uninstall guard,
   // listAppBindings — and for the exact-row idempotent bind / unbind.
   .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId']);
+
+/**
+ * Per-(organizationId, slug) exclusion lock for `uploadAppBundle` — the
+ * private-app upload path. The upload does a stage-then-rename swap on disk;
+ * two concurrent `force: true` uploads to the same slug would race past the
+ * existence check and last-writer-wins, silently destroying one bundle. The
+ * action inserts a claim row (uniqueness via the `by_org_slug` index +
+ * pre-insert lookup that expires stale claims) before the rename pair and
+ * deletes it in `finally` alongside the storage-blob cleanup. `expiresAt` lets
+ * a crashed action's stale claim be reclaimed lazily on the next attempt — no
+ * cron sweep. Mirrors `skillUploadClaims`.
+ */
+export const appUploadClaimTable = defineTable({
+  organizationId: v.string(),
+  slug: v.string(),
+  claimedAt: v.number(),
+  expiresAt: v.number(),
+}).index('by_org_slug', ['organizationId', 'slug']);
+
+/**
+ * Binds an `_storage` blob to the org + user that requested its upload URL,
+ * for `uploadAppBundle`. Without this, the action would `ctx.storage.get` a
+ * client-supplied id with no ownership verification — letting a caller in org
+ * A point the server at org B's pending blob. Written by `generateAppUploadUrl`
+ * at presign time, looked up by `uploadAppBundle`, deleted in the same
+ * `finally` block as the storage blob. Mirrors `skillUploadIntents`.
+ */
+export const appUploadIntentTable = defineTable({
+  storageId: v.id('_storage'),
+  organizationId: v.string(),
+  userId: v.string(),
+  createdAt: v.number(),
+}).index('by_storageId', ['storageId']);

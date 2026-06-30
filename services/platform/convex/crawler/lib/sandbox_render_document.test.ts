@@ -13,6 +13,12 @@ vi.mock('../../lib/helpers/public_storage_url', () => ({
   SANDBOX_CONVEX_STORAGE_BASE_DEFAULT: 'http://convex:3210',
 }));
 
+// Storage stubs shared across `createCtx()` so tests can inspect what the render
+// script was staged as (the spawner-bound `files[].url`).
+const storageStore = vi.fn();
+const storageGetUrl = vi.fn();
+const storageDelete = vi.fn();
+
 import {
   renderDocumentInSandbox,
   type SandboxRenderRequest,
@@ -28,11 +34,11 @@ function createCtx(): ActionCtx {
     auth: { getUserIdentity: vi.fn() },
     storage: {
       generateUploadUrl: vi.fn().mockResolvedValue('https://upload/slot'),
-      getUrl: vi.fn(),
+      getUrl: storageGetUrl,
       getMetadata: vi.fn(),
-      delete: vi.fn(),
+      delete: storageDelete,
       get: vi.fn(),
-      store: vi.fn(),
+      store: storageStore,
     },
     vectorSearch: vi.fn(),
   };
@@ -89,8 +95,17 @@ const PDF_REQUEST: SandboxRenderRequest = {
   },
 };
 
+/** Read back the render script staged via `ctx.storage.store(new Blob(...))`. */
+async function stagedScript(): Promise<string> {
+  const blob = storageStore.mock.calls[0]?.[0];
+  return await blob.text();
+}
+
 beforeEach(() => {
   spawnerExecute.mockReset();
+  storageStore.mockReset().mockResolvedValue('script-storage-1');
+  storageGetUrl.mockReset().mockResolvedValue('https://storage/script');
+  storageDelete.mockReset().mockResolvedValue(undefined);
 });
 
 describe('renderDocumentInSandbox', () => {
@@ -114,8 +129,12 @@ describe('renderDocumentInSandbox', () => {
     expect(body.outputUploadSlots).toEqual([
       { url: 'sandbox:https://upload/slot' },
     ]);
-    // Script is staged as a base64 data URL.
-    expect(body.files[0].url).toMatch(/^data:text\/javascript;base64,/);
+    // Script is staged in Convex storage and handed to the spawner as an
+    // internal http(s) URL — NOT a `data:` URL (the spawner rejects those and
+    // caps `files[].url` at 4096 chars).
+    expect(body.files[0].url).toBe('sandbox:https://storage/script');
+    // The transient render-script blob is cleaned up after the run.
+    expect(storageDelete).toHaveBeenCalledWith('script-storage-1');
   });
 
   it('embeds the PDF options + HTML in the render script', async () => {
@@ -126,13 +145,18 @@ describe('renderDocumentInSandbox', () => {
       PDF_REQUEST,
     );
 
-    const [body] = spawnerExecute.mock.calls[0] ?? [];
-    const dataUrl: string = body.files[0].url;
-    const base64 = dataUrl.replace('data:text/javascript;base64,', '');
-    const script = Buffer.from(base64, 'base64').toString('utf8');
+    const script = await stagedScript();
     expect(script).toContain('page.pdf');
     expect(script).toContain('A4');
     expect(script).toContain('<p>Hi</p>');
+    // Playwright must be resolved from the image's baked Playwright MCP bundle
+    // (it is NOT on the one-shot runner's NODE_PATH), not a bare require.
+    expect(script).toContain("require.resolve('playwright'");
+    expect(script).toContain('@playwright/mcp');
+    // Output must land in the spawner's harvest dir (/user/output); /workspace
+    // does not exist in the one-shot runner (read-only root).
+    expect(script).toContain('/user/output');
+    expect(script).not.toContain('/workspace');
   });
 
   it('requests the jpeg output filename for jpeg images', async () => {
@@ -154,14 +178,32 @@ describe('renderDocumentInSandbox', () => {
       },
     );
     expect(result.storageId).toBe('storage-out-1');
-    const [body] = spawnerExecute.mock.calls[0] ?? [];
-    const base64 = body.files[0].url.replace(
-      'data:text/javascript;base64,',
-      '',
-    );
-    const script = Buffer.from(base64, 'base64').toString('utf8');
+    const script = await stagedScript();
     expect(script).toContain('page.screenshot');
     expect(script).toContain('deviceScaleFactor');
+  });
+
+  it('stages large HTML in storage, keeping files[].url within the spawner limits', async () => {
+    // Regression: the script inlines the full document HTML, which used to be
+    // base64-encoded into a `data:` URL and passed as `files[0].url` — blowing
+    // past the spawner's 4096-char cap (and its http(s)-scheme requirement) for
+    // any non-trivial document. The script must ride in a staged storage blob.
+    spawnerExecute.mockResolvedValue(completed('document.pdf'));
+    const ctx = createCtx();
+    const bigHtml = `<p>${'x'.repeat(20_000)}</p>`;
+
+    await renderDocumentInSandbox(
+      { ctx, organizationId: 'org-1' },
+      { ...PDF_REQUEST, source: { kind: 'html', html: bigHtml } },
+    );
+
+    const [body] = spawnerExecute.mock.calls[0] ?? [];
+    const url: string = body.files[0].url;
+    expect(url.startsWith('data:')).toBe(false);
+    expect(url.length).toBeLessThanOrEqual(4096);
+    expect(url).toBe('sandbox:https://storage/script');
+    // The bulky HTML lives in the staged blob, not the URL.
+    expect(await stagedScript()).toContain('x'.repeat(20_000));
   });
 
   it('throws when the spawner does not complete', async () => {
@@ -180,6 +222,28 @@ describe('renderDocumentInSandbox', () => {
     await expect(
       renderDocumentInSandbox({ ctx, organizationId: 'org-1' }, PDF_REQUEST),
     ).rejects.toThrow('did not complete');
+  });
+
+  it('surfaces the script stderr when the run fails with a runtime error', async () => {
+    // A RUNTIME_ERROR alone ("User code exited with status 1") is opaque; the
+    // real cause lives in stderr, which must reach the thrown error.
+    spawnerExecute.mockResolvedValue({
+      status: 'failed',
+      errorCode: 'RUNTIME_ERROR: User code exited with status 1',
+      exitCode: 1,
+      stdoutBase64: '',
+      stderrBase64: Buffer.from(
+        "Error: Cannot find module 'playwright'\n    at render.js:1",
+        'utf8',
+      ).toString('base64'),
+      durationMs: 1,
+      truncated: { stdout: false, stderr: false, files: 0 },
+      outputFiles: [],
+    });
+    const ctx = createCtx();
+    await expect(
+      renderDocumentInSandbox({ ctx, organizationId: 'org-1' }, PDF_REQUEST),
+    ).rejects.toThrow("stderr: Error: Cannot find module 'playwright'");
   });
 
   it('throws when the expected output file is missing', async () => {

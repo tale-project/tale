@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('convex/values', () => {
+vi.mock('convex/values', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const stub = () => 'validator';
   return {
+    // Preserve the real `ConvexError` so the handler's structured throws
+    // construct correctly; only the `v` validator builders are stubbed.
+    ...actual,
     v: {
       string: stub,
       number: stub,
@@ -147,7 +151,9 @@ describe('createDocumentFromUpload', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, baseArgs)).rejects.toThrow('Unauthenticated');
+    await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
   });
 
   it('saves file metadata via runMutation when fileSize is provided', async () => {
@@ -211,7 +217,7 @@ describe('createDocumentFromUpload', () => {
 
     await expect(
       handler(ctx, { ...baseArgs, folderId: 'folder_1' }),
-    ).rejects.toThrow('Folder not found');
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_FOUND' } });
   });
 
   it('validates folder org matches', async () => {
@@ -225,7 +231,7 @@ describe('createDocumentFromUpload', () => {
 
     await expect(
       handler(ctx, { ...baseArgs, folderId: 'folder_1' }),
-    ).rejects.toThrow('Folder not found');
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_FOUND' } });
   });
 
   it('rejects when user lacks team access to folder', async () => {
@@ -241,7 +247,7 @@ describe('createDocumentFromUpload', () => {
 
     await expect(
       handler(ctx, { ...baseArgs, folderId: 'folder_1' }),
-    ).rejects.toThrow('Folder not accessible');
+    ).rejects.toMatchObject({ data: { code: 'FOLDER_NOT_ACCESSIBLE' } });
   });
 
   it('links document to file after document creation', async () => {

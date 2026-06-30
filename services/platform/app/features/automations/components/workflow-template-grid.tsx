@@ -10,6 +10,7 @@ import {
   CatalogCard,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -61,6 +62,10 @@ export function WorkflowTemplateGrid({
   scrollable = true,
 }: WorkflowTemplateGridProps) {
   const { t } = useT('automations');
+  // Installing a template creates a workflow — a write action. Read-only roles
+  // (member/editor) can browse the catalog but not install (#2076).
+  const ability = useAbility();
+  const canInstall = ability.can('write', 'wfDefinitions');
   const { workflows, isLoading: isLoadingTemplates } = useListWorkflows(
     organizationId,
     'templates',
@@ -77,6 +82,7 @@ export function WorkflowTemplateGrid({
 
   const handleSelectTemplate = useCallback(
     async (slug: string) => {
+      if (!canInstall) return;
       setError(null);
       setInstallingSlug(slug);
 
@@ -98,6 +104,7 @@ export function WorkflowTemplateGrid({
       }
     },
     [
+      canInstall,
       installWorkflow,
       invalidateWorkflows,
       onTemplateInstalled,
@@ -151,7 +158,7 @@ export function WorkflowTemplateGrid({
                 ) : undefined
               }
               active={installingSlug === template.slug}
-              disabled={!!installingSlug}
+              disabled={!!installingSlug || !canInstall}
               ariaLabel={template.name}
               onClick={() => void handleSelectTemplate(template.slug)}
             />
