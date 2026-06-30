@@ -8,6 +8,7 @@ import {
   type DataTableActionMenuItem,
 } from '@/app/components/ui/data-table/data-table-action-menu';
 import { UploadConfigsDialog } from '@/app/features/shared/upload-configs/upload-configs-dialog';
+import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -33,6 +34,7 @@ export function AutomationsActionMenu({
   const [createTab, setCreateTab] = useState<'blank' | 'template'>('blank');
   const [uploadOpen, setUploadOpen] = useState(false);
   const { t: tAutomations } = useT('automations');
+  const ability = useAbility();
 
   const { mutateAsync: saveWorkflow } = useSaveWorkflow();
   const { mutateAsync: installWorkflow } = useInstallWorkflow();
@@ -69,6 +71,12 @@ export function AutomationsActionMenu({
     ],
     [tAutomations],
   );
+
+  // Write-gated: read-only roles (member/editor) can view the automations list
+  // and catalog but must not see create/import affordances (#2076).
+  if (ability.cannot('write', 'wfDefinitions')) {
+    return null;
+  }
 
   return (
     <>
