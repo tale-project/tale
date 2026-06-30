@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
@@ -10,6 +9,7 @@ import { formatCurrency } from '@/lib/utils/format/number';
 
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';
+import { ProductStatusBadge } from '../components/product-status-badge';
 
 export type Product = Doc<'products'>;
 
@@ -94,11 +94,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
       size: 110,
       cell: ({ row }) =>
         row.original.status ? (
-          <Badge
-            variant={row.original.status === 'active' ? 'blue' : 'outline'}
-          >
-            {row.original.status}
-          </Badge>
+          <ProductStatusBadge status={row.original.status} />
         ) : (
           <Text as="span" variant="caption" className="text-muted-foreground">
             -

@@ -28,6 +28,16 @@ export const ingestProduct = internalMutation({
     productId: v.id('products'),
   }),
   handler: async (ctx, args): Promise<CreateProductResult> => {
+    // Enforce name uniqueness on the non-UI create path. REST POST
+    // /api/v1/products, the agent product_write tool, and the workflow
+    // product action all reach createProduct through here, so the
+    // duplicate-name invariant must hold at this boundary too — not only
+    // in the interactive createProduct mutation.
+    await ProductsHelpers.assertUniqueProductName(
+      ctx,
+      args.organizationId,
+      args.name,
+    );
     return await ProductsHelpers.createProduct(ctx, args);
   },
 });

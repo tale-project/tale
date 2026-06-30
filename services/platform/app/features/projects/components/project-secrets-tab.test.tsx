@@ -154,6 +154,94 @@ describe('ProjectSecretsTab', () => {
     });
   });
 
+  // The Edit affordance reuses the same `setProjectSecret` upsert as Add, but
+  // the name (the env-var key agents resolve) is fixed: the dialog only
+  // re-collects the value (and description). There is no reveal — the stored
+  // value is never returned to the client — so Edit re-encrypts a new value.
+  describe('edit', () => {
+    it('opens Edit prefilled with the fixed name and re-saves under that name', async () => {
+      secretsFixture = [
+        { name: 'E2E_DEPTH_SECRET_ABC', description: 'old description' },
+      ];
+      const { user } = renderTab();
+
+      const row = screen
+        .getByText('E2E_DEPTH_SECRET_ABC')
+        .closest('li') as HTMLElement;
+      await user.click(within(row).getByRole('button', { name: 'Edit' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Edit secret' });
+      expect(dialog).toBeInTheDocument();
+
+      // The name is the env-var key agents resolve — it's prefilled and fixed
+      // (disabled) so editing can't orphan references.
+      const nameInput = screen.getByLabelText('Name', { exact: false });
+      expect(nameInput).toHaveValue('E2E_DEPTH_SECRET_ABC');
+      expect(nameInput).toBeDisabled();
+
+      // In edit mode the type stays "custom" and the value field is labelled
+      // "Value"; the type selector is not offered.
+      expect(
+        screen.queryByLabelText('Type', { exact: false }),
+      ).not.toBeInTheDocument();
+
+      await user.type(
+        screen.getByLabelText('Value', { exact: false }),
+        'rotated-secret-value',
+      );
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      // The upsert is called with the ORIGINAL (fixed) name + the new value.
+      await waitFor(() => {
+        expect(mockSetMutateAsync).toHaveBeenCalledTimes(1);
+      });
+      expect(mockSetMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          projectId: PROJECT_ID,
+          name: 'E2E_DEPTH_SECRET_ABC',
+          value: 'rotated-secret-value',
+        }),
+      );
+    });
+
+    it('does not leave the next Add dialog stuck in edit mode after closing', async () => {
+      secretsFixture = [{ name: 'E2E_DEPTH_SECRET_ABC' }];
+      const { user } = renderTab();
+
+      const row = screen
+        .getByText('E2E_DEPTH_SECRET_ABC')
+        .closest('li') as HTMLElement;
+      await user.click(within(row).getByRole('button', { name: 'Edit' }));
+
+      await screen.findByRole('dialog', { name: 'Edit secret' });
+      await user.type(
+        screen.getByLabelText('Value', { exact: false }),
+        'rotated-secret-value',
+      );
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(mockSetMutateAsync).toHaveBeenCalledTimes(1);
+      });
+
+      // The save resets the form (clearing editingName), so the next Add opens a
+      // fresh create dialog: the title is "Add secret", the type selector is back
+      // and the name field is empty and enabled.
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      const addDialog = await screen.findByRole('dialog', {
+        name: 'Add secret',
+      });
+      expect(addDialog).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('Type', { exact: false }),
+      ).toBeInTheDocument();
+      const nameInput = screen.getByLabelText('Name', { exact: false });
+      expect(nameInput).toHaveValue('');
+      expect(nameInput).toBeEnabled();
+    });
+  });
+
   describe('delete', () => {
     it('invokes deleteProjectSecret with the row name when its delete button is clicked', async () => {
       secretsFixture = [{ name: 'E2E_DEPTH_SECRET_ABC' }];

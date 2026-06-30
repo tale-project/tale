@@ -17,11 +17,14 @@ interface Answers {
 }
 
 // Where each category's source of truth lives (see AGENTS.md "Skills"):
-//   - local      -> .agents/skills/         repo-dev coding guide (docs). Mirrored
-//                   into .claude/skills/ by `bun run skills:sync`; Cursor/Codex/
-//                   Copilot read .agents/skills/ directly.
+//   - local      -> .agents/skills/         Tale-specific repo-dev guide (docs).
+//                   Mirrored into .claude/skills/ by `bun run skills:sync`;
+//                   Cursor/Codex/Copilot read .agents/skills/ directly.
 //   - project    -> builtin-configs/skills/ product skill shipped to org agents
-//                   (embedded in the CLI binary + seeded per-org).
+//                   (embedded in the CLI binary + seeded per-org). A GENERIC
+//                   workflow skill that should ALSO guide repo-dev agents adds its
+//                   name to WORKFLOW_SKILLS in tools/skills/src/sync.ts, which
+//                   projects it into .agents/skills/ (and on to .claude/skills/).
 //   - integrated -> skills/                 self-contained Bun workspace skill
 //                   baked into the services/sandbox-runtime image.
 const DEST_ROOT: Record<SkillCategory, string> = {
@@ -72,8 +75,9 @@ function nextSteps(name: string, category: SkillCategory): string {
     return (
       intro +
       `  1. write builtin-configs/skills/${name}/SKILL.md and add any runnable code under ${name}/scripts/\n` +
-      `  2. it ships to product agents from there (embedded in the CLI binary + seeded per-org) — no sync step\n` +
-      `  3. \`bun run skills:check\` verifies every \`bun|python scripts/…\` the SKILL.md references exists`
+      `  2. it ships to product agents from there (embedded in the CLI binary + seeded per-org)\n` +
+      `  3. GENERIC workflow skill that should also guide repo-dev agents? add "${name}" to WORKFLOW_SKILLS in tools/skills/src/sync.ts + its AGENTS.md row, then \`bun run skills:sync\` to project it into .agents/skills/\n` +
+      `  4. \`bun run skills:check\` verifies the projection and every \`bun|python scripts/…\` the SKILL.md references exists`
     );
   }
   return (

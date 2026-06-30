@@ -241,7 +241,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 
 ## Mitwirken
 
-Neu im Repo? [Contributor-Setup](docs/de/develop/contributor-setup.md) ist die zentrale Quelle der Wahrheit, um den Quellcode lokal zum Laufen zu bringen — Voraussetzungen, `bun install`, der `bun run setup:check`-Pre-flight und `bun run dev`. Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`docs`](.agents/skills/docs/SKILL.md)-Skill deckt die Doku-Seite ab; der [`translation`](.agents/skills/translation/SKILL.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
+Neu im Repo? [Contributor-Setup](docs/de/develop/contributor-setup.md) ist die zentrale Quelle der Wahrheit, um den Quellcode lokal zum Laufen zu bringen — Voraussetzungen, `bun install`, der `bun run setup:check`-Pre-flight und `bun run dev`. Lies [`AGENTS.md`](AGENTS.md) vor deinem ersten PR — das ist der einzige Vertrag für Code-Stil, Security, Tests, i18n und Dokumentation über alle Workspaces hinweg. Der [`write-docs`](.agents/skills/write-docs/SKILL.md)-Skill deckt die Doku-Seite ab; der [`write-translations`](.agents/skills/write-translations/SKILL.md)-Skill die sprachübergreifenden Übersetzungsregeln. Lass `bun run check` (Format, Lint, Typecheck, Tests) durchlaufen, bevor du einen PR öffnest; das [Pull-Request-Template](.github/pull_request_template.md) listet den Rest der Pre-Merge-Checkliste.
 
 ---
 

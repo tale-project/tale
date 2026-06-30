@@ -26,6 +26,7 @@ import {
 } from '../agents/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
+import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import {
   resolveWorkflowFilePath,
   resolveWorkflowsDir,
@@ -154,7 +155,12 @@ async function prepareInstall(
   organizationId: string,
   appSlug: string,
 ): Promise<InstallContext> {
-  const { orgSlug, userId, email } = await requireOrgMembershipById(
+  // Install/reinstall (re)register an app's agents, workflows and triggers —
+  // capability-bearing surfaces that, elsewhere, only `developerSettings` roles
+  // may create or edit. A plain `member` is hidden from the install UI by
+  // `cannot('read','developerSettings')` but could previously drive this lifecycle
+  // directly via the Convex client. Gate it on the same capability.
+  const { orgSlug, userId, email } = await requireDeveloperSettingsAccessById(
     ctx,
     organizationId,
   );
@@ -174,7 +180,9 @@ async function prepareInstall(
       `Cannot install app "${appSlug}": a global workflow folder of the same name exists and would be shadowed.`,
     );
   }
-  const installedBy = email !== '' ? email : userId;
+  // `requireDeveloperSettingsAccessById` types `email` as optional, so treat an
+  // empty OR absent email as "no email" and fall back to the user id.
+  const installedBy = email ? email : userId;
   const manifest = await readAppBundleManifest(appSlug);
   return { orgSlug, installedBy, manifest };
 }
@@ -349,7 +357,12 @@ export const uninstallApp = action({
   args: { organizationId: v.string(), appSlug: v.string() },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args): Promise<{ ok: boolean }> => {
-    const { orgSlug } = await requireOrgMembershipById(
+    // Uninstall is the most destructive app path: it tears down the app's
+    // agents, their workflows, and ALL of their env/secrets. A member blocked
+    // from disabling a single app-owned agent could otherwise wipe the whole
+    // app by uninstalling it, so this must carry at least the same
+    // `developerSettings` gate as the per-agent capability edits it bypasses.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
     );

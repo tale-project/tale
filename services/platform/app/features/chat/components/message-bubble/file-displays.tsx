@@ -23,7 +23,6 @@ import { memo, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
@@ -174,9 +173,11 @@ export function FileTypeIcon({
 
 export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   attachment,
+  organizationId,
   onImageClick,
 }: {
   attachment: FileAttachment;
+  organizationId?: string;
   onImageClick?: () => void;
 }) {
   const { t } = useT('chat');
@@ -190,11 +191,10 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).
-  const organizationId = useOrganizationId();
   const audioMetadataList = useQuery(
     api.file_metadata.queries.getByStorageIds,
     isMedia && organizationId
-      ? { storageIds: [attachment.fileId], organizationId }
+      ? { organizationId, storageIds: [attachment.fileId] }
       : 'skip',
   );
   const audioMetadata = audioMetadataList?.[0];

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Stack } from '@tale/ui/layout';
 import {
   Table,
@@ -30,7 +31,6 @@ export function MappingList({
   onEdit,
 }: MappingListProps) {
   const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
   return (
     <Stack gap={2}>
       {mappings.length === 0 ? (
@@ -79,14 +79,16 @@ export function MappingList({
                     : t('moderationProvider.no')}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
+                  <IconButton
                     variant="ghost"
+                    size="sm"
                     icon={Pencil}
+                    aria-label={t('moderationProvider.editMappingAria', {
+                      category: mapping.providerCategory,
+                    })}
                     disabled={disabled}
                     onClick={() => onEdit(index)}
-                  >
-                    {tCommon('actions.edit')}
-                  </Button>
+                  />
                 </TableCell>
               </TableRow>
             ))}

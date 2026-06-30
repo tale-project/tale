@@ -32,6 +32,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useExecutionProjection } from '../hooks/use-execution-projection';
+import { mapExecutionError } from '../lib/map-execution-error';
 import { OperatorView } from './operator-view';
 
 /** Terminal execution states — a re-run is offered only once a run has settled
@@ -44,6 +45,7 @@ const RUNNING_STATUSES = new Set(['running', 'pending']);
 
 function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   const { t } = useT('operator');
+  const { t: tCommon } = useT('common');
   const { mutateAsync, isPending } = useConvexAction(
     api.workflow_executions.actions.rerunExecution,
   );
@@ -59,10 +61,11 @@ function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
         toast({ title: t('rerun.notStarted'), variant: 'destructive' });
       }
     } catch (err) {
-      // The action throws on hard errors (not found / no workflow slug); surface
-      // the message rather than swallowing the rejection.
+      // The action throws structured codes on hard errors (unauthenticated /
+      // not found / no workflow slug); map them to a specific message rather
+      // than leaking the raw ConvexError JSON blob.
       toast({
-        title: err instanceof Error ? err.message : t('rerun.notStarted'),
+        title: mapExecutionError(err, tCommon, t('rerun.notStarted')),
         variant: 'destructive',
       });
     }
@@ -77,6 +80,7 @@ function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
 
 function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   const { t } = useT('operator');
+  const { t: tCommon } = useT('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { mutateAsync, isPending } = useConvexMutation(
     api.workflow_executions.mutations.cancelExecution,
@@ -87,10 +91,10 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
       await mutateAsync({ executionId });
       toast({ title: t('stop.stopped'), variant: 'success' });
     } catch (err) {
-      // cancelExecution throws if the run already settled (a race) — surface it
-      // rather than swallow.
+      // cancelExecution throws a structured code if the run already settled (a
+      // race) or is gone — map it rather than leak the raw ConvexError JSON.
       toast({
-        title: err instanceof Error ? err.message : t('stop.failed'),
+        title: mapExecutionError(err, tCommon, t('stop.failed')),
         variant: 'destructive',
       });
     } finally {

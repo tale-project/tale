@@ -1,6 +1,6 @@
 ---
 name: write-skill
-description: How to author or edit a skill under .agents/skills/ so the set stays consistent, discoverable, and free of stale paths. Read before adding, rewriting, splitting, or merging a skill — covers the description-as-invocation rule, the canonical SKILL.md skeleton, progressive disclosure, the five failure modes to prune against, leading words, and the AGENTS.md index registration every skill ships with.
+description: Use this skill whenever you author, edit, rewrite, split, merge, or move a skill — a Tale-specific repo-dev guide under .agents/skills/, or a generic workflow skill whose source of truth is builtin-configs/skills/ and is projected into .agents/skills/. It covers the description-as-invocation rule, the canonical SKILL.md skeleton, progressive disclosure, the five failure modes to prune against, leading words, which home a skill belongs in, and the AGENTS.md index + WORKFLOW_SKILLS allowlist + sync every skill ships with. Load it before touching any SKILL.md, and never hand-edit a generated .claude/skills mirror or a projected .agents/skills copy.
 ---
 
 # write-skill
@@ -10,16 +10,32 @@ process** every time, not so it emits the same output. Predictability is the roo
 below serves it. A sloppy skill (stale paths, a vague description, 400 inline lines) is worse than
 none. Copy [`SKILL_TEMPLATE.md`](../SKILL_TEMPLATE.md) for the shape; this skill is the why.
 
+## Write a note first
+
+**Invoke `write-notes`** and record your answers to this form before you author or edit the skill:
+
+- **Skill & home:** Describe the skill, the home it belongs in (`.agents/skills` vs `builtin-configs/skills`), and the single concern it owns.
+- **Invocation:** Describe its directive description — the situation and triggers that should make the agent load it.
+- **Overlap:** Describe what existing skill or section it overlaps and how you'll reuse or fold rather than duplicate.
+- **Risks & unknowns:** Describe where this skill might mislead an agent or collide with another, and how you checked.
+
 ## The description does the invocation work
 
-The agent decides whether to load a skill from its `description` alone — so the description gets
-_harder_ pruning than the body.
+The agent decides whether to load a skill from its `description` alone — so it gets _harder_ pruning
+than the body, and it must **command the agent into the skill** in the right situation, not merely
+describe it. A description that reads like a summary gets skipped; one that names the trigger and
+enforces the skill wins.
 
-- **Front-load the leading word.** Open with the capability (`How to … / The contract for …`), then
-  `Read before …` and the concrete triggers — the paths, verbs, and symptoms someone uses when they
-  need it. The **first sentence must stand alone** — a reader (or a terse harness listing) may see
-  only it.
-- **One trigger per branch.** Name distinct situations, not synonyms for one. Adjectives aren't triggers.
+- **Lead with the directive + the situation.** Open `Use this skill whenever <concrete situation> …`
+  (or `Read before <trigger> …`) — the capability _and_ the command to load it, in a **first sentence
+  that stands alone** (a terse harness listing may show only it).
+- **Enumerate the triggers exhaustively, one per branch.** The real file paths, verbs, and symptoms
+  someone hits when they need it (`"fix"`, a pasted stack trace, editing `convex/**`). Distinct
+  situations, not synonyms; adjectives aren't triggers. Over-cover rather than under-cover — a missed
+  trigger is a skipped skill.
+- **Enforce it.** Close with the boundary (the sibling that owns the adjacent case — _for a defect, use_
+  `fix-bug`) and a "never do X without it" clause, so the agent can't default to a generic approach in
+  the skill's situation.
 - **Say nothing the body repeats.** Identity, rationale, and how-to belong in the body.
 
 ## The shape (copy the template)
@@ -36,6 +52,11 @@ _harder_ pruning than the body.
 5. **`## Patterns`** — minimal real do/don't, `path:line` when it helps. The smallest snippet that
    makes the point.
 6. **`## Companion files`** (only when depth warrants) — each with a one-line "read when".
+
+Where a skill has a **done-gate or a must-not-skip sequence** (a "before you call it done", a pre-flight
+gate), write it as a **true `- [ ]` checklist** opened with "tick every box, or N/A with a reason; an
+unticked box means not done". A box the agent fills in beats a paragraph it skims (see _Premature
+completion_).
 
 ## Progressive disclosure — three tiers
 
@@ -59,9 +80,9 @@ Audit every skill — new or edited — against these. The fix for most is **del
   it. A stale reference is worse than no reference.
 - **Sprawl** — long even when every line is live and unique. Disclose reference behind a pointer;
   split only when the cut earns it.
-- **Premature completion** — the agent stops a sequence early. First sharpen the completion criterion
-  so done-vs-not-done is checkable; only split to hide later steps if the rush survives a sharp
-  criterion.
+- **Premature completion** — the agent stops a sequence early. Make done-vs-not-done a **true `- [ ]`
+  checklist it must tick** — each box a verifiable assertion, N/A allowed with a reason; only split to
+  hide later steps if the rush survives a sharp checklist.
 
 ## Leading words
 
@@ -73,34 +94,51 @@ invocation in fewer tokens. Collapse a restated phrase into one: "fast, determin
 
 If the name needs "and", it's two skills — fold a tiny adjacent topic into a section rather than spawn
 a near-empty skill. **Invocation axis:** a [`.agents/skills/`](../) skill is _model-invoked_ — it
-surfaces by its description, and may also be human-invoked by name (`/qa`, `/ship`, `/verify`) — these
-invocable workflows are themselves skills, not separate command files. Author a skill only when the agent (or another skill) must reach it on
+surfaces by its description, and may also be human-invoked by name (`/fix-bug`, `/create-pr`,
+`/review-pr`) — these invocable workflows are themselves skills, not separate command files. Author a skill only when the agent (or another skill) must reach it on
 its own. And if a built-in/harness skill already does the job (`react-doctor`, `code-review`,
 `claude-api`), reference it — a custom skill must add Tale-specific value.
 
-## Three homes — pick by audience
+## Homes — pick by audience
 
-A **repo-dev guide** lives under [`.agents/skills/`](../) (docs only) — the source every coding agent
-reads; `bun run skills:sync` mirrors it into `.claude/skills/` for Claude Code (**never hand-edit the
-mirror**). A skill that ships to **product agents** instead has its source of truth under
-[`builtin-configs/skills/`](../../../builtin-configs/skills/) (e.g. `pptx`, shipped from there —
-embedded in the CLI binary, seeded per-org) or, when it is a self-contained Bun **workspace**, under the
-root [`skills/`](../../../skills/) dir (baked into the sandbox image). Scaffold any of them with
-`bun run gen skill` (it prompts for the category). A shipped skill may carry runnable code in
-`<skill>/scripts/`, invoked skill-relative (`bun scripts/<name>.ts` / `python scripts/<name>.py`); bun
-scripts must be self-contained (only `node:*`, `bun`/`bun:*`, relative imports — `skills:check` enforces
-it).
+Decide who runs the skill, then pick its source of truth — three cases:
+
+- **Repo-dev guide** (Tale-specific, docs only) → [`.agents/skills/<name>/`](../). The source every
+  coding agent reads; `skills:sync` mirrors it into `.claude/skills/` for Claude Code. May use repo
+  paths and link siblings by file. `write-skill`, `write-docs`, `write-translations` live here.
+- **Generic workflow skill** (a senior-dev workflow that ALSO ships to product org agents) → source of
+  truth under [`builtin-configs/skills/<name>/`](../../../builtin-configs/skills/), with its name in the
+  `WORKFLOW_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts).
+  `skills:sync` **projects** it into `.agents/skills/<name>/` and on to `.claude/skills/`. Because it
+  ships to agents working on _any_ codebase, it must be **generic and portable** — no repo paths, no
+  Tale rule names; cross-reference siblings by slug in prose, never by file link. `implement-feature`,
+  `fix-bug`, … live here.
+- **Product-only / integrated skill** → `builtin-configs/skills/<name>/` (document skills like `pptx` —
+  embedded in the CLI binary, seeded per-org) or, when it is a self-contained Bun **workspace**, the
+  root [`skills/`](../../../skills/) dir (baked into the sandbox image). Not projected into the guides.
+
+**Never hand-edit a generated copy.** `.claude/skills/<name>/` is a mirror; `.agents/skills/<workflow>/`
+is a projection of its `builtin-configs/skills/` source — edit the source, then `bun run skills:sync`.
+Scaffold any home with `bun run gen skill` (it prompts for the category). A shipped skill may carry
+runnable code in `<skill>/scripts/`, invoked skill-relative (`bun scripts/<name>.ts` /
+`python scripts/<name>.py`); bun scripts must be self-contained (only `node:*`, `bun`/`bun:*`, relative
+imports — `skills:check` enforces it).
 
 ## Register it — non-negotiable
 
 Adding a skill means **adding its row to the skill index in [`/AGENTS.md`](../../../AGENTS.md)**;
 removing one removes that row; renaming updates it. The index is the map every agent reads — if it
-lies, agents load the wrong thing. Then run `bun run skills:sync` (the
-[`@tale/skills`](../../../tools/skills/) tool) to regenerate the `.claude/skills/` mirror. Same change,
-every time.
+lies, agents load the wrong thing. A **generic workflow skill** also needs its name in the
+`WORKFLOW_SKILLS` allowlist in [`tools/skills/src/sync.ts`](../../../tools/skills/src/sync.ts) so it
+projects into the guides. Then run `bun run skills:sync` (the
+[`@tale/skills`](../../../tools/skills/) tool) to regenerate every projection and the `.claude/skills/`
+mirror. Same change, every time.
 
-## After writing
+## Before the skill ships — tick every box
 
-Run `bun run skills:check` (it also runs in CI as a test): it fails on a `.claude/skills/` mirror that
-drifted from its `.agents/skills/` source, a shipped `SKILL.md` command pointing at a missing script, or
-a shipped bun script that isn't self-contained. A skill ships only when it passes.
+- [ ] **Frontmatter is `name` (== directory, dash-case) + `description` only** — nothing else.
+- [ ] **The description commands the agent into the skill** — directive opener (`Use this skill whenever …`), exhaustive triggers, an enforcement / boundary clause, first sentence standing alone.
+- [ ] **Pruned against the five failure modes** — no no-ops, no duplication, every cited path verified on this branch, ≤ ~150 lines, and any done-gate written as a true `- [ ]` checklist.
+- [ ] **Registered** — its row is in the [`/AGENTS.md`](../../../AGENTS.md) index (and, for a workflow skill, its name is in `WORKFLOW_SKILLS`).
+- [ ] **`bun run skills:sync` run**, and the regenerated `.claude/skills/` mirror (+ any projection) committed.
+- [ ] **`bun run skills:check` passes** — no drift, every shipped `SKILL.md` script ref resolves, bun scripts self-contained.

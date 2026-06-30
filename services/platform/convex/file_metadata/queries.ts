@@ -1,9 +1,8 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 export const getUserStorageUsage = query({
   args: {
@@ -119,11 +118,22 @@ export const getByStorageIds = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
-    // Membership gate: this query is keyed only by opaque storage ids, so
-    // without an org check any authenticated user could read another org's file
-    // metadata (fileName, transcript, …) by id. Require membership in the
-    // active org, then surface only that org's rows below.
-    if (!(await isOrgMember(ctx, authUser.userId, args.organizationId))) {
+    // RLS: only members of the named org may read its file metadata. Without
+    // this, any authenticated user could pass a foreign storageId and pull
+    // back another tenant's fileName/transcript/RAG state (issue #2027). The
+    // soft-fail to `[]` matches the reactive-subscription contract used across
+    // these queries (a non-member must not throw and white-screen the chip).
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (error) {
+      console.warn(
+        '[fileMetadata.queries.getByStorageIds] org membership lookup failed:',
+        error instanceof Error ? error.message : error,
+      );
       return [];
     }
 
@@ -133,11 +143,12 @@ export const getByStorageIds = query({
           .query('fileMetadata')
           .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
           .first();
-        // Drop any row that isn't in the caller's active org, even if it shares
-        // the requested batch.
-        if (!meta || !isActiveOrg(meta.organizationId, args.organizationId)) {
-          return null;
-        }
+        if (!meta) return null;
+        // Per-row tenant scope: the storageId index is global, so a row whose
+        // organizationId differs from the verified caller's org is filtered
+        // out even though the membership check above passed for a *different*
+        // org the caller does belong to.
+        if (meta.organizationId !== args.organizationId) return null;
         return {
           storageId: meta.storageId,
           documentId: meta.documentId,

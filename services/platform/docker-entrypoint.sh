@@ -458,6 +458,10 @@ deploy_convex_functions() {
   echo "━━━ Error diagnosis ━━━"
 
   local retry=false
+  # Classification-specific first-retry backoff; empty means use the default
+  # 10s in the retry loop below. Declared here so the default is robust even if
+  # this function is ever called more than once per process.
+  local SEARCH_INDEX_RETRY_BACKOFF=""
 
   if [ $deploy_exit -eq 124 ]; then
     # wait_for_schema stage
@@ -517,6 +521,13 @@ deploy_convex_functions() {
   elif grep -qi "invalid admin key\|unauthorized" "$deploy_log"; then
     log_error "Reason: admin key invalid"
     echo "  fix: check INSTANCE_NAME and INSTANCE_SECRET match on both services."
+
+  elif grep -qz "InvalidModules.*Function execution timed out" "$deploy_log"; then
+    log_error "Reason: module analyze timed out (2s isolate budget) — usually transient deploy-time CPU contention"
+    echo "  → A module's import-time evaluation exceeded the 2s analyze budget,"
+    echo "    typically because convex was CPU-starved during image pulls / chat drain."
+    echo "  fix: auto-retrying; if persistent, set RUST_LOG=debug to find the slow module and defer its top-level work."
+    retry=true
 
   else
     log_error "Reason: unclassified. See full deploy log above."

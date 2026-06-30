@@ -75,7 +75,7 @@ dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
 mints an authenticated owner + org and writes a Playwright `storageState` file so
-the browser starts signed in (see the [browser-qa](../../.agents/skills/browser-qa/SKILL.md)
+the browser starts signed in (see the [test-code](../../.agents/skills/test-code/SKILL.md)
 skill). Otherwise sign in at `/log-in` with an existing local account.
 
 `{org}` throughout the guides is the 16+ character organization id in the

@@ -24,6 +24,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import type { IntegrationReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -291,7 +292,11 @@ export const saveIntegrationConfig = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const { orgSlug } = await requireOrgMembershipById(
+    // Writing an integration config is a capability-bearing edit the rest of
+    // the codebase treats as `developerSettings` work. A plain `member` is
+    // hidden from the integrations UI by `cannot('read','developerSettings')`
+    // but could previously drive this action directly via the Convex client.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
     );
@@ -334,7 +339,10 @@ export const installIntegration = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const { orgSlug } = await requireOrgMembershipById(
+    // Connecting an integration creates its credential record (and installs its
+    // bundled capabilities) — `developerSettings` work elsewhere. Gate it on
+    // the same capability rather than admitting any non-disabled member.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
     );
@@ -383,7 +391,11 @@ export const uninstallIntegration = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    await requireOrgMembershipById(ctx, args.organizationId);
+    // Uninstalling deletes the credential record and its stored icon/secrets —
+    // the same destructive outcome as the now-gated `deleteCredentials`
+    // mutation. Without this gate a plain `member` rejected by
+    // `deleteCredentials` could simply call `uninstallIntegration` instead.
+    await requireDeveloperSettingsAccessById(ctx, args.organizationId);
 
     const existing = await ctx.runQuery(
       internal.integrations.credential_queries.getBySlugInternal,
@@ -419,7 +431,10 @@ export const writeIntegrationFiles = action({
       throw new Error(`Invalid integration slug: ${args.slug}`);
     }
 
-    const { orgSlug } = await requireOrgMembershipById(
+    // Custom uploads write integration config AND executable connector code to
+    // disk — at least as capability-bearing as the credential paths gated
+    // above. Require the `developerSettings` capability, not plain membership.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
     );

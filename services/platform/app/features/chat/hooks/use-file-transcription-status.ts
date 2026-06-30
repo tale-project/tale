@@ -3,7 +3,6 @@
 import { useQuery } from 'convex/react';
 import { useMemo } from 'react';
 
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -42,7 +41,10 @@ export interface FileTranscriptionInfo {
  * during the brief window before metadata first resolves (prevents a rapid
  * click from slipping past a not-yet-known `running` state).
  */
-export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
+export function useFileTranscriptionStatus(
+  attachments: FileAttachment[],
+  organizationId: string,
+) {
   const audioFileIds = useMemo(
     () =>
       attachments
@@ -51,11 +53,10 @@ export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
     [attachments],
   );
 
-  const organizationId = useOrganizationId();
   const metadata = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    audioFileIds.length > 0 && organizationId
-      ? { storageIds: audioFileIds, organizationId }
+    organizationId && audioFileIds.length > 0
+      ? { organizationId, storageIds: audioFileIds }
       : 'skip',
   );
 

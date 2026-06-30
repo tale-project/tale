@@ -10,7 +10,7 @@ import { CONTENT_ROOT } from './lib/paths';
 import { localeOf, walkDocs } from './lib/walk';
 
 /**
- * Heading rules from `.agents/skills/docs/SKILL.md`:
+ * Heading rules from `.agents/skills/write-docs/SKILL.md`:
  *
  *   - **No body H1.** The frontmatter `title` is rendered as the H1; writing
  *     `# X` in the body produces a duplicate H1.

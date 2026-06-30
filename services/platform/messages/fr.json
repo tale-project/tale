@@ -26,6 +26,7 @@
     "install": {
       "install": "Installer",
       "installed": "Installé",
+      "installFailed": "Impossible d'installer l'application",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
@@ -180,6 +181,7 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct",
+      "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère."
     },
@@ -862,7 +864,7 @@
     "executions": {
       "title": "Exécutions",
       "entityLabel": "exécutions",
-      "searchPlaceholder": "Rechercher des exécutions"
+      "searchPlaceholder": "Rechercher par ID d'exécution"
     },
     "createDialog": {
       "title": "Créer une automatisation",
@@ -892,16 +894,12 @@
       "namePlaceholder": "Saisis le nom de l'automatisation"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "La modification des connexions n'est pas encore disponible",
-        "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
-      },
       "banners": {
         "hasActiveTriggers": "Cette automatisation est active — les modifications enregistrées s’appliquent aux nouvelles exécutions."
       },
       "toolbar": {
         "testAutomation": "Tester l'automatisation",
-        "addStep": "Ajouter une étape"
+        "addStepUnavailable": "La modification des étapes sur le canevas n'est pas encore disponible — utilise l'assistant IA ou modifie la configuration du workflow."
       },
       "execution": {
         "viewingRun": "Affichage de l'exécution {id}",
@@ -1071,6 +1069,7 @@
       "action": "Voir"
     },
     "viewer": {
+      "back": "Retour",
       "heading": "Nouveautés",
       "subheading": "{count, plural, one {# mise à jour} other {# mises à jour}} depuis v{from}",
       "subheadingNew": "Notes de version pour v{to}",
@@ -1644,7 +1643,7 @@
       "description": "Sélectionne les messages et télécharge-les dans le format de ton choix.",
       "selectAll": "Tout sélectionner",
       "deselectAll": "Tout désélectionner",
-      "messagesCount": "{count} sur {total} messages sélectionnés",
+      "messagesCount": "{count, plural, one {# sur {total} message sélectionné} other {# sur {total} messages sélectionnés}}",
       "downloadPdf": "Imprimer en PDF",
       "downloadMarkdown": "Télécharger en Markdown",
       "noMessages": "Aucun message à exporter",
@@ -2026,6 +2025,12 @@
       "contactSupport": "contacter le support",
       "tryAgain": "Réessayer"
     },
+    "executionErrors": {
+      "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
+      "notFound": "Cette exécution est introuvable. Elle a peut-être été supprimée.",
+      "notCancelable": "Cette exécution ne peut plus être arrêtée — elle est déjà terminée.",
+      "missingWorkflow": "Cette exécution ne peut pas être relancée car son workflow n'est plus disponible."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Entrée",
       "escape": "Échap"
@@ -2096,6 +2101,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Client inconnu",
     "messagePlaceholder": "Saisis un message",
     "suggestEditsPlaceholder": "Suggère des modifications au texte (optionnel)",
     "fallbackImageAttachment": "Pièce jointe image",
@@ -2115,8 +2121,10 @@
       "accept": "Accepter les modifications"
     },
     "bulkSend": {
-      "title": "Envoyer {count} messages",
+      "title": "Envoyer {count, plural, one {# message} other {# messages}}",
       "description": "Tu es sur le point d'envoyer des réponses pour {count, plural, one {# conversation} other {# conversations}}. Cette action est irréversible.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Saisis ta réponse...",
       "send": "Envoyer"
     },
     "updating": "Mise à jour des conversations...",
@@ -2514,7 +2522,7 @@
       "noTeamsAvailable": "Tu n'es membre d'aucune équipe",
       "allMembersHint": "Les documents accessibles à toute l'organisation sont disponibles pour tous les membres de l'organisation.",
       "dropZoneTitle": "Téléverser un fichier",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV jusqu'à {maxSize} Mo",
+      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT jusqu'à {maxSize} Mo",
       "retryUpload": "Réessayer le téléversement",
       "retry": "Réessayer",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document téléversé} other {documents téléversés}} — indexation en cours en arrière-plan",
@@ -2762,7 +2770,13 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
-      "saved": "Les règles de budget ont été mises à jour"
+      "saved": "Les règles de budget ont été mises à jour",
+      "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
+      "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
+      "invalidTokenLimit": "La limite de jetons doit être supérieure à zéro.",
+      "invalidCostLimit": "La limite de coût doit être supérieure à zéro.",
+      "invalidMaxRequests": "La limite de requêtes doit être supérieure à zéro.",
+      "invalidWarningThreshold": "Le seuil d'alerte doit être compris entre 0 et 100."
     },
     "defaultModels": {
       "title": "Modèles par défaut",
@@ -3327,6 +3341,7 @@
       "yes": "Oui",
       "no": "Non",
       "addMapping": "Ajouter une correspondance",
+      "editMappingAria": "Modifier le mappage pour {category}",
       "editMappingTitle": "Modifier la correspondance",
       "addMappingTitle": "Ajouter une correspondance",
       "deleteMappingConfirmTitle": "Supprimer la correspondance ?",
@@ -3975,7 +3990,13 @@
     "updateResponse": "Mettre à jour la réponse",
     "cancelEdit": "Annuler",
     "versionPrevious": "Version de réponse précédente",
-    "versionNext": "Version de réponse suivante"
+    "versionNext": "Version de réponse suivante",
+    "errorTodoListRequired": "Merci d’ajouter au moins un élément",
+    "errorTodoListMinItems": "Merci d’ajouter au moins {count} éléments",
+    "todoItemPlaceholder": "Sous-question {n}",
+    "todoItemAriaLabel": "{label} élément {n}",
+    "todoRemoveItem": "Supprimer l’élément {n}",
+    "todoAddItem": "Ajouter un élément"
   },
   "integrationApproval": {
     "approve": "Approuver",
@@ -4117,7 +4138,19 @@
       "saving": "Enregistrement...",
       "cancel": "Annuler",
       "connectionSection": "Connexion",
-      "authSection": "Authentification"
+      "authSection": "Authentification",
+      "validation": {
+        "nameRequired": "Le nom est requis",
+        "nameFormat": "Doit être en minuscules alphanumériques avec des traits d'union",
+        "displayNameRequired": "Le nom d'affichage est requis",
+        "urlRequired": "L'URL est requise",
+        "commandRequired": "La commande est requise",
+        "apiKeyRequired": "La clé API est requise",
+        "tokenUrlRequired": "L'URL du jeton est requise",
+        "clientIdRequired": "L'ID client est requis",
+        "clientSecretRequired": "Le secret client est requis",
+        "authorizationUrlRequired": "L'URL d'autorisation est requise"
+      }
     },
     "oauth2": {
       "tokenUrl": "URL du jeton",
@@ -4190,6 +4223,10 @@
     "projects": {
       "title": "Projets",
       "description": "Espaces de travail partagés pour fichiers, instructions et discussions."
+    },
+    "apps": {
+      "title": "Applications",
+      "description": "Modules installés et les applications qu'ils ajoutent à ton organisation."
     },
     "websites": {
       "title": "Sites web",
@@ -4425,7 +4462,13 @@
     "dsarPolicyLoosenApplied": "Politique d'effacement assouplie",
     "dsarPolicyLoosenAppliedBody": "Une politique d'effacement (DSAR) assouplie a pris effet après le délai de grâce de 24 heures.",
     "dsarPolicyLoosenCancelled": "Modification en attente de la politique d'effacement annulée",
-    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet."
+    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet.",
+    "agentBudgetWarnTitle": "L'agent approche de son budget",
+    "agentBudgetWarnBody": "{agentSlug} a utilisé {pct} % de son budget mensuel ({spent} sur {monthly}).",
+    "agentBudgetExceededTitle": "Budget de l'agent dépassé — exécutions en pause",
+    "agentBudgetExceededBody": "{agentSlug} a atteint son budget mensuel ({spent} sur {monthly}) et a été mis en pause. Les exécutions reprennent le mois prochain ou lorsque tu augmentes la limite.",
+    "agentCircuitTrippedTitle": "Exécutions de l'agent en pause — limite de sécurité atteinte",
+    "agentCircuitTrippedBody": "{agentSlug} a atteint la limite de sécurité de {windowRuns} exécutions en {windowHours} h sur « {taskTitle} ». Change le statut de la tâche pour reprendre l'automatisation."
   },
   "personalization": {
     "page": {
@@ -4685,7 +4728,8 @@
       },
       "toast": {
         "success": "Produit mis à jour avec succès",
-        "error": "Échec de la mise à jour du produit"
+        "error": "Échec de la mise à jour du produit",
+        "duplicateName": "Un produit portant ce nom existe déjà"
       }
     },
     "create": {
@@ -4696,7 +4740,8 @@
       },
       "toast": {
         "success": "Produit créé avec succès",
-        "error": "Échec de la création du produit"
+        "error": "Échec de la création du produit",
+        "duplicateName": "Un produit portant ce nom existe déjà"
       }
     },
     "createWizard": {
@@ -5289,6 +5334,7 @@
         "displayName": "Nom d'affichage",
         "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
         "displayNamePlaceholder": "Mon Agent",
+        "displayNameDuplicateWarning": "Un autre agent utilise déjà ce nom affiché. Le slug reste unique, mais le nom en double peut prêter à confusion dans le chat et les listes.",
         "description": "Description",
         "descriptionPlaceholder": "Que fait cet agent ?",
         "systemInstructions": "Instructions système",
@@ -5435,7 +5481,7 @@
         "notPublished": "Publie cet agent pour activer l'accès par webhook.",
         "createButton": "Créer un webhook",
         "createdTitle": "Webhook créé",
-        "urlWarning": "Copie cette URL maintenant. Elle ne sera affichée qu'une seule fois.",
+        "urlWarning": "Enregistre cette URL de webhook. Le jeton dans l'URL sert d'identifiant d'authentification.",
         "webhookUrl": "URL du webhook",
         "copyUrl": "Copier l'URL du webhook",
         "copyExample": "Copier l'exemple",
@@ -6049,7 +6095,6 @@
       "testSystemError": "Le test de connexion n'a pas pu s'exécuter. Vérifie l'URL de base et la clé API du fournisseur, puis réessaie.",
       "addKey": "Ajouter une clé API",
       "apiKeyEnter": "Saisis la clé API",
-      "searchProvider": "Rechercher des fournisseurs...",
       "created": "Fournisseur créé",
       "modelCount": "{count, plural, one {# modèle} other {# modèles}}",
       "removeModel": "Supprimer le modèle",
@@ -6668,6 +6713,7 @@
     "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
+    "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
     "taskReviewApproved": "Revue approuvée",
     "taskReviewApprovedBody": "« {taskTitle} » a été approuvée et terminée.",
     "taskReviewChangesRequested": "Modifications demandées",
@@ -6711,6 +6757,10 @@
     "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
     "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
     "saveSuccess": "Secret enregistré",
+    "editButton": "Modifier",
+    "editTitle": "Modifier le secret",
+    "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
+    "updateSuccess": "Secret mis à jour",
     "deleteSuccess": "Secret supprimé"
   },
   "tasks": {
@@ -7004,6 +7054,8 @@
       "description": "Connecte-toi avec un passkey (Face ID, Touch ID, Windows Hello ou une clé de sécurité). Un passkey est résistant au phishing et satisfait l'exigence de double authentification de ton organisation.",
       "addButton": "Ajouter un passkey",
       "revokeButton": "Supprimer",
+      "revokeConfirmTitle": "Supprimer le passkey ?",
+      "revokeConfirmDescription": "Cela supprime « {name} » qui ne pourra plus être utilisé pour se connecter. S'il s'agissait de ton seul second facteur, il se peut que tu doives reconfigurer la double authentification.",
       "empty": "Aucun passkey enregistré pour l'instant.",
       "unnamed": "Passkey",
       "registered": "Passkey enregistré",
@@ -7025,7 +7077,7 @@
     "setup": {
       "title": "Configurer l'authentification à double facteur",
       "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
-      "manualEntry": "Impossible de scanner ? Saisis ce secret manuellement :",
+      "manualEntry": "Ou saisir manuellement :",
       "verifyCodeLabel": "Code de vérification",
       "verifyButton": "Vérifier et activer"
     },
@@ -7044,6 +7096,7 @@
     "verify": {
       "title": "Vérifier ton identité",
       "description": "Saisis le code à 6 chiffres de ton application d'authentification.",
+      "backupDescription": "Saisis l'un de tes codes de secours.",
       "codeLabel": "Code d'authentification",
       "useBackupCodeToggle": "Utiliser un code de secours à la place",
       "useAuthenticatorToggle": "Utiliser l'application d'authentification à la place",
@@ -7051,6 +7104,7 @@
       "submitButton": "Vérifier",
       "invalid": "Code invalide ou expiré. Merci de réessayer.",
       "tooManyAttempts": "Trop de tentatives échouées. Merci de réessayer plus tard.",
+      "success": "Connecté avec succès",
       "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres.",
       "usePasskeyButton": "Utiliser un passkey à la place",
       "passkeyFailed": "Connexion par passkey échouée ou annulée. Réessaie ou utilise un code."
@@ -7320,7 +7374,7 @@
       "columnActivity": "Dernière activité",
       "sharingOrgWide": "Toute l'organisation",
       "sharingTeamPrefix": "Équipe :",
-      "sharingMultipleTeams": "{count} équipes"
+      "sharingMultipleTeams": "{count, plural, one {# équipe} other {# équipes}}"
     },
     "create": {
       "title": "Créer un projet",
@@ -7381,6 +7435,7 @@
       "ragStatusCompleted": "Indexé",
       "ragStatusFailed": "Échec",
       "detachAction": "Retirer du projet",
+      "previewAction": "Aperçu du fichier",
       "detachSuccess": "Document retiré du projet",
       "detachError": "Impossible de retirer le document",
       "attachSuccess": "Document ajouté au projet",
@@ -7400,6 +7455,7 @@
       "shareToggleDisclosure": "Si tu partages ce chat, tes souvenirs et instructions personnels resteront cachés des autres membres.",
       "shareSuccess": "Chat partagé avec le projet",
       "unshareSuccess": "Chat retiré du projet",
+      "shareDisabledPersonalization": "La personnalisation a été désactivée pour ce chat, afin que tes souvenirs et instructions restent privés vis-à-vis des autres membres.",
       "shareError": "Impossible de mettre à jour le partage"
     },
     "agents": {
@@ -7519,6 +7575,7 @@
       "PROJECT_FORBIDDEN": "Tu n'as pas accès à ce projet.",
       "PROJECT_NOT_FOUND": "Impossible de trouver ce projet. Il a peut-être été supprimé.",
       "PROJECT_HAS_BOUND_APPS": "Désinstallez d'abord les applications qui utilisent ce projet, puis supprimez-le.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Désinstallez d'abord les applications qui utilisent ce projet, puis supprimez-le : {apps}.",
       "PROJECT_MISMATCH": "Ce chat se trouve dans un autre projet. Change de contexte pour continuer.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} n'est pas disponible dans ce projet. Choisis un autre agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} n'est pas disponible dans ce projet. Choisis un autre modèle.",

@@ -125,6 +125,12 @@ describe('projects error-code ↔ i18n key consistency', () => {
       // at the regex match position, and intentionally lives outside the
       // PROJECT_/DOCUMENT_/THREAD_ namespaces so the regex skips it.
       'RATE_LIMITED',
+      // UI-only formatting variant of the server-thrown PROJECT_HAS_BOUND_APPS
+      // code: same condition, but with an `{apps}` placeholder so the delete
+      // dialog can list the bound app names the backend returns in
+      // `error.data.apps`. There is no separate server throw — the thrown code
+      // stays PROJECT_HAS_BOUND_APPS; the UI picks the named vs. generic message.
+      'PROJECT_HAS_BOUND_APPS_NAMED',
     ]);
 
     const orphans: string[] = [];

@@ -46,6 +46,18 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
+// The "Trashed" column renders via the shared, locale-aware <TableDateCell>.
+// Stub the date hook so the relative output is deterministic (mirrors the
+// sibling table-date-cell test).
+vi.mock('@/app/hooks/use-format-date', () => ({
+  useFormatDate: () => ({
+    formatDate: (_date: unknown, preset?: string) =>
+      preset === 'relative' ? '5 minutes ago' : 'Jan 1, 2025',
+    locale: 'en',
+    timezone: 'UTC',
+  }),
+}));
+
 const HEADING = 'Trash';
 const EMPTY_NOTICE =
   'Nothing in the trash. Retention will move expired rows here once their grace window starts.';
@@ -115,5 +127,46 @@ describe('TrashPage', () => {
 
     // The empty notice must NOT show once rows exist.
     expect(screen.queryByText(EMPTY_NOTICE)).not.toBeInTheDocument();
+  });
+
+  // Regression for #2052 [110]: the "Trashed" column used a local
+  // hardcoded-English `formatRelative()` helper. It now renders through the
+  // shared, locale-aware <TableDateCell preset="relative" />.
+  it('renders the locale-aware relative time, with an em-dash fallback for a missing date', () => {
+    mockListTrashedRows.mockReturnValue({
+      data: {
+        rows: [
+          {
+            resourceType: 'document' as const,
+            id: 'row-dated',
+            status: 'trashed' as const,
+            statusChangedAt: 1_700_000_000_000,
+            createdAt: 1_700_000_000_000,
+            displayName: 'Quarterly report',
+            ownerId: 'user-1',
+            ownerName: 'Ada Lovelace',
+          },
+          {
+            resourceType: 'document' as const,
+            id: 'row-undated',
+            status: 'trashed' as const,
+            statusChangedAt: null,
+            createdAt: null,
+            displayName: 'Orphan draft',
+            ownerId: 'user-2',
+            ownerName: 'Grace Hopper',
+          },
+        ],
+        nextCursor: null,
+      },
+      isLoading: false,
+    });
+
+    render(<TrashPage organizationId="org-1" />);
+
+    // Locale-aware relative output (from the shared cell), not raw English.
+    expect(screen.getByText('5 minutes ago')).toBeInTheDocument();
+    // Null date -> the shared cell's em-dash fallback (no NaN/crash).
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 });

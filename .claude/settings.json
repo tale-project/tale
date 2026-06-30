@@ -1,5 +1,6 @@
 {
   "effortLevel": "xhigh",
+  "disableBundledSkills": true,
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [

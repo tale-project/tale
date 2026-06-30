@@ -8,7 +8,7 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 
-import { planGuards, planMirror } from '../src/sync';
+import { planGuards, planMirror, planProjection } from '../src/sync';
 
 // tests/ lives at tools/skills/tests/, so the repo root is three levels up.
 const repoRoot = resolve(import.meta.dir, '../../..');
@@ -20,6 +20,12 @@ describe('committed skills are in sync with their source', () => {
       missing: [],
       extra: [],
     });
+  });
+
+  test('every workflow skill projection matches its builtin-configs source', () => {
+    for (const plan of planProjection(repoRoot)) {
+      expect(plan.diff).toEqual({ changed: [], missing: [], extra: [] });
+    }
   });
 
   test('every shipped skill passes the portability guards', () => {
