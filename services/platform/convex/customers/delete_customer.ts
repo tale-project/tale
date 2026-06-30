@@ -2,6 +2,8 @@
  * Delete a customer (business logic)
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertNotHeld } from '../governance/legal_hold_guard';
@@ -13,7 +15,10 @@ export async function deleteCustomer(
 ): Promise<null> {
   const customer = await ctx.db.get(customerId);
   if (!customer) {
-    throw new Error('Customer not found');
+    throw new ConvexError({
+      code: 'CUSTOMER_NOT_FOUND',
+      message: 'Customer not found',
+    });
   }
 
   // Customers have no per-row hold today; this only blocks on org-level
