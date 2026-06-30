@@ -7541,7 +7541,6 @@
       "duplicateSuccess": "Projet dupliqué",
       "duplicateError": "Impossible de dupliquer le projet",
       "renameDialogTitle": "Renommer le projet",
-      "renameDialogDescription": "Modifier le nom du projet.",
       "renameSubmit": "Enregistrer",
       "renameSubmitting": "Enregistrement…"
     },
