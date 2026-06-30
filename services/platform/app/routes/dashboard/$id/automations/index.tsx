@@ -74,7 +74,7 @@ function AutomationsPage() {
     );
   }
 
-  if (ability.cannot('write', 'wfDefinitions')) {
+  if (ability.cannot('read', 'wfDefinitions')) {
     return <AccessDenied message={t('automations')} />;
   }
 

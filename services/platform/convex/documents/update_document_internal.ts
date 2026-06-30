@@ -2,6 +2,8 @@
  * Update a document (internal helper)
  */
 
+import { ConvexError } from 'convex/values';
+
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -30,13 +32,19 @@ export async function updateDocumentInternal(
   const { documentId, contentHash, ...updateData } = args;
   const document = await ctx.db.get(documentId);
   if (!document) {
-    throw new Error('Document not found');
+    throw new ConvexError({
+      code: 'DOCUMENT_NOT_FOUND',
+      message: 'Document not found',
+    });
   }
 
   if (updateData.folderId) {
     const folder = await ctx.db.get(updateData.folderId);
     if (!folder || folder.organizationId !== document.organizationId) {
-      throw new Error('Folder not found');
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
     }
   }
 

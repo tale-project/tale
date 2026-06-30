@@ -1,5 +1,5 @@
 import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
@@ -72,7 +72,10 @@ export const createChatThread = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const threadId = await createChatThreadHelper(
@@ -113,14 +116,22 @@ export const createArenaThreadB = mutation({
   returns: v.string(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const metaA = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdA))
       .first();
     if (!metaA || metaA.userId !== authUser.userId) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     // Each arena session gets a fresh group ID
@@ -168,7 +179,10 @@ export const deleteChatThread = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate: verify the caller can read this thread before any
@@ -193,7 +207,10 @@ export const updateChatThread = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, same rationale as deleteChatThread above:
@@ -216,7 +233,10 @@ export const cancelGeneration = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     await cancelGenerationHelper(
@@ -239,7 +259,10 @@ export const archiveChatThread = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, same rationale as deleteChatThread above:
@@ -261,7 +284,10 @@ export const unarchiveChatThread = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, same rationale as archiveChatThread above.
@@ -292,7 +318,10 @@ export const deleteAllChatThreads = mutation({
   handler: async (ctx, args): Promise<{ scheduled: number }> => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     await assertBulkActionAllowed(ctx, identity.userId, args.organizationId);
@@ -336,7 +365,10 @@ export const archiveAllChatThreads = mutation({
   handler: async (ctx, args): Promise<{ scheduled: number }> => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     await assertBulkActionAllowed(ctx, identity.userId, args.organizationId);
@@ -388,7 +420,10 @@ export const setThreadCanvasState = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, mirrors setThreadPinned / markThreadRead — the row
@@ -432,7 +467,10 @@ export const setThreadPinned = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, same rationale as the other thread mutations in
@@ -464,7 +502,10 @@ export const setExternalAgentMode = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate, same rationale as setThreadPinned: the row is
@@ -491,7 +532,10 @@ export const markThreadRead = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Best-effort unread tracking — never throw. `markThreadRead` fires on
@@ -518,7 +562,10 @@ export const updateBranchSelections = mutation({
   handler: async (ctx, args) => {
     const identity = await getAuthUserIdentity(ctx);
     if (!identity) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     // Cross-tenant gate: without this, any authenticated user could
@@ -595,7 +642,10 @@ export const createArenaBranchLink = internalMutation({
     const lastUserMessage = userMessages[userMessages.length - 1];
 
     if (!lastUserMessage) {
-      throw new Error('No user message found in root thread');
+      throw new ConvexError({
+        code: 'NO_USER_MESSAGE',
+        message: 'No user message found in root thread',
+      });
     }
 
     // Count user messages to determine forkOrder (0-based)
@@ -629,7 +679,12 @@ export const cleanupArenaBranch = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     // Verify ownership of Thread A
     const metaA = await ctx.db
@@ -637,7 +692,10 @@ export const cleanupArenaBranch = mutation({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdA))
       .first();
     if (!metaA || metaA.userId !== authUser.userId) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     // Defense-in-depth: also verify Thread B ownership and arena pairing.
@@ -651,7 +709,10 @@ export const cleanupArenaBranch = mutation({
       !metaA.arenaGroupId ||
       metaB.arenaGroupId !== metaA.arenaGroupId
     ) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     // If B won, wipe Thread A and copy all of B's messages into it

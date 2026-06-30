@@ -2,7 +2,7 @@
  * Update user password - Business logic
  */
 
-import { hashPassword } from 'better-auth/crypto';
+import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import { ConvexError } from 'convex/values';
 
 import {
@@ -156,6 +156,23 @@ async function forcedResetCredentialPassword(
     throw new ConvexError({
       code: 'credential_account_not_found',
       message: 'Credential account missing _id',
+    });
+  }
+
+  // Rotation hygiene: a forced change must not re-set the very password the
+  // user is being forced to rotate away from. The forced path deliberately
+  // skips the currentPassword re-auth, so without this check an expired
+  // credential can be "rotated" to itself, silently defeating the policy
+  // (#2038). The voluntary path is unaffected — Better Auth's changePassword
+  // already re-authenticates with the current password.
+  const currentHash = getString(credential, 'password');
+  if (
+    currentHash &&
+    (await verifyPassword({ hash: currentHash, password: newPassword }))
+  ) {
+    throw new ConvexError({
+      code: 'password_reused',
+      message: 'New password must be different from your current password',
     });
   }
 

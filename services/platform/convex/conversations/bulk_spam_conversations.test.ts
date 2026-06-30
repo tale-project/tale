@@ -4,8 +4,8 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { bulkSpamConversations } from './bulk_spam_conversations';
 
-vi.mock('../audit_logs/helpers', () => ({
-  logSuccess: vi.fn().mockResolvedValue(undefined),
+vi.mock('../audit_logs/emit', () => ({
+  emitAuditSuccess: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../lib/helpers/build_audit_context', () => ({

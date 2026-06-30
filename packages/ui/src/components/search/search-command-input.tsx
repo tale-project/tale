@@ -55,7 +55,7 @@ export function SearchCommandInput({
         />
       </span>
       <input
-        type="search"
+        type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}

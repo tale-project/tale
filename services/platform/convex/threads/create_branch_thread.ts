@@ -4,7 +4,7 @@ import {
   saveMessage,
   type MessageDoc,
 } from '@convex-dev/agent';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
@@ -30,11 +30,17 @@ export const createBranchThread = internalMutation({
       .first();
 
     if (!sourceMetadata) {
-      throw new Error('Source thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Source thread not found',
+      });
     }
 
     if (sourceMetadata.userId !== args.userId) {
-      throw new Error('Not authorized to branch this thread');
+      throw new ConvexError({
+        code: 'NOT_AUTHORIZED',
+        message: 'Not authorized to branch this thread',
+      });
     }
 
     // Count existing branches at this fork point for branchIndex

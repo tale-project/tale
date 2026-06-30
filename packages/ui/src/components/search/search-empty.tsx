@@ -26,17 +26,23 @@ export function SearchEmpty({
   reduceMotion,
 }: SearchEmptyProps) {
   const isShortQuery = !!shortQuery && shortQuery.length > 0;
+  // The hint states (no input yet, or a too-short query) read best centered in
+  // the panel; the recents *list* stays top-aligned where a list belongs.
+  const centerVertically = isShortQuery || recents.length === 0;
 
   return (
     <motion.div
       initial={reduceMotion ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-      className="px-4 py-6"
+      className={cn(
+        'px-4 py-6',
+        centerVertically && 'flex min-h-72 flex-col justify-center',
+      )}
     >
       {isShortQuery ? (
         <div
-          className="text-fg-muted mb-6 flex flex-col items-center justify-center gap-2 px-4 py-6 text-center"
+          className="text-fg-muted flex flex-col items-center justify-center gap-2 px-4 py-6 text-center"
           aria-live="polite"
         >
           <span className="border-border-base bg-bg-elevated/40 inline-flex size-10 items-center justify-center rounded-full border">
@@ -101,7 +107,7 @@ export function SearchEmpty({
           </ul>
         </section>
       ) : (
-        <div className="text-fg-muted mb-6 flex flex-col items-center justify-center gap-2 px-4 py-6 text-center">
+        <div className="text-fg-muted flex flex-col items-center justify-center gap-2 px-4 py-6 text-center">
           <span className="border-border-base bg-bg-elevated/40 inline-flex size-10 items-center justify-center rounded-full border">
             <Search aria-hidden className="size-4" />
           </span>
