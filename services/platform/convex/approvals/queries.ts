@@ -6,6 +6,7 @@ import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import * as ApprovalsHelpers from './helpers';
 import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
 import {
@@ -17,6 +18,7 @@ import {
 export const getApproval = query({
   args: {
     approvalId: v.id('approvals'),
+    organizationId: v.string(),
   },
   returns: v.union(approvalItemValidator, v.null()),
   handler: async (ctx, args) => {
@@ -24,7 +26,13 @@ export const getApproval = query({
     if (!authUser) return null;
 
     const approval = await ApprovalsHelpers.getApproval(ctx, args.approvalId);
-    if (!approval) return null;
+    // Active-org coherence: deny an approval carried over from another org.
+    if (
+      !approval ||
+      !isActiveOrg(approval.organizationId, args.organizationId)
+    ) {
+      return null;
+    }
 
     try {
       await getOrganizationMember(ctx, approval.organizationId, authUser);

@@ -98,8 +98,11 @@ export const createTaskFromExternalIssue = action({
     if (args.projectId) {
       const project = await ctx.runQuery(api.projects.queries.getProject, {
         projectId: args.projectId,
+        organizationId: args.organizationId,
       });
-      if (!project || project.organizationId !== args.organizationId) {
+      // getProject now enforces active-org coherence (returns null when the
+      // project is not in args.organizationId), so a non-null result is in-org.
+      if (!project) {
         throw new Error('Target project not found in this organization');
       }
       projectId = args.projectId;
@@ -153,6 +156,7 @@ export const createTaskFromExternalIssue = action({
       // description,...}); fetch it rather than re-deriving the shape here.
       const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
         taskId,
+        organizationId: args.organizationId,
       });
       if (!loaded?.task) {
         // Just-created task isn't readable back (e.g. raced delete): don't start
@@ -211,6 +215,7 @@ export const startTaskWorkflow = action({
 
     const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
       taskId: args.taskId,
+      organizationId: args.organizationId,
     });
     if (!loaded?.task) {
       throw new Error('Task not found');
@@ -317,6 +322,7 @@ export const mergeTaskPullRequest = action({
 
     const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
       taskId: args.taskId,
+      organizationId: args.organizationId,
     });
     if (!loaded?.task) {
       throw new Error('Task not found');

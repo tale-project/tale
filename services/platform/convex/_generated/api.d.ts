@@ -830,6 +830,7 @@ import type * as lib_rls_helpers_role_helpers from "../lib/rls/helpers/role_help
 import type * as lib_rls_helpers_z_mutation_with_rls from "../lib/rls/helpers/z_mutation_with_rls.js";
 import type * as lib_rls_helpers_z_query_with_rls from "../lib/rls/helpers/z_query_with_rls.js";
 import type * as lib_rls_index from "../lib/rls/index.js";
+import type * as lib_rls_organization_assert_active_org from "../lib/rls/organization/assert_active_org.js";
 import type * as lib_rls_organization_get_organization_member from "../lib/rls/organization/get_organization_member.js";
 import type * as lib_rls_organization_get_user_organizations from "../lib/rls/organization/get_user_organizations.js";
 import type * as lib_rls_organization_validate_organization_access from "../lib/rls/organization/validate_organization_access.js";
@@ -2431,6 +2432,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/helpers/z_mutation_with_rls": typeof lib_rls_helpers_z_mutation_with_rls;
   "lib/rls/helpers/z_query_with_rls": typeof lib_rls_helpers_z_query_with_rls;
   "lib/rls/index": typeof lib_rls_index;
+  "lib/rls/organization/assert_active_org": typeof lib_rls_organization_assert_active_org;
   "lib/rls/organization/get_organization_member": typeof lib_rls_organization_get_organization_member;
   "lib/rls/organization/get_user_organizations": typeof lib_rls_organization_get_user_organizations;
   "lib/rls/organization/validate_organization_access": typeof lib_rls_organization_validate_organization_access;

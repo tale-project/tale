@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -161,18 +162,20 @@ export function useCategories(organizationId: string | undefined) {
 }
 
 export function usePrompt(promptId: Id<'promptTemplates'> | undefined) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.prompts.queries.getPrompt,
-    promptId ? { promptId } : 'skip',
-    { enabled: !!promptId },
+    promptId && organizationId ? { promptId, organizationId } : 'skip',
+    { enabled: !!promptId && !!organizationId },
   );
 }
 
 export function usePromptHistory(promptId: Id<'promptTemplates'> | undefined) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.prompts.queries.getPromptHistory,
-    promptId ? { promptId } : 'skip',
-    { enabled: !!promptId },
+    promptId && organizationId ? { promptId, organizationId } : 'skip',
+    { enabled: !!promptId && !!organizationId },
   );
 }
 

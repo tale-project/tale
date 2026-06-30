@@ -32,6 +32,7 @@ export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
     void context.queryClient.prefetchQuery(
       convexQuery(api.projects.queries.getProject, {
         projectId: asProjectId(params.projectId),
+        organizationId: params.id,
       }),
     );
   },
