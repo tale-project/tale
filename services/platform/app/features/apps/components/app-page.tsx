@@ -296,7 +296,9 @@ function InstalledAppBody({
   lifecycleContext: 'org' | 'project';
 }) {
   const { t } = useT('apps');
-  const { config } = useAppConfig(organizationId, appSlug);
+  // Project-scoped apps read/write config PER PROJECT, keyed by the route's
+  // project; org-scoped apps (projectId undefined) stay at org level.
+  const { config } = useAppConfig(organizationId, appSlug, projectId);
   const [configOpen, setConfigOpen] = useState(false);
   const hasConfig = app.requiredConfig.length > 0;
   // "Configured" = every declared field has a stored value. While false, a
@@ -358,6 +360,7 @@ function InstalledAppBody({
               onOpenChange={setConfigOpen}
               organizationId={organizationId}
               appSlug={appSlug}
+              projectId={projectId}
               fields={app.requiredConfig}
               config={config}
               resolveLabel={(labelKey) => labels[labelKey] ?? labelKey}

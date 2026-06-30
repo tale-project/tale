@@ -22,8 +22,10 @@ import { Checkbox } from '@tale/ui/checkbox';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Textarea } from '@tale/ui/textarea';
 import { useEffect, useState } from 'react';
 
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { deriveConfigValues } from '@/lib/shared/platform/derive_config';
@@ -52,6 +54,7 @@ function initValues(
 export function AppConfigForm({
   organizationId,
   appSlug,
+  projectId,
   fields,
   config,
   resolveLabel,
@@ -59,6 +62,10 @@ export function AppConfigForm({
 }: {
   organizationId: string;
   appSlug: string;
+  /** Bound project for a `scope: 'project'` app — config is saved per-project so
+   *  two projects bound to the same app never overwrite each other. Undefined for
+   *  org-scoped apps (saved at org level). */
+  projectId?: string;
   fields: AppConfigField[];
   config: Record<string, unknown>;
   /** Resolve a field's `labelKey`/`placeholderKey` against the app's pack catalog. */
@@ -104,7 +111,12 @@ export function AppConfigForm({
     }
     setInvalid([]);
     try {
-      await setConfig.mutateAsync({ organizationId, appSlug, config: out });
+      await setConfig.mutateAsync({
+        organizationId,
+        appSlug,
+        config: out,
+        ...(projectId !== undefined && { projectId: asProjectId(projectId) }),
+      });
       toast({ title: t('config.saved') });
       onSaved?.();
     } catch (err) {
@@ -129,6 +141,19 @@ export function AppConfigForm({
                 disabled={setConfig.isPending}
                 onCheckedChange={(c) =>
                   setValues((s) => ({ ...s, [f.key]: c === true }))
+                }
+              />
+            ) : f.multiline ? (
+              <Textarea
+                value={asString(values[f.key])}
+                placeholder={
+                  f.placeholderKey ? resolveLabel(f.placeholderKey) : undefined
+                }
+                disabled={setConfig.isPending}
+                aria-invalid={invalid.includes(f.key) || undefined}
+                rows={4}
+                onChange={(e) =>
+                  setValues((s) => ({ ...s, [f.key]: e.target.value }))
                 }
               />
             ) : (
