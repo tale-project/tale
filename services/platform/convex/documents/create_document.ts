@@ -2,6 +2,8 @@
  * Create a new document
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
@@ -16,7 +18,10 @@ export async function createDocument(
   if (args.folderId) {
     const folder = await ctx.db.get(args.folderId);
     if (!folder || folder.organizationId !== args.organizationId) {
-      throw new Error('Folder not found');
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
     }
   }
 

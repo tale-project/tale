@@ -2,6 +2,7 @@
  * Update a document (for public API)
  */
 
+import { ConvexError } from 'convex/values';
 import _ from 'lodash';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -29,18 +30,27 @@ export async function updateDocument(
 ): Promise<void> {
   const document = await ctx.db.get(args.documentId);
   if (!document) {
-    throw new Error('Document not found');
+    throw new ConvexError({
+      code: 'DOCUMENT_NOT_FOUND',
+      message: 'Document not found',
+    });
   }
 
   if (args.teamIds !== undefined && args.teamIds.length > 0) {
     if (!args.userId) {
-      throw new Error('userId is required when updating teamIds');
+      throw new ConvexError({
+        code: 'USER_ID_REQUIRED',
+        message: 'userId is required when updating teamIds',
+      });
     }
 
     if (document.folderId) {
       const folder = await ctx.db.get(document.folderId);
       if (folder?.teamId) {
-        throw new Error('Cannot change team: inherited from parent folder');
+        throw new ConvexError({
+          code: 'TEAM_INHERITED_FROM_FOLDER',
+          message: 'Cannot change team: inherited from parent folder',
+        });
       }
     }
 
@@ -48,9 +58,10 @@ export async function updateDocument(
     const userTeamSet = new Set(userTeamIds);
     for (const id of args.teamIds) {
       if (!userTeamSet.has(id)) {
-        throw new Error(
-          'Cannot assign document to a team you do not belong to',
-        );
+        throw new ConvexError({
+          code: 'TEAM_ACCESS_DENIED',
+          message: 'Cannot assign document to a team you do not belong to',
+        });
       }
     }
   }
