@@ -101,7 +101,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Unauthenticated');
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
@@ -111,7 +111,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Member not found');
+    ).rejects.toMatchObject({ data: { code: 'MEMBER_NOT_FOUND' } });
   });
 
   it('throws when the caller is not a member of the target org', async () => {
@@ -120,7 +120,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Only admins can revoke passkeys for members');
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Only admins can revoke passkeys for members');
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
   });
 
   it('rejects an admin (non-owner) targeting an owner', async () => {
@@ -146,7 +146,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Cannot revoke passkeys for this member');
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
@@ -162,7 +162,7 @@ describe('revokePasskeyForMember handler', () => {
 
     await expect(
       handler(ctx, { memberId: 'm_target', passkeyId: 'pk_1' }),
-    ).rejects.toThrow('Passkey not found');
+    ).rejects.toMatchObject({ data: { code: 'PASSKEY_NOT_FOUND' } });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
