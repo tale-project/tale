@@ -24,8 +24,8 @@ import {
   Info,
   Loader2,
 } from 'lucide-react';
+import type { HTMLAttributes } from 'react';
 import {
-  HTMLAttributes,
   useState,
   forwardRef,
   memo,
@@ -35,7 +35,7 @@ import {
   type ReactNode,
 } from 'react';
 import ReactDatePicker from 'react-datepicker';
-import { DateRange } from 'react-day-picker';
+import type { DateRange } from 'react-day-picker';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

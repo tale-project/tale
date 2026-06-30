@@ -21,6 +21,13 @@ vi.mock('convex/values', () => {
       null: stub,
       bytes: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : 'ConvexError');
+        this.data = data;
+      }
+    },
   };
 });
 
@@ -210,7 +217,7 @@ describe('transcribeDictation handler', () => {
           mimeType: 'audio/webm',
           organizationId: ORG_ID,
         }),
-      ).rejects.toThrow(/Unauthenticated/);
+      ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
       // Whisper must not be called before the auth check passes.
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
@@ -279,7 +286,9 @@ describe('transcribeDictation handler', () => {
           mimeType: 'audio/webm',
           organizationId: ORG_ID,
         }),
-      ).rejects.toThrow(/exceeds 8 MiB/);
+      ).rejects.toMatchObject({
+        data: { code: 'DICTATION_TOO_LARGE', maxBytes: 8 * 1024 * 1024 },
+      });
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 

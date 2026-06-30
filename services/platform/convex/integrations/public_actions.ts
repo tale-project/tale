@@ -115,6 +115,7 @@ export const listUntrackedGitHubIssues = action({
     const excluded = buildExclusionSet(
       await ctx.runQuery(api.tasks.queries.listExternalKeysByProject, {
         projectId: args.projectId,
+        organizationId: args.organizationId,
         externalSystem: args.externalSystem,
       }),
       '',

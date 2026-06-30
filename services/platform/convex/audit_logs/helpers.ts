@@ -186,7 +186,48 @@ export function buildAuditRecordHashInput(
   };
 }
 
-export async function createAuditLog(
+/**
+ * Per-mutation append serialization.
+ *
+ * `createAuditLog` reads the current chain head (`lastEntry`) and chains its
+ * new row off it. Two calls that interleave their read-before-insert inside a
+ * SINGLE mutation — e.g. `Promise.all(orgs.map((o) => createAuditLog(ctx, …)))`
+ * — both observe the same head and commit the SAME `previousHash`: a silent
+ * in-transaction chain fork the next integrity run reports as tampering.
+ * Cross-mutation forks are already prevented by the genesis-sentinel +
+ * `chainSuccessor` OCC patch, but neither mechanism fires WITHIN one
+ * transaction. Serialize every `createAuditLog` sharing a `MutationCtx` so each
+ * call observes the previous row's insert as its `lastEntry`. Keyed on the ctx
+ * object (one chain per mutation); unrelated mutations never contend, and the
+ * entry is GC'd with the ctx. Round-2 v05 M1 / #1846 item 5.
+ */
+const auditAppendTails = new WeakMap<object, Promise<unknown>>();
+
+export function createAuditLog(
+  ctx: MutationCtx,
+  args: CreateAuditLogArgs,
+): Promise<Id<'auditLogs'>> {
+  const previous = auditAppendTails.get(ctx) ?? Promise.resolve();
+  // Run after the previous append for this ctx settles (resolved OR rejected),
+  // so a failed sibling write never lets the next one race the head read.
+  const run = previous.then(
+    () => insertAuditLog(ctx, args),
+    () => insertAuditLog(ctx, args),
+  );
+  // The stored tail swallows the outcome so one append throwing can't break
+  // ordering for the next queued call; the real result/error flows out via
+  // `run` to this caller.
+  auditAppendTails.set(
+    ctx,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
+
+async function insertAuditLog(
   ctx: MutationCtx,
   args: CreateAuditLogArgs,
 ): Promise<Id<'auditLogs'>> {
@@ -197,7 +238,7 @@ export async function createAuditLog(
     args.changedFields ??
     computeChangedFields(args.previousState, args.newState);
 
-  const timestamp = Date.now();
+  const now = Date.now();
 
   // Genesis sentinel: read + patch a per-org row to force OCC
   // serialization on the very first audit write per org. Without this,
@@ -211,7 +252,26 @@ export async function createAuditLog(
       q.eq('organizationId', args.organizationId),
     )
     .first();
+  // Clamp the chain timestamp to be strictly greater than this org's last
+  // inserted timestamp. The chain is ordered by this app-level `timestamp`
+  // for BOTH the head-pick (desc) and the verify walk (asc), so if the
+  // backend wall clock steps backward (NTP step correction, VM snapshot
+  // restore) a new row chains off the true head yet sorts BEFORE it — the
+  // next writer keeps picking the higher-timestamp old head, the row is
+  // permanently orphaned, and the ascending verify walk reports a false
+  // linkage break at it. `lastInsertedAt` is already read + patched here for
+  // OCC, so the monotonicity clamp costs nothing. #1846 item 4.
+  //
+  // Tradeoff (PR #2218 review): the clamp is one-directional. A large FORWARD
+  // clock step pins `lastInsertedAt` high and ratchets every later row's
+  // timestamp to `+1ms` detached from real time until the wall clock catches
+  // up. That keeps the chain monotonic and verifiable (the property that
+  // matters here), at the cost of timestamps drifting ahead of real time in
+  // that window; we accept it rather than capping forward, since a forward cap
+  // would re-open the same sort-before-head orphan hazard this clamp closes.
+  let timestamp = now;
   if (genesis) {
+    timestamp = Math.max(now, genesis.lastInsertedAt + 1);
     // Patch forces OCC contention with any concurrent writer for the
     // same org. The loser's transaction aborts and retries; on retry it
     // observes the winner's just-committed audit row as `lastEntry`.

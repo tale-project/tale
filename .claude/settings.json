@@ -1,36 +1,48 @@
 {
   "effortLevel": "xhigh",
+  "disableBundledSkills": true,
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [
-      "Bash(bun run check)",
-      "Bash(bun run verify)",
-      "Bash(bun run format)",
-      "Bash(bun run format:check)",
-      "Bash(bun run lint)",
-      "Bash(bun run lint:sast)",
-      "Bash(bun run typecheck)",
-      "Bash(bun run test)",
-      "Bash(bun run test:e2e)",
-      "Bash(bun run knip)",
-      "Bash(bun run knip:check)",
-      "Bash(bun run --filter * lint)",
-      "Bash(bun run --filter * test)",
-      "Bash(bun run --filter * typecheck)",
-      "Bash(bun run migrations:check)",
+      "Bash(bun:*)",
+      "Bash(bunx:*)",
+      "Bash(npm run:*)",
+      "Bash(npx:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
       "Bash(git branch:*)",
-      "Bash(git stash list)",
+      "Bash(git stash:*)",
+      "Bash(git add:*)",
+      "Bash(git restore:*)",
+      "Bash(git switch:*)",
+      "Bash(git fetch:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
       "Bash(gh run view:*)",
       "Bash(gh run list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
       "Bash(rg:*)",
-      "Bash(bunx convex env list)",
-      "Bash(bunx convex codegen)"
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(jq:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(which:*)",
+      "Bash(tree:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(env)",
+      "Bash(pwd)"
     ]
   },
   "hooks": {
@@ -57,6 +69,5 @@
         ]
       }
     ]
-  },
-  "model": "claude-opus-4-8"
+  }
 }

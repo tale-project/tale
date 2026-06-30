@@ -17,6 +17,7 @@ import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
+import { selectStageableSkills } from '../../lib/skills/precedence';
 import {
   sessionDeleteFiles,
   sessionListFiles,
@@ -28,11 +29,21 @@ const SKILLS_DIR = '.runtime/home/.claude/skills';
 const INTEGRATION_SKILL_PREFIX = 'integration-';
 const BROWSER_CONTROL_SKILL = 'browser-human-control';
 
+/**
+ * Built-in skills baked into the sandbox-runtime image
+ * (services/sandbox-runtime/Dockerfile) under /opt/agents/skills/<name> and
+ * symlinked into the session's user-level skill dir by the entrypoint. Tale
+ * ships their content WITH the image, so per turn it only enforces repo
+ * precedence — see reconcileBuiltinSkills. Keep in sync with the Dockerfile +
+ * entrypoint.sh.
+ */
+const BAKED_BUILTIN_SKILLS = ['visual-aspect-analyzer'] as const;
+
 /** Static CC-native skill (browserCdp turns only) teaching the agent WHEN to
- * call `request_human_control`. The trigger condition lives here, not in the
- * system prompt (capability-only) — mirrors how plan-mode guidance is staged
- * out of the standing prompt. The tool description carries the "what"; this
- * carries the "when". */
+ * call \`request_human_control\`. Tightly coupled to the convex-provided tool +
+ * the live-browser turn condition, so it lives INLINE here (not a standalone
+ * skill under skills/) and is staged conditionally — not baked into the image.
+ * The tool description carries the "what"; this carries the "when". */
 const BROWSER_CONTROL_SKILL_MD = `---
 name: ${BROWSER_CONTROL_SKILL}
 description: "Hand the live browser to a human for a step only a person can do — a CAPTCHA, login, 2FA/OTP, or consent screen. Call the request_human_control tool."
@@ -171,10 +182,45 @@ ${SLUG_APPENDIX[entry.slug] ?? ''}`;
 }
 
 /**
+ * Workspace-relative dirs (under WORKSPACE_ROOT=/user) where a checked-out repo
+ * declares its OWN skills. The repo is authoritative — Tale defers to it.
+ */
+const REPO_SKILL_DIRS = ['workspace/.claude/skills', 'workspace/.codex/skills'];
+
+/**
+ * Names of skills the workspace repo provides (project-level), so Tale's
+ * user-level staged skills can defer to them on a name collision. Best-effort:
+ * returns an empty set on any failure (or when there is no repo), so the
+ * precedence check never fails a turn. `.claude/skills/<name>/` are directories;
+ * `.codex/skills/<name>.md` are files.
+ */
+async function repoOwnedSkillNames(sessionId: string): Promise<Set<string>> {
+  const names = new Set<string>();
+  for (const dir of REPO_SKILL_DIRS) {
+    try {
+      const entries = await sessionListFiles(sessionId, dir);
+      for (const entry of entries ?? []) {
+        if (entry.type === 'dir') {
+          names.add(entry.name);
+        } else if (entry.name.endsWith('.md')) {
+          names.add(entry.name.slice(0, -'.md'.length));
+        }
+      }
+    } catch (err) {
+      console.warn(`[skill-precedence] listing ${dir} failed (ignoring):`, err);
+    }
+  }
+  return names;
+}
+
+/**
  * Stage every org integration as a CC-native skill into the session's
  * CLAUDE_CONFIG_DIR (/user/.runtime/home/.claude/skills/<name>/SKILL.md). Run
  * per-turn so a connect/disconnect/binding change is reflected next turn.
  * Best-effort — callers swallow failures so skill staging never fails a turn.
+ *
+ * Repo precedence: a skill the workspace repo already defines (by name) wins —
+ * Tale does not stage its own copy (see lib/skills/precedence.ts).
  */
 export async function stageIntegrationSkills(
   ctx: ActionCtx,
@@ -215,7 +261,24 @@ export async function stageIntegrationSkills(
   }
 
   if (catalog.length === 0) return;
-  const files: SessionStageFile[] = catalog.map((entry) => ({
+
+  // Repo precedence: if the workspace already defines a skill with the same
+  // name, defer to it — don't stage Tale's copy.
+  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  const { kept, dropped } = selectStageableSkills(
+    catalog,
+    (entry) => `${INTEGRATION_SKILL_PREFIX}${entry.slug}`,
+    repoSkills,
+  );
+  if (dropped.length > 0) {
+    console.info(
+      '[stageIntegrationSkills] workspace repo provides these skills; deferring to it:',
+      dropped,
+    );
+  }
+  if (kept.length === 0) return;
+
+  const files: SessionStageFile[] = kept.map((entry) => ({
     path: `${SKILLS_DIR}/${INTEGRATION_SKILL_PREFIX}${entry.slug}/SKILL.md`,
     contentBase64: Buffer.from(
       buildIntegrationSkillMd(entry, { nativeWebTools: args.nativeWebTools }),
@@ -232,19 +295,26 @@ export async function stageIntegrationSkills(
 }
 
 /**
- * Stage the static browser-human-control skill. Call only on turns where the
+ * Stage the inline browser-human-control skill. Call only on turns where the
  * live headed browser (browserCdp) is enabled — that's the one a human can
  * drive via x11vnc, so the request_human_control tool exists. Idempotent
  * (overwrites the same path each turn). Best-effort — never fails the turn.
+ * Repo precedence: defer to a workspace skill of the same name.
  */
 export async function stageBrowserControlSkill(
   ctx: ActionCtx,
   args: { sessionId: string },
 ): Promise<void> {
-  // ctx is unused today (the skill text is static), but kept in the signature
-  // for parity with stageIntegrationSkills and in case the text ever needs org
-  // context. Reference it to satisfy no-unused-vars without changing callers.
+  // ctx is unused (the skill text is static) but kept for parity + a stable
+  // call signature.
   void ctx;
+  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  if (repoSkills.has(BROWSER_CONTROL_SKILL)) {
+    console.info(
+      '[stageBrowserControlSkill] workspace repo provides browser-human-control; deferring to it.',
+    );
+    return;
+  }
   const result = await sessionStageFiles(args.sessionId, [
     {
       path: `${SKILLS_DIR}/${BROWSER_CONTROL_SKILL}/SKILL.md`,
@@ -259,4 +329,38 @@ export async function stageBrowserControlSkill(
       result.skipped,
     );
   }
+}
+
+/**
+ * Repo precedence for the image-baked builtin skills. The sandbox-runtime
+ * entrypoint symlinks each baked builtin (BAKED_BUILTIN_SKILLS) into the
+ * session's user-level skill dir, so Tale ships their content WITH the image
+ * rather than staging it. If the workspace repo defines a PROJECT-level skill of
+ * the same name, the repo is authoritative (lib/skills/precedence.ts): remove
+ * Tale's baked symlink so the agent never loads two skills with the same name.
+ * Run per turn (the repo is cloned/updated during the session). Best-effort —
+ * callers swallow failures so it never fails a turn.
+ */
+export async function reconcileBuiltinSkills(
+  ctx: ActionCtx,
+  args: { sessionId: string },
+): Promise<void> {
+  // ctx is unused (the baked content needs no org context) but kept for parity
+  // with the sibling stagers and a stable call signature.
+  void ctx;
+  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  const { dropped } = selectStageableSkills(
+    BAKED_BUILTIN_SKILLS.map((name) => ({ name })),
+    (skill) => skill.name,
+    repoSkills,
+  );
+  if (dropped.length === 0) return;
+  console.info(
+    '[reconcileBuiltinSkills] workspace repo provides these builtin skills; removing the image-baked symlinks so the repo wins:',
+    dropped,
+  );
+  await sessionDeleteFiles(
+    args.sessionId,
+    dropped.map((name) => `${SKILLS_DIR}/${name}`),
+  );
 }

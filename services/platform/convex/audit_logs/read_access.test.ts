@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
 import type { OrganizationMember } from '../lib/rls/types';
@@ -31,6 +32,17 @@ describe('assertAuditLogReadAccess', () => {
       expect(() => assertAuditLogReadAccess(memberWithRole(role))).toThrow(
         'Only admins can read audit logs',
       );
+
+      let caught: unknown;
+      try {
+        assertAuditLogReadAccess(memberWithRole(role));
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(ConvexError);
+      expect((caught as ConvexError<{ code: string }>).data).toMatchObject({
+        code: 'FORBIDDEN',
+      });
     },
   );
 });

@@ -91,6 +91,7 @@
                 "path": "tasks/queries:listTasksByProjectPaginated",
                 "args": {
                   "projectId": "$projectId",
+                  "organizationId": "$orgId",
                   "externalSystem": "github"
                 }
               },

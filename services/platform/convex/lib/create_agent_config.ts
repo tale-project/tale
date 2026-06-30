@@ -1,5 +1,5 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider';
-import { Agent } from '@convex-dev/agent';
+import type { Agent } from '@convex-dev/agent';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
 import type { ToolName } from '../agent_tools/tool_registry';

@@ -43,7 +43,7 @@ export function AutomationLoopContainer({
         position={Position.Top}
         id="top-target"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ top: 2, left: topTargetLeft, opacity: 0 }}
       />
 
@@ -53,7 +53,7 @@ export function AutomationLoopContainer({
         position={Position.Top}
         id="top-source"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ top: 2, left: topSourceLeft, opacity: 0 }}
       />
 
@@ -63,7 +63,7 @@ export function AutomationLoopContainer({
         position={Position.Left}
         id="left-target"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ left: 0, top: '50%', opacity: 0 }}
       />
 
@@ -73,7 +73,7 @@ export function AutomationLoopContainer({
         position={Position.Right}
         id="right-source"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ right: 0, top: '50%', opacity: 0 }}
       />
 
@@ -135,7 +135,7 @@ export function AutomationLoopContainer({
         position={Position.Bottom}
         id="bottom-target"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ bottom: 0, left: bottomTargetLeft, opacity: 0 }}
       />
 
@@ -145,7 +145,7 @@ export function AutomationLoopContainer({
         position={Position.Bottom}
         id="bottom-source"
         className="z-10! size-2! border-0! bg-transparent!"
-        isConnectable={true}
+        isConnectable={false}
         style={{ bottom: 0, left: bottomSourceLeft, opacity: 0 }}
       />
     </div>

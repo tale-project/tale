@@ -218,12 +218,18 @@ test.describe('two-factor authentication', () => {
       .fill(password);
     await enableButton.click();
 
-    // Verify step: the manual-entry secret is rendered in a <code> element next
-    // to the manual-entry hint. Read it and derive a live TOTP code.
+    // Verify step: the manual-entry secret is rendered in a copyable field
+    // (a button) labelled by the manual-entry hint. The button's visible text
+    // is the secret itself (the label lives in a sibling <label> referenced via
+    // aria-labelledby). Read it and derive a live TOTP code.
     await expect(page.getByText(t('twoFactor.setup.manualEntry'))).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
     });
-    const secret = (await page.locator('code').first().innerText()).trim();
+    const secret = (
+      await page
+        .getByRole('button', { name: t('twoFactor.setup.manualEntry') })
+        .innerText()
+    ).trim();
     expect(secret, 'the enroll page should reveal the base32 secret').toMatch(
       /^[A-Z2-7]+$/,
     );

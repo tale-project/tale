@@ -88,12 +88,17 @@ export async function notifyTaskReviewRequested(
     agentSlug?: string;
   },
 ): Promise<void> {
+  // The default body names the agent (`{agentSlug}`); when no agent slug is
+  // available (e.g. a workflow-initiated review) fall back to a generic body
+  // with no `{agentSlug}` placeholder so the bell never renders a raw token.
   await insertWorkforceNotification(ctx, {
     userId: args.reviewerUserId,
     organizationId: args.task.organizationId,
     type: 'task_review_requested',
     titleKey: 'taskReviewRequested',
-    bodyKey: 'taskReviewRequestedBody',
+    bodyKey: args.agentSlug
+      ? 'taskReviewRequestedBody'
+      : 'taskReviewRequestedBodyNoAgent',
     params: reviewParams(args.task, {
       approvalId: String(args.approvalId),
       ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),

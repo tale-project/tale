@@ -9,6 +9,7 @@
 import type { PaginationOptions, PaginationResult } from 'convex/server';
 
 import type { QueryCtx } from '../../_generated/server';
+import { parseExecutionDateBounds } from './date_range_filter';
 import type { WorkflowExecution } from './types';
 
 interface ListExecutionsPaginatedArgs {
@@ -24,10 +25,10 @@ export async function listExecutionsPaginatedNative(
   ctx: QueryCtx,
   args: ListExecutionsPaginatedArgs,
 ): Promise<PaginationResult<WorkflowExecution>> {
-  const fromDate = args.dateFrom
-    ? new Date(args.dateFrom).getTime()
-    : undefined;
-  const toDate = args.dateTo ? new Date(args.dateTo).getTime() : undefined;
+  const { fromDate, toDate } = parseExecutionDateBounds(
+    args.dateFrom,
+    args.dateTo,
+  );
 
   const statusSet =
     args.status && args.status.length > 0 ? new Set(args.status) : null;

@@ -33,15 +33,29 @@ REDSOCKS_PORT=12346
 REDSOCKS_UID=10002
 EGRESS_IP=""
 EGRESS_PORT=""
+# Marker the spawner (services/sandbox/src/buildkitd.ts) probes via
+# `docker exec test -f` to decide whether a RUNNING daemon still has its egress
+# fence. Removed at the start of every run; written only after egress is fully
+# installed (or in TALE_SKIP_EGRESS dev mode). Absent on a running daemon ⇒ it
+# restarted while sandbox-egress was unreachable and is serving builds with no
+# internet → the spawner recreates it. Keep in sync with EGRESS_READY_MARKER.
+EGRESS_READY=/run/tale-buildkitd-egress-ready
+# Immutable base config baked into the image; the live --config is regenerated
+# from it on EVERY start (init_base_config) so a writable-layer copy can never
+# carry a stale dynamic [dns]/[registry] block — the daemon restarts
+# independently (--restart unless-stopped) and sandbox-egress's IP can change.
+BASE_TOML=/etc/buildkit/buildkitd.base.toml
+LIVE_TOML=/etc/buildkit/buildkitd.toml
 
 log() { echo "[sandbox-buildkitd] $*"; }
 
-# Resolve the egress endpoint (IP + port) redsocks + [dns] use. The spawner
-# passes the already-resolved on-network IP as TALE_EGRESS_IP (preferred — once
-# our resolv.conf is bind-mounted to the egress dnsmasq, the dnsmasq can't answer
-# the `sandbox-egress` docker service name, so we can't resolve it here). The
-# HTTP(S)_PROXY-hostname fallback covers single-network dev where the embedded
-# resolver still answers service names.
+# Resolve the egress endpoint (IP + port) redsocks + [dns] use. Default path:
+# resolve the `sandbox-egress` HTTP(S)_PROXY hostname via the embedded resolver
+# (re-resolved on every start + retried by resolve_egress_retry, so a changed
+# egress IP or a not-yet-up egress at boot self-corrects). TALE_EGRESS_IP is an
+# optional override for topologies where the service name isn't resolvable here
+# (e.g. resolv.conf bind-mounted to the egress dnsmasq); deliberately NOT a
+# spawner-snapshotted IP, which would itself go stale across egress recreation.
 resolve_egress() {
   url="${HTTP_PROXY:-${HTTPS_PROXY:-}}"
   [ -n "$url" ] || true
@@ -63,10 +77,62 @@ resolve_egress() {
   [ -n "${ip:-}" ] && EGRESS_IP="$ip"
 }
 
+# Bounded retry around resolve_egress. On a stack (re)start the daemon can come
+# up a few seconds before sandbox-egress is resolvable; retry briefly instead of
+# coming up permanently egress-less (the old silent failure mode — a daemon that
+# missed the resolve at boot served builds with no internet until manual repair).
+resolve_egress_retry() {
+  _i=0
+  while [ "$_i" -lt 30 ]; do
+    resolve_egress
+    [ -n "$EGRESS_IP" ] && return 0
+    _i=$((_i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+# Materialize the live --config from the immutable base on EVERY start, so the
+# writable-layer copy never inherits a previous start's dynamic block. Runs on
+# both the egress and TALE_SKIP_EGRESS paths so buildkitd always has a config.
+init_base_config() {
+  [ -f "$BASE_TOML" ] || return 0
+  cat "$BASE_TOML" >"$LIVE_TOML" 2>/dev/null \
+    || log "WARN: could not materialize $LIVE_TOML from base; using existing config"
+}
+
+# Append the dynamic [registry] mirrors + [dns] block to the freshly-materialized
+# base, pinning the [dns] nameserver to the CURRENT egress IP. Because
+# init_base_config resets the file first, this is appended onto a clean base
+# every start (no accumulation, no stale nameserver).
+#
+# buildkit's image PULLS go to the pull-through MIRROR by sibling name (the
+# embedded resolver answers locally — no external-name SERVFAIL); RUN-step DNS is
+# pinned to the egress dnsmasq via [dns] (else libnetwork strips the embedded
+# 127.* and falls back to 8.8.8.8, unreachable on the internal net). The
+# `http = true` block marks the plain-HTTP mirror and MUST be its own block.
+append_dynamic_config() {
+  {
+    _ifs="$IFS"
+    IFS=';'
+    # shellcheck disable=SC2086 # intentional word-split on ';' (IFS set above)
+    for _pair in ${TALE_BUILDKITD_MIRRORS:-}; do
+      _reg="${_pair%%=*}"
+      _ref="${_pair#*=}"
+      [ -n "$_reg" ] && [ -n "$_ref" ] && [ "$_reg" != "$_pair" ] || continue
+      printf '\n[registry."%s"]\n  mirrors = ["%s"]\n\n[registry."%s"]\n  http = true\n' \
+        "$_reg" "$_ref" "$_ref"
+    done
+    IFS="$_ifs"
+    printf '\n[dns]\n  nameservers = ["%s"]\n  options = ["single-request", "ndots:0"]\n' "${EGRESS_IP}"
+  } >>"$LIVE_TOML" 2>/dev/null \
+    || log "WARN: could not write registry/dns config to $LIVE_TOML; pulls may fail"
+}
+
 install_egress() {
-  resolve_egress
+  resolve_egress_retry || true
   if [ -z "$EGRESS_IP" ]; then
-    log "WARN: no egress proxy resolved from HTTP(S)_PROXY; builds will have NO internet (this container is on an --internal network). Set HTTPS_PROXY to the sandbox-egress proxy."
+    log "WARN: no egress proxy resolved from HTTP(S)_PROXY after retries; builds will have NO internet (this container is on an --internal network). Set HTTPS_PROXY to the sandbox-egress proxy. Leaving the egress-ready marker absent so the spawner recreates this daemon on the next session."
     return 0
   fi
 
@@ -111,39 +177,10 @@ install_egress() {
       || log "WARN: could not add default route via $EGRESS_IP; egress to public IPs may fail (ENETUNREACH)"
   fi
 
-  # buildkit's image PULLS: point docker.io at the pull-through registry MIRROR
-  # by its docker NAME (TALE_BUILDKITD_MIRROR, e.g. tale-buildkitd-mirror:5000).
-  # buildkit resolves a SIBLING name via the embedded resolver locally (no
-  # forward → no SERVFAIL, unlike external registry names which buildkit cannot
-  # resolve on a user-defined net). The mirror itself reaches Docker Hub through
-  # the egress proxy. The `http = true` block marks the plain-HTTP mirror — and
-  # MUST be its own `[registry."<mirror>"]` block, not nested under docker.io.
-  #
-  # RUN-step DNS: the executor containers get a SEPARATE resolv.conf buildkit
-  # generates; pin it to the egress dnsmasq via [dns] (else libnetwork strips the
-  # embedded 127.* and falls back to 8.8.8.8, unreachable on the internal net).
-  # UDP :53 to the egress IP is RFC1918 → left direct by the REDSOCKS chain.
-  if grep -q '^\[dns\]' /etc/buildkit/buildkitd.toml 2>/dev/null; then
-    log "WARN: buildkit registry/dns config already present; not appending"
-  else
-    {
-      # One [registry."<reg>"] mirror block + its [registry."<ref>"] http block
-      # per semicolon-separated `registry=mirror_ref` pair in TALE_BUILDKITD_MIRRORS.
-      _ifs="$IFS"
-      IFS=';'
-      # shellcheck disable=SC2086 # intentional word-split on ';' (IFS set above)
-      for _pair in ${TALE_BUILDKITD_MIRRORS:-}; do
-        _reg="${_pair%%=*}"
-        _ref="${_pair#*=}"
-        [ -n "$_reg" ] && [ -n "$_ref" ] && [ "$_reg" != "$_pair" ] || continue
-        printf '\n[registry."%s"]\n  mirrors = ["%s"]\n\n[registry."%s"]\n  http = true\n' \
-          "$_reg" "$_ref" "$_ref"
-      done
-      IFS="$_ifs"
-      printf '\n[dns]\n  nameservers = ["%s"]\n  options = ["single-request", "ndots:0"]\n' "${EGRESS_IP}"
-    } >>/etc/buildkit/buildkitd.toml 2>/dev/null \
-      || log "WARN: could not write registry/dns config to buildkitd.toml; pulls may fail"
-  fi
+  # Regenerate the registry-mirror + [dns] config from the immutable base with
+  # the CURRENT egress IP (UDP :53 to it is RFC1918 → left direct by the REDSOCKS
+  # chain). Always rewritten so a restart can never inherit a stale nameserver.
+  append_dynamic_config
 
   # Drop the proxy env: pulls go to the mirror (by name) and RUN steps resolve via
   # [dns], then both connect DIRECTLY to the IPs they resolve and the REDSOCKS
@@ -160,14 +197,32 @@ redsocks { local_ip = 0.0.0.0; local_port = ${REDSOCKS_PORT}; ip = ${EGRESS_IP};
 EOF
   setpriv --reuid "$REDSOCKS_UID" --regid "$REDSOCKS_UID" --clear-groups -- \
     redsocks -c /tmp/redsocks.conf >/tmp/redsocks.log 2>&1 &
+
+  # Signal the spawner that the fence is up (redsocks + default route + current-IP
+  # [dns]). Written last, only on the success path; its absence on a running
+  # daemon is what triggers spawner recreation.
+  : >"$EGRESS_READY" 2>/dev/null \
+    || log "WARN: could not write egress-ready marker ($EGRESS_READY)"
   log "transparent egress installed (OUTPUT -> redsocks -> ${EGRESS_IP}:${EGRESS_PORT}; public tunneled, private/IMDS fenced, DNS via egress :53)"
 }
 
+# Fresh start: drop any marker from a previous run BEFORE attempting install, so
+# a stale marker (the writable layer survives `docker restart`) can never fool
+# the spawner's health probe. Re-materialize the live config from the immutable
+# base on every start (the daemon may have restarted with a stale dynamic block).
+mkdir -p /run 2>/dev/null || true
+rm -f "$EGRESS_READY" 2>/dev/null || true
+init_base_config
+
 if [ "${TALE_SKIP_EGRESS:-0}" = "1" ]; then
   log "WARN: TALE_SKIP_EGRESS=1 — transparent egress NOT installed (dev only; build RUN steps get this container's raw egress)"
+  # Dev mode is 'configured as intended' — mark ready so the spawner doesn't
+  # treat the (deliberately unfenced) daemon as broken and recreate-loop it.
+  : >"$EGRESS_READY" 2>/dev/null || true
 else
   # Best-effort: never let an iptables/redsocks hiccup stop the daemon from
-  # serving cache to sessions (proxy-aware build args still work).
+  # serving cache to sessions (proxy-aware build args still work). A failure
+  # leaves the marker absent, so the spawner recreates the daemon next session.
   set +e
   install_egress
   set -e

@@ -3,7 +3,7 @@
  */
 
 import { components } from '../_generated/api';
-import { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 
 /**
  * Check if any users exist in the Better Auth user table.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>false occlusion</title>
+    <style>
+      #real {
+        position: absolute;
+        top: 50px;
+        left: 50px;
+        width: 120px;
+        height: 120px;
+        background: #dd0000;
+      }
+      /* A transparent veil on top: elementFromPoint returns IT, so #real looks
+         occluded — but it actually paints (visible through the veil). The paint
+         counterfactual (hide #real, see the sub-rect change) recovers it. */
+      #veil {
+        position: absolute;
+        top: 50px;
+        left: 50px;
+        width: 120px;
+        height: 120px;
+        background: transparent;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="real" class="card">visible through the veil</div>
+    <div id="veil"></div>
+  </body>
+</html>

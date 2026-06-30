@@ -90,8 +90,9 @@ function TwoFactorVerifyPage() {
           position: 'top-center',
         });
       } else {
+        // TOTP success during sign-in: confirm the sign-in, not enrollment.
         toast({
-          title: t('enrollment.enabled'),
+          title: t('verify.success'),
           variant: 'success',
           position: 'top-center',
         });
@@ -138,7 +139,7 @@ function TwoFactorVerifyPage() {
     <AuthFormLayout title={t('verify.title')}>
       <Stack gap={6}>
         <Text variant="muted" className="text-center text-sm">
-          {useBackup ? t('verify.description') : t('verify.description')}
+          {useBackup ? t('verify.backupDescription') : t('verify.description')}
         </Text>
 
         <Form onSubmit={handleSubmit} autoComplete="off">

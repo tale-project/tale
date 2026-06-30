@@ -162,6 +162,57 @@ describe('SearchInput', () => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
 
+    it('falls back to placeholder as accessible name when no label', () => {
+      render(
+        <SearchInput value="" onChange={vi.fn()} placeholder="Search agents" />,
+      );
+      // Placeholder is not an accessible name on its own, so the input is
+      // exposed via aria-label derived from the placeholder (WCAG 4.1.2).
+      expect(screen.getByRole('textbox')).toHaveAttribute(
+        'aria-label',
+        'Search agents',
+      );
+      expect(screen.getByLabelText('Search agents')).toBeInTheDocument();
+    });
+
+    it('prefers an explicit aria-label over the placeholder', () => {
+      render(
+        <SearchInput
+          value=""
+          onChange={vi.fn()}
+          placeholder="Search agents"
+          aria-label="Filter agents"
+        />,
+      );
+      expect(screen.getByRole('textbox')).toHaveAttribute(
+        'aria-label',
+        'Filter agents',
+      );
+    });
+
+    it('does not duplicate the accessible name when a visible label exists', () => {
+      render(
+        <SearchInput
+          value=""
+          onChange={vi.fn()}
+          label="Search"
+          placeholder="Search agents"
+        />,
+      );
+      // A visible <label for> already names the input; avoid a redundant
+      // aria-label that would override it.
+      expect(
+        screen.getByLabelText('Search', { exact: false }),
+      ).not.toHaveAttribute('aria-label');
+    });
+
+    it('passes axe audit with placeholder-only accessible name', async () => {
+      const { container } = render(
+        <SearchInput value="" onChange={vi.fn()} placeholder="Search agents" />,
+      );
+      await checkAccessibility(container);
+    });
+
     it('label is associated with input', () => {
       render(
         <SearchInput

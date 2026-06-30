@@ -1,14 +1,15 @@
 'use client';
 
+import type { EdgeProps } from '@xyflow/react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  EdgeProps,
   getSmoothStepPath,
   getBezierPath,
   getStraightPath,
 } from '@xyflow/react';
-import { CSSProperties, useMemo } from 'react';
+import type { CSSProperties } from 'react';
+import { useMemo } from 'react';
 
 import type { ElkPoint } from '@/app/components/flow/layout/elk-layout';
 

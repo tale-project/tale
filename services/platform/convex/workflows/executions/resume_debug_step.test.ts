@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { toId } from '../../lib/type_cast_helpers';
@@ -21,6 +22,20 @@ function createMockCtx(execution: Record<string, unknown> | null) {
 
 const executionId = toId<'wfExecutions'>('exec-1');
 
+/** Pull the structured `code` off a thrown ConvexError (#2013: debug-resume
+ * rejections carry a code so the debug UI can map a specific message). */
+async function catchCode(fn: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await fn();
+  } catch (err) {
+    if (err instanceof ConvexError) {
+      return (err.data as { code?: unknown }).code;
+    }
+    throw err;
+  }
+  return undefined;
+}
+
 function pausedExecution(overrides?: Record<string, unknown>) {
   return {
     _id: executionId,
@@ -37,44 +52,57 @@ beforeEach(() => {
 });
 
 describe('resumeDebugStep', () => {
-  it('throws when the execution does not exist', async () => {
+  it('throws EXECUTION_NOT_FOUND when the execution does not exist', async () => {
     await expect(
-      resumeDebugStep(createMockCtx(null), { executionId, action: 'step' }),
-    ).rejects.toThrow('Execution not found');
+      catchCode(() =>
+        resumeDebugStep(createMockCtx(null), { executionId, action: 'step' }),
+      ),
+    ).resolves.toBe('EXECUTION_NOT_FOUND');
   });
 
-  it('throws when the execution is not running', async () => {
+  it('throws EXECUTION_NOT_RESUMABLE when the execution is not running', async () => {
     await expect(
-      resumeDebugStep(createMockCtx(pausedExecution({ status: 'completed' })), {
-        executionId,
-        action: 'step',
-      }),
-    ).rejects.toThrow('Cannot resume a debug step');
+      catchCode(() =>
+        resumeDebugStep(
+          createMockCtx(pausedExecution({ status: 'completed' })),
+          {
+            executionId,
+            action: 'step',
+          },
+        ),
+      ),
+    ).resolves.toBe('EXECUTION_NOT_RESUMABLE');
   });
 
-  it('throws when the execution is not paused in debug mode', async () => {
+  it('throws EXECUTION_NOT_PAUSED when the execution is not paused in debug mode', async () => {
     await expect(
-      resumeDebugStep(
-        createMockCtx(pausedExecution({ waitingFor: 'approval-id-123' })),
-        { executionId, action: 'continue' },
+      catchCode(() =>
+        resumeDebugStep(
+          createMockCtx(pausedExecution({ waitingFor: 'approval-id-123' })),
+          { executionId, action: 'continue' },
+        ),
       ),
-    ).rejects.toThrow('not paused in debug mode');
+    ).resolves.toBe('EXECUTION_NOT_PAUSED');
 
     await expect(
-      resumeDebugStep(
-        createMockCtx(pausedExecution({ waitingFor: undefined })),
-        { executionId, action: 'step' },
+      catchCode(() =>
+        resumeDebugStep(
+          createMockCtx(pausedExecution({ waitingFor: undefined })),
+          { executionId, action: 'step' },
+        ),
       ),
-    ).rejects.toThrow('not paused in debug mode');
+    ).resolves.toBe('EXECUTION_NOT_PAUSED');
   });
 
-  it('throws when the component workflow id is missing', async () => {
+  it('throws EXECUTION_MISSING_WORKFLOW_ID when the component workflow id is missing', async () => {
     await expect(
-      resumeDebugStep(
-        createMockCtx(pausedExecution({ componentWorkflowId: undefined })),
-        { executionId, action: 'step' },
+      catchCode(() =>
+        resumeDebugStep(
+          createMockCtx(pausedExecution({ componentWorkflowId: undefined })),
+          { executionId, action: 'step' },
+        ),
       ),
-    ).rejects.toThrow('component workflow ID');
+    ).resolves.toBe('EXECUTION_MISSING_WORKFLOW_ID');
   });
 
   it('sends the per-pause debug event on the execution shard manager', async () => {

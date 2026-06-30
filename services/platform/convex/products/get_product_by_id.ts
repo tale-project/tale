@@ -2,8 +2,8 @@
  * Get a product by ID (internal operation)
  */
 
-import { Doc, Id } from '../_generated/dataModel';
-import { QueryCtx } from '../_generated/server';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function getProductById(
   ctx: QueryCtx,

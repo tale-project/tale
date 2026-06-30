@@ -38,6 +38,7 @@ import {
   useExecutionStatus,
   useWorkflowHumanInputApproval,
 } from '@/app/features/chat/hooks/use-execution-status';
+import { mapExecutionError } from '@/app/features/operator/lib/map-execution-error';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -96,6 +97,7 @@ function WorkflowRunApprovalCardComponent({
 }: WorkflowRunApprovalCardProps) {
   const { t } = useT('workflowRunApproval');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tShared } = useT('common');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -205,7 +207,9 @@ function WorkflowRunApprovalCardComponent({
     try {
       await cancelExecution({ executionId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorStopFailed'));
+      // cancelExecution raises a structured code (not found / already settled);
+      // map it instead of surfacing the raw ConvexError JSON blob.
+      setError(mapExecutionError(err, tShared, t('errorStopFailed')));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);

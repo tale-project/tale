@@ -5,10 +5,10 @@
  * executions working on the same underlying record concurrently.
  */
 
-import { Id } from '../../_generated/dataModel';
-import { MutationCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { ConvexJsonRecord } from '../../lib/validators/json';
-import { ExtendedTableName } from './types';
+import type { ExtendedTableName } from './types';
 
 export interface RecordClaimedArgs {
   organizationId: string;

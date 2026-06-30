@@ -23,6 +23,12 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
+// The component reads the active org via the route param; there is no router in
+// this render, so stub the hook (active-org coherence scoping).
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
 vi.mock('@/convex/lib/type_cast_helpers', () => ({
   toId: (id: string) => id,
 }));

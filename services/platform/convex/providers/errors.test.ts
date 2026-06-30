@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { classifyChatErrorCode } from '../../lib/shared/chat-errors';
 import {
+  buildChainExhaustionError,
   classifyFailureScope,
+  FRIENDLY_NO_PROVIDER,
   isTransientProviderError,
   MissingApiKeyError,
   NoProviderAvailableError,
@@ -344,6 +347,85 @@ describe('ProviderUnavailableError', () => {
     expect(err.model).toBe('test/model');
     expect(err.statusCode).toBe(502);
     expect(err.name).toBe('ProviderUnavailableError');
+  });
+});
+
+describe('buildChainExhaustionError', () => {
+  const missingKey = (model: string) => ({
+    model,
+    message: `No API key configured for model "${model}"`,
+  });
+
+  it('collapses an all-unconfigured chain into one actionable NoProviderAvailableError (issue #1455)', () => {
+    const result = buildChainExhaustionError({
+      attemptedCount: 0,
+      configFailures: [
+        missingKey('gemini'),
+        missingKey('mistral-large'),
+        missingKey('qwen-next'),
+      ],
+      lastError: new MissingApiKeyError('qwen', 'qwen-next'),
+    });
+    expect(result).toBeInstanceOf(NoProviderAvailableError);
+    const err = result as NoProviderAvailableError;
+    expect(err.reason).toBe('missing_api_key');
+    expect(err.message).toBe(FRIENDLY_NO_PROVIDER);
+    // Every failed model is preserved in the details for debugging.
+    expect(err.details.join('\n')).toContain('gemini');
+    expect(err.details.join('\n')).toContain('qwen-next');
+    // And the UI maps it to the actionable setup hint, not a tail-model error.
+    expect(classifyChatErrorCode(result)).toBe('missing_api_key');
+  });
+
+  it('surfaces the genuine runtime error once a model reached the provider', () => {
+    const runtimeError = new ProviderUnavailableError(
+      'overloaded',
+      'openrouter',
+      'gemini',
+      503,
+    );
+    const result = buildChainExhaustionError({
+      attemptedCount: 1,
+      configFailures: [missingKey('qwen-next')],
+      lastError: runtimeError,
+    });
+    // A real attempt happened — keep the true cause, do not collapse to config.
+    expect(result).toBe(runtimeError);
+  });
+
+  it('passes an already-terminal NoProviderAvailableError through untouched', () => {
+    const terminal = new NoProviderAvailableError(
+      FRIENDLY_NO_PROVIDER,
+      'no_providers',
+      ['directory missing'],
+    );
+    const result = buildChainExhaustionError({
+      attemptedCount: 0,
+      configFailures: [],
+      lastError: terminal,
+    });
+    expect(result).toBe(terminal);
+  });
+
+  it('falls back to the last error when there is nothing to collapse', () => {
+    const last = new Error('weird');
+    expect(
+      buildChainExhaustionError({
+        attemptedCount: 0,
+        configFailures: [],
+        lastError: last,
+      }),
+    ).toBe(last);
+  });
+
+  it('synthesizes a generic error when no cause is available at all', () => {
+    const result = buildChainExhaustionError({
+      attemptedCount: 0,
+      configFailures: [],
+      lastError: undefined,
+    });
+    expect(result).toBeInstanceOf(Error);
+    expect((result as Error).message).toBe('No model could be resolved');
   });
 });
 
