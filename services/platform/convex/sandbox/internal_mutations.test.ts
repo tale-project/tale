@@ -20,6 +20,7 @@ import {
   recoverStuckSandboxes,
   finalize,
   cancelExecutionRecord,
+  applyRecordUploaded,
 } from './internal_mutations';
 import { insertOutputFiles } from './output_mutations';
 import { DEFAULT_SANDBOX_QUOTA } from './quota_policy';
@@ -533,5 +534,70 @@ describe('insertOutputFiles', () => {
     expect(inserted).toHaveLength(0);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe('applyRecordUploaded', () => {
+  interface RecArgs {
+    executionId: string;
+    fileName: string;
+    storageId: string;
+    size: number;
+    contentType: string;
+  }
+  const mut = applyRecordUploaded as unknown as MutHandler<RecArgs, null>;
+
+  it('no-ops for an unaudited infra run (executionId is not a real row id)', async () => {
+    // Regression: crawler renders use a synthetic executionId. EP2 must
+    // tolerate it (no audit row) instead of throwing, which the spawner
+    // would surface as UPLOAD_REPORT_FAILED.
+    const get = vi.fn();
+    const patch = vi.fn();
+    const ctx = {
+      db: {
+        normalizeId: vi.fn((_table: string, _id: string) => null),
+        get,
+        patch,
+      },
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await mut.handler(ctx, {
+      executionId: 'crawler-doc-render-1782816492078-hoebcnx3cn6',
+      fileName: 'document.pdf',
+      storageId: 'kg_storage_1',
+      size: 100,
+      contentType: 'application/pdf',
+    });
+    expect(result).toBeNull();
+    expect(get).not.toHaveBeenCalled();
+    expect(patch).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('records the storageId on a real, non-terminal audit row', async () => {
+    const patch = vi.fn();
+    const ctx = {
+      db: {
+        normalizeId: vi.fn((_table: string, id: string) => id),
+        get: vi.fn(async () => ({
+          _id: 'exec_1',
+          status: 'running',
+          uploadedStorageIds: [],
+        })),
+        patch,
+      },
+    };
+    await mut.handler(ctx, {
+      executionId: 'exec_1',
+      fileName: 'document.pdf',
+      storageId: 'kg_storage_2',
+      size: 100,
+      contentType: 'application/pdf',
+    });
+    expect(patch).toHaveBeenCalledWith(
+      'exec_1',
+      expect.objectContaining({ uploadedStorageIds: ['kg_storage_2'] }),
+    );
   });
 });

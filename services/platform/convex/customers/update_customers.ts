@@ -13,6 +13,7 @@
  * SAFETY: At least one of customerId OR (organizationId + additional filter) is required
  */
 
+import { ConvexError } from 'convex/values';
 import { set, merge } from 'lodash';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -71,9 +72,10 @@ export async function updateCustomers(
 ): Promise<UpdateCustomersResult> {
   // Validate: must provide either customerId or organizationId
   if (!args.customerId && !args.organizationId) {
-    throw new Error(
-      'Must provide either customerId or organizationId for safety',
-    );
+    throw new ConvexError({
+      code: 'MISSING_FILTER',
+      message: 'Must provide either customerId or organizationId for safety',
+    });
   }
 
   // Find customers to update
@@ -83,7 +85,10 @@ export async function updateCustomers(
     // Update by ID (most common case)
     const customer = await ctx.db.get(args.customerId);
     if (!customer) {
-      throw new Error(`Customer not found: ${args.customerId}`);
+      throw new ConvexError({
+        code: 'CUSTOMER_NOT_FOUND',
+        message: `Customer not found: ${args.customerId}`,
+      });
     }
     // Cross-tenant write guard: when the caller's org is known (the customer
     // workflow action passes it), the target customer must belong to it.
@@ -92,7 +97,10 @@ export async function updateCustomers(
       args.organizationId &&
       customer.organizationId !== args.organizationId
     ) {
-      throw new Error(`Customer not found: ${args.customerId}`);
+      throw new ConvexError({
+        code: 'CUSTOMER_NOT_FOUND',
+        message: `Customer not found: ${args.customerId}`,
+      });
     }
     customersToUpdate = [customer];
   } else if (args.organizationId) {
