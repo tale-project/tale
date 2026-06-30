@@ -14,6 +14,7 @@ import {
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useT } from '@/lib/i18n/client';
 import type {
   HumanInputField,
   HumanInputTodoItem,
@@ -254,7 +255,7 @@ interface TodoListFieldInputProps {
   onChange: (serialized: string) => void;
 }
 
-function parseTodoList(rawValue: string): HumanInputTodoItem[] | null {
+export function parseTodoList(rawValue: string): HumanInputTodoItem[] | null {
   if (!rawValue) return null;
   try {
     const parsed: unknown = JSON.parse(rawValue);
@@ -273,6 +274,17 @@ function parseTodoList(rawValue: string): HumanInputTodoItem[] | null {
   }
 }
 
+/**
+ * Count the todo rows that carry real (non-whitespace) content. The input
+ * always serializes at least one — possibly blank — row, so a required
+ * `todo_list` field must be validated on this count rather than on the raw
+ * string being non-empty.
+ */
+export function countFilledTodoRows(rawValue: string): number {
+  const rows = parseTodoList(rawValue);
+  return (rows ?? []).filter((row) => row.content.trim().length > 0).length;
+}
+
 function makeTodoId(seed: number): string {
   return `t${seed}-${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -287,11 +299,12 @@ function TodoListFieldInput({
   disabled,
   onChange,
 }: TodoListFieldInputProps) {
+  const { t } = useT('humanInputRequest');
   const initialParsed = useMemo(() => parseTodoList(rawValue), [rawValue]);
   const [items, setItems] = useState<HumanInputTodoItem[]>(() => {
     if (initialParsed && initialParsed.length > 0) return initialParsed;
     return initialTodos.length > 0
-      ? initialTodos.map((t) => ({ ...t }))
+      ? initialTodos.map((todo) => ({ ...todo }))
       : [{ id: makeTodoId(0), content: '' }];
   });
   const seedRef = useRef(items.length);
@@ -342,12 +355,15 @@ function TodoListFieldInput({
           <Input
             id={`${fieldId}-${todo.id}`}
             value={todo.content}
-            placeholder={`Sub-question ${index + 1}`}
+            placeholder={t('todoItemPlaceholder', { n: index + 1 })}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               updateContent(todo.id, e.target.value)
             }
             disabled={disabled}
-            aria-label={`${fieldLabel} item ${index + 1}`}
+            aria-label={t('todoItemAriaLabel', {
+              label: fieldLabel,
+              n: index + 1,
+            })}
             className="flex-1"
           />
           <Button
@@ -356,7 +372,7 @@ function TodoListFieldInput({
             size="icon"
             onClick={() => removeRow(todo.id)}
             disabled={disabled || items.length <= Math.max(1, minItems)}
-            title={`Remove item ${index + 1}`}
+            title={t('todoRemoveItem', { n: index + 1 })}
           >
             <Trash2 className="size-4" />
           </Button>
@@ -370,7 +386,7 @@ function TodoListFieldInput({
         className="gap-1 self-start"
       >
         <Plus className="size-4" aria-hidden="true" />
-        Add item
+        {t('todoAddItem')}
       </Button>
     </Stack>
   );

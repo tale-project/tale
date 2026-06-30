@@ -2,7 +2,7 @@
  * Create loop state object
  */
 
-import { LoopVars } from '../../../../types/workflow';
+import type { LoopVars } from '../../../../types/workflow';
 
 export function createLoopState(
   currentIndex: number,

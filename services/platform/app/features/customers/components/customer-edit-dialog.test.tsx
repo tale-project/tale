@@ -54,36 +54,32 @@ describe('CustomerEditDialog', () => {
     expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
   });
 
-  it('submits when customer has no name', async () => {
+  it('blocks submission when the name is cleared', async () => {
     const onOpenChange = vi.fn();
     const { user } = render(
       <CustomerEditDialog
-        customer={makeCustomer({ name: undefined })}
+        customer={makeCustomer({ name: 'John' })}
         isOpen={true}
         onOpenChange={onOpenChange}
       />,
     );
 
-    const emailInput = screen.getByDisplayValue('test@example.com');
-    await user.clear(emailInput);
-    await user.type(emailInput, 'new@example.com');
+    const nameInput = screen.getByDisplayValue('John');
+    await user.clear(nameInput);
 
     const submitButton = screen.getByRole('button', { name: /save/i });
     await user.click(submitButton);
 
+    // Required-name validation must block the no-op update entirely:
+    // no mutation fires, no misleading success toast, and the dialog
+    // stays open so the user can correct the empty name.
     await waitFor(() => {
-      expect(mockMutateAsync).toHaveBeenCalledWith({
-        customerId: 'customer-1',
-        name: undefined,
-        email: 'new@example.com',
-        locale: 'en',
-        status: 'active',
-      });
+      expect(mockMutateAsync).not.toHaveBeenCalled();
     });
-
-    await waitFor(() => {
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-    });
+    expect(mockToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'success' }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it('submits with name when customer has a name', async () => {

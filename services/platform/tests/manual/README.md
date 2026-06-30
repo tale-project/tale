@@ -23,9 +23,9 @@ here.
 4. Finish with [accessibility.md](accessibility.md), [responsive.md](responsive.md),
    and [performance.md](performance.md) as cross-cutting sweeps.
 
-An AI agent can run a whole guide with the `/qa <area>` command, which loads the
-guide and drives it through the Playwright MCP — see the
-[browser-qa](../../.claude/skills/browser-qa/SKILL.md) skill. New guides copy
+An AI agent can run a whole guide by loading it and driving the app through the
+Playwright MCP — proving behaviour by observing the real outcome, per the
+[test-code](../../.agents/skills/test-code/SKILL.md) skill. New guides copy
 [TEMPLATE.md](TEMPLATE.md) (which documents the authoring conventions).
 
 ## Guides

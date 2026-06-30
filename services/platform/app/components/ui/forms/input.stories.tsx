@@ -34,9 +34,9 @@ import { Input } from './input';
   argTypes: {
     variant: {
       control: 'select',
-      options: ['default', 'unstyled'],
+      options: ['default', 'unstyled', 'readOnly'],
       description:
-        'Visual variant: `default` (bordered field) or `unstyled` (no chrome, inherits surrounding styles)',
+        'Visual variant: `default` (bordered field), `unstyled` (no chrome, inherits surrounding styles), or `readOnly` (borderless, transparent, text-like display). A native `readOnly` input selects `readOnly` automatically.',
     },
     type: {
       control: 'select',
@@ -214,6 +214,40 @@ export const Disabled: Story = {
     label: 'Disabled field',
     disabled: true,
     defaultValue: 'Cannot edit this',
+  },
+};
+
+export const ReadOnly: Story = {
+  args: {
+    label: 'Read-only field',
+    readOnly: true,
+    defaultValue: 'Informational value',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Display-only value: borderless and transparent, but keeps the field footprint (`h-9` + padding) so there is no layout shift when toggling to an editable field. A native `readOnly` input picks this variant automatically.',
+      },
+    },
+  },
+};
+
+export const States: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Input label="Editable" defaultValue="You can change this" />
+      <Input label="Read-only" readOnly defaultValue="Informational value" />
+      <Input label="Disabled" disabled defaultValue="Temporarily unavailable" />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Editable vs. read-only vs. disabled. All three measure 36px tall and share the same footprint — read-only drops the border/background so the value reads as text, disabled dims the bordered field to signal it is temporarily unavailable.',
+      },
+    },
   },
 };
 

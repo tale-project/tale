@@ -2,17 +2,19 @@
 
 import { Button } from '@tale/ui/button';
 import { EmptyPlaceholder } from '@tale/ui/empty-placeholder';
+import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { FileText, RotateCcw, Upload } from 'lucide-react';
+import { Eye, FileText, RotateCcw, Upload } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -60,6 +62,10 @@ export function ProjectFilesTab({
   const [retryingIds, setRetryingIds] = useState(new Set<string>());
   const [confirmDetachId, setConfirmDetachId] =
     useState<Id<'documents'> | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{
+    id: Id<'documents'>;
+    title: string;
+  } | null>(null);
 
   const uploadOne = useCallback(
     async (file: File): Promise<void> => {
@@ -251,6 +257,14 @@ export function ProjectFilesTab({
             {documents.map((doc) => {
               const isRetrying = retryingIds.has(String(doc._id));
               const failed = doc.ragStatus === 'failed';
+              const displayTitle =
+                doc.title ?? doc.extension ?? t('files.unknownTitle');
+              // A file can only be opened/downloaded once its bytes have been
+              // stored, so gate the preview affordance on the storage id that
+              // `listProjectDocuments` returns per row.
+              const canPreview = doc.fileId != null;
+              const openPreview = () =>
+                setPreviewDoc({ id: doc._id, title: displayTitle });
               return (
                 <HStack
                   key={doc._id}
@@ -263,13 +277,33 @@ export function ProjectFilesTab({
                     aria-hidden="true"
                   />
                   <Stack gap={0} className="min-w-0 flex-1">
-                    <Text as="span" variant="body" truncate>
-                      {doc.title ?? doc.extension ?? t('files.unknownTitle')}
-                    </Text>
+                    {canPreview ? (
+                      <button
+                        type="button"
+                        onClick={openPreview}
+                        className="min-w-0 cursor-pointer text-left hover:underline"
+                      >
+                        <Text as="span" variant="body" truncate>
+                          {displayTitle}
+                        </Text>
+                      </button>
+                    ) : (
+                      <Text as="span" variant="body" truncate>
+                        {displayTitle}
+                      </Text>
+                    )}
                     <Text as="span" variant="caption">
                       {statusLabel(doc.ragStatus)}
                     </Text>
                   </Stack>
+                  {canPreview ? (
+                    <IconButton
+                      icon={Eye}
+                      variant="ghost"
+                      aria-label={t('files.previewAction')}
+                      onClick={openPreview}
+                    />
+                  ) : null}
                   {failed && canEdit ? (
                     <Button
                       variant="ghost"
@@ -326,6 +360,15 @@ export function ProjectFilesTab({
           </FileUpload.Root>
         ) : null}
       </FormSection>
+
+      <DocumentPreviewDialog
+        open={previewDoc !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewDoc(null);
+        }}
+        documentId={previewDoc?.id}
+        fileName={previewDoc?.title}
+      />
 
       <ConfirmDialog
         open={confirmDetachId !== null}

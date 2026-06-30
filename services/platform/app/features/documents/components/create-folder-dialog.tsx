@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -85,8 +86,7 @@ export function CreateFolderDialog({
       onSuccess?.();
     } catch (error) {
       console.error('Failed to create folder:', error);
-      const isDuplicate =
-        error instanceof Error && error.message.includes('already exists');
+      const isDuplicate = extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME';
       toast({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')

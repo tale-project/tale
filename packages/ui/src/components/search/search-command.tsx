@@ -216,6 +216,7 @@ export function SearchCommand({
             </Dialog.Overlay>
             <Dialog.Content
               asChild
+              aria-modal="true"
               aria-label={labels.title}
               onCloseAutoFocus={restoreFocus}
             >

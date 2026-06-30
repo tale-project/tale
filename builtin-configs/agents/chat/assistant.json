@@ -4,7 +4,7 @@
     "labels": ["General"],
     "autoInstall": true
   },
-  "skillBindings": ["pptx"],
+  "skillBindings": ["docx", "pdf", "pptx", "xlsx"],
   "toolNames": [
     "rag_search",
     "web",

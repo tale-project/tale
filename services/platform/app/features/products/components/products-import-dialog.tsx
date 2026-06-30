@@ -13,10 +13,8 @@ import {
 } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import {
-  ProductStatus,
-  PRODUCT_STATUS,
-} from '@/lib/shared/constants/convex-enums';
+import type { ProductStatus } from '@/lib/shared/constants/convex-enums';
+import { PRODUCT_STATUS } from '@/lib/shared/constants/convex-enums';
 
 import { useBulkCreateProducts } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';

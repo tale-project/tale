@@ -12,7 +12,7 @@ import { walkDocs } from './lib/walk';
 /**
  * Prose-level mechanics that apply across every locale:
  *
- *   1. **No exclamation marks in prose.** From `.claude/skills/docs/SKILL.md`:
+ *   1. **No exclamation marks in prose.** From `.agents/skills/write-docs/SKILL.md`:
  *      "Outside literal code (`!important`, `1 != 2`), an exclamation belongs
  *      in a marketing splash." Inline code is masked by `iterProseLines`, so
  *      the only `!` that survives is one in plain prose.

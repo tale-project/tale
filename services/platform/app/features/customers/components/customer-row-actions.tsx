@@ -8,7 +8,7 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { useAbility } from '@/app/hooks/use-ability';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomerDeleteDialog } from './customer-delete-dialog';

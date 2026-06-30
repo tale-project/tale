@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 
 import { Field } from '@/app/components/ui/forms/field';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface VendorInformationProps {

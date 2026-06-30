@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { render, screen, within } from '@/tests/utils/render';
 
+import { createSelectColumn } from './column-builders';
 import { DataTable } from './data-table';
 
 // ---------------------------------------------------------------------------
@@ -344,6 +345,50 @@ describe('DataTable addAction contract', () => {
       screen.getAllByRole('button', { name: 'New customer' }),
     ).toHaveLength(1);
     expect(screen.getByText('No customers')).toBeInTheDocument();
+  });
+
+  describe('row selection', () => {
+    const selectColumns: ColumnDef<TestRow>[] = [
+      createSelectColumn<TestRow>(),
+      { accessorKey: 'name', header: 'Name' },
+    ];
+
+    it('renders a "Select row" checkbox only on selectable rows', () => {
+      render(
+        <DataTable
+          columns={selectColumns}
+          data={sampleRows}
+          approxRowCount={3}
+          // Bob is non-selectable — the protected-row case.
+          enableRowSelection={(row) => row.original.name !== 'Bob'}
+        />,
+      );
+
+      // Alice + Charlie are selectable; Bob renders no checkbox affordance.
+      expect(
+        screen.getAllByRole('checkbox', { name: 'Select row' }),
+      ).toHaveLength(2);
+      const bobRow = screen.getByText('Bob').closest('tr');
+      expect(bobRow).not.toBeNull();
+      expect(
+        within(bobRow as HTMLElement).queryByRole('checkbox'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps a checkbox on every row when all rows are selectable', () => {
+      render(
+        <DataTable
+          columns={selectColumns}
+          data={sampleRows}
+          approxRowCount={3}
+          enableRowSelection
+        />,
+      );
+
+      expect(
+        screen.getAllByRole('checkbox', { name: 'Select row' }),
+      ).toHaveLength(3);
+    });
   });
 
   it('prefers an explicit actionMenu over addAction', () => {

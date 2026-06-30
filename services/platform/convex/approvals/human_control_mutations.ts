@@ -93,13 +93,17 @@ async function resumeAfterHandoff(
 }
 
 /**
- * Take control of the live browser for a pending handoff: claim the single-
- * controller lease so a `?control=1` screencast connection is authorized to the
- * WRITABLE x11vnc. Called by the screencast-auth oracle (http.ts) for a control
- * upgrade. v1 control boundary is the thread OWNER (stricter than the view
- * boundary — a writable browser is more powerful than a mirror), matching how
- * only the owner approves a plan. Idempotent for the same holder (reconnects
- * re-acquire); refuses a second concurrent controller.
+ * Authorize a `?control=1` screencast upgrade to the WRITABLE x11vnc. Called by
+ * the screencast-auth oracle (http.ts), which has already confirmed the session
+ * is `active` and run the org-scoped canAccessThread view boundary.
+ *
+ * Control is ALWAYS available to the thread OWNER — it is intentionally NOT
+ * gated on an agent-issued `request_human_control` handoff. The agent can still
+ * ask (that flow parks the turn and resumes on return), but the human can grab
+ * the wheel at any time to scroll/click/type or drive the browser's own menu
+ * bar. The owner boundary is stricter than the view boundary on purpose: a
+ * writable browser is more powerful than a mirror, so shared viewers stay
+ * read-only (a denied control request still streams the read-only mirror).
  */
 export const claimHumanControlLease = internalMutation({
   args: {
@@ -111,9 +115,6 @@ export const claimHumanControlLease = internalMutation({
     reason: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    // The caller (screencast-auth oracle) already ran the org-scoped
-    // canAccessThread view boundary; here we derive everything from the thread
-    // itself and additionally require OWNERSHIP for control.
     const meta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
@@ -121,35 +122,9 @@ export const claimHumanControlLease = internalMutation({
     if (!meta) {
       return { ok: false, reason: 'no_thread' };
     }
-    // Owner-only control in v1 (a shared viewer can watch, not drive).
+    // Owner-only control: a shared viewer can watch, not drive.
     if (meta.userId !== args.userId) {
       return { ok: false, reason: 'forbidden' };
-    }
-    // Control is only meaningful while the agent has actually asked for it.
-    const approval = await ctx.db
-      .query('approvals')
-      .withIndex('by_threadId_status_resourceType', (q) =>
-        q
-          .eq('threadId', args.threadId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'external_agent_human_control'),
-      )
-      .first();
-    if (!approval) {
-      return { ok: false, reason: 'no_request' };
-    }
-    const metadata = isRecord(approval.metadata) ? approval.metadata : {};
-    const holder =
-      typeof metadata.controlHolderUserId === 'string'
-        ? metadata.controlHolderUserId
-        : undefined;
-    if (holder !== undefined && holder !== args.userId) {
-      return { ok: false, reason: 'held_by_other' };
-    }
-    if (holder !== args.userId) {
-      await ctx.db.patch(approval._id, {
-        metadata: { ...metadata, controlHolderUserId: args.userId },
-      });
     }
     return { ok: true };
   },

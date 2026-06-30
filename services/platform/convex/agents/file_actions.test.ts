@@ -70,6 +70,8 @@ vi.mock('../lib/file_io', () => ({
   generateHistoryTimestamp: () => '1234567890-abcdef01',
   pruneHistory: vi.fn(),
   serializeJson: (data: object) => JSON.stringify(data, null, 2) + '\n',
+  validateTimestamp: () => true,
+  safeJoinWithinDir: (dir: string, name: string) => `${dir}/${name}`,
 }));
 
 vi.mock('./file_utils', async () => {
@@ -116,7 +118,8 @@ vi.mock('../../lib/shared/schemas/agents', () => ({
 // Import handlers
 // ---------------------------------------------------------------------------
 
-const { deleteAgent, duplicateAgent } = await import('./file_actions');
+const { deleteAgent, duplicateAgent, restoreFromHistory } =
+  await import('./file_actions');
 
 type ActionConfig = {
   handler: (ctx: never, args: never) => Promise<unknown>;
@@ -124,6 +127,7 @@ type ActionConfig = {
 
 const deleteHandler = (deleteAgent as unknown as ActionConfig).handler;
 const duplicateHandler = (duplicateAgent as unknown as ActionConfig).handler;
+const restoreHandler = (restoreFromHistory as unknown as ActionConfig).handler;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -208,6 +212,31 @@ describe('deleteAgent', () => {
         { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Authentication required.');
+  });
+
+  it('rejects a plain member lacking the developerSettings capability', async () => {
+    // deleteAgent now gates on `developerSettings` (requireOrgAdminOrDeveloper),
+    // matching create/duplicate/save. The real gate runs on top of the mocked
+    // membership helper, so a `member` role must be rejected before any deletion.
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    const ctx = createMockCtx();
+
+    await expect(
+      deleteHandler(
+        ctx as never,
+        { organizationId: 'org-123', agentName: 'my-agent' } as never,
+      ),
+    ).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
+    });
+    expect(mockUnlink).not.toHaveBeenCalled();
   });
 
   it('ignores ENOENT from unlink (file already absent)', async () => {
@@ -370,5 +399,169 @@ describe('duplicateAgent', () => {
         { organizationId: 'org_test', agentName: 'my-agent' } as never,
       ),
     ).rejects.toThrow('Disk full');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: restoreFromHistory
+// ---------------------------------------------------------------------------
+
+describe('restoreFromHistory', () => {
+  // History snapshot path contains `.history`; the live agent path does not.
+  // Route readFileSafe by which one is requested so each test can vary the
+  // snapshot's capability fields independently of the current config.
+  function mockHistoryAndCurrent(historyConfig: object, currentConfig: object) {
+    mockReadFileSafe.mockImplementation(async (p: string) =>
+      p.includes('.history')
+        ? JSON.stringify(historyConfig)
+        : JSON.stringify(currentConfig),
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthUser.mockResolvedValue({
+      _id: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+    });
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'admin' },
+    });
+    mockAtomicWrite.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
+  });
+
+  it('rejects a plain member when the restore changes capability fields', async () => {
+    // The snapshot re-grants a skillBinding the current config lacks — a
+    // capability change that must require the developerSettings gate, even
+    // though the public action only resolves plain membership directly.
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    mockHistoryAndCurrent(
+      { ...validConfig, skillBindings: ['secret-skill'] },
+      { ...validConfig, skillBindings: [] },
+    );
+    const ctx = createMockCtx();
+
+    await expect(
+      restoreHandler(
+        ctx as never,
+        {
+          organizationId: 'org-123',
+          agentName: 'my-agent',
+          timestamp: '1234567890-abcdef01',
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
+    });
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
+  });
+
+  it('allows a developer to restore a capability-changing snapshot', async () => {
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'developer' },
+    });
+    mockHistoryAndCurrent(
+      { ...validConfig, skillBindings: ['secret-skill'] },
+      { ...validConfig, skillBindings: [] },
+    );
+    const ctx = createMockCtx();
+
+    await restoreHandler(
+      ctx as never,
+      {
+        organizationId: 'org-123',
+        agentName: 'my-agent',
+        timestamp: '1234567890-abcdef01',
+      } as never,
+    );
+
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/data/agents/my-agent.json',
+      expect.stringContaining('secret-skill'),
+    );
+  });
+
+  it('allows a plain member to restore a non-capability change', async () => {
+    // Only the description differs; capability fields are identical, so the
+    // restore is allowed for a plain member — mirroring saveAgent, where
+    // members may edit non-capability fields.
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    mockHistoryAndCurrent(
+      { ...validConfig, description: 'old description' },
+      { ...validConfig, description: 'new description' },
+    );
+    const ctx = createMockCtx();
+
+    await restoreHandler(
+      ctx as never,
+      {
+        organizationId: 'org-123',
+        agentName: 'my-agent',
+        timestamp: '1234567890-abcdef01',
+      } as never,
+    );
+
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/data/agents/my-agent.json',
+      expect.stringContaining('old description'),
+    );
+  });
+
+  it('fails closed (requires the capability) when the current config is unreadable', async () => {
+    // No current content means we cannot prove the snapshot leaves capability
+    // grants unchanged, so the gate must require the developerSettings
+    // capability and reject a plain member.
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    mockReadFileSafe.mockImplementation(async (p: string) =>
+      p.includes('.history') ? JSON.stringify(validConfig) : null,
+    );
+    const ctx = createMockCtx();
+
+    await expect(
+      restoreHandler(
+        ctx as never,
+        {
+          organizationId: 'org-123',
+          agentName: 'my-agent',
+          timestamp: '1234567890-abcdef01',
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
+    });
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
   });
 });

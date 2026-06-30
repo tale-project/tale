@@ -2,8 +2,8 @@
  * Shared types for step execution
  */
 
-import { Id } from '../../../_generated/dataModel';
-import { StepExecutionResult } from '../../types';
+import type { Id } from '../../../_generated/dataModel';
+import type { StepExecutionResult } from '../../types';
 
 export type StepType =
   | 'start'

@@ -13,7 +13,7 @@
 // to reproduce the timing) and assert the body reaches the handler.
 
 import http from 'node:http';
-import { AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 

@@ -326,5 +326,10 @@ describe('SearchCommand', () => {
       const { container } = renderCommand();
       await checkAccessibility(container);
     });
+
+    it('marks the content as a modal dialog (aria-modal)', () => {
+      renderCommand();
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
   });
 });

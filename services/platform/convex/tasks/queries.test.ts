@@ -125,8 +125,32 @@ describe('listExternalKeysByProject', () => {
     await expect(
       t.query(api.tasks.queries.listExternalKeysByProject, {
         projectId,
+        // Matching org so the call passes the active-org guard and reaches the
+        // auth gate this test is exercising.
+        organizationId: ORG,
         externalSystem: 'github',
       }),
     ).rejects.toThrow();
+  });
+});
+
+// The tasks domain derives access from the parent project via
+// `loadAccessibleProject`, which now enforces active-org coherence: a task or
+// project carried over from another org (a stale URL after an org switch) is
+// denied even when the caller is a member of that other org. The project EXISTS
+// here (seeded in ORG), so a reject on a different active org is the coherence
+// guard firing, not "project not found". Projects analogue: projects/queries.test.ts.
+describe('tasks active-org coherence', () => {
+  it('denies a project read when the active org does not match', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Roadmap');
+
+    await expect(
+      t.query(api.tasks.queries.listExternalKeysByProject, {
+        projectId,
+        organizationId: 'org_other',
+        externalSystem: 'github',
+      }),
+    ).rejects.toThrow(/different organization/i);
   });
 });

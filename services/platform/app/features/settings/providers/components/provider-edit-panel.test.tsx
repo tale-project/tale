@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import type userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';

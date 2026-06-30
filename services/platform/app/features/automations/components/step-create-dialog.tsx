@@ -104,6 +104,14 @@ const getDefaultTemplates = (stepType: StepType): { config: string } => {
   }
 };
 
+/**
+ * Fully-validated create-step form. On-canvas step editing is not wired up yet
+ * (the canvas is read-only — see `AutomationSteps`), so this dialog has no
+ * production caller today; it is retained intentionally as the foundation for
+ * the future canvas-editing feature, alongside the unused `addStep`/
+ * `updateStep`/`deleteStep` mutators in `use-workflow-config-context`. Delete
+ * all of them together if that feature is dropped.
+ */
 export function CreateStepDialog({
   open,
   onOpenChange,

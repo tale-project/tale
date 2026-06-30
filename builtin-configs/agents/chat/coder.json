@@ -4,7 +4,15 @@
     "labels": ["Engineering"],
     "autoInstall": false
   },
-  "skillBindings": [],
+  "skillBindings": [
+    "create-pr",
+    "fix-bug",
+    "implement-feature",
+    "make-improvement",
+    "review-code",
+    "test-code",
+    "write-notes"
+  ],
   "toolNames": [
     "run_code",
     "file_write",

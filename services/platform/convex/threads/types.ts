@@ -2,7 +2,7 @@ import type { syncStreams, UIMessage, StreamArgs } from '@convex-dev/agent';
 import type { PaginationOptions } from 'convex/server';
 import type { Infer } from 'convex/values';
 
-import {
+import type {
   chatTypeValidator,
   messageRoleValidator,
   threadStatusValidator,
