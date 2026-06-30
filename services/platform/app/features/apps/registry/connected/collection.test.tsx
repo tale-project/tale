@@ -61,8 +61,8 @@ vi.mock('../../runtime/app-runtime', () => ({
 // Subject expansion/accessory are domain components pulling in reactive deps;
 // never exercised here (no `subjectType`), so stub them to keep the import light.
 vi.mock('./subject-run', () => ({ SubjectRun: () => null }));
-vi.mock('./subject-capacity-chip', () => ({
-  SubjectCapacityChip: () => null,
+vi.mock('./subject-run-status-chip', () => ({
+  SubjectRunStatusChip: () => null,
 }));
 
 // The paginated data hook — drive it by hand per test. Keep the REAL DataTable

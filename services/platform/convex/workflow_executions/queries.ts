@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { isParkedOnCapacity } from '../../lib/shared/platform/run_capacity';
+import { deriveRunIndicator } from '../../lib/shared/platform/run_capacity';
 import { queryWithRLS } from '../lib/rls';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
 import { getExecutionStepStatuses as getExecutionStepStatusesHelper } from '../workflows/executions/get_execution_step_statuses';
@@ -101,19 +101,20 @@ export const getLatestExecutionForSubject = queryWithRLS({
 });
 
 /**
- * Whether the latest run "about" a subject is currently parked on sandbox
- * capacity (queued behind the org's concurrency cap). A tiny boolean so a list
- * can show a per-row ambient "Queued for capacity" chip without subscribing each
- * visible row to the full execution summary — Convex pushes an update only when
- * the boolean flips, not on every ~4s poll of the running execution.
+ * The ambient run indicator for a subject's row — `'parked' | 'failed' | null`
+ * derived from the subject's latest run (see `deriveRunIndicator`). A tiny value
+ * (not the full run summary) so a list can show a per-row chip — "Queued for
+ * capacity" or "Failed" — without subscribing each visible row to the heavy
+ * execution summary: Convex pushes an update only when the indicator flips, not
+ * on every ~4s poll of a running execution.
  */
-export const getSubjectAwaitingCapacity = queryWithRLS({
+export const getSubjectRunIndicator = queryWithRLS({
   args: {
     organizationId: v.string(),
     subjectType: v.string(),
     subjectId: v.string(),
   },
-  returns: v.boolean(),
+  returns: v.union(v.literal('parked'), v.literal('failed'), v.null()),
   handler: async (ctx, args) => {
     const row = await ctx.db
       .query('wfExecutions')
@@ -125,7 +126,7 @@ export const getSubjectAwaitingCapacity = queryWithRLS({
       )
       .order('desc')
       .first();
-    return isParkedOnCapacity(row);
+    return deriveRunIndicator(row);
   },
 });
 

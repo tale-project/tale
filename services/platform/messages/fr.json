@@ -183,7 +183,9 @@
       "watchLive": "Voir en direct",
       "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
-      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère."
+      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
+      "failed": "Échec",
+      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
     },
     "membership": {
       "title": "Projets",

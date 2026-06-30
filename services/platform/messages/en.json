@@ -183,7 +183,9 @@
       "watchLive": "Watch live",
       "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
-      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
+      "failed": "Failed",
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
     "membership": {
       "title": "Projects",
