@@ -260,7 +260,10 @@ export const enqueueMessage = mutation({
       args.organizationId,
     );
     if (!meta || meta.userId !== authUser.userId) {
-      throw new Error('Thread not found');
+      throw new ConvexError({
+        code: 'THREAD_NOT_FOUND',
+        message: 'Thread not found',
+      });
     }
 
     const trimmed = args.message.trim();

@@ -39,7 +39,10 @@ async function getEditedMessageOrder(
     }
   }
 
-  throw new Error('Edited message not found in thread');
+  throw new ConvexError({
+    code: 'MESSAGE_NOT_FOUND',
+    message: 'Edited message not found in thread',
+  });
 }
 
 /**

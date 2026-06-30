@@ -1,5 +1,5 @@
 import type { vAssistantContent } from '@convex-dev/agent/validators';
-import type { Infer } from 'convex/values';
+import { ConvexError, type Infer } from 'convex/values';
 
 export type AssistantContent = Infer<typeof vAssistantContent>;
 type AssistantContentParts = Exclude<AssistantContent, string>;
@@ -26,9 +26,10 @@ export function truncateAssistantContent(
   displayedLength: number,
 ): AssistantContent {
   if (displayedLength < 0) {
-    throw new Error(
-      `truncateAssistantContent: displayedLength must be >= 0, got ${displayedLength}`,
-    );
+    throw new ConvexError({
+      code: 'INVALID_DISPLAYED_LENGTH',
+      message: `truncateAssistantContent: displayedLength must be >= 0, got ${displayedLength}`,
+    });
   }
 
   if (typeof content === 'string') {
