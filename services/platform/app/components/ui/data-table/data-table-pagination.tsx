@@ -67,6 +67,13 @@ export function DataTablePagination({
   // Use provided totalPages or calculate from total and pageSize
   const totalPageCount = totalPages ?? Math.ceil(total / pageSize);
 
+  // When everything fits on a single page there's nothing to navigate, so the
+  // page-size selector, prev/next buttons and page dropdown are just noise
+  // (e.g. a 1-member org). Collapse them to the bare count. Guard against
+  // cursor-based pagination (unknown total) where neighbours still exist.
+  const isSinglePage =
+    totalPageCount <= 1 && hasNextPage !== true && hasPreviousPage !== true;
+
   // Determine if buttons should be disabled
   const isPrevDisabled =
     isLoading || currentPage === 1 || hasPreviousPage === false;
@@ -99,7 +106,7 @@ export function DataTablePagination({
         className,
       )}
     >
-      {showPageSizeSelector && onPageSizeChange && (
+      {!isSinglePage && showPageSizeSelector && onPageSizeChange && (
         <div className="mr-4 hidden items-center gap-2 sm:flex">
           <Text as="span" variant="caption">
             {t('pagination.rowsPerPage')}
@@ -117,22 +124,24 @@ export function DataTablePagination({
         </div>
       )}
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handlePrevious}
-        disabled={isPrevDisabled}
-        className="p-1.5"
-        title={t('aria.previousPage')}
-      >
-        {isLoading ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <ChevronLeft className="size-4" />
-        )}
-      </Button>
+      {!isSinglePage && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handlePrevious}
+          disabled={isPrevDisabled}
+          className="p-1.5"
+          title={t('aria.previousPage')}
+        >
+          {isLoading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <ChevronLeft className="size-4" />
+          )}
+        </Button>
+      )}
 
-      {totalPageCount > 0 && (
+      {!isSinglePage && totalPageCount > 0 && (
         <Select
           value={currentPage.toString()}
           onValueChange={handlePageSelect}
@@ -145,20 +154,22 @@ export function DataTablePagination({
         />
       )}
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleNext}
-        disabled={isNextDisabled}
-        className="p-1.5"
-        title={t('aria.nextPage')}
-      >
-        {isLoading ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <ChevronRight className="size-4" />
-        )}
-      </Button>
+      {!isSinglePage && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleNext}
+          disabled={isNextDisabled}
+          className="p-1.5"
+          title={t('aria.nextPage')}
+        >
+          {isLoading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+        </Button>
+      )}
 
       {total > 0 && (
         <Text
