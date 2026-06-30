@@ -332,6 +332,8 @@ function httpStatusForConvexCode(code: string | undefined): number {
     case 'VENDOR_NOT_FOUND':
     case 'CUSTOMER_NOT_FOUND':
     case 'WEBSITE_NOT_FOUND':
+    case 'DOCUMENT_NOT_FOUND':
+    case 'FOLDER_NOT_FOUND':
       return 404;
     case 'validation':
     case 'EMAIL_REQUIRED':
