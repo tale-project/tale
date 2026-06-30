@@ -678,7 +678,13 @@ export const applyConsumeUrlQuota = internalMutation({
  */
 export const applyRecordUploaded = internalMutation({
   args: {
-    executionId: v.id('sandboxExecutions'),
+    // `v.string()` (not `v.id`) so the report-back tolerates spawner runs with
+    // no audit row by design — internal infra renders (crawler doc/page render
+    // in `crawler/lib/sandbox_render*.ts`) use a synthetic executionId.
+    // `normalizeId` below re-validates table membership, so a real run's id is
+    // still type-safe; an unaudited/invalid id no-ops instead of throwing an
+    // ArgumentValidationError that the spawner reports as UPLOAD_REPORT_FAILED.
+    executionId: v.string(),
     fileName: v.string(),
     storageId: v.id('_storage'),
     size: v.number(),
@@ -686,7 +692,20 @@ export const applyRecordUploaded = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.executionId);
+    const executionId = ctx.db.normalizeId(
+      'sandboxExecutions',
+      args.executionId,
+    );
+    if (executionId === null) {
+      // Unaudited infra run (e.g. a crawler render) — there is no audit row to
+      // record against. The produced blob is read straight off the SSE result
+      // by the caller, so the report-back is a no-op here.
+      console.warn(
+        `[sandbox.applyRecordUploaded] no audit row for executionId=${args.executionId} (infra run?); skipping ${args.fileName}`,
+      );
+      return null;
+    }
+    const row = await ctx.db.get(executionId);
     if (!row) return null;
     if (sandboxTerminalStatuses.has(row.status)) {
       // Run is already terminal — caller is too late. Don't append to
@@ -703,7 +722,7 @@ export const applyRecordUploaded = internalMutation({
     // network blip. The set is small (cap = MAX_OUTPUT_FILES_PER_RUN)
     // so the linear scan is fine.
     if (existing.some((id) => id === args.storageId)) return null;
-    await ctx.db.patch(args.executionId, {
+    await ctx.db.patch(executionId, {
       uploadedStorageIds: [...existing, args.storageId],
       heartbeatAt: Date.now(),
     });

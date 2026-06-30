@@ -1,5 +1,5 @@
 import { createThread, saveMessage } from '@convex-dev/agent';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -19,11 +19,17 @@ export const forkThread = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     if (!UUID_REGEX.test(args.shareToken)) {
-      throw new Error('Invalid share token');
+      throw new ConvexError({
+        code: 'INVALID_SHARE_TOKEN',
+        message: 'Invalid share token',
+      });
     }
 
     const metadata = await ctx.db
@@ -32,7 +38,10 @@ export const forkThread = mutation({
       .first();
 
     if (!metadata || !metadata.isShared) {
-      throw new Error('Shared thread not found');
+      throw new ConvexError({
+        code: 'SHARED_THREAD_NOT_FOUND',
+        message: 'Shared thread not found',
+      });
     }
 
     // Org-scoped access: verify the forking user is in the same org
@@ -43,7 +52,10 @@ export const forkThread = mutation({
         metadata.organizationId,
       );
       if (!isMember) {
-        throw new Error('Shared thread not found');
+        throw new ConvexError({
+          code: 'SHARED_THREAD_NOT_FOUND',
+          message: 'Shared thread not found',
+        });
       }
     }
 

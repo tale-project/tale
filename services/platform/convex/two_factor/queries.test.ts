@@ -73,18 +73,18 @@ describe('listPasskeysForMember handler', () => {
     mockGetAuthUserIdentity.mockResolvedValue(null);
     const ctx = createCtx({});
 
-    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
   });
 
   it('throws when the target member does not exist', async () => {
     mockGetAuthUserIdentity.mockResolvedValue(CALLER);
     const ctx = createCtx({ member: null });
 
-    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toThrow(
-      'Member not found',
-    );
+    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toMatchObject({
+      data: { code: 'MEMBER_NOT_FOUND' },
+    });
   });
 
   it('throws when the caller is not an admin in the target org', async () => {
@@ -94,18 +94,18 @@ describe('listPasskeysForMember handler', () => {
       callerMembership: { role: 'member' },
     });
 
-    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toThrow(
-      'Only admins can list passkeys for members',
-    );
+    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN' },
+    });
   });
 
   it('throws when the caller has no membership in the target org', async () => {
     mockGetAuthUserIdentity.mockResolvedValue(CALLER);
     const ctx = createCtx({ member: TARGET_MEMBER, callerMembership: null });
 
-    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toThrow(
-      'Only admins can list passkeys for members',
-    );
+    await expect(handler(ctx, { memberId: 'm_target' })).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN' },
+    });
   });
 
   it('returns display fields only for an admin caller', async () => {

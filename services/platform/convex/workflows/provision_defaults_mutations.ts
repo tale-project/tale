@@ -100,6 +100,13 @@ export const ensureSchedule = internalMutation({
   args: {
     organizationId: v.string(),
     workflowSlug: v.string(),
+    /**
+     * Project this schedule belongs to for a `scope: 'project'` app (one schedule
+     * per bound project, each carrying that project's config in `variables`).
+     * Undefined for org-level schedules. Part of the idempotency key, so the same
+     * (org, workflowSlug, cron) yields a SEPARATE row per project.
+     */
+    projectId: v.optional(v.id('projects')),
     cronExpression: v.string(),
     timezone: v.optional(v.string()),
     variables: v.optional(jsonRecordValidator),
@@ -114,13 +121,15 @@ export const ensureSchedule = internalMutation({
       )) {
       if (
         sched.organizationId === args.organizationId &&
-        sched.cronExpression === args.cronExpression
+        sched.cronExpression === args.cronExpression &&
+        sched.projectId === args.projectId
       ) {
         return { created: false };
       }
     }
     await ctx.db.insert('wfSchedules', {
       organizationId: args.organizationId,
+      projectId: args.projectId,
       workflowSlug: args.workflowSlug,
       cronExpression: args.cronExpression,
       timezone: args.timezone ?? 'UTC',

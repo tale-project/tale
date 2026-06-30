@@ -1,6 +1,38 @@
 {
   "apps": {
     "title": "Apps",
+    "upload": {
+      "uploadApp": "Upload app",
+      "dialogTitle": "Upload private app",
+      "description": "Upload a private app to this organization. Provide a .zip of the app folder, or select the folder directly — its name becomes the app slug. Uploading does not install the app; you can install it afterwards.",
+      "dropZoneLabel": "Upload app bundle",
+      "dropHere": "Drop the .zip here",
+      "parsing": "Reading bundle…",
+      "dropOrClick": "Drop a .zip here or click to browse",
+      "acceptedFormats": "A folder containing app.json at its root",
+      "or": "or",
+      "selectFolder": "Select folder",
+      "useFolderButton": "To upload a folder, use the “Select folder” button below.",
+      "singleZipOnly": "Drop a single .zip bundle, not multiple files.",
+      "zipRequired": "Bundle must be a .zip file.",
+      "unexpectedError": "An unexpected error occurred",
+      "scopeProject": "Project app",
+      "scopeOrg": "Org app",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresIntegrations": "Requires integrations",
+      "bundleFiles": "Bundle files",
+      "fileCount": "{count, plural, one {# file} other {# files}}",
+      "submit": "Upload app",
+      "submitting": "Uploading…",
+      "uploadSuccess": "App uploaded",
+      "installHint": "Install it from the Apps list when you’re ready.",
+      "replaceSuccess": "App replaced",
+      "uploadFailed": "Failed to upload app",
+      "replaceTitle": "Replace existing app?",
+      "replaceDescription": "A private app named \"{slug}\" already exists. Uploading will overwrite its current contents.",
+      "replaceConfirm": "Replace"
+    },
     "empty": {
       "title": "No apps yet",
       "description": "Installed packs appear here as apps."
@@ -183,7 +215,9 @@
       "watchLive": "Watch live",
       "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
-      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
+      "failed": "Failed",
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
     "membership": {
       "title": "Projects",
@@ -5158,7 +5192,6 @@
       "duplicateSuccess": "Project duplicated",
       "duplicateError": "Couldn't duplicate project",
       "renameDialogTitle": "Rename project",
-      "renameDialogDescription": "Change the project name.",
       "renameSubmit": "Save",
       "renameSubmitting": "Saving…"
     },

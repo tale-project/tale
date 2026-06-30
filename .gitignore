@@ -163,6 +163,8 @@ services/web/public/fr/
 # build artifacts under services/* (each service has its own dist/dist-ssr)
 services/*/dist
 services/*/dist-ssr
+# precompiled SEO + LLM artifact set (built in the Docker builder stage)
+services/*/dist-seo
 # vite-plugin-pwa dev-mode service worker output (regenerated on each dev run)
 services/*/dist-pwa
 services/*/dev-dist

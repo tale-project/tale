@@ -1,3 +1,4 @@
+import { hashPassword } from 'better-auth/crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockChangePassword = vi.fn();
@@ -192,5 +193,56 @@ describe('updateUserPassword', () => {
       headers: MOCK_HEADERS,
     });
     expect(mockChangePassword).not.toHaveBeenCalled();
+  });
+
+  it('rejects a forced change that re-uses the current password (#2038)', async () => {
+    mockHasCredentialAccount.mockResolvedValue(true);
+    const currentHash = await hashPassword(VALID_PASSWORD);
+    const ctx = createMockCtx();
+    // forcedResetCredentialPassword's findMany returns the credential account
+    // carrying the current password hash.
+    ctx.runQuery.mockResolvedValue({
+      page: [{ _id: 'acct_1', password: currentHash }],
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx as never, {
+        newPassword: VALID_PASSWORD,
+        trigger: 'forced',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'password_reused' } });
+    // The credential is never updated when reuse is detected.
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+  });
+
+  it('allows a forced change to a new password and revokes other sessions', async () => {
+    mockHasCredentialAccount.mockResolvedValue(true);
+    const revokeOtherSessions = vi.fn().mockResolvedValue(undefined);
+    mockGetAuth.mockResolvedValue({
+      auth: {
+        api: {
+          changePassword: mockChangePassword,
+          setPassword: mockSetPassword,
+          revokeOtherSessions,
+        },
+      },
+      headers: MOCK_HEADERS,
+    });
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue({
+      page: [{ _id: 'acct_1', password: await hashPassword('PreviousP@ss1') }],
+    });
+    ctx.runMutation.mockResolvedValue(undefined);
+    const handler = await getHandler();
+
+    await handler(ctx as never, {
+      newPassword: VALID_PASSWORD,
+      trigger: 'forced',
+    });
+
+    // The credential password is updated and sibling sessions revoked.
+    expect(ctx.runMutation).toHaveBeenCalled();
+    expect(revokeOtherSessions).toHaveBeenCalledWith({ headers: MOCK_HEADERS });
   });
 });

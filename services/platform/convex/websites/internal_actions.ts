@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -46,9 +46,10 @@ export async function registerDomainWithCrawler(
     { orgSlug, domain, scanInterval: scanIntervalToSeconds(scanInterval) },
   );
   if (!result.success) {
-    throw new Error(
-      `Failed to register website with crawler: ${result.error ?? 'unknown error'}`,
-    );
+    throw new ConvexError({
+      code: 'CRAWLER_REGISTRATION_FAILED',
+      message: `Failed to register website with crawler: ${result.error ?? 'unknown error'}`,
+    });
   }
 }
 
@@ -66,7 +67,10 @@ export async function updateCrawlerScanInterval(
     // The in-process action returns `{ success:false, error }` for an unknown
     // domain or one being deleted; map the not-found case to the sentinel the
     // REST caller branches on.
-    throw new Error('CRAWLER_WEBSITE_NOT_FOUND');
+    throw new ConvexError({
+      code: 'CRAWLER_WEBSITE_NOT_FOUND',
+      message: 'CRAWLER_WEBSITE_NOT_FOUND',
+    });
   }
 }
 

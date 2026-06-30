@@ -106,16 +106,23 @@ describe('forkOwnThread', () => {
   it('throws when unauthenticated', async () => {
     mockGetAuthUserIdentity.mockResolvedValue(null);
     const { ctx } = createMockCtx();
-    await expect(forkOwnThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(
+      forkOwnThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
+  });
+
+  it('throws when the thread is not found', async () => {
+    const { ctx } = createMockCtx(null);
+    await expect(
+      forkOwnThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('throws when forking a thread the user does not own', async () => {
     const { ctx } = createMockCtx({ userId: 'someone_else' });
-    await expect(forkOwnThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Not authorized',
-    );
+    await expect(
+      forkOwnThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'NOT_AUTHORIZED' } });
   });
 
   it('snapshots files + todos using the source organizationId', async () => {

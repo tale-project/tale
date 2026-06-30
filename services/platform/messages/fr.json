@@ -1,6 +1,38 @@
 {
   "apps": {
     "title": "Applications",
+    "upload": {
+      "uploadApp": "Téléverser une application",
+      "dialogTitle": "Téléverser une application privée",
+      "description": "Téléversez une application privée dans cette organisation. Fournissez un .zip du dossier de l'application, ou sélectionnez le dossier directement — son nom devient le slug de l'application. Le téléversement n'installe pas l'application ; vous pourrez l'installer ensuite.",
+      "dropZoneLabel": "Téléverser le bundle de l'application",
+      "dropHere": "Déposez le .zip ici",
+      "parsing": "Lecture du bundle…",
+      "dropOrClick": "Déposez un .zip ici ou cliquez pour parcourir",
+      "acceptedFormats": "Un dossier contenant app.json à sa racine",
+      "or": "ou",
+      "selectFolder": "Sélectionner un dossier",
+      "useFolderButton": "Pour téléverser un dossier, utilisez le bouton « Sélectionner un dossier » ci-dessous.",
+      "singleZipOnly": "Déposez un seul fichier .zip, pas plusieurs fichiers.",
+      "zipRequired": "Le bundle doit être un fichier .zip.",
+      "unexpectedError": "Une erreur inattendue s'est produite",
+      "scopeProject": "Application de projet",
+      "scopeOrg": "Application d'organisation",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresIntegrations": "Nécessite des intégrations",
+      "bundleFiles": "Fichiers du bundle",
+      "fileCount": "{count, plural, one {# fichier} other {# fichiers}}",
+      "submit": "Téléverser l'application",
+      "submitting": "Téléversement…",
+      "uploadSuccess": "Application téléversée",
+      "installHint": "Installez-la depuis la liste des applications quand vous êtes prêt.",
+      "replaceSuccess": "Application remplacée",
+      "uploadFailed": "Échec du téléversement de l'application",
+      "replaceTitle": "Remplacer l'application existante ?",
+      "replaceDescription": "Une application privée nommée « {slug} » existe déjà. Le téléversement écrasera son contenu actuel.",
+      "replaceConfirm": "Remplacer"
+    },
     "empty": {
       "title": "Aucune application",
       "description": "Les packs installés apparaissent ici comme des applications."
@@ -183,7 +215,9 @@
       "watchLive": "Voir en direct",
       "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
-      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère."
+      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
+      "failed": "Échec",
+      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
     },
     "membership": {
       "title": "Projets",
@@ -7539,7 +7573,6 @@
       "duplicateSuccess": "Projet dupliqué",
       "duplicateError": "Impossible de dupliquer le projet",
       "renameDialogTitle": "Renommer le projet",
-      "renameDialogDescription": "Modifier le nom du projet.",
       "renameSubmit": "Enregistrer",
       "renameSubmitting": "Enregistrement…"
     },

@@ -1,6 +1,38 @@
 {
   "apps": {
     "title": "Apps",
+    "upload": {
+      "uploadApp": "App hochladen",
+      "dialogTitle": "Private App hochladen",
+      "description": "Lade eine private App in diese Organisation hoch. Gib ein .zip des App-Ordners an oder wähle den Ordner direkt aus – sein Name wird zum App-Slug. Das Hochladen installiert die App nicht; du kannst sie danach installieren.",
+      "dropZoneLabel": "App-Bundle hochladen",
+      "dropHere": "Lege das .zip hier ab",
+      "parsing": "Bundle wird gelesen…",
+      "dropOrClick": "Lege ein .zip hier ab oder klicke zum Auswählen",
+      "acceptedFormats": "Ein Ordner mit app.json im Stammverzeichnis",
+      "or": "oder",
+      "selectFolder": "Ordner auswählen",
+      "useFolderButton": "Um einen Ordner hochzuladen, nutze die Schaltfläche „Ordner auswählen“ unten.",
+      "singleZipOnly": "Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.",
+      "zipRequired": "Das Bundle muss eine .zip-Datei sein.",
+      "unexpectedError": "Ein unerwarteter Fehler ist aufgetreten",
+      "scopeProject": "Projekt-App",
+      "scopeOrg": "Organisations-App",
+      "workflows": "Workflows",
+      "agents": "Agenten",
+      "requiresIntegrations": "Benötigt Integrationen",
+      "bundleFiles": "Bundle-Dateien",
+      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+      "submit": "App hochladen",
+      "submitting": "Wird hochgeladen…",
+      "uploadSuccess": "App hochgeladen",
+      "installHint": "Installiere sie aus der App-Liste, wenn du bereit bist.",
+      "replaceSuccess": "App ersetzt",
+      "uploadFailed": "App konnte nicht hochgeladen werden",
+      "replaceTitle": "Bestehende App ersetzen?",
+      "replaceDescription": "Eine private App namens „{slug}“ existiert bereits. Beim Hochladen wird ihr aktueller Inhalt überschrieben.",
+      "replaceConfirm": "Ersetzen"
+    },
     "empty": {
       "title": "Noch keine Apps",
       "description": "Installierte Packs erscheinen hier als Apps."
@@ -183,7 +215,9 @@
       "watchLive": "Live ansehen",
       "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
-      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird."
+      "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
+      "failed": "Fehlgeschlagen",
+      "failedHint": "Der letzte automatische Lauf wurde mit einem Fehler abgebrochen. Öffne die Aufgabe, um zu sehen, welcher Schritt fehlgeschlagen ist, und starte ihn neu."
     },
     "membership": {
       "title": "Projekte",
@@ -7538,7 +7572,6 @@
       "duplicateSuccess": "Projekt dupliziert",
       "duplicateError": "Projekt konnte nicht dupliziert werden",
       "renameDialogTitle": "Projekt umbenennen",
-      "renameDialogDescription": "Den Projektnamen ändern.",
       "renameSubmit": "Speichern",
       "renameSubmitting": "Wird gespeichert…"
     },

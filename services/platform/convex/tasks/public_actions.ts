@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
@@ -20,6 +21,21 @@ async function startWorkflowForTask(
   args: { organizationId: string; task: Doc<'tasks'>; workflowSlug: string },
 ): Promise<string | null> {
   const issueNumber = parseIssueNumber(args.task.externalId);
+  // An app-owned workflow (slug `<app>/<name>`) gets its install's PER-PROJECT
+  // config injected as `input.appConfig`, resolved by THIS task's project so two
+  // projects bound to the same app never see each other's config. Empty for a
+  // non-app workflow or an unconfigured app, so `{{input.appConfig.x}}` resolves
+  // to nothing rather than erroring.
+  const slash = args.workflowSlug.indexOf('/');
+  const appSlug = slash > 0 ? args.workflowSlug.slice(0, slash) : undefined;
+  const appConfig =
+    appSlug && isValidAppSlug(appSlug)
+      ? await ctx.runQuery(internal.apps.config.getProjectAppConfigInternal, {
+          organizationId: args.organizationId,
+          appSlug,
+          projectId: args.task.projectId,
+        })
+      : {};
   try {
     return await ctx.runAction(
       api.workflow_executions.actions.startWorkflowFromFile,
@@ -27,7 +43,7 @@ async function startWorkflowForTask(
         organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,
         triggeredBy: 'user',
-        input: { task: args.task, issueNumber },
+        input: { task: args.task, issueNumber, appConfig },
         subject: { type: 'task', id: args.task._id },
       },
     );
