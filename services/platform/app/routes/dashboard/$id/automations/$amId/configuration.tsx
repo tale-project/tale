@@ -164,7 +164,6 @@ function ConfigurationPage() {
   const {
     form: {
       register,
-      handleSubmit,
       formState: { errors },
       control,
     },
@@ -179,10 +178,7 @@ function ConfigurationPage() {
   return (
     <Skeletonize loading={isLoading}>
       <ContentArea variant="narrow" gap={4}>
-        <form
-          id={CONFIGURATION_FORM_ID}
-          onSubmit={handleSubmit((values) => save(values))}
-        >
+        <form id={CONFIGURATION_FORM_ID} onSubmit={editor.submit}>
           <fieldset
             disabled={isLoading || editor.isLoading || editor.isSaving}
             className="contents"

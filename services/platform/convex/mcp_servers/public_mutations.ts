@@ -1,6 +1,6 @@
 'use node';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isHttpUrl } from '../../lib/utils/url';
 import { internal } from '../_generated/api';
@@ -86,7 +86,7 @@ export const create = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     if (
@@ -151,7 +151,7 @@ export const update = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     if (args.url) {
@@ -192,7 +192,7 @@ export const remove = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     await ctx.runMutation(internal.mcp_servers.mutations.remove, {
@@ -211,7 +211,7 @@ export const updateStatus = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     await ctx.runMutation(internal.mcp_servers.mutations.setStatus, {

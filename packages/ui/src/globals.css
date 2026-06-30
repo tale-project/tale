@@ -1,14 +1,11 @@
 @import 'tailwindcss';
 
-/* Inter webfont bundled locally. Hosting via Google Fonts would transfer
-   visitor IP + User-Agent to a third party (GDPR) and fail in air-gapped
-   self-deployed environments. @fontsource ships woff2 + @font-face rules
-   that Vite resolves to same-origin build assets. Keep weights aligned
-   with the usages across the monorepo. */
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
+/* Inter webfont bundled locally (GDPR + air-gapped: no Google Fonts CDN). The
+   @fontsource `@font-face` rules + woff2 files are loaded from `./fonts.ts` as a
+   JS side-effect import (pulled in by app-shell.tsx), NOT via CSS `@import` here:
+   Tailwind v4's @tailwindcss/postcss inlines @import'ed CSS without rebasing its
+   `url()` refs, so importing the font CSS through this file would leave the woff2
+   paths unresolved and 404 at runtime. See fonts.ts for the full rationale. */
 
 /* Metric-matched fallback so the swap from the system font to Inter (which
    @fontsource ships with `font-display: swap`) is dimensionally invisible:

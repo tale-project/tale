@@ -134,47 +134,48 @@ export function McpServerForm({
     const newErrors: FormErrors = {};
 
     if (!name.trim()) {
-      newErrors.name = t('form.name') + ' is required';
+      newErrors.name = t('form.validation.nameRequired');
     } else if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && name.length > 1) {
-      newErrors.name = 'Must be lowercase alphanumeric with hyphens';
+      newErrors.name = t('form.validation.nameFormat');
     }
 
     if (!displayName.trim()) {
-      newErrors.displayName = t('form.displayName') + ' is required';
+      newErrors.displayName = t('form.validation.displayNameRequired');
     }
 
     if (isHttpTransport) {
       if (!url.trim()) {
-        newErrors.url = t('form.url') + ' is required';
+        newErrors.url = t('form.validation.urlRequired');
       } else if (!isHttpUrl(url.trim())) {
         newErrors.url = t('form.invalidUrl');
       }
     }
 
     if (transportType === 'stdio' && !command.trim()) {
-      newErrors.command = t('form.command') + ' is required';
+      newErrors.command = t('form.validation.commandRequired');
     }
 
     if (authType === 'api_key' && !apiKey.trim() && !server) {
-      newErrors.apiKey = t('form.apiKey') + ' is required';
+      newErrors.apiKey = t('form.validation.apiKeyRequired');
     }
 
     if (authType === 'oauth2') {
       if (!tokenUrl.trim()) {
-        newErrors.tokenUrl = t('oauth2.tokenUrl') + ' is required';
+        newErrors.tokenUrl = t('form.validation.tokenUrlRequired');
       } else if (!isHttpUrl(tokenUrl.trim())) {
         newErrors.tokenUrl = t('form.invalidUrl');
       }
       if (!clientId.trim()) {
-        newErrors.clientId = t('oauth2.clientId') + ' is required';
+        newErrors.clientId = t('form.validation.clientIdRequired');
       }
       if (!clientSecret.trim() && !server) {
-        newErrors.clientSecret = t('oauth2.clientSecret') + ' is required';
+        newErrors.clientSecret = t('form.validation.clientSecretRequired');
       }
       if (grantType === 'authorization_code') {
         if (!authorizationUrl.trim()) {
-          newErrors.authorizationUrl =
-            t('oauth2.authorizationUrl') + ' is required';
+          newErrors.authorizationUrl = t(
+            'form.validation.authorizationUrlRequired',
+          );
         } else if (!isHttpUrl(authorizationUrl.trim())) {
           newErrors.authorizationUrl = t('form.invalidUrl');
         }

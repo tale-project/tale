@@ -14,7 +14,7 @@
     "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
-      { "path": "tasks/queries:listTasksByProject", "mode": "query" },
+      { "path": "tasks/queries:listTasksByProjectPaginated", "mode": "query" },
       {
         "path": "tasks/queries:listExternalKeysByProject",
         "mode": "query"
@@ -56,6 +56,19 @@
           "pattern": "^(?:https?://github\\.com/)?([^/\\s]+)/([^/\\s#]+?)(?:\\.git)?/?$",
           "into": ["owner", "repo"]
         }
+      },
+      {
+        "key": "testCommand",
+        "type": "string",
+        "labelKey": "issueDesk.config.testCommand",
+        "placeholderKey": "issueDesk.config.testCommandPlaceholder"
+      },
+      {
+        "key": "repoNotes",
+        "type": "string",
+        "labelKey": "issueDesk.config.repoNotes",
+        "placeholderKey": "issueDesk.config.repoNotesPlaceholder",
+        "multiline": true
       }
     ]
   }

@@ -1,6 +1,6 @@
 'use node';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { api, internal } from '../_generated/api';
@@ -29,7 +29,7 @@ export const startWorkflowFromFile = action({
   handler: async (ctx, args): Promise<Id<'wfExecutions'> | null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     await ctx.runQuery(
@@ -97,7 +97,7 @@ export const rerunExecution = action({
   }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const execution = await ctx.runQuery(
@@ -105,7 +105,7 @@ export const rerunExecution = action({
       { executionId: args.executionId },
     );
     if (!execution) {
-      throw new Error('Execution not found');
+      throw new ConvexError({ code: 'EXECUTION_NOT_FOUND' });
     }
 
     // Closes the cross-tenant IDOR: confirm the caller belongs to the
@@ -121,9 +121,7 @@ export const rerunExecution = action({
     );
 
     if (!execution.workflowSlug) {
-      throw new Error(
-        'Cannot re-run: this execution has no workflow slug to start from',
-      );
+      throw new ConvexError({ code: 'EXECUTION_MISSING_SLUG' });
     }
 
     const subject =
@@ -187,7 +185,7 @@ export const getExecutionVariables = action({
   handler: async (ctx, args): Promise<ExecutionVariablesInspection> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const execution = await ctx.runQuery(
@@ -195,7 +193,7 @@ export const getExecutionVariables = action({
       { executionId: args.executionId },
     );
     if (!execution) {
-      throw new Error('Execution not found');
+      throw new ConvexError({ code: 'EXECUTION_NOT_FOUND' });
     }
 
     // Throws when the caller is not a member of the execution's organization.

@@ -3,8 +3,8 @@
  */
 
 import { replaceVariables } from '../../../../../lib/variables/replace_variables';
-import { LoopNodeConfig } from '../../../../types/nodes';
-import { StepExecutionContext } from '../../../../types/workflow';
+import type { LoopNodeConfig } from '../../../../types/nodes';
+import type { StepExecutionContext } from '../../../../types/workflow';
 
 export function getInputData(
   ctx: StepExecutionContext,

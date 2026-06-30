@@ -5,7 +5,7 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import {
+import type {
   bulkOperationResultValidator,
   conversationItemValidator,
   conversationListResponseValidator,

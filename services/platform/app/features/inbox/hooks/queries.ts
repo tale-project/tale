@@ -1,15 +1,21 @@
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useMyNotifications(
-  organizationId: string,
-  options?: { unreadOnly?: boolean },
-) {
-  const { data, isLoading } = useConvexQuery(
+/**
+ * Paginated personal-notification stream (review requests, escalations, task
+ * pings). Cursor-based so the inbox panel can "Load more" past the first page
+ * instead of stopping at a fixed cap. The Unread/All filter is applied
+ * client-side (see `NotificationListPanel`), so it is intentionally NOT a query
+ * argument — toggling it must not change the query key (which would reset
+ * pagination and re-flash the skeleton).
+ */
+export function useMyNotificationsList(organizationId: string) {
+  return useCachedPaginatedQuery(
     api.collab.notifications.listMyNotifications,
-    { organizationId, unreadOnly: options?.unreadOnly },
+    { organizationId },
+    { initialNumItems: 25 },
   );
-  return { notifications: data ?? [], isLoading };
 }
 
 export function useUnreadNotificationCount(organizationId: string) {

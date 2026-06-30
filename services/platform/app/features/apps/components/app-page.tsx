@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { startCase } from '@/lib/utils/string';
 
+import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import { useAppAgentReadiness } from '../hooks/use-app-agent-readiness';
 import { useAppConfig } from '../hooks/use-app-config';
 import { resolvePackLabels } from '../hooks/use-app-pack-labels';
@@ -95,7 +96,12 @@ function ReadinessChecklist({
             <Button
               size="sm"
               disabled={isPending}
-              onClick={() => void reinstall(appSlug)}
+              onClick={() =>
+                notifyOnInstallFailure(
+                  reinstall(appSlug),
+                  t('install.reinstallFailed'),
+                )
+              }
             >
               {t('install.reinstall')}
             </Button>
@@ -290,7 +296,9 @@ function InstalledAppBody({
   lifecycleContext: 'org' | 'project';
 }) {
   const { t } = useT('apps');
-  const { config } = useAppConfig(organizationId, appSlug);
+  // Project-scoped apps read/write config PER PROJECT, keyed by the route's
+  // project; org-scoped apps (projectId undefined) stay at org level.
+  const { config } = useAppConfig(organizationId, appSlug, projectId);
   const [configOpen, setConfigOpen] = useState(false);
   const hasConfig = app.requiredConfig.length > 0;
   // "Configured" = every declared field has a stored value. While false, a
@@ -352,6 +360,7 @@ function InstalledAppBody({
               onOpenChange={setConfigOpen}
               organizationId={organizationId}
               appSlug={appSlug}
+              projectId={projectId}
               fields={app.requiredConfig}
               config={config}
               resolveLabel={(labelKey) => labels[labelKey] ?? labelKey}
@@ -530,7 +539,12 @@ function AddToThisProject({
       action={
         <Button
           disabled={isPending}
-          onClick={() => void install(appSlug, projectId)}
+          onClick={() =>
+            notifyOnInstallFailure(
+              install(appSlug, projectId),
+              t('install.installFailed'),
+            )
+          }
         >
           {t('membership.addToThisProject')}
         </Button>
@@ -615,7 +629,12 @@ function AppDetails({
         <Button
           disabled={isPending}
           onClick={() =>
-            needsWizard ? setWizardOpen(true) : void install(appSlug)
+            needsWizard
+              ? setWizardOpen(true)
+              : notifyOnInstallFailure(
+                  install(appSlug),
+                  t('install.installFailed'),
+                )
           }
         >
           {t('install.install')}

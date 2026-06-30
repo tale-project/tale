@@ -138,7 +138,6 @@ export function ProjectOverview({
   const {
     form: {
       register,
-      handleSubmit,
       formState: { errors },
     },
   } = editor;
@@ -224,10 +223,7 @@ export function ProjectOverview({
           description={t('overview.identityDescription')}
           gap={4}
         >
-          <form
-            id={PROJECT_OVERVIEW_FORM_ID}
-            onSubmit={handleSubmit((values) => save(values))}
-          >
+          <form id={PROJECT_OVERVIEW_FORM_ID} onSubmit={editor.submit}>
             <fieldset
               disabled={editor.isLoading || editor.isSaving}
               className="contents"

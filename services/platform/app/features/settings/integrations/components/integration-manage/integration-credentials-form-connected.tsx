@@ -1,9 +1,7 @@
 'use client';
 
-import {
-  type Integration,
-  useIntegrationManage,
-} from '../../hooks/use-integration-manage';
+import type { useIntegrationManage } from '../../hooks/use-integration-manage';
+import { type Integration } from '../../hooks/use-integration-manage';
 import { IntegrationCredentialsForm } from './integration-credentials-form';
 
 type IntegrationManage = ReturnType<typeof useIntegrationManage>;

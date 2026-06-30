@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/utils/format/number';
 
 import { ProductImage } from './product-image';
+import { ProductStatusBadge } from './product-status-badge';
 
 interface ViewProductDialogProps {
   isOpen: boolean;
@@ -125,12 +126,7 @@ export function ProductViewDialog({
               </Text>
             )}
             {product.status && (
-              <Badge
-                variant={product.status === 'active' ? 'blue' : 'outline'}
-                className="mt-2 capitalize"
-              >
-                {product.status}
-              </Badge>
+              <ProductStatusBadge status={product.status} className="mt-2" />
             )}
           </div>
         </HStack>

@@ -17,6 +17,7 @@ import { useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import { type AppSummary, useApps } from '../hooks/use-apps';
 import {
   type AppInstallState,
@@ -120,7 +121,10 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
                     app.scope === 'project' ||
                     app.requiredIntegrations.length > 0
                       ? setWizardApp(app)
-                      : void install(app.slug)
+                      : notifyOnInstallFailure(
+                          install(app.slug),
+                          t('install.installFailed'),
+                        )
                   }
                 >
                   {t('install.install')}

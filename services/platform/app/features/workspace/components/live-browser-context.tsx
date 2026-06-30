@@ -15,8 +15,9 @@ import {
 interface LiveBrowserState {
   isOpen: boolean;
   /** When true the pane connects with `?control=1` (writable VNC, human
-   * takeover) instead of the read-only mirror. Set by the take-control card;
-   * the strip/menu always open in view mode. */
+   * takeover) instead of the read-only mirror. Set by the in-pane Take/Release
+   * control toggle or the agent's take-control card; the strip/menu always open
+   * in view mode. */
   control: boolean;
 }
 

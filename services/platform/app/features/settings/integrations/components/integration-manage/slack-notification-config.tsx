@@ -17,6 +17,7 @@ import {
   NOTIFICATION_EVENT_META,
 } from '@/convex/notifications/event_catalog_meta';
 import { useT } from '@/lib/i18n/client';
+import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { useUpdateCredentials } from '../../hooks/mutations';
 import type { Integration } from '../../hooks/use-integration-manage';
@@ -61,6 +62,19 @@ export function SlackNotificationConfig({
   const [channelsText, setChannelsText] = useState(initialChannels.join(', '));
   const [notifyEvents, setNotifyEvents] = useState(initialEvents);
   const [saving, setSaving] = useState(false);
+
+  // Save stays disabled until something actually changes, so it greys out with
+  // no pending edit (and after a save, once the refetched `connectionConfig`
+  // re-derives the baselines to match). Compared against the live
+  // `connectionConfig`-derived `initial*` values above.
+  const currentChannels = channelsText
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const isDirty =
+    agentSlug !== initialAgentSlug ||
+    !structuralEqual(currentChannels, initialChannels) ||
+    !structuralEqual(notifyEvents, initialEvents);
 
   const agentOptions = useMemo(() => {
     // `agents` is undefined while loading; only treat an empty list as
@@ -168,7 +182,7 @@ export function SlackNotificationConfig({
         </Stack>
 
         <HStack justify="end">
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || !isDirty}>
             {saving
               ? t('integrations.slackNotify.saving')
               : t('integrations.slackNotify.save')}

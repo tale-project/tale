@@ -47,6 +47,13 @@ vi.mock('convex/values', () => {
       null: stub,
       id: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : JSON.stringify(data));
+        this.data = data;
+      }
+    },
   };
 });
 
@@ -247,6 +254,9 @@ describe('legal_hold_queries.listLegalHolds', () => {
     await expect(
       listLegalHolds.handler(ctx, { organizationId: 'org_1' }),
     ).rejects.toThrow('Unauthenticated');
+    await expect(
+      listLegalHolds.handler(ctx, { organizationId: 'org_1' }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
   });
 
   it('throws when caller is not an admin', async () => {
@@ -259,6 +269,9 @@ describe('legal_hold_queries.listLegalHolds', () => {
     await expect(
       listLegalHolds.handler(ctx, { organizationId: 'org_1' }),
     ).rejects.toThrow('Admin role required.');
+    await expect(
+      listLegalHolds.handler(ctx, { organizationId: 'org_1' }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
   });
 
   it('returns empty array when org has no holds', async () => {

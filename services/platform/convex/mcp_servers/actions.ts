@@ -6,7 +6,7 @@
  * Server-side actions for testing MCP connections and executing tools.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -40,7 +40,7 @@ export const testConnection = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const server = await ctx.runQuery(
@@ -48,7 +48,7 @@ export const testConnection = action({
       { id: args.id },
     );
     if (!server) {
-      throw new Error('MCP server not found');
+      throw new ConvexError({ code: 'NOT_FOUND' });
     }
 
     // Set status to discovering
@@ -127,11 +127,11 @@ export const executeMcpTool = action({
       { id: args.serverId },
     );
     if (!server) {
-      throw new Error('MCP server not found');
+      throw new ConvexError({ code: 'NOT_FOUND' });
     }
 
     if (server.status !== 'active') {
-      throw new Error(`MCP server "${server.name}" is not active`);
+      throw new ConvexError({ code: 'SERVER_NOT_ACTIVE', name: server.name });
     }
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex stores JSON args as unknown; shape is guaranteed by caller

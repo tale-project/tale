@@ -1,4 +1,7 @@
+import * as z from 'zod';
+
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
@@ -31,4 +34,22 @@ export function useMemberPasskeys(memberId: string | undefined) {
     api.two_factor.queries.listPasskeysForMember,
     memberId ? { memberId } : 'skip',
   );
+}
+
+const emailSchema = z.string().email();
+
+/**
+ * Whether the given email already belongs to a user in the system. Used by the
+ * Add member dialog to hide the password field for existing users — their
+ * credentials are reused, so no new password is needed. The lookup is debounced
+ * and only runs once the email is well-formed.
+ */
+export function useUserExistsByEmail(email: string): boolean {
+  const debouncedEmail = useDebounce(email.trim(), 400);
+  const isValidEmail = emailSchema.safeParse(debouncedEmail).success;
+  const { data } = useConvexQuery(
+    api.members.queries.getUserIdByEmail,
+    isValidEmail ? { email: debouncedEmail } : 'skip',
+  );
+  return typeof data === 'string' && data.length > 0;
 }

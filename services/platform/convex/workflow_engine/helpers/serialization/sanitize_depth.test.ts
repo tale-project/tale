@@ -7,11 +7,11 @@
 
 import { describe, it, expect } from 'vitest';
 
+import type { TruncationMarker } from './sanitize_depth';
 import {
   sanitizeDepth,
   calculateDepth,
   MAX_SAFE_DEPTH,
-  TruncationMarker,
 } from './sanitize_depth';
 
 describe('sanitizeDepth', () => {

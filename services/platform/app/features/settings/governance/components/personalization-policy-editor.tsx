@@ -1,7 +1,7 @@
 'use client';
 
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -48,18 +48,20 @@ function PersonalizationPolicyToggle({
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
-  const savedEnabled = useMemo(() => readEnabled(policy?.config), [policy]);
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    setEnabled(savedEnabled);
-  }, [savedEnabled]);
+  // Read the server value directly each render — no `useState` mirror copied in
+  // via `useEffect`, so the real value is present on the first render after
+  // `isLoading` flips (no stale `false` flash). `pending` holds only the
+  // optimistic value while a save is in flight; `null` means "show the server
+  // value", which lets later server changes flow through once the save settles.
+  const savedEnabled = readEnabled(policy?.config);
+  const [pending, setPending] = useState<boolean | null>(null);
+  const enabled = pending ?? savedEnabled;
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const handleToggleEnabled = useCallback(
     async (checked: boolean) => {
-      setEnabled(checked);
+      setPending(checked);
       try {
         await upsertMutation.mutateAsync({
           organizationId,
@@ -71,13 +73,17 @@ function PersonalizationPolicyToggle({
           description: t('personalization.saved'),
           variant: 'success',
         });
-      } catch {
-        setEnabled(!checked);
+      } catch (error) {
+        console.error('[personalization_policy] save failed', error);
         toast({
           title: t('toastSaveFailedTitle'),
           description: t('personalization.saveFailed'),
           variant: 'destructive',
         });
+      } finally {
+        // Drop the optimistic override; the reactive `getPolicy` query now
+        // reflects the saved value (success) or still holds the old one (error).
+        setPending(null);
       }
     },
     [organizationId, policyType, upsertMutation, toast, t],

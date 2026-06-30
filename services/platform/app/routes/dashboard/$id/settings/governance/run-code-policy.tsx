@@ -5,7 +5,7 @@ import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
@@ -44,6 +44,17 @@ const EMPTY_DRAFT: PolicyDraft = {
   nodeAllow: [],
   nodeDeny: [],
 };
+
+// The form's editable shape: the radio mode plus the four textareas as raw
+// strings. Local edits are tracked as a `Partial<FormState>` overriding the
+// server-derived values, so an unedited field always reflects server state.
+interface FormState {
+  defaultMode: PolicyMode;
+  pythonAllowText: string;
+  pythonDenyText: string;
+  nodeAllowText: string;
+  nodeDenyText: string;
+}
 
 // Parse a comma- or newline-separated list of package names into a deduped
 // array. Blank lines / empty entries are dropped; matching is case-sensitive
@@ -132,30 +143,43 @@ function RunCodePolicyRoute() {
     };
   }, [policy]);
 
-  const [defaultMode, setDefaultMode] = useState<PolicyMode>('denylist');
-  const [pythonAllowText, setPythonAllowText] = useState('');
-  const [pythonDenyText, setPythonDenyText] = useState('');
-  const [nodeAllowText, setNodeAllowText] = useState('');
-  const [nodeDenyText, setNodeDenyText] = useState('');
+  // Local edits override the server-derived values; a missing key means the
+  // field still mirrors the saved value. Reading server state directly each
+  // render (rather than copying it into `useState` via `useEffect`) means the
+  // real values are present on the first render after `isLoading` flips — no
+  // stale-default flash.
+  const [edits, setEdits] = useState<Partial<FormState>>({});
 
-  useEffect(() => {
-    setDefaultMode(savedDraft.defaultMode);
-    setPythonAllowText(listToString(savedDraft.pythonAllow));
-    setPythonDenyText(listToString(savedDraft.pythonDeny));
-    setNodeAllowText(listToString(savedDraft.nodeAllow));
-    setNodeDenyText(listToString(savedDraft.nodeDeny));
-  }, [savedDraft]);
+  const form = useMemo<FormState>(
+    () => ({
+      defaultMode: edits.defaultMode ?? savedDraft.defaultMode,
+      pythonAllowText:
+        edits.pythonAllowText ?? listToString(savedDraft.pythonAllow),
+      pythonDenyText:
+        edits.pythonDenyText ?? listToString(savedDraft.pythonDeny),
+      nodeAllowText: edits.nodeAllowText ?? listToString(savedDraft.nodeAllow),
+      nodeDenyText: edits.nodeDenyText ?? listToString(savedDraft.nodeDeny),
+    }),
+    [edits, savedDraft],
+  );
+
+  const updateField = useCallback(
+    <K extends keyof FormState>(key: K, value: FormState[K]) => {
+      setEdits((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
   // Live draft fed to the tester widget.
   const liveDraft = useMemo<PolicyDraft>(
     () => ({
-      defaultMode,
-      pythonAllow: parseList(pythonAllowText),
-      pythonDeny: parseList(pythonDenyText),
-      nodeAllow: parseList(nodeAllowText),
-      nodeDeny: parseList(nodeDenyText),
+      defaultMode: form.defaultMode,
+      pythonAllow: parseList(form.pythonAllowText),
+      pythonDeny: parseList(form.pythonDenyText),
+      nodeAllow: parseList(form.nodeAllowText),
+      nodeDeny: parseList(form.nodeDenyText),
     }),
-    [defaultMode, pythonAllowText, pythonDenyText, nodeAllowText, nodeDenyText],
+    [form],
   );
 
   const handleSave = useCallback(async () => {
@@ -171,6 +195,9 @@ function RunCodePolicyRoute() {
           nodeDeny: liveDraft.nodeDeny,
         },
       });
+      // Drop local edits so the form re-reads the freshly-saved server state
+      // (the reactive `getPolicy` query updates once the write completes).
+      setEdits({});
       toast({
         title: t('toastSavedTitle'),
         description: t('runCodePolicy.saved'),
@@ -214,10 +241,10 @@ function RunCodePolicyRoute() {
           description={t('runCodePolicy.modeSectionDescription')}
         >
           <RadioGroup
-            value={defaultMode}
+            value={form.defaultMode}
             onValueChange={(value) => {
               if (value === 'allowlist' || value === 'denylist') {
-                setDefaultMode(value);
+                updateField('defaultMode', value);
               }
             }}
             options={[
@@ -246,8 +273,8 @@ function RunCodePolicyRoute() {
               label={t('runCodePolicy.pythonAllowLabel')}
               description={t('runCodePolicy.pythonAllowDescription')}
               placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={pythonAllowText}
-              onChange={(e) => setPythonAllowText(e.target.value)}
+              value={form.pythonAllowText}
+              onChange={(e) => updateField('pythonAllowText', e.target.value)}
               disabled={cannotManage}
               rows={4}
             />
@@ -255,8 +282,8 @@ function RunCodePolicyRoute() {
               label={t('runCodePolicy.pythonDenyLabel')}
               description={t('runCodePolicy.pythonDenyDescription')}
               placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={pythonDenyText}
-              onChange={(e) => setPythonDenyText(e.target.value)}
+              value={form.pythonDenyText}
+              onChange={(e) => updateField('pythonDenyText', e.target.value)}
               disabled={cannotManage}
               rows={4}
             />
@@ -272,8 +299,8 @@ function RunCodePolicyRoute() {
               label={t('runCodePolicy.nodeAllowLabel')}
               description={t('runCodePolicy.nodeAllowDescription')}
               placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={nodeAllowText}
-              onChange={(e) => setNodeAllowText(e.target.value)}
+              value={form.nodeAllowText}
+              onChange={(e) => updateField('nodeAllowText', e.target.value)}
               disabled={cannotManage}
               rows={4}
             />
@@ -281,8 +308,8 @@ function RunCodePolicyRoute() {
               label={t('runCodePolicy.nodeDenyLabel')}
               description={t('runCodePolicy.nodeDenyDescription')}
               placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={nodeDenyText}
-              onChange={(e) => setNodeDenyText(e.target.value)}
+              value={form.nodeDenyText}
+              onChange={(e) => updateField('nodeDenyText', e.target.value)}
               disabled={cannotManage}
               rows={4}
             />

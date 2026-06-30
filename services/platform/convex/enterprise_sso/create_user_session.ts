@@ -7,7 +7,7 @@ import { generateId } from 'better-auth';
 import { sessionExpiryMs } from '../../lib/shared/session-idle';
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 
 type CreateUserSessionArgs = {
   userId: string;

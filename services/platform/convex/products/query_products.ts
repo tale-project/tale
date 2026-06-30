@@ -8,13 +8,13 @@
  * - default: by_organizationId
  */
 
-import { Doc } from '../_generated/dataModel';
-import { QueryCtx } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
-import { ProductStatus } from './types';
+import type { ProductStatus } from './types';
 
 export interface QueryProductsArgs {
   organizationId: string;
