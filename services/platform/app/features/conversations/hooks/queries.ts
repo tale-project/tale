@@ -1,5 +1,6 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
@@ -53,10 +54,14 @@ export function useApproxConversationCountByStatus(
 }
 
 export function useConversationWithMessages(conversationId: string | null) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.conversations.queries.getConversationWithMessages,
-    conversationId
-      ? { conversationId: toId<'conversations'>(conversationId) }
+    conversationId && organizationId
+      ? {
+          conversationId: toId<'conversations'>(conversationId),
+          organizationId,
+        }
       : 'skip',
   );
 }

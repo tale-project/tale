@@ -169,6 +169,8 @@ export const taleConfig: Config<TaleComponents> = {
         actions,
         subjectType,
         subjectIdField,
+        perPage,
+        filters,
       }) =>
         query ? (
           <Collection
@@ -179,6 +181,8 @@ export const taleConfig: Config<TaleComponents> = {
             actions={actions}
             subjectType={subjectType}
             subjectIdField={subjectIdField}
+            perPage={perPage}
+            filters={filters}
           />
         ) : (
           <></>

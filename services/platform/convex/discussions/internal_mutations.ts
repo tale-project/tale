@@ -154,6 +154,9 @@ export const agentOpenDiscussion = internalMutation({
     await saveMessage(ctx, components.agent, {
       threadId,
       message: { role: 'assistant', content: body },
+      // Attribute the opening post to its agent author so the discussion view
+      // can resolve a name and align it (humans open via discussions/mutations).
+      userId: args.actorId,
     });
     await ctx.db.insert('threadMetadata', {
       threadId,
@@ -238,6 +241,9 @@ export const agentReplyToDiscussion = internalMutation({
     await saveMessage(ctx, components.agent, {
       threadId: args.threadId,
       message: { role: 'assistant', content: body },
+      // Attribute the reply to its agent author (slug) so the discussion view
+      // resolves the agent name and left-aligns it.
+      userId: args.actorId,
     });
     await ctx.db.patch(meta._id, {
       updatedAt: now,

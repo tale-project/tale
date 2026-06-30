@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
@@ -32,14 +32,20 @@ export const getPendingRetentionChange = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: authUser.userId,
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new Error('Admin role required.');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Admin role required.',
+      });
     }
     const row = await ctx.db
       .query('retentionPolicyPendingChanges')
@@ -97,7 +103,10 @@ export const getPolicy = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -112,7 +121,10 @@ export const getPolicy = query({
       !POLICY_TYPES_READABLE_BY_MEMBER.has(args.policyType) &&
       !isAdmin(member.role)
     ) {
-      throw new Error(`Reading ${args.policyType} requires admin role.`);
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: `Reading ${args.policyType} requires admin role.`,
+      });
     }
 
     const policy = await ctx.db
@@ -155,7 +167,10 @@ export const listPolicies = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -209,7 +224,10 @@ export const getUsageSummary = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -218,7 +236,10 @@ export const getUsageSummary = query({
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new Error('Only admins can view usage summaries');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can view usage summaries',
+      });
     }
 
     const now = new Date();
@@ -299,7 +320,10 @@ export const getOrgUsageMetrics = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -308,7 +332,10 @@ export const getOrgUsageMetrics = query({
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new Error('Only admins can view usage metrics');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can view usage metrics',
+      });
     }
 
     return getOrgUsageMetricsHandler(ctx, args);
@@ -322,7 +349,10 @@ export const getMyFeatureFlags = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const userId = authUser.userId;
@@ -438,7 +468,10 @@ export const getAccessibleModelsForUser = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(ctx, args.organizationId, {
@@ -549,14 +582,21 @@ export const listTrashedRows = query({
     args,
   ): Promise<{ rows: TrashRow[]; nextCursor: TrashCursor | null }> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: authUser.userId,
       email: authUser.email,
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new Error('Trash listing requires admin role.');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Trash listing requires admin role.',
+      });
     }
 
     const limit = Math.min(

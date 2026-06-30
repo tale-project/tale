@@ -126,3 +126,14 @@ services/sandbox-egress/
 services/web/
 packages/
 tools/
+
+# =============================================================================
+# Baked builtin skill bundle — keep its guides
+# =============================================================================
+# The visual-aspect-analyzer skill source is COPYed into the image (see the
+# Dockerfile). The broad *.md exclude above would strip the guides the baked
+# skill needs (SKILL.md, README.md, the companion guides, examples/run.md), so
+# re-include just their markdown. Tests (*.test.ts), node_modules, and
+# tsbuildinfo stay excluded by the globs above — the image installs fresh deps.
+!skills/visual-aspect-analyzer/*.md
+!skills/visual-aspect-analyzer/**/*.md

@@ -29,6 +29,7 @@ import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
+import { browserViewEnabled } from '../../node_only/sandbox/browser_view';
 import {
   SessionDuplicateError,
   SessionNotFoundError,
@@ -41,6 +42,7 @@ import {
   sessionStageFiles,
 } from '../../node_only/sandbox/helpers/session_client';
 import {
+  reconcileBuiltinSkills,
   stageBrowserControlSkill,
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
@@ -155,19 +157,20 @@ const ACTION_WINDOW_MS = Number(
 // attempt is not started (an auth retry-storm must fit before the seam).
 const MAX_TOKEN_ATTEMPTS = 3;
 const TOKEN_ROTATION_MIN_WINDOW_MS = 90 * 1000;
-// Live browser view (read-only mirror), operator-gated and default OFF. When
-// '1', the adapter attaches Playwright MCP to the session's externally-launched
-// HEADED Chromium over CDP (instead of self-launching headless) so the browser
-// can be mirrored read-only by x11vnc. This MUST be set together with the
-// SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what actually launches the
-// session container with TALE_BROWSER_CDP=1 (the entrypoint's start_browser_-
-// stack), so a one-sided flag is a misconfig — platform-on/spawner-off attaches
-// to a CDP endpoint that was never started (the MCP retries and the browser
-// tools fail); spawner-on/platform-off wastes a headed browser the agent never
-// attaches to. Read here because this node action is where the exec spec is
-// built. NOTE (deployment): keep this and the spawner's SANDBOX_BROWSER_VIEW in
-// lockstep — it is a single deployment-level operator decision.
-const BROWSER_VIEW_ENABLED = process.env.SANDBOX_BROWSER_VIEW === '1';
+// Live browser view (read-only mirror), operator-gated and default ON (opt-out
+// via SANDBOX_BROWSER_VIEW=0). When on, the adapter attaches Playwright MCP to
+// the session's externally-launched HEADED Chromium over CDP (instead of self-
+// launching headless) so the browser can be mirrored read-only by x11vnc. This
+// MUST agree with the SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what
+// actually launches the session container with TALE_BROWSER_CDP=1 (the
+// entrypoint's start_browser_stack), so a one-sided flag is a misconfig —
+// platform-on/spawner-off attaches to a CDP endpoint that was never started (the
+// MCP retries and the browser tools fail); spawner-on/platform-off wastes a
+// headed browser the agent never attaches to. Read here because this node action
+// is where the exec spec is built. NOTE (deployment): one env value drives both
+// sides (browserViewEnabled mirrors the spawner's `?? true` default), so they
+// stay in lockstep — it is a single deployment-level operator decision.
+const BROWSER_VIEW_ENABLED = browserViewEnabled();
 
 /**
  * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
@@ -733,8 +736,14 @@ export const runExternalAgentTurn = internalAction({
           // managed force-denies WebSearch/WebFetch (governed via integrations).
           nativeWebTools: byo || args.nativeWebTools === true,
         });
-        // The browser-human-control skill only applies when the live headed
-        // browser is on (the request_human_control tool is wired in that mode).
+        // visual-aspect-analyzer ships baked into the sandbox-runtime image and
+        // is symlinked into the session skill dir by the entrypoint; here we
+        // only enforce repo precedence — drop a baked skill the workspace repo
+        // also defines.
+        await reconcileBuiltinSkills(ctx, { sessionId });
+        // browser-human-control is inline + tightly coupled to the live browser:
+        // stage it only on turns where the headed browser (browserCdp) is on,
+        // since that's when the request_human_control tool exists.
         if (BROWSER_VIEW_ENABLED) {
           await stageBrowserControlSkill(ctx, { sessionId });
         }

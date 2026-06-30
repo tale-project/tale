@@ -19,6 +19,7 @@ import {
   reserveSlotAndInsert,
   recoverStuckSandboxes,
   finalize,
+  cancelExecutionRecord,
 } from './internal_mutations';
 import { insertOutputFiles } from './output_mutations';
 import { DEFAULT_SANDBOX_QUOTA } from './quota_policy';
@@ -47,6 +48,7 @@ interface FakeRow {
   actualSeconds?: number;
   _id: string;
   heartbeatAt: number;
+  organizationId?: string;
 }
 
 interface MockCtxOptions {
@@ -106,6 +108,8 @@ function createMockCtx(opts: MockCtxOptions = {}) {
     return builder;
   }
 
+  const runAfter = vi.fn();
+
   return {
     ctx: {
       db: {
@@ -119,8 +123,10 @@ function createMockCtx(opts: MockCtxOptions = {}) {
         get: vi.fn(),
         patch: vi.fn(),
       },
+      scheduler: { runAfter },
     },
     insertedRows,
+    runAfter,
   };
 }
 
@@ -276,6 +282,38 @@ describe('recoverStuckSandboxes', () => {
       }),
     );
   });
+
+  it('schedules ONE oneshot wake per distinct freed org (deduped)', async () => {
+    const at = (id: string, org: string): FakeRow => ({
+      _id: id,
+      _creationTime: Date.now() - 3_600_000,
+      status: 'running',
+      estimatedSeconds: 60,
+      heartbeatAt: Date.now() - STALE_HEARTBEAT_AGE_MS,
+      organizationId: org,
+    });
+    // Two stale rows in org_alpha + one in org_beta → exactly two wakes.
+    const { ctx, runAfter } = createMockCtx({
+      runningRows: [at('a1', 'org_alpha'), at('a2', 'org_alpha')],
+      queuedRows: [at('b1', 'org_beta')],
+    });
+    const mut = recoverStuckSandboxes as unknown as MutHandler<
+      Record<string, unknown>,
+      number
+    >;
+    await mut.handler(ctx, {});
+    expect(runAfter).toHaveBeenCalledTimes(2);
+    expect(runAfter).toHaveBeenCalledWith(0, expect.anything(), {
+      organizationId: 'org_alpha',
+      kind: 'oneshot',
+      count: 1,
+    });
+    expect(runAfter).toHaveBeenCalledWith(0, expect.anything(), {
+      organizationId: 'org_beta',
+      kind: 'oneshot',
+      count: 1,
+    });
+  });
 });
 
 describe('finalize', () => {
@@ -320,6 +358,88 @@ describe('finalize', () => {
       'exec_1',
       expect.objectContaining({ status: 'completed' }),
     );
+  });
+
+  it('schedules a oneshot capacity wake for the freed slot', async () => {
+    const mut = finalize as unknown as MutHandler<typeof baseArgs, null>;
+    const runAfter = vi.fn();
+    const ctx = {
+      db: {
+        get: vi.fn(async () => ({
+          _id: 'exec_1',
+          status: 'running',
+          organizationId: 'org_alpha',
+        })),
+        patch: vi.fn(),
+      },
+      scheduler: { runAfter },
+    };
+    await mut.handler(ctx, baseArgs);
+    expect(runAfter).toHaveBeenCalledWith(0, expect.anything(), {
+      organizationId: 'org_alpha',
+      kind: 'oneshot',
+      count: 1,
+    });
+  });
+});
+
+describe('cancelExecutionRecord', () => {
+  const baseArgs = { executionId: 'exec_1' as never };
+
+  // Regression gate: a user-Stop cancel frees a per-org concurrency slot, so it
+  // MUST schedule a capacity wake — otherwise the now-event-driven parked
+  // workflow steps stay blocked on `awaitEvent` and the queue looks stuck.
+  it('cancels an in-flight row and schedules a oneshot capacity wake', async () => {
+    const mut = cancelExecutionRecord as unknown as MutHandler<
+      typeof baseArgs,
+      null
+    >;
+    const runAfter = vi.fn();
+    const ctx = {
+      db: {
+        get: vi.fn(async () => ({
+          _id: 'exec_1',
+          status: 'running',
+          organizationId: 'org_alpha',
+          startedAt: Date.now() - 10_000,
+          estimatedSeconds: 30,
+        })),
+        patch: vi.fn(),
+      },
+      scheduler: { runAfter },
+    };
+    await mut.handler(ctx, baseArgs);
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'exec_1',
+      expect.objectContaining({ status: 'cancelled', errorCode: 'CANCELLED' }),
+    );
+    expect(runAfter).toHaveBeenCalledWith(0, expect.anything(), {
+      organizationId: 'org_alpha',
+      kind: 'oneshot',
+      count: 1,
+    });
+  });
+
+  it('is a no-op (no patch, no wake) when the row is already terminal', async () => {
+    const mut = cancelExecutionRecord as unknown as MutHandler<
+      typeof baseArgs,
+      null
+    >;
+    const runAfter = vi.fn();
+    const ctx = {
+      db: {
+        get: vi.fn(async () => ({
+          _id: 'exec_1',
+          status: 'completed',
+          organizationId: 'org_alpha',
+        })),
+        patch: vi.fn(),
+      },
+      scheduler: { runAfter },
+    };
+    await mut.handler(ctx, baseArgs);
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(runAfter).not.toHaveBeenCalled();
   });
 });
 

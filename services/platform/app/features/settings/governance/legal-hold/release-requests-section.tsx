@@ -1,10 +1,11 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import { Check, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -99,34 +100,34 @@ export function ReleaseRequestsSection({
         cell: ({ row }) => {
           const isSelf = currentUser?.userId === row.original.requestedBy;
           return (
-            <Row gap={2} align="stretch" justify="end">
-              <Button
+            <Row gap={1} align="stretch" justify="end">
+              <IconButton
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setApproveTarget(row.original);
-                }}
-                title={
+                icon={Check}
+                aria-label={t('legalHold.actions.approve')}
+                tooltip={
                   isSelf
                     ? t('legalHold.dialogs.approveRelease.selfApproveBlocked')
                     : undefined
                 }
-              >
-                {t('legalHold.actions.approve')}
-              </Button>
-              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setApproveTarget(row.original);
+                }}
+              />
+              <IconButton
                 type="button"
                 variant="ghost"
                 size="sm"
+                icon={X}
+                aria-label={t('legalHold.actions.reject')}
                 onClick={(e) => {
                   e.stopPropagation();
                   setRejectId(row.original._id);
                 }}
-              >
-                {t('legalHold.actions.reject')}
-              </Button>
+              />
             </Row>
           );
         },

@@ -339,16 +339,20 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
         />
       </div>
     ),
-    cell: ({ row }) => (
-      <div className="flex h-full items-center justify-center">
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={i18n.t('common:aria.selectRow')}
-        />
-      </div>
-    ),
+    // Non-selectable rows (e.g. protected agents gated out by the table's
+    // `enableRowSelection` predicate) render no checkbox at all — an inert
+    // "Select row" control is a false affordance and a confusing AT target.
+    cell: ({ row }) =>
+      row.getCanSelect() ? (
+        <div className="flex h-full items-center justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={i18n.t('common:aria.selectRow')}
+          />
+        </div>
+      ) : null,
     meta: { skeleton: { type: 'checkbox' } },
   };
 }

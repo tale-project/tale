@@ -6,7 +6,7 @@ import { ConvexError } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
@@ -70,6 +70,14 @@ export async function createMember(
   ).toLowerCase();
   if (!isAdmin(callerRole)) {
     throw new Error('Only admins can create members');
+  }
+
+  // The owner role can only be assigned through the owner-gated
+  // transferOwnership flow — never via createMember. Mirror updateMemberRole's
+  // rejection so a non-owner admin cannot self-escalate by passing
+  // role: 'owner' (see members/mutations.ts updateMemberRole).
+  if ((args.role ?? '').toLowerCase() === 'owner') {
+    throw new Error('The owner role cannot be assigned manually');
   }
 
   const email = args.email.toLowerCase().trim();

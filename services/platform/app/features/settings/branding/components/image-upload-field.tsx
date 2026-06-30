@@ -3,7 +3,7 @@
 import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
-import { Plus, X } from 'lucide-react';
+import { Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
@@ -14,6 +14,17 @@ import { cn } from '@/lib/utils/cn';
 import { useSaveImage } from '../hooks/mutations';
 
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
+const ACCEPTED_EXTENSIONS = ['.png', '.svg', '.jpg', '.jpeg', '.webp', '.ico'];
+
+// Mirror the `<input accept>` list for the drag-and-drop path. Some valid
+// uploads report an empty or non-`image/*` MIME type (e.g. a `.ico` whose
+// browser-reported type is blank), so fall back to the file extension rather
+// than rejecting them — keeping picker and drop acceptance in sync.
+function isAcceptedImage(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const name = file.name.toLowerCase();
+  return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
 
 interface ImageUploadFieldProps {
   organizationId: string;
@@ -39,6 +50,7 @@ export function ImageUploadField({
   ariaLabel,
 }: ImageUploadFieldProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isRemoved, setIsRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,11 +81,8 @@ export function ImageUploadField({
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
+  const uploadFile = useCallback(
+    async (file: File) => {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
       }
@@ -83,6 +92,7 @@ export function ImageUploadField({
       setPreviewUrl(objectUrl);
       onPreviewUrlChange?.(objectUrl);
       setIsRemoved(false);
+      setIsDragging(false);
       setIsUploading(true);
 
       try {
@@ -130,6 +140,38 @@ export function ImageUploadField({
     ],
   );
 
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) void uploadFile(file);
+    },
+    [uploadFile],
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (!isUploading) setIsDragging(true);
+    },
+    [isUploading],
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (isUploading) return;
+      const file = e.dataTransfer.files?.[0];
+      if (file && isAcceptedImage(file)) void uploadFile(file);
+    },
+    [isUploading, uploadFile],
+  );
+
   const handleRemove = useCallback(() => {
     setPreviewUrl(null);
     onPreviewUrlChange?.(null);
@@ -149,10 +191,17 @@ export function ImageUploadField({
         <button
           type="button"
           onClick={handleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           disabled={isUploading}
           className={cn(
-            'border-border flex items-center justify-center overflow-clip rounded-lg border bg-background shadow-xs',
+            'group border-border ring-offset-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border bg-background shadow-xs transition-all duration-150',
+            'hover:border-border-strong hover:bg-bg-elevated',
+            'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+            'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',
             sizeClasses,
+            isDragging && 'border-accent-base ring-accent-base ring-1',
             isUploading && 'cursor-wait opacity-60',
           )}
           aria-label={ariaLabel}
@@ -160,32 +209,37 @@ export function ImageUploadField({
           {isUploading ? (
             <Spinner className="size-4" />
           ) : displayUrl ? (
-            previewUrl ? (
-              <img
-                src={previewUrl}
-                alt=""
-                className="size-full object-contain"
-                width={48}
-                height={48}
-              />
-            ) : (
-              <Image
-                src={displayUrl}
-                alt=""
-                className="size-full object-contain"
-                width={48}
-                height={48}
-              />
-            )
+            <>
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt=""
+                  className="pointer-events-none size-full object-contain"
+                  width={48}
+                  height={48}
+                />
+              ) : (
+                <Image
+                  src={displayUrl}
+                  alt=""
+                  className="pointer-events-none size-full object-contain"
+                  width={48}
+                  height={48}
+                />
+              )}
+              <span className="bg-foreground/60 pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
+                <Upload className="text-background size-4 shrink-0" />
+              </span>
+            </>
           ) : (
-            <Plus className="text-muted-foreground size-4 shrink-0" />
+            <Plus className="text-muted-foreground group-hover:text-foreground pointer-events-none size-4 shrink-0 transition-colors duration-150 motion-reduce:transition-none" />
           )}
         </button>
         {displayUrl && !isUploading && onRemove && (
           <button
             type="button"
             onClick={handleRemove}
-            className="bg-foreground text-background absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full"
+            className="bg-foreground text-background ring-offset-background focus-visible:ring-ring absolute -top-1 -right-1 flex size-4 cursor-pointer items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 focus-visible:ring-1 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:scale-100"
             aria-label={`Remove ${label ?? 'image'}`}
           >
             <X className="size-2.5" />
@@ -204,6 +258,7 @@ export function ImageUploadField({
         onChange={handleFileChange}
         className="hidden"
         tabIndex={-1}
+        aria-label={ariaLabel}
       />
     </VStack>
   );

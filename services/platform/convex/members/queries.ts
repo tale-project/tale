@@ -2,7 +2,8 @@ import { v } from 'convex/values';
 
 import type { MemberRole } from '../../lib/shared/schemas/organizations';
 import { components } from '../_generated/api';
-import { query, QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
+import { query } from '../_generated/server';
 import {
   getAuthUserIdentity,
   getOrganizationMember,

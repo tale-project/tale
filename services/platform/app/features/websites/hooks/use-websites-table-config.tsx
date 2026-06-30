@@ -94,18 +94,39 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       ),
       size: 128,
       meta: { headerLabel: tTables('headers.scanned') },
-      cell: ({ row }) =>
-        row.original.lastScannedAt ? (
-          <CopyableTimestamp
-            date={row.original.lastScannedAt}
-            preset="long"
-            alignRight
-          />
-        ) : (
-          <Row gap={0} align="stretch" justify="end">
-            <Loader className="text-muted-foreground size-4 animate-spin" />
-          </Row>
-        ),
+      cell: ({ row }) => {
+        // A successful scan stamps `lastScannedAt`; until then the cell must
+        // not pretend work is in progress. Show the spinner only while the
+        // website is actively `scanning`, and surface a static, labelled
+        // "Not scanned yet" for every terminal/idle state (freshly added,
+        // `idle`, `error`, or environments where the crawler never ran).
+        if (row.original.lastScannedAt) {
+          return (
+            <CopyableTimestamp
+              date={row.original.lastScannedAt}
+              preset="long"
+              alignRight
+            />
+          );
+        }
+        if (row.original.status === 'scanning') {
+          return (
+            <Row gap={0} align="stretch" justify="end">
+              <Loader
+                role="status"
+                aria-hidden={false}
+                aria-label={tEntity('filter.status.scanning')}
+                className="text-muted-foreground size-4 animate-spin"
+              />
+            </Row>
+          );
+        }
+        return (
+          <Text as="span" variant="caption" className="block w-full text-right">
+            {tEntity('viewDialog.notScannedYet')}
+          </Text>
+        );
+      },
     },
     {
       accessorKey: 'scanInterval',

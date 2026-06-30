@@ -13,10 +13,11 @@
 // Exec-free Pod shape (one Pod, shared `/user` emptyDir, no PVC required):
 //   - initContainer `stage` (the SPAWNER image, k8s-stage.ts): downloads
 //     inputs from presigned URLs into /user and writes the multi-step
-//     wrapper + the prior-stage attestation. initContainers complete before
-//     app containers, so the runner finds a fully-staged workspace — no
-//     sentinel handshake. A required-input failure exits non-zero → Pod fails
-//     → spawner surfaces PRE_STAGE_FAILED.
+//     wrapper, plus the prior-stage attestation onto the dedicated `attest`
+//     volume (runner-inaccessible, so user code can't forge it).
+//     initContainers complete before app containers, so the runner finds a
+//     fully-staged workspace — no sentinel handshake. A required-input failure
+//     exits non-zero → Pod fails → spawner surfaces PRE_STAGE_FAILED.
 //   - container `runner` (the runtime image): command override runs the
 //     image's real /entrypoint.sh as a CHILD of `sh -c` (NOT `exec`), so the
 //     wrapper resumes after it to capture the exit code into EXIT_CODE_PATH.
@@ -42,7 +43,12 @@ import type {
 import type { Language, SpawnerConfig } from '../../types.ts';
 import type { CacheStores } from '../types.ts';
 import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
-import { EXIT_CODE_PATH, STDERR_PATH, TALE_DIR } from './k8s-protocol.ts';
+import {
+  ATTEST_DIR,
+  EXIT_CODE_PATH,
+  STDERR_PATH,
+  TALE_DIR,
+} from './k8s-protocol.ts';
 
 interface SandboxPodInput {
   executionId: string;
@@ -201,6 +207,12 @@ export function buildSandboxPod(
     // Scratch for the helper containers' Bun runtime (HOME=/helper-tmp) under
     // readOnlyRootFilesystem. Separate from the runner's /tmp.
     { name: 'helper-tmp', emptyDir: { medium: 'Memory', sizeLimit: '64Mi' } },
+    // The stage attestation channel. Mounted ONLY into the trusted stage
+    // (writer) and harvest (reader) helpers below — NOT the runner. Keeping it
+    // off the shared `/user` emptyDir is the integrity fix: the runner can't
+    // reach this volume, so user code can't forge the prior-stage attestation
+    // the platform's PRE_STAGE_FAILED gate trusts.
+    { name: 'attest', emptyDir: { medium: 'Memory', sizeLimit: '8Mi' } },
   ];
   if (usePvcCache && inp.cache) {
     runnerMounts.push(
@@ -243,6 +255,8 @@ export function buildSandboxPod(
     { name: 'workspace', mountPath: WORKSPACE_MOUNT },
     { name: 'exec-spec', mountPath: EXEC_SPEC_MOUNT_DIR, readOnly: true },
     { name: 'helper-tmp', mountPath: '/helper-tmp' },
+    // The attestation channel — runner-inaccessible (see the 'attest' volume).
+    { name: 'attest', mountPath: ATTEST_DIR },
   ];
   const helperResources = {
     requests: { cpu: '100m', memory: '256Mi' },

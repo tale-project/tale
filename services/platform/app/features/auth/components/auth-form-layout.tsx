@@ -1,6 +1,6 @@
 import { Heading } from '@tale/ui/heading';
 import { Stack, VStack } from '@tale/ui/layout';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface AuthFormLayoutProps {
   title: string;

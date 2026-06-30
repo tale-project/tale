@@ -4,6 +4,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
+import { RouteNotFound } from '@/app/components/layout/route-not-found';
 import { warmSession } from '@/app/lib/auth/session-query';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { getEnv } from '@/lib/env';
@@ -66,6 +67,12 @@ export const router = createTanStackRouter({
   defaultErrorComponent: ({ error, reset }) => (
     <GlobalErrorDisplay error={error} reset={reset} />
   ),
+  // Unmatched URLs render at the deepest matched route's outlet; this routes a
+  // dashboard-subtree miss to the styled 404 (heading + recovery link, shell
+  // intact) instead of the bare unstyled "Not Found". The `/dashboard/$id/$`
+  // splat still wins for direct `$id` children (it also sets a 404 title); this
+  // covers misses under nested dashboard layouts that have no splat of their own.
+  defaultNotFoundComponent: RouteNotFound,
 });
 
 const sentryDsn = getEnv('SENTRY_DSN');

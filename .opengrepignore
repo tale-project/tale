@@ -9,6 +9,11 @@
 tools/plop/templates/
 # Built-in seed configs are data, not code.
 builtin-configs/
+# The pptx skill is vendored (Anthropic's PowerPoint tooling). Its source of
+# truth now lives at skills/pptx, but it is the same data as the (excluded)
+# builtin-configs/skills/pptx copy — its XML-parsing findings are accepted-risk
+# in the sandboxed document tool. First-party skills under skills/ stay scanned.
+skills/pptx/
 # Test scaffolding & fixtures intentionally contain odd inputs (fake API keys,
 # wildcard postMessage, etc.). SAST targets shipped production code.
 **/fixtures/

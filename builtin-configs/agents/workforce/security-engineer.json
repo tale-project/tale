@@ -4,6 +4,7 @@
     "labels": ["Engineering", "Security"],
     "autoInstall": false
   },
+  "skillBindings": ["review-code", "write-notes"],
   "toolNames": [
     "web",
     "rag_search",

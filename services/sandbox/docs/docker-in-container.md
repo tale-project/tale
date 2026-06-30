@@ -210,6 +210,16 @@ How it works (all spawner-managed; the user does nothing per build):
   `sandbox-egress` proxy (redsocks redirect + IMDS/RFC1918 fence; RUN-step DNS is
   pinned to the egress dnsmasq via the buildkitd's `[dns]` config). Verified:
   `apk add`/`curl` reach the internet, `169.254.169.254` (IMDS) is blocked.
+- **The fence self-heals across egress moves.** `sandbox-egress` is recreated —
+  and can land on a **new IP** — by any stack restart (`bun dev` / `docker:dev` /
+  `docker compose up` / `tale deploy`), while this `--restart unless-stopped`
+  daemon keeps running with its `[dns]`/redsocks pinned to the **old** IP (RUN-step
+  DNS would then resolve against whatever now holds that address). The spawner
+  guards against this: on every session create — and once at startup for
+  already-running/adopted sessions (`reconcileBuildCache`) — it compares the
+  daemon's live `[dns]` nameserver to the egress's **current** IP and, on a
+  mismatch, reaps + recreates the daemon (the persistent cache volume is
+  preserved; the entrypoint reinstalls the fence against the current IP).
 - **Best-effort.** If the daemon can't be reached, the session falls back to its
   own inner builder (cold cache); it never blocks session creation.
 

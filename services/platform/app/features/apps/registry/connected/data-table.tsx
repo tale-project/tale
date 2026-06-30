@@ -114,6 +114,16 @@ export interface DataTableProps {
       statusBadge: React.ReactNode,
     ) => React.ReactNode;
   };
+  /** Optional per-row action injected into the actions cell alongside the
+   *  view-config `actions` — for an affordance gated on state the row itself
+   *  doesn't carry (e.g. a "Re-run" shown only when the row's latest run failed,
+   *  which the connected component knows and the row's `when` can't). Receives
+   *  the row's `idField` value; renders nothing when it has nothing to add, and
+   *  its presence alone makes the actions column appear. */
+  rowActions?: {
+    idField: string;
+    render: (subjectId: string) => React.ReactNode;
+  };
   /** Cap on rendered rows (default 50). */
   maxRows?: number;
 }
@@ -125,13 +135,14 @@ export function DataTable({
   actions,
   expansion,
   rowAccessory,
+  rowActions,
   maxRows = 50,
 }: DataTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const cols = inferColumns(rows, columns);
   const acts = actions ?? [];
-  const colCount =
-    cols.length + (expansion ? 1 : 0) + (acts.length > 0 ? 1 : 0);
+  const hasActionsCol = acts.length > 0 || rowActions !== undefined;
+  const colCount = cols.length + (expansion ? 1 : 0) + (hasActionsCol ? 1 : 0);
 
   return (
     <Table>
@@ -143,7 +154,7 @@ export function DataTable({
               {columnLabels?.[c] ?? c}
             </TableHead>
           ))}
-          {acts.length > 0 && <TableHead />}
+          {hasActionsCol && <TableHead />}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -151,6 +162,11 @@ export function DataTable({
           const rawId = expansion ? row[expansion.idField] : undefined;
           const subjectId = typeof rawId === 'string' ? rawId : undefined;
           const expandable = subjectId !== undefined;
+          const rawRowActionId = rowActions
+            ? row[rowActions.idField]
+            : undefined;
+          const rowActionId =
+            typeof rawRowActionId === 'string' ? rawRowActionId : undefined;
           const isExpanded = expandable && expandedId === subjectId;
           return (
             <Fragment key={i}>
@@ -196,13 +212,16 @@ export function DataTable({
                       : statusBadge;
                   return <TableCell key={c}>{content}</TableCell>;
                 })}
-                {acts.length > 0 && (
+                {hasActionsCol && (
                   // Stop row-click expansion when interacting with actions.
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Row gap={2} align="stretch" wrap>
                       {acts.map((a, ai) => (
                         <BoundButton key={ai} action={a} item={row} />
                       ))}
+                      {rowActions &&
+                        rowActionId !== undefined &&
+                        rowActions.render(rowActionId)}
                     </Row>
                   </TableCell>
                 )}

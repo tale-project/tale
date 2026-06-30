@@ -65,6 +65,106 @@ describe('useListPage — infiniteScroll mode (default)', () => {
       expect(props.infiniteScroll.hasMore).toBe(true);
     }
   });
+
+  it('does not eagerly drain backend pages while idle (no active filter)', () => {
+    const loadMore = vi.fn();
+
+    renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'CanLoadMore',
+        loadMore,
+        isLoading: false,
+      },
+      search: { fields: ['name'] },
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+  });
+
+  it('eagerly drains backend pages while a search is active (#2054)', () => {
+    const loadMore = vi.fn();
+
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'CanLoadMore',
+        loadMore,
+        isLoading: false,
+      },
+      search: { fields: ['name'] },
+    });
+
+    const props = result.current.tableProps;
+    if (props.search) {
+      act(() => {
+        props.search?.onChange('Item 99');
+      });
+    }
+
+    // A search that matches nothing in the loaded buffer must keep loading
+    // more backend pages instead of stranding the user on a false "no results".
+    expect(loadMore).toHaveBeenCalled();
+  });
+
+  it('eagerly drains backend pages while a managed field filter is active', () => {
+    const loadMore = vi.fn();
+
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'CanLoadMore',
+        loadMore,
+        isLoading: false,
+      },
+      filters: {
+        definitions: [
+          {
+            key: 'category',
+            title: 'Category',
+            options: [
+              { value: 'even', label: 'Even' },
+              { value: 'odd', label: 'Odd' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const props = result.current.tableProps;
+    act(() => {
+      props.filters?.[0]?.onChange(['even']);
+    });
+
+    expect(loadMore).toHaveBeenCalled();
+  });
+
+  it('does not drain when backend is exhausted even with an active search', () => {
+    const loadMore = vi.fn();
+
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'Exhausted',
+        loadMore,
+        isLoading: false,
+      },
+      search: { fields: ['name'] },
+    });
+
+    const props = result.current.tableProps;
+    if (props.search) {
+      act(() => {
+        props.search?.onChange('Item 99');
+      });
+    }
+
+    expect(loadMore).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

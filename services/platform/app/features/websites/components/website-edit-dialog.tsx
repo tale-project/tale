@@ -9,7 +9,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateWebsite } from '../hooks/mutations';
@@ -116,7 +116,7 @@ export function EditWebsiteDialog({
         id="domain"
         label={tWebsites('domain')}
         value={website.domain}
-        disabled
+        readOnly
       />
 
       <Select

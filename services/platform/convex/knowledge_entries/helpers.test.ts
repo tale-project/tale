@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
 import { normalizeTopicKey } from './constants';
@@ -127,28 +128,46 @@ describe('validateTopicAndContent', () => {
     expect(result.content).toBe('Open 9-5');
   });
 
+  // #2000: validation rejects with structured ConvexError codes (not raw
+  // `Error`), so the client receives a readable code instead of an opaque
+  // "Server Error".
+  function codeOf(fn: () => unknown): string | undefined {
+    try {
+      fn();
+    } catch (err) {
+      if (!(err instanceof ConvexError)) return undefined;
+      const data: unknown = err.data;
+      if (typeof data !== 'object' || data === null || !('code' in data)) {
+        return undefined;
+      }
+      const candidate: unknown = (data as { code: unknown }).code;
+      return typeof candidate === 'string' ? candidate : undefined;
+    }
+    return undefined;
+  }
+
   it('rejects empty topic', () => {
-    expect(() => validateTopicAndContent('   ', 'content')).toThrow(
-      'Topic is required',
+    expect(codeOf(() => validateTopicAndContent('   ', 'content'))).toBe(
+      'KNOWLEDGE_ENTRY_TOPIC_REQUIRED',
     );
   });
 
   it('rejects topic over the cap', () => {
-    expect(() => validateTopicAndContent('x'.repeat(121), 'content')).toThrow(
-      '120',
-    );
+    expect(
+      codeOf(() => validateTopicAndContent('x'.repeat(121), 'content')),
+    ).toBe('KNOWLEDGE_ENTRY_TOPIC_TOO_LONG');
   });
 
   it('rejects empty content', () => {
-    expect(() => validateTopicAndContent('topic', '   ')).toThrow(
-      'Content is required',
+    expect(codeOf(() => validateTopicAndContent('topic', '   '))).toBe(
+      'KNOWLEDGE_ENTRY_CONTENT_REQUIRED',
     );
   });
 
   it('rejects content over the cap', () => {
-    expect(() => validateTopicAndContent('topic', 'x'.repeat(8001))).toThrow(
-      '8000',
-    );
+    expect(
+      codeOf(() => validateTopicAndContent('topic', 'x'.repeat(8001))),
+    ).toBe('KNOWLEDGE_ENTRY_CONTENT_TOO_LONG');
   });
 });
 

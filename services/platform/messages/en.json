@@ -26,6 +26,7 @@
     "install": {
       "install": "Install",
       "installed": "Installed",
+      "installFailed": "Couldn't install the app",
       "reinstall": "Reinstall",
       "setup": "Finish setup",
       "uninstall": "Uninstall",
@@ -126,7 +127,8 @@
       "created": "Created",
       "start": "Start",
       "markDone": "Mark done",
-      "merge": "Merge pull request"
+      "merge": "Merge pull request",
+      "all": "All"
     },
     "agents": {
       "none": "No agents configured.",
@@ -179,8 +181,11 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
+      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
-      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
+      "failed": "Failed",
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
     "membership": {
       "title": "Projects",
@@ -860,7 +865,7 @@
     "executions": {
       "title": "Executions",
       "entityLabel": "executions",
-      "searchPlaceholder": "Search executions"
+      "searchPlaceholder": "Search by execution ID"
     },
     "createDialog": {
       "title": "Create automation",
@@ -890,16 +895,12 @@
       "namePlaceholder": "Enter automation name"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "Editing connections not yet available",
-        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
-      },
       "banners": {
         "hasActiveTriggers": "This automation is active — saved changes apply to new runs."
       },
       "toolbar": {
         "testAutomation": "Test automation",
-        "addStep": "Add step"
+        "addStepUnavailable": "Editing steps on the canvas isn't available yet — use the AI assistant or edit the workflow configuration."
       },
       "execution": {
         "viewingRun": "Viewing run {id}",
@@ -1069,6 +1070,7 @@
       "action": "View"
     },
     "viewer": {
+      "back": "Back",
       "heading": "What's new",
       "subheading": "{count, plural, one {# update} other {# updates}} since v{from}",
       "subheadingNew": "Release notes for v{to}",
@@ -1661,7 +1663,7 @@
       "description": "Select messages and download in your preferred format.",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
-      "messagesCount": "{count} of {total} messages selected",
+      "messagesCount": "{count, plural, one {# of {total} message selected} other {# of {total} messages selected}}",
       "downloadPdf": "Print to PDF",
       "downloadMarkdown": "Download Markdown",
       "noMessages": "No messages to export",
@@ -1789,7 +1791,6 @@
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
-      "viewOnly": "View only",
       "connecting": "Connecting…",
       "streaming": "Live",
       "disconnected": "Stream ended",
@@ -1800,7 +1801,8 @@
       "emptyHint": "Start a turn — when the agent opens a browser you’ll see it here, live.",
       "ariaLabel": "Live view of the agent’s browser (read-only)",
       "ariaLabelControl": "Live browser — you are controlling it",
-      "controlling": "You’re in control",
+      "takeControl": "Take control",
+      "releaseControl": "Release control",
       "reset": "Reset browser (clears logins)",
       "resetConfirmTitle": "Reset browser?",
       "resetConfirmBody": "Restarts the browser with a clean profile and signs out of every site the agent logged into. Use this only if the browser is stuck and won’t recover on its own.",
@@ -2024,6 +2026,12 @@
       "contactSupport": "contact support",
       "tryAgain": "Try again"
     },
+    "executionErrors": {
+      "unauthenticated": "You're not signed in. Refresh the page and try again.",
+      "notFound": "That run could no longer be found. It may have been deleted.",
+      "notCancelable": "This run can no longer be stopped — it has already finished.",
+      "missingWorkflow": "This run can't be re-run because its workflow is no longer available."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
@@ -2094,6 +2102,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Unknown customer",
     "messagePlaceholder": "Type a message",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
     "fallbackImageAttachment": "Image attachment",
@@ -2113,8 +2122,10 @@
       "accept": "Accept changes"
     },
     "bulkSend": {
-      "title": "Send {count} Messages",
+      "title": "Send {count, plural, one {# Message} other {# Messages}}",
       "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Type your reply...",
       "send": "Send"
     },
     "updating": "Updating conversations...",
@@ -2299,7 +2310,8 @@
   },
   "dialogs": {
     "addMember": {
-      "title": "Add member"
+      "title": "Add member",
+      "existingUserHint": "This person already has an account, so no password is needed — they sign in with their existing credentials."
     },
     "memberAdded": {
       "title": "Member added successfully",
@@ -2511,7 +2523,7 @@
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
       "dropZoneTitle": "Upload a file",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV up to {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT up to {maxSize} MB",
       "retryUpload": "Retry upload",
       "retry": "Retry",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded — indexing runs in the background",
@@ -2759,7 +2771,13 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
-      "saved": "Budget rules have been updated"
+      "saved": "Budget rules have been updated",
+      "targetRequired": "Select a target for this scope, or the rule will never apply.",
+      "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
+      "invalidTokenLimit": "Token limit must be greater than zero.",
+      "invalidCostLimit": "Cost limit must be greater than zero.",
+      "invalidMaxRequests": "Request limit must be greater than zero.",
+      "invalidWarningThreshold": "Warning threshold must be between 0 and 100."
     },
     "defaultModels": {
       "title": "Default Models",
@@ -3324,6 +3342,7 @@
       "yes": "Yes",
       "no": "No",
       "addMapping": "Add category mapping",
+      "editMappingAria": "Edit mapping for {category}",
       "editMappingTitle": "Edit category mapping",
       "addMappingTitle": "Add category mapping",
       "deleteMappingConfirmTitle": "Delete category mapping?",
@@ -3972,7 +3991,13 @@
     "updateResponse": "Update response",
     "cancelEdit": "Cancel",
     "versionPrevious": "Previous response version",
-    "versionNext": "Next response version"
+    "versionNext": "Next response version",
+    "errorTodoListRequired": "Please add at least one item",
+    "errorTodoListMinItems": "Please add at least {count} items",
+    "todoItemPlaceholder": "Sub-question {n}",
+    "todoItemAriaLabel": "{label} item {n}",
+    "todoRemoveItem": "Remove item {n}",
+    "todoAddItem": "Add item"
   },
   "integrationApproval": {
     "approve": "Approve",
@@ -4114,7 +4139,19 @@
       "saving": "Saving...",
       "cancel": "Cancel",
       "connectionSection": "Connection",
-      "authSection": "Authentication"
+      "authSection": "Authentication",
+      "validation": {
+        "nameRequired": "Name is required",
+        "nameFormat": "Must be lowercase alphanumeric with hyphens",
+        "displayNameRequired": "Display name is required",
+        "urlRequired": "URL is required",
+        "commandRequired": "Command is required",
+        "apiKeyRequired": "API Key is required",
+        "tokenUrlRequired": "Token URL is required",
+        "clientIdRequired": "Client ID is required",
+        "clientSecretRequired": "Client secret is required",
+        "authorizationUrlRequired": "Authorization URL is required"
+      }
     },
     "oauth2": {
       "tokenUrl": "Token URL",
@@ -4187,6 +4224,10 @@
     "projects": {
       "title": "Projects",
       "description": "Shared workspaces for files, instructions, and chats."
+    },
+    "apps": {
+      "title": "Apps",
+      "description": "Installed packs and the apps they add to your organization."
     },
     "websites": {
       "title": "Websites",
@@ -4422,7 +4463,13 @@
     "dsarPolicyLoosenApplied": "Data-erasure policy weakened",
     "dsarPolicyLoosenAppliedBody": "A weaker data-erasure (DSAR) policy took effect after the 24-hour grace window.",
     "dsarPolicyLoosenCancelled": "Pending data-erasure policy change cancelled",
-    "dsarPolicyLoosenCancelledBody": "A pending data-erasure (DSAR) policy change was cancelled before it took effect."
+    "dsarPolicyLoosenCancelledBody": "A pending data-erasure (DSAR) policy change was cancelled before it took effect.",
+    "agentBudgetWarnTitle": "Agent approaching its budget",
+    "agentBudgetWarnBody": "{agentSlug} has used {pct}% of its monthly budget ({spent} of {monthly}).",
+    "agentBudgetExceededTitle": "Agent budget exceeded — runs paused",
+    "agentBudgetExceededBody": "{agentSlug} reached its monthly budget ({spent} of {monthly}) and has been paused. Runs resume next month or when you raise the limit.",
+    "agentCircuitTrippedTitle": "Agent runs paused — safety limit reached",
+    "agentCircuitTrippedBody": "{agentSlug} hit the safety limit of {windowRuns} runs in {windowHours}h on \"{taskTitle}\". Change the task status to resume automation."
   },
   "personalization": {
     "page": {
@@ -4682,7 +4729,8 @@
       },
       "toast": {
         "success": "Product updated successfully",
-        "error": "Failed to update product"
+        "error": "Failed to update product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "create": {
@@ -4693,7 +4741,8 @@
       },
       "toast": {
         "success": "Product created successfully",
-        "error": "Failed to create product"
+        "error": "Failed to create product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "createWizard": {
@@ -4946,7 +4995,7 @@
       "columnActivity": "Last activity",
       "sharingOrgWide": "Org-wide",
       "sharingTeamPrefix": "Team:",
-      "sharingMultipleTeams": "{count} teams"
+      "sharingMultipleTeams": "{count, plural, one {# team} other {# teams}}"
     },
     "create": {
       "title": "Create project",
@@ -5007,6 +5056,7 @@
       "ragStatusCompleted": "Indexed",
       "ragStatusFailed": "Failed",
       "detachAction": "Remove from project",
+      "previewAction": "Preview file",
       "detachSuccess": "Document removed from project",
       "detachError": "Couldn't remove document",
       "attachSuccess": "Document added to project",
@@ -5026,6 +5076,7 @@
       "shareToggleDisclosure": "Sharing this chat hides your personal memories and instructions from the responses other members will see.",
       "shareSuccess": "Chat shared with project",
       "unshareSuccess": "Chat hidden from project",
+      "shareDisabledPersonalization": "Personalization was turned off for this chat, so your memories and instructions stay private from other members.",
       "shareError": "Couldn't update sharing"
     },
     "agents": {
@@ -5145,6 +5196,7 @@
       "PROJECT_FORBIDDEN": "You don't have access to this project.",
       "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
       "PROJECT_HAS_BOUND_APPS": "Uninstall the apps using this project first, then delete it.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Uninstall the apps using this project first, then delete it: {apps}.",
       "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
@@ -5548,6 +5600,7 @@
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
+        "displayNameDuplicateWarning": "Another agent already uses this display name. The slug stays unique, but the duplicate name can be ambiguous in chat and lists.",
         "description": "Description",
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
@@ -5694,7 +5747,7 @@
         "notPublished": "Publish this agent to enable webhook access.",
         "createButton": "Create webhook",
         "createdTitle": "Webhook created",
-        "urlWarning": "Copy this URL now. It will only be shown once.",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
         "webhookUrl": "Webhook URL",
         "copyUrl": "Copy webhook URL",
         "copyExample": "Copy example",
@@ -6308,7 +6361,6 @@
       "testSystemError": "The connection test couldn't run. Check the provider's base URL and API key, then try again.",
       "addKey": "Add API key",
       "apiKeyEnter": "Enter API key",
-      "searchProvider": "Search providers...",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
@@ -6927,6 +6979,7 @@
     "mentionByBody": "{actor} mentioned you on \"{title}\".",
     "taskReviewRequested": "Review requested",
     "taskReviewRequestedBody": "{agentSlug} finished \"{taskTitle}\" — approve or request changes.",
+    "taskReviewRequestedBodyNoAgent": "Agent work on \"{taskTitle}\" is ready for review — approve or request changes.",
     "taskReviewApproved": "Review approved",
     "taskReviewApprovedBody": "\"{taskTitle}\" was approved and completed.",
     "taskReviewChangesRequested": "Changes requested",
@@ -6970,6 +7023,10 @@
     "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
     "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
+    "editButton": "Edit",
+    "editTitle": "Edit secret",
+    "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
+    "updateSuccess": "Secret updated",
     "deleteSuccess": "Secret deleted"
   },
   "tasks": {
@@ -7264,6 +7321,8 @@
       "description": "Sign in with a passkey (Face ID, Touch ID, Windows Hello, or a security key). A passkey is phishing-resistant and satisfies your organization's two-factor requirement.",
       "addButton": "Add a passkey",
       "revokeButton": "Remove",
+      "revokeConfirmTitle": "Remove passkey?",
+      "revokeConfirmDescription": "This removes \"{name}\" and it can no longer be used to sign in. If it was your only second factor, you may be prompted to set up two-factor authentication again.",
       "empty": "No passkeys registered yet.",
       "unnamed": "Passkey",
       "registered": "Passkey registered",
@@ -7285,7 +7344,7 @@
     "setup": {
       "title": "Set up two-factor authentication",
       "qrInstructions": "Scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code below.",
-      "manualEntry": "Can't scan? Enter this secret manually:",
+      "manualEntry": "Or enter manually:",
       "verifyCodeLabel": "Verification code",
       "verifyButton": "Verify and enable"
     },
@@ -7304,6 +7363,7 @@
     "verify": {
       "title": "Verify your identity",
       "description": "Enter the 6-digit code from your authenticator app.",
+      "backupDescription": "Enter one of your backup codes.",
       "codeLabel": "Authentication code",
       "useBackupCodeToggle": "Use a backup code instead",
       "useAuthenticatorToggle": "Use the authenticator app instead",
@@ -7311,6 +7371,7 @@
       "submitButton": "Verify",
       "invalid": "Invalid or expired code. Please try again.",
       "tooManyAttempts": "Too many failed attempts. Try again later.",
+      "success": "Signed in successfully",
       "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings.",
       "usePasskeyButton": "Use a passkey instead",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use a code."

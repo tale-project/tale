@@ -118,9 +118,13 @@
 	}
 
 	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
-	# Dashboard HTML references these at root but they're served under /convex-dashboard/
+	# Dashboard HTML references these at root but they're served under /convex-dashboard/.
+	# Only list assets the platform does NOT own at root. `/favicon.ico` and
+	# `/manifest.webmanifest` are served by the platform itself (dist/favicon.ico and
+	# the PWA manifest index.html references), so routing them here hijacked the
+	# platform's tab icon + PWA manifest with the Convex dashboard's (regression #1912).
 	@convexDashboardAssets {
-		path /convex-logo-only.svg /convex-light.svg /convex-dark.svg /favicon.ico /apple-touch-icon.png /manifest.webmanifest
+		path /convex-logo-only.svg /convex-light.svg /convex-dark.svg /apple-touch-icon.png
 	}
 	handle @convexDashboardAssets {
 		uri replace / /convex-dashboard/ 1

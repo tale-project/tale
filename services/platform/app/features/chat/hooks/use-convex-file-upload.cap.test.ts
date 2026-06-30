@@ -36,7 +36,12 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
 vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
 
 vi.mock('@/lib/i18n/client', () => ({
-  useT: () => ({ t: (key: string) => key }),
+  useT: () => ({
+    // Echo the key, appending interpolation params so tests can assert the
+    // reported limit (e.g. the `maxSize` in the file-too-large toast).
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key,
+  }),
 }));
 
 vi.mock('../utils/get-audio-duration', () => ({
@@ -136,5 +141,49 @@ describe('useConvexFileUpload — per-type size ceiling (#2048)', () => {
     expect(
       toastMock.mock.calls.some(([arg]) => arg?.title === 'invalidFiles'),
     ).toBe(true);
+  });
+
+  it('reports the elevated media ceiling (2048MB), not the 100MB generic cap, in the rejection toast', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      // 3 GB audio file — above the 2 GB media per-type cap, so it is rejected.
+      await result.current.uploadFiles([
+        makeAudioFile('huge.mp3', 3 * 1024 * MB),
+      ]);
+    });
+
+    expect(result.current.attachments).toHaveLength(0);
+    const tooLargeToast = toastMock.mock.calls.find(
+      ([arg]) => arg?.title === 'invalidFiles',
+    );
+    expect(tooLargeToast).toBeTruthy();
+    // The toast must state the media ceiling (2 GB = 2048 MB), not 100 MB.
+    expect(tooLargeToast?.[0]?.description).toContain('2048');
+    expect(tooLargeToast?.[0]?.description).not.toContain('100');
+  });
+
+  it('reports the governance policy cap in the rejection toast', async () => {
+    useUploadPolicyMock.mockReturnValue({
+      policyEnabled: true,
+      maxFileSize: 50 * MB,
+      documentMaxFileSize: 50 * MB,
+      allowedTypes: ['audio/mpeg'],
+      blockedExtensions: [],
+      allowedExtensions: [],
+    });
+
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeAudioFile('podcast.mp3', 150 * MB),
+      ]);
+    });
+
+    const tooLargeToast = toastMock.mock.calls.find(
+      ([arg]) => arg?.title === 'invalidFiles',
+    );
+    expect(tooLargeToast?.[0]?.description).toContain('50');
   });
 });

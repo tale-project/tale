@@ -36,7 +36,9 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     expect(stdinMode).toBe('hold');
     expect(argv).toContain('200'); // default max turns (runaway backstop)
     expect(argv).toContain('--model');
-    expect(argv).toContain('claude-sonnet-4-6');
+    // Managed runs default to the 1M window via the `[1m]` marker (CC strips it
+    // before the API call, so the gateway VK allowlist still sees the bare id).
+    expect(argv).toContain('claude-sonnet-4-6[1m]');
     // browser MCP on by default: launcher shim + chromium + in-memory
     // profile (the registry path is read-only at runtime).
     expect(argv).toContain('--mcp-config');
@@ -64,13 +66,14 @@ describe('ClaudeCodeAdapter.buildExec', () => {
       'AskUserQuestion,WebSearch,WebFetch',
     );
     // prompt rides stdin as ONE stream-json user-message NDJSON line (a
-    // malformed line kills the CLI's stream-json reader), never argv.
+    // malformed line kills the CLI's stream-json reader), never argv. Managed
+    // runs prepend the `Ultrathink:` keyword for max reasoning depth.
     expect(stdin).toBe(`${stdin?.trimEnd()}\n`);
     expect(JSON.parse(stdin ?? '')).toEqual({
       type: 'user',
       message: {
         role: 'user',
-        content: [{ type: 'text', text: base.prompt }],
+        content: [{ type: 'text', text: `Ultrathink: ${base.prompt}` }],
       },
     });
     expect(argv).not.toContain(base.prompt);
@@ -85,7 +88,7 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     // the session VK only allows that one model, so any other resolution
     // would be rejected at the gateway. ANTHROPIC_MODEL covers the CLI's
     // internal default-model paths (queued-message replay ignores --model).
-    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
+    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6[1m]');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4-6');
@@ -281,17 +284,19 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     workdir: '/user/workspace',
   };
 
-  it('injects no gateway / key env and passes the model through raw', () => {
+  it('injects no gateway / key env; applies the 1M window like every session', () => {
     const { argv, env } = new ClaudeCodeAdapter().buildExec(byoBase);
     expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
     expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
     // Not blanked to '' either — the user's own ANTHROPIC_API_KEY (if set in
     // the session env) must win via Claude Code's own credential precedence.
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
-    // Raw model passthrough (no gateway slug resolution); --model still set.
-    expect(env.ANTHROPIC_MODEL).toBe('claude-opus-4-8');
+    // No gateway-slug resolution, but the 1M window default applies to EVERY
+    // session: the `[1m]` marker is stripped before the API call, so the user's
+    // own provider still receives the bare model id.
+    expect(env.ANTHROPIC_MODEL).toBe('claude-opus-4-8[1m]');
     expect(argv).toContain('--model');
-    expect(argv[argv.indexOf('--model') + 1]).toBe('claude-opus-4-8');
+    expect(argv[argv.indexOf('--model') + 1]).toBe('claude-opus-4-8[1m]');
     // Box config still set; nonessential traffic still disabled.
     expect(env.CLAUDE_CONFIG_DIR).toBe('/user/.runtime/home/.claude');
   });

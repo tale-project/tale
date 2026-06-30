@@ -49,6 +49,15 @@ describe('Dialog', () => {
   });
 
   describe('accessibility', () => {
+    it('marks the content as a modal dialog (aria-modal)', () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Test Dialog">
+          <p>Content</p>
+        </Dialog>,
+      );
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
     it('passes axe audit when open', async () => {
       const { container } = render(
         <Dialog

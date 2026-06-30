@@ -1,3 +1,5 @@
+import enMessages from '../../messages/en.json';
+
 interface MarketingRoute {
   /** Site-relative URL, e.g. `/`, `/pricing`. */
   url: string;
@@ -7,38 +9,30 @@ interface MarketingRoute {
 
 /**
  * Marketing routes the on-demand artifact server is allowed to serve.
- * Used by `lib/seo/artifacts-server.ts` for sitemap/llms.txt entries and
- * SSR-rendered `.md` exports. Legal pages live alongside as markdown
- * files under `app/content/legal/` and are picked up automatically.
+ * Used by `lib/seo/artifacts-server.ts` for sitemap/llms.txt entries and by
+ * `scripts/prerender.ts` for the static route list. Legal pages live
+ * alongside as markdown under `app/content/legal/` and are picked up
+ * automatically.
+ *
+ * Title + description come from the `seo` i18n namespace — the exact strings
+ * each page renders via `useT('seo')` + `useDocumentMeta` — so the sitemap,
+ * llms.txt, and the prerendered `<head>` all describe a page identically.
+ * There is no second copy to drift.
  */
-export const MARKETING_ROUTES: readonly MarketingRoute[] = [
-  {
-    url: '/',
-    title: 'Tale: The Orchestration Layer for AI Agents',
-    description:
-      'Self-hosted AI platform for data-sensitive organisations — local AI models, agents, and automations on your own infrastructure.',
-  },
-  {
-    url: '/pricing',
-    title: 'Pricing',
-    description:
-      'One price for your entire team — no per-seat fees, no hidden costs.',
-  },
-  {
-    url: '/hardware-pricing',
-    title: 'Hardware pricing',
-    description:
-      'High-performance AI hardware — Quality, Hybrid, and Speed configurations.',
-  },
-  {
-    url: '/contact',
-    title: 'Contact',
-    description: 'Get in touch with the Tale team.',
-  },
-  {
-    url: '/request-demo',
-    title: 'Request a demo',
-    description:
-      'Talk with a domain expert about your use case for sovereign AI.',
-  },
-];
+const ROUTE_SEO_KEYS = [
+  { url: '/', key: 'home' },
+  { url: '/pricing', key: 'pricing' },
+  { url: '/hardware-pricing', key: 'hardwarePricing' },
+  { url: '/contact', key: 'contact' },
+  { url: '/request-demo', key: 'requestDemo' },
+] as const;
+
+const seo = enMessages.seo;
+
+export const MARKETING_ROUTES: readonly MarketingRoute[] = ROUTE_SEO_KEYS.map(
+  ({ url, key }) => ({
+    url,
+    title: seo[key].title,
+    description: seo[key].description,
+  }),
+);

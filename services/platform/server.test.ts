@@ -52,6 +52,10 @@ describe('security headers', () => {
     expect(pp).toContain('camera=()');
     expect(pp).toContain('geolocation=(self)');
     expect(pp).toContain('clipboard-write=(self)');
+    // Live-browser human takeover bridges a host paste via
+    // navigator.clipboard.readText(); an empty allowlist would emit
+    // `clipboard-read=()` and silently block the read.
+    expect(pp).toContain('clipboard-read=(self)');
   });
 
   // Regression guard for issue #1925 — "Verify the web client passes the
@@ -130,6 +134,41 @@ describe('security headers', () => {
     const res = await app.fetch(new Request('http://localhost/api/health'));
     const csp = res.headers.get('content-security-policy') ?? '';
     expect(csp).toContain('https://sentry.elintrio.com');
+  });
+
+  // Regression guard for issue #1964 — custom branding favicons and fonts are
+  // addressed as absolute `<SITE_URL>/branding/...` URLs, so when the app is
+  // reached from a host other than SITE_URL they're cross-origin and were
+  // blocked by `img-src`/`font-src 'self'`. The canonical SITE_URL origin
+  // (the operator's own, never a third-party CDN) must appear in both.
+  test('CSP allows branding assets from the SITE_URL origin (issue #1964)', async () => {
+    const app = createApp({
+      ...baseEnv,
+      SITE_URL: 'https://brand.example.com',
+    });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    const directive = (name: string) =>
+      csp
+        .split(';')
+        .map((d) => d.trim())
+        .find((d) => d.startsWith(`${name} `)) ?? '';
+    expect(directive('img-src')).toContain('https://brand.example.com');
+    expect(directive('font-src')).toContain('https://brand.example.com');
+    // Strictness is preserved: the origin is added without widening to a
+    // wildcard or `unsafe-inline`.
+    expect(directive('font-src')).not.toContain('*');
+  });
+
+  // Only the origin (scheme + host + port) is allow-listed, never the path —
+  // a CSP source is an origin, and leaking the `/branding/...` path here would
+  // be both invalid and over-specific.
+  test('CSP omits the branding origin when SITE_URL is unset', async () => {
+    const app = createApp({ ...baseEnv, SITE_URL: '' });
+    const res = await app.fetch(new Request('http://localhost/api/health'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    // Same-origin assets are covered by `'self'`; no extra origin is emitted.
+    expect(csp).toContain("font-src 'self' data:");
   });
 });
 
