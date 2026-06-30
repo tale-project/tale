@@ -123,6 +123,23 @@ export interface SandboxRenderDocumentResult {
 }
 
 const DEFAULT_RENDER_TIMEOUT_MS = 60_000;
+
+/**
+ * Decode the tail of the spawner's base64 stderr so a failed render surfaces
+ * the script's actual error (e.g. a Chromium launch failure) instead of the
+ * opaque `RUNTIME_ERROR: User code exited with status 1`.
+ */
+function decodeStderrTail(stderrBase64: string, maxChars = 800): string {
+  if (!stderrBase64) return '';
+  try {
+    const text = Buffer.from(stderrBase64, 'base64').toString('utf8').trim();
+    return text.length > maxChars ? `…${text.slice(-maxChars)}` : text;
+  } catch (err) {
+    console.warn('[documents] failed to decode spawner stderr:', err);
+    return '';
+  }
+}
+
 const OUTPUT_FILE_PDF = 'document.pdf';
 const OUTPUT_FILE_PNG = 'document.png';
 const OUTPUT_FILE_JPEG = 'document.jpeg';
@@ -174,7 +191,19 @@ function buildRenderScript(
 ): string {
   const spec = JSON.stringify({ request, outputFileName, timeoutMs });
   return [
-    "const { chromium } = require('playwright');",
+    // The one-shot sandbox image bakes Playwright under the Playwright MCP
+    // package (NOT on the runner's NODE_PATH), with Chromium at
+    // PLAYWRIGHT_BROWSERS_PATH. A bare `require('playwright')` therefore fails
+    // with MODULE_NOT_FOUND; resolve it from the baked location, falling back
+    // to a normal require for any other runtime.
+    'const { chromium } = (() => {',
+    "  const baked = '/opt/agents/lib/node_modules/@playwright/mcp';",
+    '  try {',
+    "    return require(require.resolve('playwright', { paths: [baked] }));",
+    '  } catch (e) {',
+    "    return require('playwright');",
+    '  }',
+    '})();',
     "const fs = require('fs');",
     `const SPEC = ${spec};`,
     '(async () => {',
@@ -309,8 +338,10 @@ export async function renderDocumentInSandbox(
       const message = spawnerResult.errorMessage
         ? `: ${spawnerResult.errorMessage}`
         : '';
+      const stderrTail = decodeStderrTail(spawnerResult.stderrBase64);
+      const stderr = stderrTail ? `; stderr: ${stderrTail}` : '';
       throw new Error(
-        `sandbox document render did not complete (status=${spawnerResult.status}${code}${message})`,
+        `sandbox document render did not complete (status=${spawnerResult.status}${code}${message}${stderr})`,
       );
     }
 

@@ -149,6 +149,10 @@ describe('renderDocumentInSandbox', () => {
     expect(script).toContain('page.pdf');
     expect(script).toContain('A4');
     expect(script).toContain('<p>Hi</p>');
+    // Playwright must be resolved from the image's baked Playwright MCP bundle
+    // (it is NOT on the one-shot runner's NODE_PATH), not a bare require.
+    expect(script).toContain("require.resolve('playwright'");
+    expect(script).toContain('@playwright/mcp');
   });
 
   it('requests the jpeg output filename for jpeg images', async () => {
@@ -214,6 +218,28 @@ describe('renderDocumentInSandbox', () => {
     await expect(
       renderDocumentInSandbox({ ctx, organizationId: 'org-1' }, PDF_REQUEST),
     ).rejects.toThrow('did not complete');
+  });
+
+  it('surfaces the script stderr when the run fails with a runtime error', async () => {
+    // A RUNTIME_ERROR alone ("User code exited with status 1") is opaque; the
+    // real cause lives in stderr, which must reach the thrown error.
+    spawnerExecute.mockResolvedValue({
+      status: 'failed',
+      errorCode: 'RUNTIME_ERROR: User code exited with status 1',
+      exitCode: 1,
+      stdoutBase64: '',
+      stderrBase64: Buffer.from(
+        "Error: Cannot find module 'playwright'\n    at render.js:1",
+        'utf8',
+      ).toString('base64'),
+      durationMs: 1,
+      truncated: { stdout: false, stderr: false, files: 0 },
+      outputFiles: [],
+    });
+    const ctx = createCtx();
+    await expect(
+      renderDocumentInSandbox({ ctx, organizationId: 'org-1' }, PDF_REQUEST),
+    ).rejects.toThrow("stderr: Error: Cannot find module 'playwright'");
   });
 
   it('throws when the expected output file is missing', async () => {
