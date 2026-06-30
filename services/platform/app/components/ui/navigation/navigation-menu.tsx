@@ -1,6 +1,7 @@
 import * as NavigationMenuPrimitive from '@radix-ui/react-navigation-menu';
 import { cva } from 'class-variance-authority';
-import { ComponentRef, forwardRef, ComponentPropsWithoutRef } from 'react';
+import type { ComponentRef, ComponentPropsWithoutRef } from 'react';
+import { forwardRef } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 

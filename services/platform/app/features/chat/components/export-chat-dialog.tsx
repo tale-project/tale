@@ -148,11 +148,13 @@ function ExportChatDialogContent({
   open,
   onOpenChange,
   threadId,
+  organizationId,
 }: ExportChatDialogProps) {
   const { t } = useT('chat');
 
   const { data } = useConvexQuery(api.threads.queries.getThreadMessages, {
     threadId,
+    organizationId,
   });
 
   const messages: ExportMessage[] = useMemo(

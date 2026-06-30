@@ -104,7 +104,10 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
       threadMetadata: [metaRow()],
       threadTodos: [todosRow({ threadId: 'parent' })],
     });
-    const out = (await getTodos(ctx, { threadId: 'parent' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
     } | null;
     expect(out?.threadId).toBe('parent');
@@ -118,7 +121,10 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
       threadMetadata: [metaRow()],
       threadTodos: [todosRow({ threadId: 'sub', updatedAt: 7 })],
     });
-    const out = (await getTodos(ctx, { threadId: 'parent' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
       todos: unknown[];
     } | null;
@@ -134,7 +140,10 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
         todosRow({ threadId: 'sub', updatedAt: 999 }),
       ],
     });
-    const out = (await getTodos(ctx, { threadId: 'parent' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
     } | null;
     expect(out?.threadId).toBe('parent');
@@ -155,7 +164,10 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
         todosRow({ threadId: 'sub', updatedAt: 7 }),
       ],
     });
-    const out = (await getTodos(ctx, { threadId: 'parent' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
       todos: unknown[];
     } | null;
@@ -170,14 +182,20 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
       threadMetadata: [metaRow()],
       threadTodos: [todosRow({ threadId: 'parent', todos: [] })],
     });
-    const out = await getTodos(ctx, { threadId: 'parent' });
+    const out = await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    });
     expect(out).toBeNull();
   });
 
   it('returns null when neither parent nor any sub-thread has todos', async () => {
     mockGetDelegateSubThreadIds.mockResolvedValue(['sub']);
     const ctx = makeCtx({ threadMetadata: [metaRow()], threadTodos: [] });
-    const out = await getTodos(ctx, { threadId: 'parent' });
+    const out = await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    });
     expect(out).toBeNull();
   });
 
@@ -187,7 +205,10 @@ describe('thread_todos.get — delegate sub-thread fallback', () => {
       threadMetadata: [metaRow({ userId: 'someone_else', isShared: false })],
       threadTodos: [todosRow()],
     });
-    const out = await getTodos(ctx, { threadId: 'parent' });
+    const out = await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_1',
+    });
     expect(out).toBeNull();
     expect(mockGetBranchAncestorThreadIds).not.toHaveBeenCalled();
     expect(mockGetDelegateSubThreadIds).not.toHaveBeenCalled();
@@ -205,7 +226,10 @@ describe('thread_todos.get — branch ancestor lineage', () => {
       threadMetadata: [metaRow({ threadId: 'B' })],
       threadTodos: [todosRow({ threadId: 'P' })],
     });
-    const out = (await getTodos(ctx, { threadId: 'B' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'B',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
     } | null;
     expect(out?.threadId).toBe('P');
@@ -223,7 +247,10 @@ describe('thread_todos.get — branch ancestor lineage', () => {
         todosRow({ threadId: 'P', updatedAt: 999 }),
       ],
     });
-    const out = (await getTodos(ctx, { threadId: 'B' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'B',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
     } | null;
     expect(out?.threadId).toBe('B');
@@ -241,9 +268,30 @@ describe('thread_todos.get — branch ancestor lineage', () => {
       threadMetadata: [metaRow({ threadId: 'B' })],
       threadTodos: [todosRow({ threadId: 'P_sub' })],
     });
-    const out = (await getTodos(ctx, { threadId: 'B' })) as {
+    const out = (await getTodos(ctx, {
+      threadId: 'B',
+      organizationId: 'org_1',
+    })) as {
       threadId: string;
     } | null;
     expect(out?.threadId).toBe('P_sub');
+  });
+});
+
+describe('thread_todos.get — active-org coherence', () => {
+  it("returns null when organizationId is not the thread's active org", async () => {
+    // A todos plan carried over from another org (stale URL / warm cache) must
+    // resolve to null rather than the other org's plan — even though the caller
+    // owns the thread and belongs to its org. Mirrors the by-id guard the rest
+    // of the active-org work applies (see assert_active_org).
+    const ctx = makeCtx({
+      threadMetadata: [metaRow()],
+      threadTodos: [todosRow({ threadId: 'parent' })],
+    });
+    const out = await getTodos(ctx, {
+      threadId: 'parent',
+      organizationId: 'org_other',
+    });
+    expect(out).toBeNull();
   });
 });

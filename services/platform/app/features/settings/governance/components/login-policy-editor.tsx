@@ -187,7 +187,6 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   const {
     register,
-    handleSubmit,
     formState: { errors },
   } = editor.form;
   const canEdit = !cannotManage;
@@ -207,7 +206,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
           />
         }
       >
-        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+        <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset
             disabled={!canEdit || editor.isLoading}
             className="contents"

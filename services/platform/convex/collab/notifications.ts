@@ -2,6 +2,7 @@
  * Per-user content notification inbox: list, unread count, mark read.
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { mutation, query, type QueryCtx } from '../_generated/server';
@@ -54,30 +55,31 @@ const notificationRowValidator = v.object({
 export const listMyNotifications = query({
   args: {
     organizationId: v.string(),
-    unreadOnly: v.optional(v.boolean()),
+    paginationOpts: paginationOptsValidator,
   },
-  returns: v.array(notificationRowValidator),
+  returns: v.object({
+    page: v.array(notificationRowValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     const userId = await resolveUserId(ctx, args.organizationId);
-    if (args.unreadOnly) {
-      return await ctx.db
-        .query('userNotifications')
-        .withIndex('by_user_org_read', (q) =>
-          q
-            .eq('userId', userId)
-            .eq('organizationId', args.organizationId)
-            .eq('read', false),
-        )
-        .order('desc')
-        .take(INBOX_PAGE_CAP);
-    }
-    return await ctx.db
+    // Cursor-based pagination (mirrors `notifications.queries.list`) so the
+    // personal inbox is no longer capped — the panel's "Load more" can walk
+    // past the first page instead of stopping at a hard 100-row ceiling.
+    const result = await ctx.db
       .query('userNotifications')
       .withIndex('by_user_org_created', (q) =>
         q.eq('userId', userId).eq('organizationId', args.organizationId),
       )
       .order('desc')
-      .take(INBOX_PAGE_CAP);
+      .paginate(args.paginationOpts);
+
+    return {
+      page: result.page,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
   },
 });
 

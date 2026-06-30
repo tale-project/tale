@@ -583,7 +583,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   );
 
   return (
-    <form id={FORM_ID} onSubmit={editor.form.handleSubmit(save)}>
+    <form id={FORM_ID} onSubmit={editor.submit}>
       <fieldset disabled={!canEdit || editor.isLoading} className="contents">
         <Stack gap={5}>
           {connected && (

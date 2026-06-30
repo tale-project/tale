@@ -136,12 +136,15 @@ export function ProjectSharingSection({
   const handleOwningTeamChange = useCallback(
     (value: string) => {
       const nextOwningTeam = value === NONE_OWNING_TEAM ? null : value;
-      // Drop the new owning team from the shared list if it's there — mirrors
-      // the server-side rule that the owning team can't appear in
-      // `sharedWithTeamIds`.
-      const nextShared = sharedWithTeamIds.filter(
-        (id) => id !== nextOwningTeam,
-      );
+      // Going org-wide clears every share — a "shared-with" team is additional
+      // to an owning team, so without an owner those shares would silently keep
+      // the project restricted while the Select reads "Org-wide" (mirrors the
+      // server-side `normalizeSharing`). Otherwise drop just the new owning team
+      // from the shared list (the owning team can't also appear in it).
+      const nextShared =
+        nextOwningTeam === null
+          ? []
+          : sharedWithTeamIds.filter((id) => id !== nextOwningTeam);
       commit({ teamId: nextOwningTeam, sharedWithTeamIds: nextShared });
     },
     [commit, sharedWithTeamIds],

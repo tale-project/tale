@@ -11,7 +11,7 @@ import { walkDocs } from './lib/walk';
 /**
  * Every fenced code block must declare a language identifier.
  *
- * From `.claude/skills/docs/SKILL.md` mechanics:
+ * From `.agents/skills/write-docs/SKILL.md` mechanics:
  *
  *   > Always carry a language identifier. ```bash, ```typescript, ```json —
  *   > never a bare ```. The renderer's syntax highlighter is keyed on the

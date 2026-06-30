@@ -9,16 +9,16 @@ Lis ceci quand tu es d'astreinte. Reviens-y quand tu décides quel conteneur rou
 
 ## Les huit conteneurs, avec leurs tâches
 
-| Conteneur             | Tâche                                                                                                      | Une panne affecte                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `tale-proxy`          | Terminaison TLS + routage en bordure                                                                       | Tous les ingress — aucun client ne joint l'UI                                      |
-| `tale-platform`       | Serveur UI, livraison des assets statiques                                                                 | Le navigateur voit 502 ; l'API reste joignable                                     |
-| `tale-convex`         | Actions/queries/mutations backend + WebSocket, plus RAG, crawling et génération de documents en in-process | L'UI charge mais sans données ; les chats en vol stagnent ; l'ingestion stagne     |
-| `tale-db`             | Postgres opérationnel pour Convex                                                                          | Convex bascule en lecture seule ; les écritures bloquent                           |
-| `tale-knowledge-db`   | Postgres du corpus de connaissances (fragments de documents, embeddings, pages crawlées)                   | La recherche de connaissances renvoie vide ; l'ingestion échoue                    |
-| `tale-llm-gateway`    | Gateway LLM pour les agents de code en sandbox                                                             | Les agents en sandbox ne joignent aucun modèle ; le chat n'est pas affecté         |
-| `tale-sandbox-egress` | Sortie réseau pour code sandbox                                                                            | L'outil **Exécuter du code** échoue avec « egress denied » ; le rendu web échoue   |
-| `tale-sandbox`        | Runtime sandbox + navigateur headless pour le rendu web et la génération de documents                      | **Exécuter du code**, le rendu de crawl web et la génération de documents échouent |
+| Conteneur                  | Tâche                                                                                                      | Une panne affecte                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `tale-proxy`               | Terminaison TLS + routage en bordure                                                                       | Tous les ingress — aucun client ne joint l'UI                                      |
+| `tale-platform`            | Serveur UI, livraison des assets statiques                                                                 | Le navigateur voit 502 ; l'API reste joignable                                     |
+| `tale-convex`              | Actions/queries/mutations backend + WebSocket, plus RAG, crawling et génération de documents en in-process | L'UI charge mais sans données ; les chats en vol stagnent ; l'ingestion stagne     |
+| `tale-db`                  | Postgres opérationnel pour Convex                                                                          | Convex bascule en lecture seule ; les écritures bloquent                           |
+| `tale-knowledge-db`        | Postgres du corpus de connaissances (fragments de documents, embeddings, pages crawlées)                   | La recherche de connaissances renvoie vide ; l'ingestion échoue                    |
+| `tale-sandbox-llm-gateway` | Gateway LLM pour les agents de code en sandbox                                                             | Les agents en sandbox ne joignent aucun modèle ; le chat n'est pas affecté         |
+| `tale-sandbox-egress`      | Sortie réseau pour code sandbox                                                                            | L'outil **Exécuter du code** échoue avec « egress denied » ; le rendu web échoue   |
+| `tale-sandbox`             | Runtime sandbox + navigateur headless pour le rendu web et la génération de documents                      | **Exécuter du code**, le rendu de crawl web et la génération de documents échouent |
 
 Un conteneur est exposé au réseau public (`tale-proxy` pour HTTPS, et optionnellement `tale-sandbox-egress` sortant pour la sandbox) ; le reste est interne seulement. Le sidecar `tale-controller`, à activer explicitement (le profil `controller`), est éteint par défaut ; une fois activé, il redémarre `tale-convex` sur une requête signée pour qu'un changement de résidence des données s'applique sans donner à la plateforme l'accès à Docker.
 
@@ -55,7 +55,7 @@ Le runtime sandbox embarque Chromium et Playwright, donc le backend convex le r�
 
 **`tale-sandbox` / `tale-sandbox-egress` en panne.** Les appels de l'outil **Exécuter du code** retournent une erreur et les scripts de compétence échouent. Parce que le backend convex rend les pages web et génère les documents via le runtime sandbox, un crawl web qui a besoin de rendu JavaScript et la génération de documents échouent aussi en mode fermé tant que la sandbox est down. Les agents qui n'utilisent aucun de ces éléments continuent de marcher.
 
-**`tale-llm-gateway` en panne.** Les agents de code en sandbox perdent leur chemin vers un fournisseur de modèles. Le chat ordinaire — qui appelle les fournisseurs directement depuis convex, pas via la gateway LLM — n'est pas affecté.
+**`tale-sandbox-llm-gateway` en panne.** Les agents de code en sandbox perdent leur chemin vers un fournisseur de modèles. Le chat ordinaire — qui appelle les fournisseurs directement depuis convex, pas via la gateway LLM — n'est pas affecté.
 
 ## Où cela s'inscrit
 

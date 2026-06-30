@@ -9,7 +9,7 @@ export function createDevCommand(): Command {
     .description('Run Tale locally with your project files (live-reloaded)')
     .option('-d, --detach', 'run in background')
     .option('-p, --port <port>', 'HTTPS port to expose', '443')
-    .option('--host <hostname>', 'host alias for proxy', 'tale.local')
+    .option('--host <hostname>', 'host alias for proxy', 'localhost')
     .addOption(
       new Option(
         '-y, --yes',

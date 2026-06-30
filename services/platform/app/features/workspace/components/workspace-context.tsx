@@ -14,6 +14,7 @@ import {
 
 import { useSetThreadCanvasState } from '@/app/features/chat/hooks/mutations';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 
 interface WorkspaceState {
@@ -80,10 +81,11 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     shouldThrow: false,
   });
   const threadId = threadMatch?.params?.threadId;
+  const organizationId = useOrganizationId();
 
   const { data: threadMeta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
 
   const [localState, setLocalState] = useState(INITIAL_STATE);
@@ -120,6 +122,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       if (threadId) {
         setCanvasState({
           threadId,
+          organizationId,
           canvasOpen: true,
           // Only pass the path through when the caller supplied one; omitting
           // it tells the server-side mutation to leave the existing value
@@ -134,16 +137,16 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         }));
       }
     },
-    [threadId, setCanvasState],
+    [threadId, organizationId, setCanvasState],
   );
 
   const closeWorkspace = useCallback(() => {
     if (threadId) {
-      setCanvasState({ threadId, canvasOpen: false });
+      setCanvasState({ threadId, organizationId, canvasOpen: false });
     } else {
       setLocalState((prev) => ({ ...prev, isOpen: false }));
     }
-  }, [threadId, setCanvasState]);
+  }, [threadId, organizationId, setCanvasState]);
 
   const resetWorkspace = useCallback(() => {
     if (threadId) {
@@ -151,23 +154,28 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       // open falls back to the first listed file.
       setCanvasState({
         threadId,
+        organizationId,
         canvasOpen: false,
         canvasActiveFilePath: null,
       });
     } else {
       setLocalState(INITIAL_STATE);
     }
-  }, [threadId, setCanvasState]);
+  }, [threadId, organizationId, setCanvasState]);
 
   const setActiveFilePath = useCallback(
     (path: string | null) => {
       if (threadId) {
-        setCanvasState({ threadId, canvasActiveFilePath: path });
+        setCanvasState({
+          threadId,
+          organizationId,
+          canvasActiveFilePath: path,
+        });
       } else {
         setLocalState((prev) => ({ ...prev, activeFilePath: path }));
       }
     },
-    [threadId, setCanvasState],
+    [threadId, organizationId, setCanvasState],
   );
 
   const value = useMemo(

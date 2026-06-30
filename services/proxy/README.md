@@ -28,7 +28,7 @@ Routes (defined in `Caddyfile`):
 
 - `TLS_MODE` — `selfsigned` (default, Caddy internal CA) or `letsencrypt`
 - `TLS_EMAIL` — Let's Encrypt notifications (recommended when using `letsencrypt`)
-- `SITE_ORIGIN` — e.g. `https://tale.local`
+- `SITE_ORIGIN` — e.g. `https://localhost`
 - `BASE_PATH` — for subpath deployments
 
 ## Development

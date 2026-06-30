@@ -31,6 +31,10 @@ export function createProxyService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
+        // Hairpin-NAT alias: lets a container resolve the public HOST to the
+        // proxy. Inert for the default `localhost` (shadowed by /etc/hosts),
+        // which is fine — nothing calls the public URL server-side (no SSR).
+        // Does real work when HOST is a custom domain. Mirrors compose.yml.
         aliases: [hostAlias],
       },
     },

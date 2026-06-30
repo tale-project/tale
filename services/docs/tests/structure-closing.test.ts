@@ -12,7 +12,7 @@ import { localeOf, walkDocs } from './lib/walk';
 /**
  * Every page closes with a real recap section.
  *
- * From `.claude/skills/docs/SKILL.md` Rule 3:
+ * From `.agents/skills/write-docs/SKILL.md` Rule 3:
  *
  *   > The last sub-section is named for what it does (`## Build one`,
  *   > `## Where this fits`, …) and contains at least one paragraph of recap.

@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 
 import { buildExclusionSet } from '../../lib/shared/platform/exclude_by';
 import { collectFilteredPage } from '../../lib/shared/platform/filtered_pagination';
-import { isRecord } from '../../lib/utils/type-utils';
+import { readIntegrationListPage } from '../../lib/shared/platform/integration_list_page';
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -115,6 +115,7 @@ export const listUntrackedGitHubIssues = action({
     const excluded = buildExclusionSet(
       await ctx.runQuery(api.tasks.queries.listExternalKeysByProject, {
         projectId: args.projectId,
+        organizationId: args.organizationId,
         externalSystem: args.externalSystem,
       }),
       '',
@@ -138,11 +139,11 @@ export const listUntrackedGitHubIssues = action({
             skipApprovalCheck: true,
           },
         );
-        const pagination = isRecord(res) ? res.pagination : undefined;
-        return {
-          rows: isRecord(res) && Array.isArray(res.data) ? res.data : [],
-          hasNext: isRecord(pagination) && pagination.hasNextPage === true,
-        };
+        // `executeIntegration` returns an envelope whose connector payload (the
+        // issues array + upstream page hint) lives under `.result`, so unwrap it
+        // here rather than reading the top level (which always yielded an empty
+        // page and collapsed the desk to nothing).
+        return readIntegrationListPage(res);
       },
       excluded,
       rowKeyTemplate: args.rowKeyTemplate,

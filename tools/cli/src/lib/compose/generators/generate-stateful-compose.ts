@@ -4,9 +4,9 @@ import { getProjectId } from '../../../utils/load-env';
 import { createControllerService } from '../services/create-controller-service';
 import { createConvexService } from '../services/create-convex-service';
 import { createDbService } from '../services/create-db-service';
-import { createLlmGatewayService } from '../services/create-llm-gateway-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
+import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 
@@ -21,7 +21,7 @@ export function generateStatefulCompose(
     db: createDbService(config),
     proxy: createProxyService(config, hostAlias),
     convex,
-    'llm-gateway': createLlmGatewayService(config),
+    'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
   };

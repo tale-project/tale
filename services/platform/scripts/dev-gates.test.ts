@@ -9,7 +9,7 @@ describe('DEV_GATES severity/timeout table (the soft→hard fence)', () => {
     ).toEqual([
       ['assertPortFree', 'hard', 1_000],
       ['wait-on convex tcp', 'hard', 180_000],
-      ['llm-gateway', 'soft', 30_000],
+      ['sandbox-llm-gateway', 'soft', 30_000],
       ['/api/auth/ok', 'soft', 90_000],
       ['vite bind', 'soft', 180_000],
     ]);

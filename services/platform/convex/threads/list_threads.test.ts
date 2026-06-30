@@ -1,7 +1,52 @@
 import { beforeEach, describe, it, expect } from 'vitest';
 
 import type { QueryCtx } from '../_generated/server';
-import { isGeneralThread, listThreads } from './list_threads';
+import {
+  isGeneralThread,
+  isHiddenFromChatHistory,
+  listThreads,
+} from './list_threads';
+
+// --- isHiddenFromChatHistory ---
+
+/**
+ * `isHiddenFromChatHistory` is the single source of truth for "this
+ * threadMetadata row is NOT a chat". Every chat-list surface delegates to it:
+ * the main chat sidebar (`listThreads`), the command palette, bulk sweeps, and
+ * — as of the project-folder fix — `projects.queries.listProjectThreads`.
+ *
+ * The shipped bug it now guards: task/project *discussions* reuse the
+ * `threadMetadata` store (`kind: 'task_discussion' | 'project_discussion'`) but
+ * are not chats. `listProjectThreads` used to skip this predicate, so task
+ * comment threads leaked into the chat list under each project folder. These
+ * verdicts lock the contract so a regression in the predicate — or a caller
+ * dropping the call — is loud.
+ */
+describe('isHiddenFromChatHistory', () => {
+  it('keeps a plain chat (no kind, not a branch)', () => {
+    expect(isHiddenFromChatHistory({})).toBe(false);
+    expect(isHiddenFromChatHistory({ kind: 'chat' })).toBe(false);
+  });
+
+  it('hides task discussions (the project-folder leak)', () => {
+    expect(isHiddenFromChatHistory({ kind: 'task_discussion' })).toBe(true);
+  });
+
+  it('hides project discussions', () => {
+    expect(isHiddenFromChatHistory({ kind: 'project_discussion' })).toBe(true);
+  });
+
+  it('hides fork branches regardless of kind', () => {
+    expect(isHiddenFromChatHistory({ isBranch: true })).toBe(true);
+    expect(isHiddenFromChatHistory({ isBranch: true, kind: 'chat' })).toBe(
+      true,
+    );
+  });
+
+  it('keeps an unknown kind that is not a discussion', () => {
+    expect(isHiddenFromChatHistory({ kind: 'something_new' })).toBe(false);
+  });
+});
 
 // --- isGeneralThread ---
 

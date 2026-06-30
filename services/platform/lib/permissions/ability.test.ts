@@ -59,6 +59,27 @@ describe('defineAbilityFor', () => {
         expect(ability.can('read', 'orgSettings')).toBe(false);
       },
     );
+
+    it.each(['owner', 'admin'])(
+      'grants orgSettings write to %s role',
+      (role) => {
+        const ability = defineAbilityFor(role);
+        expect(ability.can('write', 'orgSettings')).toBe(true);
+      },
+    );
+
+    // Regression guard for #2044: the server write gates on saveGovernancePolicy
+    // and the branding admin gate rely on `write orgSettings` being denied for
+    // every non-admin role. `developer` is the trap — it gets `can('write','all')`
+    // and must have `write orgSettings` explicitly revoked, otherwise the write
+    // gate would silently admit it.
+    it.each(['developer', 'editor', 'member', 'disabled'])(
+      'denies orgSettings write for %s role',
+      (role) => {
+        const ability = defineAbilityFor(role);
+        expect(ability.can('write', 'orgSettings')).toBe(false);
+      },
+    );
   });
 
   describe('developerSettings', () => {

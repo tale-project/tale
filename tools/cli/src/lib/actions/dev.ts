@@ -208,7 +208,7 @@ export async function runDev(options: DevOptions): Promise<void> {
 
   const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const port = options.port ?? 443;
-  const hostAlias = options.host ?? 'tale.local';
+  const hostAlias = options.host ?? 'localhost';
   const portSuffix = port === 443 ? '' : `:${port}`;
   const url = `${env.SITE_URL.replace(/:443$/, '')}${portSuffix}`;
 

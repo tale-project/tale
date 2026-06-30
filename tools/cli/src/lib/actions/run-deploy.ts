@@ -116,23 +116,10 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
         `Valid services: ${ALL_SERVICES.join(', ')}`,
       ]);
     }
-    // The sandbox tier rolls only through the blue-green flip (a full deploy),
-    // never an in-place `--services` update — bringing up the legacy
-    // single-colour container would collide with the colour-suffixed ones.
-    const sandboxIsh = serviceList.filter(
-      (s) => s === 'sandbox' || s === 'sandbox-egress',
-    );
-    if (sandboxIsh.length > 0) {
-      throw usageError(
-        `${sandboxIsh.join(', ')} can't be deployed with --services — the ` +
-          'sandbox tier rolls via the blue-green flip.',
-        ['Run a full `tale deploy` (no --services) to roll the sandbox tier.'],
-      );
-    }
     services = serviceList.filter(isValidService);
   }
 
-  const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
+  const hostAlias = options.host ?? process.env.HOST ?? 'localhost';
   await deploy({
     version,
     // --override-all implies --stop so the stop-gated tier rolls and the

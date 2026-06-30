@@ -1,0 +1,13 @@
+{
+  "name": "@tale/sandbox-llm-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "echo 'Docker service - no local setup'",
+    "serve": "docker compose up sandbox-llm-gateway -d && docker compose logs -f sandbox-llm-gateway",
+    "build": "echo 'No build step'",
+    "docker:build": "docker compose build sandbox-llm-gateway",
+    "logs": "docker compose logs -f sandbox-llm-gateway",
+    "shell": "docker exec -it tale-sandbox-llm-gateway sh"
+  }
+}

@@ -3,7 +3,7 @@
  */
 
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 import { upsertMemberMirror } from '../members/mirror_sync';
 import type { Role } from './types';
 

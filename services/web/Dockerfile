@@ -47,13 +47,16 @@ ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
-# Build the SPA + SSR bundle, then precompile the SEO + LLM artifact set
-# into `dist-seo/`. The compile step uses the SSR bundle (loaded as a
-# `file://` import) to render marketing route bodies at build time, plus
-# reads legal markdown from `app/content/legal/` — neither source is
-# available in the runner stage, so this MUST run in the builder.
+# Build the SPA + SSR bundle, prerender every marketing/legal route (× locale)
+# to static `dist/<route>/index.html` with the route's real `<head>` + body,
+# then precompile the SEO + LLM artifact set into `dist-seo/`. The prerender
+# and compile steps both use the SSR bundle (loaded as a `file://` import) and
+# read legal markdown from `app/content/legal/` — neither source is available
+# in the runner stage, so these MUST run in the builder. (`bun run build` does
+# the first three; they are spelled out here to interleave seo-compile.)
 RUN bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
+    && bun --bun scripts/prerender.ts \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo \
     && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app

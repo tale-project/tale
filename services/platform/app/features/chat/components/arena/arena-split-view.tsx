@@ -109,7 +109,7 @@ function ArenaColumn({
   // Loading state: each column subscribes to its own generationStatus
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
-    { threadId },
+    { threadId, organizationId },
   );
   // Optimistic flag — closes the Node-action cold-start window so both
   // columns show "Thinking" immediately on send instead of ~200–550 ms
@@ -170,7 +170,7 @@ function ArenaColumn({
 
   const { data: forkInfo } = useConvexQuery(
     api.threads.queries.getThreadForkInfo,
-    { threadId },
+    { threadId, organizationId },
   );
 
   const containerRef = useRef<HTMLDivElement>(null);

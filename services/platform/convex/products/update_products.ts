@@ -2,11 +2,13 @@
  * Update products with flexible filtering and updates (internal operation)
  */
 
+import { ConvexError } from 'convex/values';
 import { set, merge } from 'lodash';
 
-import { Doc, Id } from '../_generated/dataModel';
-import { MutationCtx } from '../_generated/server';
-import { UpdateProductsResult, ProductStatus } from './types';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import { assertUniqueProductName } from './assert_unique_product_name';
+import type { UpdateProductsResult, ProductStatus } from './types';
 import { validateProductName } from './validate_product_name';
 
 export interface UpdateProductsArgs {
@@ -170,6 +172,31 @@ export async function updateProducts(
     args.updates.name !== undefined
       ? validateProductName(args.updates.name)
       : undefined;
+
+  // Enforce name uniqueness on the non-UI rename path. REST PATCH
+  // /api/v1/products/:id, the agent product_write tool, and the workflow
+  // product action all reach here, so a rename must respect the same
+  // duplicate-name invariant the interactive updateProduct mutation enforces.
+  if (validatedName !== undefined) {
+    const newName = validatedName;
+    if (productsToUpdate.length > 1) {
+      // A filter-based batch can't rename many rows to one name without
+      // creating duplicates among themselves.
+      throw new ConvexError({
+        code: 'DUPLICATE_PRODUCT_NAME',
+        message: `Cannot rename multiple products to "${newName.trim()}".`,
+      });
+    }
+    if (productsToUpdate.length === 1) {
+      const [product] = productsToUpdate;
+      await assertUniqueProductName(
+        ctx,
+        product.organizationId,
+        newName,
+        product._id,
+      );
+    }
+  }
 
   // Build patches for each product
   const patches: Array<{ id: Id<'products'>; patch: Record<string, unknown> }> =

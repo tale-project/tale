@@ -4,8 +4,14 @@
 # Layered ON TOP of compose.yml. This overlay is what turns the frozen base
 # stack into an actual dev environment. It adds two things compose.yml omits:
 #
-#   1. Source bind-mounts — host edits hot-reload (Vite HMR, convex deploy)
-#      instead of requiring an image rebuild.
+#   1. Source bind-mounts + the dev platform image (`build.target: dev`) — host
+#      edits reach the running stack without an image rebuild. The platform
+#      entrypoint (NODE_ENV=development; see docker-entrypoint.sh) runs two
+#      watchers: `vite build --watch` rebuilds the SPA so a browser refresh
+#      shows frontend (app/, lib/) changes, and `convex dev` re-pushes changed
+#      functions on every save. Opt out of both with TALE_DEV_HOT_RELOAD=0.
+#      NOTE: this is hard-refresh, not Vite HMR — no React Fast Refresh / state
+#      retention. For true HMR use host `cd services/platform && bun dev`.
 #   2. Insecure dev secret defaults (the `x-dev-secrets` anchor below) — so the
 #      stack boots with NO .env at all. A real .env still wins (the `${VAR:-…}`
 #      fallbacks only fill gaps; compose auto-loads .env for interpolation).
@@ -37,8 +43,8 @@
 # Each value is `${VAR:-default}`: an env var or .env entry overrides it.
 # -----------------------------------------------------------------------------
 x-dev-secrets: &dev-secrets
-  HOST: ${HOST:-tale.local}
-  SITE_URL: ${SITE_URL:-https://tale.local}
+  HOST: ${HOST:-localhost}
+  SITE_URL: ${SITE_URL:-https://localhost}
   TLS_MODE: ${TLS_MODE:-selfsigned}
   DB_PASSWORD: ${DB_PASSWORD:-tale_dev_password}
   KNOWLEDGE_DB_NAME: ${KNOWLEDGE_DB_NAME:-tale_knowledge}
@@ -113,20 +119,33 @@ services:
           - convex
 
   platform:
+    # Build the dev image (Dockerfile `dev` stage): the unpruned builder with
+    # vite + the rolldown bundler + full frontend source, so the entrypoint can
+    # run `vite build --watch` (frontend) and `convex dev` (functions) against
+    # the host source mounted below. The default (prod) target is a pruned
+    # runtime that has neither. See compose.yml for the base build config.
+    build:
+      target: dev
     volumes:
+      # These mounts overlay the dev image's monorepo layout
+      # (/app/services/platform/*), so host edits reach the running watchers:
+      #   * app/ + lib/  → rebuilt into dist/ by `vite build --watch`; a browser
+      #                    refresh shows the change (hard reload, no HMR).
+      #   * convex/      → re-pushed to the convex service by `convex dev`.
+      # `vite build --watch`, `server.ts`, and the convex push all run from
+      # /app/services/platform, so no flat /app/convex mount is needed (the prod
+      # runner used one because it flattens everything into /app).
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
       - ./services/platform/convex:/app/services/platform/convex
-      # `bunx convex deploy` runs from /app (the package.json with
-      # "convex": "1.35.x") and looks for source at `<cwd>/convex/`,
-      # which is the image-baked snapshot. Bind the host source over
-      # that path too so deploys pick up live edits instead of the
-      # snapshot frozen at build time.
-      - ./services/platform/convex:/app/convex
       - convex-data:/app/data:ro
     environment:
       <<: *dev-secrets
       NODE_ENV: development
+      # Master switch for BOTH hot-reload watchers (frontend build + convex
+      # push), default on in dev. Set to 0 to fall back to the one-shot boot
+      # deploy and the static prebuilt dist/ only.
+      TALE_DEV_HOT_RELOAD: ${TALE_DEV_HOT_RELOAD:-1}
 
   docs:
     volumes:

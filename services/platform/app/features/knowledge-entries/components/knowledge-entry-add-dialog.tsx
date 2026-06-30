@@ -14,6 +14,7 @@ import {
   TOPIC_MAX_LENGTH,
 } from '@/convex/knowledge_entries/constants';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useCreateKnowledgeEntry } from '../hooks/mutations';
 
@@ -79,7 +80,7 @@ export function AddKnowledgeEntryDialog({
         onError: (error) => {
           console.error('Failed to add knowledge entry:', error);
           const isDuplicate =
-            error instanceof Error && error.message.includes('already exists');
+            convexErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
           toast({
             title: isDuplicate
               ? t('toast.addErrorDuplicate')

@@ -253,7 +253,7 @@ _ensure_default_route() {
 # reach its upstream ExtServers (8.8.8.8 …) — external lookups time out. The
 # egress sidecar's dnsmasq CAN resolve external names. DNAT the embedded
 # resolver's FORWARDED queries (anything to :53 that isn't the embedded resolver
-# itself) to the egress dnsmasq, so: Docker service names (llm-gateway, convex) are
+# itself) to the egress dnsmasq, so: Docker service names (sandbox-llm-gateway, convex) are
 # still answered LOCALLY by 127.0.0.11 with their correct on-network IPs, while
 # only external names get forwarded to the egress resolver. Gated on 127.0.0.11
 # being the resolver — on k8s (kube-dns) external DNS already works and DNAT'ing
@@ -608,7 +608,10 @@ start_browser_stack() {
   # the network (loopback unix socket only); -ac disables host access control
   # (only the in-container procs can reach the socket anyway).
   # shellcheck disable=SC2086 # $DROP must word-split (empty, or the setpriv prefix)
-  _supervise $DROP Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac
+  # 800 tall (not 720) leaves room for Chromium's own toolbar+tab strip (~72px)
+  # so the page viewport the agent renders into stays ~720 once the browser chrome
+  # is shown (see --window-size below; we no longer run fullscreen/kiosk).
+  _supervise $DROP Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -ac
   export DISPLAY=:99
 
   # Read-only mirror on :5900 — the DEFAULT path every watcher gets. -localhost
@@ -626,22 +629,34 @@ start_browser_stack() {
   # process means watchers retain a structural read-only guarantee — there is no
   # flag a watcher's client can flip to gain input. Same display ⇒ a human's
   # clicks here and the agent's CDP drive both land on the one Chromium.
+  #
+  # -xkb is REQUIRED for correct keysym entry: without it x11vnc falls back to
+  # legacy modtweak, which can't synthesize shifted-symbol keysyms (_, +, @, #,
+  # {, }, |, etc.) against a modern XKB keymap and mangles them (e.g. `_` lands
+  # as a space). The XKEYBOARD path maps each keysym to the right keycode+level.
+  # Only the writable :5901 injects input, so :5900 (-viewonly) doesn't need it.
   # shellcheck disable=SC2086
   _supervise $DROP x11vnc -display :99 -rfbport 5901 -localhost \
-    -forever -shared -nopw -noxdamage
+    -forever -shared -nopw -noxdamage -xkb
 
   # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors
   # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):
   # forward the egress proxy + bypass list as flags so the managed browser has
   # the same egress posture the self-launched one would.
+  #
+  # We deliberately do NOT run fullscreen/kiosk: a human taking control needs the
+  # browser's own menu bar (omnibox + back/forward/reload) to navigate, so we show
+  # the native chrome and size the window to fill the display (no WM runs here, so
+  # --window-size + --window-position place it). The toolbar also surfaces the
+  # current URL to read-only watchers for free.
   set -- "${CHROME_BIN}" \
     --remote-debugging-port=9222 \
     --remote-debugging-address=127.0.0.1 \
     --user-data-dir="${TALE_BROWSER_PROFILE}" \
     --no-sandbox \
     --disable-gpu \
-    --start-fullscreen \
-    --window-size=1280,720 \
+    --window-position=0,0 \
+    --window-size=1280,800 \
     --ignore-certificate-errors \
     --test-type \
     --disable-infobars \
@@ -754,6 +769,22 @@ if [ "$1" = "daemon" ]; then
   export NPM_CONFIG_PREFIX=/user/.runtime/deps/node
   export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
   export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
+
+  # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
+  # each into the agent's user-level skill dir so Claude Code / Codex discover
+  # them as native skills, runnable in place (their deps live in the baked dir).
+  # Idempotent + best-effort; Tale's per-turn reconcile (convex
+  # integration_skills.ts) drops any the workspace repo also defines so the
+  # repo's project-level skill wins. An unmatched glob stays literal in sh, so
+  # the `-d` guard skips it when nothing is baked.
+  if [ -d /opt/agents/skills ]; then
+    $DROP mkdir -p /user/.runtime/home/.claude/skills
+    for _skill in /opt/agents/skills/*/; do
+      [ -d "$_skill" ] || continue
+      $DROP ln -sfn "${_skill%/}" \
+        "/user/.runtime/home/.claude/skills/$(basename "$_skill")"
+    done
+  fi
 
   # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
   # browser + runnerd start, so every client (and Chromium's direct connections)

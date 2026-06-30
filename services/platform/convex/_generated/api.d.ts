@@ -567,6 +567,7 @@ import type * as knowledge_entries_mutations from "../knowledge_entries/mutation
 import type * as knowledge_entries_queries from "../knowledge_entries/queries.js";
 import type * as lib_action_cache_index from "../lib/action_cache/index.js";
 import type * as lib_age_keygen from "../lib/age_keygen.js";
+import type * as lib_agent_chat_branding_context from "../lib/agent_chat/branding_context.js";
 import type * as lib_agent_chat_build_hooks from "../lib/agent_chat/build_hooks.js";
 import type * as lib_agent_chat_build_tools from "../lib/agent_chat/build_tools.js";
 import type * as lib_agent_chat_governance_prompt from "../lib/agent_chat/governance_prompt.js";
@@ -830,6 +831,7 @@ import type * as lib_rls_helpers_role_helpers from "../lib/rls/helpers/role_help
 import type * as lib_rls_helpers_z_mutation_with_rls from "../lib/rls/helpers/z_mutation_with_rls.js";
 import type * as lib_rls_helpers_z_query_with_rls from "../lib/rls/helpers/z_query_with_rls.js";
 import type * as lib_rls_index from "../lib/rls/index.js";
+import type * as lib_rls_organization_assert_active_org from "../lib/rls/organization/assert_active_org.js";
 import type * as lib_rls_organization_get_organization_member from "../lib/rls/organization/get_organization_member.js";
 import type * as lib_rls_organization_get_user_organizations from "../lib/rls/organization/get_user_organizations.js";
 import type * as lib_rls_organization_validate_organization_access from "../lib/rls/organization/validate_organization_access.js";
@@ -847,6 +849,7 @@ import type * as lib_search_strategies_documents from "../lib/search/strategies/
 import type * as lib_search_types from "../lib/search/types.js";
 import type * as lib_secret_box from "../lib/secret_box.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
+import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
@@ -941,6 +944,10 @@ import type * as migrations_versions_v0_2_87_04_drop_org_package_policy_meta fro
 import type * as migrations_versions_v0_2_87_05_drop_model_sync_settings_index from "../migrations/versions/v0_2_87/05_drop_model_sync_settings/index.js";
 import type * as migrations_versions_v0_2_87_05_drop_model_sync_settings_meta from "../migrations/versions/v0_2_87/05_drop_model_sync_settings/meta.js";
 import type * as migrations_versions_v0_2_87_legacy_run_code_model_sync from "../migrations/versions/v0_2_87/legacy_run_code_model_sync.js";
+import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_index from "../migrations/versions/v0_2_88/01_app_config_to_bindings/index.js";
+import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_meta from "../migrations/versions/v0_2_88/01_app_config_to_bindings/meta.js";
+import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_index from "../migrations/versions/v0_2_88/02_app_schedules_per_project/index.js";
+import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_meta from "../migrations/versions/v0_2_88/02_app_schedules_per_project/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -965,6 +972,7 @@ import type * as node_only_integration_sandbox_types from "../node_only/integrat
 import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbox/agent_message_parts.js";
 import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/agent_run_outcome.js";
 import type * as node_only_sandbox_api_error_detection from "../node_only/sandbox/api_error_detection.js";
+import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
@@ -1047,6 +1055,7 @@ import type * as organizations_scaffold from "../organizations/scaffold.js";
 import type * as organizations_validators from "../organizations/validators.js";
 import type * as personalization_internal_queries from "../personalization/internal_queries.js";
 import type * as personalization_queries from "../personalization/queries.js";
+import type * as products_assert_unique_product_name from "../products/assert_unique_product_name.js";
 import type * as products_bulk_create_products from "../products/bulk_create_products.js";
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
@@ -1158,6 +1167,9 @@ import type * as streaming_helpers from "../streaming/helpers.js";
 import type * as streaming_http_actions from "../streaming/http_actions.js";
 import type * as streaming_internal_mutations from "../streaming/internal_mutations.js";
 import type * as streaming_validators from "../streaming/validators.js";
+import type * as support_cases_helpers from "../support_cases/helpers.js";
+import type * as support_cases_mutations from "../support_cases/mutations.js";
+import type * as support_cases_queries from "../support_cases/queries.js";
 import type * as task_metrics_constants from "../task_metrics/constants.js";
 import type * as task_metrics_internal_mutations from "../task_metrics/internal_mutations.js";
 import type * as task_metrics_internal_queries from "../task_metrics/internal_queries.js";
@@ -1165,6 +1177,7 @@ import type * as task_metrics_queries from "../task_metrics/queries.js";
 import type * as task_metrics_rollup from "../task_metrics/rollup.js";
 import type * as task_metrics_rollup_math from "../task_metrics/rollup_math.js";
 import type * as tasks_access from "../tasks/access.js";
+import type * as tasks_attachments from "../tasks/attachments.js";
 import type * as tasks_audit_actions from "../tasks/audit_actions.js";
 import type * as tasks_dependencies from "../tasks/dependencies.js";
 import type * as tasks_directory from "../tasks/directory.js";
@@ -1172,6 +1185,7 @@ import type * as tasks_helpers from "../tasks/helpers.js";
 import type * as tasks_internal_mutations from "../tasks/internal_mutations.js";
 import type * as tasks_internal_queries from "../tasks/internal_queries.js";
 import type * as tasks_issue_ref from "../tasks/issue_ref.js";
+import type * as tasks_list_tasks_paginated from "../tasks/list_tasks_paginated.js";
 import type * as tasks_mentions from "../tasks/mentions.js";
 import type * as tasks_mutations from "../tasks/mutations.js";
 import type * as tasks_public_actions from "../tasks/public_actions.js";
@@ -1498,6 +1512,7 @@ import type * as workflow_engine_helpers_variables_decrypt_inline_secrets from "
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
 import type * as workflow_engine_internal_mutations from "../workflow_engine/internal_mutations.js";
 import type * as workflow_engine_internal_queries from "../workflow_engine/internal_queries.js";
+import type * as workflow_engine_sandbox_capacity_wake from "../workflow_engine/sandbox_capacity_wake.js";
 import type * as workflow_engine_types_execution from "../workflow_engine/types/execution.js";
 import type * as workflow_engine_types_index from "../workflow_engine/types/index.js";
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
@@ -1511,6 +1526,7 @@ import type * as workflow_executions_queries from "../workflow_executions/querie
 import type * as workflows_executions_build_variables_inspection from "../workflows/executions/build_variables_inspection.js";
 import type * as workflows_executions_cleanup_execution_storage from "../workflows/executions/cleanup_execution_storage.js";
 import type * as workflows_executions_complete_execution from "../workflows/executions/complete_execution.js";
+import type * as workflows_executions_date_range_filter from "../workflows/executions/date_range_filter.js";
 import type * as workflows_executions_delete_storage_blob from "../workflows/executions/delete_storage_blob.js";
 import type * as workflows_executions_fail_execution from "../workflows/executions/fail_execution.js";
 import type * as workflows_executions_get_execution from "../workflows/executions/get_execution.js";
@@ -2160,6 +2176,7 @@ declare const fullApi: ApiFromModules<{
   "knowledge_entries/queries": typeof knowledge_entries_queries;
   "lib/action_cache/index": typeof lib_action_cache_index;
   "lib/age_keygen": typeof lib_age_keygen;
+  "lib/agent_chat/branding_context": typeof lib_agent_chat_branding_context;
   "lib/agent_chat/build_hooks": typeof lib_agent_chat_build_hooks;
   "lib/agent_chat/build_tools": typeof lib_agent_chat_build_tools;
   "lib/agent_chat/governance_prompt": typeof lib_agent_chat_governance_prompt;
@@ -2423,6 +2440,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/helpers/z_mutation_with_rls": typeof lib_rls_helpers_z_mutation_with_rls;
   "lib/rls/helpers/z_query_with_rls": typeof lib_rls_helpers_z_query_with_rls;
   "lib/rls/index": typeof lib_rls_index;
+  "lib/rls/organization/assert_active_org": typeof lib_rls_organization_assert_active_org;
   "lib/rls/organization/get_organization_member": typeof lib_rls_organization_get_organization_member;
   "lib/rls/organization/get_user_organizations": typeof lib_rls_organization_get_user_organizations;
   "lib/rls/organization/validate_organization_access": typeof lib_rls_organization_validate_organization_access;
@@ -2440,6 +2458,7 @@ declare const fullApi: ApiFromModules<{
   "lib/search/types": typeof lib_search_types;
   "lib/secret_box": typeof lib_secret_box;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
+  "lib/skills/precedence": typeof lib_skills_precedence;
   "lib/sops": typeof lib_sops;
   "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
@@ -2534,6 +2553,10 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_87/05_drop_model_sync_settings/index": typeof migrations_versions_v0_2_87_05_drop_model_sync_settings_index;
   "migrations/versions/v0_2_87/05_drop_model_sync_settings/meta": typeof migrations_versions_v0_2_87_05_drop_model_sync_settings_meta;
   "migrations/versions/v0_2_87/legacy_run_code_model_sync": typeof migrations_versions_v0_2_87_legacy_run_code_model_sync;
+  "migrations/versions/v0_2_88/01_app_config_to_bindings/index": typeof migrations_versions_v0_2_88_01_app_config_to_bindings_index;
+  "migrations/versions/v0_2_88/01_app_config_to_bindings/meta": typeof migrations_versions_v0_2_88_01_app_config_to_bindings_meta;
+  "migrations/versions/v0_2_88/02_app_schedules_per_project/index": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_index;
+  "migrations/versions/v0_2_88/02_app_schedules_per_project/meta": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
@@ -2558,6 +2581,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/agent_message_parts": typeof node_only_sandbox_agent_message_parts;
   "node_only/sandbox/agent_run_outcome": typeof node_only_sandbox_agent_run_outcome;
   "node_only/sandbox/api_error_detection": typeof node_only_sandbox_api_error_detection;
+  "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
@@ -2640,6 +2664,7 @@ declare const fullApi: ApiFromModules<{
   "organizations/validators": typeof organizations_validators;
   "personalization/internal_queries": typeof personalization_internal_queries;
   "personalization/queries": typeof personalization_queries;
+  "products/assert_unique_product_name": typeof products_assert_unique_product_name;
   "products/bulk_create_products": typeof products_bulk_create_products;
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
@@ -2751,6 +2776,9 @@ declare const fullApi: ApiFromModules<{
   "streaming/http_actions": typeof streaming_http_actions;
   "streaming/internal_mutations": typeof streaming_internal_mutations;
   "streaming/validators": typeof streaming_validators;
+  "support_cases/helpers": typeof support_cases_helpers;
+  "support_cases/mutations": typeof support_cases_mutations;
+  "support_cases/queries": typeof support_cases_queries;
   "task_metrics/constants": typeof task_metrics_constants;
   "task_metrics/internal_mutations": typeof task_metrics_internal_mutations;
   "task_metrics/internal_queries": typeof task_metrics_internal_queries;
@@ -2758,6 +2786,7 @@ declare const fullApi: ApiFromModules<{
   "task_metrics/rollup": typeof task_metrics_rollup;
   "task_metrics/rollup_math": typeof task_metrics_rollup_math;
   "tasks/access": typeof tasks_access;
+  "tasks/attachments": typeof tasks_attachments;
   "tasks/audit_actions": typeof tasks_audit_actions;
   "tasks/dependencies": typeof tasks_dependencies;
   "tasks/directory": typeof tasks_directory;
@@ -2765,6 +2794,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/internal_mutations": typeof tasks_internal_mutations;
   "tasks/internal_queries": typeof tasks_internal_queries;
   "tasks/issue_ref": typeof tasks_issue_ref;
+  "tasks/list_tasks_paginated": typeof tasks_list_tasks_paginated;
   "tasks/mentions": typeof tasks_mentions;
   "tasks/mutations": typeof tasks_mutations;
   "tasks/public_actions": typeof tasks_public_actions;
@@ -3091,6 +3121,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
   "workflow_engine/internal_mutations": typeof workflow_engine_internal_mutations;
   "workflow_engine/internal_queries": typeof workflow_engine_internal_queries;
+  "workflow_engine/sandbox_capacity_wake": typeof workflow_engine_sandbox_capacity_wake;
   "workflow_engine/types/execution": typeof workflow_engine_types_execution;
   "workflow_engine/types/index": typeof workflow_engine_types_index;
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
@@ -3104,6 +3135,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/build_variables_inspection": typeof workflows_executions_build_variables_inspection;
   "workflows/executions/cleanup_execution_storage": typeof workflows_executions_cleanup_execution_storage;
   "workflows/executions/complete_execution": typeof workflows_executions_complete_execution;
+  "workflows/executions/date_range_filter": typeof workflows_executions_date_range_filter;
   "workflows/executions/delete_storage_blob": typeof workflows_executions_delete_storage_blob;
   "workflows/executions/fail_execution": typeof workflows_executions_fail_execution;
   "workflows/executions/get_execution": typeof workflows_executions_get_execution;

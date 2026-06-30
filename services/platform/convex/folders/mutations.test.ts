@@ -1,8 +1,26 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
 import { teamIdsToFields } from '../documents/team_fields';
 import { hasTeamAccess } from '../lib/team_access';
 import { validateFolderName } from './mutations';
+
+/**
+ * Run `fn` and return the `code` of the ConvexError it throws. Fails the
+ * assertion if it doesn't throw a ConvexError. Folder validation now raises
+ * structured `ConvexError({ code, message })` (issue #2005) so the frontend
+ * can branch on the code instead of substring-matching a redacted message.
+ */
+function expectConvexErrorCode(fn: () => unknown): string {
+  try {
+    fn();
+  } catch (err) {
+    expect(err).toBeInstanceOf(ConvexError);
+    const data = (err as ConvexError<{ code: string }>).data;
+    return data.code;
+  }
+  throw new Error('Expected function to throw a ConvexError');
+}
 
 type MockFolder = {
   _id: string;
@@ -101,28 +119,34 @@ describe('validateFolderName', () => {
     expect(validateFolderName('  docs  ')).toBe('docs');
   });
 
-  it('throws for empty name', () => {
-    expect(() => validateFolderName('')).toThrow('Folder name cannot be empty');
-  });
-
-  it('throws for whitespace-only name', () => {
-    expect(() => validateFolderName('   ')).toThrow(
-      'Folder name cannot be empty',
+  it('throws FOLDER_NAME_EMPTY for empty name', () => {
+    expect(expectConvexErrorCode(() => validateFolderName(''))).toBe(
+      'FOLDER_NAME_EMPTY',
     );
   });
 
-  it('throws for reserved name "."', () => {
-    expect(() => validateFolderName('.')).toThrow('Invalid folder name');
+  it('throws FOLDER_NAME_EMPTY for whitespace-only name', () => {
+    expect(expectConvexErrorCode(() => validateFolderName('   '))).toBe(
+      'FOLDER_NAME_EMPTY',
+    );
   });
 
-  it('throws for reserved name ".."', () => {
-    expect(() => validateFolderName('..')).toThrow('Invalid folder name');
+  it('throws FOLDER_NAME_INVALID for reserved name "."', () => {
+    expect(expectConvexErrorCode(() => validateFolderName('.'))).toBe(
+      'FOLDER_NAME_INVALID',
+    );
   });
 
-  it('throws for names exceeding max length', () => {
+  it('throws FOLDER_NAME_INVALID for reserved name ".."', () => {
+    expect(expectConvexErrorCode(() => validateFolderName('..'))).toBe(
+      'FOLDER_NAME_INVALID',
+    );
+  });
+
+  it('throws FOLDER_NAME_TOO_LONG for names exceeding max length', () => {
     const longName = 'a'.repeat(256);
-    expect(() => validateFolderName(longName)).toThrow(
-      'Folder name is too long',
+    expect(expectConvexErrorCode(() => validateFolderName(longName))).toBe(
+      'FOLDER_NAME_TOO_LONG',
     );
   });
 
@@ -131,16 +155,16 @@ describe('validateFolderName', () => {
     expect(validateFolderName(maxName)).toBe(maxName);
   });
 
-  it('throws for names containing forward slash', () => {
-    expect(() => validateFolderName('reports/2024')).toThrow(
-      'Folder name cannot contain path separators',
-    );
+  it('throws FOLDER_NAME_HAS_SEPARATOR for names containing forward slash', () => {
+    expect(
+      expectConvexErrorCode(() => validateFolderName('reports/2024')),
+    ).toBe('FOLDER_NAME_HAS_SEPARATOR');
   });
 
-  it('throws for names containing backslash', () => {
-    expect(() => validateFolderName('reports\\2024')).toThrow(
-      'Folder name cannot contain path separators',
-    );
+  it('throws FOLDER_NAME_HAS_SEPARATOR for names containing backslash', () => {
+    expect(
+      expectConvexErrorCode(() => validateFolderName('reports\\2024')),
+    ).toBe('FOLDER_NAME_HAS_SEPARATOR');
   });
 });
 

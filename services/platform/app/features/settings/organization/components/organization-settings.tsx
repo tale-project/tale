@@ -89,7 +89,6 @@ export function OrganizationSettingsView({
   memberContext,
   canDelete,
   isCurrentOrganization,
-  onSave,
 }: {
   controller: OrganizationController;
   organization: Organization;
@@ -99,13 +98,12 @@ export function OrganizationSettingsView({
   canDelete: boolean;
   /** Whether this is the org the user is currently viewing (drives post-delete nav). */
   isCurrentOrganization: boolean;
-  onSave: (values: OrganizationFormData) => Promise<void>;
 }) {
   const { t: tSettings } = useT('settings');
   const { t: tGlobal } = useT('global');
 
   const { form, isLoading, isSaving } = controller;
-  const { handleSubmit, register, control } = form;
+  const { register, control } = form;
 
   const localeOptions = useMemo(
     () =>
@@ -127,10 +125,7 @@ export function OrganizationSettingsView({
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
       >
-        <Form
-          id="organization-form"
-          onSubmit={handleSubmit((values) => onSave(values))}
-        >
+        <Form id="organization-form" onSubmit={controller.submit}>
           <fieldset disabled={isLoading} className="divide-border divide-y">
             <SettingsRow
               className="py-5"
@@ -387,7 +382,6 @@ export function OrganizationSettings({
         // The settings route is always scoped to the org the user is currently
         // in (`/dashboard/$id/...`), so deleting it must route them elsewhere.
         isCurrentOrganization
-        onSave={save}
       />
     </Skeletonize>
   );

@@ -539,7 +539,17 @@ describe('reprovisionProvider', () => {
     );
   });
 
-  it('sends Basic auth when LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
+  it('sends Basic auth when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is set', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'hunter2');
+    const mod = await loadModule();
+    const calls = stubGateway({ keyExists: false });
+    await mod.reprovisionProvider(ORG, PROVIDER);
+    expect(calls[0]?.headers.authorization).toBe(
+      `Basic ${Buffer.from('admin:hunter2').toString('base64')}`,
+    );
+  });
+
+  it('falls back to the pre-rename LLM_GATEWAY_ADMIN_PASSWORD env name', async () => {
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'hunter2');
     const mod = await loadModule();
     const calls = stubGateway({ keyExists: false });

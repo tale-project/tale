@@ -1,6 +1,7 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -35,16 +36,22 @@ export function useDocuments(
  * `undefined` to skip (e.g. dialog closed or only a storage id is available).
  */
 export function useDocument(documentId: string | undefined) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.documents.queries.getDocumentById,
-    documentId ? { documentId: toId<'documents'>(documentId) } : 'skip',
+    documentId && organizationId
+      ? { documentId: toId<'documents'>(documentId), organizationId }
+      : 'skip',
   );
 }
 
 export function useFolder(folderId: string | undefined) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.folders.queries.getFolder,
-    folderId ? { folderId: toId<'folders'>(folderId) } : 'skip',
+    folderId && organizationId
+      ? { folderId: toId<'folders'>(folderId), organizationId }
+      : 'skip',
   );
 }
 

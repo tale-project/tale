@@ -173,9 +173,11 @@ export function FileTypeIcon({
 
 export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   attachment,
+  organizationId,
   onImageClick,
 }: {
   attachment: FileAttachment;
+  organizationId?: string;
   onImageClick?: () => void;
 }) {
   const { t } = useT('chat');
@@ -191,7 +193,9 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   // the existing plural query (skip when not media to avoid subscriptions).
   const audioMetadataList = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    isMedia ? { storageIds: [attachment.fileId] } : 'skip',
+    isMedia && organizationId
+      ? { organizationId, storageIds: [attachment.fileId] }
+      : 'skip',
   );
   const audioMetadata = audioMetadataList?.[0];
   const canPreviewTranscript =

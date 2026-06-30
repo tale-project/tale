@@ -6,7 +6,7 @@
 // container DNS name on tale-sandbox-net. Cleanup.ts's one-shot sweep ignores
 // these (distinct `tale.sandbox-session=1` label).
 
-import { chown, mkdir, rm, stat } from 'node:fs/promises';
+import { chown, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureBuildkitd } from '../../buildkitd.ts';
@@ -67,9 +67,99 @@ export class DockerSessionBackend implements SessionBackend {
     return join(this.cfg.hostSessionRoot, sessionWorkspaceDirName(sessionId));
   }
 
+  /**
+   * Resolve the host workspace dir for a (possibly resumed) session.
+   *
+   * Normally this is just `hostSessionRoot/ses-<id>`. But the sandbox tier used
+   * to root sessions under a blue/green colour subdir
+   * (`/var/lib/tale-sandbox/sessions/<colour>/ses-<id>`); after that concept was
+   * dropped the root flattened to `/var/lib/tale-sandbox/sessions/ses-<id>`. A
+   * session created by the OLD build whose container then idle-stopped would be
+   * resumed against the new flat path, find nothing, and silently lose the
+   * user's preserved work. So this resolver, IN ORDER:
+   *
+   *   1. Uses the new flat path if its dir already exists (the common case).
+   *   2. Else, if the session's container still exists, reads the ACTUAL `/user`
+   *      bind-mount source straight from `docker inspect` — never re-derive a
+   *      path docker already knows, and never move a live container's mount.
+   *   3. Else (stopped legacy session), scans the immediate sub-directories of
+   *      the new root for a legacy `<subdir>/ses-<id>` workspace and adopts it
+   *      in place (no rename — that would break a concurrent resume's mount).
+   *   4. Else, returns the new flat path for a genuinely fresh create.
+   *
+   * The legacy branches are one-time compat for live data from before the colour
+   * drop; once those sessions are destroyed nothing lands on the old paths again.
+   */
+  private async resolveWorkspaceDir(sessionId: string): Promise<string> {
+    const flat = this.workspaceDir(sessionId);
+    if (await this.workspaceDirExists(flat)) return flat;
+
+    const dirName = sessionWorkspaceDirName(sessionId);
+
+    // 2. Adopt a running/stopped container's real mount rather than re-deriving.
+    const inspected = await this.inspectWorkspaceMount(sessionId);
+    if (inspected && (await this.workspaceDirExists(inspected))) {
+      console.warn(
+        `[sandbox.session] resuming ${sessionId} from its existing mount ${inspected} (legacy colour-rooted path)`,
+      );
+      return inspected;
+    }
+
+    // 3. Stopped legacy session: scan one level of colour subdirs for the dir.
+    let entries;
+    try {
+      entries = await readdir(this.cfg.hostSessionRoot, {
+        withFileTypes: true,
+      });
+    } catch (err) {
+      // Root not created yet (fresh host) → nothing legacy to find.
+      if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
+        console.warn(
+          `[sandbox.session] legacy workspace scan of ${this.cfg.hostSessionRoot} failed:`,
+          err,
+        );
+      }
+      return flat;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith('ses-')) continue;
+      const legacy = join(this.cfg.hostSessionRoot, e.name, dirName);
+      if (await this.workspaceDirExists(legacy)) {
+        console.warn(
+          `[sandbox.session] resuming ${sessionId} from legacy colour-rooted workspace ${legacy}`,
+        );
+        return legacy;
+      }
+    }
+    return flat;
+  }
+
+  /** Read the host source of a session container's `/user` bind mount via
+   * `docker inspect`, or null when the container is absent / has no such mount.
+   * Used by the legacy-compat resolver so a resume re-attaches the EXACT dir
+   * docker already mounts instead of re-deriving a (possibly colour-rooted)
+   * path. */
+  private async inspectWorkspaceMount(
+    sessionId: string,
+  ): Promise<string | null> {
+    const containerName = sessionContainerName(sessionId);
+    const inspect = await runDocker(
+      [
+        'inspect',
+        '--format',
+        '{{range .Mounts}}{{if eq .Destination "/user"}}{{.Source}}{{end}}{{end}}',
+        containerName,
+      ],
+      { timeoutMs: 5_000 },
+    );
+    if (inspect.exitCode !== 0) return null;
+    const src = inspect.stdout.trim();
+    return src.length > 0 ? src : null;
+  }
+
   async createSession(spec: SessionSpec): Promise<void> {
     const containerName = sessionContainerName(spec.sessionId);
-    const workspaceHostDir = this.workspaceDir(spec.sessionId);
+    const workspaceHostDir = await this.resolveWorkspaceDir(spec.sessionId);
     // uid/gid for the workspace chown. The agent profile carries validated
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
@@ -375,9 +465,13 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async destroySession(sessionId: string): Promise<boolean> {
+    // Resolve the REAL workspace dir BEFORE removing the container — a legacy
+    // colour-rooted session's dir lives under an old subdir and `docker inspect`
+    // (used by resolveWorkspaceDir) only works while the container still exists.
+    const workspaceHostDir = await this.resolveWorkspaceDir(sessionId);
     const existed = await this.removeContainer(sessionId);
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
-    await rm(this.workspaceDir(sessionId), {
+    await rm(workspaceHostDir, {
       recursive: true,
       force: true,
     }).catch((err) => {
@@ -399,12 +493,10 @@ export class DockerSessionBackend implements SessionBackend {
   }
 
   async listSessions(organizationId?: string): Promise<BackendSession[]> {
+    // No colour filter: the sandbox tier is a single container that rolls
+    // in-place, so this spawner adopts ALL existing session containers —
+    // including ones started by a previous (colour-rooted) build.
     const filters = ['--filter', 'label=tale.sandbox-session=1'];
-    // Blue-green: only this colour's sessions, so a draining old colour and a
-    // fresh new colour never both adopt/manage the same session container.
-    if (this.cfg.color) {
-      filters.push('--filter', `label=tale.color=${this.cfg.color}`);
-    }
     if (organizationId) {
       filters.push('--filter', `label=tale.org=${organizationId}`);
     }
@@ -436,5 +528,29 @@ export class DockerSessionBackend implements SessionBackend {
       });
     }
     return out;
+  }
+
+  /**
+   * Heal the shared buildkitd for every org with a running session, so an
+   * adopted session never builds against a daemon whose egress fence went stale
+   * across a stack restart. ensureBuildkitd recreates a drifted daemon (its
+   * `[dns]`/redsocks pinned to a since-moved sandbox-egress IP) and is a cheap
+   * no-op when the daemon is already healthy. Gated on DinD + the build-cache
+   * flag (no daemon otherwise); per-org best-effort — the cache is an
+   * optimization, so a failure is logged, never thrown.
+   */
+  async reconcileBuildCache(orgIds: readonly string[]): Promise<void> {
+    if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
+    for (const organizationId of new Set(orgIds)) {
+      try {
+        await ensureBuildkitd(this.cfg, organizationId);
+      } catch (err) {
+        console.warn(
+          `[sandbox.session] build-cache reconcile for org ${organizationId} ` +
+            `failed (continuing; sessions fall back to their inner builder):`,
+          err,
+        );
+      }
+    }
   }
 }

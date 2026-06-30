@@ -13,7 +13,9 @@ import { query, type QueryCtx } from '../_generated/server';
 import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_projection';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { isHiddenFromChatHistory } from '../threads/list_threads';
 import {
   checkProjectAccess,
   hasProjectAccess,
@@ -156,7 +158,7 @@ export const listProjects = query({
  * Get a single project by id. Throws if the caller cannot read it.
  */
 export const getProject = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.union(
     v.object({
       ...projectListItemValidator.fields,
@@ -165,9 +167,13 @@ export const getProject = query({
   ),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
-    if (!project) return null;
+    // Active-org coherence: a project carried over from another org (stale URL,
+    // warm cache) resolves to "not found", not the other org's content.
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return null;
+    }
 
-    const auth = await getAuthContext(ctx, project.organizationId);
+    const auth = await getAuthContext(ctx, args.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) {
       return null;
     }
@@ -194,7 +200,7 @@ export const getProject = query({
 const PROJECT_STATS_CAP = 500;
 
 export const getProjectStats = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.union(
     v.object({
       fileCount: v.number(),
@@ -208,8 +214,10 @@ export const getProjectStats = query({
   ),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
-    if (!project) return null;
-    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return null;
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return null;
 
     // Take one extra so we can detect truncation without a second query.
@@ -272,7 +280,7 @@ export const getProjectStats = query({
  * List documents attached to a project. Used by the Files tab.
  */
 export const listProjectDocuments = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.array(
     v.object({
       _id: v.id('documents'),
@@ -294,8 +302,10 @@ export const listProjectDocuments = query({
   ),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
-    if (!project) return [];
-    const auth = await getAuthContext(ctx, project.organizationId);
+    if (!project || !isActiveOrg(project.organizationId, args.organizationId)) {
+      return [];
+    }
+    const auth = await getAuthContext(ctx, args.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
 
     const rawDocs = await ctx.db
@@ -374,6 +384,11 @@ export const listProjectThreads = query({
 
     const result = [];
     for await (const t of threadsQuery) {
+      // Discussions (task_discussion / project_discussion) and fork branches
+      // reuse threadMetadata but are not chats — they live under their own
+      // surfaces, not the project's chat list. Same rule as the main chat
+      // history (see `excludeNonChatHistoryThreads`).
+      if (isHiddenFromChatHistory(t)) continue;
       // A deleted/trashed/expired chat leaves the project entirely (parity
       // with the chat list): deleting a project chat removes it from the
       // project view. `archived` is intentionally KEPT so an archived chat

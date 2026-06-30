@@ -9,6 +9,7 @@
       "integrations": ["github"]
     }
   },
+  "skillBindings": ["review-code", "review-pr", "write-notes"],
   "toolNames": [
     "integration",
     "file_read",

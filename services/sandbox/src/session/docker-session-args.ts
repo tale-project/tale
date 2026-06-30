@@ -327,9 +327,6 @@ export function buildDockerSessionRunArgs(
     // metadata read on boot.
     '--label',
     'tale.sandbox-session=1',
-    // Blue-green colour so `listSessions` (adoption) only sees this colour's
-    // sessions — a fresh green never adopts a draining blue's sessions.
-    ...(cfg.color ? ['--label', `tale.color=${cfg.color}`] : []),
     '--label',
     `tale.session=${inp.sessionId}`,
     '--label',
@@ -344,14 +341,17 @@ export function buildDockerSessionRunArgs(
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',
     `HTTP_PROXY=${cfg.egressProxy}`,
-    // Session execs reach the LLM gateway (llm-gateway) and the convex http-actions
-    // (the in-sandbox integration bridge → /api/integrations/*) directly on the
-    // internal bridge — not through tinyproxy. The agent adapters set
-    // ANTHROPIC_BASE_URL at the gateway and the bridge calls http://convex:3211,
+    // Session execs reach the LLM gateway (sandbox-llm-gateway) and the convex
+    // http-actions (the in-sandbox integration bridge → /api/integrations/*)
+    // directly on the internal bridge — not through tinyproxy. The agent adapters
+    // set ANTHROPIC_BASE_URL at the gateway and the bridge calls http://convex:3211,
     // so both must be in NO_PROXY or the CONNECT would be denied. If
     // EXTERNAL_AGENT_INTEGRATIONS_URL overrides the host, this list must match.
+    // The old `llm-gateway` alias is kept for one release so in-flight sessions
+    // pinned to the pre-rename hostname keep resolving (see the transitional
+    // network alias in compose.yml).
     '--env',
-    `NO_PROXY=127.0.0.1,localhost,llm-gateway,convex`,
+    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,convex`,
     // Per-org shared dep caches (empty under DinD — see cacheEnv above).
     ...cacheEnv,
     // HOME on the persistent workspace volume so agent state (~/.claude,

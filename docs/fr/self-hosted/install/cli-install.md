@@ -100,7 +100,7 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 
 - `-d, --detach` — s'exécuter en arrière-plan au lieu de diffuser les logs.
 - `-p, --port <port>` — port HTTPS à exposer (par défaut `443`).
-- `--host <hostname>` — alias d'hôte pour le proxy (par défaut `tale.local`).
+- `--host <hostname>` — alias d'hôte pour le proxy (par défaut `localhost`).
 - `-y, --yes` — non-interactif : accepter automatiquement les invites (p. ex. installer ou démarrer Docker).
 
 `tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI. Au premier déploiement, il demande votre domaine de production et l'e-mail Let's Encrypt (ou passez `--host`).

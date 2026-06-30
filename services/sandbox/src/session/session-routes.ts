@@ -52,17 +52,17 @@ export class SessionRoutes {
     return this.registry.size();
   }
 
-  /** Live session ids — the deploy flip reads these from `/v1/drain-status` to
-   * decide whether to LINGER this colour (keep it serving its sessions) rather
-   * than tear it down. */
+  /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
+   * whether to LINGER this spawner (keep it serving its sessions) rather than
+   * tear it down during an in-place roll. */
   sessionIds(): string[] {
     return this.registry.list().map((s) => s.sessionId);
   }
 
   /** Force-stop every non-finished session (compute reclaimed, workspace
-   * preserved). Used by the spawner's max-linger self-reap so a colour that
+   * preserved). Used by the spawner's max-linger self-reap so a spawner that
    * lingered past its TTL can shut down without orphaning containers — even if
-   * the deploy CLI died mid-flip. Returns the number stopped. */
+   * the deploy died mid-roll. Returns the number stopped. */
   async stopAllSessions(): Promise<number> {
     let stopped = 0;
     for (const s of this.registry.list()) {
@@ -147,6 +147,18 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
+    }
+
+    // Heal the shared build cache for every org with a running session. The
+    // buildkitd outlives the spawner, so the same stack restart that bounced
+    // this spawner may have moved sandbox-egress to a new IP — leaving the
+    // daemon's egress fence stale. An adopted session that reuses it would build
+    // with no DNS/egress (the createSession heal never fires for it). Best-effort
+    // inside the backend; a no-op when there's no shared cache or nothing drifted.
+    if (sessions.length > 0) {
+      await this.backend.reconcileBuildCache(
+        sessions.map((s) => s.organizationId),
+      );
     }
   }
 
@@ -401,14 +413,7 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
-      // Report the blue-green colour the session landed on so the platform can
-      // route later session ops to `sandbox-<color>` even after a flip lingers
-      // this colour (mirrors the execution path's X-Sandbox-Color).
-      return jsonResponse(
-        { session: this.toInfo(req.sessionId) },
-        201,
-        this.cfg.color ? { 'x-sandbox-color': this.cfg.color } : undefined,
-      );
+      return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);
     }

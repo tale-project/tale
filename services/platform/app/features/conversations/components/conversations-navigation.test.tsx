@@ -28,6 +28,10 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
+vi.mock('../hooks/queries', () => ({
+  useApproxConversationCountByStatus: () => ({ data: 3 }),
+}));
+
 describe('ConversationsNavigation', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {

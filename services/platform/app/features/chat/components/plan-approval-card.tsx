@@ -75,6 +75,7 @@ function PlanApprovalCardComponent({
   // Shared subscription with the chat surface (same query+args dedupes).
   const { data: meta } = useConvexQuery(api.threads.queries.getThreadMeta, {
     threadId,
+    organizationId,
   });
   const isGenerating = meta?.isGenerating === true;
 

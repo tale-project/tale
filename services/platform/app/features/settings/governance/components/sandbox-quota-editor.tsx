@@ -119,7 +119,6 @@ export function SandboxQuotaEditor({
 
   const {
     register,
-    handleSubmit,
     formState: { errors },
   } = editor.form;
 
@@ -129,7 +128,7 @@ export function SandboxQuotaEditor({
         title={t('sandboxQuota.title')}
         description={t('sandboxQuota.description')}
       >
-        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+        <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset
             disabled={!canEdit || editor.isLoading}
             className="contents"

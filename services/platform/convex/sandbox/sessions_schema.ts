@@ -59,14 +59,10 @@ export const sandboxSessionsTable = defineTable({
   pinned: v.optional(v.boolean()),
   pinnedAt: v.optional(v.number()),
   /**
-   * Blue-green spawner colour this session was created on (self-reported via
-   * `X-Sandbox-Color` at create). Session ops route to `sandbox-<spawnerColor>`
-   * so a long agent turn survives a deploy flip that LINGERS the old colour:
-   * after the alias moves to the new colour, the recovery/continuation path
-   * still reaches the lingering spawner. `undefined` ⇒ single-colour (dev) or a
-   * pre-blue-green row → ops fall back to the bare `sandbox` alias. Re-stamped
-   * on resume (a resume may land on a different colour). Additive + optional →
-   * no migration. */
+   * @deprecated Blue-green is gone: the sandbox tier is a single container
+   * reached via the bare `sandbox` alias (deploys roll it in place after a
+   * serialized drain). No longer read or written. Kept optional so existing
+   * rows still read-validate; a follow-up clears the values and drops the field. */
   spawnerColor: v.optional(v.string()),
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
@@ -369,6 +365,21 @@ export const sandboxIntegrationCallsTable = defineTable({
   .index('by_sessionId', ['sessionId'])
   .index('by_organizationId', ['organizationId']);
 
+/**
+ * Deterministic name of the workflow event that wakes a parked sandbox step
+ * waiting on capacity. A parked durable step does `step.awaitEvent({ name })`;
+ * a slot-release / reconciler `sendEvent`s the SAME name to resume it. The name
+ * is per-(execution, step) but NOT per-park: a spurious/duplicate wake is SAFE —
+ * buffered event delivery + the atomic reserve mean an extra wake just costs one
+ * cheap reserve attempt that re-parks if the org is still full.
+ */
+export function sandboxCapacityWakeEventName(
+  wfExecutionId: string,
+  stepSlug: string,
+): string {
+  return `sandbox_capacity:${wfExecutionId}:${stepSlug}`;
+}
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -382,9 +393,13 @@ export const SANDBOX_ADMISSION_POLL_BACKOFF_MS = 4_000;
  * `retry-after` is supplied. Longer than the per-org poll: a global slot frees
  * across tenants, not from this org's own queue. */
 export const SANDBOX_ADMISSION_GLOBAL_BACKOFF_MS = 10_000;
-/** A `waiting` ticket whose `lastSeenAt` is older than this lost its poll-chain
- * (the workflow/chat that owned it died) → the reaper deletes it so the queue
- * head can advance. ~6 missed per-org polls; tune WITH the poll backoff. */
+/** Staleness window for a SELF-POLLING (`source:'chat'`) `waiting` ticket: its
+ * owner re-polls every `SANDBOX_ADMISSION_POLL_BACKOFF_MS`, re-stamping
+ * `lastSeenAt`, so a `lastSeenAt` older than this means the poll-chain died and
+ * the reaper deletes it to let the queue head advance. ~6 missed per-org polls;
+ * tune WITH the poll backoff. Does NOT govern `workflow` tickets: those are
+ * event-driven (no self-poll, no heartbeat), so the reaper culls them on their
+ * EXECUTION's terminal state instead — see `recoverStuckAdmissionTickets`. */
 export const SANDBOX_ADMISSION_TICKET_STALE_MS = 30_000;
 
 /**

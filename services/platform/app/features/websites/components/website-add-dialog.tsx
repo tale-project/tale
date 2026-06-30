@@ -10,6 +10,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useCreateWebsite } from '../hooks/mutations';
 
@@ -106,7 +107,7 @@ export function AddWebsiteDialog({
         onError: (error) => {
           console.error('Failed to add website:', error);
           const isDuplicate =
-            error instanceof Error && error.message.includes('already exists');
+            convexErrorCode(error) === 'WEBSITE_DUPLICATE_DOMAIN';
           toast({
             title: isDuplicate
               ? tWebsites('toast.addErrorDuplicate')

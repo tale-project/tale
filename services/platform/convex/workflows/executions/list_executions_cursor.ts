@@ -7,6 +7,7 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../../lib/pagination';
+import { parseExecutionDateBounds } from './date_range_filter';
 import type {
   ListExecutionsCursorArgs,
   CursorPaginatedExecutionsResult,
@@ -42,10 +43,10 @@ export async function listExecutionsCursor(
   const numItems = args.numItems ?? DEFAULT_PAGE_SIZE;
 
   // Parse date filters
-  const fromDate = args.dateFrom
-    ? new Date(args.dateFrom).getTime()
-    : undefined;
-  const toDate = args.dateTo ? new Date(args.dateTo).getTime() : undefined;
+  const { fromDate, toDate } = parseExecutionDateBounds(
+    args.dateFrom,
+    args.dateTo,
+  );
 
   const statusSet = args.status?.length ? new Set(args.status) : null;
 

@@ -1,5 +1,5 @@
 import { getProjectId } from '../../../utils/load-env';
-import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
+import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 /**
@@ -19,31 +19,25 @@ import { DEFAULT_LOGGING } from '../types';
  *   - `sandbox` — so the per-call runtime containers it spawns can be
  *     attached to the internal-only egress bridge.
  *
+ * Single container (blue-green dropped): Convex addresses it by the bare
+ * `sandbox` alias on `internal` (the compose service-key alias), and it talks
+ * to its egress sidecar via the bare `sandbox-egress` alias on the shared
+ * sandbox network. A deploy rolls it in place after draining via /v1/drain
+ * (drainSandbox, deploy.ts).
+ *
  * Operators wanting stronger isolation set SANDBOX_RUNTIME=runsc and
  * install gVisor on the host; the spawner picks the runtime via env.
  */
-export function createSandboxService(
-  config: ServiceConfig,
-  color?: DeploymentColor,
-): ComposeService {
-  // Blue-green: each colour is a distinct container, addressed by Convex on the
-  // `internal` network via the `sandbox-<color>` alias (the active colour also
-  // carries the bare `sandbox` alias, added at runtime by the deploy flip). It
-  // talks to its OWN egress (`sandbox-egress-<color>`) on the shared sandbox
-  // network. Single-colour mode (no `color`) keeps today's names/aliases.
-  const suffix = color ? `-${color}` : '';
-  const egressProxy = color
-    ? `http://sandbox-egress-${color}:3128`
-    : 'http://sandbox-egress:3128';
+export function createSandboxService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-sandbox:${config.version}`,
-    container_name: `${getProjectId()}-sandbox${suffix}`,
+    container_name: `${getProjectId()}-sandbox`,
     // Graceful drain on stop: the spawner's SIGTERM handler stops accepting new
     // executions, cancels in-flight ones, and waits up to ~20s for them to tear
     // down (services/sandbox/src/cleanup.ts installSignalHandlers). Give Docker
     // a grace window past that deadline so a roll drains cleanly instead of
-    // SIGKILL'ing mid-execution. The blue-green flip drains via /v1/drain first;
-    // this is the backstop.
+    // SIGKILL'ing mid-execution. The deploy drains via /v1/drain first
+    // (drainSandbox, deploy.ts); this is the backstop.
     stop_grace_period: '30s',
     // NOTE: no published `ports` here. Convex (in-container, stateful
     // compose) reaches the spawner via the `internal` Docker network at
@@ -86,15 +80,18 @@ export function createSandboxService(
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
       SANDBOX_BUILDKITD_MIRROR_IMAGE:
         '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
-      // Shared sandbox network across colours; the per-colour egress is
-      // addressed by its colour-suffixed alias so blue/green runtime
-      // containers each use their own egress sidecar.
+      // Live browser view (read-only mirror). Unset here so BOTH sides apply
+      // their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt
+      // out. ONE value drives both sides — this spawner reads it directly and
+      // the platform pushes it to Convex — and it is read on the platform
+      // service too (NOT a sandbox-only var), so both interpolate from the same
+      // root .env to stay in lockstep. Mirrors compose.yml.
+      SANDBOX_BROWSER_VIEW: '${SANDBOX_BROWSER_VIEW:-}',
+      // Shared sandbox network; the egress sidecar is addressed by its bare
+      // `sandbox-egress` alias so spawned runtime containers route outbound
+      // through it.
       SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
-      SANDBOX_EGRESS_PROXY: egressProxy,
-      // Colour identity: scopes the spawner's host-session root + .spawner.lock
-      // and stamps the `tale.color` label so each colour's sweeps only reap
-      // their own containers (services/sandbox/src/{config,cleanup,docker-args}).
-      ...(color ? { SANDBOX_COLOR: color } : {}),
+      SANDBOX_EGRESS_PROXY: 'http://sandbox-egress:3128',
     },
     volumes: [
       '/var/run/docker.sock:/var/run/docker.sock',
@@ -116,12 +113,11 @@ export function createSandboxService(
       start_period: '15s',
     },
     depends_on: {
-      [`sandbox-egress${suffix}`]: { condition: 'service_healthy' },
+      'sandbox-egress': { condition: 'service_healthy' },
     },
     logging: DEFAULT_LOGGING,
-    // Convex reaches the spawner on `internal` via the compose service-key
-    // alias (`sandbox` single-colour, `sandbox-<color>` per-colour); the bare
-    // `sandbox` alias for the active colour is added at runtime by the flip.
+    // Convex reaches the spawner on `internal` via the bare `sandbox`
+    // compose service-key alias (single container — blue-green dropped).
     networks: ['internal', 'sandbox'],
   };
 }

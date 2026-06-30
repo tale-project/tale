@@ -64,25 +64,16 @@ export interface ServiceConfig {
 }
 
 export const ROTATABLE_SERVICES = ['platform'] as const;
-/**
- * Sandbox tier — the spawner and its egress proxy. Kept in STATEFUL_SERVICES so
- * `isStatefulService` / `isValidService` still recognize them as real service
- * names, but they are NOT rolled through the stateful compose path: a default
- * `tale deploy` rolls them via their own zero-gap blue-green flip
- * (`flipSandboxTier`, in lockstep with platform's colour). The wire protocol
- * versions with platform, so an old sandbox image against new platform code
- * would fail with HARVEST_FAILED on the first run — hence the lockstep flip.
- */
-const SANDBOX_TIER_SERVICES = ['sandbox', 'sandbox-egress'] as const;
 export const STATEFUL_SERVICES = [
   'db',
   'proxy',
   'convex',
-  'llm-gateway',
-  // Listed only for service-name recognition (isStatefulService /
-  // isValidService); the default deploy rolls these via flipSandboxTier,
-  // never through the stateful compose path.
-  ...SANDBOX_TIER_SERVICES,
+  'sandbox-llm-gateway',
+  // Sandbox tier — the single spawner and its egress proxy. Rolled in place
+  // through the stateful compose on every default deploy (see
+  // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
+  'sandbox',
+  'sandbox-egress',
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
@@ -102,13 +93,19 @@ export const STOP_GATED_SERVICES = ['db', 'proxy'] as const;
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
  * default deploy. `convex` must never version-skew from platform but can't be
  * two-color (it owns the single `convex-data` volume), so it's recreated in
- * place and only when its image actually changed. `llm-gateway` is the same
- * shape — a singleton that owns the single `llm-gateway-data` volume, so it
- * also rolls in place. `sandbox` / `sandbox-egress` are NOT here: they roll
- * through their own zero-gap blue-green flip (`flipSandboxTier`, alongside
- * platform's colour), not the stateful path.
+ * place and only when its image actually changed. `sandbox-llm-gateway` is the
+ * same shape — a singleton that owns the single `llm-gateway-data` volume, so it
+ * also rolls in place. `sandbox` / `sandbox-egress` are the single-container
+ * sandbox tier (blue-green dropped): they roll in place here too, drained first
+ * via /v1/drain (drainSandbox, deploy.ts) like convex's chat-turn drain. The
+ * wire protocol versions with platform, so they must roll on every deploy.
  */
-export const ALWAYS_ROLL_SERVICES = ['convex', 'llm-gateway'] as const;
+export const ALWAYS_ROLL_SERVICES = [
+  'convex',
+  'sandbox-llm-gateway',
+  'sandbox',
+  'sandbox-egress',
+] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

@@ -77,13 +77,15 @@ export function useAssistantChat({
     removeAttachment,
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
-  const { isIndexing, statusMap: indexingStatuses } =
-    useFileIndexingStatus(attachments);
+  const { isIndexing, statusMap: indexingStatuses } = useFileIndexingStatus(
+    attachments,
+    organizationId,
+  );
   const {
     isTranscribing,
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
-  } = useFileTranscriptionStatus(attachments);
+  } = useFileTranscriptionStatus(attachments, organizationId);
   const [inputValue, setInputValue] = useState('');
   const [isPending, setIsPending] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -147,7 +149,7 @@ export function useAssistantChat({
   // Server-side loading state: is the agent currently generating?
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
 
   // Dual-layer loading: isPending (optimistic) + isGenerating (server reactive)

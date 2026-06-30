@@ -428,6 +428,10 @@ export class KubernetesSessionBackend implements SessionBackend {
     return out;
   }
 
+  // No shared cross-session build cache on K8s (DinD is single-container,
+  // in-pod — there is no sibling buildkitd to reconcile). See SessionBackend.
+  async reconcileBuildCache(): Promise<void> {}
+
   private readPod(sessionId: string): Promise<V1Pod> {
     return withRetry('read-session-pod', () =>
       this.client.core.readNamespacedPod(

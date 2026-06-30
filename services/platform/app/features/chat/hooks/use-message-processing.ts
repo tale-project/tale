@@ -2,6 +2,7 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
@@ -92,6 +93,11 @@ export interface ChatMessage {
   /** Raw UIMessage parts (reasoning + tool calls) for the thought-process
    *  timeline. Present on assistant messages; undefined elsewhere. */
   parts?: UIMessage['parts'];
+  /** Better Auth userId OR agent slug of the message author (from the agent-SDK
+   *  UIMessage `userId`). Undefined for legacy messages saved before author
+   *  attribution. Consumed by multi-party views (Discussions) to resolve the
+   *  per-message author; unused by 1:1 chat. */
+  authorId?: string;
 }
 
 interface UseMessageProcessingResult {
@@ -120,6 +126,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
   return (
     a.id === b.id &&
     a.role === b.role &&
+    a.authorId === b.authorId &&
     a.content === b.content &&
     a._creationTime === b._creationTime &&
     a.order === b.order &&
@@ -144,6 +151,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
 export function useMessageProcessing(
   threadId: string | undefined,
 ): UseMessageProcessingResult {
+  const organizationId = useOrganizationId();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
   const query = api.threads.queries
     .getThreadMessagesStreaming as unknown as Parameters<
@@ -153,11 +161,15 @@ export function useMessageProcessing(
     results: uiMessages,
     loadMore,
     status: paginationStatus,
-  } = useUIMessages(query, threadId ? { threadId } : 'skip', {
-    initialNumItems: 30,
-    // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
-    stream: true,
-  });
+  } = useUIMessages(
+    query,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+    {
+      initialNumItems: 30,
+      // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
+      stream: true,
+    },
+  );
 
   // Consolidated thread metadata behind a SINGLE access check + subscription.
   // ChatInterface reads the same getThreadMeta with identical args, so the two
@@ -171,7 +183,7 @@ export function useMessageProcessing(
   // to a loading state instead; the reactive query recovers on the next tick.
   const { data: threadMeta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
 
   // Error strings of failed messages (was getFailedMessageErrors). Kept out of
@@ -482,6 +494,7 @@ export function useMessageProcessing(
           key: m.key,
           content: m.text ? stripInternalFileReferences(m.text) : '',
           role: m.role,
+          authorId: m.userId,
           timestamp: new Date(m._creationTime),
           attachments:
             attachments && attachments.length > 0 ? attachments : undefined,

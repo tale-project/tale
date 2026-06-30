@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  creditScopeKey,
   credentialScopeKey,
   endpointScopeKey,
+  isFreeModel,
   isModelScopeRetired,
   modelScopeKeys,
   retiredScopeKey,
 } from './failure_scope';
 
 const model = (
-  over: Partial<{ providerName: string; apiKey: string; baseUrl: string }> = {},
+  over: Partial<{
+    providerName: string;
+    apiKey: string;
+    baseUrl: string;
+    modelId: string;
+    inputCentsPerMillion: number;
+    outputCentsPerMillion: number;
+  }> = {},
 ) => ({
   providerName: 'openrouter',
   apiKey: 'key-A',
@@ -47,12 +56,15 @@ describe('endpointScopeKey', () => {
 });
 
 describe('retiredScopeKey', () => {
-  it('retires the CREDENTIAL for funds and auth failures', () => {
-    expect(retiredScopeKey('credit_exhausted', model())).toBe(
-      credentialScopeKey(model()),
-    );
+  it('retires the AUTH credential for an auth failure', () => {
     expect(retiredScopeKey('auth_error', model())).toBe(
       credentialScopeKey(model()),
+    );
+  });
+
+  it('retires the CREDIT credential for an out-of-funds failure', () => {
+    expect(retiredScopeKey('credit_exhausted', model())).toBe(
+      creditScopeKey(model()),
     );
   });
 
@@ -93,10 +105,83 @@ describe('isModelScopeRetired', () => {
     expect(isModelScopeRetired(model(), new Set())).toBe(false);
   });
 
-  it('exposes both scopes a model belongs to', () => {
+  it('exposes both unconditional scopes a model belongs to', () => {
     expect(modelScopeKeys(model())).toEqual([
       credentialScopeKey(model()),
       endpointScopeKey(model()),
     ]);
+  });
+
+  describe('credit retirement spares zero-cost siblings (#1454)', () => {
+    it('still skips a PAID model on a credit-dead credential', () => {
+      const dead = new Set([creditScopeKey(model())]);
+      expect(
+        isModelScopeRetired(
+          model({ modelId: 'openai/gpt-4o', inputCentsPerMillion: 250 }),
+          dead,
+        ),
+      ).toBe(true);
+    });
+
+    it('does NOT skip a `:free` sibling on a credit-dead credential', () => {
+      const dead = new Set([creditScopeKey(model())]);
+      expect(
+        isModelScopeRetired(
+          model({ modelId: 'meta-llama/llama-3.3-70b-instruct:free' }),
+          dead,
+        ),
+      ).toBe(false);
+    });
+
+    it('does NOT skip a zero-priced sibling on a credit-dead credential', () => {
+      const dead = new Set([creditScopeKey(model())]);
+      expect(
+        isModelScopeRetired(
+          model({ inputCentsPerMillion: 0, outputCentsPerMillion: 0 }),
+          dead,
+        ),
+      ).toBe(false);
+    });
+
+    it('STILL skips a free model when the credential died from AUTH', () => {
+      // A bad/expired key kills free models too — only credit exhaustion spares them.
+      const dead = new Set([credentialScopeKey(model())]);
+      expect(isModelScopeRetired(model({ modelId: 'x/y:free' }), dead)).toBe(
+        true,
+      );
+    });
+
+    it('STILL skips a free model when the endpoint is unreachable', () => {
+      const dead = new Set([endpointScopeKey(model())]);
+      expect(isModelScopeRetired(model({ modelId: 'x/y:free' }), dead)).toBe(
+        true,
+      );
+    });
+  });
+});
+
+describe('isFreeModel', () => {
+  it('treats the OpenRouter `:free` suffix as free', () => {
+    expect(isFreeModel(model({ modelId: 'deepseek/deepseek-r1:free' }))).toBe(
+      true,
+    );
+  });
+
+  it('treats explicit zero token pricing on both sides as free', () => {
+    expect(
+      isFreeModel(model({ inputCentsPerMillion: 0, outputCentsPerMillion: 0 })),
+    ).toBe(true);
+  });
+
+  it('does NOT treat unconfigured pricing as free', () => {
+    expect(isFreeModel(model({ modelId: 'openai/gpt-4o' }))).toBe(false);
+  });
+
+  it('does NOT treat a paid model as free', () => {
+    expect(
+      isFreeModel(
+        model({ inputCentsPerMillion: 250, outputCentsPerMillion: 1000 }),
+      ),
+    ).toBe(false);
   });
 });

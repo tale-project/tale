@@ -49,6 +49,28 @@ const RUNTIME_DENYLIST = new Set([
   'NPM_CONFIG_PREFIX',
   'NPM_CONFIG_UPDATE_NOTIFIER',
   'NoDefaultCurrentDirectoryInExePath',
+  // Host-relative networking vars: their value is meaningful only on the host,
+  // never inside the container, so forwarding them breaks container-internal
+  // networking — the same correctness floor as PATH/HOME above.
+  //   * CONVEX_URL points the host `bun dev` loop at the host-run
+  //     convex-local-backend (127.0.0.1:3210); inside the container the convex
+  //     service is reached at the compose alias http://convex:3210 (the
+  //     entrypoint's own default). A forwarded host value makes 127.0.0.1
+  //     resolve to the platform container itself → Convex unreachable.
+  //   * HTTP(S)_PROXY/ALL_PROXY point at a host-local proxy (e.g. an xray/v2ray
+  //     listener on 127.0.0.1). undici (Node `fetch`, used by `convex env set`
+  //     and friends) honors them and routes to 127.0.0.1 *inside* the
+  //     container, where nothing listens → `TypeError: fetch failed`. The
+  //     platform makes zero proxied outbound, so it never needs them.
+  'CONVEX_URL',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'ALL_PROXY',
+  'all_proxy',
+  'NO_PROXY',
+  'no_proxy',
 ]);
 
 const entries: string[] = [];

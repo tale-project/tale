@@ -120,7 +120,7 @@ def get_slide_referenced_files(unpacked_dir: Path) -> set:
             try:
                 referenced.add(target_path.relative_to(unpacked_dir.resolve()))
             except ValueError:
-                pass
+                pass  # best-effort: target resolves outside the unpacked tree; skip it
 
     return referenced
 
@@ -165,7 +165,7 @@ def get_referenced_files(unpacked_dir: Path) -> set:
             try:
                 referenced.add(target_path.relative_to(unpacked_dir.resolve()))
             except ValueError:
-                pass
+                pass  # best-effort: target resolves outside the unpacked tree; skip it
 
     return referenced
 
