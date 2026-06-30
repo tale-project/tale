@@ -1,4 +1,5 @@
 import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
+import { ConvexError } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
@@ -40,7 +41,10 @@ export async function cancelGeneration(
     threadId,
   });
   if (!thread || thread.userId !== userId) {
-    throw new Error('Thread not found');
+    throw new ConvexError({
+      code: 'THREAD_NOT_FOUND',
+      message: 'Thread not found',
+    });
   }
 
   // Abort all active SDK streams

@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -19,12 +19,18 @@ export const updateWebsite = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const website = await ctx.db.get(args.websiteId);
     if (!website) {
-      throw new Error('Website not found');
+      throw new ConvexError({
+        code: 'WEBSITE_NOT_FOUND',
+        message: 'Website not found',
+      });
     }
 
     await getOrganizationMember(ctx, website.organizationId, authUser);

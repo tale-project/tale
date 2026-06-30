@@ -5,7 +5,7 @@
  */
 
 import { symmetricDecrypt } from 'better-auth/crypto';
-import { v, type Infer } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -198,10 +198,20 @@ export const listPasskeysForMember = query({
   ),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const member = await findMember(ctx, args.memberId);
-    if (!member) throw new Error('Member not found');
+    if (!member) {
+      throw new ConvexError({
+        code: 'MEMBER_NOT_FOUND',
+        message: 'Member not found',
+      });
+    }
 
     const callerMembership = await findCallerMembership(
       ctx,
@@ -209,7 +219,10 @@ export const listPasskeysForMember = query({
       authUser.userId,
     );
     if (!callerMembership || !isAdmin(callerMembership.role)) {
-      throw new Error('Only admins can list passkeys for members');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can list passkeys for members',
+      });
     }
 
     const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {

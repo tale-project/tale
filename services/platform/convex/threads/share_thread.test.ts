@@ -70,31 +70,31 @@ describe('shareThread', () => {
   it('throws when unauthenticated', async () => {
     mockGetAuthUser.mockResolvedValue(null);
     const { ctx } = createMockCtx();
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
   });
 
   it('throws when thread not found', async () => {
     const { ctx } = createMockCtx(null);
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Thread not found',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('throws when user is not the owner', async () => {
     mockGetAuthUser.mockResolvedValue({ _id: 'user_2' });
     const { ctx } = createMockCtx({ status: 'active' });
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Not authorized to share this thread',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'NOT_AUTHORIZED' } });
   });
 
   it('throws when thread is archived', async () => {
     const { ctx } = createMockCtx({ status: 'archived' });
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Cannot share an archived thread',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_ARCHIVED' } });
   });
 
   it('throws when thread is an arena thread', async () => {
@@ -102,16 +102,16 @@ describe('shareThread', () => {
       status: 'active',
       arenaGroupId: 'arena_1',
     });
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Cannot share arena mode threads',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'CANNOT_SHARE_ARENA_THREAD' } });
   });
 
   it('throws when thread is a branch thread', async () => {
     const { ctx } = createMockCtx({ status: 'active', isBranch: true });
-    await expect(shareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Cannot share branch threads',
-    );
+    await expect(
+      shareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'CANNOT_SHARE_BRANCH_THREAD' } });
   });
 
   it('returns existing token when already shared (idempotent)', async () => {
@@ -174,31 +174,31 @@ describe('unshareThread', () => {
   it('throws when unauthenticated', async () => {
     mockGetAuthUser.mockResolvedValue(null);
     const { ctx } = createMockCtx();
-    await expect(unshareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(
+      unshareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
   });
 
   it('throws when thread not found', async () => {
     const { ctx } = createMockCtx(null);
-    await expect(unshareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Thread not found',
-    );
+    await expect(
+      unshareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('throws when user is not the owner', async () => {
     mockGetAuthUser.mockResolvedValue({ _id: 'user_2' });
     const { ctx } = createMockCtx({ status: 'active', isShared: true });
-    await expect(unshareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Not authorized to unshare this thread',
-    );
+    await expect(
+      unshareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'NOT_AUTHORIZED' } });
   });
 
   it('throws when thread is archived', async () => {
     const { ctx } = createMockCtx({ status: 'archived', isShared: true });
-    await expect(unshareThread(ctx, { threadId: 'thread_1' })).rejects.toThrow(
-      'Cannot unshare an archived thread',
-    );
+    await expect(
+      unshareThread(ctx, { threadId: 'thread_1' }),
+    ).rejects.toMatchObject({ data: { code: 'THREAD_ARCHIVED' } });
   });
 
   it('clears share fields', async () => {

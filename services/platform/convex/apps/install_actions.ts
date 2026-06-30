@@ -266,7 +266,7 @@ async function prepareInstall(
   // `requireDeveloperSettingsAccessById` types `email` as optional, so treat an
   // empty OR absent email as "no email" and fall back to the user id.
   const installedBy = email ? email : userId;
-  const manifest = await readAppBundleManifest(appSlug);
+  const manifest = await readAppBundleManifest(orgSlug, appSlug);
   return { orgSlug, installedBy, manifest };
 }
 
@@ -487,7 +487,7 @@ export const uninstallApp = action({
 
     // Deregister workflows (read the manifest to know which; tolerate a missing
     // bundle by falling back to nothing — the file removal still proceeds).
-    const manifest = await readAppBundleManifest(args.appSlug).catch(
+    const manifest = await readAppBundleManifest(orgSlug, args.appSlug).catch(
       () => null,
     );
     for (const slug of manifest?.workflows ?? []) {
@@ -612,7 +612,7 @@ export const verifyAppIntegrity = action({
     // Agents/workflows are no longer in the ledger (they live under the app dir,
     // removed by the shell rm) — check their existence from the manifest so a
     // user deleting one still surfaces a 'broken' install + reinstall prompt.
-    const manifest = await readAppBundleManifest(args.appSlug).catch(
+    const manifest = await readAppBundleManifest(orgSlug, args.appSlug).catch(
       () => null,
     );
     let appResourceMissing = false;
