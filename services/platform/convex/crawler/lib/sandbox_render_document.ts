@@ -27,10 +27,12 @@
  * spawner + Convex storage stack. The dispatch contract is derived from reading
  * `spawner_client.ts` and the proven `sandbox_render.ts`. Specifically:
  *
- *   1. // TODO(verify): the render script is staged via a `data:` URL in
- *      `files[].url` (same as `sandbox_render.ts`). If the spawner's input-fetch
- *      layer rejects `data:` URLs, switch to the upload-then-getUrl path used by
- *      `executeCode`.
+ *   1. The render script is staged the same way `executeCode` stages user code:
+ *      uploaded to Convex storage, then handed to the spawner as an internal
+ *      http(s) URL (`ctx.storage.getUrl` + `toSandboxStorageUrl`). A `data:` URL
+ *      is NOT usable — the spawner's input-fetch layer caps `files[].url` at
+ *      4096 chars and requires an http(s) scheme (services/sandbox
+ *      validate-request.ts), and the script inlines the full document HTML.
  *
  *   2. // TODO(verify): we do NOT reserve a `run_code` audit row — a document
  *      render is internal infra, not a user code-run. The produced blob is NOT
@@ -262,11 +264,20 @@ export async function renderDocumentInSandbox(
   const slotUrl = toSandboxStorageUrl(rawUploadUrl);
 
   const script = buildRenderScript(request, outputFileName, timeoutMs);
-  // TODO(verify): header note 1 — `data:` URL staging is unverified.
-  const scriptDataUrl = `data:text/javascript;base64,${Buffer.from(
-    script,
-    'utf8',
-  ).toString('base64')}`;
+  // Stage the render script as a Convex storage blob and hand the spawner an
+  // internal http(s) URL. The spawner's input-fetch layer requires every
+  // `files[].url` to be an http(s) URL ≤4096 chars (services/sandbox
+  // validate-request.ts), so the script — which inlines the full document
+  // HTML — cannot ride in a `data:` URL. Mirrors the proven executeCode /
+  // run_code_tool staging path.
+  const scriptStorageId = await ctx.storage.store(
+    new Blob([script], { type: 'text/javascript' }),
+  );
+  const rawScriptUrl = await ctx.storage.getUrl(scriptStorageId);
+  if (!rawScriptUrl) {
+    throw new Error('failed to mint render-script storage url');
+  }
+  const scriptUrl = toSandboxStorageUrl(rawScriptUrl);
 
   const { outputUrlEndpoint, reportUploadedEndpoint } =
     resolveCallbackEndpoints();
@@ -275,49 +286,63 @@ export async function renderDocumentInSandbox(
     .toString(36)
     .slice(2)}`;
 
-  const spawnerResult = await spawnerExecute(
-    {
-      executionId,
-      organizationId,
-      language: 'node',
-      files: [{ path: 'render.js', url: scriptDataUrl }],
-      entryPath: 'render.js',
-      outputUploadSlots: [{ url: slotUrl }],
-      outputUrlEndpoint,
-      reportUploadedEndpoint,
-      timeoutMs,
-    },
-    AbortSignal.timeout(timeoutMs + 120_000),
-  );
-
-  if (spawnerResult.status !== 'completed') {
-    const code = spawnerResult.errorCode
-      ? `, code=${spawnerResult.errorCode}`
-      : '';
-    const message = spawnerResult.errorMessage
-      ? `: ${spawnerResult.errorMessage}`
-      : '';
-    throw new Error(
-      `sandbox document render did not complete (status=${spawnerResult.status}${code}${message})`,
+  try {
+    const spawnerResult = await spawnerExecute(
+      {
+        executionId,
+        organizationId,
+        language: 'node',
+        files: [{ path: 'render.js', url: scriptUrl }],
+        entryPath: 'render.js',
+        outputUploadSlots: [{ url: slotUrl }],
+        outputUrlEndpoint,
+        reportUploadedEndpoint,
+        timeoutMs,
+      },
+      AbortSignal.timeout(timeoutMs + 120_000),
     );
-  }
 
-  const outputFile = spawnerResult.outputFiles.find(
-    (f) => f.name === outputFileName,
-  );
-  if (!outputFile) {
-    throw new Error(
-      `sandbox document render produced no ${outputFileName} output file`,
+    if (spawnerResult.status !== 'completed') {
+      const code = spawnerResult.errorCode
+        ? `, code=${spawnerResult.errorCode}`
+        : '';
+      const message = spawnerResult.errorMessage
+        ? `: ${spawnerResult.errorMessage}`
+        : '';
+      throw new Error(
+        `sandbox document render did not complete (status=${spawnerResult.status}${code}${message})`,
+      );
+    }
+
+    const outputFile = spawnerResult.outputFiles.find(
+      (f) => f.name === outputFileName,
     );
+    if (!outputFile) {
+      throw new Error(
+        `sandbox document render produced no ${outputFileName} output file`,
+      );
+    }
+
+    // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts and sandbox_render.ts
+    const storageId = outputFile.storageId as unknown as Id<'_storage'>;
+
+    return {
+      storageId,
+      size: outputFile.size,
+      contentType: outputFile.contentType || contentType,
+    };
+  } finally {
+    // Best-effort cleanup of the transient render-script blob — it has served
+    // its purpose once the spawner has fetched and run it.
+    try {
+      await ctx.storage.delete(scriptStorageId);
+    } catch (err) {
+      console.warn(
+        `[documents] failed to delete transient render-script blob ${String(
+          scriptStorageId,
+        )}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
-
-  // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts and sandbox_render.ts
-  const storageId = outputFile.storageId as unknown as Id<'_storage'>;
-
-  return {
-    storageId,
-    size: outputFile.size,
-    contentType: outputFile.contentType || contentType,
-  };
 }

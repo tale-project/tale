@@ -22,15 +22,13 @@
  * shapes) and the real caller `convex/node_only/sandbox/internal_actions.ts`
  * (`executeCode`). Specifically:
  *
- *   1. // TODO(verify): the render script is staged via a `data:` URL in
- *      `files[].url`. `executeCode` stages bytes via
- *      `ctx.storage.getUrl(storageId)` + `toSandboxStorageUrl()`, i.e. it
- *      pre-uploads the script to storage and hands the spawner an internal
- *      Caddy URL. A `data:` URL avoids the extra upload round-trip and is a
- *      common spawner-input convention, but whether the spawner's input-fetch
- *      layer accepts `data:` URLs (vs. only http(s) storage URLs) is UNVERIFIED.
- *      If it rejects `data:`, switch to the upload-then-getUrl path used by
- *      `executeCode`.
+ *   1. The render script is staged the same way `executeCode` stages user code:
+ *      uploaded to Convex storage via `ctx.storage.store`, then handed to the
+ *      spawner as an internal http(s) URL (`ctx.storage.getUrl` +
+ *      `toSandboxStorageUrl`). A `data:` URL is NOT usable — the spawner's
+ *      input-fetch layer caps `files[].url` at 4096 chars and requires an
+ *      http(s) scheme (services/sandbox validate-request.ts). The transient
+ *      script blob is deleted best-effort once the spawner has run it.
  *
  *   2. // TODO(verify): we deliberately do NOT reserve a `run_code` audit row
  *      (`internal.sandbox.internal_mutations.reserveSlotAndInsert`) or register
@@ -162,9 +160,19 @@ export async function renderUrlInSandbox(
   const slotUrl = toSandboxStorageUrl(rawUploadUrl);
 
   const script = buildRenderScript(url, userAgent, timeoutMs);
-  // TODO(verify): header note 1 — `data:` URL staging is unverified against
-  // the spawner's input-fetch layer.
-  const scriptDataUrl = `data:text/javascript;base64,${Buffer.from(script, 'utf8').toString('base64')}`;
+  // Stage the render script as a Convex storage blob and hand the spawner an
+  // internal http(s) URL. The spawner's input-fetch layer requires every
+  // `files[].url` to be an http(s) URL ≤4096 chars (services/sandbox
+  // validate-request.ts), so a `data:` URL is not usable. Mirrors the proven
+  // executeCode staging path.
+  const scriptStorageId = await ctx.storage.store(
+    new Blob([script], { type: 'text/javascript' }),
+  );
+  const rawScriptUrl = await ctx.storage.getUrl(scriptStorageId);
+  if (!rawScriptUrl) {
+    throw new Error('failed to mint render-script storage url');
+  }
+  const scriptUrl = toSandboxStorageUrl(rawScriptUrl);
 
   const { outputUrlEndpoint, reportUploadedEndpoint } =
     resolveCallbackEndpoints();
@@ -174,79 +182,93 @@ export async function renderUrlInSandbox(
   // per-run bookkeeping / cancellation key.
   const executionId = `crawler-render-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  const spawnerResult = await spawnerExecute(
-    {
-      executionId,
-      organizationId,
-      language: 'node',
-      files: [{ path: 'render.js', url: scriptDataUrl }],
-      entryPath: 'render.js',
-      outputUploadSlots: [{ url: slotUrl }],
-      outputUrlEndpoint,
-      reportUploadedEndpoint,
-      timeoutMs,
-    },
-    // The spawner client applies its own fetch-timeout margin on top of this.
-    AbortSignal.timeout(timeoutMs + 120_000),
-  );
-
-  if (spawnerResult.status !== 'completed') {
-    const code = spawnerResult.errorCode
-      ? `, code=${spawnerResult.errorCode}`
-      : '';
-    const message = spawnerResult.errorMessage
-      ? `: ${spawnerResult.errorMessage}`
-      : '';
-    throw new Error(
-      `sandbox render did not complete (status=${spawnerResult.status}${code}${message})`,
-    );
-  }
-
-  const outputFile = spawnerResult.outputFiles.find(
-    (f) => f.name === 'page.json',
-  );
-  if (!outputFile) {
-    throw new Error('sandbox render produced no page.json output file');
-  }
-
-  // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts
-  const storageId = outputFile.storageId as unknown as Id<'_storage'>;
-
-  let html: string;
-  let finalUrl = url;
   try {
-    const blob = await ctx.storage.get(storageId);
-    if (!blob) {
-      throw new Error('rendered output blob not found in storage');
+    const spawnerResult = await spawnerExecute(
+      {
+        executionId,
+        organizationId,
+        language: 'node',
+        files: [{ path: 'render.js', url: scriptUrl }],
+        entryPath: 'render.js',
+        outputUploadSlots: [{ url: slotUrl }],
+        outputUrlEndpoint,
+        reportUploadedEndpoint,
+        timeoutMs,
+      },
+      // The spawner client applies its own fetch-timeout margin on top of this.
+      AbortSignal.timeout(timeoutMs + 120_000),
+    );
+
+    if (spawnerResult.status !== 'completed') {
+      const code = spawnerResult.errorCode
+        ? `, code=${spawnerResult.errorCode}`
+        : '';
+      const message = spawnerResult.errorMessage
+        ? `: ${spawnerResult.errorMessage}`
+        : '';
+      throw new Error(
+        `sandbox render did not complete (status=${spawnerResult.status}${code}${message})`,
+      );
     }
-    const text = await blob.text();
-    const parsed: unknown = JSON.parse(text);
-    if (parsed === null || typeof parsed !== 'object') {
-      throw new Error('rendered output payload is not an object');
+
+    const outputFile = spawnerResult.outputFiles.find(
+      (f) => f.name === 'page.json',
+    );
+    if (!outputFile) {
+      throw new Error('sandbox render produced no page.json output file');
     }
-    const htmlVal = Reflect.get(parsed, 'html');
-    const urlVal = Reflect.get(parsed, 'url');
-    if (typeof htmlVal !== 'string') {
-      throw new Error('rendered output payload has no html string');
-    }
-    html = htmlVal;
-    if (typeof urlVal === 'string' && urlVal.length > 0) {
-      finalUrl = urlVal;
-    }
-  } finally {
-    // Best-effort cleanup of the transient render blob — it has served its
-    // purpose once read back. A leaked blob is harmless but wasteful.
+
+    // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts
+    const storageId = outputFile.storageId as unknown as Id<'_storage'>;
+
+    let html: string;
+    let finalUrl = url;
     try {
-      await ctx.storage.delete(storageId);
+      const blob = await ctx.storage.get(storageId);
+      if (!blob) {
+        throw new Error('rendered output blob not found in storage');
+      }
+      const text = await blob.text();
+      const parsed: unknown = JSON.parse(text);
+      if (parsed === null || typeof parsed !== 'object') {
+        throw new Error('rendered output payload is not an object');
+      }
+      const htmlVal = Reflect.get(parsed, 'html');
+      const urlVal = Reflect.get(parsed, 'url');
+      if (typeof htmlVal !== 'string') {
+        throw new Error('rendered output payload has no html string');
+      }
+      html = htmlVal;
+      if (typeof urlVal === 'string' && urlVal.length > 0) {
+        finalUrl = urlVal;
+      }
+    } finally {
+      // Best-effort cleanup of the transient render blob — it has served its
+      // purpose once read back. A leaked blob is harmless but wasteful.
+      try {
+        await ctx.storage.delete(storageId);
+      } catch (err) {
+        console.warn(
+          `[crawler] failed to delete transient render blob ${String(storageId)}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    return { url: finalUrl, html };
+  } finally {
+    // Best-effort cleanup of the transient render-script blob — it has served
+    // its purpose once the spawner has fetched and run it.
+    try {
+      await ctx.storage.delete(scriptStorageId);
     } catch (err) {
       console.warn(
-        `[crawler] failed to delete transient render blob ${String(storageId)}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `[crawler] failed to delete transient render-script blob ${String(
+          scriptStorageId,
+        )}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
-
-  return { url: finalUrl, html };
 }
