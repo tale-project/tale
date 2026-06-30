@@ -8,7 +8,7 @@
  * running execution suppress every other org's schedule.
  */
 
-import { QueryCtx } from '../../../_generated/server';
+import type { QueryCtx } from '../../../_generated/server';
 import type { OrgWorkflowKey } from './get_last_execution_time';
 import { orgWorkflowKey } from './get_last_execution_time';
 

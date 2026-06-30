@@ -1,7 +1,8 @@
 import { AppShell } from '@tale/ui/app-shell';
-import { render, RenderOptions } from '@testing-library/react';
+import type { RenderOptions } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ReactElement, ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { i18n } from '../../lib/i18n/i18n';
 

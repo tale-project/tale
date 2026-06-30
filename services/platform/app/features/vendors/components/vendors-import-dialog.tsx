@@ -12,7 +12,7 @@ import {
   vendorMappers,
 } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useBulkCreateVendors } from '../hooks/mutations';

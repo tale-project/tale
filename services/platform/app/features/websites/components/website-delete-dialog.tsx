@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 
 import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@/app/components/ui/entity/use-delete-dialog';
-import { Doc } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteWebsite } from '../hooks/mutations';

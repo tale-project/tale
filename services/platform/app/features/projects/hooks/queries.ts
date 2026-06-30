@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
@@ -27,25 +28,28 @@ export function useProjects(
 }
 
 export function useProject(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
     api.projects.queries.getProject,
-    projectId ? { projectId } : 'skip',
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { project: data ?? null, isLoading };
 }
 
 export function useProjectStats(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
     api.projects.queries.getProjectStats,
-    projectId ? { projectId } : 'skip',
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { stats: data ?? null, isLoading };
 }
 
 export function useProjectDocuments(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
     api.projects.queries.listProjectDocuments,
-    projectId ? { projectId } : 'skip',
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { documents: data ?? [], isLoading };
 }

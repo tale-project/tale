@@ -1,13 +1,14 @@
 import { ConvexError } from 'convex/values';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { AddMemberDialog } from './member-add-dialog';
 
-const { createMemberMock } = vi.hoisted(() => ({
+const { createMemberMock, userExistsMock } = vi.hoisted(() => ({
   createMemberMock: vi.fn(),
+  userExistsMock: vi.fn(() => false),
 }));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
@@ -22,12 +23,26 @@ vi.mock('../hooks/mutations', () => ({
   useCreateMember: () => ({ mutateAsync: createMemberMock, isPending: false }),
 }));
 
+// AddMemberDialog reads useUserExistsByEmail (a Convex query) to decide whether
+// to show the password field. Mock it so the component test needs no
+// ConvexProvider; default to "new user" so existing cases are unchanged, and
+// flip it per-test for the existing-user branch.
+vi.mock('../hooks/queries', () => ({
+  // The mock ignores the email arg and returns a per-test controlled value.
+  useUserExistsByEmail: () => userExistsMock(),
+}));
+
 vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
   const { DEFAULT_PASSWORD_POLICY } =
     await import('@/lib/shared/schemas/governance');
   return {
     usePasswordPolicy: () => DEFAULT_PASSWORD_POLICY,
   };
+});
+
+beforeEach(() => {
+  // Default: the email is a NEW user, so the password field is shown.
+  userExistsMock.mockReturnValue(false);
 });
 
 describe('AddMemberDialog', () => {
@@ -89,6 +104,25 @@ describe('AddMemberDialog', () => {
       // The specific error is surfaced on the field, not as a generic toast.
       await screen.findByText('Password is required to create a new user');
       expect(createMemberMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('existing user', () => {
+    it('hides the password field and shows the existing-user hint', async () => {
+      // The email already belongs to a user → the backend reuses their
+      // credentials, so the dialog drops the password field for a hint.
+      userExistsMock.mockReturnValue(true);
+
+      render(
+        <AddMemberDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+
+      expect(document.querySelector('input[name="password"]')).toBeNull();
+      await screen.findByText(/already has an account/i);
     });
   });
 });

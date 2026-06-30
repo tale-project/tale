@@ -9,6 +9,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import { hasTeamAccess } from '../lib/team_access';
@@ -402,11 +403,15 @@ export const listPromptFacets = queryWithRLS({
 export const getPrompt = queryWithRLS({
   args: {
     promptId: v.id('promptTemplates'),
+    organizationId: v.string(),
   },
   returns: v.union(promptTemplateValidator, v.null()),
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
-    if (!prompt) return null;
+    // Active-org coherence: deny a prompt carried over from another org.
+    if (!prompt || !isActiveOrg(prompt.organizationId, args.organizationId)) {
+      return null;
+    }
     // Soft-deleted by retention: hidden from normal reads; admin sees it
     // via the Trash UI queries instead.
     if (!isActivePrompt(prompt)) return null;
@@ -438,11 +443,15 @@ export const getPrompt = queryWithRLS({
 export const getPromptHistory = queryWithRLS({
   args: {
     promptId: v.id('promptTemplates'),
+    organizationId: v.string(),
   },
   returns: v.union(promptHistoryResultValidator, v.null()),
   handler: async (ctx, args) => {
     const prompt = await ctx.db.get(args.promptId);
-    if (!prompt) return null;
+    // Active-org coherence: deny a prompt carried over from another org.
+    if (!prompt || !isActiveOrg(prompt.organizationId, args.organizationId)) {
+      return null;
+    }
     if (!isActivePrompt(prompt)) return null;
 
     const user = await getAuthUserIdentity(ctx);

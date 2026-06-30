@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { resetCrossOrgDetailSubpath } from '@/app/lib/org-switch-subpath';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -119,8 +120,15 @@ function SwitchingPage() {
       // the same page in the new org. Using router.history.push lets us
       // push an arbitrary path string (the typed `navigate({ to })` API
       // would require enumerating every possible dashboard subroute).
+      //
+      // `resetCrossOrgDetailSubpath` strips an org-scoped entity id
+      // (project/thread/automation) from the carried subpath: that id doesn't
+      // exist in the target org, so the by-id read would deny it and the user
+      // would land on a "not found" dead-end. Reset to the section root; tab/
+      // filter/config subpaths are preserved.
       if (subpath) {
-        router.history.push(`/dashboard/${targetOrgId}/${subpath}`, {
+        const targetSubpath = resetCrossOrgDetailSubpath(subpath);
+        router.history.push(`/dashboard/${targetOrgId}/${targetSubpath}`, {
           replace: true,
         });
       } else {

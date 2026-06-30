@@ -1,4 +1,4 @@
-import { RenderResult } from '@testing-library/react';
+import type { RenderResult } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 
 /**

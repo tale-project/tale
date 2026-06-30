@@ -1,5 +1,5 @@
 import { internal } from '../../_generated/api';
-import { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 import { createAuth } from '../../auth';
 import { decryptString } from '../../lib/crypto/decrypt_string';
 import { sanitizeRawClaims } from '../claims';

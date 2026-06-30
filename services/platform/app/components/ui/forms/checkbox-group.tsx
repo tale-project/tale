@@ -1,7 +1,8 @@
 'use client';
 
 import { Description } from '@tale/ui/description';
-import { ReactNode, useId, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import { useId, useCallback } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 

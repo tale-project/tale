@@ -56,6 +56,19 @@
           "pattern": "^(?:https?://github\\.com/)?([^/\\s]+)/([^/\\s#]+?)(?:\\.git)?/?$",
           "into": ["owner", "repo"]
         }
+      },
+      {
+        "key": "testCommand",
+        "type": "string",
+        "labelKey": "issueDesk.config.testCommand",
+        "placeholderKey": "issueDesk.config.testCommandPlaceholder"
+      },
+      {
+        "key": "repoNotes",
+        "type": "string",
+        "labelKey": "issueDesk.config.repoNotes",
+        "placeholderKey": "issueDesk.config.repoNotesPlaceholder",
+        "multiline": true
       }
     ]
   }

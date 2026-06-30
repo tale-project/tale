@@ -18,12 +18,6 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 interface AutomationCallbacksContextType {
   /** Called when a node is clicked to open the side panel */
   onNodeClick: (stepSlug: string) => void;
-  /** Called when the add step button on a leaf node is clicked */
-  onAddStep: (stepSlug: string) => void;
-  /** Called when adding a step on an edge */
-  onAddStepOnEdge: (sourceId: string, targetId: string) => void;
-  /** Called when deleting an edge */
-  onDeleteEdge: (edgeId: string) => void;
 }
 
 const AutomationCallbacksContext =
@@ -32,14 +26,8 @@ const AutomationCallbacksContext =
 export function AutomationCallbacksProvider({
   children,
   onNodeClick,
-  onAddStep,
-  onAddStepOnEdge,
-  onDeleteEdge,
 }: AutomationCallbacksContextType & { children: ReactNode }) {
-  const value = useMemo(
-    () => ({ onNodeClick, onAddStep, onAddStepOnEdge, onDeleteEdge }),
-    [onNodeClick, onAddStep, onAddStepOnEdge, onDeleteEdge],
-  );
+  const value = useMemo(() => ({ onNodeClick }), [onNodeClick]);
 
   return (
     <AutomationCallbacksContext.Provider value={value}>

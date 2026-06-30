@@ -5,7 +5,7 @@ import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { KeyRound, ShieldAlert, Trash2 } from 'lucide-react';
+import { KeyRound, Pencil, ShieldAlert, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -55,6 +55,11 @@ export function ProjectSecretsTab({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [description, setDescription] = useState('');
+  // Non-null while editing an existing secret: the name is fixed (it's the
+  // env-var key agents resolve), so the form only re-collects the value and
+  // description. A re-save re-encrypts via the same upsert path as Add — there
+  // is no reveal, because stored values are never returned to the client.
+  const [editingName, setEditingName] = useState<string | null>(null);
 
   const typeOptions = useMemo(
     () => [
@@ -73,6 +78,16 @@ export function ProjectSecretsTab({
     setUsername('');
     setPassword('');
     setDescription('');
+    setEditingName(null);
+  };
+
+  const openEdit = (secret: { name: string; description?: string }) => {
+    resetForm();
+    setEditingName(secret.name);
+    setName(secret.name);
+    setType('custom');
+    setDescription(secret.description ?? '');
+    setDialogOpen(true);
   };
 
   // The single-value field is relabelled per type so the form reads like a
@@ -84,17 +99,34 @@ export function ProjectSecretsTab({
         ? t('tokenLabel')
         : t('valueLabel');
 
-  const isDirty =
-    name.length > 0 ||
-    value.length > 0 ||
-    username.length > 0 ||
-    password.length > 0;
+  const isEditing = editingName !== null;
+
+  const isDirty = isEditing
+    ? value.length > 0 || description.trim().length > 0
+    : name.length > 0 ||
+      value.length > 0 ||
+      username.length > 0 ||
+      password.length > 0;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const baseName = name.trim().toUpperCase();
     const desc = description.trim() || undefined;
     try {
+      if (isEditing && editingName) {
+        // Editing keeps the existing key; the upsert re-encrypts the new value.
+        await setSecret.mutateAsync({
+          organizationId,
+          projectId,
+          name: editingName,
+          value,
+          description: desc,
+        });
+        toast({ title: t('updateSuccess'), variant: 'success' });
+        resetForm();
+        setDialogOpen(false);
+        return;
+      }
       if (type === 'basic') {
         // Two secrets so each value is independently injectable as an env var.
         await setSecret.mutateAsync({
@@ -196,6 +228,13 @@ export function ProjectSecretsTab({
                 <Button
                   size="icon"
                   variant="ghost"
+                  icon={Pencil}
+                  title={t('editButton')}
+                  onClick={() => openEdit(secret)}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
                   icon={Trash2}
                   title={tCommon('actions.delete')}
                   onClick={() => void handleDelete(secret.name)}
@@ -212,38 +251,57 @@ export function ProjectSecretsTab({
           if (!open) resetForm();
           setDialogOpen(open);
         }}
-        title={t('addButton')}
+        title={isEditing ? t('editTitle') : t('addButton')}
         isSubmitting={setSecret.isPending}
         isDirty={isDirty}
         onSubmit={handleSave}
       >
-        <Select
-          id="secret-type"
-          label={t('typeLabel')}
-          value={type}
-          onValueChange={(next) =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are the SecretType union
-            setType(next as SecretType)
-          }
-          options={typeOptions}
-          disabled={setSecret.isPending}
-        />
+        {!isEditing && (
+          <Select
+            id="secret-type"
+            label={t('typeLabel')}
+            value={type}
+            onValueChange={(next) =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are the SecretType union
+              setType(next as SecretType)
+            }
+            options={typeOptions}
+            disabled={setSecret.isPending}
+          />
+        )}
         <Input
           id="secret-name"
           label={t('nameLabel')}
           placeholder={NAME_PLACEHOLDER[type]}
           value={name}
           onChange={(e) => setName(e.target.value.toUpperCase())}
-          disabled={setSecret.isPending}
+          // The name is the env-var key agents resolve — editing it would orphan
+          // references, so it's fixed once created.
+          disabled={setSecret.isPending || isEditing}
           maxLength={type === 'basic' ? 50 : 64}
           required
         />
-        {type === 'basic' && (
+        {type === 'basic' && !isEditing && (
           <Text variant="caption" className="-mt-2">
             {t('basicNameHint')}
           </Text>
         )}
-        {type === 'basic' ? (
+        {isEditing ? (
+          <>
+            <Input
+              id="secret-value"
+              type="password"
+              label={valueLabel}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              disabled={setSecret.isPending}
+              required
+            />
+            <Text variant="caption" className="-mt-2">
+              {t('editValueHint')}
+            </Text>
+          </>
+        ) : type === 'basic' ? (
           <>
             <Input
               id="secret-username"

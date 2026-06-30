@@ -247,4 +247,56 @@ describe('beginUninstall guard (I1/I7)', () => {
     );
     expect(result).toEqual({ ok: false, notInstalled: true });
   });
+
+  it("deleteProjectSchedules removes only the target project's schedules", async () => {
+    const t = convexTest(schema, modules);
+    // Install carrying a workflow resource — the slug source for the sweep.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appInstallations', {
+        organizationId: ORG,
+        appSlug: APP,
+        installedAt: 0,
+        installedBy: 'tester',
+        status: 'active',
+        requiredIntegrations: [],
+        resources: [
+          {
+            domain: 'workflows',
+            path: 'issue-desk/reconcile.json',
+            contentHash: 'h',
+          },
+        ],
+      });
+    });
+    const a = await seedProject(t, 'Alpha');
+    const b = await seedProject(t, 'Beta');
+    const mkSched = (projectId: Id<'projects'>): Promise<Id<'wfSchedules'>> =>
+      t.run((ctx) =>
+        ctx.db.insert('wfSchedules', {
+          organizationId: ORG,
+          projectId,
+          workflowSlug: 'issue-desk/reconcile',
+          cronExpression: '*/15 * * * *',
+          timezone: 'UTC',
+          isActive: true,
+          createdAt: 0,
+          createdBy: 'system',
+        }),
+      );
+    await mkSched(a);
+    const schedB = await mkSched(b);
+
+    await t.mutation(internal.apps.install_mutations.deleteProjectSchedules, {
+      organizationId: ORG,
+      appSlug: APP,
+      projectId: a,
+    });
+
+    const remaining = await t.run((ctx) =>
+      ctx.db.query('wfSchedules').collect(),
+    );
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]._id).toBe(schedB);
+    expect(remaining[0].projectId).toBe(b);
+  });
 });

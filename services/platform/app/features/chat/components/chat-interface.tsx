@@ -228,15 +228,17 @@ export function ChatInterface({
     disableIndexing: isExternalAgentThread,
   });
 
-  const { isIndexing, statusMap: indexingStatuses } =
-    useFileIndexingStatus(attachments);
+  const { isIndexing, statusMap: indexingStatuses } = useFileIndexingStatus(
+    attachments,
+    organizationId,
+  );
 
   const {
     isTranscribing,
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
     hasFailedAudioJobs,
-  } = useFileTranscriptionStatus(attachments);
+  } = useFileTranscriptionStatus(attachments, organizationId);
 
   const {
     jobs: videoLinkJobs,

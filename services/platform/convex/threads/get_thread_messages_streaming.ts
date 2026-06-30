@@ -18,7 +18,7 @@
 import { listUIMessages, syncStreams } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
-import { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 import type {
   GetThreadMessagesStreamingArgs,
   StreamingMessagesResult,

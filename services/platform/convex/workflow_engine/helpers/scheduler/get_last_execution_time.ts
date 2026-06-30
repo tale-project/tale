@@ -8,7 +8,7 @@
  * execution satisfy org B's schedule dedup and silently starve B's crons.
  */
 
-import { QueryCtx } from '../../../_generated/server';
+import type { QueryCtx } from '../../../_generated/server';
 
 export interface OrgWorkflowKey {
   organizationId: string;

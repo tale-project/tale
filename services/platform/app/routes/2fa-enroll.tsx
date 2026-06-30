@@ -23,6 +23,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Input } from '@/app/components/ui/forms/input';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
@@ -230,14 +231,11 @@ function TwoFactorEnrollPage() {
                     />
                   </div>
                   {extractSecret(step.totpURI) && (
-                    <VStack gap={1} align="center">
-                      <Text variant="muted" className="text-xs">
-                        {t('setup.manualEntry')}
-                      </Text>
-                      <code className="bg-muted rounded border px-2 py-1 text-xs select-all">
-                        {extractSecret(step.totpURI)}
-                      </code>
-                    </VStack>
+                    <CopyableField
+                      value={extractSecret(step.totpURI) ?? ''}
+                      label={t('setup.manualEntry')}
+                      className="w-full min-w-0"
+                    />
                   )}
                 </VStack>
                 <Input

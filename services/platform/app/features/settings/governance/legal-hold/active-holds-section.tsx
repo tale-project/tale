@@ -2,10 +2,11 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Lock } from 'lucide-react';
+import { Lock, LockOpen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -157,16 +158,17 @@ export function ActiveHoldsSection({
         meta: { isAction: true, align: 'right' as const },
         cell: ({ row }) => (
           <Row gap={0} align="stretch" justify="end">
-            <Button
+            <IconButton
               type="button"
               variant="ghost"
+              size="sm"
+              icon={LockOpen}
+              aria-label={t('legalHold.actions.requestRelease')}
               onClick={(e) => {
                 e.stopPropagation();
                 setReleaseHoldId(row.original._id);
               }}
-            >
-              {t('legalHold.actions.requestRelease')}
-            </Button>
+            />
           </Row>
         ),
         size: 140,

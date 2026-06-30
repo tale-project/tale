@@ -105,6 +105,10 @@ export function NotificationBell({
           align="end"
           side="right"
           sideOffset={8}
+          // Radix renders the popover content as `role="dialog"`; give it an
+          // accessible name so screen readers announce it as the
+          // "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).
+          aria-label={tNav('notifications')}
           className={cn(
             POPOVER_CONTENT_CLASSES,
             'bg-card w-96 max-w-[calc(100vw-2rem)] p-0',

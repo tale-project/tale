@@ -6,7 +6,7 @@ import type { ActionType, NodePlopAPI } from 'plop';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const templateDir = path.resolve(here, '../templates/tool');
 
-type ToolKind = 'ts-cli' | 'shell';
+type ToolKind = 'typescript' | 'shell';
 
 interface Answers {
   name: string;
@@ -15,7 +15,7 @@ interface Answers {
 }
 
 const FILES_BY_KIND: Record<ToolKind, string[]> = {
-  'ts-cli': [
+  typescript: [
     'package.json.hbs',
     'tsconfig.json.hbs',
     '.oxlintrc.json',
@@ -30,7 +30,7 @@ const FILES_BY_KIND: Record<ToolKind, string[]> = {
 export function registerTool(plop: NodePlopAPI): void {
   plop.setGenerator('tool', {
     description:
-      'Runnable tooling workspace under tools/ (mirrors tools/cli, tools/opengrep)',
+      'Runnable tooling workspace under tools/ (typescript = bun CLI like tools/cli; shell = run.sh + config like tools/opengrep)',
     prompts: [
       {
         type: 'input',
@@ -51,13 +51,13 @@ export function registerTool(plop: NodePlopAPI): void {
         name: 'kind',
         message: 'Tool kind:',
         choices: [
-          { name: 'TypeScript CLI (bun, like tools/cli)', value: 'ts-cli' },
+          { name: 'TypeScript CLI (bun, like tools/cli)', value: 'typescript' },
           {
             name: 'Shell + config (run.sh, like tools/opengrep)',
             value: 'shell',
           },
         ],
-        default: 'ts-cli',
+        default: 'typescript',
       },
     ],
     actions: (data) => {

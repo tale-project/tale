@@ -119,12 +119,19 @@ export async function getOrgWorkflowMetrics(
     .query('wfExecutions')
     .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
     .order('desc')) {
+    // The `by_org` index is walked newest-first and `startedAt` is set to
+    // `Date.now()` at insert, so it decreases monotonically along this walk.
+    // Once we reach a row older than the prior comparison window, every
+    // remaining row is also out of scope, so we can stop. This bounds the scan
+    // to in-window + prior-window rows and keeps `capped` meaning only
+    // "in-scope data was truncated" (more than MAX_SCAN rows within the two
+    // windows) rather than firing on out-of-window historical volume.
+    if (e.startedAt < prevWindowStart) break;
     scanned++;
     if (scanned > MAX_SCAN) {
       capped = true;
       break;
     }
-    if (e.startedAt < prevWindowStart) continue;
     if (e.startedAt < windowStart) {
       // Prior window — accumulate totals only.
       prevTotal++;

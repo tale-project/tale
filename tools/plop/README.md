@@ -1,25 +1,35 @@
 # @tale/plop
 
-Plop generators and templates for scaffolding new Tale services and packages.
+Plop generators and templates for scaffolding new Tale workspaces — packages,
+services, tools, and skills. **Always scaffold a new workspace from these
+generators** instead of hand-rolling or copy-pasting one, so every new part
+inherits the repo's conventions (the shared `tsconfig.base.json`, lint config,
+i18n bundle, tests, and Docker setup) automatically.
 
-The root [`plopfile.ts`](../../plopfile.ts) wires these generators into the `bun run gen` workflow.
+The root [`plopfile.ts`](../../plopfile.ts) wires these generators into the
+`bun run gen` workflow.
 
 ## Usage
 
 Run from the repo root:
 
 ```bash
-bun run gen                       # interactive prompt
-bun run gen:react-service
-bun run gen:react-package
-bun run gen:typescript-package
-bun run gen:docker-service
+bun run gen            # interactive: pick a generator, then a variant
+bun run gen:package    # packages/<name> — kind: react | typescript
+bun run gen:service    # services/<name> — kind: react | docker
+bun run gen:tool       # tools/<name>    — kind: typescript | shell
+bun run gen:skill      # skills/<name>   — kind: typescript | python
 ```
+
+Each generator prompts for a **kind** and scaffolds from the matching
+`templates/<category>/<kind>/` directory.
 
 ## Layout
 
-- `generators/` — generator definitions (one per scaffold type)
-- `templates/` — Handlebars (`.hbs`) and static templates rendered by the generators
+- `generators/` — one generator per category (`package`, `service`, `tool`, `skill`),
+  each selecting a variant via a `kind` prompt
+- `templates/<category>/<kind>/` — Handlebars (`.hbs`) and static templates
+  rendered by the generators
 - `helpers/` — shared Handlebars helpers registered with Plop
 
 ## Workspace scripts

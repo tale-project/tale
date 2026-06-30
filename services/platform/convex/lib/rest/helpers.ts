@@ -327,9 +327,13 @@ function httpStatusForConvexCode(code: string | undefined): number {
     case 'forbidden':
       return 403;
     case 'not_found':
+    case 'VENDOR_NOT_FOUND':
       return 404;
     case 'validation':
       return 400;
+    case 'DUPLICATE_EMAIL':
+    case 'DUPLICATE_EXTERNAL_ID':
+      return 409;
     default:
       // Codes we don't recognize fall through to the 500 path so the
       // outer console.error still logs them; no silent swallow.
