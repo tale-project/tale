@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { mutation } from '../../_generated/server';
 import { validateAgentName } from '../../agents/validators';
@@ -17,12 +17,20 @@ export const createWebhook = mutation({
   }),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
 
     if (!validateAgentName(args.agentSlug)) {
-      throw new Error(`Invalid agent slug: ${args.agentSlug}`);
+      throw new ConvexError({
+        code: 'INVALID_AGENT_SLUG',
+        message: `Invalid agent slug: ${args.agentSlug}`,
+      });
     }
 
     const token = generateToken();
@@ -49,10 +57,20 @@ export const toggleWebhook = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const webhook = await ctx.db.get(args.webhookId);
-    if (!webhook) throw new Error('Webhook not found');
+    if (!webhook) {
+      throw new ConvexError({
+        code: 'WEBHOOK_NOT_FOUND',
+        message: 'Webhook not found',
+      });
+    }
 
     await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
@@ -66,10 +84,20 @@ export const deleteWebhook = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const webhook = await ctx.db.get(args.webhookId);
-    if (!webhook) throw new Error('Webhook not found');
+    if (!webhook) {
+      throw new ConvexError({
+        code: 'WEBHOOK_NOT_FOUND',
+        message: 'Webhook not found',
+      });
+    }
 
     await getOrganizationMember(ctx, webhook.organizationId, authUser);
 
