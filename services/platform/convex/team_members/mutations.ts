@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -20,7 +20,10 @@ export const addMember = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const callerMember = await getOrganizationMember(
@@ -30,7 +33,10 @@ export const addMember = mutation({
     );
 
     if (!isAdmin(callerMember.role)) {
-      throw new Error('Only admins can add team members');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can add team members',
+      });
     }
 
     const team = await ctx.runQuery(components.betterAuth.adapter.findOne, {
@@ -38,7 +44,10 @@ export const addMember = mutation({
       where: [{ field: '_id', value: args.teamId, operator: 'eq' }],
     });
     if (!team || String(team.organizationId) !== args.organizationId) {
-      throw new Error('Team not found in this organization');
+      throw new ConvexError({
+        code: 'TEAM_NOT_FOUND',
+        message: 'Team not found in this organization',
+      });
     }
 
     const targetOrgMember = await ctx.runQuery(
@@ -57,7 +66,10 @@ export const addMember = mutation({
       },
     );
     if (!targetOrgMember?.page?.[0]) {
-      throw new Error('User is not a member of this organization');
+      throw new ConvexError({
+        code: 'USER_NOT_ORG_MEMBER',
+        message: 'User is not a member of this organization',
+      });
     }
 
     const existingTeamMember = await ctx.runQuery(
@@ -72,7 +84,10 @@ export const addMember = mutation({
       },
     );
     if (existingTeamMember?.page?.length) {
-      throw new Error('User is already a member of this team');
+      throw new ConvexError({
+        code: 'ALREADY_TEAM_MEMBER',
+        message: 'User is already a member of this team',
+      });
     }
 
     const createdAt = Date.now();
@@ -116,7 +131,10 @@ export const removeMember = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const callerMember = await getOrganizationMember(
@@ -134,12 +152,18 @@ export const removeMember = mutation({
     );
 
     if (!memberToRemove) {
-      throw new Error('Team member not found');
+      throw new ConvexError({
+        code: 'TEAM_MEMBER_NOT_FOUND',
+        message: 'Team member not found',
+      });
     }
 
     const isSelfRemoval = String(memberToRemove.userId) === authUser.userId;
     if (!isAdmin(callerMember.role) && !isSelfRemoval) {
-      throw new Error('Only admins can remove other team members');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can remove other team members',
+      });
     }
 
     const teamId = String(memberToRemove.teamId);
@@ -149,7 +173,10 @@ export const removeMember = mutation({
       where: [{ field: '_id', value: teamId, operator: 'eq' }],
     });
     if (!team || String(team.organizationId) !== args.organizationId) {
-      throw new Error('Team not found in this organization');
+      throw new ConvexError({
+        code: 'TEAM_NOT_FOUND',
+        message: 'Team not found in this organization',
+      });
     }
 
     const memberCount = await ctx.runQuery(
@@ -162,9 +189,10 @@ export const removeMember = mutation({
     );
 
     if (!memberCount || memberCount.page.length <= 1) {
-      throw new Error(
-        'Cannot remove the last team member. Delete the team instead.',
-      );
+      throw new ConvexError({
+        code: 'LAST_TEAM_MEMBER',
+        message: 'Cannot remove the last team member. Delete the team instead.',
+      });
     }
 
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
