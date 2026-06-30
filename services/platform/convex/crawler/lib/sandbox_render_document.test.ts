@@ -153,6 +153,10 @@ describe('renderDocumentInSandbox', () => {
     // (it is NOT on the one-shot runner's NODE_PATH), not a bare require.
     expect(script).toContain("require.resolve('playwright'");
     expect(script).toContain('@playwright/mcp');
+    // Output must land in the spawner's harvest dir (/user/output); /workspace
+    // does not exist in the one-shot runner (read-only root).
+    expect(script).toContain('/user/output');
+    expect(script).not.toContain('/workspace');
   });
 
   it('requests the jpeg output filename for jpeg images', async () => {

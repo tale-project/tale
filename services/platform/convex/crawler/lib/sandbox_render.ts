@@ -118,7 +118,7 @@ function resolveCallbackEndpoints(): {
 /**
  * Build the Playwright render script. It navigates to `url`, waits for the
  * network to settle, and writes the rendered HTML + final URL to
- * `/workspace/output/page.json` (the spawner harvests `/workspace/output/`).
+ * `/user/output/page.json` (the spawner harvests `/user/output/`).
  *
  * The script is intentionally self-contained — `require('playwright')` resolves
  * against the sandbox-runtime image's pre-baked install.
@@ -152,8 +152,8 @@ function buildRenderScript(
     '    const html = await page.content();',
     '    const finalUrl = page.url();',
     '    const status = response ? response.status() : 0;',
-    "    fs.mkdirSync('/workspace/output', { recursive: true });",
-    "    fs.writeFileSync('/workspace/output/page.json', JSON.stringify({ url: finalUrl, html, status }));",
+    "    fs.mkdirSync('/user/output', { recursive: true });",
+    "    fs.writeFileSync('/user/output/page.json', JSON.stringify({ url: finalUrl, html, status }));",
     '  } finally {',
     '    await browser.close();',
     '  }',

@@ -12,7 +12,7 @@
  *
  * This mirrors `convex/crawler/lib/sandbox_render.ts::renderUrlInSandbox`
  * (web-crawl HTML fetch) but the output is BINARY (PDF / image bytes) instead of
- * JSON. The spawner harvests `/workspace/output/<file>`, POSTs the bytes to a
+ * JSON. The spawner harvests `/user/output/<file>`, POSTs the bytes to a
  * pre-signed Convex upload slot, and returns the `_storage` id — so unlike the
  * crawl path (which JSON-encodes into a blob we re-parse) we read the produced
  * file straight out of storage and hand the storageId to the caller.
@@ -178,7 +178,7 @@ function outputFileFor(request: SandboxRenderRequest): {
 
 /**
  * Build the Playwright render script. It sets the page content (or navigates to
- * a URL), then writes the rendered PDF / image bytes to `/workspace/output/`.
+ * a URL), then writes the rendered PDF / image bytes to `/user/output/`.
  * The spawner harvests that directory and uploads each file to a Convex slot.
  *
  * The whole request is passed as a single JSON literal to keep the generated
@@ -262,8 +262,8 @@ function buildRenderScript(
     '      if (o.imageType === "jpeg") { shot.quality = o.quality; }',
     '      bytes = await page.screenshot(shot);',
     '    }',
-    "    fs.mkdirSync('/workspace/output', { recursive: true });",
-    '    fs.writeFileSync(`/workspace/output/${SPEC.outputFileName}`, bytes);',
+    "    fs.mkdirSync('/user/output', { recursive: true });",
+    '    fs.writeFileSync(`/user/output/${SPEC.outputFileName}`, bytes);',
     '  } finally {',
     '    await browser.close();',
     '  }',
