@@ -1,18 +1,20 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import type {
+  DatePreset,
+  FormatDateOptions,
+  DateTranslations,
+} from '@/lib/utils/date/format';
 import {
   formatDate,
   formatDateSmart,
   formatDateHeader,
   loadDayjsLocale,
-  DatePreset,
-  FormatDateOptions,
-  DateTranslations,
 } from '@/lib/utils/date/format';
 
 /**

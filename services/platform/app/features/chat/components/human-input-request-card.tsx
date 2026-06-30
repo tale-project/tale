@@ -32,6 +32,7 @@ import remarkGfm from 'remark-gfm';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { mapExecutionError } from '@/app/features/operator/lib/map-execution-error';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
@@ -55,7 +56,7 @@ import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
 import { mapHumanInputError } from '../lib/map-human-input-error';
 import { ApprovalCard } from './approval-card';
-import { HumanInputFields } from './human-input-fields';
+import { HumanInputFields, countFilledTodoRows } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface HumanInputRequestCardProps {
@@ -81,6 +82,7 @@ function HumanInputRequestCardComponent({
 }: HumanInputRequestCardProps) {
   const { t } = useT('humanInputRequest');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tShared } = useT('common');
   const { formatDate } = useFormatDate();
   const [error, setError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<
@@ -184,14 +186,14 @@ function HumanInputRequestCardComponent({
         executionId: wfExecutionId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
-      );
+      // cancelExecution raises a structured code (not found / already settled);
+      // map it instead of surfacing the raw ConvexError JSON blob.
+      setError(mapExecutionError(err, tShared, tCommon('errorSubmitFailed')));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);
     }
-  }, [wfExecutionId, cancelExecution, tCommon]);
+  }, [wfExecutionId, cancelExecution, tCommon, tShared]);
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -313,6 +315,26 @@ function HumanInputRequestCardComponent({
       } else if (field.type === 'multi_select') {
         if (!value || !Array.isArray(value) || value.length === 0) {
           setError(t('errorSelectRequired'));
+          return;
+        }
+      } else if (field.type === 'todo_list') {
+        // The TodoListFieldInput always seeds a row and serializes via
+        // JSON.stringify, so `value` is a non-empty string even when every
+        // row is blank — the generic "non-empty string" check below would
+        // wrongly pass. Count the rows with real content instead.
+        const filled =
+          typeof value === 'string' ? countFilledTodoRows(value) : 0;
+        const minItems =
+          'minItems' in field && typeof field.minItems === 'number'
+            ? field.minItems
+            : 0;
+        const threshold = Math.max(1, minItems);
+        if (filled < threshold) {
+          setError(
+            threshold > 1
+              ? t('errorTodoListMinItems', { count: threshold })
+              : t('errorTodoListRequired'),
+          );
           return;
         }
       } else {

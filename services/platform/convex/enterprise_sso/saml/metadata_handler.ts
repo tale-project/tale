@@ -1,5 +1,5 @@
 import { internal } from '../../_generated/api';
-import { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 import { getPublicHttpApiUrl } from '../../lib/helpers/public_storage_url';
 
 /** Public SP entityID + ACS URL, derived from SITE_URL (stable, paste into IdP). */

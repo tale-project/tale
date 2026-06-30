@@ -148,6 +148,18 @@ export class SessionRoutes {
         liveExecs: new Map(),
       });
     }
+
+    // Heal the shared build cache for every org with a running session. The
+    // buildkitd outlives the spawner, so the same stack restart that bounced
+    // this spawner may have moved sandbox-egress to a new IP — leaving the
+    // daemon's egress fence stale. An adopted session that reuses it would build
+    // with no DNS/egress (the createSession heal never fires for it). Best-effort
+    // inside the backend; a no-op when there's no shared cache or nothing drifted.
+    if (sessions.length > 0) {
+      await this.backend.reconcileBuildCache(
+        sessions.map((s) => s.organizationId),
+      );
+    }
   }
 
   /**

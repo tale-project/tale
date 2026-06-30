@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   jsonRecordValidator,
@@ -37,7 +37,10 @@ export const updateVendor = mutationWithRLS({
 
     const existingVendor = await ctx.db.get(vendorId);
     if (!existingVendor) {
-      throw new Error('Vendor not found');
+      throw new ConvexError({
+        code: 'VENDOR_NOT_FOUND',
+        message: 'Vendor not found',
+      });
     }
 
     const checkEmailConflict =
@@ -70,13 +73,17 @@ export const updateVendor = mutationWithRLS({
     ]);
 
     if (emailConflict && emailConflict._id !== vendorId) {
-      throw new Error(`Vendor with email ${updateData.email} already exists`);
+      throw new ConvexError({
+        code: 'DUPLICATE_EMAIL',
+        message: `Vendor with email ${updateData.email} already exists`,
+      });
     }
 
     if (externalIdConflict && externalIdConflict._id !== vendorId) {
-      throw new Error(
-        `Vendor with external ID ${updateData.externalId} already exists`,
-      );
+      throw new ConvexError({
+        code: 'DUPLICATE_EXTERNAL_ID',
+        message: `Vendor with external ID ${updateData.externalId} already exists`,
+      });
     }
 
     const cleanUpdateData = Object.fromEntries(
@@ -96,7 +103,10 @@ export const deleteVendor = mutationWithRLS({
   handler: async (ctx, args) => {
     const vendor = await ctx.db.get(args.vendorId);
     if (!vendor) {
-      throw new Error('Vendor not found');
+      throw new ConvexError({
+        code: 'VENDOR_NOT_FOUND',
+        message: 'Vendor not found',
+      });
     }
 
     await assertNotHeld(

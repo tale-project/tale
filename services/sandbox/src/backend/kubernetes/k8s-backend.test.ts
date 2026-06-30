@@ -22,6 +22,7 @@ import {
   staleLifetimeCutoffMs,
 } from './k8s-backend.ts';
 import { podNameFor } from './k8s-pod-spec.ts';
+import { formatResultLine } from './k8s-protocol.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -230,7 +231,7 @@ function stubClient(behavior: {
   createSecret?: () => Promise<unknown>;
   createPod?: () => Promise<unknown>;
   readPod?: () => Promise<V1Pod>;
-  readLog?: () => Promise<string>;
+  readLog?: (params?: { container?: string }) => Promise<string>;
 }): { core: CoreV1Api; namespace: string; calls: StubCalls } {
   const calls: StubCalls = { deletes: [], replaces: 0 };
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
@@ -335,5 +336,167 @@ describe('duplicate-executionId safety', () => {
     expect(stub.calls.deletes).toContain(
       `secret:${secretNameFor(req.executionId)}`,
     );
+  });
+});
+
+// ---- log rotation: canonical stdout from polled deltas --------------------
+//
+// Verifies that when kubelet rotates the container log (the log byte-count
+// drops between polls), the canonical stdout is the head bytes accumulated
+// BEFORE rotation — not the mid-stream window the rotated file starts at.
+
+describe('stdout accumulation across kubelet log rotation', () => {
+  const harvestResultLine = formatResultLine({
+    exitCode: 0,
+    stderr: '',
+    stderrTruncated: false,
+    outputFiles: [],
+    truncatedFiles: 0,
+    uploadStats: { attempted: 0, succeeded: 0, failures: [] },
+    quotaExhausted: false,
+    uploadFailed: false,
+    reportFailed: false,
+    readFailed: false,
+    stageMs: 10,
+    harvestMs: 10,
+    uploadMs: 5,
+  });
+
+  // Pod fixture: runner running (used by waitForRunnerStart).
+  function runningPod(): V1Pod {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- partial V1Pod fixture
+    return {
+      metadata: {},
+      status: {
+        containerStatuses: [
+          { name: 'runner', state: { running: { startedAt: new Date() } } },
+          { name: 'harvest', state: { running: { startedAt: new Date() } } },
+        ],
+      },
+    } as V1Pod;
+  }
+
+  // Pod fixture: harvest terminated → main loop breaks.
+  function terminatedPod(): V1Pod {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- partial V1Pod fixture
+    return {
+      metadata: {},
+      status: {
+        phase: 'Succeeded',
+        containerStatuses: [
+          { name: 'runner', state: { terminated: { exitCode: 0 } } },
+          { name: 'harvest', state: { terminated: { exitCode: 0 } } },
+        ],
+      },
+    } as V1Pod;
+  }
+
+  test('pre-rotation head bytes are preserved; truncated.stdout is set', async () => {
+    // Runner emits 'AAAAA' (polled in main loop), then kubelet rotates so the
+    // log shrinks to 'BBB' (detected in the final poll after the loop exits).
+    // With the old code the final readPodLog returned 'BBB' as the canonical
+    // stdout. With the fix the canonical is 'AAAAA' (what was accumulated
+    // before the rotation), and truncated.stdout is set because logShrunk=true.
+    let readPodCount = 0;
+    let runnerLogCount = 0;
+    const stub = stubClient({
+      readPod: () => {
+        readPodCount += 1;
+        // waitForRunnerStart: first call sees runner running.
+        // Main loop: second call sees harvest terminated → immediate break.
+        return Promise.resolve(
+          readPodCount <= 1 ? runningPod() : terminatedPod(),
+        );
+      },
+      readLog: (p) => {
+        if (p?.container === 'harvest') {
+          return Promise.resolve(harvestResultLine);
+        }
+        // Runner log sequence: pre-rotation ('AAAAA') → rotation ('BBB',
+        // shorter, returned on the final poll after the loop exits).
+        runnerLogCount += 1;
+        if (runnerLogCount === 1) return Promise.resolve('AAAAA');
+        // Final poll after loop: kubelet has rotated — shorter than 'AAAAA'.
+        return Promise.resolve('BBB');
+      },
+    });
+    const backend = new KubernetesBackend(cfg, stub);
+    const res = await backend.execute(cfg, req, execOpts());
+
+    expect(res.status).toBe('completed');
+    const stdout = Buffer.from(res.stdoutBase64, 'base64').toString('utf8');
+    // Canonical stdout must be the pre-rotation head, not the rotated window.
+    expect(stdout).toBe('AAAAA');
+    expect(res.truncated.stdout).toBe(true);
+  });
+
+  test('post-rotation deltas are appended when cap has not been reached', async () => {
+    // Runner emits 6 bytes pre-rotation, then log rotates, then 4 more bytes
+    // appear in the new file. All 10 bytes fit under stdoutMaxBytes so both
+    // chunks should appear in the canonical output.
+    let readPodCount = 0;
+    let runnerLogCount = 0;
+    const stub = stubClient({
+      readPod: () => {
+        readPodCount += 1;
+        // waitForRunnerStart: first call → runner running.
+        // Main loop: second call → still running (so post-rotation poll fires).
+        // Third call: harvest terminated.
+        if (readPodCount <= 1) return Promise.resolve(runningPod());
+        if (readPodCount === 2) return Promise.resolve(runningPod());
+        return Promise.resolve(terminatedPod());
+      },
+      readLog: (p) => {
+        if (p?.container === 'harvest') {
+          return Promise.resolve(harvestResultLine);
+        }
+        runnerLogCount += 1;
+        // Call 1 (main-loop poll 1): pre-rotation content.
+        if (runnerLogCount === 1) return Promise.resolve('AAAAAA'); // 6 bytes
+        // Call 2 (main-loop poll 2): rotation — new file starts at 0.
+        if (runnerLogCount === 2) return Promise.resolve('BBBB'); // 4 bytes < 6 → rotation
+        // Call 3 (final poll): new file grew a bit more.
+        return Promise.resolve('BBBBBBBB'); // 8 bytes
+      },
+    });
+    const backend = new KubernetesBackend(cfg, stub);
+    const res = await backend.execute(cfg, req, execOpts());
+
+    expect(res.status).toBe('completed');
+    const stdout = Buffer.from(res.stdoutBase64, 'base64').toString('utf8');
+    // Pre-rotation 'AAAAAA' + post-rotation delta 'BBBBBBBB' (full new file on reset).
+    expect(stdout).toBe('AAAAAABBBBBBBB');
+    expect(res.truncated.stdout).toBe(true);
+  });
+
+  test('canonical accumulation is capped at stdoutMaxBytes; truncated.stdout is set', async () => {
+    // A tiny stdoutMaxBytes forces the cap branch: the runner emits more bytes
+    // than the cap, so only the first N are kept and truncated.stdout is set.
+    const cappedCfg: SpawnerConfig = { ...cfg, stdoutMaxBytes: 4 };
+    let readPodCount = 0;
+    const stub = stubClient({
+      readPod: () => {
+        readPodCount += 1;
+        // waitForRunnerStart sees runner running; main loop then breaks.
+        return Promise.resolve(
+          readPodCount <= 1 ? runningPod() : terminatedPod(),
+        );
+      },
+      readLog: (p) => {
+        if (p?.container === 'harvest') {
+          return Promise.resolve(harvestResultLine);
+        }
+        // 10 bytes of output, but the cap is 4.
+        return Promise.resolve('AAAAAAAAAA');
+      },
+    });
+    const backend = new KubernetesBackend(cappedCfg, stub);
+    const res = await backend.execute(cappedCfg, req, execOpts());
+
+    expect(res.status).toBe('completed');
+    const stdout = Buffer.from(res.stdoutBase64, 'base64').toString('utf8');
+    // Only the first 4 bytes are retained.
+    expect(stdout).toBe('AAAA');
+    expect(res.truncated.stdout).toBe(true);
   });
 });

@@ -10,7 +10,6 @@ import type { ProviderRow } from '../components/providers-table';
 
 interface ProvidersTableConfig {
   columns: ColumnDef<ProviderRow>[];
-  searchPlaceholder: string;
   stickyLayout: boolean;
   pageSize: number;
 }
@@ -59,7 +58,6 @@ export function useProvidersTableConfig(): ProvidersTableConfig {
 
   return {
     columns,
-    searchPlaceholder: t('providers.searchProvider'),
     stickyLayout: false,
     pageSize: 50,
   };

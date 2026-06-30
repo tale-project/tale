@@ -160,6 +160,27 @@ ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # off.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# Maximum reasoning effort by DEFAULT for the in-sandbox coding agent (drives
+# adaptive thinking at full depth on Opus-class models; a model without effort
+# support just ignores it). This lives in the daemon's process env, which the
+# exec manager uses as the LOWEST-precedence floor (`{ ...process.env,
+# ...envStore.resolve(req.env) }`), so a user-supplied CLAUDE_CODE_EFFORT_LEVEL
+# in the session env or per-exec overlay still wins. Deliberately NOT placed in
+# managed-settings.json — that layer is highest-precedence and would make the
+# default impossible to override.
+ENV CLAUDE_CODE_EFFORT_LEVEL=max
+# Apply max effort even when the gateway hands Claude Code a model id it does NOT
+# recognise as effort-capable. CC's built-in capability check matches exact names
+# (`claude-opus-4-8`, …); a gateway-aliased id (e.g. `anthropic/claude-opus-4-8`)
+# falls through and silently drops effort. This forces it on for any model.
+ENV CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1
+# Force-enable dynamic workflows ("ultracode") + subagent orchestration. The
+# feature is otherwise gated by a server/plan flag (tengu_workflows_enabled) that
+# does not resolve in the headless sandbox, so the agent would report "Ultracode
+# needs dynamic workflows enabled". Adaptive "ultrathinking" needs NO flag — it is
+# on by default on Opus-class models and driven to full depth by max effort; we
+# simply never set CLAUDE_CODE_DISABLE_THINKING / CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING.
+ENV CLAUDE_CODE_WORKFLOWS=1
 
 # --- coding-agent CLIs (pinned) ---------------------------------------------
 # Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).
@@ -185,6 +206,29 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
     && node -e "const fs=require('fs'); const p=require('/opt/agents/lib/node_modules/@playwright/mcp/node_modules/playwright-core'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)" \
     && chmod 1777 /opt/ms-playwright \
     && rm /tmp/install-playwright-browsers.sh
+
+# --- visual-aspect-analyzer builtin skill -----------------------------------
+# Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
+# tool) into the image so the thin pointer SKILL.md staged per turn (see convex
+# node_only/sandbox/integration_skills.ts) runs it with zero setup. Copied
+# straight from its skills/ source workspace — the dockerignore already drops
+# its tests, node_modules and tsbuildinfo, and a `*.md` negation keeps its
+# guides + examples.
+#
+# It does NOT install a second Playwright/Chromium: only its own pngjs runtime
+# dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
+# and `playwright` + `playwright-core` are symlinked to the copies the MCP
+# already installed above (@playwright/mcp bundles full playwright 1.61.x — the
+# version the skill targets). require.resolve locates them so the link survives
+# npm hoisting, and reusing that install means the skill reuses the MCP's
+# already-downloaded Chromium revision (no second ~150 MB browser).
+COPY skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
+RUN cd /opt/agents/skills/visual-aspect-analyzer \
+    && bun install --production \
+    && MCP=/opt/agents/lib/node_modules/@playwright/mcp \
+    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright/package.json',{paths:['$MCP']}))")" node_modules/playwright \
+    && ln -sfn "$(node -p "require('path').dirname(require.resolve('playwright-core/package.json',{paths:['$MCP']}))")" node_modules/playwright-core \
+    && node -e "const fs=require('fs'); const p=require('/opt/agents/skills/visual-aspect-analyzer/node_modules/playwright'); fs.accessSync(p.chromium.executablePath(), fs.constants.X_OK)"
 
 # OpenCode standalone binary (pinned). dpkg arch → release asset arch.
 RUN set -eux; \

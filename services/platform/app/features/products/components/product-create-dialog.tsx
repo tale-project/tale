@@ -15,6 +15,7 @@ import { type WizardStepMeta } from '@/app/components/ui/wizard/use-wizard';
 import { Wizard, WizardStep } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -156,8 +157,14 @@ export function ProductCreateDialog({
         },
         onError: (err) => {
           console.error('Create error:', err);
+          // Duck-typed code check — Vite chunk splitting can yield multiple
+          // ConvexError copies that break `instanceof` (see extract-error-code).
+          const isDuplicate =
+            extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME';
           toast({
-            title: tProducts('create.toast.error'),
+            title: isDuplicate
+              ? tProducts('create.toast.duplicateName')
+              : tProducts('create.toast.error'),
             variant: 'destructive',
           });
         },

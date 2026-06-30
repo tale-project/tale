@@ -24,7 +24,6 @@ import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -32,7 +31,9 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useExecutionProjection } from '../hooks/use-execution-projection';
+import { mapExecutionError } from '../lib/map-execution-error';
 import { OperatorView } from './operator-view';
+import { RerunButton } from './rerun-button';
 
 /** Terminal execution states — a re-run is offered only once a run has settled
  * (a still-running run is left alone; the concurrency guard refuses a second). */
@@ -42,41 +43,9 @@ const TERMINAL_STATUSES = new Set(['completed', 'failed']);
  * `cancelExecution` guard (it rejects any non-running/pending status). */
 const RUNNING_STATUSES = new Set(['running', 'pending']);
 
-function RerunButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
-  const { t } = useT('operator');
-  const { mutateAsync, isPending } = useConvexAction(
-    api.workflow_executions.actions.rerunExecution,
-  );
-
-  const run = async () => {
-    try {
-      const result = await mutateAsync({ executionId });
-      if (result.started) {
-        toast({ title: t('rerun.started'), variant: 'success' });
-      } else if (result.reason === 'already_running') {
-        toast({ title: t('rerun.alreadyRunning') });
-      } else {
-        toast({ title: t('rerun.notStarted'), variant: 'destructive' });
-      }
-    } catch (err) {
-      // The action throws on hard errors (not found / no workflow slug); surface
-      // the message rather than swallowing the rejection.
-      toast({
-        title: err instanceof Error ? err.message : t('rerun.notStarted'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <Button variant="secondary" disabled={isPending} onClick={() => void run()}>
-      {t('rerun.button')}
-    </Button>
-  );
-}
-
 function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
   const { t } = useT('operator');
+  const { t: tCommon } = useT('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { mutateAsync, isPending } = useConvexMutation(
     api.workflow_executions.mutations.cancelExecution,
@@ -87,10 +56,10 @@ function StopButton({ executionId }: { executionId: Id<'wfExecutions'> }) {
       await mutateAsync({ executionId });
       toast({ title: t('stop.stopped'), variant: 'success' });
     } catch (err) {
-      // cancelExecution throws if the run already settled (a race) — surface it
-      // rather than swallow.
+      // cancelExecution throws a structured code if the run already settled (a
+      // race) or is gone — map it rather than leak the raw ConvexError JSON.
       toast({
-        title: err instanceof Error ? err.message : t('stop.failed'),
+        title: mapExecutionError(err, tCommon, t('stop.failed')),
         variant: 'destructive',
       });
     } finally {

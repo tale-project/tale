@@ -10,6 +10,7 @@ import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { EXEC_SPEC_MOUNT_DIR, secretNameFor } from './exec-spec.ts';
 import { buildSandboxPod, podNameFor } from './k8s-pod-spec.ts';
+import { ATTEST_DIR, PRESTAGE_PATH } from './k8s-protocol.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -242,6 +243,28 @@ describe('buildSandboxPod', () => {
       const m = c.volumeMounts?.find((x) => x.name === 'workspace');
       expect(m?.mountPath).toBe('/user');
     }
+  });
+
+  test('SECURITY: stage attestation volume is mounted into stage + harvest, NEVER the runner', () => {
+    const pod = buildSandboxPod(cfg, goodInput);
+    // The attestation channel exists at Pod level as its own emptyDir...
+    const vol = pod.spec?.volumes?.find((v) => v.name === 'attest');
+    expect(vol?.emptyDir).toBeDefined();
+    // ...mounted into the trusted helpers that write/read the attestation...
+    for (const c of [stage(pod), harvest(pod)]) {
+      const m = c.volumeMounts?.find((x) => x.name === 'attest');
+      expect(m?.mountPath).toBe(ATTEST_DIR);
+    }
+    // ...and NOT into the runner: user code shares /user read-write, so an
+    // attestation there could be forged before harvest reads it. Keeping it on
+    // a runner-inaccessible volume is the integrity fix (issue #1847).
+    expect(
+      runner(pod).volumeMounts?.find((m) => m.name === 'attest'),
+    ).toBeUndefined();
+    // Belt-and-suspenders: the attestation path must live OFF the shared
+    // /user emptyDir entirely.
+    expect(PRESTAGE_PATH.startsWith('/user/')).toBe(false);
+    expect(PRESTAGE_PATH.startsWith(`${ATTEST_DIR}/`)).toBe(true);
   });
 
   test('workspace sizeLimit is operator-configurable', () => {

@@ -4,7 +4,7 @@ Tale marketing site
 
 ```bash
 bun run --filter @tale/web dev       # Vite dev server on :3001
-bun run --filter @tale/web build     # Production bundle
+bun run --filter @tale/web build     # client + SSR bundle, then prerender routes to static HTML
 bun run --filter @tale/web typecheck
 bun run --filter @tale/web test
 ```

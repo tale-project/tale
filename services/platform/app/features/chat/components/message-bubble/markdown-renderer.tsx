@@ -8,15 +8,8 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { useRouter } from '@tanstack/react-router';
-import {
-  Children,
-  ComponentPropsWithoutRef,
-  isValidElement,
-  memo,
-  MouseEvent,
-  ReactNode,
-  useState,
-} from 'react';
+import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
+import { Children, isValidElement, memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 

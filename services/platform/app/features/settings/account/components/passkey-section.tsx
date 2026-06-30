@@ -1,11 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
@@ -43,6 +46,11 @@ export function PasskeySection() {
   const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
 
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+  // Revoking a passkey is destructive (it can drop the user's only
+  // phishing-resistant second factor), so it confirms via `DeleteDialog`
+  // rather than firing on the row's click. Track the row pending revocation.
+  const [revokeTarget, setRevokeTarget] = useState<PasskeyRow | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const { data: passkeys, isLoading } = useQuery({
     queryKey: PASSKEYS_QUERY_KEY,
@@ -62,9 +70,13 @@ export function PasskeySection() {
     void queryClient.invalidateQueries({ queryKey: PASSKEYS_QUERY_KEY });
   }
 
-  async function revoke(id: string) {
+  async function confirmRevoke() {
+    if (!revokeTarget) return;
+    setIsRevoking(true);
     try {
-      const result = await authClient.passkey.deletePasskey({ id });
+      const result = await authClient.passkey.deletePasskey({
+        id: revokeTarget.id,
+      });
       if (result?.error) {
         toast({
           title: t('passkeys.errors.revokeFailed'),
@@ -74,11 +86,14 @@ export function PasskeySection() {
       }
       toast({ title: t('passkeys.revoked'), variant: 'success' });
       invalidate();
+      setRevokeTarget(null);
     } catch {
       toast({
         title: t('passkeys.errors.revokeFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsRevoking(false);
     }
   }
 
@@ -107,9 +122,12 @@ export function PasskeySection() {
                   {pk.name?.trim() || t('passkeys.unnamed')}
                 </Text>
               </VStack>
-              <Button variant="ghost" onClick={() => revoke(pk.id)}>
-                {t('passkeys.revokeButton')}
-              </Button>
+              <IconButton
+                icon={Trash2}
+                variant="ghost"
+                aria-label={t('passkeys.revokeButton')}
+                onClick={() => setRevokeTarget(pk)}
+              />
             </HStack>
           ))}
         </Stack>
@@ -128,6 +146,20 @@ export function PasskeySection() {
           toast({ title: t('passkeys.registered'), variant: 'success' });
           invalidate();
         }}
+      />
+
+      <DeleteDialog
+        open={revokeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRevokeTarget(null);
+        }}
+        title={t('passkeys.revokeConfirmTitle')}
+        description={t('passkeys.revokeConfirmDescription', {
+          name: revokeTarget?.name?.trim() || t('passkeys.unnamed'),
+        })}
+        deleteText={t('passkeys.revokeButton')}
+        isDeleting={isRevoking}
+        onDelete={() => void confirmRevoke()}
       />
     </SettingsSection>
   );

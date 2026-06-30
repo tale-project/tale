@@ -31,7 +31,12 @@ import {
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { emitEvent } from '../workflows/triggers/emit_event';
-import { ADMIN_ROLES, checkProjectAccess, isOrgWideProject } from './access';
+import {
+  ADMIN_ROLES,
+  checkProjectAccess,
+  isOrgWideProject,
+  normalizeSharing,
+} from './access';
 import { PROJECT_AUDIT_ACTIONS, PROJECT_RESOURCE_TYPE } from './audit_actions';
 import {
   projectIntegrationsModeValidator,
@@ -548,25 +553,35 @@ export const updateProjectSharing = mutation({
       args.teamId === null ? null : (args.teamId ?? project.teamId ?? null);
     validateSharing(effectiveTeamId, sharedWithTeamIds);
 
-    const patch: Partial<Doc<'projects'>> = { updatedAt: Date.now() };
     const previousState = {
       teamId: project.teamId ?? null,
       sharedWithTeamIds: project.sharedWithTeamIds ?? [],
     };
+
+    // Resolve the requested shares (fall back to the stored ones when the arg
+    // is omitted), then normalize: dropping the owning team (→ org-wide) clears
+    // the shared list so the project can't be left silently restricted to teams
+    // that the UI no longer surfaces. Without this, going "Org-wide" while
+    // `sharedWithTeamIds` is non-empty orphans those shares.
+    const requestedShared =
+      sharedWithTeamIds !== undefined
+        ? sharedWithTeamIds
+        : previousState.sharedWithTeamIds;
+    const normalized = normalizeSharing(effectiveTeamId, requestedShared);
+
     const newState = {
-      teamId: previousState.teamId,
-      sharedWithTeamIds: previousState.sharedWithTeamIds,
+      teamId: normalized.teamId,
+      sharedWithTeamIds: normalized.sharedWithTeamIds,
     };
 
-    if (args.teamId !== undefined) {
-      patch.teamId = args.teamId ?? undefined;
-      newState.teamId = args.teamId ?? null;
-    }
-    if (sharedWithTeamIds !== undefined) {
-      patch.sharedWithTeamIds =
-        sharedWithTeamIds.length > 0 ? sharedWithTeamIds : undefined;
-      newState.sharedWithTeamIds = sharedWithTeamIds;
-    }
+    const patch: Partial<Doc<'projects'>> = {
+      teamId: newState.teamId ?? undefined,
+      sharedWithTeamIds:
+        newState.sharedWithTeamIds.length > 0
+          ? newState.sharedWithTeamIds
+          : undefined,
+      updatedAt: Date.now(),
+    };
 
     await ctx.db.patch(args.projectId, patch);
 

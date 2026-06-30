@@ -90,6 +90,33 @@ describe('DataTable', () => {
     expect(screen.getByText('in_progress')).toBeVisible();
   });
 
+  it('shows a rowActions affordance in the actions column with no view actions', () => {
+    render(
+      <DataTable
+        rows={[{ _id: 'r1', title: 'Fix login', status: 'in_progress' }]}
+        columns={['title', 'status']}
+        rowActions={{
+          idField: '_id',
+          // What the failed-run wrapper does: render a re-run only on the rows
+          // that need it. Its presence alone makes the actions column appear.
+          render: (id) => <button type="button">rerun-{id}</button>,
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'rerun-r1' })).toBeVisible();
+  });
+
+  it('omits the rowActions affordance when its render returns nothing', () => {
+    render(
+      <DataTable
+        rows={[{ _id: 'r1', title: 'Fix login', status: 'todo' }]}
+        columns={['title', 'status']}
+        rowActions={{ idField: '_id', render: () => null }}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /rerun-/ })).toBeNull();
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = render(
       <DataTable

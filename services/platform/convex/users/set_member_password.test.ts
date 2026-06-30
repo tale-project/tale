@@ -52,6 +52,13 @@ vi.mock('convex/values', () => {
       null: stub,
       id: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : 'ConvexError');
+        this.data = data;
+      }
+    },
   };
 });
 
@@ -113,7 +120,9 @@ describe('setMemberPassword', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow('Unauthenticated');
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'unauthenticated' },
+    });
   });
 
   it('throws when password is invalid', async () => {
@@ -137,7 +146,7 @@ describe('setMemberPassword', () => {
 
     await expect(
       handler(ctx, { ...defaultArgs, newPassword: 'weak' }),
-    ).rejects.toThrow('Password does not meet policy');
+    ).rejects.toMatchObject({ data: { code: 'password_policy_violation' } });
   });
 
   it('throws when member not found', async () => {
@@ -147,7 +156,9 @@ describe('setMemberPassword', () => {
     ctx.runQuery.mockResolvedValueOnce({ page: [] });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow('Member not found');
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'not_found', message: 'Member not found' },
+    });
   });
 
   it('throws when caller is not admin', async () => {
@@ -171,9 +182,12 @@ describe('setMemberPassword', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Only admins can set member passwords',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: {
+        code: 'forbidden',
+        message: 'Only admins can set member passwords',
+      },
+    });
   });
 
   it('updates existing credential and invalidates all sessions', async () => {
