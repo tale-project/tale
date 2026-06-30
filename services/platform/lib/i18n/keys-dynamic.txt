@@ -43,6 +43,12 @@ notifications.dsarPolicyLoosenApplied
 notifications.dsarPolicyLoosenAppliedBody
 notifications.dsarPolicyLoosenCancelled
 notifications.dsarPolicyLoosenCancelledBody
+notifications.agentBudgetWarnTitle
+notifications.agentBudgetWarnBody
+notifications.agentBudgetExceededTitle
+notifications.agentBudgetExceededBody
+notifications.agentCircuitTrippedTitle
+notifications.agentCircuitTrippedBody
 
 # `tEntity('searchPlaceholder')` in app/hooks/use-table-config-factory.ts is
 # resolved against a runtime `entityNamespace` parameter — the regex scanner

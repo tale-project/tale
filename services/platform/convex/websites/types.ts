@@ -5,7 +5,7 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import { websiteStatusValidator, websiteValidator } from './validators';
+import type { websiteStatusValidator, websiteValidator } from './validators';
 
 // =============================================================================
 // INFERRED TYPES (from validators)

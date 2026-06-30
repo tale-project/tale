@@ -444,6 +444,10 @@ export function DataTable<TData, TValue = unknown>({
     if (!isDataLoading) {
       // Has data
       if (data.length > 0) return 'data';
+      // A filter narrowed the loaded rows to zero, but infinite-scroll is still
+      // draining backend pages — show loading, not "no results", so a match on
+      // an un-loaded page isn't prematurely reported as empty (#2054).
+      if (hasActiveFilters && infiniteScroll?.hasMore) return 'skeleton';
       // Has filters
       if (hasActiveFilters) return 'filtered-empty';
       // Has empty state
@@ -469,6 +473,7 @@ export function DataTable<TData, TValue = unknown>({
     data.length,
     emptyState,
     hasActiveFilters,
+    infiniteScroll?.hasMore,
   ]);
 
   const isSkeleton =

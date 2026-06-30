@@ -116,10 +116,14 @@ export const getRetentionBoundsAction = action({
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     const orgConfig = await loadOrgRetentionConfig(ctx, orgSlug);
     if (!orgConfig) {
-      throw new ConvexError({
-        code: 'RETENTION_CONFIG_MISSING',
-        message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json then reload.`,
-      });
+      // A not-yet-installed retention config is an expected empty state on
+      // normal page loads (e.g. a fresh org), not an error. Return empty
+      // bounds so the editor falls back to schema-level defaults instead of
+      // logging a RETENTION_CONFIG_MISSING ConvexError on every load.
+      return {
+        bounds: [],
+        retentionDisabled: isRetentionDisabled(),
+      };
     }
 
     let bounds;

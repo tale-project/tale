@@ -19,7 +19,7 @@ import {
 } from '../../lib/shared/schemas/password';
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 import { recordPasswordChange } from './password_metadata';
 
 export interface ResetOwnerArgs {

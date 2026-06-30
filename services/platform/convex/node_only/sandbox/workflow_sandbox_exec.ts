@@ -65,7 +65,10 @@ import {
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
-import { stageIntegrationSkills } from './integration_skills';
+import {
+  reconcileBuiltinSkills,
+  stageIntegrationSkills,
+} from './integration_skills';
 import {
   applyGatewayConfig,
   hashVirtualKey,
@@ -351,6 +354,34 @@ async function teardownAgentSession(
     console.warn('[runSandboxAgent] op cleanup failed:', e);
   }
 }
+
+/**
+ * User-Stop cascade for a workflow execution's sandbox. `cancelExecution`
+ * cancels the durable workflow but never touches the sandbox layer, so a
+ * stopped run's ephemeral `workflow_run` session(s) would otherwise keep a
+ * container running (burning agent budget) AND keep holding a per-org
+ * concurrency slot until the TTL reaper — wedging the org's capacity queue. This
+ * tears every live session for the execution down NOW: `sessionDestroy` kills
+ * the container (and with it the in-sandbox agent), the row flips to `destroyed`
+ * (which schedules a capacity wake so a parked waiter resumes immediately), the
+ * VK is revoked, and the checkpoint/op rows are dropped. Best-effort per session;
+ * scheduled (not awaited) by the cancel mutation so a teardown failure can never
+ * fail the user's Stop. Idempotent: no live sessions → no-op.
+ */
+export const cancelSandboxForExecution = internalAction({
+  args: { organizationId: v.string(), executionId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const sessions = await ctx.runQuery(
+      internal.sandbox.session_queries.listWorkflowRunSessionsForExecution,
+      { organizationId: args.organizationId, executionId: args.executionId },
+    );
+    for (const { sessionId } of sessions) {
+      await teardownAgentSession(ctx, args.organizationId, sessionId);
+    }
+    return null;
+  },
+});
 
 const inputArgValidator = v.array(
   v.object({
@@ -992,13 +1023,16 @@ export const runSandboxAgent = internalAction({
           );
         }
 
-        // 4. Stage the agent's bound integration skills (best-effort).
+        // 4. Stage the agent's bound integration skills (best-effort) and
+        // reconcile repo precedence for the image-baked builtin skills (the
+        // entrypoint symlinks those; this only drops ones the repo shadows).
         try {
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
             sessionId,
             nativeWebTools: byo || nativeWebTools === true,
           });
+          await reconcileBuiltinSkills(ctx, { sessionId });
         } catch (skillErr) {
           console.warn(
             '[runSandboxAgent] integration skill staging failed (continuing):',

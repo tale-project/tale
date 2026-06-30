@@ -1,5 +1,5 @@
 import { internal } from '../../_generated/api';
-import { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 
 /**
  * POST /api/sso/discover — given an email, report whether SSO is enabled and,

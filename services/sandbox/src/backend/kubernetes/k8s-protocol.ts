@@ -5,11 +5,20 @@
 //   - the runner writes its exit code to EXIT_CODE_PATH and redirects its
 //     stderr to STDERR_PATH (the K8s log API merges stdout+stderr, so stderr
 //     stays on disk and the runner's logs are clean stdout for phase parsing).
-//   - the stage initContainer writes PRESTAGE_PATH (attestation + stage timing).
-//   - the harvest container reads all three, uploads outputs, and prints ONE
-//     result line (`__TALE_RESULT__ {json}`) to its OWN stdout, which the
-//     owning spawner replica reads back via readNamespacedPodLog. No websocket,
-//     no cross-replica callback — the result rides the harvest container's logs.
+//     These are the runner's OWN outputs — it is free to write them.
+//   - the stage initContainer writes the prior-stage attestation to
+//     PRESTAGE_PATH and the harvest container reads it back. The attestation is
+//     an integrity claim the platform's PRE_STAGE_FAILED gate trusts, so it
+//     deliberately does NOT live on `/user`: that emptyDir is runner-writable
+//     (same uid, shared volume), so user code could forge priorStage / stageMs
+//     there. It sits on the dedicated ATTEST_DIR volume instead, mounted only
+//     into the trusted stage/harvest helpers — never the runner (see
+//     k8s-pod-spec.ts).
+//   - the harvest container reads exit-code/stderr + the attestation, uploads
+//     outputs, and prints ONE result line (`__TALE_RESULT__ {json}`) to its OWN
+//     stdout, which the owning spawner replica reads back via
+//     readNamespacedPodLog. No websocket, no cross-replica callback — the
+//     result rides the harvest container's logs.
 
 import type { OutputFile, PriorStageResult, UploadStats } from '../../types.ts';
 import type { SandboxStepResult } from '../../wire.ts';
@@ -17,7 +26,13 @@ import type { SandboxStepResult } from '../../wire.ts';
 export const TALE_DIR = '/user/.runtime/tale';
 export const EXIT_CODE_PATH = `${TALE_DIR}/exit-code`;
 export const STDERR_PATH = `${TALE_DIR}/stderr.log`;
-export const PRESTAGE_PATH = `${TALE_DIR}/prestage.json`;
+
+// The stage attestation lives on its OWN volume, NOT under `/user`. The runner
+// shares the `/user` emptyDir read-write, so an attestation there could be
+// forged by user code before harvest reads it; ATTEST_DIR is mounted only into
+// the trusted stage (writer) and harvest (reader) helpers (k8s-pod-spec.ts).
+export const ATTEST_DIR = '/attest';
+export const PRESTAGE_PATH = `${ATTEST_DIR}/prestage.json`;
 
 /** What the stage initContainer persists for the harvest container to forward. */
 export interface PrestageFile {

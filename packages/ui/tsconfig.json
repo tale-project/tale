@@ -1,16 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "esnext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "incremental": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom"],
-    "paths": {
-      "@/tests/*": ["./tests/*"],
-      "@/*": ["./src/*"]
-    }
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "src/**/*.ts",

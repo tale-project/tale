@@ -45,6 +45,25 @@ describe('replaceVariables', () => {
     expect(result).toBe('Candidates: [{"slug":"coder"}]');
   });
 
+  // Regression: the issue-desk merge-gate (`judge`) step embeds the reviewer's
+  // free-text summary via `{{steps.review.output.data.summary}}`. That summary
+  // can legitimately contain a `{{...}}` code snippet — e.g. a JSX/TanStack
+  // Router `activeOptions={{exact:true}}` quoted in the review. The old
+  // post-render guard misread that *substituted data* as an unresolved template
+  // and crashed the step with "Unresolved template after rendering". A resolved
+  // value's literal braces must render verbatim, not be treated as a template.
+  it('renders a resolved value containing literal {{braces}} verbatim', () => {
+    const summary =
+      'breadcrumb refactor (`activeOptions={{exact:true}}` suppresses aria-current)';
+    const result = replaceVariables(
+      'Reviewer summary for issue #{{n}}:\n\n{{review.summary}}\n\nReady?',
+      { n: 1994, review: { summary } },
+    );
+    expect(result).toBe(
+      `Reviewer summary for issue #1994:\n\n${summary}\n\nReady?`,
+    );
+  });
+
   it('still rejects a malformed template (unclosed tag)', () => {
     // A genuinely broken template is not silently swallowed — Mustache.parse
     // throws on an unclosed tag before any value resolution.

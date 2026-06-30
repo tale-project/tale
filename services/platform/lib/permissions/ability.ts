@@ -70,6 +70,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
       can('write', 'knowledgeWrite');
       // developers cannot manage org settings or members
       cannot('read', 'orgSettings');
+      cannot('write', 'orgSettings');
       cannot('write', 'members');
       // audit-log reads are admin-only (#1505)
       cannot('read', 'auditLogs');

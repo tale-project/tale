@@ -1,7 +1,8 @@
 'use client';
 
 import DOMPurify from 'dompurify';
-import { CSSProperties, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 

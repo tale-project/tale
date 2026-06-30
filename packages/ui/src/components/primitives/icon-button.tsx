@@ -2,16 +2,17 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { LucideIcon } from 'lucide-react';
+import type { ComponentPropsWithoutRef } from 'react';
 import {
   forwardRef,
-  ComponentPropsWithoutRef,
   cloneElement,
   isValidElement,
   type ReactElement,
 } from 'react';
 
 import { cn } from '../../lib/cn';
-import { Button, ButtonProps } from './button';
+import type { ButtonProps } from './button';
+import { Button } from './button';
 
 const iconSizeVariants = cva('', {
   variants: {

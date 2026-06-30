@@ -179,6 +179,7 @@ export function Dialog({
             />
           )}
           <DialogPrimitive.Content
+            aria-modal="true"
             className={cn(dialogContentVariants({ size }), className)}
             onClick={(e) => e.stopPropagation()}
             {...(customHeader || !description

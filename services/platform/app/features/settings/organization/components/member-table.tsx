@@ -80,9 +80,9 @@ export function MemberTable({
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       // Multi-row select — canonical 40px column. Enables bulk-remove via
-      // the `BulkDeleteBar` footer. Note: `removeMember` doesn't cascade
-      // to better-auth; bulk-remove of org owners would partial-fail and
-      // the bar surfaces a destructive toast for the failed ids.
+      // the `BulkDeleteBar` footer. Selection of the current-user row and
+      // the owner row is gated by `enableRowSelection` below, so neither a
+      // self-removal nor an always-failing owner row can enter a batch.
       createSelectColumn<Member>(),
       {
         id: 'member',
@@ -165,7 +165,16 @@ export function MemberTable({
       getRowId={(row) => row._id}
       isLoading={isLoading}
       approxRowCount={approxRowCount}
-      enableRowSelection
+      // Mirror the single-row Delete gating (`member-row-actions.tsx`): the
+      // current user's own row and the owner row are not selectable for
+      // bulk-remove. Self-removal is a self-lockout + irreversible
+      // personalization wipe, and the owner is backend-protected (a bulk
+      // batch including it would partial-fail). The backend `removeMember`
+      // enforces both as defense in depth.
+      enableRowSelection={(row) =>
+        row.original._id !== memberContext?.member?._id &&
+        row.original.role?.toLowerCase() !== 'owner'
+      }
       rowSelection={rowSelection}
       onRowSelectionChange={setRowSelection}
       pagination={{

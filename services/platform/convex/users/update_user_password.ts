@@ -11,7 +11,7 @@ import {
 } from '../../lib/shared/schemas/password';
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
-import { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../_generated/server';
 import { hasCredentialAccount } from '../accounts/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
 import { createAuth, authComponent } from '../auth';

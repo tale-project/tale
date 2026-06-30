@@ -46,6 +46,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       id: providedId,
       onFocus,
       onBlur,
+      placeholder,
+      'aria-label': ariaLabel,
       ...props
     },
     ref,
@@ -61,6 +63,12 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         .join(' ') || undefined;
     const [showShake, setShowShake] = useState(false);
     const [isReadOnly, setIsReadOnly] = useState(true);
+
+    // A placeholder is not an accessible name (it disappears on input and is
+    // unreliably announced). When there's no visible <Label> and no explicit
+    // aria-label, fall back to the placeholder so the input always exposes a
+    // programmatic accessible name (WCAG 4.1.2).
+    const accessibleName = ariaLabel ?? (label ? undefined : placeholder);
 
     useEffect(() => {
       if (hasError) {
@@ -112,6 +120,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
               className,
             )}
             required={required}
+            placeholder={placeholder}
+            aria-label={accessibleName}
             aria-invalid={hasError || undefined}
             aria-describedby={describedBy}
             aria-errormessage={hasError ? errorId : undefined}

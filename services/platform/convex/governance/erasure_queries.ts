@@ -17,7 +17,7 @@
  */
 
 import { paginationOptsValidator } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
@@ -45,11 +45,17 @@ async function requireAdmin(
 ): Promise<{ userId: string; role: string }> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthenticated',
+    });
   }
   const member = await getOrganizationMember(ctx, organizationId, authUser);
   if (!isAdmin(member.role)) {
-    throw new Error('Admin role required.');
+    throw new ConvexError({
+      code: 'FORBIDDEN',
+      message: 'Admin role required.',
+    });
   }
   return { userId: authUser.userId, role: member.role };
 }

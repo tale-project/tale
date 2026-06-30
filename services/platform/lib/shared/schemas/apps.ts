@@ -58,6 +58,10 @@ export const appManifestSchema = z
               /** Optional input placeholder (pack-label key) — a format hint,
                *  e.g. "owner/repo or https://github.com/owner/repo". */
               placeholderKey: z.string().optional(),
+              /** Render a multi-line textarea instead of a single-line input —
+               *  for free-text fields like per-repo notes. `type` stays
+               *  `'string'`; this is purely a presentation hint. */
+              multiline: z.boolean().optional(),
               /**
                * Optional derivation: collect this field as ONE input, then split
                * the entered string into several stored keys via a regex. `pattern`

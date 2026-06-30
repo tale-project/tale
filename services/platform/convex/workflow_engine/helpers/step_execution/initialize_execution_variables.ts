@@ -4,13 +4,13 @@
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
-import { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 import { serializeVariables } from '../serialization/serialize_variables';
 import { decryptAndMergeSecrets } from './decrypt_and_merge_secrets';
 import { extractLoopVariables } from './extract_loop_variables';
 import { extractStepsWithOutputs } from './extract_steps_with_outputs';
-import {
+import type {
   ExecutionData,
   WorkflowConfig,
   InitializeVariablesArgs,

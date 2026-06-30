@@ -9,7 +9,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
-import { api } from '@/convex/_generated/api';
+import type { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
