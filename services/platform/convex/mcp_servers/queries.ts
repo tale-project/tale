@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 
 export const list = query({
   args: {
@@ -52,6 +53,7 @@ export const list = query({
 export const getById = query({
   args: {
     id: v.id('mcpServers'),
+    organizationId: v.string(),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
@@ -59,7 +61,10 @@ export const getById = query({
     if (!authUser) return null;
 
     const server = await ctx.db.get(args.id);
-    if (!server) return null;
+    // Active-org coherence: deny a server carried over from another org.
+    if (!server || !isActiveOrg(server.organizationId, args.organizationId)) {
+      return null;
+    }
 
     try {
       await getOrganizationMember(ctx, server.organizationId, authUser);

@@ -2,7 +2,6 @@
 
 import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
-import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
@@ -282,9 +281,16 @@ export function DocumentPreviewDialog({
       className="flex h-[85vh] flex-col overflow-hidden p-0 sm:p-0"
       customHeader={
         <Row gap={0} justify="between" className="max-h-[4.5rem] p-5">
-          <Heading level={2} tracking="tight" className="leading-none">
+          {/* Visible title only — the dialog's single accessible heading is the
+              visually-hidden `DialogTitle` the `Dialog` renders from `title`.
+              Rendering this as a heading too would expose "Document preview"
+              twice to assistive tech, so keep it a plain styled span. */}
+          <Text
+            as="span"
+            className="text-foreground text-base leading-none font-semibold tracking-tight"
+          >
             {t('preview.title')}
-          </Heading>
+          </Text>
 
           <ActionRow gap={2}>
             {resolvedUrl && (

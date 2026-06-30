@@ -17,6 +17,7 @@ import { Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import {
   DataTableFilters,
   type FilterConfig,
@@ -333,9 +334,11 @@ export function TrashPage({ organizationId }: Props) {
                             </span>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-xs">
-                            {formatRelative(
-                              row.statusChangedAt ?? row.createdAt,
-                            )}
+                            <TableDateCell
+                              date={row.statusChangedAt ?? row.createdAt}
+                              preset="relative"
+                              className="text-xs"
+                            />
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -439,15 +442,4 @@ export function TrashPage({ organizationId }: Props) {
       </ConfirmDialog>
     </>
   );
-}
-
-function formatRelative(ms: number): string {
-  const elapsedMs = Date.now() - ms;
-  if (elapsedMs < 60_000) return 'just now';
-  const days = Math.floor(elapsedMs / 86_400_000);
-  if (days >= 1) return `${days}d ago`;
-  const hours = Math.floor(elapsedMs / 3_600_000);
-  if (hours >= 1) return `${hours}h ago`;
-  const minutes = Math.floor(elapsedMs / 60_000);
-  return `${minutes}m ago`;
 }

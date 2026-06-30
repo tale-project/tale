@@ -4,11 +4,11 @@
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { internal } from '../../../_generated/api';
-import { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { deserializeVariablesInAction } from '../../helpers/serialization/deserialize_variables';
-import { LoadExecutionResult } from './types';
+import type { LoadExecutionResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

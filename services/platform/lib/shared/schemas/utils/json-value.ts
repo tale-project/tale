@@ -1,4 +1,4 @@
-import { v, Infer } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
 export const jsonValueValidator = v.any();
 

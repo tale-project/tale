@@ -5,6 +5,7 @@ import {
   getProjectTeamIds,
   hasProjectAccess,
   isOrgWideProject,
+  normalizeSharing,
 } from './access';
 
 describe('getProjectTeamIds', () => {
@@ -60,6 +61,45 @@ describe('isOrgWideProject', () => {
   it('returns false when project has any team', () => {
     expect(isOrgWideProject({ teamId: 'team-1' })).toBe(false);
     expect(isOrgWideProject({ sharedWithTeamIds: ['team-2'] })).toBe(false);
+  });
+});
+
+describe('normalizeSharing', () => {
+  it('clears shared teams when going org-wide (no owning team)', () => {
+    // The bug: switching the owning team to "Org-wide" used to keep
+    // `sharedWithTeamIds`, leaving the project restricted to those teams while
+    // the UI showed "Org-wide".
+    expect(normalizeSharing(null, ['team-b'])).toEqual({
+      teamId: null,
+      sharedWithTeamIds: [],
+    });
+  });
+
+  it('leaves an already org-wide project org-wide', () => {
+    expect(normalizeSharing(null, [])).toEqual({
+      teamId: null,
+      sharedWithTeamIds: [],
+    });
+  });
+
+  it('preserves shared teams when an owning team is set', () => {
+    expect(normalizeSharing('team-a', ['team-b', 'team-c'])).toEqual({
+      teamId: 'team-a',
+      sharedWithTeamIds: ['team-b', 'team-c'],
+    });
+  });
+
+  it('keeps an owning team with no shares unchanged', () => {
+    expect(normalizeSharing('team-a', [])).toEqual({
+      teamId: 'team-a',
+      sharedWithTeamIds: [],
+    });
+  });
+
+  it('result is genuinely org-wide per isOrgWideProject', () => {
+    const normalized = normalizeSharing(null, ['team-b']);
+    expect(isOrgWideProject(normalized)).toBe(true);
+    expect(getProjectTeamIds(normalized)).toEqual([]);
   });
 });
 

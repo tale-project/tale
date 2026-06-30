@@ -176,19 +176,35 @@ export const deleteOldLogs = internalMutation({
         break;
       }
 
-      // Skip rows whose actor OR user-typed resource is on a custodian
-      // hold. Cross-cutting iteration: we keep paging until we find a
-      // deletable row OR exhaust this batch. (`hasMore` below uses
-      // `deletedCount` rather than scanned count, so a window full of
-      // protected rows correctly reports `hasMore: false` when nothing
-      // was deletable in this slice — the cleanup will revisit later.)
+      // Custodian-hold preservation (FRCP 37(e)): a held user's audit
+      // rows — as the `actorId` OR as a user-typed resource target —
+      // must survive past their retention age. STOP the deletion sweep
+      // at the first protected row instead of skipping past it.
+      //
+      // Deleting only the contiguous unprotected PREFIX keeps the
+      // surviving hash chain contiguous by construction: every retained
+      // row's `previousHash` still references either another retained
+      // row or the checkpoint's `lastDeletedHash`. The earlier per-row
+      // `continue` stranded protected rows as non-contiguous islands —
+      // a survivor's `previousHash` pointed at a now-deleted neighbour —
+      // so the next integrity run deterministically reported a false
+      // "hash chain broken" tamper alarm (#1844). The verifier
+      // re-anchors via checkpoint only at the chain head and demands
+      // strict contiguity thereafter, with no mid-chain re-anchor.
+      //
+      // The cost — unprotected rows BEHIND a held row outlive their
+      // retention window until the hold is released — is the same trade
+      // the org-wide-hold branch in retention_cleanup.ts already makes,
+      // and is defensible: preservation duty trumps routine retention.
+      // The sweep resumes deleting that backlog automatically once the
+      // hold is lifted and the row is no longer protected.
       const targetIsHeldUser =
         (log.resourceType === 'user' ||
           log.resourceType === 'userMembership') &&
         log.resourceId !== undefined &&
         protectedUserIds.has(log.resourceId);
       if (protectedUserIds.has(log.actorId) || targetIsHeldUser) {
-        continue;
+        break;
       }
 
       // Track the chain head we're deleting so the checkpoint can

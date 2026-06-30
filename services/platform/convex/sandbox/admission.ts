@@ -17,6 +17,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { readSandboxQuotaPolicy } from './quota_policy';
@@ -290,6 +291,29 @@ export async function assertFifoEligible(
   }
 }
 
+/** Best-effort capacity wake scheduled (never inline) from the admission gate
+ * itself — the ARRIVAL/REAP-edge twin of the slot-release wakes in
+ * `session_mutations`/`internal_mutations`. A fresh waiter that parks while a
+ * slot is OPEN, and a reaper pass that frees a wedged FIFO head, both kick the
+ * open slots here so the queue can never freeze waiting on a release event that
+ * never arrives. Routed via the scheduler ref (not a value import) so sandbox/*
+ * never imports workflow_engine/engine (no import cycle). `wakeHeadWaiters`
+ * self-gates — it no-ops when no slot is open and skips dead/terminal heads — so
+ * an over-eager nudge is cheap. No-op on empty org / non-positive count. */
+async function scheduleCapacityWake(
+  ctx: MutationCtx,
+  organizationId: string,
+  kind: AdmissionKind,
+  count: number,
+): Promise<void> {
+  if (!organizationId || count <= 0) return;
+  await ctx.scheduler.runAfter(
+    0,
+    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
+    { organizationId, kind, count },
+  );
+}
+
 // --- mutations -------------------------------------------------------------
 
 /** Early admission gate + liveness heartbeat for a parking caller. Upserts the
@@ -329,10 +353,16 @@ export const pollAdmission = internalMutation({
       ticketCreatedAt,
       slotsOpen,
     );
-    return {
-      verdict: rank < slotsOpen ? ('admit' as const) : ('wait' as const),
-      ticketCreatedAt,
-    };
+    if (rank < slotsOpen) return { verdict: 'admit' as const, ticketCreatedAt };
+    // Parking with slots OPEN means an earlier waiter SHOULD already be running
+    // but isn't — its release-wake was lost, or its FIFO head is wedged. Self-
+    // heal on this ARRIVAL edge: kick the open slots so the queue can never
+    // freeze with capacity sitting idle behind a parked head. This is the event-
+    // driven twin of the slot-release wakes; it's what frees a parked step from
+    // depending on a single release event that may never come (the awaitEvent it
+    // blocks on has no timeout).
+    await scheduleCapacityWake(ctx, args.organizationId, args.kind, slotsOpen);
+    return { verdict: 'wait' as const, ticketCreatedAt };
   },
 });
 
@@ -373,13 +403,50 @@ export const deleteAdmissionTicket = internalMutation({
   },
 });
 
-/** Reaper (5-min cron, sibling of `recoverStuckSessions`). Deletes tickets whose
- * `lastSeenAt` went stale: a WAITING ticket whose poll-chain died (the workflow
- * step / chat turn that owned it is gone) would otherwise wedge the org's FIFO
- * head forever — and under indefinite-wait this staleness sweep is the ONLY
- * guard against permanent queue-head starvation. Stale ADMITTED tickets are
- * orphans whose claimer died after the claim (their slot row is reclaimed by
- * `recoverStuckSessions` / the exec watchdog); drop them too. */
+/** Per-tick scan bound. Workflow tickets are no longer staleness-refreshed (they
+ * have no heartbeat), so they ALL fall in the stale range and get walked every
+ * run; cap the scan so one busy org can't blow the mutation's read budget —
+ * leftovers are picked up on the next run. */
+const ADMISSION_REAP_SCAN_LIMIT = 1_000;
+
+/** Backstop nudge size: ask the wake to fill EVERY currently-open slot (it caps
+ * internally at the live open-slot count and its own per-call ceiling, so this
+ * is an upper bound, not a fan-out). The reaper is the last-resort liveness net
+ * riding the EXISTING cron — not a new reconcile loop — so it asks for "all open
+ * slots", not the single slot a release frees. */
+const ADMISSION_BACKSTOP_WAKE_COUNT = 16;
+
+/** A `workflow` ticket's owner is dead when its execution is gone or terminal —
+ * the DURABLE signal that replaces the staleness timer for the event-driven
+ * park. A parked step blocks on `awaitEvent` and never re-stamps `lastSeenAt`,
+ * so a stale timestamp means "still waiting", not "dead"; only a terminal/missing
+ * execution is a real death. This is what lets the per-tick reconcile heartbeat
+ * cron go away: a parked-but-running step keeps its ticket with no refresh. */
+async function workflowTicketOwnerIsDead(
+  ctx: MutationCtx,
+  ticket: Doc<'sandboxAdmissionTickets'>,
+): Promise<boolean> {
+  if (!ticket.wfExecutionId) return true;
+  const execId = ctx.db.normalizeId('wfExecutions', ticket.wfExecutionId);
+  if (!execId) return true;
+  const execution = await ctx.db.get(execId);
+  if (!execution) return true;
+  return execution.status === 'completed' || execution.status === 'failed';
+}
+
+/** Reaper (2-min cron, sibling of `recoverStuckSessions`). Deletes tickets whose
+ * owner is gone — otherwise a dead ticket wedges the org's FIFO head forever, and
+ * under indefinite-wait this is the ONLY guard against permanent queue-head
+ * starvation. The "owner is gone" signal differs BY SOURCE:
+ *  - `chat`: self-polls every poll-backoff, so a `lastSeenAt` older than the
+ *    staleness window means the poll-chain died → reap.
+ *  - `workflow`: event-driven (blocks on `awaitEvent`, never re-polls), so
+ *    staleness is meaningless — reap only when the owning EXECUTION is
+ *    terminal/missing. This durable check is why there is no reconcile/heartbeat
+ *    cron: a parked-but-running step keeps its ticket with no periodic refresh,
+ *    and the event-driven slot-release wake resumes it directly.
+ * The index range still scans on the staleness cutoff (workflow tickets all fall
+ * in it, having no heartbeat); the per-source test decides the actual reap. */
 export const recoverStuckAdmissionTickets = internalMutation({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.id('sandboxAdmissionTickets')),
@@ -388,16 +455,66 @@ export const recoverStuckAdmissionTickets = internalMutation({
     const limit = args.limit ?? 100;
     const cutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;
     const reaped: Id<'sandboxAdmissionTickets'>[] = [];
+    // (kind, org) pairs to nudge once the scan finishes — deduped so one busy org
+    // schedules at most one wake per kind. Two reasons to nudge:
+    //  - REAP edge: deleting a dead FIFO head must let the live waiters behind it
+    //    advance (the head was hogging the queue's attention, not a slot).
+    //  - BACKSTOP: a LIVE parked workflow waiter whose org has an open slot but
+    //    whose release/arrival wake was lost would otherwise sleep forever (its
+    //    awaitEvent has no timeout). This is the last-resort liveness net, riding
+    //    the EXISTING reaper cron rather than a new reconcile loop.
+    // `wakeHeadWaiters` self-gates (no-op when no slot is open, skips dead heads),
+    // so nudging every scanned org is cheap and usually a no-op.
+    const toWake = new Map<
+      string,
+      { kind: AdmissionKind; organizationId: string }
+    >();
+    const remember = (kind: AdmissionKind, organizationId: string): void => {
+      if (organizationId) {
+        toWake.set(`${kind} ${organizationId}`, { kind, organizationId });
+      }
+    };
+    let scanned = 0;
+    let bound = false;
     for (const status of ['waiting', 'admitted'] as const) {
+      if (bound) break;
       for await (const t of ctx.db
         .query('sandboxAdmissionTickets')
         .withIndex('by_status_lastSeen', (q) =>
           q.eq('status', status).lt('lastSeenAt', cutoff),
         )) {
+        if (scanned >= ADMISSION_REAP_SCAN_LIMIT) {
+          bound = true;
+          break;
+        }
+        scanned += 1;
+        // Workflow tickets reap on execution-terminal, not the staleness timer:
+        // spare a still-running parked step (it just isn't self-polling) - but
+        // remember its (kind, org) so the backstop nudge can still reach it.
+        if (
+          t.source === 'workflow' &&
+          !(await workflowTicketOwnerIsDead(ctx, t))
+        ) {
+          if (status === 'waiting') remember(t.kind, t.organizationId);
+          continue;
+        }
         await ctx.db.delete(t._id);
         reaped.push(t._id);
-        if (reaped.length >= limit) return reaped;
+        remember(t.kind, t.organizationId);
+        if (reaped.length >= limit) {
+          bound = true;
+          break;
+        }
       }
+    }
+    // Schedule the deduped nudges last so a wake failure can't abort the reap.
+    for (const { kind, organizationId } of toWake.values()) {
+      await scheduleCapacityWake(
+        ctx,
+        organizationId,
+        kind,
+        ADMISSION_BACKSTOP_WAKE_COUNT,
+      );
     }
     return reaped;
   },

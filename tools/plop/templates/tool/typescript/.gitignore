@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# Environment files - NEVER commit secrets!
+.env
+.env.local
+.env.*.local

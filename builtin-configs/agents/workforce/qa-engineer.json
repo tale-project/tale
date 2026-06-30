@@ -4,6 +4,7 @@
     "labels": ["Engineering", "Quality"],
     "autoInstall": false
   },
+  "skillBindings": ["review-code", "test-code", "write-notes"],
   "toolNames": [
     "run_code",
     "file_read",

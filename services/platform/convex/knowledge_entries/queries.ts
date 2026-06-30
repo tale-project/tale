@@ -17,6 +17,7 @@ import {
 } from '../documents/get_document_rag_projection';
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 export interface KnowledgeEntryItem extends Doc<'knowledgeEntries'> {
@@ -116,6 +117,7 @@ export const listKnowledgeEntriesPaginated = query({
 export const getKnowledgeEntryVersions = query({
   args: {
     entryId: v.id('knowledgeEntries'),
+    organizationId: v.string(),
   },
   handler: async (
     ctx,
@@ -128,7 +130,14 @@ export const getKnowledgeEntryVersions = query({
     if (!authUser) return null;
 
     const entry = await ctx.db.get(args.entryId);
-    if (!entry || entry.deletedAt !== undefined) return null;
+    // Active-org coherence: deny an entry carried over from another org.
+    if (
+      !entry ||
+      entry.deletedAt !== undefined ||
+      !isActiveOrg(entry.organizationId, args.organizationId)
+    ) {
+      return null;
+    }
 
     try {
       await getOrganizationMember(ctx, entry.organizationId, authUser);

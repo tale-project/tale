@@ -10,7 +10,7 @@ import {
   useMarkNotificationRead as useMarkMyNotificationRead,
 } from '@/app/features/inbox/hooks/mutations';
 import {
-  useMyNotifications,
+  useMyNotificationsList,
   useUnreadNotificationCount,
 } from '@/app/features/inbox/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -84,8 +84,13 @@ export function NotificationListPanel({
 
   // The PERSONAL stream (review requests, escalations, task pings) renders
   // interleaved with the org stream — one panel for everything, with inline
-  // review actions and task deep links.
-  const { notifications: myNotifications } = useMyNotifications(organizationId);
+  // review actions and task deep links. It is paginated like the org stream so
+  // "Load more" walks both, rather than capping the personal inbox.
+  const {
+    results: myNotifications,
+    status: myStatus,
+    loadMore: loadMoreMy,
+  } = useMyNotificationsList(organizationId);
   const myUnread = useUnreadNotificationCount(organizationId);
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
@@ -175,8 +180,15 @@ export function NotificationListPanel({
     [myNotifications, hiddenIds, filter],
   );
   const unreadCount = (unread ?? 0) + myUnread;
-  const canLoadMore = status === 'CanLoadMore';
-  const isLoadingMore = status === 'LoadingMore';
+  // Drive one "Load more" affordance off BOTH streams: it's enabled while
+  // either has another page, shows progress while either is fetching, and a
+  // click advances every stream that still has more.
+  const canLoadMore = status === 'CanLoadMore' || myStatus === 'CanLoadMore';
+  const isLoadingMore = status === 'LoadingMore' || myStatus === 'LoadingMore';
+  const handleLoadMore = useCallback(() => {
+    if (status === 'CanLoadMore') loadMore(LOAD_MORE_NUM_ITEMS);
+    if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
+  }, [status, loadMore, myStatus, loadMoreMy]);
 
   return (
     <div className={cn('flex h-[24rem] flex-col', className)}>
@@ -229,7 +241,7 @@ export function NotificationListPanel({
       </div>
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 && myItems.length === 0 ? (
-          status === 'LoadingFirstPage' ? (
+          status === 'LoadingFirstPage' || myStatus === 'LoadingFirstPage' ? (
             // Short-lived async load — a centered spinner + label reads
             // cleaner than a fake-content skeleton when items typically
             // arrive in under a second.
@@ -335,7 +347,7 @@ export function NotificationListPanel({
               variant="ghost"
               className="w-full"
               disabled={!canLoadMore}
-              onClick={() => loadMore(LOAD_MORE_NUM_ITEMS)}
+              onClick={handleLoadMore}
             >
               {isLoadingMore ? t('loading') : t('loadMore')}
             </Button>

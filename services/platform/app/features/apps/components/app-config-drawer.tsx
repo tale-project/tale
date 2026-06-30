@@ -20,6 +20,7 @@ export function AppConfigDrawer({
   onOpenChange,
   organizationId,
   appSlug,
+  projectId,
   fields,
   config,
   resolveLabel,
@@ -28,6 +29,9 @@ export function AppConfigDrawer({
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   appSlug: string;
+  /** Bound project for a project-scoped app — forwarded so config saves
+   *  per-project. Undefined for org-scoped apps. */
+  projectId?: string;
   fields: AppConfigField[];
   config: Record<string, unknown>;
   resolveLabel: (labelKey: string) => string;
@@ -52,6 +56,7 @@ export function AppConfigDrawer({
           <AppConfigForm
             organizationId={organizationId}
             appSlug={appSlug}
+            projectId={projectId}
             fields={fields}
             config={config}
             resolveLabel={resolveLabel}

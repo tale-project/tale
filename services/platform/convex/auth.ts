@@ -19,7 +19,7 @@ import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
 import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
-import { DataModel } from './_generated/dataModel';
+import type { DataModel } from './_generated/dataModel';
 import authConfig from './auth.config';
 import authSchema from './betterAuth/schema';
 import {

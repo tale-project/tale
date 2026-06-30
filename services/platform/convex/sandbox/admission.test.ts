@@ -60,6 +60,8 @@ async function seedWaitingTicket(
   ownerId: string,
   createdAt: number,
   lastSeenAt = Date.now(),
+  source: 'chat' | 'workflow' = 'workflow',
+  wfExecutionId?: string,
 ): Promise<void> {
   await t.run((ctx) =>
     ctx.db.insert('sandboxAdmissionTickets', {
@@ -67,10 +69,29 @@ async function seedWaitingTicket(
       kind: 'session',
       ownerType: 'workflow_run',
       ownerId,
-      source: 'workflow',
+      source,
       status: 'waiting',
       createdAt,
       lastSeenAt,
+      ...(wfExecutionId !== undefined && { wfExecutionId }),
+    }),
+  );
+}
+
+/** Insert a wfExecutions row and return its id (so a workflow ticket can point
+ * its `wfExecutionId` at a running/terminal owner for the reaper). */
+async function seedOwnerExec(
+  t: T,
+  status: 'running' | 'completed' | 'failed',
+): Promise<string> {
+  return t.run((ctx) =>
+    ctx.db.insert('wfExecutions', {
+      organizationId: ORG,
+      wfDefinitionId: 'issue-desk/desk-process',
+      status,
+      currentStepSlug: 'implement',
+      startedAt: 1_000,
+      updatedAt: 1_000,
     }),
   );
 }
@@ -94,6 +115,30 @@ async function ticketsForOwner(t: T, ownerId: string) {
       )
       .collect(),
   );
+}
+
+/** The `wakeHeadWaiters` nudges queued by the arrival/reaper edges (read off the
+ * `_scheduled_functions` system table; we never run them — the wake imports the
+ * workflow component, which isn't wired in unit tests). */
+async function scheduledWakes(
+  t: T,
+): Promise<Array<{ organizationId: string; kind: string; count: number }>> {
+  return t.run(async (ctx) => {
+    const fns = await ctx.db.system.query('_scheduled_functions').collect();
+    return (
+      fns
+        .filter((fn) => fn.name.includes('wakeHeadWaiters'))
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- _scheduled_functions.args is any[]
+        .map(
+          (fn) =>
+            fn.args[0] as {
+              organizationId: string;
+              kind: string;
+              count: number;
+            },
+        )
+    );
+  });
 }
 
 describe('pollAdmission verdict math', () => {
@@ -132,6 +177,46 @@ describe('FIFO ordering', () => {
     // The older owner polls: rank 0 < slotsOpen 1 → admit.
     const older = await poll(t, 'owner_old');
     expect(older.verdict).toBe('admit');
+  });
+});
+
+describe('arrival-wake (self-heal on a fresh park)', () => {
+  it('schedules a capacity wake when it parks with a slot still open', async () => {
+    const t = convexTest(schema, modules);
+    // One slot open (cap 2, one active holder) and an older waiter ahead, so the
+    // newcomer parks even though capacity is free — exactly the state that would
+    // otherwise freeze if the older head's release wake were lost.
+    await seedActiveSession(t, 'holder');
+    await seedWaitingTicket(t, 'owner_old', 1_000);
+
+    const res = await poll(t, 'owner_new');
+    expect(res.verdict).toBe('wait');
+
+    const wakes = await scheduledWakes(t);
+    expect(wakes).toHaveLength(1);
+    expect(wakes[0]).toMatchObject({
+      organizationId: ORG,
+      kind: 'session',
+      count: 1, // slotsOpen
+    });
+  });
+
+  it('schedules NO wake when the org is genuinely full', async () => {
+    const t = convexTest(schema, modules);
+    for (let i = 0; i < SESSION_CAP; i++) {
+      await seedActiveSession(t, `holder_${i}`);
+    }
+    const res = await poll(t, 'owner_a');
+    expect(res.verdict).toBe('wait');
+    // slotsOpen <= 0 → nothing to wake; an over-eager nudge would be wasteful.
+    expect(await scheduledWakes(t)).toHaveLength(0);
+  });
+
+  it('schedules NO wake when it is admitted directly', async () => {
+    const t = convexTest(schema, modules);
+    const res = await poll(t, 'owner_a');
+    expect(res.verdict).toBe('admit');
+    expect(await scheduledWakes(t)).toHaveLength(0);
   });
 });
 
@@ -256,18 +341,74 @@ describe('isWaitFifoError (the park-vs-fail discriminator)', () => {
 });
 
 describe('recoverStuckAdmissionTickets (reaper)', () => {
-  it('deletes stale waiting tickets and spares fresh ones', async () => {
+  it('reaps a chat ticket whose poll-chain died (stale), spares a fresh one', async () => {
     const t = convexTest(schema, modules);
     const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
-    await seedWaitingTicket(t, 'owner_dead', 1_000, stale);
-    await seedWaitingTicket(t, 'owner_live', 2_000, Date.now());
+    await seedWaitingTicket(t, 'chat_dead', 1_000, stale, 'chat');
+    await seedWaitingTicket(t, 'chat_live', 2_000, Date.now(), 'chat');
 
     const reaped = await t.mutation(
       internal.sandbox.admission.recoverStuckAdmissionTickets,
       {},
     );
     expect(reaped).toHaveLength(1);
-    expect(await ticketsForOwner(t, 'owner_dead')).toHaveLength(0);
-    expect(await ticketsForOwner(t, 'owner_live')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'chat_dead')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'chat_live')).toHaveLength(1);
+  });
+
+  // The crux of the cron-free design: a parked WORKFLOW step blocks on awaitEvent
+  // and never re-stamps `lastSeenAt`, so staleness is meaningless for it. The
+  // reaper must SPARE it while its execution runs (no heartbeat needed — this is
+  // what lets the reconcile cron go away) and reap it only once the owning
+  // execution is terminal or gone.
+  it('reaps a workflow ticket only when its execution is terminal/missing', async () => {
+    const t = convexTest(schema, modules);
+    // All three are "stale" (no heartbeat ever refreshes a workflow ticket), so
+    // all are scanned — the EXECUTION state alone decides the reap.
+    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    const running = await seedOwnerExec(t, 'running');
+    const finished = await seedOwnerExec(t, 'failed');
+    await seedWaitingTicket(t, 'wf_running', 1_000, stale, 'workflow', running);
+    await seedWaitingTicket(
+      t,
+      'wf_terminal',
+      2_000,
+      stale,
+      'workflow',
+      finished,
+    );
+    // No wfExecutionId → owner is gone → reap.
+    await seedWaitingTicket(t, 'wf_orphan', 3_000, stale, 'workflow');
+
+    const reaped = await t.mutation(
+      internal.sandbox.admission.recoverStuckAdmissionTickets,
+      {},
+    );
+    expect(reaped).toHaveLength(2);
+    expect(await ticketsForOwner(t, 'wf_running')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'wf_terminal')).toHaveLength(0);
+    expect(await ticketsForOwner(t, 'wf_orphan')).toHaveLength(0);
+  });
+
+  // Backstop liveness: a parked workflow waiter whose execution is still running
+  // is SPARED, but its (kind, org) must be nudged so an open slot left idle by a
+  // lost release/arrival wake can't strand it forever — this is what closes the
+  // "frozen queue, no new arrivals" deadlock without a heavyweight reconcile cron.
+  it('nudges the queue for an org with a live parked workflow waiter, deduped', async () => {
+    const t = convexTest(schema, modules);
+    const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
+    const running = await seedOwnerExec(t, 'running');
+    // Two live parked waiters in the same (kind, org) → one deduped nudge.
+    await seedWaitingTicket(t, 'wf_live_a', 1_000, stale, 'workflow', running);
+    await seedWaitingTicket(t, 'wf_live_b', 2_000, stale, 'workflow', running);
+
+    const reaped = await t.mutation(
+      internal.sandbox.admission.recoverStuckAdmissionTickets,
+      {},
+    );
+    expect(reaped).toHaveLength(0); // both spared (execution running)
+    const wakes = await scheduledWakes(t);
+    expect(wakes).toHaveLength(1); // deduped to one wake per (kind, org)
+    expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
   });
 });

@@ -33,6 +33,13 @@ vi.mock('convex/values', () => {
       null: stub,
       id: stub,
     },
+    ConvexError: class ConvexError extends Error {
+      data: unknown;
+      constructor(data: unknown) {
+        super(typeof data === 'string' ? data : 'ConvexError');
+        this.data = data;
+      }
+    },
   };
 });
 
@@ -79,9 +86,9 @@ describe('updateUserName', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, { name: 'New Name' })).rejects.toThrow(
-      'Unauthenticated',
-    );
+    await expect(handler(ctx, { name: 'New Name' })).rejects.toMatchObject({
+      data: { code: 'unauthenticated' },
+    });
   });
 
   it('throws when name is empty', async () => {
@@ -89,9 +96,9 @@ describe('updateUserName', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, { name: '   ' })).rejects.toThrow(
-      'Name is required',
-    );
+    await expect(handler(ctx, { name: '   ' })).rejects.toMatchObject({
+      data: { code: 'validation', message: 'Name is required' },
+    });
   });
 
   it('throws when name exceeds 100 characters', async () => {
@@ -99,8 +106,13 @@ describe('updateUserName', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, { name: 'a'.repeat(101) })).rejects.toThrow(
-      'Name must be 100 characters or less',
+    await expect(handler(ctx, { name: 'a'.repeat(101) })).rejects.toMatchObject(
+      {
+        data: {
+          code: 'too_long',
+          message: 'Name must be 100 characters or less',
+        },
+      },
     );
   });
 
@@ -110,9 +122,9 @@ describe('updateUserName', () => {
     ctx.runQuery.mockResolvedValueOnce({ page: [] });
     const handler = await getHandler();
 
-    await expect(handler(ctx, { name: 'New Name' })).rejects.toThrow(
-      'User not found',
-    );
+    await expect(handler(ctx, { name: 'New Name' })).rejects.toMatchObject({
+      data: { code: 'not_found' },
+    });
   });
 
   it('updates the user name successfully', async () => {

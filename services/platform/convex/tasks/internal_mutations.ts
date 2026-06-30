@@ -43,6 +43,7 @@ import {
   TASK_METRIC_ACTIONS,
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
+  truncateImportedTitle,
 } from './helpers';
 import {
   extractMentions,
@@ -333,7 +334,13 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     ctx,
     args,
   ): Promise<{ taskId: Id<'tasks'> | null; created: boolean }> => {
-    const title = trimTitle(args.title);
+    // External titles (e.g. GitHub issue titles) can exceed our board's
+    // `TASK_TITLE_MAX` and aren't editable at the import site, so truncate
+    // rather than reject — failing here makes "Create task" unusable for any
+    // long issue. Fall back to the external ref if the source title is blank.
+    const title =
+      truncateImportedTitle(args.title) ||
+      `${args.externalSystem} ${args.externalId}`;
     const description = args.description?.trim() || undefined;
     const now = Date.now();
     const createIfMissing = args.createIfMissing ?? true;

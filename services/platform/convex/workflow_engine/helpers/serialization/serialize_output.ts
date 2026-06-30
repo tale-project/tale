@@ -8,7 +8,8 @@
 
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
-import { SerializeResult, serializeToStorage } from './serialize_variables';
+import type { SerializeResult } from './serialize_variables';
+import { serializeToStorage } from './serialize_variables';
 
 /**
  * Action-safe serializer: stores large output in Convex storage and returns a reference.
