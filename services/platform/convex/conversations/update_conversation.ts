@@ -2,7 +2,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import type { ConversationStatus, ConversationPriority } from './types';
 
@@ -53,7 +53,7 @@ export async function updateConversation(
 
   await ctx.db.patch(args.conversationId, updateData);
 
-  await AuditLogHelpers.logSuccess(ctx, {
+  await emitAuditSuccess(ctx, {
     auditCtx: await buildAuditContext(ctx, conversation.organizationId),
     action: 'update_conversation',
     category: 'data',

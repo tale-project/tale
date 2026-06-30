@@ -1,6 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import type { BulkOperationResult } from './types';
 
@@ -62,7 +62,7 @@ export async function bulkUnarchiveConversations(
 
   const firstValidConversation = conversations.find((c) => c !== null);
   if (firstValidConversation) {
-    await AuditLogHelpers.logSuccess(ctx, {
+    await emitAuditSuccess(ctx, {
       auditCtx: await buildAuditContext(
         ctx,
         firstValidConversation.organizationId,
