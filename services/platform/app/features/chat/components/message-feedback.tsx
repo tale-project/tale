@@ -3,7 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { ReactNode, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import { useState, useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';

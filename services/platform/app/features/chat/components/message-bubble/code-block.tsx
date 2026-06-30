@@ -4,14 +4,8 @@ import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
 import { CheckIcon, CopyIcon } from 'lucide-react';
-import {
-  ComponentPropsWithoutRef,
-  ReactNode,
-  memo,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { highlightCode } from '@/lib/utils/shiki';

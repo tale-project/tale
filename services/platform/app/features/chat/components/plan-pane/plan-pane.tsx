@@ -6,6 +6,7 @@ import { Telescope } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
@@ -26,9 +27,10 @@ function PlanPaneComponent() {
   });
   const threadId = threadMatch?.params?.threadId;
 
+  const organizationId = useOrganizationId();
   const { data: todosData } = useConvexQuery(
     api.thread_todos.queries.get,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
   const hasTodos = !!todosData && todosData.todos.length > 0;
   const counts = computeCounts(todosData?.todos ?? []);

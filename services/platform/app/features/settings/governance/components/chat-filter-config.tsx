@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -666,7 +667,6 @@ function CategoryList({
   onToggleEnabled,
 }: CategoryListProps) {
   const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
   return (
     <Stack gap={2}>
       {categories.length === 0 ? (
@@ -704,7 +704,7 @@ function CategoryList({
                 <TableCell>{category.patterns.length}</TableCell>
                 <TableCell>
                   <Row gap={1} align="stretch" justify="end">
-                    <Button
+                    <IconButton
                       variant="ghost"
                       size="sm"
                       icon={Pencil}
@@ -713,10 +713,8 @@ function CategoryList({
                       })}
                       disabled={disabled}
                       onClick={() => onEdit(index)}
-                    >
-                      {tCommon('actions.edit')}
-                    </Button>
-                    <Button
+                    />
+                    <IconButton
                       variant="ghost"
                       size="sm"
                       icon={Trash2}

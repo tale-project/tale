@@ -21,9 +21,12 @@ import {
 } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useInstallCatalogAgent, useSaveAgent } from '../hooks/mutations';
+import { useListAgents } from '../hooks/queries';
+import { toConfigurableAgent } from '../utils/agent-list-item';
 
 type FormData = {
   name: string;
@@ -57,7 +60,25 @@ export function CreateAgentDialog({
   const { mutateAsync: installAgent } = useInstallCatalogAgent();
   const { providers, isLoading: providersLoading } =
     useListProviders(organizationId);
+  const { agents: rawAgents } = useListAgents(organizationId);
   const { locale } = useLocale();
+
+  // Display names aren't unique — only the slug is — so a clash is silent
+  // ambiguity, not an error. Warn (non-blocking) when the entered display name
+  // already belongs to another agent so the author can disambiguate on purpose.
+  const existingDisplayNames = useMemo(() => {
+    const set = new Set<string>();
+    if (!rawAgents) return set;
+    for (const raw of rawAgents) {
+      const agent = toConfigurableAgent(raw);
+      if (!agent) continue;
+      const resolved = resolveAgentLocale(agent, locale);
+      if (resolved.displayName) {
+        set.add(resolved.displayName.trim().toLowerCase());
+      }
+    }
+    return set;
+  }, [rawAgents, locale]);
 
   // Ordered list of selected model refs (qualified `provider:id`). The FIRST
   // entry is the agent's default/primary model; the rest are its fallback
@@ -210,6 +231,7 @@ export function CreateAgentDialog({
     handleSubmit,
     reset,
     setError,
+    watch,
     formState: { isSubmitting, errors, isValid },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -222,6 +244,12 @@ export function CreateAgentDialog({
       description: '',
     },
   });
+
+  const displayNameValue = watch('displayName');
+  const isDisplayNameDuplicate = useMemo(() => {
+    const trimmed = displayNameValue?.trim().toLowerCase();
+    return !!trimmed && existingDisplayNames.has(trimmed);
+  }, [displayNameValue, existingDisplayNames]);
 
   useEffect(() => {
     if (!open) {
@@ -346,6 +374,11 @@ export function CreateAgentDialog({
         placeholder={t('agents.form.displayNamePlaceholder')}
         errorMessage={errors.displayName?.message}
       />
+      {isDisplayNameDuplicate && (
+        <Text variant="caption" className="text-warning -mt-2">
+          {t('agents.form.displayNameDuplicateWarning')}
+        </Text>
+      )}
 
       <Textarea
         id="description"

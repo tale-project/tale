@@ -62,6 +62,11 @@ describe('ResponsiveDialog', () => {
       render(<Example />);
       expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
     });
+
+    it('marks the content as a modal dialog (aria-modal)', () => {
+      render(<Example />);
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
   });
 
   describe('mobile variant', () => {
@@ -77,6 +82,11 @@ describe('ResponsiveDialog', () => {
       // vaul wraps title in role="dialog" too.
       expect(screen.getByText('Title')).toBeInTheDocument();
       expect(screen.getByText('Body text')).toBeInTheDocument();
+    });
+
+    it('marks the drawer content as a modal dialog (aria-modal)', () => {
+      render(<Example />);
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
   });
 

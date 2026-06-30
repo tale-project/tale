@@ -10,6 +10,7 @@ import { query } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
@@ -79,13 +80,21 @@ export const listDocuments = query({
 export const getDocumentById = query({
   args: {
     documentId: v.id('documents'),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
     const doc = await ctx.db.get(args.documentId);
-    if (!doc || !isActiveDocument(doc)) return null;
+    // Active-org coherence: deny a document carried over from another org.
+    if (
+      !doc ||
+      !isActiveDocument(doc) ||
+      !isActiveOrg(doc.organizationId, args.organizationId)
+    ) {
+      return null;
+    }
 
     try {
       await getOrganizationMember(ctx, doc.organizationId, authUser);

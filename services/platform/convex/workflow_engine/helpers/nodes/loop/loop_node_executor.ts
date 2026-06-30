@@ -6,8 +6,8 @@
  */
 
 import { createDebugLog } from '../../../../lib/debug_log';
-import { LoopNodeConfig } from '../../../types/nodes';
-import {
+import type { LoopNodeConfig } from '../../../types/nodes';
+import type {
   StepExecutionContext,
   StepExecutionResult,
   LoopVars,

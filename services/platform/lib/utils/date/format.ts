@@ -1,4 +1,5 @@
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 import './dayjs-setup'; // Ensure dayjs is configured with all plugins and locales
 

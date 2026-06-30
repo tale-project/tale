@@ -19,5 +19,9 @@
   "issueDesk.col.state": "State",
   "issueDesk.col.status": "Status",
   "issueDesk.config.repository": "GitHub repository",
-  "issueDesk.config.repositoryPlaceholder": "owner/repo or https://github.com/owner/repo"
+  "issueDesk.config.repositoryPlaceholder": "owner/repo or https://github.com/owner/repo",
+  "issueDesk.config.testCommand": "Test command",
+  "issueDesk.config.testCommandPlaceholder": "e.g. bun test — leave blank to auto-detect",
+  "issueDesk.config.repoNotes": "Repository notes",
+  "issueDesk.config.repoNotesPlaceholder": "Repo-specific guidance for the agents — build quirks, conventions, what to avoid"
 }

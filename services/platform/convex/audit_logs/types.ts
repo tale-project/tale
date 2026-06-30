@@ -1,6 +1,6 @@
 import type { Infer } from 'convex/values';
 
-import {
+import type {
   auditLogActorTypeValidator,
   auditLogCategoryValidator,
   auditLogStatusValidator,

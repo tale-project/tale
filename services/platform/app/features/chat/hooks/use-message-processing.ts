@@ -93,6 +93,11 @@ export interface ChatMessage {
   /** Raw UIMessage parts (reasoning + tool calls) for the thought-process
    *  timeline. Present on assistant messages; undefined elsewhere. */
   parts?: UIMessage['parts'];
+  /** Better Auth userId OR agent slug of the message author (from the agent-SDK
+   *  UIMessage `userId`). Undefined for legacy messages saved before author
+   *  attribution. Consumed by multi-party views (Discussions) to resolve the
+   *  per-message author; unused by 1:1 chat. */
+  authorId?: string;
 }
 
 interface UseMessageProcessingResult {
@@ -121,6 +126,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
   return (
     a.id === b.id &&
     a.role === b.role &&
+    a.authorId === b.authorId &&
     a.content === b.content &&
     a._creationTime === b._creationTime &&
     a.order === b.order &&
@@ -488,6 +494,7 @@ export function useMessageProcessing(
           key: m.key,
           content: m.text ? stripInternalFileReferences(m.text) : '',
           role: m.role,
+          authorId: m.userId,
           timestamp: new Date(m._creationTime),
           attachments:
             attachments && attachments.length > 0 ? attachments : undefined,

@@ -7,7 +7,7 @@ import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { parseISO, formatISO } from 'date-fns';
+import { parseISO, startOfDay, endOfDay } from 'date-fns';
 import { Copy, Check } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
@@ -176,17 +176,19 @@ export function ExecutionsTable({
             ? 'paused_debug'
             : 'waiting_for_input'
           : statusVal;
+      // Map snake_case backend statuses (waiting_for_input, paused_debug) to
+      // the camelCase common.status.* keys; fall back to the raw value for any
+      // status without a translation.
+      const statusKey = displayStatus.replace(/_([a-z])/g, (_match, char) =>
+        char.toUpperCase(),
+      );
       return (
         <Badge
           dot
           variant={STATUS_BADGE_VARIANTS[displayStatus] || 'outline'}
-          className="text-xs capitalize"
+          className="text-xs"
         >
-          {displayStatus === 'waiting_for_input'
-            ? tCommon('status.waitingForInput')
-            : displayStatus === 'paused_debug'
-              ? tCommon('status.pausedDebug')
-              : statusVal}
+          {tCommon(`status.${statusKey}`, { defaultValue: displayStatus })}
         </Badge>
       );
     },
@@ -369,12 +371,14 @@ export function ExecutionsTable({
         query: searchTerm,
         status: status?.[0],
         triggeredBy: triggeredBy,
+        // Serialize the full-day boundary instants (start of the `from` day,
+        // end of the `to` day) so the backend's inclusive `.lte('startedAt')`
+        // covers the entire end day instead of collapsing to UTC midnight and
+        // dropping today's runs — issue #2075.
         dateFrom: range?.from
-          ? formatISO(range.from, { representation: 'date' })
+          ? startOfDay(range.from).toISOString()
           : undefined,
-        dateTo: range?.to
-          ? formatISO(range.to, { representation: 'date' })
-          : undefined,
+        dateTo: range?.to ? endOfDay(range.to).toISOString() : undefined,
       },
     });
   };

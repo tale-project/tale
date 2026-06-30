@@ -12,7 +12,7 @@ import { walkDocs } from './lib/walk';
  * Every page opens with at least two sentences of prose between the
  * frontmatter and the first structural element (heading, list, table, fence).
  *
- * From `.claude/skills/docs/SKILL.md` Rule 2:
+ * From `.agents/skills/write-docs/SKILL.md` Rule 2:
  *
  *   > The block of prose between the frontmatter and the first sub-heading,
  *   > list, table, or fenced code block contains at least two complete
