@@ -10,10 +10,11 @@ import { loadConfig } from './config.ts';
 const KEYS = [
   'SANDBOX_RUNTIME',
   'SANDBOX_DOCKER_IN_CONTAINER',
+  'SANDBOX_DOCKER_BUILD_CACHE',
+  'SANDBOX_BUILDKITD_IMAGE',
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
-  'SANDBOX_COLOR',
   'SANDBOX_HOST_SESSION_ROOT',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
@@ -166,6 +167,55 @@ describe('loadConfig — docker-in-container gating', () => {
   });
 });
 
+describe('loadConfig — shared build cache', () => {
+  test('default FOLLOWS DinD: off on runc (DinD off), with image defaults', () => {
+    const cfg = loadConfig(); // runc → DinD off → cache off
+    expect(cfg.dockerBuildCache).toBe(false);
+    expect(cfg.buildkitdImage).toBe('tale-sandbox-buildkitd:latest');
+    expect(cfg.buildkitdMirrorImage).toBe('registry:2');
+  });
+
+  test('default FOLLOWS DinD: ON when DinD is on (sysbox), no flag needed', () => {
+    process.env.SANDBOX_RUNTIME = 'sysbox'; // DinD default on → cache default on
+    const cfg = loadConfig();
+    expect(cfg.dockerInContainer).toBe(true);
+    expect(cfg.dockerBuildCache).toBe(true);
+  });
+
+  test('explicit SANDBOX_DOCKER_BUILD_CACHE=false disables it under DinD', () => {
+    process.env.SANDBOX_RUNTIME = 'sysbox';
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'false';
+    const cfg = loadConfig();
+    expect(cfg.dockerInContainer).toBe(true);
+    expect(cfg.dockerBuildCache).toBe(false);
+  });
+
+  test('deployment.json dockerBuildCache overrides the env', () => {
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'false';
+    writeDeployment({
+      version: 1,
+      sandboxRuntime: { dockerInContainer: true, dockerBuildCache: true },
+    });
+    expect(loadConfig().dockerBuildCache).toBe(true);
+  });
+
+  test('on without DinD is allowed (inert; warns, does not throw)', () => {
+    process.env.SANDBOX_RUNTIME = 'runc';
+    process.env.SANDBOX_DOCKER_BUILD_CACHE = 'true';
+    const cfg = loadConfig();
+    expect(cfg.dockerBuildCache).toBe(true);
+    expect(cfg.dockerInContainer).toBe(false);
+  });
+
+  test('SANDBOX_BUILDKITD_IMAGE overrides the image ref', () => {
+    process.env.SANDBOX_BUILDKITD_IMAGE =
+      'ghcr.io/acme/tale-sandbox-buildkitd:v9';
+    expect(loadConfig().buildkitdImage).toBe(
+      'ghcr.io/acme/tale-sandbox-buildkitd:v9',
+    );
+  });
+});
+
 describe('loadConfig — deployment.json sandboxRuntime', () => {
   test('overrides the SANDBOX_RUNTIME env', () => {
     process.env.SANDBOX_RUNTIME = 'runc';
@@ -201,25 +251,15 @@ describe('loadConfig — deployment.json sandboxRuntime', () => {
   });
 });
 
-describe('blue-green colour', () => {
-  test('unset SANDBOX_COLOR ⇒ single-colour (null), flat session root', () => {
+describe('session root', () => {
+  test('flat host session root (no blue/green colour sub-directory)', () => {
     process.env.SANDBOX_HOST_SESSION_ROOT = '/var/lib/tale-sandbox/sessions';
     const cfg = loadConfig();
-    expect(cfg.color).toBeNull();
     expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions');
   });
 
-  test('SANDBOX_COLOR scopes the host session root per colour', () => {
-    process.env.SANDBOX_HOST_SESSION_ROOT = '/var/lib/tale-sandbox/sessions';
-    process.env.SANDBOX_COLOR = 'green';
+  test('defaults to /var/lib/tale-sandbox/sessions when unset', () => {
     const cfg = loadConfig();
-    expect(cfg.color).toBe('green');
-    expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions/green');
-  });
-
-  test('invalid SANDBOX_COLOR is ignored (single-colour)', () => {
-    process.env.SANDBOX_COLOR = 'Blue/../etc'; // path traversal / bad chars
-    const cfg = loadConfig();
-    expect(cfg.color).toBeNull();
+    expect(cfg.hostSessionRoot).toBe('/var/lib/tale-sandbox/sessions');
   });
 });

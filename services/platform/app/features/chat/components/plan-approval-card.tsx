@@ -64,6 +64,7 @@ function PlanApprovalCardComponent({
   className,
 }: PlanApprovalCardProps) {
   const { t } = useT('planApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +75,7 @@ function PlanApprovalCardComponent({
   // Shared subscription with the chat surface (same query+args dedupes).
   const { data: meta } = useConvexQuery(api.threads.queries.getThreadMeta, {
     threadId,
+    organizationId,
   });
   const isGenerating = meta?.isGenerating === true;
 
@@ -212,9 +214,15 @@ function PlanApprovalCardComponent({
           </Text>
           <Badge
             variant={status === 'completed' ? 'green' : 'destructive'}
-            className="shrink-0 text-xs capitalize"
+            className="shrink-0 text-xs"
           >
-            {status}
+            {status === 'completed'
+              ? tCommon('statusCompleted')
+              : status === 'executing'
+                ? tCommon('statusExecuting')
+                : status === 'rejected'
+                  ? tCommon('statusRejected')
+                  : tCommon('statusPending')}
           </Badge>
         </HStack>
       )}

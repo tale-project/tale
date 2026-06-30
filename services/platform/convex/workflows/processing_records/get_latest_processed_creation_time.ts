@@ -28,8 +28,8 @@
  * ```
  */
 
-import { QueryCtx } from '../../_generated/server';
-import { TableName } from './types';
+import type { QueryCtx } from '../../_generated/server';
+import type { TableName } from './types';
 
 export interface GetLatestProcessedCreationTimeArgs {
   organizationId: string;

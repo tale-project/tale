@@ -8,13 +8,15 @@ import { useT } from '@/lib/i18n/client';
 import type { SelectionState } from '../types/selection';
 import { isAllSelection } from '../types/selection';
 import {
-  useAddMessage,
   useBulkArchiveConversations,
   useBulkCloseConversations,
   useBulkReopenConversations,
   useBulkSpamConversations,
   useBulkUnarchiveConversations,
+  useSendMessageViaIntegration,
 } from './mutations';
+
+const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
 
 export function getSelectedConversationIds(
   selectionState: SelectionState,
@@ -28,6 +30,15 @@ export function getSelectedConversationIds(
     : conversations
         .filter((c) => selectionState.selectedIds.has(c.id))
         .map((c) => c._id);
+}
+
+function getSelectedConversations(
+  selectionState: SelectionState,
+  conversations: ConversationItem[],
+) {
+  return isAllSelection(selectionState)
+    ? conversations
+    : conversations.filter((c) => selectionState.selectedIds.has(c._id));
 }
 
 interface UseBulkActionsOptions {
@@ -50,7 +61,8 @@ export function useBulkActions({
   const { mutateAsync: bulkReopen } = useBulkReopenConversations();
   const { mutateAsync: bulkSpam } = useBulkSpamConversations();
   const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations();
-  const { mutateAsync: addMessage } = useAddMessage();
+  const { mutateAsync: sendMessageViaIntegration } =
+    useSendMessageViaIntegration();
 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkSendDialog, setBulkSendDialog] = useState({
@@ -66,66 +78,92 @@ export function useBulkActions({
     setBulkSendDialog({ isOpen: false, isSending: false });
   }, []);
 
-  const handleSendMessages = useCallback(async () => {
-    if (isBulkProcessing) return;
+  const handleSendMessages = useCallback(
+    async (message: string) => {
+      if (isBulkProcessing) return;
 
-    setIsBulkProcessing(true);
-    setBulkSendDialog({ isOpen: true, isSending: true });
+      const body = message.trim();
+      if (!body) return;
 
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
+      setIsBulkProcessing(true);
+      setBulkSendDialog({ isOpen: true, isSending: true });
 
-      const results = await Promise.allSettled(
-        conversationIds.map((conversationId) =>
-          addMessage({
-            conversationId: toId<'conversations'>(conversationId),
-            organizationId,
-            sender: 'Agent',
-            content: 'Message sent',
-            isCustomer: false,
-            status: 'sent',
+      try {
+        const selectedConversations = getSelectedConversations(
+          selectionState,
+          conversations,
+        );
+
+        // Dispatch a real reply to each customer through the conversation's
+        // integration — mirroring the single-conversation reply path. A
+        // conversation without a usable customer email cannot be delivered, so
+        // it is counted as a failure rather than silently dropped.
+        const results = await Promise.allSettled(
+          selectedConversations.map((conversation) => {
+            const customerEmail = conversation.customer.email;
+            if (!customerEmail || customerEmail === UNKNOWN_CUSTOMER_EMAIL) {
+              return Promise.reject(
+                new Error(tConversations('panel.customerEmailNotFound')),
+              );
+            }
+
+            const subject =
+              conversation.subject || tConversations('panel.defaultSubject');
+            const replySubject = tConversations('panel.replySubjectPrefix', {
+              subject,
+            });
+
+            return sendMessageViaIntegration({
+              conversationId: toId<'conversations'>(conversation._id),
+              organizationId,
+              integrationName: conversation.integrationName ?? 'outlook',
+              content: body,
+              to: [customerEmail],
+              subject: replySubject,
+              text: body,
+            });
           }),
-        ),
-      );
+        );
 
-      const successCount = results.filter(
-        (r) => r.status === 'fulfilled',
-      ).length;
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
+        const successCount = results.filter(
+          (r) => r.status === 'fulfilled',
+        ).length;
+        const failedCount = results.filter(
+          (r) => r.status === 'rejected',
+        ).length;
 
-      toast({
-        title: tConversations('bulk.messagesSent'),
-        description: tConversations('bulk.messagesSentDescription', {
-          successCount,
-          failedCount,
-        }),
-        variant: successCount > 0 ? 'default' : 'destructive',
-      });
+        toast({
+          title: tConversations('bulk.messagesSent'),
+          description: tConversations('bulk.messagesSentDescription', {
+            successCount,
+            failedCount,
+          }),
+          variant: successCount > 0 ? 'default' : 'destructive',
+        });
 
-      setBulkSendDialog({ isOpen: false, isSending: false });
-      onComplete();
-    } catch (error) {
-      console.error('Error sending messages:', error);
-      toast({
-        title: tConversations('bulk.sendFailed'),
-        variant: 'destructive',
-      });
-      setBulkSendDialog({ isOpen: false, isSending: false });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    addMessage,
-    organizationId,
-    tConversations,
-    onComplete,
-  ]);
+        setBulkSendDialog({ isOpen: false, isSending: false });
+        onComplete();
+      } catch (error) {
+        console.error('Error sending messages:', error);
+        toast({
+          title: tConversations('bulk.sendFailed'),
+          variant: 'destructive',
+        });
+        setBulkSendDialog({ isOpen: false, isSending: false });
+      } finally {
+        setIsBulkProcessing(false);
+      }
+    },
+    [
+      isBulkProcessing,
+      selectionState,
+      conversations,
+      sendMessageViaIntegration,
+      organizationId,
+      tConversations,
+      onComplete,
+    ],
+  );
 
   const handleBulkResolve = useCallback(async () => {
     if (isBulkProcessing) return;

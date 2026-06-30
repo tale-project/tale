@@ -3,6 +3,23 @@ import { api } from '@/convex/_generated/api';
 import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
 import type { AppScope } from '@/lib/shared/schemas/apps';
 
+/** One declared per-install config key from an app manifest's `requires.config`
+ *  (e.g. `{ key: 'repository', type: 'string', labelKey: 'issueDesk.config.repository' }`). */
+export interface AppConfigField {
+  key: string;
+  type: 'string' | 'number' | 'boolean';
+  labelKey: string;
+  /** Optional input placeholder (pack-label key) — a format hint. */
+  placeholderKey?: string;
+  /** Render a multi-line textarea instead of a single-line input (free-text
+   *  fields like per-repo notes). `type` stays `'string'`. */
+  multiline?: boolean;
+  /** Optional one-input → many-keys derivation: the entered string is split by
+   *  `pattern` into the `into` keys (e.g. `owner`/`repo`) on save. The field's
+   *  own key keeps the raw input for read-back; the views bind the split keys. */
+  derive?: { pattern: string; into: string[] };
+}
+
 /** A navigable area of a view — its content is single-column Puck Data, or a
  *  `columns` array of Puck Data documents laid out side by side. */
 export interface AppTabDoc {
@@ -42,6 +59,12 @@ export interface AppSummary {
    * the hub decide, before install, whether to route through the connect wizard.
    */
   requiredIntegrations: string[];
+  /**
+   * Per-install config keys the app declares (`requires.config`) — e.g. a GitHub
+   * `owner`/`repo`. Drives the app's config form; the values are stored on the
+   * install row and read by views via the `$config:` binding token.
+   */
+  requiredConfig: AppConfigField[];
   views: AppViewDoc[];
   /**
    * The app's own pack-authored label catalogs (`messages/<locale>.json`),

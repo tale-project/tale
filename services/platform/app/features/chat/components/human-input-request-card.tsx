@@ -32,6 +32,7 @@ import remarkGfm from 'remark-gfm';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { mapExecutionError } from '@/app/features/operator/lib/map-execution-error';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
@@ -43,6 +44,7 @@ import type {
 } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
+import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { getString, isRecord } from '@/lib/utils/type-utils';
 
@@ -54,8 +56,40 @@ import {
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
 import { ApprovalCard } from './approval-card';
-import { HumanInputFields } from './human-input-fields';
+import { HumanInputFields, countFilledTodoRows } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
+
+/**
+ * Map a thrown human-input submit/edit error to a localized message. The
+ * backend raises `ConvexError({ code })` for expected failures (a raw message
+ * is redacted to "Server Error" in prod), so we key off the structured code.
+ * `BUDGET_EXCEEDED` carries a server-computed `message` shown verbatim.
+ */
+export function mapHumanInputError(
+  err: unknown,
+  t: (key: string) => string,
+  tCommon: (key: string) => string,
+  fallback: string,
+): string {
+  switch (convexErrorCode(err)) {
+    case 'UNAUTHENTICATED':
+      return tCommon('errorNotAuthenticated');
+    case 'NOT_FOUND':
+      return tCommon('errorNotFound');
+    case 'ALREADY_RESPONDED':
+      return t('errorAlreadyResponded');
+    case 'NOT_EDITABLE':
+      return t('errorNotEditable');
+    case 'WORKFLOW_NOT_EDITABLE':
+      return t('errorWorkflowNotEditable');
+    case 'GENERATION_IN_PROGRESS':
+      return t('errorGenerationInProgress');
+    case 'BUDGET_EXCEEDED':
+      return convexErrorMessage(err, fallback);
+    default:
+      return fallback;
+  }
+}
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -80,6 +114,7 @@ function HumanInputRequestCardComponent({
 }: HumanInputRequestCardProps) {
   const { t } = useT('humanInputRequest');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tShared } = useT('common');
   const { formatDate } = useFormatDate();
   const [error, setError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<
@@ -183,14 +218,14 @@ function HumanInputRequestCardComponent({
         executionId: wfExecutionId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
-      );
+      // cancelExecution raises a structured code (not found / already settled);
+      // map it instead of surfacing the raw ConvexError JSON blob.
+      setError(mapExecutionError(err, tShared, tCommon('errorSubmitFailed')));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);
     }
-  }, [wfExecutionId, cancelExecution, tCommon]);
+  }, [wfExecutionId, cancelExecution, tCommon, tShared]);
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -255,7 +290,7 @@ function HumanInputRequestCardComponent({
         },
         onError: (err) => {
           setError(
-            err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
+            mapHumanInputError(err, t, tCommon, tCommon('errorSubmitFailed')),
           );
           console.error('Failed to submit feedback:', err);
         },
@@ -314,6 +349,26 @@ function HumanInputRequestCardComponent({
           setError(t('errorSelectRequired'));
           return;
         }
+      } else if (field.type === 'todo_list') {
+        // The TodoListFieldInput always seeds a row and serializes via
+        // JSON.stringify, so `value` is a non-empty string even when every
+        // row is blank — the generic "non-empty string" check below would
+        // wrongly pass. Count the rows with real content instead.
+        const filled =
+          typeof value === 'string' ? countFilledTodoRows(value) : 0;
+        const minItems =
+          'minItems' in field && typeof field.minItems === 'number'
+            ? field.minItems
+            : 0;
+        const threshold = Math.max(1, minItems);
+        if (filled < threshold) {
+          setError(
+            threshold > 1
+              ? t('errorTodoListMinItems', { count: threshold })
+              : t('errorTodoListRequired'),
+          );
+          return;
+        }
       } else {
         if (!value || (typeof value === 'string' && !value.trim())) {
           setError(t('errorFillRequiredFields'));
@@ -349,7 +404,7 @@ function HumanInputRequestCardComponent({
         },
         onError: (err) => {
           setError(
-            err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
+            mapHumanInputError(err, t, tCommon, tCommon('errorSubmitFailed')),
           );
           console.error('Failed to submit response:', err);
         },
@@ -685,13 +740,13 @@ function HumanInputRequestCardComponent({
                     ? 'blue'
                     : 'destructive'
               }
-              className="shrink-0 text-xs capitalize"
+              className="shrink-0 text-xs"
             >
               {status === 'completed'
                 ? t('statusResponded')
                 : status === 'executing'
                   ? t('statusProcessing')
-                  : status}
+                  : tCommon('statusRejected')}
             </Badge>
           )}
         </HStack>

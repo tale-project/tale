@@ -50,6 +50,16 @@ interface FormEditor<T extends FieldValues> extends EditorController {
   hasRemoteUpdate: boolean;
   /** Dismisses the remote-update indicator until the next upstream change. */
   dismissRemoteUpdate: () => void;
+  /**
+   * Form `onSubmit` handler — wire it as `<form onSubmit={editor.submit}>`.
+   * It routes the native submit (Save button `type="submit"`, Enter key)
+   * through {@link save}/`doSave`, so the dirty baseline is reset on success.
+   *
+   * Use this instead of the raw `form.handleSubmit(save)`: that calls `save`
+   * directly and never clears `isDirty`, leaving the Save button active and
+   * tripping the navigation blocker after a successful save.
+   */
+  submit: (e?: { preventDefault: () => void }) => void;
 }
 
 /**
@@ -196,6 +206,22 @@ export function useFormEditor<T extends FieldValues>({
     }
   }, [form]);
 
+  const submit = useCallback(
+    (e?: { preventDefault: () => void }) => {
+      e?.preventDefault();
+      // Route the native form submit through `doSave` so the dirty baseline is
+      // reset on success. Validation failures surface inline via `form.setError`
+      // and server errors are already toasted by the caller's `save` — log
+      // anything unexpected rather than swallow it (mirrors password-policy).
+      doSave().catch((err) => {
+        if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
+          console.error('[useFormEditor] submit failed', err);
+        }
+      });
+    },
+    [doSave],
+  );
+
   const reset = useCallback(() => {
     if (isSavingRef.current) return;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
@@ -224,6 +250,7 @@ export function useFormEditor<T extends FieldValues>({
     isLoading: data === undefined,
     dirtyKeys,
     save: doSave,
+    submit,
     reset,
     setServerErrors,
   };

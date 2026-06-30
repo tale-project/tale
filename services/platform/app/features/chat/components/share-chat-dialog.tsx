@@ -37,7 +37,7 @@ function ShareChatDialogContent({
 
   const { data: shareStatus } = useConvexQuery(
     api.threads.queries.getThreadShareStatus,
-    { threadId },
+    { threadId, organizationId },
   );
 
   const { mutate: shareThread, isPending: isSharing } = useShareThread();

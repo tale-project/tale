@@ -64,7 +64,7 @@ describe('ExportChatDialog', () => {
       screen.getByRole('button', { name: 'Download Markdown' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Download PDF' }),
+      screen.getByRole('button', { name: 'Print to PDF' }),
     ).toBeInTheDocument();
     // All messages start selected, so the toggle reads "Deselect all".
     expect(
@@ -96,5 +96,24 @@ describe('ExportChatDialog', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(downloadedName).toBe('chat-export.md');
     expect(createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders message rows without nesting a button inside a button (#1973)', () => {
+    const { container } = render(
+      <ExportChatDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        threadId="thread-1"
+        organizationId="org-1"
+      />,
+    );
+
+    // The row was a <button> wrapping the Radix checkbox (also a <button>) —
+    // invalid HTML that logged a hydration error. No button may nest another.
+    expect(container.querySelector('button button')).toBeNull();
+    // Each message renders a checkbox, all selected by default.
+    expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(
+      mockMessages.length,
+    );
   });
 });

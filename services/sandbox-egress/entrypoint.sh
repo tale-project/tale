@@ -14,7 +14,7 @@ set -e
 #   unset or empty => open egress: no hostname filtering at all.
 # The IP-layer SSRF firewall (IMDS + link-local + RFC1918 REJECT, installed
 # by docker-entrypoint.sh) applies in BOTH modes. LLM traffic never transits
-# this proxy either way (NO_PROXY=llm-gateway on the runtime containers).
+# this proxy either way (NO_PROXY=sandbox-llm-gateway on the runtime containers).
 if [ -n "$SANDBOX_EGRESS_ALLOWLIST" ]; then
   echo "$SANDBOX_EGRESS_ALLOWLIST" | tr '|' '\n' > /etc/tinyproxy/allowlist
   FILTER_BLOCK='# Host-name allow-list (default-deny), rendered from SANDBOX_EGRESS_ALLOWLIST.

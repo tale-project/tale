@@ -6,6 +6,7 @@
  */
 
 import type { WorkflowId } from '@convex-dev/workflow';
+import { ConvexError } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -28,22 +29,23 @@ export async function resumeDebugStep(
 ): Promise<null> {
   const execution = await ctx.db.get(args.executionId);
   if (!execution) {
-    throw new Error('Execution not found');
+    throw new ConvexError({ code: 'EXECUTION_NOT_FOUND' });
   }
 
   if (execution.status !== 'running') {
-    throw new Error(
-      `Cannot resume a debug step on execution with status "${execution.status}"`,
-    );
+    throw new ConvexError({
+      code: 'EXECUTION_NOT_RESUMABLE',
+      status: execution.status,
+    });
   }
 
   const pause = parseDebugWaitingFor(execution.waitingFor);
   if (!pause) {
-    throw new Error('Execution is not paused in debug mode');
+    throw new ConvexError({ code: 'EXECUTION_NOT_PAUSED' });
   }
 
   if (!execution.componentWorkflowId) {
-    throw new Error('Execution is missing its component workflow ID');
+    throw new ConvexError({ code: 'EXECUTION_MISSING_WORKFLOW_ID' });
   }
 
   const manager = workflowManagers[safeShardIndex(execution.shardIndex)];

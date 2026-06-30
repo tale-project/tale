@@ -44,7 +44,7 @@ export function ExternalAgentModeToggle({
   const { agents } = useChatAgents(organizationId);
   const { data: meta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
-    threadId ? { threadId } : 'skip',
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
   const setMode = useMutation(api.threads.mutations.setExternalAgentMode);
 

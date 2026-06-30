@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FunctionBinding,
+  bindingArgsResolved,
   collectViewBindings,
   isFunctionAllowed,
   isValidFunctionPath,
@@ -101,6 +102,26 @@ describe('resolveBindingArgs', () => {
     );
     // Unknown fields stay verbatim (fail-visible).
     expect(resolveBindingArgs('$tpl:{missing}', tctx)).toBe('{missing}');
+  });
+  it('substitutes $config:<key> from the per-install config', () => {
+    const cctx = {
+      organizationId: 'org_1',
+      config: { owner: 'acme', repo: 'widgets' },
+    };
+    expect(resolveBindingArgs('$config:owner', cctx)).toBe('acme');
+    expect(resolveBindingArgs('$config:repo', cctx)).toBe('widgets');
+    // Unset key → undefined (a visible miss, not a literal).
+    expect(resolveBindingArgs('$config:missing', cctx)).toBeUndefined();
+  });
+  it('$tpl: mixes config and row fields so one key can target the configured repo', () => {
+    const ctx = {
+      organizationId: 'org_1',
+      config: { owner: 'acme', repo: 'widgets' },
+      selected: { number: 42 },
+    };
+    expect(resolveBindingArgs('$tpl:{owner}/{repo}#{number}', ctx)).toBe(
+      'acme/widgets#42',
+    );
   });
   it('resolves $label: via the pack catalog, then interpolates the row', () => {
     const lctx = {
@@ -227,5 +248,33 @@ describe('collectViewBindings + validateViewBindings', () => {
     const errors = validateViewBindings(offending, allowlist);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain('secret/x:peek');
+  });
+});
+
+describe('bindingArgsResolved', () => {
+  it('is true when every value is bound (no undefined)', () => {
+    const resolved = resolveBindingArgs(
+      { organizationId: '$orgId', owner: '$config:owner', state: 'open' },
+      { organizationId: 'org_1', config: { owner: 'acme' } },
+    );
+    expect(bindingArgsResolved(resolved)).toBe(true);
+  });
+
+  it('is false when a $config: reference is unset (resolves to undefined)', () => {
+    const resolved = resolveBindingArgs(
+      { organizationId: '$orgId', owner: '$config:owner' },
+      { organizationId: 'org_1', config: {} },
+    );
+    expect(bindingArgsResolved(resolved)).toBe(false);
+  });
+
+  it('recurses through nested objects and arrays', () => {
+    expect(bindingArgsResolved({ a: { b: [1, 'x', true] } })).toBe(true);
+    expect(bindingArgsResolved({ a: { b: [1, undefined] } })).toBe(false);
+    expect(bindingArgsResolved([{ ok: 'y' }, { ok: undefined }])).toBe(false);
+  });
+
+  it('treats null as bound (only undefined gates the call)', () => {
+    expect(bindingArgsResolved({ a: null })).toBe(true);
   });
 });

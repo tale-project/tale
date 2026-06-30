@@ -42,6 +42,7 @@ import {
   type SandboxErrorCode,
   type SandboxStepResult,
 } from '../../sandbox/wire';
+import { browserViewEnabled } from './browser_view';
 import {
   sessionBrowserClosePages,
   sessionCancelExec,
@@ -396,25 +397,6 @@ export const executeCode = internalAction({
           timeoutMs,
         },
         abort.signal,
-        {
-          // Blue-green: persist the colour the spawner landed on so a
-          // concurrent user-Stop routes its cancel to the SAME colour even
-          // after a deploy flip. Best-effort — a failed patch just falls back
-          // to the bare `sandbox` alias on cancel.
-          onSpawnerColor: async (color) => {
-            await ctx
-              .runMutation(
-                internal.sandbox.internal_mutations.setSpawnerColor,
-                { executionId, spawnerColor: color },
-              )
-              .catch((err: unknown) => {
-                console.warn(
-                  `[sandbox.executeCode] setSpawnerColor failed (continuing):`,
-                  err,
-                );
-              });
-          },
-        },
       );
     } catch (err) {
       return failExecution(
@@ -602,9 +584,7 @@ export const cancelExecutionsForThread = internalAction({
     let cancelled = 0;
     for (const row of rows) {
       try {
-        // Route to the colour this execution started on so the cancel lands
-        // even after a deploy flip moved the bare `sandbox` alias.
-        await spawnerCancel(String(row._id), row.spawnerColor);
+        await spawnerCancel(String(row._id));
       } catch (err) {
         console.warn(
           `[sandbox.cancelExecutionsForThread] spawnerCancel(${row._id}) failed (continuing):`,
@@ -664,7 +644,7 @@ export const cancelSessionExecsForThread = internalAction({
     // cookies/logins are preserved (close-pages, not reset). Best-effort: a
     // no-managed-browser session no-ops spawner-side, and any failure is logged
     // (the Stop itself already succeeded above).
-    if (process.env.SANDBOX_BROWSER_VIEW === '1') {
+    if (browserViewEnabled()) {
       for (const sessionId of cancelledSessions) {
         try {
           const closed = await sessionBrowserClosePages(sessionId);

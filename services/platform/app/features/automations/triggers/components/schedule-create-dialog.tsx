@@ -23,6 +23,7 @@ import { useReadWorkflow } from '../../hooks/file-queries';
 import { buildInputTemplateFromSchema } from '../../utils/input-schema-template';
 import { useGenerateCron } from '../hooks/actions';
 import { useCreateSchedule, useUpdateSchedule } from '../hooks/slug-mutations';
+import { mapTriggerError } from '../lib/map-trigger-error';
 
 interface ScheduleData {
   _id: string;
@@ -228,9 +229,9 @@ export function ScheduleCreateDialog({
         });
       }
       onOpenChange(false);
-    } catch {
+    } catch (err) {
       toast({
-        title: tCommon('errors.generic'),
+        title: mapTriggerError(err, t, tCommon('errors.generic')),
         variant: 'destructive',
       });
     }

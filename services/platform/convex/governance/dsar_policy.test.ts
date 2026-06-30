@@ -648,3 +648,37 @@ describe('applyPendingDsarPolicyChange', () => {
     expect(mockWriteNotification).not.toHaveBeenCalled();
   });
 });
+
+// #2016: the read gate must throw `ConvexError({ code })` so the client can
+// branch — UNAUTHENTICATED when signed out, FORBIDDEN for a non-admin/owner.
+// Message-only assertions would pass against a raw throw, so assert data.code.
+describe('getDsarPolicyForUi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('throws ConvexError UNAUTHENTICATED when not signed in', async () => {
+    mockGetAuthUser.mockResolvedValue(null);
+    const m = await loadDsarPolicy();
+    const ctx = createMockCtx(emptyState());
+    await expect(
+      m.getDsarPolicyForUi.handler(ctx, { organizationId: 'org_A' }),
+    ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
+    await expect(
+      m.getDsarPolicyForUi.handler(ctx, { organizationId: 'org_A' }),
+    ).rejects.toBeInstanceOf(ConvexError);
+  });
+
+  it('throws ConvexError FORBIDDEN for a non-admin/owner member', async () => {
+    mockGetAuthUser.mockResolvedValue({
+      _id: 'member_user',
+      email: 'member@example.com',
+    });
+    mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
+    const m = await loadDsarPolicy();
+    const ctx = createMockCtx(emptyState());
+    await expect(
+      m.getDsarPolicyForUi.handler(ctx, { organizationId: 'org_A' }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
+  });
+});

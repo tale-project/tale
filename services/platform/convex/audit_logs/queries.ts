@@ -1,5 +1,5 @@
 import { paginationOptsValidator } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
@@ -17,7 +17,10 @@ import { auditLogFilterValidator, auditLogItemValidator } from './validators';
  */
 export function assertAuditLogReadAccess(member: OrganizationMember): void {
   if (!isAdmin(member.role)) {
-    throw new Error('Only admins can read audit logs');
+    throw new ConvexError({
+      code: 'FORBIDDEN',
+      message: 'Only admins can read audit logs',
+    });
   }
 }
 
@@ -35,7 +38,10 @@ export const listAuditLogs = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(
@@ -64,7 +70,10 @@ export const listAuditLogsPaginated = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(
@@ -92,7 +101,10 @@ export const listErrorLogsPaginated = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(
@@ -135,7 +147,10 @@ export const getActivitySummary = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const member = await getOrganizationMember(

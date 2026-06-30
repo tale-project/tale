@@ -27,12 +27,17 @@ interface AuditLogsPageProps {
   organizationId: string;
   category?: string;
   onCategoryChange: (category: string | undefined) => void;
+  /** Active tab key, sourced from the URL so reload/deep-link/Back restore it. */
+  tab?: string;
+  onTabChange: (tab: string) => void;
 }
 
 export function AuditLogsPage({
   organizationId,
   category,
   onCategoryChange,
+  tab,
+  onTabChange,
 }: AuditLogsPageProps) {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
@@ -42,6 +47,13 @@ export function AuditLogsPage({
   const memberContext = useCurrentMemberContext(organizationId);
   const memberRole = memberContext.data?.role;
   const isAdminUser = memberRole === 'admin' || memberRole === 'owner';
+
+  // Tabs are driven controlled off the URL `tab` key (default "audit"). The
+  // category filter only feeds the audit + errors queries, so it's a no-op on
+  // the "Block counters" and "Activity logs" tabs — render it only where it
+  // actually filters something.
+  const activeTab = tab ?? 'audit';
+  const showCategoryFilter = activeTab === 'audit' || activeTab === 'errors';
 
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
@@ -145,14 +157,17 @@ export function AuditLogsPage({
         className="min-h-0 flex-1"
       >
         <Tabs
-          defaultValue="audit"
+          value={activeTab}
+          onValueChange={onTabChange}
           className="flex min-h-0 flex-1 flex-col"
           actions={
             <Row gap={2}>
-              <DataTableFilters
-                filters={auditFilterConfigs}
-                onClearAll={handleClearFilters}
-              />
+              {showCategoryFilter && (
+                <DataTableFilters
+                  filters={auditFilterConfigs}
+                  onClearAll={handleClearFilters}
+                />
+              )}
               {isAdminUser && (
                 <>
                   <Button

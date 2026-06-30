@@ -50,11 +50,17 @@ export function ProjectThreadsTab({
 
   const handleToggleShare = async (threadId: string, nextShared: boolean) => {
     try {
-      await setShared({ threadId, shared: nextShared });
+      const { autoDisabledPersonalization } = await setShared({
+        threadId,
+        shared: nextShared,
+      });
       toast({
         title: nextShared
           ? t('threads.shareSuccess')
           : t('threads.unshareSuccess'),
+        description: autoDisabledPersonalization
+          ? t('threads.shareDisabledPersonalization')
+          : undefined,
         variant: 'success',
       });
     } catch (error) {

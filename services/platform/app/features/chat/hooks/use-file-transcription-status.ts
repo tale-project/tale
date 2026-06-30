@@ -41,7 +41,10 @@ export interface FileTranscriptionInfo {
  * during the brief window before metadata first resolves (prevents a rapid
  * click from slipping past a not-yet-known `running` state).
  */
-export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
+export function useFileTranscriptionStatus(
+  attachments: FileAttachment[],
+  organizationId: string,
+) {
   const audioFileIds = useMemo(
     () =>
       attachments
@@ -52,7 +55,9 @@ export function useFileTranscriptionStatus(attachments: FileAttachment[]) {
 
   const metadata = useQuery(
     api.file_metadata.queries.getByStorageIds,
-    audioFileIds.length > 0 ? { storageIds: audioFileIds } : 'skip',
+    organizationId && audioFileIds.length > 0
+      ? { organizationId, storageIds: audioFileIds }
+      : 'skip',
   );
 
   const isQueryLoading = audioFileIds.length > 0 && metadata === undefined;

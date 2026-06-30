@@ -1,17 +1,83 @@
 # =============================================================================
-# LOCAL DEVELOPMENT OVERRIDES
+# LOCAL DEVELOPMENT OVERLAY — live source + zero-setup secrets
 # =============================================================================
-# Extends compose.yml with source mounts, relaxed health checks, and
-# debug-level logging for a faster edit-reload cycle.
+# Layered ON TOP of compose.yml. This overlay is what turns the frozen base
+# stack into an actual dev environment. It adds two things compose.yml omits:
 #
-# Usage:
-#   docker compose -f compose.yml -f compose.dev.yml up --build
+#   1. Source bind-mounts + the dev platform image (`build.target: dev`) — host
+#      edits reach the running stack without an image rebuild. The platform
+#      entrypoint (NODE_ENV=development; see docker-entrypoint.sh) runs two
+#      watchers: `vite build --watch` rebuilds the SPA so a browser refresh
+#      shows frontend (app/, lib/) changes, and `convex dev` re-pushes changed
+#      functions on every save. Opt out of both with TALE_DEV_HOT_RELOAD=0.
+#      NOTE: this is hard-refresh, not Vite HMR — no React Fast Refresh / state
+#      retention. For true HMR use host `cd services/platform && bun dev`.
+#   2. Insecure dev secret defaults (the `x-dev-secrets` anchor below) — so the
+#      stack boots with NO .env at all. A real .env still wins (the `${VAR:-…}`
+#      fallbacks only fill gaps; compose auto-loads .env for interpolation).
 #
-# Note: Hot-reload requires the service to support file-watching.
-#   - Platform: Vite HMR (automatic)
+# Usage (recommended):
+#   bun run docker:dev
+#     = docker network inspect tale-sandbox-net || docker network create \
+#         --internal --ipv6=false --driver=bridge tale-sandbox-net
+#       docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml \
+#         up --build
+# Prefer the npm script: it first ensures the external `tale-sandbox-net` (the
+# `sandbox` network is `external: true` in compose.yml; a raw `docker compose up`
+# fails with "network ... declared as external, but could not be found" because
+# only the CLI / this script create it — mirrors dev-engine.ts ensureSandboxNetwork).
+# compose.docs.yml is required: this file carries a `docs` override whose base
+# service lives only in compose.docs.yml — omit it and compose rejects the whole
+# project ("docs has neither an image nor a build context"). It does not force
+# the docs site to run. (Same chain as docs/.../docker-compose-reference.)
+#
+# Never used by `tale deploy` (production) — these insecure defaults can't leak
+# into a real deployment.
 # =============================================================================
 
+# -----------------------------------------------------------------------------
+# Dev-only secret defaults. Mirrors services/platform/scripts/dev-secrets.ts
+# (the `bun dev` path) so both local modes share the SAME insecure-but-stable
+# keys — guardrails secret-box rows encrypted under one mode still decrypt under
+# the other. Injected into every secret-consuming service via `<<: *dev-secrets`.
+# Each value is `${VAR:-default}`: an env var or .env entry overrides it.
+# -----------------------------------------------------------------------------
+x-dev-secrets: &dev-secrets
+  HOST: ${HOST:-localhost}
+  SITE_URL: ${SITE_URL:-https://localhost}
+  TLS_MODE: ${TLS_MODE:-selfsigned}
+  DB_PASSWORD: ${DB_PASSWORD:-tale_dev_password}
+  KNOWLEDGE_DB_NAME: ${KNOWLEDGE_DB_NAME:-tale_knowledge}
+  # MUST be a 64-char hex string: the convex container passes it to
+  # convex-local-backend as `--instance-secret` (hex-decoded), and the platform
+  # container hex-decodes it in generate-admin-key.sh — a non-hex value boots
+  # convex with "Couldn't hexdecode key: Odd number of digits". This is
+  # sha256("local-dev-insecure-secret"), so it stays tied to the same dev marker
+  # bun dev uses (where INSTANCE_SECRET is app-derivations-only — `bunx convex
+  # dev` mints its own admin key, so bun dev never hex-decodes it).
+  INSTANCE_SECRET: ${INSTANCE_SECRET:-053357d69240558849ba1a091523807e06fe933d11346ab8127d5c0cd6743f64}
+  # No container-side derivation for these two — must be supplied explicitly.
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-dev-better-auth-secret-do-not-use-in-prod-0123456789abcdef}
+  # Pinned to sha256("local-dev-insecure-secret:encryption-secret:v1"), the value
+  # dev-secrets.ts ensureEncryptionSecret() derives — set explicitly (not from the
+  # hex INSTANCE_SECRET above) so guardrails secret-box rows stay decryptable
+  # across `bun dev` and this docker stack.
+  ENCRYPTION_SECRET_HEX: ${ENCRYPTION_SECRET_HEX:-7a7059df10c10d68ee89d73567ebdf4ecc4b94f1cab14f7b430dffce9562bd53}
+  # Stable dev key so the audit hash-chain verifies; absent → "integrity check
+  # failed" alert on an otherwise-clean stack. Rotate for production.
+  TALE_AUDIT_SIGNING_KEY: ${TALE_AUDIT_SIGNING_KEY:-4f8c2a9e7b1d6035e4a8c2f9d7b3061a5e8c4f2a9d7b30615e4c8a2f9d7b30614}
+
 services:
+  db:
+    environment:
+      <<: *dev-secrets
+      DB_LOG_STATEMENT: all
+      DB_LOG_MIN_DURATION_STATEMENT: '0'
+
+  knowledge-db:
+    environment:
+      <<: *dev-secrets
+
   # Phase 2 (split): convex gets live source for hot-reloadable functions
   # and the Dashboard, and owns the data volume. Platform mounts convex-data
   # read-only for config watching + branding image serving only.
@@ -21,11 +87,12 @@ services:
       - convex-data:/app/data
       - caddy-data:/caddy-data:ro
     environment:
-      - RUST_LOG=debug
+      <<: *dev-secrets
+      RUST_LOG: debug
       # NODE_ENV is read by Convex V8 functions at evaluation time; the
       # `test_sandbox_e2e` action gates itself on this so production can't
       # accidentally invoke the E2E harness. Dev compose explicitly opts in.
-      - NODE_ENV=development
+      NODE_ENV: development
 
   # Dev-only bridge: the agent sandbox + session containers are on the
   # `--internal` tale-sandbox-net (SSRF-locked) and `bun dev` runs convex on the
@@ -52,19 +119,33 @@ services:
           - convex
 
   platform:
+    # Build the dev image (Dockerfile `dev` stage): the unpruned builder with
+    # vite + the rolldown bundler + full frontend source, so the entrypoint can
+    # run `vite build --watch` (frontend) and `convex dev` (functions) against
+    # the host source mounted below. The default (prod) target is a pruned
+    # runtime that has neither. See compose.yml for the base build config.
+    build:
+      target: dev
     volumes:
+      # These mounts overlay the dev image's monorepo layout
+      # (/app/services/platform/*), so host edits reach the running watchers:
+      #   * app/ + lib/  → rebuilt into dist/ by `vite build --watch`; a browser
+      #                    refresh shows the change (hard reload, no HMR).
+      #   * convex/      → re-pushed to the convex service by `convex dev`.
+      # `vite build --watch`, `server.ts`, and the convex push all run from
+      # /app/services/platform, so no flat /app/convex mount is needed (the prod
+      # runner used one because it flattens everything into /app).
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
       - ./services/platform/convex:/app/services/platform/convex
-      # `bunx convex deploy` runs from /app (the package.json with
-      # "convex": "1.35.x") and looks for source at `<cwd>/convex/`,
-      # which is the image-baked snapshot. Bind the host source over
-      # that path too so deploys pick up live edits instead of the
-      # snapshot frozen at build time.
-      - ./services/platform/convex:/app/convex
       - convex-data:/app/data:ro
     environment:
-      - NODE_ENV=development
+      <<: *dev-secrets
+      NODE_ENV: development
+      # Master switch for BOTH hot-reload watchers (frontend build + convex
+      # push), default on in dev. Set to 0 to fall back to the one-shot boot
+      # deploy and the static prebuilt dist/ only.
+      TALE_DEV_HOT_RELOAD: ${TALE_DEV_HOT_RELOAD:-1}
 
   docs:
     volumes:
@@ -73,11 +154,13 @@ services:
       - ./services/docs/messages:/app/services/docs/messages
       - ./services/docs/scripts:/app/services/docs/scripts
     environment:
-      - NODE_ENV=development
+      <<: *dev-secrets
+      NODE_ENV: development
 
   proxy:
     environment:
-      - CADDY_DEBUG=true
+      <<: *dev-secrets
+      CADDY_DEBUG: 'true'
 
   # Sandbox-wobbly-origami plan §4: when developers run Convex on the host
   # (e.g. `cd services/platform && bun dev` instead of the dockerized
@@ -90,8 +173,3 @@ services:
   sandbox:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-
-  db:
-    environment:
-      - DB_LOG_STATEMENT=all
-      - DB_LOG_MIN_DURATION_STATEMENT=0

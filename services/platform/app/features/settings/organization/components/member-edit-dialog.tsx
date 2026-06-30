@@ -212,8 +212,8 @@ export function EditMemberDialog({
           label={t('form.email')}
           placeholder={t('form.emailPlaceholder')}
           {...register('email')}
-          className="bg-muted w-full"
-          disabled
+          className="w-full"
+          readOnly
           required
         />
         <Text variant="caption">{t('organization.emailCannotChange')}</Text>

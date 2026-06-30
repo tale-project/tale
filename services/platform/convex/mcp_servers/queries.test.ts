@@ -190,6 +190,7 @@ describe('mcp_servers/queries', () => {
       const handler = (getById as unknown as { handler: HandlerFn }).handler;
       const result = await handler(ctx as never, {
         id: 'server_1',
+        organizationId: 'org_1',
       });
 
       expect(result).toBeNull();
@@ -207,6 +208,7 @@ describe('mcp_servers/queries', () => {
       const handler = (getById as unknown as { handler: HandlerFn }).handler;
       const result = await handler(ctx as never, {
         id: 'nonexistent',
+        organizationId: 'org_1',
       });
 
       expect(result).toBeNull();
@@ -227,11 +229,33 @@ describe('mcp_servers/queries', () => {
       const handler = (getById as unknown as { handler: HandlerFn }).handler;
       const result = await handler(ctx as never, {
         id: 'server_1',
+        organizationId: 'org_1',
       });
 
       expect(result).not.toBeNull();
       expect(result).not.toHaveProperty('apiKeyEncrypted');
       expect(result).toHaveProperty('displayName', 'Test Server');
+    });
+
+    it("returns null when organizationId is not the server's active org", async () => {
+      mockGetAuth.mockResolvedValue({
+        userId: 'user_1',
+        email: 'test@test.com',
+        name: 'Test',
+      } as never);
+      mockGetOrgMember.mockResolvedValue({} as never);
+
+      const ctx = createMockQueryCtx([createMockServer()]);
+      const { getById } = await import('./queries');
+      const handler = (getById as unknown as { handler: HandlerFn }).handler;
+      // Server is in org_1; the caller's active org is org_other → a carried-over
+      // cross-org id resolves to null, not the other org's server.
+      const result = await handler(ctx as never, {
+        id: 'server_1',
+        organizationId: 'org_other',
+      });
+
+      expect(result).toBeNull();
     });
   });
 });

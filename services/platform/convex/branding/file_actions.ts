@@ -71,7 +71,7 @@ async function requireBrandingAdmin(
   organizationId: string,
 ): Promise<{ orgSlug: string }> {
   const auth = await requireOrgMembershipById(ctx, organizationId);
-  if (defineAbilityFor(auth.member.role).cannot('read', 'orgSettings')) {
+  if (defineAbilityFor(auth.member.role).cannot('write', 'orgSettings')) {
     throw new ConvexError({
       code: 'ORG_FORBIDDEN',
       message: `Role "${auth.member.role}" lacks the org-settings capability required to modify branding.`,

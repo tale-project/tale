@@ -29,6 +29,7 @@ import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
+import { browserViewEnabled } from '../../node_only/sandbox/browser_view';
 import {
   SessionDuplicateError,
   SessionNotFoundError,
@@ -41,6 +42,7 @@ import {
   sessionStageFiles,
 } from '../../node_only/sandbox/helpers/session_client';
 import {
+  reconcileBuiltinSkills,
   stageBrowserControlSkill,
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
@@ -96,17 +98,17 @@ const debugLog = createDebugLog(
 const OWNER_TYPE_USER = 'user';
 const OWNER_TYPE_THREAD = 'thread';
 // Data plane — the LLM gateway as seen from INSIDE the session container. (The
-// management plane URL, LLM_GATEWAY_URL, is read in llm_gateway_admin.ts.)
+// management plane URL, SANDBOX_LLM_GATEWAY_URL, is read in llm_gateway_admin.ts.)
 // Always the sandbox-network alias (it's hardcoded in the runtime NO_PROXY);
-// kept separate from LLM_GATEWAY_URL so host-run convex doesn't leak a host-only
-// URL into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
+// kept separate from SANDBOX_LLM_GATEWAY_URL so host-run convex doesn't leak a
+// host-only URL into the container (same split as SANDBOX_STORAGE_INTERNAL_BASE_URL).
 const EXTERNAL_AGENT_GATEWAY_URL =
-  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://llm-gateway:8080';
+  process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
 // Convex HTTP-ACTIONS base the in-sandbox MCP bridge calls for integration
 // dispatch (/api/integrations/*). Resolved on the SANDBOX network, so it must
 // be an on-net alias — the `--internal`, SSRF-locked agent container can reach
 // neither the host (host.docker.internal) nor :3210; only on-net dual-homed
-// aliases (like `llm-gateway`) work. Default `convex:3211` (the convex http-actions
+// aliases (like `sandbox-llm-gateway`) work. Default `convex:3211` (the convex http-actions
 // port): in prod the convex container is dual-homed onto the sandbox net; in
 // dev a `convex` relay alias on the sandbox net forwards to the host-run convex.
 // Override per environment with EXTERNAL_AGENT_INTEGRATIONS_URL.
@@ -155,19 +157,20 @@ const ACTION_WINDOW_MS = Number(
 // attempt is not started (an auth retry-storm must fit before the seam).
 const MAX_TOKEN_ATTEMPTS = 3;
 const TOKEN_ROTATION_MIN_WINDOW_MS = 90 * 1000;
-// Live browser view (read-only mirror), operator-gated and default OFF. When
-// '1', the adapter attaches Playwright MCP to the session's externally-launched
-// HEADED Chromium over CDP (instead of self-launching headless) so the browser
-// can be mirrored read-only by x11vnc. This MUST be set together with the
-// SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what actually launches the
-// session container with TALE_BROWSER_CDP=1 (the entrypoint's start_browser_-
-// stack), so a one-sided flag is a misconfig — platform-on/spawner-off attaches
-// to a CDP endpoint that was never started (the MCP retries and the browser
-// tools fail); spawner-on/platform-off wastes a headed browser the agent never
-// attaches to. Read here because this node action is where the exec spec is
-// built. NOTE (deployment): keep this and the spawner's SANDBOX_BROWSER_VIEW in
-// lockstep — it is a single deployment-level operator decision.
-const BROWSER_VIEW_ENABLED = process.env.SANDBOX_BROWSER_VIEW === '1';
+// Live browser view (read-only mirror), operator-gated and default ON (opt-out
+// via SANDBOX_BROWSER_VIEW=0). When on, the adapter attaches Playwright MCP to
+// the session's externally-launched HEADED Chromium over CDP (instead of self-
+// launching headless) so the browser can be mirrored read-only by x11vnc. This
+// MUST agree with the SPAWNER's SANDBOX_BROWSER_VIEW: the spawner is what
+// actually launches the session container with TALE_BROWSER_CDP=1 (the
+// entrypoint's start_browser_stack), so a one-sided flag is a misconfig —
+// platform-on/spawner-off attaches to a CDP endpoint that was never started (the
+// MCP retries and the browser tools fail); spawner-on/platform-off wastes a
+// headed browser the agent never attaches to. Read here because this node action
+// is where the exec spec is built. NOTE (deployment): one env value drives both
+// sides (browserViewEnabled mirrors the spawner's `?? true` default), so they
+// stay in lockstep — it is a single deployment-level operator decision.
+const BROWSER_VIEW_ENABLED = browserViewEnabled();
 
 /**
  * Append a failure note to the timeline-so-far WITHOUT discarding it. On an
@@ -207,7 +210,6 @@ async function stageChatAttachments(
     }>;
     promptMessageId: string;
     sessionId: string;
-    spawnerColor: string | null;
     rawPrompt: string;
   },
 ): Promise<{ prompt: string; additionalDirs: string[] }> {
@@ -240,7 +242,6 @@ async function stageChatAttachments(
       const result = await sessionStageFiles(
         opts.sessionId,
         entries.map((e) => ({ path: e.path, url: e.url })),
-        opts.spawnerColor,
       );
       const skippedReason = new Map(
         result.skipped.map((s) => [s.path, s.reason]),
@@ -344,11 +345,6 @@ export const runExternalAgentTurn = internalAction({
     // Hoisted so the catch can finalize side-effects (it's assigned once the
     // sandbox is resolved, before the message + op row exist).
     let sessionId: string | null = null;
-    // Blue-green colour the live session is on (from the create response or the
-    // existing row). Threaded into run_agent so its session ops route to
-    // `sandbox-<color>` — keeping a turn reachable if a deploy flip lingers the
-    // old colour mid-turn. `null` ⇒ single-colour / unknown → bare alias.
-    let liveSpawnerColor: string | null = null;
     // Mirror of the most recent content patched into the streaming message, so
     // the catch can mark it failed while preserving the partial tool timeline.
     let lastContent: AgentAssistantContent = '';
@@ -392,24 +388,18 @@ export const runExternalAgentTurn = internalAction({
       if (existing) {
         sessionId = existing.sessionId;
         sessionCreatedAt = existing.createdAt;
-        // Default to the row's recorded colour; a re-create below may move it.
-        liveSpawnerColor = existing.spawnerColor ?? null;
-        const alive = await sessionIsAlive(
-          existing.sessionId,
-          existing.spawnerColor,
-        );
+        const alive = await sessionIsAlive(existing.sessionId);
         if (!alive) {
           console.warn(
             '[runExternalAgentTurn] resuming stopped session in place:',
             sessionId,
           );
           try {
-            const created = await sessionCreate({
+            await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
-            liveSpawnerColor = created.spawnerColor;
           } catch (createErr) {
             // 409: the container is actually still live (race with the reaper /
             // a re-adopted session). That's a successful resume, NOT an orphan
@@ -464,12 +454,11 @@ export const runExternalAgentTurn = internalAction({
         );
         try {
           try {
-            const created = await sessionCreate({
+            await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
-            liveSpawnerColor = created.spawnerColor;
           } catch (createErr) {
             // 409 duplicate: the spawner still owns a session under this
             // deterministic id that the platform no longer tracks (e.g. a
@@ -481,12 +470,11 @@ export const runExternalAgentTurn = internalAction({
               `[runExternalAgentTurn] reaping orphan spawner session ${sessionId} (create 409)`,
             );
             await sessionDestroy(sessionId);
-            const recreated = await sessionCreate({
+            await sessionCreate({
               sessionId,
               organizationId: args.organizationId,
               profile: 'agent',
             });
-            liveSpawnerColor = recreated.spawnerColor;
           }
         } catch (createErr) {
           await ctx.runMutation(
@@ -515,20 +503,6 @@ export const runExternalAgentTurn = internalAction({
             { threadId: args.threadId, streamId: args.streamId, queued: false },
           );
         }
-      }
-
-      // Persist the colour the session landed on so a recovery/continuation
-      // after a deploy flip routes session ops to the lingering colour. No-ops
-      // on a null colour (single-colour mode) and only when it changed.
-      if (sessionId !== null && liveSpawnerColor !== null) {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.setSessionSpawnerColor,
-          {
-            organizationId: args.organizationId,
-            sessionId,
-            spawnerColor: liveSpawnerColor,
-          },
-        );
       }
 
       // EVERY turn (created OR reused): ensure the org's per-org upstream key +
@@ -762,8 +736,14 @@ export const runExternalAgentTurn = internalAction({
           // managed force-denies WebSearch/WebFetch (governed via integrations).
           nativeWebTools: byo || args.nativeWebTools === true,
         });
-        // The browser-human-control skill only applies when the live headed
-        // browser is on (the request_human_control tool is wired in that mode).
+        // visual-aspect-analyzer ships baked into the sandbox-runtime image and
+        // is symlinked into the session skill dir by the entrypoint; here we
+        // only enforce repo precedence — drop a baked skill the workspace repo
+        // also defines.
+        await reconcileBuiltinSkills(ctx, { sessionId });
+        // browser-human-control is inline + tightly coupled to the live browser:
+        // stage it only on turns where the headed browser (browserCdp) is on,
+        // since that's when the request_human_control tool exists.
         if (BROWSER_VIEW_ENABLED) {
           await stageBrowserControlSkill(ctx, { sessionId });
         }
@@ -930,7 +910,6 @@ export const runExternalAgentTurn = internalAction({
           attachments: args.attachments,
           promptMessageId: args.promptMessageId,
           sessionId: liveSessionId,
-          spawnerColor: liveSpawnerColor,
           rawPrompt: args.rawPrompt,
         });
         promptForRun = staged.prompt;
@@ -956,7 +935,6 @@ export const runExternalAgentTurn = internalAction({
           sessionId: liveSessionId,
           threadId: args.threadId,
           ...(args.streamId !== undefined && { streamId: args.streamId }),
-          ...(liveSpawnerColor !== null && { spawnerColor: liveSpawnerColor }),
           execId: id,
           agentSlug: args.agentKind,
           prompt: promptForRun,

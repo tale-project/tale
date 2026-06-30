@@ -6,6 +6,7 @@ import type { i18n as I18nInstance } from 'i18next';
 import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
+import './fonts';
 import { type Theme, ThemeProvider } from './theme';
 
 interface ClientLocaleConfig {

@@ -41,6 +41,7 @@ describe('StatusPanel', () => {
           appSlug: 'issue-desk',
           allowlist: [],
           labels: { 'issueDesk.verdictReady': 'Ready to merge' },
+          config: {},
         }}
       >
         <StatusPanel

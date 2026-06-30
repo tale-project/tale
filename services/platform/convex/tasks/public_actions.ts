@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
@@ -20,6 +21,21 @@ async function startWorkflowForTask(
   args: { organizationId: string; task: Doc<'tasks'>; workflowSlug: string },
 ): Promise<string | null> {
   const issueNumber = parseIssueNumber(args.task.externalId);
+  // An app-owned workflow (slug `<app>/<name>`) gets its install's PER-PROJECT
+  // config injected as `input.appConfig`, resolved by THIS task's project so two
+  // projects bound to the same app never see each other's config. Empty for a
+  // non-app workflow or an unconfigured app, so `{{input.appConfig.x}}` resolves
+  // to nothing rather than erroring.
+  const slash = args.workflowSlug.indexOf('/');
+  const appSlug = slash > 0 ? args.workflowSlug.slice(0, slash) : undefined;
+  const appConfig =
+    appSlug && isValidAppSlug(appSlug)
+      ? await ctx.runQuery(internal.apps.config.getProjectAppConfigInternal, {
+          organizationId: args.organizationId,
+          appSlug,
+          projectId: args.task.projectId,
+        })
+      : {};
   try {
     return await ctx.runAction(
       api.workflow_executions.actions.startWorkflowFromFile,
@@ -27,7 +43,7 @@ async function startWorkflowForTask(
         organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,
         triggeredBy: 'user',
-        input: { task: args.task, issueNumber },
+        input: { task: args.task, issueNumber, appConfig },
         subject: { type: 'task', id: args.task._id },
       },
     );
@@ -98,8 +114,11 @@ export const createTaskFromExternalIssue = action({
     if (args.projectId) {
       const project = await ctx.runQuery(api.projects.queries.getProject, {
         projectId: args.projectId,
+        organizationId: args.organizationId,
       });
-      if (!project || project.organizationId !== args.organizationId) {
+      // getProject now enforces active-org coherence (returns null when the
+      // project is not in args.organizationId), so a non-null result is in-org.
+      if (!project) {
         throw new Error('Target project not found in this organization');
       }
       projectId = args.projectId;
@@ -139,20 +158,28 @@ export const createTaskFromExternalIssue = action({
         dedupeScope: args.projectId ? 'project' : 'org',
       },
     );
+    // Creation is unconditional here (a projectId is always resolved above and
+    // createIfMissing defaults true), so a null id is unreachable — guard it
+    // anyway since the upsert now returns null for update-only reconciles.
+    const taskId = result.taskId;
+    if (!taskId) {
+      throw new Error('Failed to create or find the task for this issue');
+    }
 
     let executionId: string | null | undefined;
     if (args.runWorkflowSlug && result.created) {
       // The workflow reads the full task doc (input.task.{_id,title,externalUrl,
       // description,...}); fetch it rather than re-deriving the shape here.
       const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
-        taskId: result.taskId,
+        taskId,
+        organizationId: args.organizationId,
       });
       if (!loaded?.task) {
         // Just-created task isn't readable back (e.g. raced delete): don't start
         // a run doomed to fail on a null input.task — surface no run instead.
         console.error(
           '[create-task] created task not readable; skipping workflow start',
-          result.taskId,
+          taskId,
         );
         executionId = null;
       } else {
@@ -164,7 +191,7 @@ export const createTaskFromExternalIssue = action({
       }
     }
 
-    return { taskId: result.taskId, created: result.created, executionId };
+    return { taskId, created: result.created, executionId };
   },
 });
 
@@ -204,6 +231,7 @@ export const startTaskWorkflow = action({
 
     const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
       taskId: args.taskId,
+      organizationId: args.organizationId,
     });
     if (!loaded?.task) {
       throw new Error('Task not found');
@@ -310,6 +338,7 @@ export const mergeTaskPullRequest = action({
 
     const loaded = await ctx.runQuery(api.tasks.queries.getTask, {
       taskId: args.taskId,
+      organizationId: args.organizationId,
     });
     if (!loaded?.task) {
       throw new Error('Task not found');

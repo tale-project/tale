@@ -41,11 +41,22 @@ interface DockerSessionRunInput {
    * isolated per session and doesn't share the (overlay-backed) workspace.
    */
   dockerStorageVolume?: string;
+  /**
+   * Endpoint of the shared buildkitd (e.g. `tcp://tale-buildkitd:1234`), set only
+   * when `cfg.dockerBuildCache` is on (and DinD). The entrypoint creates a remote
+   * buildx builder pointing here + sets BUILDX_BUILDER, so the session's
+   * `docker build` / `docker compose up --build` reuse the shared build cache.
+   * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
+   */
+  buildkitdEndpoint?: string;
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
+// `tcp://host:port` for the shared buildkitd endpoint — the only injection
+// surface a new env value adds, so validate it like every other interpolation.
+const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 // Hex token from deriveRunnerdToken (SHA256 → 64 hex chars), or empty in
 // unsigned dev mode (runnerd skips the check when TALE_RUNNERD_TOKEN is empty).
@@ -238,6 +249,14 @@ export function buildDockerSessionRunArgs(
       '--env',
       `TALE_RUNTIME_TIER=${cfg.runtimeTier}`,
     ];
+    // Shared build cache: point the session at the shared buildkitd so the
+    // entrypoint can wire a remote buildx builder. Only present when the backend
+    // resolved an endpoint (cfg.dockerBuildCache on + the daemon came up), so
+    // the off path stays argv byte-identical.
+    if (inp.buildkitdEndpoint) {
+      assertSafe('buildkitdEndpoint', inp.buildkitdEndpoint, ENDPOINT_RE);
+      dindEnv.push('--env', `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`);
+    }
   }
 
   // Live browser view (operator flag): signal the entrypoint to bring up the
@@ -308,9 +327,6 @@ export function buildDockerSessionRunArgs(
     // metadata read on boot.
     '--label',
     'tale.sandbox-session=1',
-    // Blue-green colour so `listSessions` (adoption) only sees this colour's
-    // sessions — a fresh green never adopts a draining blue's sessions.
-    ...(cfg.color ? ['--label', `tale.color=${cfg.color}`] : []),
     '--label',
     `tale.session=${inp.sessionId}`,
     '--label',
@@ -325,14 +341,17 @@ export function buildDockerSessionRunArgs(
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',
     `HTTP_PROXY=${cfg.egressProxy}`,
-    // Session execs reach the LLM gateway (llm-gateway) and the convex http-actions
-    // (the in-sandbox integration bridge → /api/integrations/*) directly on the
-    // internal bridge — not through tinyproxy. The agent adapters set
-    // ANTHROPIC_BASE_URL at the gateway and the bridge calls http://convex:3211,
+    // Session execs reach the LLM gateway (sandbox-llm-gateway) and the convex
+    // http-actions (the in-sandbox integration bridge → /api/integrations/*)
+    // directly on the internal bridge — not through tinyproxy. The agent adapters
+    // set ANTHROPIC_BASE_URL at the gateway and the bridge calls http://convex:3211,
     // so both must be in NO_PROXY or the CONNECT would be denied. If
     // EXTERNAL_AGENT_INTEGRATIONS_URL overrides the host, this list must match.
+    // The old `llm-gateway` alias is kept for one release so in-flight sessions
+    // pinned to the pre-rename hostname keep resolving (see the transitional
+    // network alias in compose.yml).
     '--env',
-    `NO_PROXY=127.0.0.1,localhost,llm-gateway,convex`,
+    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,convex`,
     // Per-org shared dep caches (empty under DinD — see cacheEnv above).
     ...cacheEnv,
     // HOME on the persistent workspace volume so agent state (~/.claude,

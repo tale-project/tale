@@ -16,16 +16,19 @@
               "id": "issues",
               "title": "$label:issueDesk.issuesListTitle",
               "source": {
-                "path": "integrations/public_actions:listGitHubIssues",
+                "path": "integrations/public_actions:listUntrackedGitHubIssues",
                 "args": {
                   "organizationId": "$orgId",
-                  "owner": "tale-project",
-                  "repo": "tale",
-                  "state": "open"
+                  "owner": "$config:owner",
+                  "repo": "$config:repo",
+                  "state": "open",
+                  "projectId": "$projectId",
+                  "externalSystem": "github",
+                  "rowWhen": "!pull_request",
+                  "rowKeyTemplate": "{owner}/{repo}#{number}"
                 }
               },
               "itemsKey": "data",
-              "rowWhen": "!pull_request",
               "columns": ["number", "title", "state"],
               "columnLabels": {
                 "number": "$label:issueDesk.col.number",
@@ -35,13 +38,13 @@
               "perPage": 30,
               "excludeBy": {
                 "query": {
-                  "path": "tasks/queries:listTasksByProject",
+                  "path": "tasks/queries:listExternalKeysByProject",
                   "args": {
-                    "projectId": "$projectId"
+                    "projectId": "$projectId",
+                    "externalSystem": "github"
                   }
                 },
-                "refField": "externalId",
-                "rowKeyTemplate": "tale-project/tale#{number}"
+                "rowKeyTemplate": "{owner}/{repo}#{number}"
               },
               "actions": [
                 {
@@ -54,7 +57,7 @@
                     "organizationId": "$orgId",
                     "projectId": "$projectId",
                     "externalSystem": "github",
-                    "externalId": "$tpl:tale-project/tale#{number}",
+                    "externalId": "$tpl:{owner}/{repo}#{number}",
                     "title": "$selected.title",
                     "externalUrl": "$selected.html_url",
                     "description": "$label:issueDesk.taskTemplate",
@@ -85,12 +88,27 @@
               "id": "tasks",
               "title": "$label:issueDesk.tasksListTitle",
               "query": {
-                "path": "tasks/queries:listTasksByProject",
+                "path": "tasks/queries:listTasksByProjectPaginated",
                 "args": {
                   "projectId": "$projectId",
+                  "organizationId": "$orgId",
                   "externalSystem": "github"
                 }
               },
+              "perPage": 50,
+              "filters": [
+                {
+                  "field": "status",
+                  "values": [
+                    "backlog",
+                    "todo",
+                    "in_progress",
+                    "in_review",
+                    "done",
+                    "cancelled"
+                  ]
+                }
+              ],
               "columns": ["title", "status"],
               "columnLabels": {
                 "title": "$label:issueDesk.col.title",

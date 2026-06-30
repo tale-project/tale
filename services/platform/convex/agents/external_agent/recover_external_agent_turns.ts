@@ -61,11 +61,7 @@ export const recoverStuckExternalAgentTurns = internalAction({
         //    finalize on a hiccup (that was the old bug that killed live agents).
         let liveness;
         try {
-          liveness = await sessionExecStatus(
-            op.sessionId,
-            op.execId,
-            op.spawnerColor,
-          );
+          liveness = await sessionExecStatus(op.sessionId, op.execId);
         } catch (probeErr) {
           console.warn(
             `[recoverStuckExternalAgentTurns] exec probe failed for ${op.execId} (leaving for next sweep):`,
@@ -119,11 +115,7 @@ export const recoverStuckExternalAgentTurns = internalAction({
                   },
                 )
                 .catch((e) => console.warn('[recover] supersede op:', e));
-              await sessionCancelExec(
-                op.sessionId,
-                op.execId,
-                op.spawnerColor,
-              ).catch((e) =>
+              await sessionCancelExec(op.sessionId, op.execId).catch((e) =>
                 console.warn('[recover] supersede cancel exec:', e),
               );
               finalized += 1;
@@ -166,9 +158,6 @@ export const recoverStuckExternalAgentTurns = internalAction({
               ...(op.agentSlug !== undefined && { agentSlug: op.agentSlug }),
               ...(op.userId !== undefined && { userId: op.userId }),
               ...(op.streamId !== undefined && { streamId: op.streamId }),
-              ...(op.spawnerColor !== undefined && {
-                spawnerColor: op.spawnerColor,
-              }),
             },
           );
           resumed += 1;

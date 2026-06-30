@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid } from '@tale/ui/layout';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -10,8 +10,9 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
-import { Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProduct } from '../hooks/mutations';
@@ -94,6 +95,7 @@ export function ProductEditDialog({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors, isDirty },
   } = useForm<ProductFormData>({
@@ -112,18 +114,27 @@ export function ProductEditDialog({
 
   const status = watch('status');
 
+  // Seed the form from the product only on the open transition. Resetting on
+  // every `product` change would wipe field errors (e.g. the duplicate-name
+  // error) and the user's typed name mid-edit: a duplicate rename triggers the
+  // mutation's optimistic update (patches the cached product) then its rollback
+  // (reverts it), and each prop-identity change would otherwise fire `reset()`.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    reset({
-      name: product.name,
-      description: product.description || '',
-      imageUrl: product.imageUrl || '',
-      stock: product.stock?.toString() || '',
-      price: product.price?.toString() || '',
-      currency: product.currency || 'USD',
-      category: product.category || '',
-      status: product.status || 'draft',
-    });
-  }, [product, reset]);
+    if (isOpen && !wasOpen.current) {
+      reset({
+        name: product.name,
+        description: product.description || '',
+        imageUrl: product.imageUrl || '',
+        stock: product.stock?.toString() || '',
+        price: product.price?.toString() || '',
+        currency: product.currency || 'USD',
+        category: product.category || '',
+        status: product.status || 'draft',
+      });
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen, product, reset]);
 
   const onSubmit = (data: ProductFormData) => {
     updateProduct(
@@ -148,6 +159,14 @@ export function ProductEditDialog({
         },
         onError: (err) => {
           console.error('Update error:', err);
+          // Duck-typed code check — Vite chunk splitting can yield multiple
+          // ConvexError copies that break `instanceof` (see extract-error-code).
+          if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
+            setError('name', {
+              message: tProducts('edit.toast.duplicateName'),
+            });
+            return;
+          }
           toast({
             title: tProducts('edit.toast.error'),
             variant: 'destructive',

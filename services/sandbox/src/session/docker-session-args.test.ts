@@ -15,6 +15,9 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  dockerBuildCache: false,
+  buildkitdImage: 'tale-sandbox-buildkitd:test',
+  buildkitdMirrorImage: 'registry:2',
   browserView: false,
   transparentEgress: false,
   k8s: {
@@ -79,7 +82,9 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--read-only');
     expect(args).toContain('no-new-privileges');
     // Gateway + convex http-actions reachable directly (not via tinyproxy).
-    expect(args).toContain('NO_PROXY=127.0.0.1,localhost,llm-gateway,convex');
+    expect(args).toContain(
+      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,convex',
+    );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
     // Container + workspace mount.
@@ -288,6 +293,37 @@ describe('buildDockerSessionRunArgs', () => {
       expect(() => buildDockerSessionRunArgs(dindCfg, goodInput)).toThrow(
         /dockerStorageVolume is required/,
       );
+    });
+
+    test('shared build cache: emits TALE_BUILDKITD_ENDPOINT when set', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: 'tcp://tale-buildkitd:1234',
+      });
+      expect(args).toContain(
+        'TALE_BUILDKITD_ENDPOINT=tcp://tale-buildkitd:1234',
+      );
+    });
+
+    test('shared build cache: absent endpoint keeps argv byte-identical', () => {
+      const withField = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: undefined,
+      });
+      const without = buildDockerSessionRunArgs(dindCfg, dindInput);
+      expect(withField).toEqual(without);
+      expect(
+        withField.some((a) => a.startsWith('TALE_BUILDKITD_ENDPOINT=')),
+      ).toBe(false);
+    });
+
+    test('shared build cache: a malformed endpoint is rejected', () => {
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: 'http://evil; rm -rf /',
+        }),
+      ).toThrow(/buildkitdEndpoint value rejected/);
     });
 
     test('DinD-off output is unchanged (no DinD flags leak in)', () => {

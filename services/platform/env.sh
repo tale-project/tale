@@ -11,7 +11,7 @@ env_normalize_common() {
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
   # Domain configuration
-  # HOST is the hostname without protocol (e.g., "tale.local", "demo.tale.dev")
+  # HOST is the hostname without protocol (e.g., "localhost", "demo.tale.dev")
   # SITE_URL is the full canonical URL with protocol (required)
   local host="${HOST:-localhost}"
 

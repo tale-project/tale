@@ -1,0 +1,9 @@
+{
+  "name": "@tale/sandbox-buildkitd",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tale shared sandbox buildkitd — cross-session docker build cache, fenced egress via sandbox-egress",
+  "scripts": {
+    "docker:build": "docker build -t tale-sandbox-buildkitd -f services/sandbox-buildkitd/Dockerfile ../../"
+  }
+}

@@ -31,6 +31,15 @@ interface FileAttachment {
   fileType: string;
   fileSize: number;
   previewUrl?: string;
+  /**
+   * Identity of the source file the user picked, before any client-side
+   * image compression renamed/resized it (see compress-image.ts). Dedup
+   * keys off these so re-attaching the same original is caught even though
+   * `fileName`/`fileSize` hold the compressed values. Falls back to the
+   * stored name/size for non-image attachments that were never compressed.
+   */
+  originalFileName?: string;
+  originalFileSize?: number;
 }
 
 interface ConvexFileUploadConfig {
@@ -98,10 +107,22 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
 
+  // In-flight uploads that have passed the gates but not yet committed to
+  // `attachments`. The count/dedup/total-size gates below read only the
+  // committed `attachments`, so without this a second attach batch fired
+  // while the first is still uploading would not see the first batch — letting
+  // it bypass the file-count cap, cross-batch dedup, and total-size cap. Each
+  // entry keeps the ORIGINAL (pre-compression) dedup key and the source size
+  // so those gates account for the pending file. Keyed by a per-upload id so
+  // overlapping batches don't clobber each other's reservations.
+  const pendingUploadsRef = useRef(
+    new Map<string, { dedupKey: string; size: number }>(),
+  );
+
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const validFiles: { file: File; resolvedType: string }[] = [];
-      const rejectedTooLarge: File[] = [];
+      const rejectedTooLarge: { file: File; limit: number }[] = [];
       const rejectedType: File[] = [];
       const rejectedAudioDuration: File[] = [];
 
@@ -128,15 +149,20 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           }
         }
 
-        // Per-type ceiling: audio max file size is 1 GB (duration is the
-        // real gate — see audio duration check below); other types cap at
-        // the generic `maxFileSize`.
-        const perTypeLimit = Math.min(
-          mergedConfig.maxFileSize,
-          getMaxFileSizeForType(resolvedType),
-        );
+        // Per-type ceiling. Audio/video may exceed the generic per-file cap:
+        // duration (the 4-hour check below) and the total-attachment-size cap
+        // are the real gates for media, so we use the (higher) media ceiling
+        // rather than clamping it back down to the generic `maxFileSize`. The
+        // old `Math.min(maxFileSize, mediaCeiling)` collapsed the media ceiling
+        // to the 100 MB generic cap, rejecting 100–200 MB audio/video outright.
+        // A governance upload policy that sets an explicit max file size still
+        // bounds every type, media included.
+        const typeCeiling = getMaxFileSizeForType(resolvedType);
+        const perTypeLimit = policyLimits.policyEnabled
+          ? Math.min(mergedConfig.maxFileSize, typeCeiling)
+          : typeCeiling;
         if (file.size > perTypeLimit) {
-          rejectedTooLarge.push(file);
+          rejectedTooLarge.push({ file, limit: perTypeLimit });
         } else if (!isAllowedType) {
           rejectedType.push(file);
         } else {
@@ -179,16 +205,31 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       }
 
       if (rejectedTooLarge.length > 0) {
-        const maxSizeMB = Math.round(mergedConfig.maxFileSize / (1024 * 1024));
-        const names = rejectedTooLarge.map((f) => f.name).join(', ');
-        toast({
-          title: t('invalidFiles'),
-          description: t('fileSizeExceededMultiple', {
-            names,
-            maxSize: maxSizeMB,
-          }),
-          variant: 'destructive',
-        });
+        // Report the ceiling each file actually exceeded, not a single global
+        // `maxFileSize`. Media gets the elevated per-type cap, so a rejected
+        // video and a rejected document have different bounds; group by the
+        // limit so each toast states the right number rather than always 100 MB.
+        const byLimit = new Map<number, File[]>();
+        for (const { file, limit } of rejectedTooLarge) {
+          const group = byLimit.get(limit);
+          if (group) {
+            group.push(file);
+          } else {
+            byLimit.set(limit, [file]);
+          }
+        }
+        for (const [limit, groupFiles] of byLimit) {
+          const maxSizeMB = Math.round(limit / (1024 * 1024));
+          const names = groupFiles.map((f) => f.name).join(', ');
+          toast({
+            title: t('invalidFiles'),
+            description: t('fileSizeExceededMultiple', {
+              names,
+              maxSize: maxSizeMB,
+            }),
+            variant: 'destructive',
+          });
+        }
       }
 
       if (rejectedAudioDuration.length > 0) {
@@ -205,17 +246,32 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         const names = rejectedType.map((f) => f.name).join(', ');
         toast({
           title: t('invalidFiles'),
-          description: t('fileTypeNotAllowed', { names }),
+          // Unsupported type — distinct from a governance-policy block
+          // (rejectedExtension), which keeps the policy-worded message. #2086
+          description: t('fileTypeUnsupported', { names }),
           variant: 'destructive',
         });
       }
 
       if (validFiles.length === 0) return;
 
-      // Skip files already attached (match by name + size)
-      const existingKeys = new Set(
-        attachmentsRef.current.map((att) => `${att.fileName}:${att.fileSize}`),
-      );
+      // Skip files already attached (match by name + size). Compare against
+      // the ORIGINAL identity of stored attachments — images are compressed
+      // and renamed before storage, so keying off `fileName`/`fileSize` would
+      // miss a re-attach of the same >1MB source image. In-flight uploads are
+      // folded in too so a duplicate spread across concurrent batches is
+      // caught before the first one finishes committing.
+      const existingKeys = new Set<string>();
+      for (const att of attachmentsRef.current) {
+        existingKeys.add(
+          `${att.originalFileName ?? att.fileName}:${
+            att.originalFileSize ?? att.fileSize
+          }`,
+        );
+      }
+      for (const pending of pendingUploadsRef.current.values()) {
+        existingKeys.add(pending.dedupKey);
+      }
       const deduped: typeof validFiles = [];
       for (const entry of validFiles) {
         const key = `${entry.file.name}:${entry.file.size}`;
@@ -234,9 +290,12 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
       if (deduped.length === 0) return;
 
-      // Enforce max file count
+      // Enforce max file count — count in-flight uploads alongside committed
+      // attachments so overlapping batches can't collectively exceed the cap.
       const slotsAvailable =
-        CHAT_MAX_FILE_COUNT - attachmentsRef.current.length;
+        CHAT_MAX_FILE_COUNT -
+        attachmentsRef.current.length -
+        pendingUploadsRef.current.size;
       if (slotsAvailable <= 0) {
         toast({
           title: t('tooManyFiles'),
@@ -265,11 +324,16 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         });
       }
 
-      // Enforce max total attachment size
-      const existingSize = attachmentsRef.current.reduce(
+      // Enforce max total attachment size — include in-flight uploads (using
+      // the source size as an upper bound; the compressed upload is smaller)
+      // so concurrent batches can't collectively exceed the total cap.
+      let existingSize = attachmentsRef.current.reduce(
         (sum, att) => sum + att.fileSize,
         0,
       );
+      for (const pending of pendingUploadsRef.current.values()) {
+        existingSize += pending.size;
+      }
       const incomingSize = acceptedFiles.reduce(
         (sum, { file }) => sum + file.size,
         0,
@@ -285,9 +349,22 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         return;
       }
 
-      const uploadPromises = acceptedFiles.map(
-        async ({ file, resolvedType }) => {
-          const fileId = `${file.name}-${Date.now()}`;
+      // Reserve a slot for every accepted file *before* any upload starts, so
+      // a concurrent batch fired mid-upload sees these in the gates above. The
+      // dedup key uses the original (pre-compression) identity to match the
+      // stored-attachment key. Reservations are released in the `finally` once
+      // the file commits to `attachments` (or fails).
+      const uploadTasks = acceptedFiles.map(({ file, resolvedType }, index) => {
+        const fileId = `${file.name}-${file.size}-${Date.now()}-${index}`;
+        pendingUploadsRef.current.set(fileId, {
+          dedupKey: `${file.name}:${file.size}`,
+          size: file.size,
+        });
+        return { file, resolvedType, fileId };
+      });
+
+      const uploadPromises = uploadTasks.map(
+        async ({ file, resolvedType, fileId }) => {
           setUploadingFiles((prev) => [...prev, fileId]);
 
           try {
@@ -336,11 +413,29 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               fileName: fileToUpload.name,
               fileType: resolvedType,
               fileSize: fileToUpload.size,
+              // Preserve the source identity so a later re-attach of the same
+              // original file dedups even after compression renamed/resized it.
+              originalFileName: file.name,
+              originalFileSize: file.size,
               previewUrl: resolvedType.startsWith('image/')
                 ? URL.createObjectURL(fileToUpload)
                 : undefined,
             };
 
+            // Commit to `attachments` and release the in-flight reservation in
+            // the same synchronous tick so the file is never counted twice by
+            // the gates. `attachmentsRef.current` is normally refreshed only on
+            // the next render (see the assignment near the top of the hook), so
+            // deleting the reservation here while the committed file isn't yet
+            // visible in the ref would open a window — between this delete and
+            // the render — in which a concurrent batch's gates see the file in
+            // neither `pendingUploadsRef` nor `attachmentsRef.current` and can
+            // over-reserve past the count/total-size caps (and miss the dedup).
+            // Mirror the commit into the ref *before* releasing the reservation
+            // so the gates see the file the instant its slot is freed; the next
+            // render reconciles `attachmentsRef.current` to the same value.
+            attachmentsRef.current = [...attachmentsRef.current, attachment];
+            pendingUploadsRef.current.delete(fileId);
             setAttachments((prev) => [...prev, attachment]);
 
             toast({
@@ -355,6 +450,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               variant: 'destructive',
             });
           } finally {
+            // Idempotent: the success path already released the reservation;
+            // this covers the failure path so a failed upload frees its slot.
+            pendingUploadsRef.current.delete(fileId);
             setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
           }
         },

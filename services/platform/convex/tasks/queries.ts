@@ -8,6 +8,7 @@
  * orders by `rank` client-side.
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
@@ -20,14 +21,17 @@ import {
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
+import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
   boardViewTypeValidator,
   taskActorTypeValidator,
+  taskAttachmentValidator,
   taskCreatorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
@@ -50,6 +54,7 @@ async function getAuthContext(
 async function loadAccessibleProject(
   ctx: QueryCtx,
   projectId: Id<'projects'>,
+  activeOrgId: string,
 ): Promise<{
   project: Doc<'projects'>;
   auth: { userId: string; role: string; teamIds: string[] };
@@ -57,6 +62,10 @@ async function loadAccessibleProject(
 }> {
   const project = await ctx.db.get(projectId);
   if (!project) throw new Error('PROJECT_NOT_FOUND');
+  // Active-org coherence: the task/project must belong to the caller's ACTIVE
+  // org, not merely an org they are a member of — otherwise a carried-over
+  // cross-org id resolves to another org's tasks. See assert_active_org.
+  assertActiveOrg(project.organizationId, activeOrgId);
   const auth = await getAuthContext(ctx, project.organizationId);
   const access = checkProjectAccess(project, auth.teamIds, auth.role);
   if (!access.canRead) throw new Error('TASK_FORBIDDEN');
@@ -70,6 +79,7 @@ export const taskRowValidator = v.object({
   projectId: v.id('projects'),
   title: v.string(),
   description: v.optional(v.string()),
+  attachments: v.optional(v.array(taskAttachmentValidator)),
   number: v.optional(v.number()),
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
@@ -140,6 +150,7 @@ const activityRowValidator = v.object({
 export const listTasksByProject = query({
   args: {
     projectId: v.id('projects'),
+    organizationId: v.string(),
     includeArchived: v.optional(v.boolean()),
     status: v.optional(taskStatusValidator),
     assigneeId: v.optional(v.string()),
@@ -153,7 +164,11 @@ export const listTasksByProject = query({
     truncated: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { project } = await loadAccessibleProject(ctx, args.projectId);
+    const { project } = await loadAccessibleProject(
+      ctx,
+      args.projectId,
+      args.organizationId,
+    );
 
     const rows: Doc<'tasks'>[] = [];
     let truncated = false;
@@ -179,6 +194,69 @@ export const listTasksByProject = query({
     );
 
     return { tasks: rows, truncated };
+  },
+});
+
+/**
+ * Cursor-paginated sibling of {@link listTasksByProject} for the config-driven
+ * `Collection` block. Walks `by_project_status_rank` so rows arrive in
+ * `(status, rank)` order — the board grouping — preserved across pages, with the
+ * facets applied as `.filter()` (see `list_tasks_paginated`). Project-ACL gated
+ * exactly like the bounded list; `returns` is omitted (the paginated-query
+ * convention, mirroring `customers`/`products`).
+ */
+export const listTasksByProjectPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+    externalSystem: v.optional(v.string()),
+    status: v.optional(taskStatusValidator),
+    includeArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await loadAccessibleProject(ctx, args.projectId, args.organizationId);
+    return await listTasksByProjectPaginatedHelper(ctx, args);
+  },
+});
+
+/**
+ * The set of `externalId` keys already materialized into this project's tasks for
+ * one external system (e.g. every GitHub issue that's already a task). Powers the
+ * issue desk's "hide issues already tracked" cross-reference — both the server's
+ * filtered-pagination anti-join AND the client's live top-up read it.
+ *
+ * Deliberately UN-truncated (unlike `listTasksByProject`'s `TASK_BOARD_CAP`): an
+ * incomplete exclusion set silently leaks already-tracked issues back into the
+ * list, so correctness requires the WHOLE set. The read is index-narrowed to
+ * `(projectId, externalSystem)` and returns bare keys (not whole task rows), so
+ * it stays cheap even for large projects.
+ */
+export const listExternalKeysByProject = query({
+  args: {
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+    externalSystem: v.string(),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const { project } = await loadAccessibleProject(
+      ctx,
+      args.projectId,
+      args.organizationId,
+    );
+
+    const keys: string[] = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_project_external', (q) =>
+        q
+          .eq('projectId', project._id)
+          .eq('externalSystem', args.externalSystem),
+      )) {
+      if (task.externalId) keys.push(task.externalId);
+    }
+    return keys;
   },
 });
 
@@ -237,7 +315,7 @@ export const listTasksByOrg = query({
 
 /** Fetch a single task with the caller's edit/claim affordances. */
 export const getTask = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
@@ -249,19 +327,23 @@ export const getTask = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return null;
-    const { canEdit } = await loadAccessibleProject(ctx, task.projectId);
+    const { canEdit } = await loadAccessibleProject(
+      ctx,
+      task.projectId,
+      args.organizationId,
+    );
     return { task, canEdit, canClaim: canEdit && canClaimTask(task) };
   },
 });
 
 /** List direct subtasks of a task. */
 export const listSubtasks = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.array(taskRowValidator),
   handler: async (ctx, args) => {
     const parent = await ctx.db.get(args.taskId);
     if (!parent) return [];
-    await loadAccessibleProject(ctx, parent.projectId);
+    await loadAccessibleProject(ctx, parent.projectId, args.organizationId);
     const children: Doc<'tasks'>[] = [];
     for await (const child of ctx.db
       .query('tasks')
@@ -280,7 +362,7 @@ export const listSubtasks = query({
  * into them). Edges whose linked task no longer exists are skipped.
  */
 export const listTaskDependencies = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.object({
     blockedBy: v.array(taskRowValidator),
     blocks: v.array(taskRowValidator),
@@ -288,7 +370,7 @@ export const listTaskDependencies = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return { blockedBy: [], blocks: [] };
-    await loadAccessibleProject(ctx, task.projectId);
+    await loadAccessibleProject(ctx, task.projectId, args.organizationId);
 
     const blockedBy: Doc<'tasks'>[] = [];
     for await (const edge of ctx.db
@@ -315,7 +397,7 @@ export const listTaskDependencies = query({
  * derive which tasks are currently blocked from the task set already loaded.
  */
 export const listProjectDependencies = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.array(
     v.object({
       blockerTaskId: v.id('tasks'),
@@ -323,7 +405,7 @@ export const listProjectDependencies = query({
     }),
   ),
   handler: async (ctx, args) => {
-    await loadAccessibleProject(ctx, args.projectId);
+    await loadAccessibleProject(ctx, args.projectId, args.organizationId);
     const edges: { blockerTaskId: Id<'tasks'>; blockedTaskId: Id<'tasks'> }[] =
       [];
     for await (const edge of ctx.db
@@ -347,7 +429,7 @@ export const listProjectDependencies = query({
  * empty state. Project-access gated like every task read.
  */
 export const getTaskDiscussion = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.object({
     threadId: v.union(v.string(), v.null()),
     messages: v.array(taskDiscussionMessageValidator),
@@ -355,7 +437,7 @@ export const getTaskDiscussion = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return { threadId: null, messages: [] };
-    await loadAccessibleProject(ctx, task.projectId);
+    await loadAccessibleProject(ctx, task.projectId, args.organizationId);
     const messages = await readTaskDiscussionMessages(ctx, task);
     return { threadId: task.discussionThreadId ?? null, messages };
   },
@@ -379,10 +461,14 @@ const boardViewRowValidator = v.object({
 
 /** List saved board views for a project: all shared views + the caller's own personal views. */
 export const listBoardViews = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.array(boardViewRowValidator),
   handler: async (ctx, args) => {
-    const { auth } = await loadAccessibleProject(ctx, args.projectId);
+    const { auth } = await loadAccessibleProject(
+      ctx,
+      args.projectId,
+      args.organizationId,
+    );
     const views: Doc<'boardViews'>[] = [];
     for await (const view of ctx.db
       .query('boardViews')
@@ -397,12 +483,12 @@ export const listBoardViews = query({
 
 /** List a task's activity timeline (newest first). */
 export const listTaskActivity = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.array(activityRowValidator),
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return [];
-    await loadAccessibleProject(ctx, task.projectId);
+    await loadAccessibleProject(ctx, task.projectId, args.organizationId);
     return await ctx.db
       .query('taskActivity')
       .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
@@ -424,7 +510,7 @@ const TASK_OPS_INDICATOR_CAP = 50;
  * invalidation surface is run lifecycle + review responses only.
  */
 export const getTaskOpsIndicators = query({
-  args: { projectId: v.id('projects') },
+  args: { projectId: v.id('projects'), organizationId: v.string() },
   returns: v.object({
     runningTaskIds: v.array(v.id('tasks')),
     pendingReviews: v.array(
@@ -435,7 +521,11 @@ export const getTaskOpsIndicators = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const { project } = await loadAccessibleProject(ctx, args.projectId);
+    const { project } = await loadAccessibleProject(
+      ctx,
+      args.projectId,
+      args.organizationId,
+    );
 
     const runningTaskIds: Id<'tasks'>[] = [];
     for await (const run of ctx.db
@@ -479,7 +569,7 @@ export const getTaskOpsIndicators = query({
  * Returns null when there is nothing to review.
  */
 export const getPendingTaskReview = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
@@ -492,7 +582,7 @@ export const getPendingTaskReview = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return null;
-    await loadAccessibleProject(ctx, task.projectId);
+    await loadAccessibleProject(ctx, task.projectId, args.organizationId);
     for await (const approval of ctx.db
       .query('approvals')
       .withIndex('by_resource', (q) =>
@@ -518,7 +608,7 @@ export const getPendingTaskReview = query({
 
 /** Agent run history for one task (detail-sheet "Agent activity" section). */
 export const listTaskAgentRuns = query({
-  args: { taskId: v.id('tasks') },
+  args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.array(
     v.object({
       runId: v.id('taskAgentRuns'),
@@ -536,7 +626,7 @@ export const listTaskAgentRuns = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return [];
-    await loadAccessibleProject(ctx, task.projectId);
+    await loadAccessibleProject(ctx, task.projectId, args.organizationId);
     const runs = await ctx.db
       .query('taskAgentRuns')
       .withIndex('by_task_started', (q) => q.eq('taskId', args.taskId))
@@ -571,6 +661,7 @@ export const mentionTriggerPreview = query({
   args: {
     taskId: v.optional(v.id('tasks')),
     projectId: v.optional(v.id('projects')),
+    organizationId: v.string(),
     slugs: v.array(v.string()),
   },
   returns: v.array(
@@ -595,7 +686,11 @@ export const mentionTriggerPreview = query({
     }
     const projectId = task?.projectId ?? args.projectId;
     if (!projectId) throw new Error('TASK_OR_PROJECT_REQUIRED');
-    const { project } = await loadAccessibleProject(ctx, projectId);
+    const { project } = await loadAccessibleProject(
+      ctx,
+      projectId,
+      args.organizationId,
+    );
     const organizationId = project.organizationId;
 
     const slugs = [...new Set(args.slugs)].slice(0, 10);

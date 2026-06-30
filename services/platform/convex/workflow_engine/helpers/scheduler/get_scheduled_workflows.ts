@@ -4,7 +4,7 @@
  */
 
 import type { Id } from '../../../_generated/dataModel';
-import { QueryCtx } from '../../../_generated/server';
+import type { QueryCtx } from '../../../_generated/server';
 import type { ConvexJsonRecord } from '../../../lib/validators/json';
 
 export interface ScheduledWorkflow {

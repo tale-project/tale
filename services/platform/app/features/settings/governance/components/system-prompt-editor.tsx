@@ -113,7 +113,6 @@ export function SystemPromptEditor({
 
   const {
     register,
-    handleSubmit,
     watch,
     formState: { errors },
   } = editor.form;
@@ -126,7 +125,7 @@ export function SystemPromptEditor({
         title={t('systemPrompt.title')}
         description={t('systemPrompt.description')}
       >
-        <form id={FORM_ID} onSubmit={handleSubmit(save)}>
+        <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset disabled={editor.isLoading} className="contents">
             <Stack gap={6} className="max-w-2xl">
               <FormSection

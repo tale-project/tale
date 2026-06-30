@@ -30,20 +30,33 @@ import { createHash } from 'node:crypto';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import { providerAttributionHeaders } from '../../providers/provider_attribution';
 
+/**
+ * Read a `SANDBOX_LLM_GATEWAY_*` env var, falling back to the pre-rename
+ * `LLM_GATEWAY_*` name. The fallback is a one-release transition shim so an
+ * operator's existing `.env` (still carrying the old names) keeps working until
+ * `tale upgrade` rewrites them; drop the old-name read once that window closes.
+ */
+function gatewayEnv(suffix: string): string | undefined {
+  return (
+    process.env[`SANDBOX_LLM_GATEWAY_${suffix}`] ??
+    process.env[`LLM_GATEWAY_${suffix}`]
+  );
+}
+
 function llmGatewayUrl(): string {
-  return process.env.LLM_GATEWAY_URL ?? 'http://llm-gateway:8080';
+  return gatewayEnv('URL') ?? 'http://sandbox-llm-gateway:8080';
 }
 
 /** Admin username for the gateway management plane (auth_config). */
 function adminUsername(): string {
-  return process.env.LLM_GATEWAY_ADMIN_USERNAME ?? 'admin';
+  return gatewayEnv('ADMIN_USERNAME') ?? 'admin';
 }
 
 /** Plaintext admin password, or '' when management auth is not configured
  * (dev). When set, applyGatewayConfig enables auth_config and every /api/*
  * call must carry HTTP Basic auth. */
 function adminPassword(): string {
-  return process.env.LLM_GATEWAY_ADMIN_PASSWORD ?? '';
+  return gatewayEnv('ADMIN_PASSWORD') ?? '';
 }
 
 /** Total per-request timeout pushed to every provider's `network_config`. */
@@ -60,8 +73,7 @@ const REQUEST_TIMEOUT_SECONDS = 600;
  * request budget so a silent gap is bounded only by the total timeout, never a
  * premature idle abort. Operator-tunable. */
 const STREAM_IDLE_TIMEOUT_SECONDS = Number(
-  process.env.LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS ??
-    String(REQUEST_TIMEOUT_SECONDS),
+  gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ?? String(REQUEST_TIMEOUT_SECONDS),
 );
 
 function managementHeaders(): Record<string, string> {
@@ -745,8 +757,8 @@ export async function provisionProviders(
  *   - client_config.enforce_auth_on_inference = true → inference REQUIRES a
  *     minted virtual key (a legacy enforce-virtual-keys env never did this;
  *     the gateway only reads this config field). Closes the open-inference hole.
- *   - auth_config (admin basic-auth over /api/*) when LLM_GATEWAY_ADMIN_PASSWORD is
- *     set → the management plane stops being anonymous. The stored password is
+ *   - auth_config (admin basic-auth over /api/*) when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
+ *     is set → the management plane stops being anonymous. The stored password is
  *     a bcrypt hash (the gateway compares with bcrypt.CompareHashAndPassword);
  *     managementHeaders() sends the plaintext as Basic auth.
  *

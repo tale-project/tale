@@ -6,7 +6,7 @@ import type { AgentEventParser, AgentSlug } from './events';
  * adapter appends its own protocol route (Claude → /anthropic, OpenCode →
  * /openai/v1) so callers pass one base. */
 export interface GatewayTarget {
-  /** Gateway root, no trailing slash, e.g. http://llm-gateway:8080 */
+  /** Gateway root, no trailing slash, e.g. http://sandbox-llm-gateway:8080 */
   baseUrl: string;
   /** Session virtual key minted at session create. */
   token: string;

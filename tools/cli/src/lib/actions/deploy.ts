@@ -38,7 +38,7 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 import { drainConvex, endDrainConvex } from './drain-convex';
-import { flipSandboxTier } from './flip-sandbox';
+import { drainSandbox } from './drain-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
 async function ensureInfrastructure(
@@ -210,9 +210,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         statefulToUpdate = services.filter(isStatefulService);
       } else {
         // Default deploy uses the three-tier policy (see select-services.ts):
-        // rotatable (platform) blue-green; convex always-rolls in-place; the
-        // sandbox tier (sandbox + sandbox-egress) rolls separately via
-        // flipSandboxTier in lockstep with platform's colour; stop-gated
+        // rotatable (platform) blue-green; the always-roll tier (convex,
+        // sandbox-llm-gateway, sandbox, sandbox-egress) rolls in-place via the
+        // stateful compose (sandbox drained first via /v1/drain); stop-gated
         // (db, proxy) only when stopped / first deploy / --stop, else left
         // running with a hint.
         const runningState = new Map<StopGatedService, boolean>();
@@ -267,14 +267,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
         registry: env.GHCR_REGISTRY,
       };
 
-      // Pull all required images first
+      // Pull all required images first. The sandbox tier (sandbox +
+      // sandbox-egress) is now a stateful always-roll singleton, so its images
+      // are pulled here via statefulToUpdate like convex — no special-casing.
       logger.step(`${prefix}Pulling images...`);
-      // On a default (blue-green) deploy the sandbox tier rolls via
-      // flipSandboxTier — NOT through statefulToUpdate — so its images must be
-      // pulled here even though sandbox isn't in statefulToUpdate. An explicit
-      // `--services` deploy is in-place and never rolls the sandbox tier
-      // (run-deploy rejects `--services sandbox`).
-      const sandboxTierRolls = !inPlaceUpdate;
       const imagesToPull = [
         ...rotatableToUpdate.map(
           (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
@@ -282,12 +278,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
         ...statefulToUpdate.map(
           (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
         ),
-        ...(sandboxTierRolls
-          ? [
-              `${env.GHCR_REGISTRY}/tale-sandbox:${version}`,
-              `${env.GHCR_REGISTRY}/tale-sandbox-egress:${version}`,
-            ]
-          : []),
       ];
 
       // The spawner's runtime image (consumed by `docker run` of user code,
@@ -295,11 +285,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // spawner's `SANDBOX_RUNTIME_IMAGE` default (`tale-sandbox-runtime:latest`).
       // Without this, a fresh deploy host has no local runtime image and the
       // first /v1/execute fails with image-not-found. Mirrors build.yml's
-      // re-tag step. Needed whenever the sandbox tier rolls — which on a default
-      // deploy happens via flipSandboxTier, not statefulToUpdate — since the
-      // runtime image versions in lockstep with the spawner.
+      // re-tag step. Needed whenever the sandbox tier rolls — i.e. whenever
+      // sandbox is in statefulToUpdate — since the runtime image versions in
+      // lockstep with the spawner.
       const needsRuntimeImage =
-        sandboxTierRolls ||
         statefulToUpdate.includes('sandbox') ||
         statefulToUpdate.includes('sandbox-egress');
       const runtimeImageRemote = needsRuntimeImage
@@ -309,6 +298,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
         imagesToPull.push(runtimeImageRemote);
       }
 
+      // The shared buildkitd image (also `docker run` by the spawner, not a
+      // compose service) needs the same pull + re-tag to the spawner's
+      // SANDBOX_BUILDKITD_IMAGE default (`tale-sandbox-buildkitd:latest`) so a
+      // deployment that enables the shared build cache has it locally. Tied to
+      // the same condition as the runtime image (versions in lockstep). It is
+      // only RUN when SANDBOX_DOCKER_BUILD_CACHE is on, so this is a small pull
+      // some deployments won't use — flag-gating it (reading deployment.json)
+      // is a future refinement.
+      const buildkitdImageRemote = needsRuntimeImage
+        ? `${env.GHCR_REGISTRY}/tale-sandbox-buildkitd:${version}`
+        : null;
+      if (buildkitdImageRemote) {
+        imagesToPull.push(buildkitdImageRemote);
+      }
+
       if (dryRun) {
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
@@ -316,6 +320,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         if (runtimeImageRemote) {
           logger.info(
             `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
+          );
+        }
+        if (buildkitdImageRemote) {
+          logger.info(
+            `${prefix}Would tag: ${buildkitdImageRemote} -> tale-sandbox-buildkitd:latest`,
           );
         }
       } else {
@@ -356,6 +365,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
         }
+        if (buildkitdImageRemote) {
+          const tagResult = await exec('docker', [
+            'tag',
+            buildkitdImageRemote,
+            'tale-sandbox-buildkitd:latest',
+          ]);
+          if (!tagResult.success) {
+            throw new Error(
+              `Failed to re-tag sandbox buildkitd image: ${tagResult.stderr.trim()}`,
+            );
+          }
+        }
       }
 
       // Must run AFTER migrations (which may `docker compose down`, removing
@@ -388,9 +409,23 @@ export async function deploy(options: DeployOptions): Promise<void> {
             (await getContainerVersion(`${getProjectId()}-convex`)) !==
               version);
 
+        // Will this deploy actually recreate the sandbox spawner? Same logic as
+        // convex: drain in-flight one-shot executions only when the single
+        // sandbox container's image version is changing (or a forced recreate),
+        // so a no-op deploy doesn't refuse executions for nothing.
+        const sandboxWillRecreate =
+          !isFirstDeploy &&
+          statefulToUpdate.includes('sandbox') &&
+          (Boolean(options.forceRecreate) ||
+            (await getContainerVersion(`${getProjectId()}-sandbox`)) !==
+              version);
+
         if (dryRun) {
           if (convexWillRecreate) {
             await drainConvex({ dryRun: true });
+          }
+          if (sandboxWillRecreate) {
+            await drainSandbox({ dryRun: true });
           }
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
@@ -406,6 +441,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // finalizes anything that outlasts the drain budget.
           if (convexWillRecreate) {
             await drainConvex({ dryRun: false });
+          }
+
+          // Drain in-flight sandbox executions before the single spawner is
+          // recreated below (the tier dropped blue-green — one container rolled
+          // in place). Best-effort (see drain-sandbox.ts); the spawner's SIGTERM
+          // drain + stop_grace_period backstops anything that outlasts the
+          // budget.
+          if (sandboxWillRecreate) {
+            await drainSandbox({ dryRun: false });
           }
 
           const result = await dockerCompose(
@@ -612,15 +656,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 );
               }
             }
-            await flipSandboxTier({
-              config: serviceConfig,
-              deployDir: env.DEPLOY_DIR,
-              currentColor,
-              nextColor,
-              dryRun: true,
-              streamLogs,
-              healthTimeout: env.HEALTH_CHECK_TIMEOUT,
-            });
           } else {
             // Clean up any stale next-color containers from a previous failed deployment
             for (const service of rotatableToUpdate) {
@@ -727,19 +762,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
                 }
               }
             }
-
-            // Roll the sandbox tier (sandbox + sandbox-egress) onto the same
-            // new colour with its own zero-gap blue-green flip (bring up new
-            // colour → move the `sandbox` alias → drain + tear down the old).
-            await flipSandboxTier({
-              config: serviceConfig,
-              deployDir: env.DEPLOY_DIR,
-              currentColor,
-              nextColor,
-              dryRun: false,
-              streamLogs,
-              healthTimeout: env.HEALTH_CHECK_TIMEOUT,
-            });
           }
         }
       }

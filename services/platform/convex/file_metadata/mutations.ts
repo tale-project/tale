@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   extractExtension,
@@ -46,7 +46,7 @@ export const saveFileMetadata = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const userId = authUser.userId;
@@ -60,7 +60,13 @@ export const saveFileMetadata = mutation({
       args.size,
     );
     if (!check.allowed) {
-      throw new Error(check.reason ?? 'Upload rejected by organization policy');
+      // Preserve the policy's human-readable reason as structured data so the
+      // composer can surface why the upload was rejected; a raw Error message
+      // is redacted to "Server Error" by Convex in prod.
+      throw new ConvexError({
+        code: 'UPLOAD_REJECTED',
+        reason: check.reason ?? 'Upload rejected by organization policy',
+      });
     }
 
     // Defense-in-depth: a malicious client could pass a foreign org's
@@ -78,7 +84,7 @@ export const saveFileMetadata = mutation({
         threadMeta.organizationId !== undefined &&
         threadMeta.organizationId !== args.organizationId
       ) {
-        throw new Error('Thread does not belong to this organization');
+        throw new ConvexError({ code: 'THREAD_ORG_MISMATCH' });
       }
     }
 
@@ -279,16 +285,16 @@ export const skipTranscription = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const metadata = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (!metadata) throw new Error('File not found');
+    if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
     if (metadata.organizationId !== args.organizationId) {
-      throw new Error('Not authorized');
+      throw new ConvexError({ code: 'NOT_AUTHORIZED' });
     }
 
     // Source-state precondition. `skipTranscription` is the Skip button
@@ -300,9 +306,10 @@ export const skipTranscription = mutation({
       metadata.transcriptionStatus !== 'queued' &&
       metadata.transcriptionStatus !== 'running'
     ) {
-      throw new Error(
-        `Cannot skip transcription in status "${metadata.transcriptionStatus ?? 'none'}" — only queued or running.`,
-      );
+      throw new ConvexError({
+        code: 'TRANSCRIPTION_NOT_SKIPPABLE',
+        status: metadata.transcriptionStatus ?? 'none',
+      });
     }
 
     // Route through `updateFileTranscription` so the `videoLinkJobs`
@@ -333,16 +340,16 @@ export const retryTranscription = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     const metadata = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (!metadata) throw new Error('File not found');
+    if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
     if (metadata.organizationId !== args.organizationId) {
-      throw new Error('Not authorized');
+      throw new ConvexError({ code: 'NOT_AUTHORIZED' });
     }
 
     // Source-state precondition. Retry is only valid from a terminal
@@ -354,9 +361,10 @@ export const retryTranscription = mutation({
       metadata.transcriptionStatus !== 'failed' &&
       metadata.transcriptionStatus !== 'skipped'
     ) {
-      throw new Error(
-        `Cannot retry transcription in status "${metadata.transcriptionStatus ?? 'none'}" — only failed or skipped.`,
-      );
+      throw new ConvexError({
+        code: 'TRANSCRIPTION_NOT_RETRYABLE',
+        status: metadata.transcriptionStatus ?? 'none',
+      });
     }
 
     await ctx.db.patch(metadata._id, {

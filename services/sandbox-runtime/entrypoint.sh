@@ -253,7 +253,7 @@ _ensure_default_route() {
 # reach its upstream ExtServers (8.8.8.8 …) — external lookups time out. The
 # egress sidecar's dnsmasq CAN resolve external names. DNAT the embedded
 # resolver's FORWARDED queries (anything to :53 that isn't the embedded resolver
-# itself) to the egress dnsmasq, so: Docker service names (llm-gateway, convex) are
+# itself) to the egress dnsmasq, so: Docker service names (sandbox-llm-gateway, convex) are
 # still answered LOCALLY by 127.0.0.11 with their correct on-network IPs, while
 # only external names get forwarded to the egress resolver. Gated on 127.0.0.11
 # being the resolver — on k8s (kube-dns) external DNS already works and DNAT'ing
@@ -425,6 +425,37 @@ start_inner_dockerd() {
   exit 1
 }
 
+# Wire the session to the shared buildkitd (set by the spawner via
+# TALE_BUILDKITD_ENDPOINT when SANDBOX_DOCKER_BUILD_CACHE is on). Creates a
+# remote buildx builder pointing at it and exports BUILDX_BUILDER, so the agent's
+# `docker build` / `docker buildx build` / `docker compose up --build` run on the
+# shared daemon and reuse its cross-session cache — with NO per-build flags.
+#
+# MUST run as the agent uid (10001) with the agent HOME so runnerd's execs (also
+# uid 10001, same HOME) see the builder definition; root-owned buildx state would
+# be invisible to them. The definition lives under the persistent workspace
+# (~/.docker), so it survives resume — hence the inspect-first idempotency.
+#
+# Best-effort: any failure just leaves the agent on the inner dockerd's local
+# builder (cold cache), never blocks the session. The remote `create` only
+# registers an endpoint (it does not connect), so it can't hang on a slow daemon.
+setup_shared_buildx_builder() {
+  [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
+  _bk() {
+    setpriv --reuid 10001 --regid 10001 --init-groups -- \
+      env HOME=/user/.runtime/home docker buildx "$@"
+  }
+  if _bk inspect tale-shared >/dev/null 2>&1 ||
+    _bk create --name tale-shared --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
+      >/var/log/buildx-create.log 2>&1; then
+    export BUILDX_BUILDER=tale-shared
+    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=tale-shared -> ${TALE_BUILDKITD_ENDPOINT}"
+  else
+    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+    tail -n 3 /var/log/buildx-create.log >&2 2>/dev/null || true
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Live browser view (read-only mirror). Used only when the spawner launches the
 # session with TALE_BROWSER_CDP=1 (operator flag SANDBOX_BROWSER_VIEW; see
@@ -577,7 +608,10 @@ start_browser_stack() {
   # the network (loopback unix socket only); -ac disables host access control
   # (only the in-container procs can reach the socket anyway).
   # shellcheck disable=SC2086 # $DROP must word-split (empty, or the setpriv prefix)
-  _supervise $DROP Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -ac
+  # 800 tall (not 720) leaves room for Chromium's own toolbar+tab strip (~72px)
+  # so the page viewport the agent renders into stays ~720 once the browser chrome
+  # is shown (see --window-size below; we no longer run fullscreen/kiosk).
+  _supervise $DROP Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -ac
   export DISPLAY=:99
 
   # Read-only mirror on :5900 — the DEFAULT path every watcher gets. -localhost
@@ -595,22 +629,34 @@ start_browser_stack() {
   # process means watchers retain a structural read-only guarantee — there is no
   # flag a watcher's client can flip to gain input. Same display ⇒ a human's
   # clicks here and the agent's CDP drive both land on the one Chromium.
+  #
+  # -xkb is REQUIRED for correct keysym entry: without it x11vnc falls back to
+  # legacy modtweak, which can't synthesize shifted-symbol keysyms (_, +, @, #,
+  # {, }, |, etc.) against a modern XKB keymap and mangles them (e.g. `_` lands
+  # as a space). The XKEYBOARD path maps each keysym to the right keycode+level.
+  # Only the writable :5901 injects input, so :5900 (-viewonly) doesn't need it.
   # shellcheck disable=SC2086
   _supervise $DROP x11vnc -display :99 -rfbport 5901 -localhost \
-    -forever -shared -nopw -noxdamage
+    -forever -shared -nopw -noxdamage -xkb
 
   # Headed Chromium with a CDP endpoint on loopback. The proxy bridge mirrors
   # the tale-playwright-mcp shim (Chromium ignores HTTPS_PROXY/NO_PROXY env):
   # forward the egress proxy + bypass list as flags so the managed browser has
   # the same egress posture the self-launched one would.
+  #
+  # We deliberately do NOT run fullscreen/kiosk: a human taking control needs the
+  # browser's own menu bar (omnibox + back/forward/reload) to navigate, so we show
+  # the native chrome and size the window to fill the display (no WM runs here, so
+  # --window-size + --window-position place it). The toolbar also surfaces the
+  # current URL to read-only watchers for free.
   set -- "${CHROME_BIN}" \
     --remote-debugging-port=9222 \
     --remote-debugging-address=127.0.0.1 \
     --user-data-dir="${TALE_BROWSER_PROFILE}" \
     --no-sandbox \
     --disable-gpu \
-    --start-fullscreen \
-    --window-size=1280,720 \
+    --window-position=0,0 \
+    --window-size=1280,800 \
     --ignore-certificate-errors \
     --test-type \
     --disable-infobars \
@@ -724,6 +770,22 @@ if [ "$1" = "daemon" ]; then
   export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
   export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
 
+  # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
+  # each into the agent's user-level skill dir so Claude Code / Codex discover
+  # them as native skills, runnable in place (their deps live in the baked dir).
+  # Idempotent + best-effort; Tale's per-turn reconcile (convex
+  # integration_skills.ts) drops any the workspace repo also defines so the
+  # repo's project-level skill wins. An unmatched glob stays literal in sh, so
+  # the `-d` guard skips it when nothing is baked.
+  if [ -d /opt/agents/skills ]; then
+    $DROP mkdir -p /user/.runtime/home/.claude/skills
+    for _skill in /opt/agents/skills/*/; do
+      [ -d "$_skill" ] || continue
+      $DROP ln -sfn "${_skill%/}" \
+        "/user/.runtime/home/.claude/skills/$(basename "$_skill")"
+    done
+  fi
+
   # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
   # browser + runnerd start, so every client (and Chromium's direct connections)
   # egresses through the proxy. The DinD path installs it after the inner dockerd
@@ -751,6 +813,9 @@ if [ "$1" = "daemon" ]; then
     # Also redirect the session's OWN processes (not just nested containers) when
     # transparent egress is on — reuses the redsocks + chain dockerd's setup left.
     [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && setup_session_transparent_egress
+    # Point builds at the shared buildkitd (exports BUILDX_BUILDER for runnerd) —
+    # no-op + byte-identical when TALE_BUILDKITD_ENDPOINT is unset.
+    setup_shared_buildx_builder
     exec tini -g -- \
       setpriv --reuid 10001 --regid 10001 --init-groups -- \
       node /usr/local/lib/tale/runnerd.mjs

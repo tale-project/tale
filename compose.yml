@@ -1,27 +1,39 @@
 # =============================================================================
-# LOCAL DEVELOPMENT ONLY
+# LOCAL DEVELOPMENT BASE STACK — NOT FOR PRODUCTION
 # =============================================================================
-# This compose file is for LOCAL DEVELOPMENT only. It exposes ports that should
-# NEVER be exposed in production (5432, 8001-8003).
+# This is the BASE local-dev stack. It builds every image from source and runs
+# that frozen build — editing host source does NOT hot-reload here (rebuild with
+# `--build`). It also exposes ports that must NEVER be public (5432, 8001-8003).
 #
-# For PRODUCTION deployments, use the Tale CLI:
-#   tale deploy
+# Three ways to run Tale locally — pick by what you're doing:
 #
-# The CLI generates secure compose configs inline with only ports 80/443 exposed.
+#   1. Host-native, fastest inner loop ...... bun run dev
+#        No proxy, no real container topology; secrets auto-derived
+#        (services/platform/scripts/dev-secrets.ts).
+#
+#   2. Full containerized stack, frozen ..... docker compose up --build
+#        This file alone. Prod-shaped topology incl. proxy. Code is baked at
+#        build time. Honest about secrets: needs a real .env (DB_PASSWORD etc.).
+#        Use it to smoke-test "does my built image work end to end?".
+#
+#   3. Full stack + LIVE source (HMR) ....... bun run docker:dev   (recommended)
+#        = docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml \
+#            up --build
+#        Adds source bind-mounts so edits hot-reload, AND ships insecure dev
+#        defaults for every secret — so this path boots with ZERO .env setup.
+#        (compose.docs.yml is included only to satisfy the `docs` override in
+#        compose.dev.yml; the chain matches docs/.../docker-compose-reference.)
+#
+# For PRODUCTION, use the Tale CLI: `tale deploy`. It generates a secure compose
+# inline (only 80/443 exposed) and never uses this file or compose.dev.yml.
+#
+# `.env` is OPTIONAL for all three (env_file `required: false` below). When
+# present its values win; when absent, mode 3 fills the gaps and modes 1/2 fall
+# back to their own defaults (mode 2 still hard-requires DB_PASSWORD/SITE_URL).
 # =============================================================================
-#
-# Docker Compose configuration for Tale Services
-# This file defines the services needed to run the Tale platform
-#
-# Usage modes:
-#   Development (default): docker compose up
-#     - Builds images locally from Dockerfiles
-#     - Uses PULL_POLICY=build (default)
-#
-#   Production: Use Tale CLI instead (see above)
 #
 # Environment variables:
-#   PULL_POLICY: 'build' (default) or 'always'
+#   PULL_POLICY: 'build' (default, local dev) or 'always' (pull from GHCR)
 #   VERSION: Image tag to pull (default: 'latest')
 
 services:
@@ -63,10 +75,14 @@ services:
       # Backup directory (optional)
       - db-backup:/var/lib/postgresql/backup
 
-    # Environment file
-    # Create a .env file in the project root with your database credentials
+    # Environment file (optional — see env_file note below)
+    # Override DB_PASSWORD here via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     environment:
       # Platform DB: skip the knowledge-corpus dbmate migrations — the
@@ -147,7 +163,11 @@ services:
       - knowledge-db-backup:/var/lib/postgresql/backup
 
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     environment:
       # Knowledge DB: apply the tale_knowledge corpus migrations
@@ -226,11 +246,15 @@ services:
       # Independent convex data volume. Once Phase 2 migration completes, this
       # contains everything platform-data previously held under /app/data/.
       - convex-data:/app/data
-      # Caddy self-signed CA (for Rust backend → tale.local outbound HTTPS).
+      # Caddy self-signed CA (so the Rust backend trusts outbound HTTPS to the proxy).
       - caddy-data:/caddy-data:ro
 
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     restart: unless-stopped
 
@@ -261,7 +285,7 @@ services:
 
     # Also on the sandbox network so the in-sandbox MCP integration bridge can
     # reach convex http actions directly (http://convex:3211/api/integrations),
-    # mirroring how `llm-gateway` is dual-homed for the gateway. Safe: convex is
+    # mirroring how `sandbox-llm-gateway` is dual-homed for the gateway. Safe: convex is
     # single-instance/stateful (no LB) and the dispatch route is VK-authed.
     networks:
       - internal
@@ -285,7 +309,7 @@ services:
       args:
         VERSION: ${VERSION:-dev}
 
-    # No port mapping needed - accessed via proxy at https://tale.local (or your domain)
+    # No port mapping needed - accessed via proxy at https://localhost (or your domain)
     # internally via http://platform:3000
 
     # Volume mounts — Phase 2 split:
@@ -297,10 +321,24 @@ services:
     volumes:
       - convex-data:/app/data:ro
 
-    # Environment file
-    # Create a .env file in the project root with your configuration
+    # Environment file (optional — see env_file note below)
+    # Provide real secrets via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
+
+    # Live browser view (read-only mirror). Read here too — the entrypoint pushes
+    # it to Convex (run_external_agent gates on it), and the sandbox spawner reads
+    # the SAME var, so the two MUST stay in lockstep. Unset ⇒ default ON; set
+    # SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out. Interpolates from the
+    # same root .env as the sandbox service so one value drives both. Empty ⇒ the
+    # entrypoint skips pushing it, leaving the Convex-side default ON. Mirrors the
+    # CLI generator (create-platform-service.ts).
+    environment:
+      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -367,7 +405,7 @@ services:
   #
   # For local development:
   #   - Run: docker compose up
-  #   - Access: https://tale.local (self-signed cert, browser warning expected)
+  #   - Access: https://localhost (self-signed cert, browser warning expected)
   #   - To trust certs: docker exec tale-proxy caddy trust
   #
   # For production with HTTPS:
@@ -404,10 +442,14 @@ services:
       # Caddy config directory
       - caddy-config:/config
 
-    # Environment file
-    # Create a .env file in the project root with your domain configuration
+    # Environment file (optional — see env_file note below)
+    # Override HOST/SITE_URL/TLS_MODE via .env; dev defaults live in compose.dev.yml.
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -443,13 +485,15 @@ services:
     # Networks
     networks:
       internal:
-        # Hairpin NAT resolution via network alias
-        # This allows containers to resolve HOST to the proxy container
-        # via Docker's internal DNS, solving the hairpin NAT issue.
-        # Use app.localhost (or another real hostname) instead of localhost
-        # because localhost is always in /etc/hosts and can't be overridden.
+        # Network alias so a container resolving the *public* HOST lands on the
+        # proxy via Docker's internal DNS (hairpin NAT). For the default
+        # `localhost` this alias is inert — every container's /etc/hosts pins
+        # `localhost` to 127.0.0.1, which shadows Docker DNS — and that is fine:
+        # the platform makes no server-side calls to its own public URL (no SSR;
+        # internal traffic uses Docker service names / the internal Convex URL).
+        # The alias still does real work when HOST is a custom domain.
         aliases:
-          - ${HOST:-tale.local}
+          - ${HOST:-localhost}
 
   # ============================================================================
   # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
@@ -467,7 +511,11 @@ services:
       dockerfile: services/sandbox-egress/Dockerfile
     container_name: tale-sandbox-egress
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     restart: unless-stopped
     # Drop the full default capability set, then add back ONLY what the
     # container provably needs (least privilege; shrinks the attack surface of
@@ -554,7 +602,11 @@ services:
     ports:
       - '127.0.0.1:8003:8003'
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
       # Native docker/docker compose inside session containers. Unset here so the
@@ -563,6 +615,24 @@ services:
       # deployment.json sandboxRuntime section) to force it.
       SANDBOX_DOCKER_IN_CONTAINER: ${SANDBOX_DOCKER_IN_CONTAINER:-}
       SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
+      # Shared cross-session docker build cache. Unset here so the spawner applies
+      # its default (follows SANDBOX_DOCKER_IN_CONTAINER — on whenever DinD is on);
+      # set SANDBOX_DOCKER_BUILD_CACHE=true/false (or the deployment.json
+      # sandboxRuntime section) to force it. The image refs the spawner `docker
+      # run`s for the shared buildkitd + its pull-through registry mirror are
+      # overridable for a pinned/mirrored ref in fenced deploys. Mirrors the CLI
+      # generator (create-sandbox-service.ts) — R2-B11 lockstep.
+      SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
+      SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
+      # Live browser view (read-only mirror). Unset here so BOTH sides apply
+      # their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
+      # ONE value drives both sides — this spawner reads it directly and the
+      # platform pushes it to Convex — so they MUST share a source. It is read on
+      # the platform service too (NOT a sandbox-only var like the ones above), and
+      # both interpolate from the same root .env, so a single value keeps them in
+      # lockstep. Mirrors the CLI generator (create-sandbox-service.ts).
+      SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:
@@ -619,7 +689,7 @@ services:
   # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
   # LLM. Dual-homed onto `internal` (platform provisions providers + mints
   # session virtual keys via the governance API) and `sandbox` (agents reach it
-  # at http://llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
+  # at http://sandbox-llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
   #
   # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
   # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
@@ -633,29 +703,36 @@ services:
   # env knobs). applyGatewayConfig() pushes, idempotently on session create:
   #   - client.enforce_auth_on_inference=true → inference rejects anything but a
   #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) when LLM_GATEWAY_ADMIN_PASSWORD
+  #   - auth_config (admin basic-auth over /api/*) when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
   #     is set → the management plane stops being anonymous on the internal network.
-  # No published port (loopback publish lives in compose.llm-gateway.dev.yml for
+  # No published port (loopback publish lives in compose.sandbox-llm-gateway.dev.yml for
   # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
   # — the project has had VK auth regressions.
   # ============================================================================
-  llm-gateway:
-    image: ghcr.io/tale-project/tale/tale-llm-gateway:${VERSION:-latest}
+  sandbox-llm-gateway:
+    image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION:-latest}
     build:
       context: .
-      dockerfile: services/llm-gateway/Dockerfile
+      dockerfile: services/sandbox-llm-gateway/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    container_name: tale-llm-gateway
+    container_name: tale-sandbox-llm-gateway
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     # No gateway-read env knobs: auth + VK enforcement are config-store fields
     # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's LLM_GATEWAY_ADMIN_USERNAME / LLM_GATEWAY_ADMIN_PASSWORD, never
-    # set on the gateway container itself).
+    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
+    # never set on the gateway container itself).
     volumes:
       # SQLite config/log store (providers + minted keys + auth config survive
-      # restarts). Wipe this volume to re-bootstrap auth from scratch.
+      # restarts). Wipe this volume to re-bootstrap auth from scratch. Volume name
+      # predates the service rename (was `llm-gateway`); kept as-is to avoid an
+      # otherwise-pointless data migration (the store is a derived cache the
+      # platform re-provisions per session anyway).
       - llm-gateway-data:/app/data
     restart: unless-stopped
     mem_limit: 512m
@@ -676,8 +753,16 @@ services:
         max-size: '10m'
         max-file: '3'
     networks:
-      - internal
-      - sandbox
+      # Transitional `llm-gateway` alias: keeps the pre-rename hostname resolving
+      # for one release so in-flight sandbox sessions (whose injected gateway URL
+      # / NO_PROXY still say `llm-gateway`) survive the deploy that lands the
+      # rename. Drop the aliases once no old-name traffic remains.
+      internal:
+        aliases:
+          - llm-gateway
+      sandbox:
+        aliases:
+          - llm-gateway
 
   # ============================================================================
   # Tale Controller — privileged control-plane sidecar (OPT-IN)
@@ -706,7 +791,11 @@ services:
     profiles:
       - controller
     env_file:
-      - .env
+      # Optional: the stack boots without a .env. Present values win; absent
+      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
+      # always writes a real .env, so production is unaffected.
+      - path: .env
+        required: false
     environment:
       CONTROLLER_PORT: '8004'
       # Scope restarts to this compose project so another stack is never touched.
@@ -782,7 +871,9 @@ volumes:
     driver: local
 
   # LLM gateway SQLite store (provisioned providers + minted session virtual
-  # keys). Survives restarts so in-flight sessions keep working.
+  # keys). Survives restarts so in-flight sessions keep working. Name predates
+  # the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to avoid a
+  # pointless data migration (derived cache, re-provisioned per session).
   llm-gateway-data:
     driver: local
 

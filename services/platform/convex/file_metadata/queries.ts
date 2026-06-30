@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 export const getUserStorageUsage = query({
   args: {
@@ -65,6 +66,7 @@ export const getByDocumentId = query({
 
 export const getByStorageIds = query({
   args: {
+    organizationId: v.string(),
     storageIds: v.array(v.id('_storage')),
   },
   returns: v.array(
@@ -116,6 +118,25 @@ export const getByStorageIds = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
 
+    // RLS: only members of the named org may read its file metadata. Without
+    // this, any authenticated user could pass a foreign storageId and pull
+    // back another tenant's fileName/transcript/RAG state (issue #2027). The
+    // soft-fail to `[]` matches the reactive-subscription contract used across
+    // these queries (a non-member must not throw and white-screen the chip).
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch (error) {
+      console.warn(
+        '[fileMetadata.queries.getByStorageIds] org membership lookup failed:',
+        error instanceof Error ? error.message : error,
+      );
+      return [];
+    }
+
     const results = await Promise.all(
       args.storageIds.slice(0, 20).map(async (storageId) => {
         const meta = await ctx.db
@@ -123,6 +144,11 @@ export const getByStorageIds = query({
           .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
           .first();
         if (!meta) return null;
+        // Per-row tenant scope: the storageId index is global, so a row whose
+        // organizationId differs from the verified caller's org is filtered
+        // out even though the membership check above passed for a *different*
+        // org the caller does belong to.
+        if (meta.organizationId !== args.organizationId) return null;
         return {
           storageId: meta.storageId,
           documentId: meta.documentId,

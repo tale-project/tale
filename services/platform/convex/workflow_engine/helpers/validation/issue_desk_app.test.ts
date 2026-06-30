@@ -70,7 +70,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
       ]),
     );
     const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
-    expect(fnPaths).toContain('tasks/queries:listTasksByProject');
+    expect(fnPaths).toContain('tasks/queries:listTasksByProjectPaginated');
     // App agents are listed via the app-scoped action; the global `listAgents`
     // would never return them.
     expect(fnPaths).toContain('agents/file_actions:listAppAgents');
@@ -99,7 +99,9 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     // The ExternalList's action-sourced data path (`source`) AND its per-row
     // materialize action are both collected — not only reactive `query` blocks.
     const paths = collected.map((b) => b.path);
-    expect(paths).toContain('integrations/public_actions:listGitHubIssues');
+    expect(paths).toContain(
+      'integrations/public_actions:listUntrackedGitHubIssues',
+    );
     expect(paths).toContain('tasks/public_actions:createTaskFromExternalIssue');
     // The Tasks-board "Start" (re-)triggers the workflow on the task — not a bare
     // status write — so the run is re-launchable after a failure.
@@ -117,15 +119,19 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
           rowKeyTemplate?: string;
         }
       | undefined;
-    // Cross-references tasks by their externalId, rebuilt from the issue row with
-    // the same template the materialize action uses to write it.
-    expect(excludeBy?.query?.path).toBe('tasks/queries:listTasksByProject');
-    expect(excludeBy?.refField).toBe('externalId');
-    expect(excludeBy?.rowKeyTemplate).toBe('tale-project/tale#{number}');
+    // Cross-references tasks by the key the materialize action writes, rebuilt
+    // from the issue row with the same template. The cross-ref query returns the
+    // keys directly (a bare string[]), so there's no `refField`. Config-driven:
+    // owner/repo come from the per-install config, `number` from the issue row.
+    expect(excludeBy?.query?.path).toBe(
+      'tasks/queries:listExternalKeysByProject',
+    );
+    expect(excludeBy?.refField).toBeUndefined();
+    expect(excludeBy?.rowKeyTemplate).toBe('{owner}/{repo}#{number}');
     // The cross-ref query is collected (so publish-time validation covers it)
     // and is in the allowlist.
     const paths = collectViewBindings(view).map((b) => b.path);
-    expect(paths).toContain('tasks/queries:listTasksByProject');
+    expect(paths).toContain('tasks/queries:listExternalKeysByProject');
     expect(
       validateViewBindings(view, manifest.capabilities?.functions),
     ).toEqual([]);
@@ -153,6 +159,31 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     const columns = collection?.props?.columns;
     expect(Array.isArray(columns)).toBe(true);
     expect(columns).not.toContain('externalId');
+  });
+
+  it('Tasks board paginates (cursor-paginated query + perPage), so the tail is reachable', () => {
+    const collection = blockOfType('Collection');
+    const query = collection?.props?.query as { path?: string } | undefined;
+    // The board binds the cursor-paginated query, not the bounded 2000-row scan.
+    expect(query?.path).toBe('tasks/queries:listTasksByProjectPaginated');
+    // `perPage` is what flips the block into its accumulate-with-"Load more"
+    // path; without it the list silently caps at the 50-row render limit.
+    expect(typeof collection?.props?.perPage).toBe('number');
+    expect(collection?.props?.perPage as number).toBeGreaterThan(0);
+  });
+
+  it('Tasks board offers a config-driven status filter (no status hardcoded in code)', () => {
+    const collection = blockOfType('Collection');
+    const filters = collection?.props?.filters as
+      | Array<{ field?: string; values?: string[] }>
+      | undefined;
+    // The filterable field + its values live in the view config (data), so the
+    // generic Collection block carries no status names.
+    const statusFilter = filters?.find((f) => f.field === 'status');
+    expect(statusFilter).toBeDefined();
+    expect(statusFilter?.values).toEqual(
+      expect.arrayContaining(['in_progress', 'done']),
+    );
   });
 
   it('has no org-wide approvals ReviewQueue (it leaked unrelated approvals)', () => {

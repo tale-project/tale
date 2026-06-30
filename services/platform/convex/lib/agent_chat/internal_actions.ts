@@ -31,6 +31,7 @@ import { routeSeedValidator, routeTuningValidator } from '../../agents/schema';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
 import {
+  buildChainExhaustionError,
   classifyFailureScope,
   isTransientProviderError,
 } from '../../providers/errors';
@@ -64,6 +65,7 @@ import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
 import { NonRetryableError } from '../error_classification';
 import { buildCallProviderOptions } from '../provider_options';
+import { buildBrandingContext } from './branding_context';
 import { buildHooksFromConfig } from './build_hooks';
 import {
   buildIntegrationTools,
@@ -370,6 +372,7 @@ export async function runGenerationCore(
       skillSnapshot,
       delegationResult,
       workflowExtraTools,
+      brandingSystemPromptAppend,
     ] = await Promise.all([
       fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
       buildMcpTools(ctx, organizationId),
@@ -384,6 +387,11 @@ export async function runGenerationCore(
         buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
       ),
       orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
+      // Corporate-identity defaults for presentation generation. Empty unless
+      // the agent binds the `pptx` skill AND the org has branding configured.
+      orgSlugPromise.then((s) =>
+        buildBrandingContext(s, agentConfig.skillBindings),
+      ),
     ]);
 
     // Extract delegation tools and instructions append
@@ -454,6 +462,14 @@ export async function runGenerationCore(
     if (skillSnapshot.systemPromptAppend) {
       finalInstructions = finalInstructions + skillSnapshot.systemPromptAppend;
     }
+    // Append the org's corporate-identity defaults for presentation generation
+    // after the skills section, so the pptx skill's branding lands alongside
+    // (and just after) its "Available Skills" entry. Empty unless the agent
+    // binds `pptx` and the org has branding configured. Branding edits are
+    // per-turn/volatile relative to the cacheable persona+governance prefix.
+    if (brandingSystemPromptAppend) {
+      finalInstructions = finalInstructions + brandingSystemPromptAppend;
+    }
 
     // Build hooks object from FunctionHandle strings
     const hooks: GenerateResponseHooks | undefined = hooksConfig
@@ -509,8 +525,17 @@ export async function runGenerationCore(
     // later model sharing that resource is skipped instead of waiting on a
     // doomed request. Keying by credential (not provider name) means a sibling
     // model with its own `secretsEnv` key is still tried after another key dies.
+    // An out-of-funds (credit) failure is the one exception that does NOT doom
+    // every sibling: a zero-cost model on the same credential (`:free` / priced
+    // at 0) draws no credits, so `isModelScopeRetired` still attempts it (#1454).
     let lastFallbackError: unknown;
     const deadScopes = new Set<string>();
+    // Resolution (config) failures collected across the chain. When NO model
+    // ever reaches a live provider call (`attemptedCount === 0`) these are the
+    // whole story, and the chain collapses into one actionable
+    // "configure a provider" error instead of the last entry's per-model
+    // message (issue #1455).
+    const configFailures: Array<{ model: string; message: string }> = [];
 
     // RESOLUTION (no HTTP) is memoized per model index so the catch can look
     // ahead for the next attemptable model without paying for it twice. A
@@ -568,6 +593,13 @@ export async function runGenerationCore(
       const resolution = await resolveAt(attempt);
       if (!resolution.ok) {
         lastFallbackError = resolution.error;
+        configFailures.push({
+          model: currentModelId ?? 'default',
+          message:
+            resolution.error instanceof Error
+              ? resolution.error.message
+              : String(resolution.error),
+        });
         if (attempt < modelsToTry.length - 1) {
           debugLog('SKIP_UNCONFIGURED_MODEL', {
             model: currentModelId ?? 'default',
@@ -579,7 +611,10 @@ export async function runGenerationCore(
           });
           continue;
         }
-        throw resolution.error;
+        // Last entry also failed to resolve. Fall through to the unified
+        // exhaustion handler below so an all-unconfigured chain surfaces one
+        // actionable error rather than this tail model's per-model message.
+        break;
       }
       const resolved = resolution.resolved;
 
@@ -959,8 +994,15 @@ export async function runGenerationCore(
       }
     }
 
-    // Should not reach here, but satisfy TypeScript
-    throw lastFallbackError ?? new Error('No model could be resolved');
+    // Chain exhausted. When no model ever reached a live provider call, every
+    // failure was a config/resolution error — collapse the chain into a single
+    // actionable "configure a provider" error instead of the tail model's
+    // per-model message (issue #1455). Otherwise surface the real last cause.
+    throw buildChainExhaustionError({
+      attemptedCount,
+      configFailures,
+      lastError: lastFallbackError,
+    });
   } catch (error) {
     // Log full error details for debugging
     const err = isRecord(error) ? error : { message: String(error) };

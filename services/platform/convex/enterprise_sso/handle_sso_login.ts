@@ -1,7 +1,7 @@
-import { GenericActionCtx } from 'convex/server';
+import type { GenericActionCtx } from 'convex/server';
 
 import { internal } from '../_generated/api';
-import { DataModel } from '../_generated/dataModel';
+import type { DataModel } from '../_generated/dataModel';
 import { mapEntraRoleToPlatformRole } from './entra_id/role_mapping';
 import {
   syncTeamsFromGroupNames,

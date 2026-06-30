@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import {
+  useAgentDisplayName,
   useNeedsAttention,
   useSetTaskAutomation,
   useWorkforceHealth,
@@ -82,6 +83,9 @@ export function WorkforceDashboard({
   const { health } = useWorkforceHealth(organizationId);
   const { attention } = useNeedsAttention(organizationId);
   const setAutomation = useSetTaskAutomation();
+  // Slug → friendly display name (locale-aware), resolved from the agent roster
+  // since the metrics payload carries only the machine slug.
+  const agentDisplayName = useAgentDisplayName(organizationId);
 
   const totals = metrics?.totals;
   const prevTotals = metrics?.previousTotals;
@@ -163,8 +167,9 @@ export function WorkforceDashboard({
             params={{ id: organizationId, agentId: row.original.agentSlug }}
             className="text-foreground block max-w-[320px] truncate text-sm font-medium underline-offset-2 hover:underline focus-visible:underline"
             onClick={(event) => event.stopPropagation()}
+            title={row.original.agentSlug}
           >
-            {row.original.agentSlug}
+            {agentDisplayName(row.original.agentSlug)}
           </Link>
         ),
         size: 320,
@@ -226,7 +231,7 @@ export function WorkforceDashboard({
         meta: { align: 'right' as const },
       },
     ],
-    [t, organizationId],
+    [t, organizationId, agentDisplayName],
   );
 
   const onToggle = (enabled: boolean) => {
@@ -479,7 +484,8 @@ export function WorkforceDashboard({
             emptyLabel={t('attention.none')}
             items={attention.queuedRuns.map((run, index) => ({
               key: `${run.agentSlug}-${run.taskId ?? index}`,
-              label: run.agentSlug,
+              label: agentDisplayName(run.agentSlug),
+              title: run.agentSlug,
               meta: formatRelative(new Date(run.queuedAt)),
               taskId: run.taskId,
             }))}
@@ -491,7 +497,8 @@ export function WorkforceDashboard({
             emptyLabel={t('attention.none')}
             items={attention.trippedBreakers.map((breaker, index) => ({
               key: `${breaker.agentSlug}-${breaker.taskId ?? index}`,
-              label: breaker.agentSlug,
+              label: agentDisplayName(breaker.agentSlug),
+              title: breaker.agentSlug,
               meta: formatRelative(new Date(breaker.trippedAt)),
               taskId: breaker.taskId,
             }))}
@@ -515,6 +522,8 @@ function AttentionList({
   items: Array<{
     key: string;
     label: string;
+    /** Tooltip on the label — e.g. the raw agent slug behind a display name. */
+    title?: string;
     meta?: string;
     taskId?: string;
     projectId?: string;
@@ -553,11 +562,14 @@ function AttentionList({
                   }}
                   search={{ task: item.taskId }}
                   className="min-w-0 truncate hover:underline"
+                  title={item.title}
                 >
                   {item.label}
                 </Link>
               ) : (
-                <span className="min-w-0 truncate">{item.label}</span>
+                <span className="min-w-0 truncate" title={item.title}>
+                  {item.label}
+                </span>
               )}
               {item.meta && (
                 <span className="text-muted-foreground shrink-0 text-xs">

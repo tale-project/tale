@@ -110,6 +110,15 @@ export function AgentInstructionsDialog({
     }
   };
 
+  // Enable Save only when the text actually differs from what was loaded, so the
+  // button greys out with no pending change (and after a save re-reads the same
+  // value). Mirrors the load-time normalization of a non-string field to ''.
+  const baselineInstructions =
+    typeof config?.systemInstructions === 'string'
+      ? config.systemInstructions
+      : '';
+  const isDirty = config !== null && value !== baselineInstructions;
+
   return (
     <ResponsiveDialog
       open={agentSlug !== null}
@@ -148,7 +157,13 @@ export function AgentInstructionsDialog({
             </Button>
             <Button
               onClick={() => void onSave()}
-              disabled={loading || saving || error !== null || config === null}
+              disabled={
+                loading ||
+                saving ||
+                error !== null ||
+                config === null ||
+                !isDirty
+              }
             >
               {saving
                 ? t('agents.instructions.saving')

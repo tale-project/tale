@@ -18,7 +18,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 
 import { stageWorkspace } from '../../exec-common.ts';
 import { EXEC_SPEC_PATH, parseExecSpec } from './exec-spec.ts';
-import { PRESTAGE_PATH, TALE_DIR, type PrestageFile } from './k8s-protocol.ts';
+import {
+  ATTEST_DIR,
+  PRESTAGE_PATH,
+  type PrestageFile,
+} from './k8s-protocol.ts';
 
 async function main(): Promise<void> {
   const raw = await readFile(EXEC_SPEC_PATH, 'utf8');
@@ -29,8 +33,10 @@ async function main(): Promise<void> {
   const stageMs = Date.now() - startedAt;
 
   // Persist for the harvest container (it forwards priorStage + stageMs into
-  // the result line the spawner reads).
-  await mkdir(TALE_DIR, { recursive: true });
+  // the result line the spawner reads). ATTEST_DIR is a dedicated volume the
+  // runner cannot mount, so user code can't forge the attestation before
+  // harvest reads it.
+  await mkdir(ATTEST_DIR, { recursive: true });
   const prestage: PrestageFile = {
     stageMs,
     ...(priorStage !== undefined && { priorStage }),

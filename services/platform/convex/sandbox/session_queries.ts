@@ -204,11 +204,6 @@ export const listAbandonedAgentOps = internalQuery({
       progressText: v.optional(v.string()),
       exitCode: v.optional(v.number()),
       heartbeatAt: v.optional(v.number()),
-      // Blue-green colour the session lives on — the watchdog probes/cancels via
-      // `sandbox-<spawnerColor>` so it reaches a session lingering on the old
-      // colour after a deploy flip (else the bare alias hits the new colour →
-      // spurious 404 → the live turn gets finalized as failed).
-      spawnerColor: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -221,18 +216,15 @@ export const listAbandonedAgentOps = internalQuery({
       if (row.kind !== 'agent-run') continue;
       if (row.finalizedAt !== undefined) continue;
       // Join the session's agentKind (the op doesn't store it) so a resumed
-      // continuation runs the right adapter, and its spawnerColor so recovery
-      // routes to the colour the session lives on. Default 'claude-code' if
-      // unknown. Pick the LIVE row's colour (skip historical dead incarnations
-      // under the reused deterministic id).
+      // continuation runs the right adapter. Default 'claude-code' if unknown.
+      // Pick the LIVE row (skip historical dead incarnations under the reused
+      // deterministic id).
       let agentKind: string | undefined;
-      let spawnerColor: string | undefined;
       for await (const session of ctx.db
         .query('sandboxSessions')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
         if (!isLiveSessionStatus(session.status)) continue;
         agentKind = session.agentKind;
-        spawnerColor = session.spawnerColor;
         break;
       }
       out.push({
@@ -267,7 +259,6 @@ export const listAbandonedAgentOps = internalQuery({
         }),
         ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
         ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
-        ...(spawnerColor !== undefined && { spawnerColor }),
       });
       if (out.length >= args.limit) break;
     }
@@ -311,6 +302,38 @@ export const listReconcilableSessionsForOrg = internalQuery({
         if (row.pinned === true) continue;
         out.push({ sessionId: row.sessionId });
       }
+    }
+    return out;
+  },
+});
+
+/** Live `workflow_run` sessions belonging to ONE workflow execution. Every
+ * step's ephemeral sandbox is keyed `${executionId}:${stepSlug}` on `ownerId`
+ * (see `workflowRunOwnerId`), so they all share the `${executionId}:` prefix —
+ * scanned here via a range on the `by_owner` index. Used by the user-Stop
+ * cascade to tear them ALL down at once: `cancelExecution` cancels the durable
+ * workflow but never touches the sandbox, so without this a stopped run's agent
+ * keeps running and its session keeps holding a per-org slot until the TTL
+ * reaper — wedging the org's capacity queue. The org filter is defensive (the
+ * executionId already makes the prefix globally unique). */
+export const listWorkflowRunSessionsForExecution = internalQuery({
+  args: { organizationId: v.string(), executionId: v.string() },
+  returns: v.array(v.object({ sessionId: v.string() })),
+  handler: async (ctx, args) => {
+    const lower = `${args.executionId}:`;
+    const upper = `${args.executionId};`; // ';' = ':' + 1 → captures every step
+    const out: { sessionId: string }[] = [];
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q
+          .eq('ownerType', 'workflow_run')
+          .gte('ownerId', lower)
+          .lt('ownerId', upper),
+      )) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      out.push({ sessionId: row.sessionId });
     }
     return out;
   },

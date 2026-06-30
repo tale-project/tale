@@ -29,6 +29,9 @@ const cfg: SpawnerConfig = {
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,
+  dockerBuildCache: false,
+  buildkitdImage: 'tale-sandbox-buildkitd:test',
+  buildkitdMirrorImage: 'registry:2',
   browserView: false,
   transparentEgress: false,
   k8s: {
@@ -232,6 +235,7 @@ const fakeBackend: SessionBackend = {
     if (backendCheckThrows) throw new Error('docker daemon hiccup');
     return !backendGone.has(sessionId);
   },
+  async reconcileBuildCache() {},
 };
 
 interface SseEvent {
@@ -848,5 +852,55 @@ describe('SessionRoutes (fake runnerd)', () => {
       await routes.adoptExisting();
       expect((await routes.handleGet('adopt1')).status).toBe(200);
     });
+
+    test('adoptExisting: reconciles the shared build cache for the running orgs', async () => {
+      const reconciled: string[][] = [];
+      const reconcileBackend: SessionBackend = {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            mkBackendSession('s1', 'org_a'),
+            mkBackendSession('s2', 'org_b'),
+          ];
+        },
+        async reconcileBuildCache(orgIds: readonly string[]) {
+          reconciled.push([...orgIds]);
+        },
+      };
+      await new SessionRoutes(cfg, reconcileBackend).adoptExisting();
+      // Called once, with every running session's org (drift healing is keyed
+      // per org; the backend dedups to the single v1 daemon).
+      expect(reconciled).toEqual([['org_a', 'org_b']]);
+    });
+
+    test('adoptExisting: no sessions ⇒ no build-cache reconcile', async () => {
+      let calls = 0;
+      const emptyBackend: SessionBackend = {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return [];
+        },
+        async reconcileBuildCache() {
+          calls += 1;
+        },
+      };
+      await new SessionRoutes(cfg, emptyBackend).adoptExisting();
+      expect(calls).toBe(0);
+    });
   });
 });
+
+function mkBackendSession(
+  sessionId: string,
+  organizationId: string,
+): BackendSession {
+  return {
+    sessionId,
+    organizationId,
+    profile: 'agent',
+    createdAtMs: 1_000,
+    ttlMs: 60_000,
+    idleTimeoutMs: 30_000,
+    state: 'ready',
+  };
+}

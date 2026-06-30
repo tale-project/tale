@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -123,5 +130,48 @@ describe('useFormEditor', () => {
     const { result } = mount({ name: 'A', color: '#FF0000' });
     act(() => result.current.form.setValue('name', '', { shouldDirty: true }));
     await waitFor(() => expect(result.current.isValid).toBe(false));
+  });
+
+  // Regression: a native `<form onSubmit={editor.submit}>` must run the save AND
+  // reset the dirty baseline. The earlier wiring used the raw
+  // `handleSubmit(save)`, which saved but never reset — so the Save button (a
+  // `type="submit"` form button) stayed active and the navigation blocker fired
+  // after a successful save. The existing tests only called `editor.save()`
+  // directly, so they never exercised this path.
+  it('clears isDirty after a native form submit through editor.submit', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const holder: { current: ReturnType<typeof useFormEditor<Form>> | null } = {
+      current: null,
+    };
+
+    function Harness() {
+      const editor = useFormEditor<Form>({
+        data: { name: 'A', color: '#FF0000' },
+        schema,
+        save,
+      });
+      holder.current = editor;
+      return (
+        <form onSubmit={editor.submit}>
+          <input aria-label="name" {...editor.form.register('name')} />
+          <button type="submit">Save</button>
+        </form>
+      );
+    }
+
+    const { container } = render(<Harness />);
+
+    fireEvent.change(screen.getByLabelText('name'), {
+      target: { value: 'B' },
+    });
+    await waitFor(() => expect(holder.current?.isDirty).toBe(true));
+
+    // Fire the native submit (what clicking the `type="submit"` button does).
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'B' })),
+    );
+    await waitFor(() => expect(holder.current?.isDirty).toBe(false));
   });
 });

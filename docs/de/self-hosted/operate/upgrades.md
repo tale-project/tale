@@ -41,8 +41,8 @@ tale update --dry-run
 
 `tale deploy` macht den eigentlichen Rolling-Restart und deployt immer die eigene Version des CLI — die dank der Angleichung die Version ist, die dein Workspace aufzeichnet. Es sortiert die Services in drei Tiers:
 
-- **App-/Compute-Tier** — `platform`, `sandbox`, `sandbox-egress` — rollt bei **jedem** Deploy ohne Downtime (Blue-Green: die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet).
-- **Backend** — `convex` — rollt ebenfalls bei jedem Deploy, sodass es nie gegenüber `platform` versions-skewt; in-place neu erstellt wird es nur, wenn sich sein Image tatsächlich geändert hat.
+- **App-Tier** — `platform` — rollt bei **jedem** Deploy ohne Downtime (Blue-Green: die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet).
+- **Backend und Compute** — `convex`, `sandbox`, `sandbox-egress` — rollen ebenfalls bei jedem Deploy, sodass sie nie gegenüber `platform` versions-skewen. Jeder ist ein einzelner Container, der sich **in-place** neu erstellt, wenn sich sein Image tatsächlich geändert hat; der Deploy drainet zuerst die laufende Arbeit (Chat-Generierungen bei `convex`, Agent-Runs bei `sandbox`), damit der kurze Neustart keine lebende Anfrage abschneidet.
 - **Stop-gegateter Tier** — `db`, `proxy` — bleibt standardmäßig **laufend und unangetastet** (Postgres oder den Proxy neu zu erstellen ist eine kurze Ausfallzeit, die du bei einem Routine-Roll nicht willst). Mit `--stop` aktualisierst du sie; der Deploy warnt und nennt sie, wenn er sie überspringt.
 
 ```bash

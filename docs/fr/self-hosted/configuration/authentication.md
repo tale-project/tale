@@ -15,8 +15,8 @@ Choisis-le sur les petites instances et les déploiements auto-hébergés air-ga
 
 ```bash
 # .env — pas de flag nécessaire pour le mot de passe local
-HOST=tale.local
-SITE_URL=https://tale.local
+HOST=localhost
+SITE_URL=https://localhost
 BETTER_AUTH_SECRET=...
 ```
 

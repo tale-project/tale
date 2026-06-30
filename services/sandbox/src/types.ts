@@ -290,12 +290,30 @@ export interface SpawnerConfig {
   // keeps an isolation boundary (sysbox/kata) — loadConfig fails closed
   // otherwise. The one-shot /v1/execute path never enables this.
   dockerInContainer: boolean;
-  // Live browser view (env SANDBOX_BROWSER_VIEW; default false). When true the
-  // session container is launched with TALE_BROWSER_CDP=1, so the entrypoint
-  // brings up a headed Chromium with a loopback CDP endpoint mirrored read-only
-  // by x11vnc; the platform must also set its own SANDBOX_BROWSER_VIEW so the
-  // adapter attaches Playwright MCP over CDP (the two sides MUST agree — a
-  // deployment-level operator decision). Off ⇒ today's headless behavior.
+  // Shared cross-session docker build cache (env SANDBOX_DOCKER_BUILD_CACHE;
+  // DEFAULT = follows dockerInContainer, i.e. on whenever DinD is on). When on,
+  // the spawner lazily launches a single persistent buildkitd + pull-through
+  // registry mirror (see buildkitd.ts) and each session's entrypoint points a
+  // remote buildx builder at it, so `docker build` / `docker compose up --build`
+  // reuse one build cache across sessions instead of each rebuilding from zero.
+  // Inert without DinD; set false to opt out (keeps the extra daemons off).
+  dockerBuildCache: boolean;
+  // The shared buildkitd image ref the spawner launches (env
+  // SANDBOX_BUILDKITD_IMAGE). Defaults to a dev tag; release deployments pin the
+  // ghcr ref so the daemon matches the deployed version.
+  buildkitdImage: string;
+  // The pull-through registry mirror image (env SANDBOX_BUILDKITD_MIRROR_IMAGE;
+  // default stock `registry:2`) launched alongside the buildkitd so base-image
+  // pulls resolve by name on the internal net (buildkit can't resolve external
+  // registry names through docker's embedded DNS).
+  buildkitdMirrorImage: string;
+  // Live browser view (env SANDBOX_BROWSER_VIEW; default true — opt out with
+  // SANDBOX_BROWSER_VIEW=0). When true the session container is launched with
+  // TALE_BROWSER_CDP=1, so the entrypoint brings up a headed Chromium with a
+  // loopback CDP endpoint mirrored read-only by x11vnc; the platform reads the
+  // same SANDBOX_BROWSER_VIEW so the adapter attaches Playwright MCP over CDP
+  // (the two sides MUST agree — a deployment-level operator decision, and they
+  // do agree on the shared default when it is unset). Off ⇒ headless behavior.
   browserView: boolean;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
@@ -338,18 +356,11 @@ export interface SpawnerConfig {
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
   maxConcurrent: number;
-  /**
-   * Blue-green colour of this spawner instance (`SANDBOX_COLOR`), or `null` in
-   * single-colour mode (dev / unset). When set it (a) scopes `hostSessionRoot`
-   * to a per-colour sub-directory so two colours don't share the `.spawner.lock`
-   * or the host-dir sweep, and (b) stamps a `tale.color=<color>` label on
-   * spawned containers so each colour's boot/orphan sweep only reaps its OWN
-   * containers — a green boot must never `docker rm` blue's in-flight work.
-   * Set from the spawner's own env (never request input), so it is not
-   * attacker-controllable. Optional only for test fixtures; `loadConfig`
-   * always sets it (to a colour string or `null`).
-   */
-  color?: string | null;
+  // Single flat host session root. The sandbox tier is one container that rolls
+  // in-place via a serialized drain — no blue/green colour, so no per-colour
+  // sub-directory. Sessions created under a previous colour-rooted build are
+  // still adopted (running ones keep their live mount; stopped ones via the
+  // legacy-compat resume fallback in docker-session-backend.ts).
   hostSessionRoot: string;
   cacheVolumePrefix: { pip: string; npm: string; bun: string };
   egressNetwork: string;
@@ -378,10 +389,10 @@ export interface SessionConfig {
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
   maxIdleMs: number;
-  /** Max time this colour will LINGER (keep serving its sessions) after a deploy
-   * flip put it into drain mode before the spawner reclaims that compute itself
-   * (CLI-independent safety net). Workspaces are preserved for resume on the
-   * active colour. See server.ts's linger self-reap. */
+  /** Max time the spawner will LINGER (keep serving its sessions) after a deploy
+   * put it into drain mode before it reclaims that compute itself
+   * (CLI-independent safety net). Workspaces are preserved for resume. See
+   * server.ts's linger self-reap. */
   maxLingerMs: number;
   /** Default + ceiling for per-exec timeoutMs inside a session. */
   execDefaultTimeoutMs: number;

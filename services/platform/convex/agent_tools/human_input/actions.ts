@@ -1,6 +1,6 @@
 'use node';
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
@@ -28,7 +28,7 @@ async function authorizeAndResolveConfig(
   agentConfig?: SerializableAgentConfig;
 }> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
 
   // Read approval to get threadId and organizationId
   const approvalInfo: {

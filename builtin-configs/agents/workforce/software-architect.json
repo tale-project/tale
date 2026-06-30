@@ -4,6 +4,7 @@
     "labels": ["Engineering"],
     "autoInstall": false
   },
+  "skillBindings": ["make-improvement", "review-code", "write-notes"],
   "toolNames": [
     "task_read",
     "task_write",

@@ -13,7 +13,7 @@ set -e
 # ============================================================================
 # Domain Configuration
 # ============================================================================
-HOST="${HOST:-tale.local}"
+HOST="${HOST:-localhost}"
 
 # SITE_URL is required
 if [ -z "${SITE_URL:-}" ]; then
@@ -75,7 +75,7 @@ case "${TLS_MODE:-selfsigned}" in
         # ACME with email for notifications
         TLS_CONFIG="tls ${TLS_EMAIL}"
       else
-        TLS_EMAIL_DEFAULT="tls@${HOST:-tale.local}"
+        TLS_EMAIL_DEFAULT="tls@${HOST:-localhost}"
         echo "  Email: ${TLS_EMAIL_DEFAULT} (default, set TLS_EMAIL to override)"
         TLS_CONFIG="tls ${TLS_EMAIL_DEFAULT}"
       fi

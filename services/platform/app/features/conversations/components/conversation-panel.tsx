@@ -356,7 +356,14 @@ export function ConversationPanel({
   // placeholder markup with masked leaves inside <Skeletonize loading>; once
   // loaded the real ConversationHeader / Message / composer render in place.
   return (
-    <Skeletonize loading={isLoading}>
+    <Skeletonize
+      loading={isLoading}
+      // Skeletonize renders a wrapper <div>; it must carry the flex layout so
+      // the scroller below can bound its height. Without this it collapses to a
+      // plain block, the inner `overflow-y-auto` never engages, and the reading
+      // pane grows past the viewport instead of scrolling.
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+    >
       {/* The composer/banner footer is a flex SIBLING of the scroller — never
           inside the scroll container — so it cannot move with content. */}
       <Stack gap={0} className="relative min-h-0 flex-[1_1_0]">

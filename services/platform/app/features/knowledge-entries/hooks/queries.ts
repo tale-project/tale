@@ -1,5 +1,6 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { KnowledgeEntryItem } from '@/convex/knowledge_entries/queries';
@@ -32,8 +33,9 @@ export function useListKnowledgeEntriesPaginated(
 export function useKnowledgeEntryVersions(
   entryId: Id<'knowledgeEntries'> | undefined,
 ) {
+  const organizationId = useOrganizationId();
   return useConvexQuery(
     api.knowledge_entries.queries.getKnowledgeEntryVersions,
-    entryId ? { entryId } : 'skip',
+    entryId && organizationId ? { entryId, organizationId } : 'skip',
   );
 }

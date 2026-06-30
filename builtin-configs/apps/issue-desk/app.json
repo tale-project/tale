@@ -4,17 +4,21 @@
   "icon": "ticket",
   "scope": "project",
   "messageNamespace": "issueDesk",
-  "workflows": ["issue-desk/desk-process"],
+  "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
   "agents": ["desk-implementer", "desk-reviewer"],
   "roles": {
     "implementer": "issue-desk/desk-implementer",
     "reviewer": "issue-desk/desk-reviewer"
   },
   "capabilities": {
-    "workflows": ["issue-desk/desk-process"],
+    "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
     "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
     "functions": [
-      { "path": "tasks/queries:listTasksByProject", "mode": "query" },
+      { "path": "tasks/queries:listTasksByProjectPaginated", "mode": "query" },
+      {
+        "path": "tasks/queries:listExternalKeysByProject",
+        "mode": "query"
+      },
       { "path": "workflow_executions/queries:listExecutions", "mode": "query" },
       { "path": "agents/file_actions:listAppAgents", "mode": "action" },
       { "path": "agents/file_actions:readAgent", "mode": "action" },
@@ -27,7 +31,7 @@
       { "path": "tasks/mutations:updateTaskStatus", "mode": "mutation" },
       { "path": "tasks/public_actions:startTaskWorkflow", "mode": "action" },
       {
-        "path": "integrations/public_actions:listGitHubIssues",
+        "path": "integrations/public_actions:listUntrackedGitHubIssues",
         "mode": "action"
       },
       {
@@ -41,6 +45,31 @@
     ]
   },
   "requires": {
-    "integrations": ["github"]
+    "integrations": ["github"],
+    "config": [
+      {
+        "key": "repository",
+        "type": "string",
+        "labelKey": "issueDesk.config.repository",
+        "placeholderKey": "issueDesk.config.repositoryPlaceholder",
+        "derive": {
+          "pattern": "^(?:https?://github\\.com/)?([^/\\s]+)/([^/\\s#]+?)(?:\\.git)?/?$",
+          "into": ["owner", "repo"]
+        }
+      },
+      {
+        "key": "testCommand",
+        "type": "string",
+        "labelKey": "issueDesk.config.testCommand",
+        "placeholderKey": "issueDesk.config.testCommandPlaceholder"
+      },
+      {
+        "key": "repoNotes",
+        "type": "string",
+        "labelKey": "issueDesk.config.repoNotes",
+        "placeholderKey": "issueDesk.config.repoNotesPlaceholder",
+        "multiline": true
+      }
+    ]
   }
 }

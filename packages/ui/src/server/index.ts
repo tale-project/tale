@@ -1,7 +1,7 @@
 /**
  * Shared React-service bootstrap. Used by every Tale Vite/React service
  * that serves a built SPA from a `dist/` directory (web, docs, and any
- * service scaffolded from `tools/plop/templates/react-service`). The
+ * service scaffolded from `tools/plop/templates/service/react`). The
  * platform service uses a Hono-based shell with CSP, nonce injection, and
  * Convex-aware routes — that lives in `services/platform/server.ts` and
  * intentionally is NOT funneled through this helper.

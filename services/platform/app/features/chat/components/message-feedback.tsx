@@ -3,7 +3,8 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { ReactNode, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import { useState, useCallback } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
@@ -50,8 +51,10 @@ export function MessageFeedback({
         setShowCommentBox(false);
         setComment('');
       }
-    } catch {
-      // Silently handle feedback errors — UI re-enables via finally
+    } catch (error) {
+      // Already surfaced (toast + log) by useConvexMutation; log for component
+      // context and to avoid an unhandled rejection from the click handler.
+      console.error('Message feedback action failed', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -65,8 +68,11 @@ export function MessageFeedback({
         await removeFeedback();
         setShowCommentBox(false);
         setComment('');
-      } catch {
-        // Silently handle feedback errors — UI re-enables via finally
+      } catch (error) {
+        // Already surfaced (toast + log) by useConvexMutation; log for
+        // component context and to avoid an unhandled rejection from the
+        // click handler.
+        console.error('Message feedback action failed', error);
       } finally {
         setIsSubmitting(false);
       }
@@ -75,8 +81,11 @@ export function MessageFeedback({
       try {
         await submitFeedback('negative');
         setShowCommentBox(true);
-      } catch {
-        // Silently handle feedback errors — UI re-enables via finally
+      } catch (error) {
+        // Already surfaced (toast + log) by useConvexMutation; log for
+        // component context and to avoid an unhandled rejection from the
+        // click handler.
+        console.error('Message feedback action failed', error);
       } finally {
         setIsSubmitting(false);
       }
@@ -90,8 +99,10 @@ export function MessageFeedback({
       await submitFeedback('negative', comment.trim());
       setShowCommentBox(false);
       setComment('');
-    } catch {
-      // Silently handle feedback errors — UI re-enables via finally
+    } catch (error) {
+      // Already surfaced (toast + log) by useConvexMutation; log for component
+      // context and to avoid an unhandled rejection from the click handler.
+      console.error('Message feedback action failed', error);
     } finally {
       setIsSubmitting(false);
     }

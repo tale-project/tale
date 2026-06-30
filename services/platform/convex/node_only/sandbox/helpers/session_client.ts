@@ -92,32 +92,9 @@ function getSpawnerUrl(): string {
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
 
-/**
- * Resolve the spawner URL for a SPECIFIC blue-green colour, so a session op
- * reaches the exact colour the session lives on even after a deploy flip moved
- * the bare `sandbox` alias to the new colour (and lingered the old one). Mirrors
- * spawner_client.ts's `spawnerUrlForColor`. `null`/empty colour (single-colour
- * dev, or a non-`sandbox` docker host) falls back to the bare URL — today's
- * behaviour, so callers that don't yet pass a colour are unaffected.
- */
-function spawnerUrlForColor(color: string | null | undefined): string {
-  const base = getSpawnerUrl();
-  if (!color) return base;
-  try {
-    const u = new URL(base);
-    if (u.hostname !== 'sandbox') return base; // dev/loopback → no per-colour host
-    return `${u.protocol}//sandbox-${color}:${u.port || '8003'}`;
-  } catch {
-    return base;
-  }
-}
-
-/** The blue-green colour the spawner reported for a session at create, or null
- * in single-colour mode. Persisted on the session row so later ops route to the
- * right (possibly-lingering) colour. */
+/** Result of a session create. */
 export interface SessionCreateResult {
   session: SessionInfo;
-  spawnerColor: string | null;
 }
 
 function getSpawnerToken(): string | null {
@@ -179,6 +156,13 @@ export interface SessionInfo {
 }
 
 const CREATE_TIMEOUT_MS = 200_000; // create polls runnerd readiness (≤180s)
+// Drain-retry for session create. A 503 "draining" means the spawner is being
+// rolled in place at deploy time — it refuses NEW sessions while it drains
+// in-flight work before its restart. Re-POST so the create lands once the
+// recreated spawner is back up, mirroring spawner_client's one-shot drain-retry.
+// Bounded so a genuinely down tier still fails fast instead of looping.
+const CREATE_DRAIN_RETRY_MAX = 5;
+const CREATE_DRAIN_RETRY_DELAY_MS = 400;
 // Grace added to the caller's exec timeoutMs for the SSE fetch, so the stream
 // outlives the sandbox-side exec deadline and delivers the terminal result
 // instead of aborting first (the old code hardcoded 60s here too).
@@ -205,46 +189,55 @@ const IDLE_READ_TIMEOUT_MS = Number(
 
 /**
  * POST /v1/sessions — create + wait for runnerd ready. Throws on 4xx/5xx.
- * Targets the bare `sandbox` alias (a create must land on the ACTIVE colour),
- * and returns the colour the spawner reported via `X-Sandbox-Color` so the
- * caller can persist it for colour-routed follow-up ops.
+ * Targets the bare `sandbox` alias.
  */
 export async function sessionCreate(
   body: SessionCreateBody,
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
   const bodyJson = JSON.stringify(body);
-  const res = await fetch(`${getSpawnerUrl()}${path}`, {
-    method: 'POST',
-    headers: signedHeaders('POST', path, bodyJson),
-    body: bodyJson,
-    signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-  });
-  if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-  if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
-  if (!res.ok) {
-    throw new Error(
-      `sandbox session create failed (${res.status}): ${await safeText(res)}`,
-    );
+  // Re-sign per attempt: each retry needs a fresh timestamp (clock-skew window)
+  // and a fresh nonce (spawner replay cache) — see signedHeaders.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${getSpawnerUrl()}${path}`, {
+      method: 'POST',
+      headers: signedHeaders('POST', path, bodyJson),
+      body: bodyJson,
+      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+    });
+    if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
+    if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
+    // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
+    // `sandbox` alias re-resolves onto the now-active colour. A non-draining
+    // 503 (or exhausted retries) falls through to the generic failure below.
+    if (res.status === 503 && attempt < CREATE_DRAIN_RETRY_MAX) {
+      const peek = await safeText(res);
+      if (peek.includes('draining')) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CREATE_DRAIN_RETRY_DELAY_MS),
+        );
+        continue;
+      }
+      throw new Error(`sandbox session create failed (503): ${peek}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        `sandbox session create failed (${res.status}): ${await safeText(res)}`,
+      );
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const parsed = (await res.json()) as { session: SessionInfo };
+    return { session: parsed.session };
   }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { session: SessionInfo };
-  return {
-    session: parsed.session,
-    spawnerColor: res.headers.get('x-sandbox-color'),
-  };
 }
 
 /** DELETE /v1/sessions/:id — idempotent teardown. */
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(
-  sessionId: string,
-  spawnerColor?: string | null,
-): Promise<boolean> {
+export async function sessionIsAlive(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'GET',
     headers: signedHeaders('GET', path, ''),
     signal: AbortSignal.timeout(15_000),
@@ -327,10 +320,9 @@ export async function sessionSetPinned(
 export async function sessionCancelExec(
   sessionId: string,
   execId: string,
-  spawnerColor?: string | null,
 ): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'POST',
     headers: signedHeaders('POST', path, ''),
     body: '',
@@ -420,10 +412,9 @@ export type ExecLiveness =
 export async function sessionExecStatus(
   sessionId: string,
   execId: string,
-  spawnerColor?: string | null,
 ): Promise<ExecLiveness> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'GET',
     headers: signedHeaders('GET', path, ''),
     signal: AbortSignal.timeout(30_000),
@@ -471,11 +462,10 @@ export interface SessionStageResult {
 export async function sessionStageFiles(
   sessionId: string,
   files: SessionStageFile[],
-  spawnerColor?: string | null,
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
   const bodyJson = JSON.stringify({ files });
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'POST',
     headers: signedHeaders('POST', path, bodyJson),
     body: bodyJson,
@@ -531,10 +521,9 @@ export interface SessionFsEntry {
 export async function sessionListFiles(
   sessionId: string,
   dirPath: string,
-  spawnerColor?: string | null,
 ): Promise<SessionFsEntry[] | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files?path=${encodeURIComponent(dirPath)}`;
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'GET',
     headers: signedHeaders('GET', path, ''),
     signal: AbortSignal.timeout(30_000),
@@ -658,7 +647,6 @@ export async function sessionExec(
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
-  spawnerColor?: string | null,
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
@@ -671,7 +659,7 @@ export async function sessionExec(
       (body.timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${path}`, {
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
     method: 'POST',
     headers: signedHeaders('POST', path, bodyJson, 'text/event-stream'),
     body: bodyJson,
@@ -699,7 +687,6 @@ export async function sessionAttachExec(
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
   timeoutMs?: number,
-  spawnerColor?: string | null,
 ): Promise<SessionExecResult> {
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
   // The spawner verifies the HMAC over pathname+search, so the signed string
@@ -713,7 +700,7 @@ export async function sessionAttachExec(
       (timeoutMs ?? EXEC_FALLBACK_TIMEOUT_MS) + EXEC_FETCH_GRACE_MS,
     ),
   ]);
-  const res = await fetch(`${spawnerUrlForColor(spawnerColor)}${signedPath}`, {
+  const res = await fetch(`${getSpawnerUrl()}${signedPath}`, {
     method: 'GET',
     headers: signedHeaders('GET', signedPath, '', 'text/event-stream'),
     signal: fetchAbort,
@@ -745,9 +732,6 @@ export async function drainSessionExecResilient(
   opts: {
     cursor?: ExecCursor;
     resumeSinceSeq?: number;
-    /** Blue-green colour the session lives on — routes exec/attach to
-     * `sandbox-<color>` so a resume reaches a lingering old-colour spawner. */
-    spawnerColor?: string | null;
   } = {},
 ): Promise<SessionExecResult> {
   // External cursor lets the caller (run_agent) read the resume position; on a
@@ -770,16 +754,8 @@ export async function drainSessionExecResilient(
             callbacks,
             cursor,
             body.timeoutMs,
-            opts.spawnerColor,
           )
-        : await sessionExec(
-            sessionId,
-            body,
-            signal,
-            callbacks,
-            cursor,
-            opts.spawnerColor,
-          );
+        : await sessionExec(sessionId, body, signal, callbacks, cursor);
     } catch (err) {
       if (signal.aborted) throw err;
       // A 404 means the session is gone, not a transient drop — retrying can't

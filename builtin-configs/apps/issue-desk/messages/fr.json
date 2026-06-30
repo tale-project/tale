@@ -17,5 +17,11 @@
   "issueDesk.col.number": "Numéro",
   "issueDesk.col.title": "Titre",
   "issueDesk.col.state": "État",
-  "issueDesk.col.status": "Statut"
+  "issueDesk.col.status": "Statut",
+  "issueDesk.config.repository": "Dépôt GitHub",
+  "issueDesk.config.repositoryPlaceholder": "owner/repo ou https://github.com/owner/repo",
+  "issueDesk.config.testCommand": "Commande de test",
+  "issueDesk.config.testCommandPlaceholder": "ex. bun test — laisser vide pour la détection automatique",
+  "issueDesk.config.repoNotes": "Notes du dépôt",
+  "issueDesk.config.repoNotesPlaceholder": "Consignes propres au dépôt pour les agents — spécificités de build, conventions, à éviter"
 }

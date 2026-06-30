@@ -2,7 +2,6 @@
 // every knob is overridable so an operator can tune without rebuilding.
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import {
   dindDefaultEnabled,
@@ -38,6 +37,7 @@ function boolEnvOpt(name: string): boolean | undefined {
 function deploymentSandboxRuntime(): {
   tier?: string;
   dockerInContainer?: boolean;
+  dockerBuildCache?: boolean;
 } {
   const dir =
     process.env.TALE_PLATFORM_SHARED_CONFIG_DIR ?? '/app/platform-config';
@@ -58,7 +58,11 @@ function deploymentSandboxRuntime(): {
     throw new Error(`could not read ${path}`, { cause: err });
   }
   let json: {
-    sandboxRuntime?: { tier?: unknown; dockerInContainer?: unknown };
+    sandboxRuntime?: {
+      tier?: unknown;
+      dockerInContainer?: unknown;
+      dockerBuildCache?: unknown;
+    };
   };
   try {
     json = JSON.parse(raw);
@@ -69,10 +73,17 @@ function deploymentSandboxRuntime(): {
   }
   const sr = json.sandboxRuntime;
   if (!sr || typeof sr !== 'object') return {};
-  const out: { tier?: string; dockerInContainer?: boolean } = {};
+  const out: {
+    tier?: string;
+    dockerInContainer?: boolean;
+    dockerBuildCache?: boolean;
+  } = {};
   if (typeof sr.tier === 'string') out.tier = sr.tier;
   if (typeof sr.dockerInContainer === 'boolean') {
     out.dockerInContainer = sr.dockerInContainer;
+  }
+  if (typeof sr.dockerBuildCache === 'boolean') {
+    out.dockerBuildCache = sr.dockerBuildCache;
   }
   return out;
 }
@@ -181,6 +192,26 @@ export function loadConfig(): SpawnerConfig {
       );
     }
   }
+  // Shared build cache: a single, persistent buildkitd + pull-through registry
+  // mirror (the spawner launches them lazily, see buildkitd.ts) that every
+  // session's `docker build` / `docker compose up --build` reuses across sessions
+  // — instead of each session rebuilding all layers in its ephemeral inner
+  // /var/lib/docker. DEFAULT = FOLLOW DinD: it's only meaningful with DinD (the
+  // inner docker is what builds), and when DinD is on it's a strict, best-effort
+  // improvement (a failed daemon falls back to the inner builder), so there's no
+  // reason to make the operator opt in twice. Explicit SANDBOX_DOCKER_BUILD_CACHE
+  // (or deployment.json) always wins — set it false to keep the extra daemons off.
+  const dockerBuildCache =
+    deployment.dockerBuildCache ??
+    boolEnvOpt('SANDBOX_DOCKER_BUILD_CACHE') ??
+    dockerInContainer;
+  if (dockerBuildCache && !dockerInContainer) {
+    console.warn(
+      `[sandbox.config] WARNING: SANDBOX_DOCKER_BUILD_CACHE is on but docker-in-container is OFF — ` +
+        `the shared build cache is inert without DinD (there is no inner docker to build). ` +
+        `Enable SANDBOX_DOCKER_IN_CONTAINER (or a sysbox/kata tier) to use it.`,
+    );
+  }
   // Transparent egress for the session container's own processes (default ON).
   // The entrypoint installs an iptables OUTPUT REDIRECT → redsocks so any client
   // egresses through the proxy without honoring HTTP(S)_PROXY env. Reliable on
@@ -197,18 +228,11 @@ export function loadConfig(): SpawnerConfig {
     );
   }
 
-  // Blue-green colour (optional). Trimmed + validated to a short alnum token so
-  // it's a safe path/label segment; unset ⇒ single-colour mode.
-  const rawColor = (process.env.SANDBOX_COLOR ?? '').trim();
-  const sandboxColor =
-    rawColor.length > 0 && /^[a-z0-9][a-z0-9-]{0,31}$/.test(rawColor)
-      ? rawColor
-      : null;
-  if (rawColor.length > 0 && sandboxColor === null) {
-    console.warn(
-      `[sandbox.config] ignoring invalid SANDBOX_COLOR "${rawColor}" (expected [a-z0-9][a-z0-9-]*); running single-colour.`,
-    );
-  }
+  // The sandbox tier is a SINGLE container that rolls in-place via a serialized
+  // drain — there is no blue/green colour here (the platform tier keeps it).
+  // The session root is therefore the single flat path; sessions created by a
+  // previous (colour-rooted) build are still adoptable, see the legacy-compat
+  // fallback in docker-session-backend.ts.
   const sessionRootBase =
     process.env.SANDBOX_HOST_SESSION_ROOT ?? '/var/lib/tale-sandbox/sessions';
 
@@ -296,23 +320,35 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtimeTier,
     dockerInContainer,
-    // Live browser view (default off). When on, session containers launch with
-    // TALE_BROWSER_CDP=1 (the entrypoint's headed-Chromium + x11vnc mirror).
-    // The PLATFORM's own SANDBOX_BROWSER_VIEW must be set together so the
-    // adapter attaches Playwright MCP over CDP — a deployment-level decision.
-    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? false,
+    // Shared cross-session docker build cache (default off; only meaningful with
+    // DinD — resolved + warned above). When on, the spawner launches a shared
+    // buildkitd and points each session's remote buildx builder at it.
+    dockerBuildCache,
+    // The shared buildkitd image the spawner launches (buildkitd.ts). Defaults
+    // to a dev tag; release deployments set SANDBOX_BUILDKITD_IMAGE to the
+    // pinned ghcr ref so the daemon matches the deployed version.
+    buildkitdImage:
+      process.env.SANDBOX_BUILDKITD_IMAGE ?? 'tale-sandbox-buildkitd:latest',
+    // The pull-through registry mirror image (stock `registry:2`) the spawner
+    // launches alongside the buildkitd so base-image pulls resolve by name on
+    // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
+    buildkitdMirrorImage:
+      process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
+    // Live browser view (default on; opt out with SANDBOX_BROWSER_VIEW=0). When
+    // on, session containers launch with TALE_BROWSER_CDP=1 (the entrypoint's
+    // headed-Chromium + x11vnc mirror). The PLATFORM reads the SAME env so the
+    // adapter attaches Playwright MCP over CDP — one deployment-level decision
+    // drives both sides, and they agree when the operator sets nothing.
+    browserView: boolEnvOpt('SANDBOX_BROWSER_VIEW') ?? true,
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
     maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 2, { min: 1 }),
-    color: sandboxColor,
-    // Per-colour session root so blue/green don't share the `.spawner.lock` or
-    // the host-dir sweep (single-colour mode keeps the flat base path).
-    hostSessionRoot: sandboxColor
-      ? join(sessionRootBase, sandboxColor)
-      : sessionRootBase,
+    // Single flat session root — the sandbox tier no longer has a blue/green
+    // colour, so there is no per-colour sub-directory to scope.
+    hostSessionRoot: sessionRootBase,
     cacheVolumePrefix: {
       pip:
         process.env.SANDBOX_PIP_CACHE_VOLUME_PREFIX ?? 'tale-sandbox-pip-cache',
@@ -366,9 +402,9 @@ export function loadConfig(): SpawnerConfig {
       maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
         min: 60_000,
       }),
-      // How long a drained (lingering) colour keeps serving its sessions after
-      // a flip before reclaiming their compute itself. 30 min covers a typical
-      // long agent turn; the deploy CLI normally tears the colour down sooner
+      // How long a drained (lingering) spawner keeps serving its sessions after
+      // a deploy before reclaiming their compute itself. 30 min covers a typical
+      // long agent turn; the deploy CLI normally tears the spawner down sooner
       // once its sessions end. Min 1 min so it can't thrash.
       maxLingerMs: numEnv('SANDBOX_SESSION_MAX_LINGER_MS', 30 * 60 * 1000, {
         min: 60_000,

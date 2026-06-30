@@ -259,7 +259,12 @@ export function buildSessionPod(
             { name: 'HTTPS_PROXY', value: cfg.egressProxy },
             { name: 'HTTP_PROXY', value: cfg.egressProxy },
             // Gateway reached directly on the cluster network, not via proxy.
-            { name: 'NO_PROXY', value: '127.0.0.1,localhost,llm-gateway' },
+            // `llm-gateway` kept alongside the renamed `sandbox-llm-gateway` for
+            // one release so in-flight sessions on the old hostname still resolve.
+            {
+              name: 'NO_PROXY',
+              value: '127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway',
+            },
             // DinD signal + tier for the entrypoint (sysbox/kata only).
             ...(dind
               ? [

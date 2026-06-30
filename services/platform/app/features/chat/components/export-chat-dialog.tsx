@@ -148,11 +148,13 @@ function ExportChatDialogContent({
   open,
   onOpenChange,
   threadId,
+  organizationId,
 }: ExportChatDialogProps) {
   const { t } = useT('chat');
 
   const { data } = useConvexQuery(api.threads.queries.getThreadMessages, {
     threadId,
+    organizationId,
   });
 
   const messages: ExportMessage[] = useMemo(
@@ -283,18 +285,21 @@ function ExportChatDialogContent({
 
         <div className="border-border max-h-80 overflow-y-auto rounded-lg border">
           {messages.map((msg) => (
-            <button
+            // Row is a <label>, not a <button>: it wraps the Radix Checkbox
+            // (itself a <button>), and a button cannot nest a button (invalid
+            // HTML → hydration error, #1973). The label drives the checkbox, so
+            // clicking anywhere on the row toggles the message's inclusion.
+            <label
               key={msg._id}
-              type="button"
+              htmlFor={`export-msg-${msg._id}`}
               className="hover:bg-accent flex w-full cursor-pointer items-start gap-3 border-b px-3 py-2 text-left last:border-b-0"
-              onClick={() => handleToggleMessage(msg._id)}
             >
-              <div className="pointer-events-none mt-0.5">
-                <Checkbox
-                  checked={effectiveSelected.has(msg._id)}
-                  tabIndex={-1}
-                />
-              </div>
+              <Checkbox
+                id={`export-msg-${msg._id}`}
+                checked={effectiveSelected.has(msg._id)}
+                onCheckedChange={() => handleToggleMessage(msg._id)}
+                className="mt-0.5"
+              />
               <div className="min-w-0 flex-1">
                 <Text variant="label" className="text-xs">
                   {msg.role === 'user'
@@ -308,7 +313,7 @@ function ExportChatDialogContent({
                   {truncate(msg.content, 120)}
                 </Text>
               </div>
-            </button>
+            </label>
           ))}
           {messages.length === 0 && (
             <div className="px-3 py-4 text-center">
