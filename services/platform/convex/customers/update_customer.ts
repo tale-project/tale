@@ -2,6 +2,8 @@
  * Update an existing customer with validation (business logic for public API)
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -39,7 +41,10 @@ export async function updateCustomer(
   // Get the existing customer to check organization
   const existingCustomer = await ctx.db.get(customerId);
   if (!existingCustomer) {
-    throw new Error('Customer not found');
+    throw new ConvexError({
+      code: 'CUSTOMER_NOT_FOUND',
+      message: 'Customer not found',
+    });
   }
 
   // Check for conflicts in parallel
@@ -73,13 +78,17 @@ export async function updateCustomer(
   ]);
 
   if (emailConflict && emailConflict._id !== customerId) {
-    throw new Error(`Customer with email ${updateData.email} already exists`);
+    throw new ConvexError({
+      code: 'DUPLICATE_EMAIL',
+      message: `Customer with email ${updateData.email} already exists`,
+    });
   }
 
   if (externalIdConflict && externalIdConflict._id !== customerId) {
-    throw new Error(
-      `Customer with external ID ${updateData.externalId} already exists`,
-    );
+    throw new ConvexError({
+      code: 'DUPLICATE_EXTERNAL_ID',
+      message: `Customer with external ID ${updateData.externalId} already exists`,
+    });
   }
 
   // Remove undefined values
