@@ -187,6 +187,35 @@ export async function parseAppBundle(file: File): Promise<ParseResult> {
 
   assetMeta.sort((a, b) => a.relPath.localeCompare(b.relPath));
 
+  // Mirror the server's manifest↔file consistency check (bundle_parse.ts) so a
+  // malformed app is caught here instead of failing install with a cryptic
+  // ENOENT. App workflows must be declared `<slug>/<name>` and carried at
+  // `workflows/<slug>/<name>.json`; agents are bare names at `agents/<name>.json`.
+  const present = new Set(assetMeta.map((a) => a.relPath));
+  for (const wf of manifest.workflows ?? []) {
+    if (!wf.startsWith(`${slug}/`)) {
+      const name = wf.includes('/') ? wf.slice(wf.indexOf('/') + 1) : wf;
+      return {
+        success: false,
+        error: `Workflow "${wf}" must be declared as "${slug}/${name}" and live at workflows/${slug}/${name}.json — app workflows are scoped to the app.`,
+      };
+    }
+    if (!present.has(`workflows/${wf}.json`)) {
+      return {
+        success: false,
+        error: `Declared workflow "${wf}" has no file at workflows/${wf}.json in the bundle.`,
+      };
+    }
+  }
+  for (const agent of manifest.agents ?? []) {
+    if (!present.has(`agents/${agent}.json`)) {
+      return {
+        success: false,
+        error: `Declared agent "${agent}" has no file at agents/${agent}.json in the bundle.`,
+      };
+    }
+  }
+
   return {
     success: true,
     data: { zipFile: file, slug, manifest, assets: assetMeta, totalBytes },

@@ -198,5 +198,53 @@ export async function parseAppBundleZip(
     files.push({ relPath, content });
   }
 
+  validateManifestReferences(slug, manifest, files);
+
   return { slug, manifest, files, totalBytes };
+}
+
+/**
+ * Fail fast on a manifest that references workflow/agent files the bundle
+ * doesn't carry in the layout install expects — otherwise the upload succeeds
+ * but `installApp` dies with a cryptic `ENOENT` when `registerWorkflow` /
+ * `registerAgent` reads the file.
+ *
+ * App **workflows** are app-scoped: they must be declared as `<slug>/<name>`
+ * (the resolver routes that prefix to the app dir; a bare slug would resolve to
+ * the org's GLOBAL workflows dir) and carried at `workflows/<slug>/<name>.json`.
+ * App **agents** are declared by bare name and carried at `agents/<name>.json`.
+ */
+function validateManifestReferences(
+  slug: string,
+  manifest: AppManifest,
+  files: ParsedAppBundleFile[],
+): void {
+  const present = new Set(files.map((f) => f.relPath));
+
+  for (const wf of manifest.workflows ?? []) {
+    if (!wf.startsWith(`${slug}/`)) {
+      const name = wf.includes('/') ? wf.slice(wf.indexOf('/') + 1) : wf;
+      throw new ConvexError({
+        code: 'INVALID_WORKFLOW_REF',
+        message: `Workflow "${wf}" must be declared as "${slug}/${name}" and live at workflows/${slug}/${name}.json — app workflows are scoped to the app.`,
+      });
+    }
+    const wfPath = `workflows/${wf}.json`;
+    if (!present.has(wfPath)) {
+      throw new ConvexError({
+        code: 'MISSING_WORKFLOW_FILE',
+        message: `Declared workflow "${wf}" has no file at ${wfPath} in the bundle.`,
+      });
+    }
+  }
+
+  for (const agent of manifest.agents ?? []) {
+    const agentPath = `agents/${agent}.json`;
+    if (!present.has(agentPath)) {
+      throw new ConvexError({
+        code: 'MISSING_AGENT_FILE',
+        message: `Declared agent "${agent}" has no file at ${agentPath} in the bundle.`,
+      });
+    }
+  }
 }

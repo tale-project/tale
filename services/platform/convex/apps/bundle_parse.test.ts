@@ -13,10 +13,11 @@ const VALID_MANIFEST = JSON.stringify({
   name: 'My Private App',
   description: 'A private app',
   scope: 'project',
-  workflows: ['my-app/run'],
-  agents: ['worker'],
   requires: { integrations: ['github'] },
 });
+
+const WORKFLOW_JSON = '{"name":"Run","steps":[]}';
+const AGENT_JSON = '{"name":"Worker"}';
 
 /** Resolve the ConvexError `code` a rejected parse threw (or undefined). */
 async function codeOf(bytes: Uint8Array): Promise<string | undefined> {
@@ -89,6 +90,51 @@ describe('parseAppBundleZip', () => {
       'my-app/../evil.txt': 'pwned',
     });
     expect(await codeOf(bytes)).toBe('MISSING_WRAPPER_FOLDER');
+  });
+
+  it('accepts an app-scoped workflow + agent whose files are present', async () => {
+    const bytes = await makeZip({
+      'my-app/app.json': JSON.stringify({
+        name: 'My App',
+        workflows: ['my-app/run'],
+        agents: ['worker'],
+      }),
+      'my-app/workflows/my-app/run.json': WORKFLOW_JSON,
+      'my-app/agents/worker.json': AGENT_JSON,
+    });
+    const parsed = await parseAppBundleZip(bytes);
+    expect(parsed.manifest.workflows).toEqual(['my-app/run']);
+  });
+
+  it('rejects a workflow declared without the app-slug prefix', async () => {
+    const bytes = await makeZip({
+      'my-app/app.json': JSON.stringify({
+        name: 'My App',
+        workflows: ['run'],
+      }),
+      'my-app/workflows/run.json': WORKFLOW_JSON,
+    });
+    expect(await codeOf(bytes)).toBe('INVALID_WORKFLOW_REF');
+  });
+
+  it('rejects a declared workflow whose file is missing from the bundle', async () => {
+    const bytes = await makeZip({
+      'my-app/app.json': JSON.stringify({
+        name: 'My App',
+        workflows: ['my-app/run'],
+      }),
+    });
+    expect(await codeOf(bytes)).toBe('MISSING_WORKFLOW_FILE');
+  });
+
+  it('rejects a declared agent whose file is missing from the bundle', async () => {
+    const bytes = await makeZip({
+      'my-app/app.json': JSON.stringify({
+        name: 'My App',
+        agents: ['worker'],
+      }),
+    });
+    expect(await codeOf(bytes)).toBe('MISSING_AGENT_FILE');
   });
 
   it('rejects a non-zip payload', async () => {
