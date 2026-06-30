@@ -59,8 +59,12 @@ export const appInstallationsTable = defineTable({
   /**
    * Per-install configuration values the user supplied for the app's declared
    * `requires.config` keys (e.g. a GitHub `owner`/`repo`), keyed by config key.
-   * Org+app scoped (one repo per org install). Read by views via the `$config:`
-   * binding token and synced into the app's scheduled-workflow `variables` by
+   * ORG-LEVEL config — used by `scope: 'org'` apps (one value set per org
+   * install). For a `scope: 'project'` app, config is PER-PROJECT and lives on
+   * each `appProjectBindings` row instead, so two projects never pollute each
+   * other's repo/notes; this field then only survives as the legacy/default a
+   * migration folds into the bindings. Read by views via the `$config:` binding
+   * token and synced into the app's scheduled-workflow `variables` by
    * `setAppConfig`, so an app ships repo-agnostic and the operator points it at
    * their own repo at install — no hardcoded targets. Preserved across reinstall
    * (the resource-ledger refresh never touches it). Absent until configured.
@@ -84,9 +88,53 @@ export const appProjectBindingsTable = defineTable({
   projectId: v.id('projects'),
   boundAt: v.number(),
   boundBy: v.string(),
+  /**
+   * Per-project config for a `scope: 'project'` app — the values the operator
+   * supplied for the app's `requires.config` keys (e.g. GitHub owner/repo, repo
+   * notes), keyed by config key. This is where project-scoped config lives so
+   * two projects bound to the same app never share (pollute) each other's values;
+   * the org-level `appInstallations.config` is only a legacy/default folded in by
+   * migration. Read via `getAppConfig({projectId})`, written by
+   * `setAppConfig({projectId})` (which also syncs this project's schedules).
+   * Absent until configured.
+   */
+  config: v.optional(jsonRecordValidator),
 })
   // listProjectApps (nav strip) + the project-delete guard.
   .index('by_project', ['projectId'])
   // Prefix-queried for all bindings of (org, appSlug) — uninstall guard,
   // listAppBindings — and for the exact-row idempotent bind / unbind.
   .index('by_org_slug_project', ['organizationId', 'appSlug', 'projectId']);
+
+/**
+ * Per-(organizationId, slug) exclusion lock for `uploadAppBundle` — the
+ * private-app upload path. The upload does a stage-then-rename swap on disk;
+ * two concurrent `force: true` uploads to the same slug would race past the
+ * existence check and last-writer-wins, silently destroying one bundle. The
+ * action inserts a claim row (uniqueness via the `by_org_slug` index +
+ * pre-insert lookup that expires stale claims) before the rename pair and
+ * deletes it in `finally` alongside the storage-blob cleanup. `expiresAt` lets
+ * a crashed action's stale claim be reclaimed lazily on the next attempt — no
+ * cron sweep. Mirrors `skillUploadClaims`.
+ */
+export const appUploadClaimTable = defineTable({
+  organizationId: v.string(),
+  slug: v.string(),
+  claimedAt: v.number(),
+  expiresAt: v.number(),
+}).index('by_org_slug', ['organizationId', 'slug']);
+
+/**
+ * Binds an `_storage` blob to the org + user that requested its upload URL,
+ * for `uploadAppBundle`. Without this, the action would `ctx.storage.get` a
+ * client-supplied id with no ownership verification — letting a caller in org
+ * A point the server at org B's pending blob. Written by `generateAppUploadUrl`
+ * at presign time, looked up by `uploadAppBundle`, deleted in the same
+ * `finally` block as the storage blob. Mirrors `skillUploadIntents`.
+ */
+export const appUploadIntentTable = defineTable({
+  storageId: v.id('_storage'),
+  organizationId: v.string(),
+  userId: v.string(),
+  createdAt: v.number(),
+}).index('by_storageId', ['storageId']);

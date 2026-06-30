@@ -8,6 +8,7 @@
  * if the customer is not found, preventing accidental bulk updates.
  */
 
+import { ConvexError } from 'convex/values';
 import { set, merge } from 'lodash';
 
 import type { Id } from '../_generated/dataModel';
@@ -27,7 +28,10 @@ export async function updateCustomerMetadata(
   // Get the existing customer
   const customer = await ctx.db.get(customerId);
   if (!customer) {
-    throw new Error(`Customer not found: ${customerId}`);
+    throw new ConvexError({
+      code: 'CUSTOMER_NOT_FOUND',
+      message: `Customer not found: ${customerId}`,
+    });
   }
 
   // Get existing metadata or initialize empty object

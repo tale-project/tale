@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
@@ -17,7 +17,10 @@ export const compareDocuments = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const isMember = await ctx.runQuery(
@@ -28,7 +31,10 @@ export const compareDocuments = action({
       },
     );
     if (!isMember) {
-      throw new Error('Unauthorized: not a member of this organization');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Unauthorized: not a member of this organization',
+      });
     }
 
     // Convex `_storage` is global — membership in args.organizationId is
@@ -44,9 +50,11 @@ export const compareDocuments = action({
       },
     );
     if (!ownsStorage) {
-      throw new Error(
-        'Unauthorized: one or more storage ids do not belong to this organization',
-      );
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message:
+          'Unauthorized: one or more storage ids do not belong to this organization',
+      });
     }
     // FOLLOW-UP / round-2 M5: this gate is org-level, not team-ACL-level.
     // A same-org user who does NOT have access to a team-scoped document

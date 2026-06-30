@@ -1,15 +1,21 @@
-// Prerender each marketing route to a static HTML file under ./dist.
-// Runs after `vite build` (client) and `vite build --ssr` (server entry).
+// Prerender each marketing route (× locale) to a static HTML file under
+// ./dist. Runs after `vite build` (client) and `vite build --ssr` (server
+// entry).
 //
-// The output preserves SPA hydration: each route's index.html embeds the
-// rendered markup inside `<div id="root">…</div>` plus per-route SEO meta,
-// so search engines and previews see fully-formed HTML while users still
-// boot the same JS bundle on top.
+// Each route's `index.html` embeds the rendered markup inside
+// `<div id="root">…</div>` and the route's real `<head>` — captured from the
+// page's own `useDocumentMeta` during SSR (see `app/entry-server.tsx` +
+// `@tale/ui/seo` HeadSink). The prerendered head is therefore identical to
+// what the live page renders; there is no separate hand-maintained meta list.
+// Search engines and previews get fully-formed, localized HTML; users boot
+// the same JS bundle and hydrate on top.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { localizedPath, type SupportedLocale } from '../lib/i18n/locales';
+import { MARKETING_ROUTES } from '../lib/seo/marketing-routes';
 import { enumerateLegalRoutes } from './legal-routes';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -17,87 +23,42 @@ const ROOT = resolve(SCRIPT_DIR, '..');
 const DIST = resolve(ROOT, 'dist');
 const SSR_BUNDLE = resolve(ROOT, 'dist-ssr', 'entry-server.js');
 
-interface RouteSeo {
+// English (root, no prefix) + the URL-prefixed locales. Marketing pages reuse
+// one component tree across all three; the SSR entry aligns i18n to the URL.
+const BASE_LOCALES: readonly SupportedLocale[] = ['en', 'de', 'fr'];
+
+interface PrerenderRoute {
   url: string;
-  title: string;
-  description: string;
+  locale: SupportedLocale;
 }
 
-const STATIC_ROUTES: RouteSeo[] = [
-  {
-    url: '/',
-    title: 'Tale: The Orchestration Layer for AI Agents',
-    description:
-      'Self-hosted AI platform for data-sensitive organizations — local AI models, agents, and automations on your own infrastructure. ISO 27001 & SOC 2 certified.',
-  },
-  {
-    url: '/pricing',
-    title: 'Pricing — Simple, Transparent Pricing | Tale',
-    description:
-      'One price for your entire team — no per-seat fees, no hidden costs. Community, Pro, and Enterprise plans for self-hosted AI in production.',
-  },
-  {
-    url: '/hardware-pricing',
-    title: 'Hardware Pricing | Tale',
-    description:
-      'High-performance AI hardware — priced right. Run state-of-the-art models, anywhere. Quality, Hybrid, and Speed configurations available.',
-  },
-  {
-    url: '/contact',
-    title: 'Contact us | Tale',
-    description:
-      'Get in touch with the Tale team. Connect with one of our domain experts to discuss your goals and find the best AI solution for your organization.',
-  },
-  {
-    url: '/request-demo',
-    title: 'Request a demo | Tale',
-    description:
-      'We help data-sensitive organizations automate workflows with private, reliable AI. Connect with a domain expert to explore solutions for your business.',
-  },
-];
-
-const SITE_URL = 'https://tale.dev';
-
-function injectSeo(template: string, route: RouteSeo): string {
-  const canonical = `${SITE_URL}${route.url === '/' ? '/' : route.url}`;
-  return template
-    .replace(/<title>[^<]*<\/title>/, `<title>${route.title}</title>`)
-    .replace(
-      /<meta\s+name="description"[^>]*>/,
-      `<meta name="description" content="${escapeAttr(route.description)}" />`,
-    )
-    .replace(
-      /<link\s+rel="canonical"[^>]*>/,
-      `<link rel="canonical" href="${canonical}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:url"[^>]*>/,
-      `<meta property="og:url" content="${canonical}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:title"[^>]*>/,
-      `<meta property="og:title" content="${escapeAttr(route.title)}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:description"[^>]*>/,
-      `<meta property="og:description" content="${escapeAttr(route.description)}" />`,
-    )
-    .replace(
-      /<meta\s+name="twitter:title"[^>]*>/,
-      `<meta name="twitter:title" content="${escapeAttr(route.title)}" />`,
-    )
-    .replace(
-      /<meta\s+name="twitter:description"[^>]*>/,
-      `<meta name="twitter:description" content="${escapeAttr(route.description)}" />`,
-    );
+/** Replace the seo:start/seo:end block with the route's captured `<head>`. */
+function injectHead(template: string, head: string): string {
+  return template.replace(
+    /<!-- seo:start -->[\s\S]*?<!-- seo:end -->/,
+    () => `<!-- seo:start -->\n    ${head}\n    <!-- seo:end -->`,
+  );
 }
 
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function injectBody(template: string, html: string): string {
+  return template.replace(
+    '<div id="root"></div>',
+    () => `<div id="root">${html}</div>`,
+  );
+}
+
+function setHtmlLang(template: string, locale: string): string {
+  return template.replace(/<html lang="[^"]*"/, () => `<html lang="${locale}"`);
+}
+
+function collectRoutes(legalUrls: PrerenderRoute[]): PrerenderRoute[] {
+  const marketing: PrerenderRoute[] = [];
+  for (const locale of BASE_LOCALES) {
+    for (const route of MARKETING_ROUTES) {
+      marketing.push({ url: localizedPath(locale, route.url), locale });
+    }
+  }
+  return [...marketing, ...legalUrls];
 }
 
 async function main(): Promise<void> {
@@ -105,27 +66,26 @@ async function main(): Promise<void> {
   const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
-    render: (url: string) => Promise<{ html: string }>;
+    render: (url: string) => Promise<{ html: string; head: string }>;
   };
 
-  const legalRoutes: RouteSeo[] = (await enumerateLegalRoutes()).map(
-    (route) => ({
-      url: route.url,
-      title: route.title ? `${route.title} | Tale` : 'Tale',
-      description: route.description,
-    }),
+  const legalUrls: PrerenderRoute[] = (await enumerateLegalRoutes()).map(
+    (route) => ({ url: route.url, locale: route.locale }),
   );
-  const routes: RouteSeo[] = [...STATIC_ROUTES, ...legalRoutes];
+  const routes = collectRoutes(legalUrls);
 
-  process.stdout.write(`prerendering ${routes.length} routes...\n`);
+  const seen = new Set<string>();
+  process.stdout.write(`prerendering up to ${routes.length} routes...\n`);
 
   for (const route of routes) {
+    if (seen.has(route.url)) continue;
+    seen.add(route.url);
     process.stdout.write(`prerender ${route.url} ... `);
-    const { html } = await mod.render(route.url);
-    const withSeo = injectSeo(template, route);
-    const final = withSeo.replace(
-      '<div id="root"></div>',
-      `<div id="root">${html}</div>`,
+
+    const { html, head } = await mod.render(route.url);
+    const final = setHtmlLang(
+      injectBody(injectHead(template, head), html),
+      route.locale,
     );
 
     const outPath =
@@ -139,7 +99,7 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write(
-    `prerendered ${routes.length} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
+    `prerendered ${seen.size} routes in ${((Date.now() - started) / 1000).toFixed(1)}s\n`,
   );
 }
 

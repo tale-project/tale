@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -29,13 +29,21 @@ import type {
  */
 async function loadOwnedWebsite(ctx: ActionCtx, websiteId: Id<'websites'>) {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser)
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthenticated',
+    });
 
   const website = await ctx.runQuery(
     internal.websites.internal_queries.getWebsite,
     { websiteId },
   );
-  if (!website) throw new Error('Website not found');
+  if (!website)
+    throw new ConvexError({
+      code: 'WEBSITE_NOT_FOUND',
+      message: 'Website not found',
+    });
 
   await ctx.runQuery(
     internal.websites.internal_queries.verifyOrganizationMembership,
@@ -61,7 +69,11 @@ export const createWebsite = action({
   returns: v.id('websites'),
   handler: async (ctx, args): Promise<Id<'websites'>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,
@@ -110,13 +122,21 @@ export const deleteWebsite = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
 
     const website = await ctx.runQuery(
       internal.websites.internal_queries.getWebsite,
       { websiteId: args.websiteId },
     );
-    if (!website) throw new Error('Website not found');
+    if (!website)
+      throw new ConvexError({
+        code: 'WEBSITE_NOT_FOUND',
+        message: 'Website not found',
+      });
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,
@@ -151,13 +171,21 @@ export const updateWebsite = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
 
     const website = await ctx.runQuery(
       internal.websites.internal_queries.getWebsite,
       { websiteId: args.websiteId },
     );
-    if (!website) throw new Error('Website not found');
+    if (!website)
+      throw new ConvexError({
+        code: 'WEBSITE_NOT_FOUND',
+        message: 'Website not found',
+      });
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,
@@ -181,8 +209,11 @@ export const updateWebsite = action({
         );
       } catch (error) {
         if (
-          error instanceof Error &&
-          error.message === 'CRAWLER_WEBSITE_NOT_FOUND'
+          error instanceof ConvexError &&
+          typeof error.data === 'object' &&
+          error.data !== null &&
+          'code' in error.data &&
+          error.data.code === 'CRAWLER_WEBSITE_NOT_FOUND'
         ) {
           await ctx.runMutation(
             internal.websites.internal_mutations.patchWebsite,
@@ -196,10 +227,11 @@ export const updateWebsite = action({
               },
             },
           );
-          throw new Error(
-            'Website not found in crawler. Please delete and re-add it.',
-            { cause: error },
-          );
+          throw new ConvexError({
+            code: 'CRAWLER_WEBSITE_NOT_FOUND',
+            message:
+              'Website not found in crawler. Please delete and re-add it.',
+          });
         }
         throw error;
       }
@@ -224,7 +256,11 @@ export const syncStatuses = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser)
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
 
     await ctx.runQuery(
       internal.websites.internal_queries.verifyOrganizationMembership,

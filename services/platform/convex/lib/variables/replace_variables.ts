@@ -61,18 +61,27 @@ export function replaceVariables(
       return jexlInstance.evalSync(expression, context);
     }
 
-    // Mixed content → string replacement. replaceVariablesInString renders
-    // every reference, treating a resolved-but-nil one (an absent optional
-    // field) as empty — it never re-emits a `{{marker}}`. So a residual marker
-    // here can only come from a malformed template (e.g. literal/unbalanced
-    // braces), which is a genuine authoring bug worth surfacing.
-    const rendered = replaceVariablesInString(value, variables);
-
-    if (/\{\{[\s\S]*\}\}/.test(rendered)) {
-      throw new Error(`Unresolved template after rendering: ${rendered}`);
+    // Mixed content → string replacement. A residual `{{...}}` can survive into
+    // the *rendered* output for two unrelated reasons: a malformed template the
+    // author wrote (literal/unbalanced braces), or a resolved reference whose
+    // *value* contains literal braces — common in agent/LLM text (e.g. a code
+    // snippet like `activeOptions={{exact:true}}` quoted in a code-review
+    // summary). Only the first is a bug; scanning the rendered output conflates
+    // the two and crashes a step on perfectly valid data. So validate the
+    // TEMPLATE instead: Mustache routes every balanced `{{...}}` into a
+    // name/section token, so a marker left inside a `text` token is an
+    // unbalanced/literal one (e.g. after a `{{=…=}}` delimiter switch) — a
+    // genuine authoring bug. Substituted data never flows through a text token,
+    // so this can never misfire on it.
+    for (const token of tokens) {
+      if (token[0] === 'text' && /\{\{[\s\S]*?\}\}/.test(toString(token[1]))) {
+        throw new Error(
+          `Unresolved template marker in template: ${toString(token[1])}`,
+        );
+      }
     }
 
-    return rendered;
+    return replaceVariablesInString(value, variables);
   }
 
   if (isArray(value)) {
