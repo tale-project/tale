@@ -256,6 +256,45 @@ test.describe('navigation: breadcrumbs', () => {
   });
 });
 
+test.describe('navigation: user menu', () => {
+  test('exposes a Documentation link to the docs site', async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+
+    await page.goto(dashboardUrl(organizationId));
+    await page.waitForURL(/\/chat(?:[/?#]|$)/, {
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+
+    // The account button is icon-only in the rail; its accessible name is the
+    // manage-account label. Pin the visible (desktop) instance — a hidden mobile
+    // copy shares the shell.
+    await page
+      .getByRole('button', { name: t('auth.userButton.manageAccount') })
+      .filter({ visible: true })
+      .first()
+      .click();
+
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // The Help & feedback item was replaced by a Documentation link (BookOpen,
+    // external). Assert the docs anchor exists with the safe external-link attrs…
+    const docsLink = menu.locator('a[href="https://tale.dev/docs"]');
+    await expect(docsLink).toBeVisible();
+    await expect(docsLink).toContainText(t('auth.userButton.documentation'));
+    await expect(docsLink).toHaveAttribute('target', '_blank');
+    await expect(docsLink).toHaveAttribute('rel', 'noopener noreferrer');
+
+    // …and the old contact link is gone.
+    await expect(
+      menu.locator('a[href="https://tale.dev/contact"]'),
+    ).toHaveCount(0);
+  });
+});
+
 test.describe('navigation: 404 and history', () => {
   test('renders the styled not-found UI for an unknown route inside the shell', async ({
     page,

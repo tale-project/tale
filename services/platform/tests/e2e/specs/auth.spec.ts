@@ -62,3 +62,73 @@ test.describe('login', () => {
     await page.waitForURL(/\/dashboard/, { timeout: TIMEOUT.FIRST_PAINT });
   });
 });
+
+/**
+ * SSO real-error surfacing. A failed Entra ID sign-in is bounced
+ * back to `/log-in?error=<key>&error_code=AADSTS…&recovery=<key>` by
+ * `redirectWithError`, so the login page renders the REAL reason from the query
+ * params — no live IdP is needed to drive it. `error`/`recovery` are
+ * `auth`-namespaced translation keys; an unmapped value renders verbatim.
+ */
+test.describe('SSO sign-in errors', () => {
+  test('surfaces a mapped IdP error with its recovery hint', async ({
+    page,
+  }) => {
+    await page.goto(
+      '/log-in?error=sso.errors.userNotAssigned&error_code=AADSTS50105&recovery=sso.errors.recovery.contactAdmin',
+    );
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText(t('auth.sso.errors.userNotAssigned'), {
+      timeout: TIMEOUT.VISIBLE,
+    });
+    await expect(alert).toContainText(
+      t('auth.sso.errors.recovery.contactAdmin'),
+    );
+    await expect(page).toHaveURL(/\/log-in/);
+  });
+
+  test('renders the conditional-access UI for an MFA code and clears on retry', async ({
+    page,
+  }) => {
+    await page.goto(
+      '/log-in?error=sso.errors.mfaRequired&error_code=AADSTS50076&recovery=sso.errors.recovery.completeMfa',
+    );
+
+    await expect(page.getByRole('alert')).toContainText(
+      t('auth.sso.errors.mfaRequired'),
+      { timeout: TIMEOUT.VISIBLE },
+    );
+    // MFA codes get the dedicated recovery affordance (not the plain alert).
+    const completeMfa = page.getByRole('button', {
+      name: t('auth.sso.actions.completeMfa'),
+      exact: true,
+    });
+    await expect(completeMfa).toBeVisible();
+    const tryAgain = page.getByRole('button', {
+      name: t('auth.sso.actions.tryAgain'),
+      exact: true,
+    });
+    await expect(tryAgain).toBeVisible();
+
+    // Retry strips the error params so a fresh attempt starts from a clean form.
+    await tryAgain.click();
+    await expect(page).not.toHaveURL(/error=/);
+    await expect(completeMfa).toHaveCount(0);
+  });
+
+  test('renders an unmapped code verbatim without the conditional-access UI', async ({
+    page,
+  }) => {
+    await page.goto('/log-in?error=Some+plain+reason&error_code=AADSTS999999');
+
+    // A missing i18n key degrades to the string itself.
+    await expect(page.getByRole('alert')).toContainText('Some plain reason', {
+      timeout: TIMEOUT.VISIBLE,
+    });
+    // 999999 is not a conditional-access code, so the step-up affordance is absent.
+    await expect(
+      page.getByRole('button', { name: t('auth.sso.actions.completeMfa') }),
+    ).toHaveCount(0);
+  });
+});
