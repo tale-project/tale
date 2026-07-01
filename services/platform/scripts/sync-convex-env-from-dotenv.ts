@@ -90,6 +90,15 @@ const ORCHESTRATOR_MANAGED_KEYS = [
   // action falls back to the compose hostname `knowledge-db`, which does not
   // resolve from the host (getaddrinfo ENOTFOUND). An explicit .env value wins.
   'KNOWLEDGE_DATABASE_URL',
+  // Derived by the dev orchestrator (ensureSandboxLlmGatewayUrl) to point the
+  // host `bun dev` Convex backend at the LLM gateway's loopback port
+  // (compose.sandbox-llm-gateway.dev.yml publishes 127.0.0.1:8080). Read from
+  // the DEPLOYMENT env by node_only/sandbox/llm_gateway_admin.ts for the
+  // management plane (mint/revoke VKs, provision providers); without it the node
+  // action falls back to the compose hostname `sandbox-llm-gateway`, which does
+  // not resolve from the host (getaddrinfo ENOTFOUND → external-agent turns die
+  // with "fetch failed"). An explicit .env value wins.
+  'SANDBOX_LLM_GATEWAY_URL',
 ] as const;
 
 // Vars read by Convex functions from the DEPLOYMENT env that are documented
