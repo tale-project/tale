@@ -1004,6 +1004,7 @@ import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/s
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
+import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thread_session.js";
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
 import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
@@ -2633,6 +2634,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
+  "node_only/sandbox/thread_session": typeof node_only_sandbox_thread_session;
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
   "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
