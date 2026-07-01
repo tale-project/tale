@@ -71,6 +71,14 @@ test.describe('login', () => {
  * `auth`-namespaced translation keys; an unmapped value renders verbatim.
  */
 test.describe('SSO sign-in errors', () => {
+  // `/log-in` redirects to `/setup` when the instance has no users (the
+  // first-run gate), which on a fresh shard would swallow the login page these
+  // tests assert against. Mint a throwaway account first — via the request
+  // fixture, whose cookie jar is separate, so the browser stays signed out.
+  test.beforeEach(async ({ request }) => {
+    await signUpViaApi(request, uniqueCredentials('sso-error'));
+  });
+
   test('surfaces a mapped IdP error with its recovery hint', async ({
     page,
   }) => {
