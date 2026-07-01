@@ -4,9 +4,9 @@
  * Stage 2 of the persistent-session design: run chat `run_code` inside the
  * thread's persistent sandbox session instead of a fresh ephemeral container.
  *
- * Gated by `SANDBOX_RUNCODE_SESSIONS` — the caller (`run_code_tool`) checks the
- * flag and falls back to the ephemeral `executeCode` on flag-off OR on any
- * error here, so this path can never regress the tool.
+ * This is the sole chat `run_code` execution path — `run_code_tool` calls it
+ * directly (the ephemeral one-shot path is no longer used by chat). An error
+ * here surfaces to the model as a run_code failure.
  *
  * v1 scope (validate against a live session, then harden): single- and
  * multi-step scripts + package install run as sequential in-session execs;

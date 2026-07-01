@@ -21,11 +21,8 @@ import {
   runCodePolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
-import {
-  buildDownloadUrl,
-  toSandboxStorageUrl,
-} from '../lib/helpers/public_storage_url';
-import { inferStepLanguage, refinePackagesObject } from './files/_shared';
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import { refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
 import { parseWorkspacePath, relOf } from './files/sandbox_paths';
@@ -222,7 +219,7 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
-      const { organizationId, threadId, messageId, userId } = ctx;
+      const { organizationId, threadId, userId } = ctx;
       if (!organizationId || !threadId) {
         return {
           ok: false as const,
@@ -356,78 +353,6 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
         return policyResult;
       }
 
-      // Dispatch runtimes:
-      //   - Single-step with .sh → 'bash' (entrypoint runs `exec bash`).
-      //   - Multi-step touching .sh (alone or mixed) → 'polyglot'
-      //     (Python-hosted dispatcher routes each step to python3 / node /
-      //     bash by extension; no dedicated bash multi-step wrapper).
-      //   - Otherwise unchanged: 'polyglot' iff multiple runtimes are
-      //     needed, else the single-runtime spawner.
-      const runtimesNeeded = new Set<'python' | 'node' | 'bash'>();
-      for (const p of stepPaths) {
-        const lang = inferStepLanguage(p);
-        if (lang !== null) runtimesNeeded.add(lang);
-      }
-      const multiStep = stepPaths.length > 1;
-      let spawnerLanguage: 'python' | 'node' | 'bash' | 'polyglot';
-      if (!multiStep) {
-        spawnerLanguage = runtimesNeeded.has('bash')
-          ? 'bash'
-          : runtimesNeeded.has('node')
-            ? 'node'
-            : 'python';
-      } else if (runtimesNeeded.size >= 2 || runtimesNeeded.has('bash')) {
-        spawnerLanguage = 'polyglot';
-      } else {
-        spawnerLanguage = runtimesNeeded.has('node') ? 'node' : 'python';
-      }
-      if (spawnerLanguage === 'polyglot' && stepPaths.length < 2) {
-        return {
-          ok: false as const,
-          code: 'POLYGLOT_REQUIRES_STEPS' as const,
-          message:
-            'Polyglot runs (mixed Python / Node / bash) require `steps` mode with multiple files.',
-        };
-      }
-
-      // Mint a Caddy-aliased download URL per thread file so the spawner
-      // fetches bytes itself (binary-safe; bypasses the body cap). No bytes
-      // flow through this action's memory. Files are routed by `source`:
-      //   - agent_write → /user/code/<path>   (executable scripts)
-      //   - run_output  → /user/output/<path> (previous run artifacts)
-      //   - user_upload → /user/uploads/<path>(user-supplied assets)
-      const filesPayload: Array<{ path: string; url: string }> = [];
-      const priorOutputDownloadsPayload: Array<{
-        name: string;
-        url: string;
-      }> = [];
-      const userUploadDownloadsPayload: Array<{
-        name: string;
-        url: string;
-      }> = [];
-      for (const wf of workspaceFiles) {
-        const rawUrl = await ctx.storage.getUrl(wf.storageId);
-        if (rawUrl === null) {
-          return {
-            ok: false as const,
-            code: 'STORAGE_MISSING' as const,
-            message: `workspace file storage missing for path=${wf.path} storageId=${wf.storageId}`,
-          };
-        }
-        const url = toSandboxStorageUrl(rawUrl);
-        // The stored path is the canonical absolute `/user/<root>/<rel>`; the
-        // spawner stages each source into its dir by the *relative* name.
-        const rel = relOf(wf.path);
-        if (wf.source === 'run_output') {
-          priorOutputDownloadsPayload.push({ name: rel, url });
-        } else if (wf.source === 'user_upload') {
-          userUploadDownloadsPayload.push({ name: rel, url });
-        } else {
-          // agent_write (default) — staged at /user/code/<rel>.
-          filesPayload.push({ path: rel, url });
-        }
-      }
-
       const packagesByLang: { python?: string[]; node?: string[] } = {};
       if (args.packages?.python !== undefined) {
         packagesByLang.python = args.packages.python;
@@ -436,76 +361,22 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
         packagesByLang.node = args.packages.node;
       }
 
-      const isSingleStep = stepPaths.length === 1 && args.steps === undefined;
-
-      const sandboxArgs: Record<string, unknown> = {
-        organizationId,
-        uploadedBy: userId,
-        threadId,
-        ...(messageId !== undefined && { messageId }),
-        language: spawnerLanguage,
-        files: filesPayload,
-        ...(priorOutputDownloadsPayload.length > 0 && {
-          priorOutputDownloads: priorOutputDownloadsPayload,
-        }),
-        ...(userUploadDownloadsPayload.length > 0 && {
-          userUploadDownloads: userUploadDownloadsPayload,
-        }),
-        ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-        ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
-        purpose: 'run_code',
-        ...(args.sourceCitation !== undefined && {
-          sourceCitationSkillSlug: args.sourceCitation.skillSlug,
-          sourceCitationFiles: args.sourceCitation.fileReferences,
-        }),
-      };
-      if (isSingleStep) {
-        sandboxArgs.entryPath = stepPaths[0];
-      } else {
-        sandboxArgs.steps = stepPaths;
-      }
-
+      // Execute in the thread's persistent sandbox session — it stages inputs
+      // and harvests outputs; prior outputs persist in the workspace across
+      // runs (no re-stage / re-harvest churn).
       let raw: unknown;
-      // Persistent per-thread session path (Phase 2), gated off by default.
-      // Any failure here falls back to the ephemeral one-shot path, so the
-      // flag can never regress the tool.
-      const useSession = process.env.SANDBOX_RUNCODE_SESSIONS === 'true';
       try {
-        if (useSession) {
-          try {
-            raw = await ctx.runAction(
-              internal.node_only.sandbox.session_exec.executeCodeInSession,
-              {
-                organizationId,
-                threadId,
-                uploadedBy: userId ?? '',
-                stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
-                ...(Object.keys(packagesByLang).length > 0 && {
-                  packagesByLang,
-                }),
-                ...(args.timeoutMs !== undefined && {
-                  timeoutMs: args.timeoutMs,
-                }),
-              },
-            );
-          } catch (sessErr) {
-            console.warn(
-              '[run_code] session path failed; falling back to ephemeral:',
-              sessErr,
-            );
-            raw = await ctx.runAction(
-              internal.node_only.sandbox.internal_actions.executeCode,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode accepts this subset; passed verbatim
-              sandboxArgs as never,
-            );
-          }
-        } else {
-          raw = await ctx.runAction(
-            internal.node_only.sandbox.internal_actions.executeCode,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode accepts this subset; passed verbatim
-            sandboxArgs as never,
-          );
-        }
+        raw = await ctx.runAction(
+          internal.node_only.sandbox.session_exec.executeCodeInSession,
+          {
+            organizationId,
+            threadId,
+            uploadedBy: userId ?? '',
+            stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
+            ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
+            ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+          },
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
