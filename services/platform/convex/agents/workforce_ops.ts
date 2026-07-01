@@ -507,50 +507,6 @@ export async function writeAgentDelegates(args: {
   return { previous };
 }
 
-/**
- * Set the agents that delegate to `agentSlug` (its incoming edges / the
- * "reports to" list). Adjusts each candidate parent's `delegates` to match.
- * Throws the same codes as {@link writeAgentDelegates}. Returns the previous
- * parent list.
- */
-export async function writeAgentParents(args: {
-  orgSlug: string;
-  agentSlug: string;
-  parentSlugs: string[];
-}): Promise<{ previous: string[] }> {
-  const { orgSlug, agentSlug } = args;
-  if (RESERVED.has(agentSlug)) {
-    throw new ConvexError({ code: 'RESERVED_AGENT_SLUG' });
-  }
-  const roster = await readWorkforceRoster(orgSlug);
-  const slugs = new Set(roster.map((entry) => entry.slug));
-  if (!slugs.has(agentSlug)) {
-    throw new ConvexError({ code: 'AGENT_NOT_FOUND' });
-  }
-  const desired = new Set(sanitizeTargets(args.parentSlugs, agentSlug, slugs));
-  const previous = buildChartFromRoster(roster).parentsAll.get(agentSlug) ?? [];
-
-  for (const entry of roster) {
-    if (entry.slug === agentSlug) continue;
-    const has = entry.delegates.includes(agentSlug);
-    const should = desired.has(entry.slug);
-    if (has === should) continue;
-    const filePath = await resolveAgentPath(orgSlug, entry.slug);
-    const config = await readAgentConfig(filePath).catch(() => null);
-    if (!config) continue;
-    const updated = should
-      ? [...new Set([...(config.delegates ?? []), agentSlug])]
-      : (config.delegates ?? []).filter((slug) => slug !== agentSlug);
-    if (updated.length > 0) config.delegates = updated;
-    else delete config.delegates;
-    await snapshotAgentHistory(orgSlug, entry.slug);
-    await atomicWrite(filePath, serializeAgentJson(config));
-  }
-
-  invalidateAgentListCache(orgSlug);
-  return { previous };
-}
-
 // ---------------------------------------------------------------------------
 // Agent-tool surface (consumed by the `agent_read` / `agent_write`
 // agent tools)

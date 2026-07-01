@@ -47,6 +47,7 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
+import { useRequiredIntegrations } from '../hooks/use-required-integrations';
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
@@ -76,6 +77,17 @@ function ReadinessChecklist({
 }) {
   const { t } = useT('apps');
   const { reinstall, isPending } = useAppInstallActions(organizationId);
+  // Resolve each blocked slug to its integration display title, the same lookup
+  // the install wizard's `labelFor` uses — so the checklist reads "Connect
+  // GitHub", not the raw "github" slug.
+  const { required } = useRequiredIntegrations(
+    organizationId,
+    blockedIntegrations,
+  );
+  const titleBySlug = useMemo(
+    () => new Map(required.map((r) => [r.slug, r.integration.title])),
+    [required],
+  );
 
   if (
     status === 'active' &&
@@ -110,7 +122,9 @@ function ReadinessChecklist({
         {blockedIntegrations.map((slug) => (
           <HStack key={slug} gap={3} className="items-center justify-between">
             <Text variant="muted" className="text-sm">
-              {t('readiness.connect', { integration: slug })}
+              {t('readiness.connect', {
+                integration: titleBySlug.get(slug) ?? slug,
+              })}
             </Text>
             <Button variant="secondary" onClick={() => onConnect(slug)}>
               {t('readiness.connectButton')}

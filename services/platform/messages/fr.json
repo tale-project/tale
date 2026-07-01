@@ -7867,7 +7867,7 @@
       "agent": "Agent",
       "completed": "Terminées",
       "runs": "Exécutions (échecs)",
-      "bounceRate": "Modifications demandées",
+      "bounceRate": "Taux de modifications",
       "cost": "Dépenses"
     },
     "attention": {
@@ -7879,7 +7879,7 @@
     },
     "scorecard": {
       "title": "Métriques de l'agent",
-      "subtitle": "Les 30 derniers jours — résultats, qualité des revues et coûts de cet agent.",
+      "subtitle": "Les {days} derniers jours — résultats, qualité des revues et coûts de cet agent.",
       "tasksCompleted": "Tâches terminées",
       "reviewOutcome": "Approbation du premier coup",
       "reviewDetail": "{passed} approuvées · {changes} modifications demandées · {escalations} escalades",
