@@ -2,8 +2,7 @@
 //
 // Routes:
 //   GET  /health                       — 200 if docker daemon reachable.
-//   POST /v1/execute                   — HMAC-auth, one ephemeral container.
-//   POST /v1/cancel/:id                — HMAC-auth, kills in-flight container.
+//   POST /v1/drain, GET /v1/drain-status — in-place rolling-deploy control.
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
 //                                        (create/get/list/destroy/exec/cancel).
 //
@@ -29,17 +28,6 @@ import {
   type ScreencastWsData,
 } from './session/screencast-relay.ts';
 import { SessionRoutes } from './session/session-routes.ts';
-import {
-  cancelExecution,
-  executeRequest,
-  inFlightIds,
-  inFlightSize,
-  isInFlight,
-  registerInFlight,
-  unregisterInFlight,
-} from './spawn.ts';
-import { sseResponse } from './sse.ts';
-import { validateExecuteRequest } from './validate-request.ts';
 
 const cfg = loadConfig();
 // Execution backend (docker | kubernetes), chosen once at boot. Constructing
@@ -156,10 +144,8 @@ function handleDrain(): Response {
     draining = true;
     drainStartedAt = Date.now();
   }
-  console.log(
-    '[sandbox] entered drain mode — refusing new executions/sessions',
-  );
-  return jsonResponse({ draining: true, inFlight: inFlightSize() }, 200);
+  console.log('[sandbox] entered drain mode — refusing new sessions');
+  return jsonResponse({ draining: true }, 200);
 }
 
 function handleDrainStatus(): Response {
@@ -168,8 +154,6 @@ function handleDrainStatus(): Response {
   return jsonResponse(
     {
       draining,
-      inFlight: inFlightSize(),
-      inFlightIds: inFlightIds(),
       sessions: sessionRoutes?.sessionCount() ?? 0,
       // Live session ids — the spawner lingers while any remain.
       sessionIds: sessionRoutes?.sessionIds() ?? [],
@@ -178,154 +162,7 @@ function handleDrainStatus(): Response {
   );
 }
 
-async function handleExecute(req: Request): Promise<Response> {
-  // Draining: this spawner is being rolled in-place — reject new one-shot work
-  // so Convex retries /v1/execute against the replacement container. In-flight
-  // executions continue; the deploy waits for them via /v1/drain-status.
-  if (draining) {
-    return jsonResponse(
-      {
-        error: 'draining',
-        message: 'spawner is draining; retry once the rollout completes',
-      },
-      503,
-    );
-  }
-  let body: string;
-  try {
-    body = await readBodyCapped(req, cfg.maxRequestBodyBytes);
-  } catch (err) {
-    const status =
-      err && typeof err === 'object' && 'httpStatus' in err
-        ? Number((err as { httpStatus: unknown }).httpStatus)
-        : 400;
-    return jsonResponse(
-      {
-        error: status === 413 ? 'payload_too_large' : 'bad_request',
-        message: err instanceof Error ? err.message : String(err),
-      },
-      status === 413 ? 413 : 400,
-    );
-  }
-  const authFail = authorize(body, req);
-  if (authFail) return authFail;
-
-  let parsedUnknown: unknown;
-  try {
-    parsedUnknown = JSON.parse(body);
-  } catch (err) {
-    return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
-  }
-  // Full runtime validation of every field — defends downstream spawn /
-  // docker-args code from malformed types that would otherwise crash mid
-  // pipeline. The previous spot-check of executionId was the only gate
-  // (audit finding R2-B3).
-  const validated = validateExecuteRequest(parsedUnknown);
-  if (!validated.ok) {
-    return jsonResponse(
-      { error: 'bad_request', message: validated.error },
-      400,
-    );
-  }
-  const parsed = validated.request;
-
-  // Per-request INFO so docker logs tale-sandbox surfaces what's been
-  // dispatched. The spawner used to only log warn/error which made
-  // every "did the request even get here?" question require code
-  // inspection — see pre-stage debugging session 2026-05-23.
-  console.info(
-    `[sandbox.execute] id=${parsed.executionId} org=${parsed.organizationId} lang=${parsed.language} ${
-      parsed.steps !== undefined
-        ? `steps=${JSON.stringify(parsed.steps)}`
-        : `entry=${parsed.entryPath}`
-    } files=${parsed.files?.length ?? 0} priorDownloads=${parsed.priorOutputDownloads?.length ?? 0} preAllocSlots=${parsed.outputUploadSlots.length}`,
-  );
-
-  // Reject duplicates explicitly: the in-flight registry is keyed by
-  // executionId, and overwriting the entry would silently detach the
-  // original AbortController from cancelExecution. The Convex action
-  // never retries the same executionId in practice, so a duplicate
-  // POST is almost always a misconfigured caller or a malicious replay.
-  if (isInFlight(parsed.executionId)) {
-    return jsonResponse(
-      {
-        error: 'duplicate',
-        message: `executionId ${parsed.executionId} is already in flight`,
-      },
-      409,
-    );
-  }
-
-  // Register AFTER validation; the spawn-side registry is the single source
-  // of truth (previously had a separate server-side Set that could drift).
-  // The execution may also be aborted by the caller disconnecting — wire a
-  // request-signal abort to cancelExecution so a closed SSE stream tears
-  // the container down promptly.
-  const abortHandler = () => {
-    cancelExecution(parsed.executionId);
-  };
-  req.signal.addEventListener('abort', abortHandler, { once: true });
-  registerInFlight(parsed.executionId);
-
-  // Keepalive + stream-close handling live in sseResponse (extracted to
-  // sse.ts so the session exec route shares them).
-  return sseResponse(async ({ send }) => {
-    try {
-      const result = await executeRequest(backend, cfg, parsed, {
-        onPhase: (e) => send('phase', e),
-        // Live stdout/stderr tail. Per-line for stdout (PHASE markers
-        // stripped); per-chunk for stderr. Coalescing is left to the
-        // platform-side action because that's where the cost of "too
-        // many mutations" actually lives — SSE event overhead is small.
-        onStdoutDelta: (text) => send('stdout', { text }),
-        onStderrDelta: (text) => send('stderr', { text }),
-      });
-      send('result', result);
-    } catch (err) {
-      send('error', {
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      unregisterInFlight(parsed.executionId);
-      req.signal.removeEventListener('abort', abortHandler);
-    }
-  });
-}
-
-async function handleCancel(req: Request, id: string): Promise<Response> {
-  let body: string;
-  try {
-    body = await readBodyCapped(req, cfg.maxRequestBodyBytes);
-  } catch (err) {
-    return jsonResponse(
-      {
-        error: 'bad_request',
-        message: err instanceof Error ? err.message : String(err),
-      },
-      400,
-    );
-  }
-  const authFail = authorize(body, req);
-  if (authFail) return authFail;
-  // Locally owned → abort-only; execute() does its final reads then cleans up.
-  if (isInFlight(id)) {
-    const killed = cancelExecution(id);
-    return jsonResponse({ killed }, 200);
-  }
-  // Not ours — REMOTE path: the backend addresses the runtime by
-  // deterministic name, so a cancel landing on any replica still kills a run
-  // owned by another one (the docs' cancel-from-any-replica contract; the
-  // owner's run then resolves as failed/HARVEST_READ_FAILED, not cancelled).
-  const found = await backend.cancel(id);
-  return jsonResponse({ killed: found }, found ? 200 : 404);
-}
-
-// Cancel route uses the same id alphabet as the execute payload so a
-// Convex doc id (contains g-z) is not silently rejected. Centralized in
-// wire.ts; one regex covers spawn.ts, docker-args.ts, and this router.
-const CANCEL_ROUTE_RE = /^\/v1\/cancel\/([a-zA-Z0-9_-]{1,64})$/;
-
-// Session routes. All authenticated identically to /v1/execute (HMAC over
+// Session routes. All authenticated identically to the drain probes (HMAC over
 // METHOD\npath\nts\nsha256(body)); the per-route handlers live in
 // session/session-routes.ts.
 const SESSION_ID = '([a-zA-Z0-9_-]{1,64})';
@@ -603,13 +440,6 @@ async function router(req: Request): Promise<Response> {
   }
   if (req.method === 'GET' && url.pathname === '/v1/drain-status') {
     return handleDrainStatus();
-  }
-  if (req.method === 'POST' && url.pathname === '/v1/execute') {
-    return handleExecute(req);
-  }
-  const cancelMatch = url.pathname.match(CANCEL_ROUTE_RE);
-  if (req.method === 'POST' && cancelMatch) {
-    return handleCancel(req, cancelMatch[1] ?? '');
   }
   if (url.pathname.startsWith('/v1/sessions')) {
     const sessionResponse = await handleSessionRoutes(req, url);

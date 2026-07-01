@@ -27,7 +27,6 @@ import { join } from 'node:path';
 
 import type { ExecutionBackend } from './backend/types.ts';
 import { runDocker, dockerRm } from './spawn-util.ts';
-import { cancelExecution, inFlightIds, isInFlight } from './spawn.ts';
 import type { SpawnerConfig } from './types.ts';
 
 const PERIODIC_INTERVAL_MS = 5 * 60_000;
@@ -240,7 +239,6 @@ async function sweepHostSessionDirs(
     // cutoff (~10 min), yanking the bind mount out from under a running
     // container.
     if (e.name.startsWith('ses-')) continue;
-    if (isInFlight(e.name)) continue;
     const abs = join(cfg.hostSessionRoot, e.name);
     let st;
     try {
@@ -428,7 +426,10 @@ export function startPeriodicSweep(
     void backend
       .sweepOrphans({
         staleBeforeMs: Date.now() - 2 * cfg.maxTimeoutMs,
-        isLive: isInFlight,
+        // No one-shot execs remain — every run is a session, swept by the
+        // session TTL/idle reaper via its own label. This only reaps stray
+        // legacy `tale.sandbox=1` one-shot containers, none of which are live.
+        isLive: () => false,
       })
       .catch((err) => {
         console.warn(`[sandbox.periodic] sweep error:`, err);
@@ -475,22 +476,9 @@ export function installSignalHandlers(
       } catch (err) {
         console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
       }
-      // Abort-only: each execute() observes the abort and performs its own
-      // teardown (kill/remove container, delete Pod+Secret); the drain loop
-      // below waits on those finally blocks via the in-flight registry.
-      for (const id of inFlightIds()) {
-        cancelExecution(id);
-      }
-      const deadline = Date.now() + 20_000;
-      while (inFlightIds().length > 0 && Date.now() < deadline) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 200));
-      }
-      const remaining = inFlightIds();
-      if (remaining.length > 0) {
-        console.warn(
-          `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
-        );
-      }
+      // Every run is a session now; the session subsystem drains its own
+      // containers (linger + TTL reaper) on shutdown, so there is no one-shot
+      // in-flight registry left to quiesce here.
       await backend.shutdown();
     } catch (err) {
       console.error('[sandbox.shutdown] drain/shutdown failed:', err);
