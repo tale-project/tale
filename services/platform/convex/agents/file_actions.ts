@@ -64,6 +64,7 @@ import {
   invalidateAgentListCache,
   listAgentsForOrg,
   resolveAgentPath,
+  resolveAgentRelativePath,
 } from './internal_actions';
 import { agentSlugFromFileName } from './validators';
 
@@ -891,7 +892,24 @@ export const duplicateAgent = action({
 
     const normalized = normalizeAgentConfig(draft, orgLocale);
     const content = serializeAgentJson(normalized);
-    const filePath = resolveAgentFilePath(orgSlug, newName);
+    // Write the copy INTO THE SAME FOLDER as the source. A foldered global
+    // agent (chat/, workforce/, github/, …) must duplicate alongside its
+    // original — resolving the copy to the flat org/agents/<slug>.json instead
+    // gives it folder `''`, and the folder-scoped list view (`?folder=chat`)
+    // then filters it out, so the user sees "Agent duplicated" but no new row.
+    // App-owned + flat-root sources aren't indexed with a folder prefix, so
+    // they fall through to the composite/flat path as before.
+    const sourceRel = await resolveAgentRelativePath(orgSlug, args.agentName);
+    const folderPrefix =
+      sourceRel && sourceRel.includes('/')
+        ? sourceRel.split('/').slice(0, -1).join('/')
+        : '';
+    const filePath = folderPrefix
+      ? resolveAgentFilePathFromRelative(
+          orgSlug,
+          `${folderPrefix}/${newName}.json`,
+        )
+      : resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
     invalidateAgentListCache(orgSlug);
 

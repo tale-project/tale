@@ -9,6 +9,7 @@ const mockRm = vi.fn();
 const mockReaddir = vi.fn();
 const mockMkdir = vi.fn();
 const mockListAgentsForOrg = vi.fn();
+const mockResolveAgentRelativePath = vi.fn();
 
 vi.mock('node:fs/promises', () => ({
   unlink: (...args: unknown[]) => mockUnlink(...args),
@@ -100,6 +101,8 @@ vi.mock('./internal_actions', () => ({
   ),
   invalidateAgentListCache: vi.fn(),
   listAgentsForOrg: (...args: unknown[]) => mockListAgentsForOrg(...args),
+  resolveAgentRelativePath: (...args: unknown[]) =>
+    mockResolveAgentRelativePath(...args),
 }));
 
 vi.mock('../../lib/shared/constants/agents', () => ({
@@ -327,6 +330,27 @@ describe('duplicateAgent', () => {
     expect(result).toEqual({ newAgentName: 'my-agent-copy' });
     expect(mockAtomicWrite).toHaveBeenCalledWith(
       '/data/agents/my-agent-copy.json',
+      expect.stringContaining('"Test Agent (Copy)"'),
+    );
+  });
+
+  it('writes the copy into the same folder as a foldered source agent', async () => {
+    // Regression (#duplicate-lost-in-folder): a chat/ (or workforce/, github/)
+    // agent must duplicate ALONGSIDE its source, not flatten to
+    // org/agents/<slug>.json — otherwise the copy's derived `folder` is `''` and
+    // the folder-scoped list view (`?folder=chat`) filters it out, so the user
+    // sees "Agent duplicated" but no new row.
+    mockResolveAgentRelativePath.mockResolvedValue('chat/my-agent.json');
+    const ctx = createMockCtx();
+
+    const result = await duplicateHandler(
+      ctx as never,
+      { organizationId: 'org_test', agentName: 'my-agent' } as never,
+    );
+
+    expect(result).toEqual({ newAgentName: 'my-agent-copy' });
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/data/agents/chat/my-agent-copy.json',
       expect.stringContaining('"Test Agent (Copy)"'),
     );
   });
