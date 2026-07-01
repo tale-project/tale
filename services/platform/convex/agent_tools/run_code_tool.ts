@@ -2,9 +2,9 @@
  * run_code — execute code in the thread workspace sandbox.
  *
  * Reads every file currently in the calling thread's `threadFiles` table,
- * mounts them at `/workspace/code/<path>` inside the sandbox, runs either
+ * mounts them at `/user/code/<path>` inside the sandbox, runs either
  * a single entry script or a sequential list of steps, and harvests any
- * files produced under `/workspace/output/` back into the workspace
+ * files produced under `/user/output/` back into the workspace
  * (source `'run_output'`).
  *
  * The thread workspace IS the workspace — there is no separate file
@@ -44,7 +44,7 @@ const runCodeArgs = z
       .max(RUN_CODE_MAX_STEPS)
       .optional()
       .describe(
-        'Multi-step mode: workspace files to execute sequentially in one container. Step N sees step N-1 outputs in `/workspace/output/`. Mutually exclusive with `entryPath`.',
+        'Multi-step mode: workspace files to execute sequentially in one container. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
       ),
     packages: z
       .object({
@@ -150,7 +150,7 @@ WORKFLOW:
 1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
 2. \`run_code({entryPath: "<script>"})\` for a one-shot
    OR \`run_code({steps: [{path: "step_a"}, {path: "step_b"}]})\` for sequential steps sharing one container
-3. Any file the script writes under \`/workspace/output/\` is harvested back into the thread workspace and appears in the canvas
+3. Any file the script writes under \`/user/output/\` is harvested back into the thread workspace and appears in the canvas
 
 PACKAGES:
 - Pip specs go in \`packages.python\`, npm specs in \`packages.node\` — these install **before** the script runs.
@@ -164,11 +164,11 @@ TIMEOUTS / LIMITS:
 - Max 16 harvested output files per run
 
 The sandbox sees three directories pre-populated from the thread workspace:
-- \`/workspace/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
-- \`/workspace/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
-- \`/workspace/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
+- \`/user/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
+- \`/user/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
+- \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
-Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user-uploaded asset → \`/workspace/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
+Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
@@ -222,11 +222,11 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         }
         stepPaths = [args.entryPath];
       }
-      // Only `agent_write` files land in /workspace/code/ — they are the
-      // executable surface. `user_upload` lives in /workspace/uploads/ and
-      // `run_output` lives in /workspace/output/; neither is executable
+      // Only `agent_write` files land in /user/code/ — they are the
+      // executable surface. `user_upload` lives in /user/uploads/ and
+      // `run_output` lives in /user/output/; neither is executable
       // via entryPath/steps. If the user wants to run a user-uploaded
-      // script, they can copy it into /workspace/code/ with file_write.
+      // script, they can copy it into /user/code/ with file_write.
       const seen = new Set<string>();
       const knownPaths = new Set(
         workspaceFiles
@@ -320,9 +320,9 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
       // Mint a Caddy-aliased download URL per thread file so the spawner
       // fetches bytes itself (binary-safe; bypasses the body cap). No bytes
       // flow through this action's memory. Files are routed by `source`:
-      //   - agent_write → /workspace/code/<path>   (executable scripts)
-      //   - run_output  → /workspace/output/<path> (previous run artifacts)
-      //   - user_upload → /workspace/uploads/<path>(user-supplied assets)
+      //   - agent_write → /user/code/<path>   (executable scripts)
+      //   - run_output  → /user/output/<path> (previous run artifacts)
+      //   - user_upload → /user/uploads/<path>(user-supplied assets)
       const filesPayload: Array<{ path: string; url: string }> = [];
       const priorOutputDownloadsPayload: Array<{
         name: string;
@@ -347,7 +347,7 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         } else if (wf.source === 'user_upload') {
           userUploadDownloadsPayload.push({ name: wf.path, url });
         } else {
-          // agent_write (default) — staged at /workspace/code/<path>.
+          // agent_write (default) — staged at /user/code/<path>.
           filesPayload.push({ path: wf.path, url });
         }
       }
@@ -427,22 +427,22 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
       const success = run.status === 'completed';
       const emptyFilesHint = `run_code succeeded in ${run.durationMs}ms. No output files were harvested.
 
-If the script was supposed to produce a deliverable file, only paths under \`/workspace/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/workspace/code/\` are discarded when the container exits.
+If the script was supposed to produce a deliverable file, only paths under \`/user/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/user/code/\` are discarded when the container exits.
 
 Wrong (file is lost, NOT harvested):
   open("report.pptx", "wb").write(data)              # Python
   fs.writeFileSync("report.json", data)              // Node
 
 Correct (harvested into the thread workspace):
-  open("/workspace/output/report.pptx", "wb").write(data)
-  fs.writeFileSync("/workspace/output/report.json", data)
+  open("/user/output/report.pptx", "wb").write(data)
+  fs.writeFileSync("/user/output/report.json", data)
 
-Same rule for bash: \`cp report.pdf /workspace/output/report.pdf\`.
+Same rule for bash: \`cp report.pdf /user/output/report.pdf\`.
 
 If your script genuinely had no file deliverable (e.g. a sanity check or package install), you can ignore this — the run did succeed.`;
       const message = success
         ? run.files.length > 0
-          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /workspace/output/: ${run.files.map((f) => f.path).join(', ')}.`
+          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /user/output/: ${run.files.map((f) => f.path).join(', ')}.`
           : emptyFilesHint
         : run.errorCode
           ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
