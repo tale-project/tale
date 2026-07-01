@@ -150,19 +150,6 @@ cron(
   {},
 );
 
-// Sandbox watchdog — same shape as the transcription / video-link sweeps.
-// Convex hard-kills actions at the 30-min timeout without running the
-// action's finally; that leaves sandboxExecutions stuck at `status='running'`
-// and the slot they hold permanently shrinks the org's concurrent cap.
-// Heartbeat from `executeCode` keeps `heartbeatAt` fresh while the action
-// is alive; this cron flips rows older than 2× max-timeout to `failed`.
-cron(
-  'recover stuck sandbox executions (every 5 min)',
-  '*/5 * * * *',
-  internal.sandbox.internal_mutations.recoverStuckSandboxes,
-  {},
-);
-
 // Sandbox SESSION slot reclamation — flip a leaked session row (a throw between
 // reserve and the spawner create returning, or a container reaped out-of-band)
 // past its hard lifetime to `expired` so it stops pinning the per-(org) and

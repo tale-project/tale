@@ -76,10 +76,6 @@ import {
   deleteProduct,
 } from './products/rest_api';
 import {
-  outputUploadUrlAction,
-  recordUploadedAction,
-} from './sandbox/sandbox_http';
-import {
   scimGroupResourceHandler,
   scimGroupsHandler,
   scimOptionsHandler,
@@ -1330,29 +1326,6 @@ http.route({
   pathPrefix: '/api/run/',
   method: 'OPTIONS',
   handler: apiGatewayOptions,
-});
-
-// ---------------------------------------------------------------------------
-// Sandbox callback endpoints (sandbox-wobbly-origami plan §2).
-//
-// The spawner POSTs here from inside docker compose to (a) request more
-// presigned upload URLs (EP1) and (b) report each successful upload's
-// storageId (EP2). Both are HMAC-authenticated using the same SANDBOX_TOKEN
-// the spawner uses for inbound `/v1/execute` — we reuse the secret rather
-// than mint a new one.
-//
-// Routed through Caddy `handle /api/sandbox/*` → convex:3211.
-// ---------------------------------------------------------------------------
-http.route({
-  path: '/api/sandbox/output_upload_url',
-  method: 'POST',
-  handler: outputUploadUrlAction,
-});
-
-http.route({
-  path: '/api/sandbox/record_uploaded',
-  method: 'POST',
-  handler: recordUploadedAction,
 });
 
 const _routes = http.getRoutes();

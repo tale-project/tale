@@ -3116,11 +3116,8 @@
     "sandboxQuota": {
       "title": "Sandbox concurrency limits",
       "description": "Cap how many sandboxes this organization can run at the same time. These per-organization limits sit beneath the deployment-wide host capacity; lowering them protects shared server resources from being overwhelmed.",
-      "maxConcurrent": "Max concurrent one-shot runs",
-      "maxConcurrentHint": "Disposable sandboxes (run_code and workflow script steps) that may run at the same time for this organization. Requests beyond the cap fail with a quota error. Default: 2.",
       "maxSessions": "Max active sessions",
       "maxSessionsHint": "Persistent sandbox sessions (chat agents and workflow agent steps) that may be active at once for this organization. Requests beyond the cap fail with a quota error. Default: 2.",
-      "invalidConcurrent": "Must be a whole number between 1 and 100.",
       "invalidSessions": "Must be a whole number between 1 and 500.",
       "saved": "Sandbox concurrency limits have been updated",
       "saveFailed": "Failed to save sandbox concurrency limits"

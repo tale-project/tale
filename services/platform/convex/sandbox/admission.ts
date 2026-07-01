@@ -11,9 +11,8 @@
 // `waiting`, which would let a second waiter mis-rank).
 //
 // A `waiting` ticket is NOT a slot: it holds zero compute and counts toward no
-// concurrency cap. Only the `sandboxSessions` / `sandboxExecutions` row it
-// eventually inserts does. This is why a parked request burns no agent
-// wall-clock budget while it waits.
+// concurrency cap. Only the `sandboxSessions` row it eventually inserts does.
+// This is why a parked request burns no agent wall-clock budget while it waits.
 
 import { ConvexError, v } from 'convex/values';
 
@@ -28,7 +27,11 @@ import {
 } from './quota_policy';
 import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
 
-export type AdmissionKind = 'session' | 'oneshot';
+// Every sandbox run is a session now (chat run_code, external agents, both
+// workflow agent AND script steps, and crawler renders). `kind` is retained as a
+// single-value discriminator so the tickets FIFO index + capacity-wake plumbing
+// stay put; the retired 'oneshot' value is gone.
+export type AdmissionKind = 'session';
 
 /** ConvexError code thrown by the reserve mutations when a parking caller is not
  * yet at the front of its org's FIFO queue. The caller re-parks (sleeps + polls
@@ -36,10 +39,7 @@ export type AdmissionKind = 'session' | 'oneshot';
  * like the daily CPU budget, which never parks). */
 export const WAIT_FIFO_CODE = 'WAIT_FIFO';
 
-export const admissionKindValidator = v.union(
-  v.literal('session'),
-  v.literal('oneshot'),
-);
+export const admissionKindValidator = v.literal('session');
 
 /** True if a thrown error is the FIFO "wait, don't fail" signal a reserve
  * mutation raises (a ConvexError whose data.code is WAIT_FIFO, preserved across
@@ -87,73 +87,45 @@ export const reserveTicketArg = v.object({
   stepSlug: v.optional(v.string()),
 });
 
-/** Like `reserveTicketArg` but carries the owner identity — the one-shot
- * `reserveSlotAndInsert` keys executions by thread/message, not by an owner, so
- * a parking script step must supply the (ownerType, ownerId) the ticket is keyed
- * on (the workflow-run step). */
-export const reserveOneshotTicketArg = v.object({
-  ownerType: v.string(),
-  ownerId: v.string(),
-  source: v.union(v.literal('chat'), v.literal('workflow')),
-  threadId: v.optional(v.string()),
-  wfExecutionId: v.optional(v.string()),
-  stepSlug: v.optional(v.string()),
-});
-
 // --- shared helpers (imported by the reserve mutations) --------------------
 
-/** Count of in-flight rows that hold a slot for this (org, kind). Mirrors the
- * cap-count loops in the reserve mutations EXACTLY so the queue math agrees with
- * the gate it fronts. */
+/** Count of in-flight sessions that hold a slot for this org (scoped to one
+ * `sessionBudget` when given). Mirrors the cap-count loop in the reserve mutation
+ * EXACTLY so the queue math agrees with the gate it fronts. */
 export async function admissionInFlight(
   ctx: MutationCtx,
   organizationId: string,
-  kind: AdmissionKind,
   sessionBudget?: SessionBudget,
 ): Promise<number> {
   let inFlight = 0;
-  if (kind === 'session') {
-    for (const status of ['creating', 'active'] as const) {
-      for await (const row of ctx.db
-        .query('sandboxSessions')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', status),
-        )) {
-        // Count only this budget's sessions when scoped (the three workloads
-        // are limited separately).
-        if (
-          sessionBudget !== undefined &&
-          sessionBudgetForOwnerType(row.ownerType) !== sessionBudget
-        ) {
-          continue;
-        }
-        inFlight += 1;
+  for (const status of ['creating', 'active'] as const) {
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_organizationId_and_status', (q) =>
+        q.eq('organizationId', organizationId).eq('status', status),
+      )) {
+      // Count only this budget's sessions when scoped (the workloads are
+      // limited separately).
+      if (
+        sessionBudget !== undefined &&
+        sessionBudgetForOwnerType(row.ownerType) !== sessionBudget
+      ) {
+        continue;
       }
-    }
-  } else {
-    for (const status of ['running', 'queued', 'installing'] as const) {
-      for await (const _row of ctx.db
-        .query('sandboxExecutions')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', status),
-        )) {
-        inFlight += 1;
-      }
+      inFlight += 1;
     }
   }
   return inFlight;
 }
 
-/** Per-org concurrency cap for a kind, from the `sandbox_quota` governance
- * policy (missing row → schema default). */
+/** Per-org session cap for a `sessionBudget`, from the `sandbox_quota`
+ * governance policy (missing row → schema default). */
 export async function admissionCap(
   ctx: MutationCtx,
   organizationId: string,
-  kind: AdmissionKind,
   sessionBudget?: SessionBudget,
 ): Promise<number> {
   const policy = await readSandboxQuotaPolicy(ctx.db, organizationId);
-  if (kind !== 'session') return policy.maxConcurrentPerOrg;
   return sessionBudget !== undefined
     ? sessionCapFor(sessionBudget, policy)
     : policy.maxSessionsPerOrg;
@@ -292,13 +264,8 @@ export async function assertFifoEligible(
   ticketCreatedAt: number,
   sessionBudget?: SessionBudget,
 ): Promise<void> {
-  const cap = await admissionCap(ctx, organizationId, kind, sessionBudget);
-  const inFlight = await admissionInFlight(
-    ctx,
-    organizationId,
-    kind,
-    sessionBudget,
-  );
+  const cap = await admissionCap(ctx, organizationId, sessionBudget);
+  const inFlight = await admissionInFlight(ctx, organizationId, sessionBudget);
   const slotsOpen = cap - inFlight;
   if (slotsOpen <= 0) {
     throw new ConvexError({
@@ -369,21 +336,12 @@ export const pollAdmission = internalMutation({
       now,
       createdAtForNew,
     );
-    // Sessions are budgeted per workload (user agent / thread / workflow).
-    const sessionBudget =
-      args.kind === 'session'
-        ? sessionBudgetForOwnerType(args.ownerType)
-        : undefined;
-    const cap = await admissionCap(
-      ctx,
-      args.organizationId,
-      args.kind,
-      sessionBudget,
-    );
+    // Sessions are budgeted per workload (user / thread / workflow / render).
+    const sessionBudget = sessionBudgetForOwnerType(args.ownerType);
+    const cap = await admissionCap(ctx, args.organizationId, sessionBudget);
     const inFlight = await admissionInFlight(
       ctx,
       args.organizationId,
-      args.kind,
       sessionBudget,
     );
     const slotsOpen = cap - inFlight;
@@ -538,12 +496,12 @@ export const recoverStuckAdmissionTickets = internalMutation({
           t.source === 'workflow' &&
           !(await workflowTicketOwnerIsDead(ctx, t))
         ) {
-          if (status === 'waiting') remember(t.kind, t.organizationId);
+          if (status === 'waiting') remember('session', t.organizationId);
           continue;
         }
         await ctx.db.delete(t._id);
         reaped.push(t._id);
-        remember(t.kind, t.organizationId);
+        remember('session', t.organizationId);
         if (reaped.length >= limit) {
           bound = true;
           break;

@@ -308,6 +308,7 @@ import type * as crawler_lib_html_to_sections from "../crawler/lib/html_to_secti
 import type * as crawler_lib_indexing_service from "../crawler/lib/indexing_service.js";
 import type * as crawler_lib_markdown_to_html from "../crawler/lib/markdown_to_html.js";
 import type * as crawler_lib_paragraph_dedup from "../crawler/lib/paragraph_dedup.js";
+import type * as crawler_lib_render_session from "../crawler/lib/render_session.js";
 import type * as crawler_lib_sandbox_render from "../crawler/lib/sandbox_render.js";
 import type * as crawler_lib_sandbox_render_document from "../crawler/lib/sandbox_render_document.js";
 import type * as crawler_lib_search_service from "../crawler/lib/search_service.js";
@@ -991,7 +992,6 @@ import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/
 import type * as node_only_sandbox_api_error_detection from "../node_only/sandbox/api_error_detection.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
-import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
@@ -1152,10 +1152,7 @@ import type * as rag_lib_secret_scanner from "../rag/lib/secret_scanner.js";
 import type * as rag_lib_semantic_cache from "../rag/lib/semantic_cache.js";
 import type * as rag_search from "../rag/search.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
-import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
-import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
-import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
 import type * as sandbox_session_naming from "../sandbox/session_naming.js";
 import type * as sandbox_session_queries from "../sandbox/session_queries.js";
@@ -1939,6 +1936,7 @@ declare const fullApi: ApiFromModules<{
   "crawler/lib/indexing_service": typeof crawler_lib_indexing_service;
   "crawler/lib/markdown_to_html": typeof crawler_lib_markdown_to_html;
   "crawler/lib/paragraph_dedup": typeof crawler_lib_paragraph_dedup;
+  "crawler/lib/render_session": typeof crawler_lib_render_session;
   "crawler/lib/sandbox_render": typeof crawler_lib_sandbox_render;
   "crawler/lib/sandbox_render_document": typeof crawler_lib_sandbox_render_document;
   "crawler/lib/search_service": typeof crawler_lib_search_service;
@@ -2622,7 +2620,6 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/api_error_detection": typeof node_only_sandbox_api_error_detection;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
-  "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
@@ -2783,10 +2780,7 @@ declare const fullApi: ApiFromModules<{
   "rag/lib/semantic_cache": typeof rag_lib_semantic_cache;
   "rag/search": typeof rag_search;
   "sandbox/admission": typeof sandbox_admission;
-  "sandbox/internal_mutations": typeof sandbox_internal_mutations;
-  "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/quota_policy": typeof sandbox_quota_policy;
-  "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
   "sandbox/session_naming": typeof sandbox_session_naming;
   "sandbox/session_queries": typeof sandbox_session_queries;
