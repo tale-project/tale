@@ -352,11 +352,15 @@ COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright
 # server-side). Runs under the image's node (global fetch).
 COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
 
-# Vision MCP bridge: a dependency-free stdio MCP server, auto-injected by the
-# claude-code adapter for a managed agent whose model lacks vision. Relays
-# vision_read({image,prompt}) to the platform LLM gateway's vision model using
-# the session virtual key — no provider key ever enters the container.
-COPY services/sandbox-runtime/tale-vision-mcp /usr/local/bin/tale-vision-mcp
+# Vision polyfill for a TEXT-ONLY managed agent. `tale-vision-read-hook` is a
+# PreToolUse(Read) hook (registered in managed-settings.json, self-gated on
+# TALE_VISION_MODEL) that transcribes any image the agent reads via the
+# transcriber and denies the native read — so the image never reaches the
+# text-only model. `tale-vision-transcribe` relays the image to the platform LLM
+# gateway's vision model using the session virtual key (no provider key enters
+# the container). See services/platform/lib/agent-adapters/claude-code/adapter.ts.
+COPY services/sandbox-runtime/tale-vision-transcribe /usr/local/bin/tale-vision-transcribe
+COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-read-hook
 
 # Human-control MCP bridge: a dependency-free stdio MCP server exposing
 # request_human_control({reason}). The agent calls it to hand the live browser
@@ -368,7 +372,7 @@ COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
       /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
-      /usr/local/bin/tale-vision-mcp \
+      /usr/local/bin/tale-vision-transcribe /usr/local/bin/tale-vision-read-hook \
       /usr/local/bin/tale-human-control-mcp \
       /usr/local/bin/tale-steer-hook \
       /usr/local/bin/tale-plan-gate

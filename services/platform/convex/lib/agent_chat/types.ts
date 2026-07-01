@@ -44,6 +44,12 @@ export interface SerializableAgentConfig {
    * default; BYO is unaffected.
    */
   nativeWebTools?: boolean;
+  /**
+   * For managed `primaryBehavior: 'external-agent'` only — the vision model
+   * backing the `vision_read` polyfill when the agent's own model is text-only.
+   * Unset falls back to the provider registry's `vision`-tagged default.
+   */
+  visionModel?: string;
   /** System instructions for the agent (empty for image-generation agents with no style prefix) */
   instructions: string;
   /** List of Convex tool names to enable */

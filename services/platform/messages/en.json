@@ -5675,6 +5675,13 @@
           "sectionDescription": "How this agent accesses the web.",
           "nativeLabel": "Use native web search and fetch",
           "nativeDescription": "Let the agent use its runtime's built-in WebSearch and WebFetch tools directly — best when the model supports them (e.g. OpenRouter). When off, the native web tools are disabled and web access must go through a connected search integration (audited and metered)."
+        },
+        "vision": {
+          "sectionTitle": "Vision model",
+          "sectionDescription": "When this agent's own model can't see images, any image it reads is automatically transcribed by this vision model — through the gateway, so no provider key enters the sandbox. Only used for text-only models.",
+          "label": "Vision model for reading images",
+          "autoLabel": "Use org default",
+          "autoDescription": "Fall back to the provider's vision default model."
         }
       },
       "delegation": {

@@ -5410,6 +5410,13 @@
           "sectionDescription": "Wie dieser Agent auf das Web zugreift.",
           "nativeLabel": "Native Websuche und -abruf verwenden",
           "nativeDescription": "Lass den Agenten die in seiner Laufzeit integrierten WebSearch- und WebFetch-Tools direkt nutzen — am besten, wenn das Modell sie unterstützt (z. B. OpenRouter). Wenn deaktiviert, sind die nativen Web-Tools gesperrt und der Webzugriff muss über eine verbundene Such-Integration laufen (auditiert und abgerechnet)."
+        },
+        "vision": {
+          "sectionTitle": "Vision-Modell",
+          "sectionDescription": "Wenn das eigene Modell dieses Agenten keine Bilder sehen kann, wird jedes gelesene Bild automatisch von diesem Vision-Modell transkribiert — über das Gateway, sodass kein Anbieterschlüssel in die Sandbox gelangt. Wird nur für reine Textmodelle verwendet.",
+          "label": "Vision-Modell zum Lesen von Bildern",
+          "autoLabel": "Org-Standard verwenden",
+          "autoDescription": "Auf das Standard-Vision-Modell des Anbieters zurückfallen."
         }
       },
       "delegation": {

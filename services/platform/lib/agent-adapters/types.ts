@@ -53,14 +53,17 @@ export interface AgentRunSpec {
    * When set, buildExec adds an `integrations` MCP server the agent uses to
    * call the org's connected integrations (credentials resolved server-side). */
   integrationsBaseUrl?: string;
-  /** Managed only: auto-inject the `vision` MCP server (tale-vision-mcp) so a
-   * TEXT-ONLY agent can read images. Set by the platform when the run is managed
-   * AND the agent's own model lacks the provider registry's `vision` tag. The
-   * tool relays to the gateway's `visionModel` with the session key — no provider
-   * key in the container. Requires `gateway` + `visionModel`; ignored for byo. */
+  /** Managed only: enable the vision polyfill so a TEXT-ONLY agent can read
+   * images. Set by the platform when the run is managed AND the agent's own
+   * model lacks the provider registry's `vision` tag. The claude-code adapter
+   * then sets the `TALE_VISION_*` env that arms the `tale-vision-read-hook`
+   * PreToolUse(Read) hook (baked into the image): it transcribes any image the
+   * agent reads via `visionModel` with the session key — no provider key in the
+   * container. Requires `gateway` + `visionModel`; ignored for byo. */
   visionTool?: boolean;
-  /** The gateway model id the vision MCP server calls (the provider's `vision`-
-   * tagged model). Present iff `visionTool`; the session VK is scoped to allow it. */
+  /** The gateway model id the vision hook transcribes with (the provider's
+   * `vision`-tagged model). Present iff `visionTool`; the session VK is scoped to
+   * allow it. */
   visionModel?: string;
   /** Working directory inside the session (e.g. /user/workspace). */
   workdir: string;
