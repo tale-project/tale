@@ -466,12 +466,46 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
       }
 
       let raw: unknown;
+      // Persistent per-thread session path (Phase 2), gated off by default.
+      // Any failure here falls back to the ephemeral one-shot path, so the
+      // flag can never regress the tool.
+      const useSession = process.env.SANDBOX_RUNCODE_SESSIONS === 'true';
       try {
-        raw = await ctx.runAction(
-          internal.node_only.sandbox.internal_actions.executeCode,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- sandbox executeCode accepts this subset; passed verbatim
-          sandboxArgs as never,
-        );
+        if (useSession) {
+          try {
+            raw = await ctx.runAction(
+              internal.node_only.sandbox.session_exec.executeCodeInSession,
+              {
+                organizationId,
+                threadId,
+                uploadedBy: userId ?? '',
+                stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
+                ...(Object.keys(packagesByLang).length > 0 && {
+                  packagesByLang,
+                }),
+                ...(args.timeoutMs !== undefined && {
+                  timeoutMs: args.timeoutMs,
+                }),
+              },
+            );
+          } catch (sessErr) {
+            console.warn(
+              '[run_code] session path failed; falling back to ephemeral:',
+              sessErr,
+            );
+            raw = await ctx.runAction(
+              internal.node_only.sandbox.internal_actions.executeCode,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode accepts this subset; passed verbatim
+              sandboxArgs as never,
+            );
+          }
+        } else {
+          raw = await ctx.runAction(
+            internal.node_only.sandbox.internal_actions.executeCode,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode accepts this subset; passed verbatim
+            sandboxArgs as never,
+          );
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
