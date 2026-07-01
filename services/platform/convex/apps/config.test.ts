@@ -53,13 +53,21 @@ describe('apps/config', () => {
         installedBy: USER,
         status: 'active',
         requiredIntegrations: ['github'],
-        resources: [
-          {
-            domain: 'workflows',
-            path: 'issue-desk/reconcile.json',
-            contentHash: 'h',
-          },
-        ],
+        // Realistic: the `resources` file ledger records only FAN-OUT domains
+        // (integrations), NEVER workflows (they copy under the app dir as shell).
+        // Regression guard for the bug where sync derived slugs from here and so
+        // always synced nothing.
+        resources: [],
+      });
+      // Authoritative workflow ownership — `appSlug` stamped at app install. This
+      // is what setAppConfig must key its schedule sync on.
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: 'issue-desk/reconcile',
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        contentHash: 'h',
       });
     });
     // The schedule the installer created — only static defaults, no repo yet.
@@ -134,13 +142,17 @@ describe('apps/config — per-project isolation', () => {
         installedBy: USER,
         status: 'active',
         requiredIntegrations: [],
-        resources: [
-          {
-            domain: 'workflows',
-            path: 'issue-desk/reconcile.json',
-            contentHash: 'h',
-          },
-        ],
+        // Realistic: no workflows in the file ledger (see the note in the first
+        // suite) — schedule sync must key off `wfInstallations` instead.
+        resources: [],
+      });
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: 'issue-desk/reconcile',
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        contentHash: 'h',
       });
     });
   }

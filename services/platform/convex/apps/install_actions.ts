@@ -22,6 +22,7 @@ import {
 } from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
 import {
   parseAgentJson,
@@ -116,13 +117,20 @@ async function readWorkflowScheduleSpecs(
 }
 
 /**
- * Provision an app's workflow schedules, scope-aware and idempotent:
+ * Reconcile an app's workflow schedules to the desired set — scope-aware and
+ * idempotent. This is the single source of the app's schedule state on install,
+ * reinstall, and each bind:
  *  - org-scoped app → one schedule per declared trigger (no projectId);
  *  - project-scoped app → one schedule per (declared trigger × bound project),
  *    seeded with that project's config so two projects targeting two repos get
  *    two independent reconcile runs and never share a single org-wide schedule.
- * `ensureSchedule` dedupes on (org, slug, cron, project), so this is safe to call
- * on install, on reinstall, and again after each new bind.
+ *
+ * It hands the fully-computed desired set to `reconcileAppSchedules`, which
+ * CONVERGES an existing schedule's `variables` to the desired config (so a plain
+ * reinstall HEALS a schedule whose repo was configured after it was provisioned —
+ * the previous per-item `ensureSchedule` skipped existing rows and so never did)
+ * and PRUNES this app's schedules that are no longer desired (an org-level or
+ * unbound-project leftover). Reinstall is therefore the recovery path.
  */
 async function syncAppSchedules(
   ctx: ActionCtx,
@@ -134,47 +142,50 @@ async function syncAppSchedules(
   const workflows = manifest.workflows ?? [];
   if (workflows.length === 0) return;
 
+  const desired: {
+    workflowSlug: string;
+    cronExpression: string;
+    timezone?: string;
+    projectId?: Id<'projects'>;
+    variables?: Record<string, unknown>;
+  }[] = [];
+
   if (appScope(manifest) === 'org') {
     for (const slug of workflows) {
       for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
-        await ctx.runMutation(
-          internal.workflows.provision_defaults_mutations.ensureSchedule,
-          {
-            organizationId,
+        desired.push({
+          workflowSlug: slug,
+          cronExpression: schedule.cron,
+          timezone: schedule.timezone,
+          variables: schedule.variables,
+        });
+      }
+    }
+  } else {
+    const bindings = await ctx.runQuery(
+      internal.apps.install_mutations.listAppBindingsInternal,
+      { organizationId, appSlug },
+    );
+    for (const binding of bindings) {
+      for (const slug of workflows) {
+        for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
+          desired.push({
             workflowSlug: slug,
             cronExpression: schedule.cron,
             timezone: schedule.timezone,
-            variables: schedule.variables,
-            isActive: true,
-          },
-        );
+            projectId: binding.projectId,
+            variables: { ...schedule.variables, ...binding.config },
+          });
+        }
       }
     }
-    return;
   }
 
-  const bindings = await ctx.runQuery(
-    internal.apps.install_mutations.listAppBindingsInternal,
-    { organizationId, appSlug },
-  );
-  for (const binding of bindings) {
-    for (const slug of workflows) {
-      for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
-        await ctx.runMutation(
-          internal.workflows.provision_defaults_mutations.ensureSchedule,
-          {
-            organizationId,
-            workflowSlug: slug,
-            projectId: binding.projectId,
-            cronExpression: schedule.cron,
-            timezone: schedule.timezone,
-            variables: { ...schedule.variables, ...binding.config },
-            isActive: true,
-          },
-        );
-      }
-    }
-  }
+  await ctx.runMutation(internal.apps.install_mutations.reconcileAppSchedules, {
+    organizationId,
+    appSlug,
+    desired,
+  });
 }
 
 /**
