@@ -27,7 +27,7 @@ The runner has no token and no URLs (regression-tested in
 **Horizontal scale:** the result rides the `harvest` container's logs, read by
 the **owning** spawner replica — no callback to a Service VIP, no cross-replica
 affinity. The spawner Deployment is HPA-able; total throughput =
-replicas × `SANDBOX_MAX_CONCURRENT`, bounded by cluster capacity.
+replicas × `SANDBOX_MAX_SESSIONS`, bounded by cluster capacity.
 
 **Cancel:** when the cancel request lands on the owning replica it is
 abort-only — `execute()` finishes its final log reads and then deletes the Pod,
