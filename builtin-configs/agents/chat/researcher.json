@@ -4,7 +4,7 @@
     "labels": ["Research"],
     "autoInstall": false
   },
-  "toolNames": ["update_todos", "request_human_input", "web", "pdf"],
+  "toolNames": ["update_todos", "request_human_input", "web"],
   "integrationBindings": ["tavily"],
   "supportedModels": [
     "openrouter:anthropic/claude-sonnet-4.6",

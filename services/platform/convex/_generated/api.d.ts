@@ -51,8 +51,6 @@ import type * as agent_tools_documents_internal_actions from "../agent_tools/doc
 import type * as agent_tools_documents_internal_mutations from "../agent_tools/documents/internal_mutations.js";
 import type * as agent_tools_escalation_create_escalation_tool from "../agent_tools/escalation/create_escalation_tool.js";
 import type * as agent_tools_files__shared from "../agent_tools/files/_shared.js";
-import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
-import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_file_delete_tool from "../agent_tools/files/file_delete_tool.js";
 import type * as agent_tools_files_file_edit_tool from "../agent_tools/files/file_edit_tool.js";
 import type * as agent_tools_files_file_list_tool from "../agent_tools/files/file_list_tool.js";
@@ -68,8 +66,6 @@ import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/fil
 import type * as agent_tools_files_image_tool from "../agent_tools/files/image_tool.js";
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_internal_mutations from "../agent_tools/files/internal_mutations.js";
-import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
-import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
 import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
@@ -1681,8 +1677,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/documents/internal_mutations": typeof agent_tools_documents_internal_mutations;
   "agent_tools/escalation/create_escalation_tool": typeof agent_tools_escalation_create_escalation_tool;
   "agent_tools/files/_shared": typeof agent_tools_files__shared;
-  "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
-  "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/file_delete_tool": typeof agent_tools_files_file_delete_tool;
   "agent_tools/files/file_edit_tool": typeof agent_tools_files_file_edit_tool;
   "agent_tools/files/file_list_tool": typeof agent_tools_files_file_list_tool;
@@ -1698,8 +1692,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/image_tool": typeof agent_tools_files_image_tool;
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/internal_mutations": typeof agent_tools_files_internal_mutations;
-  "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
-  "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
   "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
