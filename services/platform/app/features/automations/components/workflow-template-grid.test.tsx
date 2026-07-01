@@ -148,6 +148,33 @@ describe('WorkflowTemplateGrid', () => {
     expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
   });
 
+  describe('search filtering', () => {
+    it('filters templates by name', () => {
+      render(<WorkflowTemplateGrid {...defaultProps} searchQuery="welcome" />);
+
+      expect(screen.getByLabelText('Welcome Flow')).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('Order Processing'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('filters templates by description', () => {
+      render(<WorkflowTemplateGrid {...defaultProps} searchQuery="process" />);
+
+      expect(screen.getByLabelText('Order Processing')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Welcome Flow')).not.toBeInTheDocument();
+    });
+
+    it('shows the search-specific empty state when nothing matches', () => {
+      render(<WorkflowTemplateGrid {...defaultProps} searchQuery="zzzznope" />);
+
+      expect(
+        screen.getByText('No automations match your search.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText('Welcome Flow')).not.toBeInTheDocument();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<WorkflowTemplateGrid {...defaultProps} />);

@@ -1,9 +1,10 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
 import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -25,15 +26,19 @@ export function AutomationsCatalog({
 }: AutomationsCatalogProps) {
   const { t } = useT('automations');
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
 
   return (
     <Stack gap={6} className="p-6">
-      <SectionHeader
-        title={t('catalog.title')}
-        description={t('catalog.subtitle')}
+      <SearchInput
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder={t('search.placeholder')}
+        className="w-64 shrink-0"
       />
       <WorkflowTemplateGrid
         organizationId={organizationId}
+        searchQuery={searchQuery}
         scrollable={false}
         onTemplateInstalled={() => {
           toast({ title: t('catalog.installed'), variant: 'success' });

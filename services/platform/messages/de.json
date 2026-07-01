@@ -1,6 +1,8 @@
 {
   "apps": {
     "title": "Apps",
+    "searchPlaceholder": "Apps durchsuchen…",
+    "searchNoResults": "Keine Apps entsprechen Ihrer Suche.",
     "upload": {
       "uploadApp": "App hochladen",
       "dialogTitle": "Private App hochladen",
@@ -670,8 +672,6 @@
       "metrics": "Metriken"
     },
     "catalog": {
-      "title": "Automatisierungs-Katalog",
-      "subtitle": "Durchsuche vorgefertigte Automatisierungen und installiere sie.",
       "installed": "Automatisierung installiert"
     },
     "aria": {
@@ -727,7 +727,8 @@
       "createStepsHint": "Erstelle Schritte, um die Automatisierungsübersicht zu sehen, oder nutze den KI-Assistenten für den Einstieg."
     },
     "search": {
-      "placeholder": "Automatisierungen suchen"
+      "placeholder": "Automatisierungen suchen",
+      "noResults": "Keine Automatisierungen entsprechen Ihrer Suche."
     },
     "entityLabel": "Automatisierungen",
     "createWithAI": "Automatisierung mit KI erstellen",

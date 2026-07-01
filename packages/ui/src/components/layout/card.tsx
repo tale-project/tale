@@ -169,21 +169,35 @@ CardMedia.displayName = 'CardMedia';
 
 export interface CardGridProps extends Omit<
   ComponentProps<typeof Grid>,
-  'cols' | 'sm' | 'lg'
+  'cols' | 'sm' | 'md' | 'lg' | 'xl'
 > {
   cols?: ComponentProps<typeof Grid>['cols'];
-  sm?: ComponentProps<typeof Grid>['sm'];
-  lg?: ComponentProps<typeof Grid>['lg'];
 }
 
 /**
- * Responsive card grid: 1 → 2 (sm) → 3 (lg) columns, gap-4 — the browse-and-act
- * default. A thin wrapper over `Grid`; override `cols`/`sm`/`md`/`lg`/`gap` for
- * other shapes.
+ * Responsive card grid for the browse-and-act surfaces (catalogs, apps). Columns
+ * scale with the grid's OWN width via container queries, not the viewport, so a
+ * card stays ~290px+ whether the grid sits full-bleed or in a sidebar-narrowed
+ * panel, and caps at 4 columns so cards keep breathing room (titles never
+ * truncate): 1 → 2 (≥36rem) → 3 (≥56rem) → 4 (≥80rem), gap-4. The enclosing
+ * `@container` makes the inner grid query that width. Column counts are
+ * utilities (not `Grid` props) because container breakpoints have no
+ * viewport-prop equivalent.
  */
 export const CardGrid = forwardRef<HTMLDivElement, CardGridProps>(
-  ({ cols = 1, sm = 2, lg = 3, gap = 4, ...props }, ref) => (
-    <Grid ref={ref} cols={cols} sm={sm} lg={lg} gap={gap} {...props} />
+  ({ cols = 1, gap = 4, className, ...props }, ref) => (
+    <div className="@container">
+      <Grid
+        ref={ref}
+        cols={cols}
+        gap={gap}
+        className={cn(
+          '@xl:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4',
+          className,
+        )}
+        {...props}
+      />
+    </div>
   ),
 );
 CardGrid.displayName = 'CardGrid';

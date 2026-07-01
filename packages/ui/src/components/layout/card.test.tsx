@@ -102,14 +102,20 @@ describe('Card', () => {
   });
 
   describe('CardGrid', () => {
-    it('renders a responsive grid of children', () => {
+    it('renders a container-query-responsive grid of children', () => {
       const { container } = render(
         <CardGrid>
           <Card>a</Card>
           <Card>b</Card>
         </CardGrid>,
       );
-      expect(container.firstChild).toHaveClass('grid');
+      // Outer element establishes the query container; the inner element is the
+      // grid whose columns scale with that container's width.
+      expect(container.firstChild).toHaveClass('@container');
+      expect(container.querySelector('.grid')).toHaveClass(
+        '@xl:grid-cols-2',
+        '@7xl:grid-cols-4',
+      );
     });
   });
 
