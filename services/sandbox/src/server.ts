@@ -7,7 +7,8 @@
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
 //                                        (create/get/list/destroy/exec/cancel).
 //
-// Concurrency: in-process semaphore at SANDBOX_MAX_CONCURRENT. 429 over cap.
+// Every sandbox run is a session; the per-org session budgets live platform-side
+// (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
 import {
   verify,
@@ -252,19 +253,6 @@ async function handleExecute(req: Request): Promise<Response> {
         message: `executionId ${parsed.executionId} is already in flight`,
       },
       409,
-    );
-  }
-
-  // Concurrency check AFTER validation so a malformed request can't
-  // consume a slot.
-  if (inFlightSize() >= cfg.maxConcurrent) {
-    return jsonResponse(
-      {
-        error: 'busy',
-        message: `Spawner at concurrency cap (${cfg.maxConcurrent})`,
-      },
-      429,
-      { 'retry-after': '5' },
     );
   }
 
@@ -753,7 +741,7 @@ async function main(): Promise<void> {
   }, backend);
 
   console.log(
-    `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxConcurrent=${cfg.maxConcurrent}; tokenAuth=${cfg.sandboxToken !== null ? 'on' : 'OFF (dev opt-in)'}`,
+    `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxSessions=${cfg.session.maxSessions}; tokenAuth=${cfg.sandboxToken !== null ? 'on' : 'OFF (dev opt-in)'}`,
   );
 
   // Keep the periodic sweep handles so they aren't GC'd.

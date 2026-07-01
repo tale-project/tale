@@ -355,7 +355,6 @@ export interface SpawnerConfig {
   };
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
-  maxConcurrent: number;
   // Single flat host session root. The sandbox tier is one container that rolls
   // in-place via a serialized drain — no blue/green colour, so no per-colour
   // sub-directory. Sessions created under a previous colour-rooted build are

@@ -345,7 +345,6 @@ export function loadConfig(): SpawnerConfig {
     transparentEgress,
     defaultTimeoutMs: numEnv('SANDBOX_DEFAULT_TIMEOUT_MS', 30_000, { min: 1 }),
     maxTimeoutMs: numEnv('SANDBOX_MAX_TIMEOUT_MS', 300_000, { min: 1 }),
-    maxConcurrent: numEnv('SANDBOX_MAX_CONCURRENT', 2, { min: 1 }),
     // Single flat session root — the sandbox tier no longer has a blue/green
     // colour, so there is no per-colour sub-directory to scope.
     hostSessionRoot: sessionRootBase,
