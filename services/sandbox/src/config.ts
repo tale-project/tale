@@ -388,11 +388,15 @@ export function loadConfig(): SpawnerConfig {
       { min: 4 * 1024 },
     ),
     session: {
-      // Spawner-wide cap = the GLOBAL host-capacity guard across all orgs (each
-      // agent session ≈ 2 cpu / 4 g). The default is deliberately conservative
-      // (sized for a small box); operators raise SANDBOX_MAX_SESSIONS to match a
-      // bigger host. Per-org quota is governance policy, not this host cap.
-      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 2, { min: 1 }),
+      // GLOBAL host-capacity ceiling: the max sandbox session containers this
+      // host runs at once, across all orgs (each ≈ 2 cpu / 4 g). This is the
+      // single physical cap — every sandbox is a session now. The per-org
+      // governance budgets (user / thread / workflow, in `sandbox_quota`) are
+      // fairness slices UNDER this ceiling, so the default is sized to cover one
+      // active org's summed budgets (2 + 8 + 4 = 14) with headroom. Sessions
+      // idle-stop, so this is a ceiling, not a reservation — operators on a small
+      // box lower SANDBOX_MAX_SESSIONS; on a big host, raise it.
+      maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 16, { min: 1 }),
       maxSessionsPerOrg: numEnv('SANDBOX_MAX_SESSIONS_PER_ORG', 50, { min: 1 }),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
