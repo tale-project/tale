@@ -35,7 +35,10 @@ for (const [key, loader] of Object.entries(rawModules)) {
 type T = TestConvex<typeof schema>;
 
 const ORG = 'org_admission';
-const SESSION_CAP = DEFAULT_SANDBOX_QUOTA.maxSessionsPerOrg; // 2
+// These tests exercise `ownerType: 'workflow_run'` owners, which draw from the
+// per-workflow session budget (each budget — user / thread / workflow — is
+// capped separately), so the relevant cap is `maxWorkflowSessionsPerOrg`.
+const SESSION_CAP = DEFAULT_SANDBOX_QUOTA.maxWorkflowSessionsPerOrg; // 4
 
 /** Seed an active session row that holds a per-org session slot. */
 async function seedActiveSession(t: T, ownerId: string): Promise<void> {
@@ -165,8 +168,10 @@ describe('pollAdmission verdict math', () => {
 describe('FIFO ordering', () => {
   it('admits the oldest waiter and parks the newer when one slot is open', async () => {
     const t = convexTest(schema, modules);
-    // One active session → slotsOpen = cap - 1 = 1.
-    await seedActiveSession(t, 'holder');
+    // Fill to exactly one open slot (cap - 1 active holders → slotsOpen = 1).
+    for (let i = 0; i < SESSION_CAP - 1; i++) {
+      await seedActiveSession(t, `holder_${i}`);
+    }
     // An earlier waiter is already queued (createdAt far in the past).
     await seedWaitingTicket(t, 'owner_old', 1_000);
 
@@ -183,10 +188,12 @@ describe('FIFO ordering', () => {
 describe('arrival-wake (self-heal on a fresh park)', () => {
   it('schedules a capacity wake when it parks with a slot still open', async () => {
     const t = convexTest(schema, modules);
-    // One slot open (cap 2, one active holder) and an older waiter ahead, so the
+    // One slot open (cap - 1 active holders) and an older waiter ahead, so the
     // newcomer parks even though capacity is free — exactly the state that would
     // otherwise freeze if the older head's release wake were lost.
-    await seedActiveSession(t, 'holder');
+    for (let i = 0; i < SESSION_CAP - 1; i++) {
+      await seedActiveSession(t, `holder_${i}`);
+    }
     await seedWaitingTicket(t, 'owner_old', 1_000);
 
     const res = await poll(t, 'owner_new');

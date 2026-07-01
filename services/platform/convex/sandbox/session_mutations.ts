@@ -21,7 +21,11 @@ import {
   reserveTicketArg,
   upsertWaitingTicket,
 } from './admission';
-import { readSandboxQuotaPolicy } from './quota_policy';
+import {
+  readSandboxQuotaPolicy,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+} from './quota_policy';
 import {
   isLiveSessionStatus,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -101,26 +105,29 @@ export const reserveSessionSlotAndInsert = internalMutation({
         args.organizationId,
         'session',
         ticketCreatedAt,
+        sessionBudgetForOwnerType(args.ownerType),
       );
       await claimTicket(ctx, args.ownerType, args.ownerId, now);
     } else {
       // Per-org cap (defense in depth; the spawner enforces its own cap too).
-      const { maxSessionsPerOrg } = await readSandboxQuotaPolicy(
-        ctx.db,
-        args.organizationId,
-      );
+      // The three session workloads (user agent / thread run_code / workflow)
+      // are limited separately, so count + cap only this owner's budget.
+      const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
+      const budget = sessionBudgetForOwnerType(args.ownerType);
+      const cap = sessionCapFor(budget, quota);
       let orgActive = 0;
       for (const status of ['creating', 'active'] as const) {
-        for await (const _row of ctx.db
+        for await (const row of ctx.db
           .query('sandboxSessions')
           .withIndex('by_organizationId_and_status', (q) =>
             q.eq('organizationId', args.organizationId).eq('status', status),
           )) {
+          if (sessionBudgetForOwnerType(row.ownerType) !== budget) continue;
           orgActive += 1;
-          if (orgActive >= maxSessionsPerOrg) {
+          if (orgActive >= cap) {
             throw new ConvexError({
               code: 'QUOTA_EXCEEDED',
-              message: `At most ${maxSessionsPerOrg} sandbox sessions can be active for this organization.`,
+              message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
             });
           }
         }

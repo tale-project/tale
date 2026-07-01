@@ -94,6 +94,10 @@ export function SandboxQuotaEditor({
           organizationId,
           policyType: 'sandbox_quota',
           config: {
+            // Preserve the per-thread / per-workflow session caps (not yet in
+            // this editor — tuned via config/API); only the two fields below
+            // are edited here.
+            ...savedConfig,
             maxConcurrentPerOrg: values.maxConcurrentPerOrg,
             maxSessionsPerOrg: values.maxSessionsPerOrg,
           } satisfies SandboxQuotaConfig,
@@ -112,7 +116,7 @@ export function SandboxQuotaEditor({
         throw err;
       }
     },
-    [organizationId, t, toast, upsertMutation],
+    [organizationId, savedConfig, t, toast, upsertMutation],
   );
 
   const editor = useFormEditor<SandboxQuotaForm>({ data, schema, save });

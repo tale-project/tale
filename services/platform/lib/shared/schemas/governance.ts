@@ -110,8 +110,17 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 export const sandboxQuotaConfigSchema = z.object({
   /** Max concurrent one-shot executions (run_code / workflow script steps). */
   maxConcurrentPerOrg: z.number().int().min(1).max(100).default(2),
-  /** Max concurrently-active persistent sandbox sessions (chat / agent steps). */
+  /**
+   * Max concurrently-active persistent **user** sandbox sessions (external
+   * agents — Claude Code / OpenCode, one per user). Per-thread run_code and
+   * per-workflow-run sessions have their own separate budgets below so the
+   * three workloads never compete for one pool.
+   */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  /** Max concurrently-active per-**thread** run_code sandbox sessions. */
+  maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
+  /** Max concurrently-active per-**workflow-run** sandbox sessions. */
+  maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =

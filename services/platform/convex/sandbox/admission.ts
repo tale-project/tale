@@ -20,7 +20,12 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
-import { readSandboxQuotaPolicy } from './quota_policy';
+import {
+  readSandboxQuotaPolicy,
+  type SessionBudget,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+} from './quota_policy';
 import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
 
 export type AdmissionKind = 'session' | 'oneshot';
@@ -104,15 +109,24 @@ export async function admissionInFlight(
   ctx: MutationCtx,
   organizationId: string,
   kind: AdmissionKind,
+  sessionBudget?: SessionBudget,
 ): Promise<number> {
   let inFlight = 0;
   if (kind === 'session') {
     for (const status of ['creating', 'active'] as const) {
-      for await (const _row of ctx.db
+      for await (const row of ctx.db
         .query('sandboxSessions')
         .withIndex('by_organizationId_and_status', (q) =>
           q.eq('organizationId', organizationId).eq('status', status),
         )) {
+        // Count only this budget's sessions when scoped (the three workloads
+        // are limited separately).
+        if (
+          sessionBudget !== undefined &&
+          sessionBudgetForOwnerType(row.ownerType) !== sessionBudget
+        ) {
+          continue;
+        }
         inFlight += 1;
       }
     }
@@ -136,11 +150,13 @@ export async function admissionCap(
   ctx: MutationCtx,
   organizationId: string,
   kind: AdmissionKind,
+  sessionBudget?: SessionBudget,
 ): Promise<number> {
   const policy = await readSandboxQuotaPolicy(ctx.db, organizationId);
-  return kind === 'session'
-    ? policy.maxSessionsPerOrg
-    : policy.maxConcurrentPerOrg;
+  if (kind !== 'session') return policy.maxConcurrentPerOrg;
+  return sessionBudget !== undefined
+    ? sessionCapFor(sessionBudget, policy)
+    : policy.maxSessionsPerOrg;
 }
 
 /** FIFO rank: number of WAITING tickets for this (org, kind) created strictly
@@ -154,9 +170,10 @@ export async function admissionRank(
   kind: AdmissionKind,
   createdAt: number,
   ceiling: number,
+  sessionBudget?: SessionBudget,
 ): Promise<number> {
   let rank = 0;
-  for await (const _t of ctx.db
+  for await (const t of ctx.db
     .query('sandboxAdmissionTickets')
     .withIndex('by_org_kind_status_createdAt', (q) =>
       q
@@ -165,6 +182,13 @@ export async function admissionRank(
         .eq('status', 'waiting')
         .lt('createdAt', createdAt),
     )) {
+    // Rank only against same-budget waiters (the three workloads queue apart).
+    if (
+      sessionBudget !== undefined &&
+      sessionBudgetForOwnerType(t.ownerType) !== sessionBudget
+    ) {
+      continue;
+    }
     rank += 1;
     if (rank >= ceiling) break;
   }
@@ -266,9 +290,15 @@ export async function assertFifoEligible(
   organizationId: string,
   kind: AdmissionKind,
   ticketCreatedAt: number,
+  sessionBudget?: SessionBudget,
 ): Promise<void> {
-  const cap = await admissionCap(ctx, organizationId, kind);
-  const inFlight = await admissionInFlight(ctx, organizationId, kind);
+  const cap = await admissionCap(ctx, organizationId, kind, sessionBudget);
+  const inFlight = await admissionInFlight(
+    ctx,
+    organizationId,
+    kind,
+    sessionBudget,
+  );
   const slotsOpen = cap - inFlight;
   if (slotsOpen <= 0) {
     throw new ConvexError({
@@ -282,6 +312,7 @@ export async function assertFifoEligible(
     kind,
     ticketCreatedAt,
     slotsOpen,
+    sessionBudget,
   );
   if (rank >= slotsOpen) {
     throw new ConvexError({
@@ -338,11 +369,22 @@ export const pollAdmission = internalMutation({
       now,
       createdAtForNew,
     );
-    const cap = await admissionCap(ctx, args.organizationId, args.kind);
+    // Sessions are budgeted per workload (user agent / thread / workflow).
+    const sessionBudget =
+      args.kind === 'session'
+        ? sessionBudgetForOwnerType(args.ownerType)
+        : undefined;
+    const cap = await admissionCap(
+      ctx,
+      args.organizationId,
+      args.kind,
+      sessionBudget,
+    );
     const inFlight = await admissionInFlight(
       ctx,
       args.organizationId,
       args.kind,
+      sessionBudget,
     );
     const slotsOpen = cap - inFlight;
     if (slotsOpen <= 0) return { verdict: 'wait' as const, ticketCreatedAt };
@@ -352,6 +394,7 @@ export const pollAdmission = internalMutation({
       args.kind,
       ticketCreatedAt,
       slotsOpen,
+      sessionBudget,
     );
     if (rank < slotsOpen) return { verdict: 'admit' as const, ticketCreatedAt };
     // Parking with slots OPEN means an earlier waiter SHOULD already be running
