@@ -236,3 +236,61 @@ test('uploads a document and shows it queued for indexing', async ({
     timeout: TIMEOUT.VISIBLE,
   });
 });
+
+test('accepts an ODT upload for indexing', async ({ page, org }) => {
+  // Regression for the ODT-ingestion work item: `.odt` was previously rejected
+  // as an unsupported type, so no row was ever created. Now it's an accepted
+  // document format — the deterministic, RAG-independent proof is that the
+  // upload creates a row and reaches a RAG-pipeline badge (`Queued`/`Failed`),
+  // exactly like any other accepted type on the hermetic stack. A rejected type
+  // would surface an "unsupported file type" toast and never stage a row.
+  test.skip(
+    !isMockLlmMode(),
+    'document upload status assertion targets the hermetic stack',
+  );
+
+  const { organizationId } = org;
+  await page.goto(`/dashboard/${organizationId}/documents`);
+  await expectListSettled(
+    page,
+    t('documents.upload.importDocuments'),
+    t('documents.emptyState.title'),
+  );
+
+  const suffix = Date.now().toString(36);
+  const fileName = `e2e-doc-${suffix}.odt`;
+
+  await page
+    .getByRole('button', { name: t('documents.upload.importDocuments') })
+    .click();
+  await page
+    .getByRole('menuitem', { name: t('documents.upload.fromYourDevice') })
+    .click();
+
+  const dialog = page.getByRole('dialog', {
+    name: t('documents.upload.importDocuments'),
+  });
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // A real ODF file is a zip; acceptance is gated on MIME/extension, not
+  // structure (indexing lands `Failed` with no RAG backend regardless), so an
+  // in-memory buffer with the ODT MIME type exercises the accept path.
+  await dialog.locator('#document-file-upload').setInputFiles({
+    name: fileName,
+    mimeType: 'application/vnd.oasis.opendocument.text',
+    buffer: Buffer.from('odt e2e'),
+  });
+  await dialog
+    .getByRole('button', { name: t('documents.upload.uploadDocuments') })
+    .click();
+
+  const docRow = page.getByRole('row').filter({ hasText: fileName });
+  await expect(docRow).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+  const ragStatusBadge = new RegExp(
+    `^(${t('documents.rag.status.queued')}|${t('documents.rag.status.failed')})$`,
+  );
+  await expect(docRow.getByText(ragStatusBadge).first()).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+});

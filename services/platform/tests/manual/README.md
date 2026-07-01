@@ -79,3 +79,11 @@ are automated by `validation.spec.ts` and live in each guide's _Boundary &
 error_ section. List behaviours (search-filter, pagination) have no dedicated
 spec; they are exercised piecemeal by the per-area specs and otherwise live in
 the manual guides.
+
+The enterprise & compliance-readiness features (per-API-key budgets, ODT
+ingestion, Entra ID SSO real-error surfacing + issuer hardening, and the
+Documentation menu link) are covered manually in the guides they belong to —
+[governance](governance.md) (F4b/B6), [knowledge](knowledge.md) (F9), [auth](auth.md)
+(F15/F16/B7), [settings](settings.md) (B5), and [navigation](navigation.md) (F11) —
+and, where hermetically testable, by new e2e cases in `governance.spec.ts`,
+`knowledge.spec.ts`, `auth.spec.ts`, and `navigation.spec.ts`.
