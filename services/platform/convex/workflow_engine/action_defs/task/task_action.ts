@@ -89,6 +89,12 @@ type TaskActionParams =
       assigneeId: string;
     }
   | {
+      operation: 'list_open_external';
+      externalSystem: string;
+      owner: string;
+      repo: string;
+    }
+  | {
       operation: 'archive';
       taskId: string;
     }
@@ -111,7 +117,7 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
   type: 'task',
   title: 'Task Operation',
   description:
-    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, archive, subtask_progress, list_dependents, list_open_for_assignee, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
+    'Create, read, and update tasks on the project board (create, get, update_status, assign, comment, archive, subtask_progress, list_dependents, list_open_for_assignee, list_open_external, upsert_external) plus the pack maintenance sweeps (sweep kinds: stale, due_soon, overdue_ladder, archivable — atomic mark-and-return, safe under repeated crons). upsert_external idempotently links an external item (e.g. a GitHub issue) to a task by (externalSystem, externalId). organizationId is read from workflow context variables.',
   parametersValidator: v.union(
     v.object({
       operation: v.literal('create'),
@@ -170,6 +176,12 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       operation: v.literal('list_open_for_assignee'),
       assigneeType: taskActorTypeValidator,
       assigneeId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('list_open_external'),
+      externalSystem: v.string(),
+      owner: v.string(),
+      repo: v.string(),
     }),
     v.object({
       operation: v.literal('archive'),
@@ -322,6 +334,19 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
           },
         );
         return { operation: 'list_open_for_assignee', tasks };
+      }
+
+      case 'list_open_external': {
+        const refs = await ctx.runQuery(
+          internal.tasks.internal_queries.listOpenExternalTaskRefs,
+          {
+            organizationId,
+            externalSystem: params.externalSystem,
+            owner: params.owner,
+            repo: params.repo,
+          },
+        );
+        return { operation: 'list_open_external', refs };
       }
 
       case 'archive': {

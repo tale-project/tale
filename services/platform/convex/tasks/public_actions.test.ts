@@ -95,6 +95,8 @@ describe('startTaskWorkflow', () => {
     expect(runActionCalls[0].args.input).toEqual({
       task: TASK,
       issueNumber: 1851,
+      owner: 'tale-project',
+      repo: 'tale',
       appConfig: {},
     });
     expect(runActionCalls[0].args.subject).toEqual({

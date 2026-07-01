@@ -15,6 +15,8 @@ import { v } from 'convex/values';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getThreadMessages } from '../threads/get_thread_messages';
+import { TERMINAL_STATUSES } from './helpers';
+import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import { taskActorTypeValidator, taskStatusValidator } from './schema';
 
 const AGENT_TASK_LIST_CAP = 200;
@@ -470,5 +472,95 @@ export const listOpenTasksForAssignee = internalQuery({
       if (rows.length >= 50) break;
     }
     return rows;
+  },
+});
+
+/** Safety ceiling for a single reconcile pass. Not a page window: it never
+ *  silently drops the tail (unlike the old issue-list `per_page:100`) — hitting
+ *  it is logged so an operator sees a board that has outgrown one pass. Set far
+ *  above any realistic open-task count for one repo. */
+const RECONCILE_REFS_CAP = 5000;
+
+/**
+ * External refs for the NON-TERMINAL tasks on a board that are bound to one
+ * repo's issues — the enumeration a task-first reconcile loops over to re-check
+ * each open task's upstream issue state (closed → done). Keyed off the board's
+ * own tasks, NOT a repository issue listing, so there is no "newest N issues"
+ * window: a task whose issue is old still gets reconciled.
+ *
+ * Range-scans just this repo's rows on `by_org_external` via the stable
+ * `owner/repo#` externalId prefix (the `#` delimiter keeps repo `tale` from
+ * matching `tale-foo`), skips archived/terminal tasks, and parses each ref into
+ * the `{ owner, repo, issueNumber }` a `get_issue` call needs (JEXL can't split
+ * a string). Terminal tasks are excluded on purpose: this pass only closes open
+ * work, never reopens (per the reconcile's non-terminal-only scope).
+ */
+export const listOpenExternalTaskRefs = internalQuery({
+  args: {
+    organizationId: v.string(),
+    externalSystem: v.string(),
+    owner: v.string(),
+    repo: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      taskId: v.id('tasks'),
+      externalId: v.string(),
+      owner: v.string(),
+      repo: v.string(),
+      issueNumber: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    // Range-scan exactly this repo's refs. Lower bound is the "owner/repo#"
+    // prefix; the exclusive upper bound bumps the trailing "#" (0x23) to the
+    // next byte "$" (0x24), so the scan spans every "owner/repo#<n>" ref and
+    // stops before any other key — a sibling repo like "owner/repo-2#…" sorts
+    // outside it. ASCII-only and agnostic to the numeric suffix.
+    const prefix = `${args.owner}/${args.repo}#`;
+    const prefixEnd = `${args.owner}/${args.repo}$`;
+    const refs: Array<{
+      taskId: Doc<'tasks'>['_id'];
+      externalId: string;
+      owner: string;
+      repo: string;
+      issueNumber: number;
+    }> = [];
+    let capped = false;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_external', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('externalSystem', args.externalSystem)
+          .gte('externalId', prefix)
+          .lt('externalId', prefixEnd),
+      )) {
+      if (task.archivedAt) continue;
+      if (TERMINAL_STATUSES.has(task.status)) continue;
+      if (!task.externalId) continue;
+      const repoRef = parseRepoRef(task.externalId);
+      const issueNumber = parseIssueNumber(task.externalId);
+      // A ref that doesn't parse to owner/repo#N can't address an issue; skip it
+      // rather than feed a broken get_issue call.
+      if (!repoRef || issueNumber === null) continue;
+      refs.push({
+        taskId: task._id,
+        externalId: task.externalId,
+        owner: repoRef.owner,
+        repo: repoRef.repo,
+        issueNumber,
+      });
+      if (refs.length >= RECONCILE_REFS_CAP) {
+        capped = true;
+        break;
+      }
+    }
+    if (capped) {
+      console.warn(
+        `[reconcile] listOpenExternalTaskRefs hit the ${RECONCILE_REFS_CAP} cap for ${prefix} — some open tasks were not returned this pass`,
+      );
+    }
+    return refs;
   },
 });
