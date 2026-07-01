@@ -6,6 +6,7 @@ import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
 import { signValue } from '../sign_cookie_value';
 import type { SsoPromptMode } from '../types';
+import { redirectWithError } from './redirect_with_error';
 
 const VALID_PROMPTS: Record<string, SsoPromptMode> = {
   none: 'none',
@@ -31,6 +32,10 @@ export async function ssoAuthorizeHandler(
   ctx: ActionCtx,
   req: Request,
 ): Promise<Response> {
+  // Hoisted so the catch can bounce the failure back to the login page with a
+  // readable reason instead of painting a raw 500 (the one place a literal
+  // "Internal server error" page used to show).
+  const normalizedOrigin = normalizeOrigin(new URL(req.url).origin);
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
@@ -38,7 +43,6 @@ export async function ssoAuthorizeHandler(
     const promptParam = url.searchParams.get('prompt');
     const seamlessParam = url.searchParams.get('seamless');
     const claimsParam = url.searchParams.get('claims');
-    const normalizedOrigin = normalizeOrigin(url.origin);
     const redirectUri =
       url.searchParams.get('redirect_uri') ||
       `${normalizedOrigin}/api/sso/callback`;
@@ -139,6 +143,9 @@ export async function ssoAuthorizeHandler(
     });
   } catch (error) {
     console.error('[SSO] Authorize error:', error);
-    return new Response('Internal server error', { status: 500 });
+    // A misconfigured issuer (extractTenantId throws) or any other unhandled
+    // failure now lands readably on the login page instead of a raw 500 — the
+    // real cause is logged above for the operator.
+    return redirectWithError(normalizedOrigin, 'sso.errors.serverError');
   }
 }

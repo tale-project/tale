@@ -29,7 +29,7 @@ La pipeline est idempotente sur le hash du fichier source. Téléverser le même
 La pipeline gère les types de fichiers qui couvrent le gros de la connaissance d'org :
 
 - **Texte et code.** Markdown (`.md`), texte brut (`.txt`), code source (chaque langage que Tale colorise — voir la liste du highlighter).
-- **Documents.** PDF (`.pdf`), Word (`.docx`).
+- **Documents.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
 - **Tableurs.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
 - **Présentations.** PowerPoint (`.pptx`).
 - **Pages web.** HTML (`.html`) et la sortie rendue d'un crawl de page.

@@ -34,6 +34,13 @@ export async function mergeDuplicateLedgerRows(
     teamId: string | undefined;
     agentSlug: string | undefined;
     model: string | undefined;
+    /**
+     * Better Auth `apikey._id`, when the writer is the openai-compat path. Not
+     * part of the `by_org_user_period_team_agent_model` index, so it is matched
+     * in-memory below — only rows with the SAME `apiKeyId` (including both
+     * undefined) are merged, so a per-key row is never folded into a keyless one.
+     */
+    apiKeyId?: string | undefined;
   },
   extraKeys: ReadonlyArray<
     'characterCount' | 'audioDurationSec' | 'integrationCallCount'
@@ -52,6 +59,7 @@ export async function mergeDuplicateLedgerRows(
     );
   const allEntries = [];
   for await (const entry of dupQuery) {
+    if (entry.apiKeyId !== key.apiKeyId) continue;
     allEntries.push(entry);
   }
   if (allEntries.length <= 1) return;
@@ -229,6 +237,11 @@ export const incrementUsageLedger = internalMutation({
     model: v.optional(v.string()),
     // LLM provider (e.g. "openai"). Stored only; functionally determined by model.
     provider: v.optional(v.string()),
+    // Better Auth `apikey._id` that authenticated the request (openai-compat).
+    // Undefined for in-app chat/workflow turns. Kept distinct in the upsert so a
+    // key's usage is never merged into a keyless row for the same user/model —
+    // otherwise the per-API-key budget scope would over- or under-count.
+    apiKeyId: v.optional(v.string()),
     period: v.optional(
       v.union(v.literal('daily'), v.literal('weekly'), v.literal('monthly')),
     ),
@@ -241,7 +254,13 @@ export const incrementUsageLedger = internalMutation({
     for (const period of ALL_PERIODS) {
       const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
 
-      const existing = await ctx.db
+      // The `by_org_user_period_team_agent_model` index does not include
+      // `apiKeyId`, so filter it in-memory (mirrors the TTS provider guard): an
+      // openai-compat row (apiKeyId set) must never accumulate onto a keyless
+      // row that happens to share (org, user, period, team, agent, model), or
+      // the key's measured spend would be wrong. Distinct apiKeyIds also keep
+      // separate rows so two keys of the same user never share a bucket.
+      const candidate = await ctx.db
         .query('usageLedger')
         .withIndex('by_org_user_period_team_agent_model', (q) =>
           q
@@ -253,6 +272,8 @@ export const incrementUsageLedger = internalMutation({
             .eq('model', args.model),
         )
         .first();
+      const existing =
+        candidate && candidate.apiKeyId === args.apiKeyId ? candidate : null;
 
       if (existing) {
         await ctx.db.patch(existing._id, {
@@ -277,6 +298,7 @@ export const incrementUsageLedger = internalMutation({
           agentSlug: args.agentSlug,
           model: args.model,
           provider: args.provider,
+          apiKeyId: args.apiKeyId,
           inputTokens: args.inputTokens,
           outputTokens: args.outputTokens,
           totalTokens,
@@ -291,6 +313,7 @@ export const incrementUsageLedger = internalMutation({
           teamId: args.teamId,
           agentSlug: args.agentSlug,
           model: args.model,
+          apiKeyId: args.apiKeyId,
         });
       }
     }

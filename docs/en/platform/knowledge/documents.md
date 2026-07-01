@@ -29,7 +29,7 @@ The pipeline is idempotent on the source file's hash. Uploading the same file tw
 The pipeline handles the file types that cover the bulk of org knowledge:
 
 - **Text and code.** Markdown (`.md`), plain text (`.txt`), source code (every language Tale highlights — see the highlighter list).
-- **Documents.** PDF (`.pdf`), Word (`.docx`).
+- **Documents.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
 - **Spreadsheets.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
 - **Slides.** PowerPoint (`.pptx`).
 - **Web pages.** HTML (`.html`) and the rendered output of a page crawl.

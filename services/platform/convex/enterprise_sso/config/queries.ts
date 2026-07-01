@@ -83,7 +83,31 @@ const connectionViewValidator = v.object({
   samlSpMetadataUrl: v.union(v.string(), v.null()),
   samlAcsUrl: v.union(v.string(), v.null()),
   oidcCallbackUrl: v.union(v.string(), v.null()),
+  // Deployment env health the admin form warns on — a missing SITE_URL/secret
+  // yields an empty callback URL and a raw 500 at sign-in (the real, hard-to-
+  // debug failure). Optional so it can be absent in older/other callers.
+  deployment: v.optional(
+    v.object({
+      siteUrlSet: v.boolean(),
+      basePathSet: v.boolean(),
+      authSecretSet: v.boolean(),
+    }),
+  ),
 });
+
+/**
+ * Deployment env prerequisites for SSO. Read server-side (the client cannot see
+ * `BETTER_AUTH_SECRET`) so the admin form can warn before a live sign-in fails.
+ * `BASE_PATH` is optional (empty is valid for a root deployment), so its flag
+ * is informational — the form treats an empty BASE_PATH as fine.
+ */
+function deploymentHealth() {
+  return {
+    siteUrlSet: !!process.env.SITE_URL,
+    basePathSet: process.env.BASE_PATH !== undefined,
+    authSecretSet: !!process.env.BETTER_AUTH_SECRET,
+  };
+}
 
 function publicBase(): string | null {
   try {
@@ -175,6 +199,7 @@ export const get = query({
         samlSpMetadataUrl,
         samlAcsUrl,
         oidcCallbackUrl,
+        deployment: deploymentHealth(),
       };
     }
 
@@ -223,6 +248,7 @@ export const get = query({
       samlSpMetadataUrl,
       samlAcsUrl,
       oidcCallbackUrl,
+      deployment: deploymentHealth(),
     };
   },
 });

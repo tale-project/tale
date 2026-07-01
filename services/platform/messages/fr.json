@@ -601,7 +601,7 @@
         "step2": "Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».",
         "done": "Compris"
       },
-      "helpFeedback": "Aide et retours",
+      "documentation": "Documentation",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
       "updateAvailable": "Mise à jour disponible",
@@ -662,6 +662,32 @@
       "description": "Ton compte utilise une connexion externe. Définis un mot de passe pour te connecter également avec ton email et un mot de passe.",
       "newPassword": "Nouveau mot de passe",
       "confirmPassword": "Confirmer le mot de passe"
+    },
+    "sso": {
+      "errors": {
+        "serverError": "L’authentification unique n’a pas pu aboutir en raison d’une erreur serveur. Réessaie, ou contacte ton administration si le problème persiste.",
+        "mfaRequired": "Une authentification multifacteur est requise pour te connecter.",
+        "conditionalAccessBlocked": "La connexion a été bloquée par une stratégie d’accès conditionnel.",
+        "userNotAssigned": "Ton compte n’est pas affecté à cette application. Contacte ton administration pour demander l’accès.",
+        "silentAuthFailed": "La connexion silencieuse a échoué. Connecte-toi de manière interactive.",
+        "refreshTokenExpired": "Ta session a expiré. Reconnecte-toi.",
+        "consentRequired": "Cette application nécessite le consentement d’un administrateur avant que tu puisses te connecter.",
+        "redirectMismatch": "L’URL de redirection de connexion ne correspond pas à celle enregistrée dans Microsoft Entra ID. Demande à ton administration d’enregistrer l’URL de redirection exacte.",
+        "clientNotFound": "L’application d’authentification unique est introuvable dans l’annuaire. Demande à ton administration de vérifier l’ID client.",
+        "invalidClientSecret": "Le secret client de l’authentification unique est invalide ou expiré. Demande à ton administration de le mettre à jour.",
+        "recovery": {
+          "completeMfa": "Valide la demande multifacteur depuis ton authentificateur pour continuer.",
+          "contactAdmin": "Contacte ton administration pour obtenir l’accès.",
+          "signInInteractively": "Réessaie de te connecter et complète les éventuelles demandes.",
+          "signInAgain": "Reconnecte-toi pour continuer.",
+          "grantConsent": "Une administration doit accorder son consentement à cette application."
+        }
+      },
+      "actions": {
+        "tryAgain": "Réessayer",
+        "completeMfa": "Terminer la connexion multifacteur",
+        "contactAdminMessage": "Contacte ton administration pour résoudre ce problème."
+      }
     }
   },
   "automations": {
@@ -2557,12 +2583,12 @@
       "noTeamsAvailable": "Tu n'es membre d'aucune équipe",
       "allMembersHint": "Les documents accessibles à toute l'organisation sont disponibles pour tous les membres de l'organisation.",
       "dropZoneTitle": "Téléverser un fichier",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT jusqu'à {maxSize} Mo",
+      "dropZoneDescription": "PDF, DOCX, ODT, XLSX, CSV, TXT jusqu'à {maxSize} Mo",
       "retryUpload": "Réessayer le téléversement",
       "retry": "Réessayer",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document téléversé} other {documents téléversés}} — indexation en cours en arrière-plan",
       "unsupportedFileType": "Type de fichier non pris en charge",
-      "unsupportedFileTypeDescription": "{name} n'est pas un format pris en charge. Formats acceptés : PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "unsupportedFileTypeDescription": "{name} n'est pas un format pris en charge. Formats acceptés : PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images.",
       "extensionBlocked": "{name} : les fichiers .{ext} sont bloqués par la politique de téléversement.",
       "extensionNotAllowed": "{name} : .{ext} n'est pas autorisé. Types autorisés : {allowed}.",
       "uploadDocuments": "Téléverser"
@@ -2805,6 +2831,11 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
+      "apiKey": "Clé API",
+      "selectApiKey": "Sélectionner une clé API...",
+      "searchApiKeys": "Rechercher des clés API...",
+      "noApiKeysFound": "Aucune clé API trouvée",
+      "selectApiKeyAriaLabel": "Sélectionner une clé API",
       "saved": "Les règles de budget ont été mises à jour",
       "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
       "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
@@ -5920,6 +5951,13 @@
           "targetRoleLabel": "Attribue le rôle",
           "claimLabel": "Chemin du claim",
           "claimHelp": "Chemin pointé dans les claims du jeton, p. ex. realm_access.roles."
+        },
+        "redirectUrlLabel": "URL de redirection à enregistrer dans Entra",
+        "redirectUrlHelp": "Enregistrez exactement cette URL comme URI de redirection « Web » dans votre inscription d'application — elle doit correspondre au caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon la connexion échoue avec AADSTS50011.",
+        "deploymentWarning": {
+          "title": "Déploiement non entièrement configuré pour le SSO",
+          "callbackMissing": "L'URL de redirection est vide car SITE_URL n'est pas défini sur le serveur. La connexion SSO échouera tant qu'il ne sera pas configuré.",
+          "authSecretMissing": "BETTER_AUTH_SECRET n'est pas défini sur le serveur. La connexion SSO échouera avec une erreur serveur tant qu'il ne sera pas configuré."
         },
         "guide": {
           "title": "Guide de configuration",

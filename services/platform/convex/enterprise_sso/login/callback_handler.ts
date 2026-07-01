@@ -12,26 +12,10 @@ import {
 } from '../entra_id/error_codes';
 import { getAdapter } from '../registry';
 import { signCookieValue, verifySignedValue } from '../sign_cookie_value';
+import { redirectWithError } from './redirect_with_error';
 
 const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
-
-function redirectWithError(
-  origin: string,
-  message: string,
-  errorCode?: string,
-  recoveryKey?: string,
-): Response {
-  const basePath = process.env.BASE_PATH || '';
-  const errorUrl = new URL(`${basePath}/log-in`, origin);
-  errorUrl.searchParams.set('error', message);
-  if (errorCode) errorUrl.searchParams.set('error_code', errorCode);
-  if (recoveryKey) errorUrl.searchParams.set('recovery', recoveryKey);
-  return new Response(null, {
-    status: 302,
-    headers: { Location: errorUrl.toString() },
-  });
-}
 
 function buildAuthorizeRedirectUrl(
   origin: string,
@@ -331,6 +315,6 @@ export async function ssoCallbackHandler(
     return new Response(null, { status: 302, headers });
   } catch (error) {
     console.error('[SSO] Callback error:', error);
-    return redirectWithError(new URL(req.url).origin, 'Internal server error');
+    return redirectWithError(new URL(req.url).origin, 'sso.errors.serverError');
   }
 }

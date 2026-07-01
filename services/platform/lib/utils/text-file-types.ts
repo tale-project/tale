@@ -134,6 +134,7 @@ export const TEXT_FILE_ACCEPT = [
   '.pdf',
   '.doc',
   '.docx',
+  '.odt',
   '.ppt',
   '.pptx',
   '.xls',

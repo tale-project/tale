@@ -43,6 +43,9 @@ import { migration as appConfigToBindings } from '../versions/v0_2_88/01_app_con
 import { meta as appConfigToBindingsMeta } from '../versions/v0_2_88/01_app_config_to_bindings/meta';
 import { migration as appSchedulesPerProject } from '../versions/v0_2_88/02_app_schedules_per_project';
 import { meta as appSchedulesPerProjectMeta } from '../versions/v0_2_88/02_app_schedules_per_project/meta';
+// Reference-only (kind:'reference'): additive usageLedger.apiKeyId + apiKey
+// budget scope. Contributes meta only; never runnable.
+import { meta as apiKeyBudgetScopeMeta } from '../versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -72,6 +75,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   dropModelSyncSettingsMeta,
   appConfigToBindingsMeta,
   appSchedulesPerProjectMeta,
+  apiKeyBudgetScopeMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */

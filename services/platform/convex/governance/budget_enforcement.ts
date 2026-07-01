@@ -38,8 +38,19 @@ export interface EffectiveLimits {
   orgMaxTokens?: number;
   orgMaxCostCents?: number;
   orgMaxRequests?: number;
+  /**
+   * Per-API-key caps, resolved independently from the per-user/org tiers (an
+   * `apiKey`-scoped rule matching the request's key). Like org limits, these are
+   * an ADDITIONAL bucket checked against the key's own usage — a per-key cap
+   * binds even when the owner's user cap is higher, which is the whole point of
+   * budgeting a single credential. Undefined when no apiKey rule matched.
+   */
+  apiKeyMaxTokens?: number;
+  apiKeyMaxCostCents?: number;
+  apiKeyMaxRequests?: number;
   warningThresholdPercent?: number;
   orgWarningThresholdPercent?: number;
+  apiKeyWarningThresholdPercent?: number;
   /** Team IDs whose rules contributed to the effective limits (for aggregate checks). */
   effectiveTeamIds: string[];
 }
@@ -47,12 +58,19 @@ export interface EffectiveLimits {
 /**
  * Collect ALL budget rules that apply to the given user/agent context.
  * Every matching rule is returned so that each one can be checked independently.
+ *
+ * `apiKeyId` is the Better Auth `apikey._id` of the credential that
+ * authenticated the request (openai-compat path). An `apiKey`-scoped rule only
+ * applies when its `apiKeyId` matches — so a request made WITHOUT an API key
+ * (in-app chat, `apiKeyId` undefined) never matches any per-key rule, and a
+ * request made WITH key A never matches key B's rule.
  */
 export function collectAllApplicableRules(
   rules: BudgetRule[],
   userId: string,
   userTeamIds: string[],
   userRole?: string,
+  apiKeyId?: string,
 ): BudgetRule[] {
   return rules.filter((r) => {
     switch (r.scope) {
@@ -62,6 +80,8 @@ export function collectAllApplicableRules(
         return r.scopeId != null && userTeamIds.includes(r.scopeId);
       case 'role':
         return userRole != null && r.scopeId === userRole;
+      case 'apiKey':
+        return apiKeyId != null && r.apiKeyId === apiKeyId;
       case 'org':
         return true;
       case 'default':
@@ -82,6 +102,10 @@ export function collectAllApplicableRules(
  * Org-scoped limits are resolved separately because they represent aggregate caps
  * that always apply in addition to per-user limits.
  *
+ * `apiKey`-scoped limits are ALSO resolved separately (like org): a per-key cap
+ * is an independent bucket checked against the authenticating key's own usage,
+ * so it binds regardless of how high the owner's user/team/org caps are.
+ *
  * For multi-team users, the most permissive (highest) team limit wins.
  */
 export function resolveEffectiveLimits(
@@ -89,6 +113,7 @@ export function resolveEffectiveLimits(
   userId: string,
   userTeamIds: string[],
   userRole?: string,
+  apiKeyId?: string,
 ): EffectiveLimits {
   const userRules = rules.filter(
     (r) => r.scope === 'user' && r.scopeId === userId,
@@ -104,6 +129,10 @@ export function resolveEffectiveLimits(
     : [];
   const defaultRules = rules.filter((r) => r.scope === 'default');
   const orgRules = rules.filter((r) => r.scope === 'org');
+  const apiKeyRules =
+    apiKeyId != null
+      ? rules.filter((r) => r.scope === 'apiKey' && r.apiKeyId === apiKeyId)
+      : [];
 
   // Priority tiers for per-user limits: user > team > role > default
   const tiers = [userRules, teamRules, roleRules, defaultRules];
@@ -155,6 +184,15 @@ export function resolveEffectiveLimits(
     orgRules.map((r) => r.warningThresholdPercent),
   );
 
+  // Per-API-key caps: tightest (min) across every apiKey rule that matched the
+  // request's key. Independent of the per-user/org tiers above.
+  const apiKeyMaxTokens = minNonNull(apiKeyRules.map((r) => r.maxTokens));
+  const apiKeyMaxCostCents = minNonNull(apiKeyRules.map((r) => r.maxCostCents));
+  const apiKeyMaxRequests = minNonNull(apiKeyRules.map((r) => r.maxRequests));
+  const apiKeyWarningThreshold = minNonNull(
+    apiKeyRules.map((r) => r.warningThresholdPercent),
+  );
+
   const maxTokens = resolveField('maxTokens');
   const maxCostCents = resolveField('maxCostCents');
   const maxRequests = resolveField('maxRequests');
@@ -178,8 +216,12 @@ export function resolveEffectiveLimits(
     orgMaxTokens,
     orgMaxCostCents,
     orgMaxRequests,
+    apiKeyMaxTokens,
+    apiKeyMaxCostCents,
+    apiKeyMaxRequests,
     warningThresholdPercent: resolveWarningThreshold(),
     orgWarningThresholdPercent: orgWarningThreshold,
+    apiKeyWarningThresholdPercent: apiKeyWarningThreshold,
     effectiveTeamIds,
   };
 }
@@ -265,6 +307,40 @@ async function getOrgPeriodUsage(
     .query('usageLedger')
     .withIndex('by_org_period', (q) =>
       q.eq('organizationId', organizationId).eq('periodKey', periodKey),
+    )) {
+    totals.totalTokens += entry.totalTokens;
+    totals.costEstimate += entry.costEstimate;
+    totals.requestCount += entry.requestCount;
+  }
+
+  return totals;
+}
+
+/**
+ * Query the usage attributable to a single API key for a given period. Only
+ * openai-compat rows carry `apiKeyId`, so the `by_org_apiKey_period` index
+ * returns exactly that key's spend — the measurement basis for the apiKey
+ * budget scope.
+ */
+async function getApiKeyPeriodUsage(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+  apiKeyId: string,
+  periodKey: string,
+): Promise<UsageTotals> {
+  const totals: UsageTotals = {
+    totalTokens: 0,
+    costEstimate: 0,
+    requestCount: 0,
+  };
+
+  for await (const entry of ctx.db
+    .query('usageLedger')
+    .withIndex('by_org_apiKey_period', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('apiKeyId', apiKeyId)
+        .eq('periodKey', periodKey),
     )) {
     totals.totalTokens += entry.totalTokens;
     totals.costEstimate += entry.costEstimate;
@@ -423,6 +499,8 @@ function collectWarnings(
  * independently from the most specific scope that defines it.
  *
  * Org-scoped limits are checked separately against aggregate org usage.
+ * `apiKey`-scoped limits are checked separately against the authenticating
+ * key's own usage — an independent per-credential bucket.
  *
  * @param userTeamIds - the user's team memberships (not the agent's teams).
  *   Team budget rules apply when the user belongs to that team.
@@ -436,6 +514,9 @@ function collectWarnings(
  *   request-count axis. TTS callers pass 1 so an admin who set
  *   `maxRequests` for the period sees parallel chunks honour the cap.
  *   LLM callers leave at 0.
+ * @param apiKeyId - the Better Auth `apikey._id` that authenticated the request
+ *   (openai-compat path). When set, per-key budget rules matching this id are
+ *   enforced against the key's own usage. Undefined for in-app callers (no key).
  */
 export async function checkBudget(
   ctx: GenericQueryCtx<DataModel>,
@@ -445,6 +526,7 @@ export async function checkBudget(
   userRole?: string,
   prospectiveCostCents: number = 0,
   prospectiveRequests: number = 0,
+  apiKeyId?: string,
 ): Promise<BudgetCheckResult> {
   const config = await readPolicyConfig<BudgetConfig>(
     ctx,
@@ -461,6 +543,7 @@ export async function checkBudget(
     userId,
     userTeamIds,
     userRole,
+    apiKeyId,
   );
 
   if (applicableRules.length === 0) {
@@ -490,7 +573,48 @@ export async function checkBudget(
       userId,
       userTeamIds,
       userRole,
+      apiKeyId,
     );
+
+    // Check per-API-key limits FIRST against the key's own usage. A per-key cap
+    // is an independent bucket: it binds even when the owner's user/team/org
+    // caps are higher (or absent), so a single credential can be throttled on
+    // its own. Only reachable when the request carried an API key AND a matching
+    // apiKey rule set a positive limit.
+    if (
+      apiKeyId != null &&
+      (limits.apiKeyMaxTokens != null ||
+        limits.apiKeyMaxCostCents != null ||
+        limits.apiKeyMaxRequests != null)
+    ) {
+      const apiKeyUsage = await getApiKeyPeriodUsage(
+        ctx,
+        organizationId,
+        apiKeyId,
+        periodKey,
+      );
+      const apiKeyRule: BudgetRule = {
+        scope: 'apiKey',
+        apiKeyId,
+        period: period,
+        maxTokens: limits.apiKeyMaxTokens,
+        maxCostCents: limits.apiKeyMaxCostCents,
+        maxRequests: limits.apiKeyMaxRequests,
+      };
+      const apiKeyViolation = checkRuleAgainstUsage(
+        apiKeyRule,
+        apiKeyUsage,
+        prospectiveCostCents,
+        prospectiveRequests,
+      );
+      if (apiKeyViolation) {
+        return {
+          ...apiKeyViolation,
+          reason: `API key ${apiKeyViolation.reason}`,
+          warnings: allWarnings.length > 0 ? allWarnings : undefined,
+        };
+      }
+    }
 
     // Check per-user limits against user's personal usage
     const userUsage = await getUserPeriodUsage(

@@ -100,7 +100,12 @@ class AuthError extends Error {
 async function authenticateRequest(
   ctx: Parameters<Parameters<typeof httpAction>[0]>[0],
   request: Request,
-): Promise<{ userId: string; email: string; name: string }> {
+): Promise<{
+  userId: string;
+  email: string;
+  name: string;
+  apiKeyId: string | undefined;
+}> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new AuthError('Missing or invalid Authorization header');
@@ -116,6 +121,30 @@ async function authenticateRequest(
 
   const auth = createAuth(ctx);
   try {
+    // `verifyApiKey` returns the key row (minus the secret) — including its
+    // `_id` — so the per-API-key budget scope can attribute this request's usage
+    // to the specific credential. It also runs the key's own validity + rate
+    // limit checks; `getSession` below then resolves the bound user identity.
+    let apiKeyId: string | undefined;
+    try {
+      const verified = await auth.api.verifyApiKey({ body: { key: apiKey } });
+      if (verified.valid && verified.key) {
+        // The row's primary key is exposed as `id` on the verify result.
+        apiKeyId =
+          typeof (verified.key as { id?: unknown }).id === 'string'
+            ? (verified.key as { id: string }).id
+            : undefined;
+      }
+    } catch (verifyError) {
+      // Non-fatal: a verify hiccup must not break auth (getSession is the
+      // authority for identity). The request then simply carries no key id and
+      // per-key budgets don't apply to it — fail-open on measurement only.
+      console.warn(
+        '[openai_compat] verifyApiKey failed; proceeding without key id:',
+        verifyError instanceof Error ? verifyError.message : verifyError,
+      );
+    }
+
     const session = await auth.api.getSession({
       headers: syntheticHeaders,
     });
@@ -128,6 +157,7 @@ async function authenticateRequest(
       userId: session.user.id,
       email: session.user.email ?? '',
       name: session.user.name ?? '',
+      apiKeyId,
     };
   } catch (error) {
     if (error instanceof AuthError) throw error;
@@ -279,7 +309,12 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   }
 
   // Auth
-  let user: { userId: string; email: string; name: string };
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
   try {
     user = await authenticateRequest(ctx, request);
   } catch (error) {
@@ -432,7 +467,12 @@ async function handleDirectModelMode(
     responseFormat?: string;
     conversationMessages?: Array<Record<string, unknown>>;
     orgInfo: { organizationId: string; orgSlug: string };
-    user: { userId: string; email: string; name: string };
+    user: {
+      userId: string;
+      email: string;
+      name: string;
+      apiKeyId: string | undefined;
+    };
   },
 ) {
   const created = Math.floor(Date.now() / 1000);
@@ -458,6 +498,7 @@ async function handleDirectModelMode(
         userId: opts.user.userId,
         userEmail: opts.user.email,
         userName: opts.user.name,
+        apiKeyId: opts.user.apiKeyId,
         message: opts.lastUserMessage,
         userContent: opts.userContent,
         tools: opts.tools,
@@ -743,6 +784,23 @@ function handleChatError(error: unknown, model: string): Response {
       'model_not_found',
     );
   }
+  // Budget rejection (per-API-key / user / team / org, or the fallback). The
+  // gate throws a message built by `checkRuleAgainstUsage` ("… limit reached for
+  // this <period> period …") or the "Usage limit reached for this period"
+  // fallback. Surface it as a clean 429 quota error instead of a raw 500 — the
+  // OpenAI-compatible signal for "you've exhausted your allotment". Covers every
+  // budget scope, so existing user/org budgets get the same clean shape.
+  if (
+    msg.includes('limit reached for this') ||
+    msg.includes('Usage limit reached')
+  ) {
+    return openAIErrorResponse(
+      msg,
+      'insufficient_quota',
+      429,
+      'budget_exceeded',
+    );
+  }
   if (msg.includes('Not a member') || msg.includes('disabled')) {
     return openAIErrorResponse(msg, 'permission_error', 403);
   }
@@ -771,7 +829,12 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  let user: { userId: string; email: string; name: string };
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
   try {
     user = await authenticateRequest(ctx, request);
   } catch (error) {
@@ -862,7 +925,12 @@ export const imagesGenerationsHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  let user: { userId: string; email: string; name: string };
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
   try {
     user = await authenticateRequest(ctx, request);
   } catch (error) {
@@ -941,6 +1009,7 @@ export const imagesGenerationsHandler = httpAction(async (ctx, request) => {
         userId: user.userId,
         userEmail: user.email,
         userName: user.name,
+        apiKeyId: user.apiKeyId,
         prompt,
         n: typeof body.n === 'number' ? body.n : undefined,
         responseFormat: body.response_format,

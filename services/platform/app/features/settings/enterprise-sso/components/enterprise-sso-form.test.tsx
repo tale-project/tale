@@ -439,3 +439,59 @@ describe('EnterpriseSsoForm validation + save', () => {
     ]);
   });
 });
+
+describe('EnterpriseSsoForm deployment warnings + redirect URL (A2.1)', () => {
+  it('shows the redirect URL up-front for an OIDC connection', () => {
+    renderForm(connectedOidc);
+    // The dedicated "Redirect URL to register in Entra" field renders the
+    // callback URL admins must paste into the IdP (not buried in the guide).
+    expect(
+      screen.getByText(/redirect url to register in entra/i),
+    ).toBeInTheDocument();
+    const redirectUrls = screen.getAllByText(
+      'https://app.example.com/api/sso/callback',
+    );
+    expect(redirectUrls.length).toBeGreaterThan(0);
+  });
+
+  it('warns when the callback URL is empty (SITE_URL unset)', () => {
+    // The unconfigured fixture has oidcCallbackUrl: null → SITE_URL is unset,
+    // so the callback URL will be empty (the top cause of a failed sign-in).
+    renderForm(unconfigured);
+    expect(
+      screen.getByText(/deployment not fully configured for sso/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/site_url is not set/i)).toBeInTheDocument();
+  });
+
+  it('warns when BETTER_AUTH_SECRET is unset (server-reported)', () => {
+    renderForm({
+      ...connectedOidc,
+      deployment: {
+        siteUrlSet: true,
+        basePathSet: true,
+        authSecretSet: false,
+      },
+    });
+    expect(
+      screen.getByText(/deployment not fully configured for sso/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/better_auth_secret is not set/i),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no deployment warning when the env is healthy', () => {
+    renderForm({
+      ...connectedOidc,
+      deployment: {
+        siteUrlSet: true,
+        basePathSet: true,
+        authSecretSet: true,
+      },
+    });
+    expect(
+      screen.queryByText(/deployment not fully configured for sso/i),
+    ).not.toBeInTheDocument();
+  });
+});

@@ -29,7 +29,7 @@ Die Pipeline ist idempotent auf dem Hash der Quelldatei. Dieselbe Datei zweimal 
 Die Pipeline behandelt die Dateitypen, die das Gros des Organisations-Wissens abdecken:
 
 - **Text und Code.** Markdown (`.md`), Klartext (`.txt`), Quellcode (jede Sprache, die Tale hervorhebt — siehe die Highlighter-Liste).
-- **Dokumente.** PDF (`.pdf`), Word (`.docx`).
+- **Dokumente.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
 - **Tabellenkalkulationen.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
 - **Folien.** PowerPoint (`.pptx`).
 - **Webseiten.** HTML (`.html`) und die gerenderte Ausgabe eines Seiten-Crawls.

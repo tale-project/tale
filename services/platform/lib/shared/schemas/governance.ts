@@ -193,8 +193,16 @@ export const dataNoticeConfigSchema = z.object({
 });
 
 export const budgetRuleSchema = z.object({
-  scope: z.enum(['user', 'team', 'role', 'org', 'default']),
+  scope: z.enum(['user', 'team', 'role', 'org', 'default', 'apiKey']),
   scopeId: z.string().optional(),
+  /**
+   * Target for the `apiKey` scope: the Better Auth `apikey._id` this rule caps.
+   * A per-API-key budget binds independently of the key owner's user/team/org
+   * budget, so a single credential can carry its own spend cap. Only meaningful
+   * (and only read) when `scope === 'apiKey'`; kept as a separate field from
+   * `scopeId` so the user/team/role targeting semantics are untouched.
+   */
+  apiKeyId: z.string().optional(),
   period: z.enum(['daily', 'weekly', 'monthly']),
   maxTokens: z.number().nonnegative().optional(),
   maxCostCents: z.number().nonnegative().optional(),

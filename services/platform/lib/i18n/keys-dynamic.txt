@@ -258,3 +258,12 @@ apps.list.created
 apps.list.start
 apps.list.markDone
 apps.list.merge
+
+# Enterprise SSO sign-in failures: the authorize/callback Convex handlers set
+# the error message as a string param on the `/log-in?error=…` redirect
+# (`redirectWithError`), which the login page renders via `t(ssoError)` — a
+# runtime value the scanner can't tie back. The Entra AADSTS→message map lives
+# in convex/enterprise_sso/entra_id/error_codes.ts; the generic server-error
+# fallback (`sso.errors.serverError`) is passed as a literal from the handlers
+# but under a namespace the client-source scanner can't resolve.
+auth.sso.errors.serverError

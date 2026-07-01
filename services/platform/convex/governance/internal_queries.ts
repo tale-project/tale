@@ -115,6 +115,10 @@ export const checkBudgetForRequest = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
+    // Better Auth `apikey._id` of the credential that authenticated the request
+    // (openai-compat path). When set, per-API-key budget rules matching this id
+    // are enforced against the key's own usage. Undefined for in-app callers.
+    apiKeyId: v.optional(v.string()),
   },
   returns: v.object({
     allowed: v.boolean(),
@@ -133,6 +137,9 @@ export const checkBudgetForRequest = internalQuery({
       args.userId,
       userTeamIds,
       userRole,
+      0,
+      0,
+      args.apiKeyId,
     );
     return {
       allowed: result.allowed,

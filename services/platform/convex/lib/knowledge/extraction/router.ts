@@ -9,6 +9,7 @@ import { extname } from 'node:path';
 import type { VisionClient } from '../vision/client';
 import { extractTextFromDocxBytes } from './docx';
 import { extractTextFromImageBytes, SUPPORTED_IMAGE_EXTENSIONS } from './image';
+import { extractTextFromOdtBytes } from './odt';
 import { extractTextFromPdfBytes, type ProgressCallback } from './pdf';
 import { extractTextFromPptxBytes } from './pptx';
 import { extractTextFromTextBytes, SUPPORTED_TEXT_EXTENSIONS } from './text';
@@ -18,12 +19,14 @@ export const PDF_EXTENSIONS = new Set<string>(['.pdf']);
 export const DOCX_EXTENSIONS = new Set<string>(['.docx']);
 export const PPTX_EXTENSIONS = new Set<string>(['.pptx']);
 export const XLSX_EXTENSIONS = new Set<string>(['.xlsx']);
+export const ODT_EXTENSIONS = new Set<string>(['.odt']);
 
 export const ALL_SUPPORTED_EXTENSIONS = new Set<string>([
   ...PDF_EXTENSIONS,
   ...DOCX_EXTENSIONS,
   ...PPTX_EXTENSIONS,
   ...XLSX_EXTENSIONS,
+  ...ODT_EXTENSIONS,
   ...SUPPORTED_IMAGE_EXTENSIONS,
   ...SUPPORTED_TEXT_EXTENSIONS,
 ]);
@@ -82,6 +85,10 @@ export async function extractText(
 
   if (XLSX_EXTENSIONS.has(suffix)) {
     return extractTextFromXlsxBytes(fileBytes, filename);
+  }
+
+  if (ODT_EXTENSIONS.has(suffix)) {
+    return extractTextFromOdtBytes(fileBytes, filename, { processImages });
   }
 
   if (SUPPORTED_IMAGE_EXTENSIONS.has(suffix)) {
