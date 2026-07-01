@@ -33,6 +33,10 @@ import { readFile } from 'node:fs/promises';
 
 import { type Infer, v } from 'convex/values';
 
+import {
+  formatModelRef,
+  parseModelRef,
+} from '../../../lib/shared/utils/model-ref';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
@@ -43,6 +47,7 @@ import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForWorkflowRun,
@@ -678,6 +683,59 @@ export const runSandboxAgent = internalAction({
       integrationBindings.includes(g),
     );
 
+    // Vision polyfill (managed only): authoring an invoice transform means
+    // SEEING the invoice, but a text-only model can't. When the agent's own
+    // model lacks the `vision` tag, inject the vision MCP bridge
+    // (tale-vision-mcp) backed by the org's configured vision model — the bridge
+    // relays to the SAME gateway with the session key (no provider key enters
+    // the container), and the VK below is scoped to also allow that model. BYO
+    // brings its own credential + model, so it is never polyfilled here.
+    let visionTool = false;
+    let visionModel: string | undefined; // gateway model id the MCP server calls
+    let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+    if (!byo && modelRef && modelRef !== 'default') {
+      try {
+        const parsed = parseModelRef(modelRef);
+        const catalog = await ctx.runAction(
+          internal.providers.file_actions.getModelRoutingCatalog,
+          { organizationId: args.organizationId },
+        );
+        const agentEntry = catalog.find(
+          (c) =>
+            c.id === parsed.modelId &&
+            (parsed.providerName === undefined ||
+              c.providerName === parsed.providerName),
+        );
+        if (!(agentEntry?.tags.includes('vision') ?? false)) {
+          const vision = await resolveLanguageModel(ctx, {
+            tag: 'vision',
+            organizationId: args.organizationId,
+          });
+          visionModelRef = formatModelRef({
+            providerName: vision.modelData.providerName,
+            modelId: vision.modelData.modelId,
+          });
+          visionModel =
+            resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+          visionTool = true;
+        }
+      } catch (err) {
+        // No vision model configured (resolveLanguageModel throws) or the
+        // catalog is unavailable — skip the polyfill (the agent just can't read
+        // images this run, as today). Never fail the run over a missing
+        // convenience tool.
+        console.warn(
+          '[runSandboxAgent] vision polyfill resolution skipped:',
+          err,
+        );
+      }
+    }
+    // The session VK allows the agent's model plus (when polyfilling) the vision
+    // model the bridge calls — otherwise the gateway 403s the vision request.
+    const allowedModels = visionModelRef
+      ? [modelRef, visionModelRef]
+      : [modelRef];
+
     const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
     const execId = `${args.executionId}-${args.stepSlug}`;
     const collectDir = args.output?.collectDir ?? 'output';
@@ -1074,7 +1132,7 @@ export const runSandboxAgent = internalAction({
         if (!byo) {
           const vk = await mintVirtualKey({
             budgetCents: args.budget.maxCents,
-            allowedModels: [modelRef],
+            allowedModels,
             organizationId: args.organizationId,
             sessionId,
           });
@@ -1088,7 +1146,7 @@ export const runSandboxAgent = internalAction({
               llmGatewayKeyId: vk.keyId,
               scope: {
                 agentKind,
-                allowedModels: [modelRef],
+                allowedModels,
                 integrationGrants: brokerGrants,
                 budgetCents: args.budget.maxCents,
               },
@@ -1265,6 +1323,8 @@ export const runSandboxAgent = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           budgetDeadlineMs,
           timeoutMs: segmentTimeoutMs,
         });
@@ -1301,6 +1361,8 @@ export const runSandboxAgent = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           budgetDeadlineMs,
           timeoutMs: segmentTimeoutMs,
         });
@@ -1595,6 +1657,8 @@ export const runSandboxAgent = internalAction({
                 gatewayToken,
                 integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
               }),
+            ...(visionTool &&
+              visionModel !== undefined && { visionTool: true, visionModel }),
             budgetDeadlineMs: Math.min(
               Date.now() + SUMMARY_REENTRY_WINDOW_MS,
               hardDeadlineMs,

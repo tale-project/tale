@@ -21,6 +21,10 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import {
+  formatModelRef,
+  parseModelRef,
+} from '../../../lib/shared/utils/model-ref';
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
@@ -61,6 +65,11 @@ import {
 } from '../../node_only/sandbox/token_pool_select';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import {
+  type ResolvedLanguageModel,
+  resolveLanguageModel,
+  resolveLanguageModelById,
+} from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForThread,
@@ -278,6 +287,47 @@ async function stageChatAttachments(
   };
 }
 
+/**
+ * Resolve the vision model that backs the image-read polyfill hook for a
+ * text-only managed agent. Prefers the agent's explicit `visionModel` (validated to be
+ * vision-capable); a missing/unresolvable/non-vision preferred model falls back
+ * to the provider registry's `vision`-tagged default (per-provider
+ * `defaults.vision`, else the first `vision`-tagged model). Throws only when NO
+ * vision model resolves at all (the caller then skips the polyfill, fail-open).
+ */
+async function resolveVisionModel(
+  ctx: ActionCtx,
+  opts: { organizationId: string; preferredRef?: string },
+): Promise<ResolvedLanguageModel> {
+  if (opts.preferredRef && opts.preferredRef !== 'default') {
+    const parsed = parseModelRef(opts.preferredRef);
+    try {
+      const resolved = await resolveLanguageModelById(ctx, {
+        modelId: parsed.modelId,
+        ...(parsed.providerName !== undefined && {
+          providerName: parsed.providerName,
+        }),
+        organizationId: opts.organizationId,
+      });
+      if (resolved.modelData.tags.includes('vision')) return resolved;
+      // Operator configured a model that can't see images — warn and fall back
+      // rather than wiring a bridge that would 404 on the first image.
+      console.warn(
+        `[runExternalAgentTurn] configured visionModel '${opts.preferredRef}' is not vision-capable; using the vision-tagged default instead`,
+      );
+    } catch (err) {
+      console.warn(
+        `[runExternalAgentTurn] configured visionModel '${opts.preferredRef}' did not resolve; using the vision-tagged default instead:`,
+        err,
+      );
+    }
+  }
+  return resolveLanguageModel(ctx, {
+    tag: 'vision',
+    organizationId: opts.organizationId,
+  });
+}
+
 export const runExternalAgentTurn = internalAction({
   args: {
     threadId: v.string(),
@@ -312,6 +362,10 @@ export const runExternalAgentTurn = internalAction({
      * (which integrations `integration({slug})` may invoke). Enforced
      * server-side by /api/integrations/execute; defaults to none-granted. */
     integrationBindings: v.optional(v.array(v.string())),
+    /** Per-agent vision model (managed external agents) backing the image-read
+     * polyfill hook when the agent's own model is text-only. Preferred over the
+     * provider registry's `vision`-tagged default; ignored for BYO. */
+    visionModel: v.optional(v.string()),
     /** Chat attachments uploaded with this turn. Staged into the sandbox under
      * /user/uploads/<promptMessageId>/ and referenced by absolute path in the
      * prompt so the agent can read them (the in-process path instead inlines
@@ -363,6 +417,63 @@ export const runExternalAgentTurn = internalAction({
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
+
+      // Vision polyfill (managed only): when the agent's own model lacks the
+      // `vision` tag, arm the image-read hook (tale-vision-read-hook) backed by a
+      // vision model so a text-only agent can still read images (e.g. an
+      // uploaded invoice). The model is the agent's explicit `visionModel` when
+      // set, else the org's `vision`-tagged default (see resolveVisionModel).
+      // The hook transcribes through the SAME gateway with the session key (no
+      // provider key enters the container); the VK below is scoped to also allow
+      // that model. BYO brings its own credential + model, so it is never
+      // polyfilled. (visionTool/visionModel are passed to the adapter, which
+      // sets the TALE_VISION_* env that arms the hook.)
+      let visionTool = false;
+      let visionModel: string | undefined; // gateway model id the hook transcribes with
+      let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+      if (!byo && args.modelRef && args.modelRef !== 'default') {
+        try {
+          const parsed = parseModelRef(args.modelRef);
+          const catalog = await ctx.runAction(
+            internal.providers.file_actions.getModelRoutingCatalog,
+            { organizationId: args.organizationId },
+          );
+          const agentEntry = catalog.find(
+            (c) =>
+              c.id === parsed.modelId &&
+              (parsed.providerName === undefined ||
+                c.providerName === parsed.providerName),
+          );
+          if (!(agentEntry?.tags.includes('vision') ?? false)) {
+            const vision = await resolveVisionModel(ctx, {
+              organizationId: args.organizationId,
+              ...(args.visionModel !== undefined && {
+                preferredRef: args.visionModel,
+              }),
+            });
+            visionModelRef = formatModelRef({
+              providerName: vision.modelData.providerName,
+              modelId: vision.modelData.modelId,
+            });
+            visionModel =
+              resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+            visionTool = true;
+          }
+        } catch (err) {
+          // No vision model configured (resolveLanguageModel throws) or the
+          // catalog is unavailable — skip the polyfill (the agent just can't
+          // read images this turn). Never fail the turn over a convenience tool.
+          console.warn(
+            '[runExternalAgentTurn] vision polyfill resolution skipped:',
+            err,
+          );
+        }
+      }
+      // The session VK allows the agent's model plus (when polyfilling) the
+      // vision model the bridge calls — else the gateway 403s the vision request.
+      const allowedModels = visionModelRef
+        ? [args.modelRef, visionModelRef]
+        : [args.modelRef];
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -788,7 +899,7 @@ export const runExternalAgentTurn = internalAction({
         }
         const vk = await mintVirtualKey({
           budgetCents: vkBudgetCents,
-          allowedModels: [args.modelRef],
+          allowedModels,
           organizationId: args.organizationId,
           sessionId,
         });
@@ -803,7 +914,7 @@ export const runExternalAgentTurn = internalAction({
             llmGatewayKeyId: vk.keyId,
             scope: {
               agentKind: args.agentKind,
-              allowedModels: [args.modelRef],
+              allowedModels,
               // The session's dispatch grant set = the agent's
               // integrationBindings (enforced by /api/integrations/execute).
               integrationGrants: args.integrationBindings ?? [],
@@ -1004,6 +1115,8 @@ export const runExternalAgentTurn = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the

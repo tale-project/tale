@@ -116,7 +116,7 @@ export interface ResolvedModelData {
   contextWindow?: number;
 }
 
-interface ResolvedLanguageModel {
+export interface ResolvedLanguageModel {
   languageModel: LanguageModelV3;
   modelData: ResolvedModelData;
 }

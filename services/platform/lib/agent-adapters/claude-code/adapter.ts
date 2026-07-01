@@ -199,10 +199,22 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     if (spec.browserMcp !== false) {
       // browserCdp: attach to the session's externally-launched headed Chromium
       // over CDP (read-only mirror); otherwise self-launch headless as today.
-      mcpServers.playwright =
+      const browserServer =
         spec.browserCdp === true
           ? PLAYWRIGHT_MCP_CDP_SERVER
           : PLAYWRIGHT_MCP_SERVER;
+      // Text-only agent (vision polyfill active): force the browser tools to
+      // SAVE images (screenshots) to disk instead of returning them inline
+      // (`--image-responses omit`). An inline image bypasses the Read hook and
+      // 404s on the text-only model; a saved file is read via Read, where the
+      // vision hook transcribes it. `browser_take_screenshot` still writes the
+      // file and its text result names the path, so the agent reads it as usual.
+      mcpServers.playwright = spec.visionTool
+        ? {
+            ...browserServer,
+            args: [...browserServer.args, '--image-responses', 'omit'],
+          }
+        : browserServer;
       // Human takeover only applies to the live headed browser (browserCdp) —
       // that's the one a human can drive via x11vnc. The self-launched headless
       // browser has no VNC surface, so the tool would be a dead end there.
@@ -276,6 +288,21 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       env.ANTHROPIC_BASE_URL = `${spec.gateway.baseUrl}/anthropic`;
       env.ANTHROPIC_AUTH_TOKEN = spec.gateway.token;
       env.ANTHROPIC_API_KEY = '';
+    }
+    if (spec.visionTool && spec.gateway && spec.visionModel) {
+      // Vision polyfill (managed, text-only model): the `tale-vision-read-hook`
+      // PreToolUse hook (registered globally in managed-settings.json) fires on
+      // every Read but self-gates on TALE_VISION_MODEL — set here ONLY for a
+      // text-only agent. When an image is Read, the hook transcribes it via the
+      // gateway's vision model with the SESSION KEY (no provider key enters the
+      // container; the VK is scoped to also allow visionModel) and denies the
+      // native read, feeding the extracted TEXT back to the model — so an image
+      // from ANY source (attachment, download, saved screenshot) never reaches
+      // the text-only model. (Images returned INLINE by an MCP tool bypass hooks
+      // and are not covered.) Env, not MCP: the hook subprocess inherits it.
+      env.TALE_GATEWAY_URL = spec.gateway.baseUrl;
+      env.TALE_GATEWAY_TOKEN = spec.gateway.token;
+      env.TALE_VISION_MODEL = spec.visionModel;
     }
     // BYO: inject NO gateway / key / API-key-blanking env. The agent
     // authenticates with the user-injected session credentials

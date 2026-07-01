@@ -82,10 +82,29 @@ export function ensureKnowledgeDatabaseUrl(env: NodeJS.ProcessEnv): void {
 }
 
 /**
+ * LLM-gateway MANAGEMENT-plane URL for the host `bun dev` Convex backend. The
+ * gateway runs in Docker; host-run Convex mints/revokes session virtual keys and
+ * provisions providers against it via `llm_gateway_admin.ts`. A containerized
+ * Convex run resolves the compose hostname `sandbox-llm-gateway`, but the host
+ * can't — point it at the loopback port `compose.sandbox-llm-gateway.dev.yml`
+ * publishes (`127.0.0.1:8080`) so external-agent turns work with zero setup.
+ * Pushed into Convex via ORCHESTRATOR_MANAGED_KEYS. An explicit
+ * SANDBOX_LLM_GATEWAY_URL (or the pre-rename LLM_GATEWAY_URL) wins.
+ *
+ * This is the management plane only; the in-container DATA-plane URL
+ * (EXTERNAL_AGENT_GATEWAY_URL) stays the `sandbox-llm-gateway` alias — the agent
+ * container reaches the gateway over the sandbox network, not loopback.
+ */
+export function ensureSandboxLlmGatewayUrl(env: NodeJS.ProcessEnv): void {
+  if (env.SANDBOX_LLM_GATEWAY_URL || env.LLM_GATEWAY_URL) return;
+  env.SANDBOX_LLM_GATEWAY_URL = 'http://127.0.0.1:8080';
+}
+
+/**
  * The ordered secret-derivation chain: instance secret → better-auth secret →
- * WebDAV HMAC key (reused) → encryption key → knowledge-db URL. Each fills a gap
- * only; the HMAC and encryption keys necessarily derive from whatever
- * INSTANCE_SECRET resolved to.
+ * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → gateway URL.
+ * Each fills a gap only; the HMAC and encryption keys necessarily derive from
+ * whatever INSTANCE_SECRET resolved to.
  */
 export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureInstanceSecret(env);
@@ -93,6 +112,7 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureWebdavHmacKey(env);
   ensureEncryptionSecret(env);
   ensureKnowledgeDatabaseUrl(env);
+  ensureSandboxLlmGatewayUrl(env);
 }
 
 export { ensureWebdavHmacKey };

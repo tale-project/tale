@@ -1,0 +1,59 @@
+#!/bin/bash
+# tale-vision-read-hook — PreToolUse(Read) hook. For a TEXT-ONLY managed agent
+# (TALE_VISION_MODEL set on the exec env), intercept a Read of an image file:
+# transcribe it via the gateway vision model and DENY the native read, handing
+# the extracted TEXT back to the model. This stops the image from ever reaching
+# the text-only model (which 404s on image input) — regardless of where the
+# image came from (chat attachment, download, a screenshot the agent saved).
+# A no-op (allow) for every non-text-only agent and every non-image read.
+#
+# Registered in /etc/claude-code/managed-settings.json (PreToolUse: Read). It
+# self-gates on TALE_VISION_MODEL, which the platform (adapter.ts) sets ONLY for
+# a text-only managed agent, so it costs one fast process spawn on other agents'
+# reads and nothing more. It must NEVER break a normal read: it always exits 0
+# and steers only via the emitted JSON (permissionDecision), never the exit code.
+#
+# Known gap: an image returned INLINE by an MCP tool (e.g. a Playwright
+# screenshot handed back as a vision block) bypasses hooks entirely — it is in
+# the model context before any hook runs. Drive such tools to save-to-disk so
+# the image funnels through Read (and thus this hook).
+trap 'exit 0' ERR
+export LC_ALL=C.UTF-8
+
+# Fast no-op for every non-text-only agent (this hook fires on ALL Reads).
+[ -n "$TALE_VISION_MODEL" ] || exit 0
+
+payload=$(cat)
+file_path=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2> /dev/null) || exit 0
+[ -n "$file_path" ] || exit 0
+
+# Only the raster formats Claude Code would load as a vision block. Anything else
+# (text, pdf, svg, …) is read natively as usual.
+case "${file_path,,}" in
+  *.png | *.jpg | *.jpeg | *.gif | *.webp | *.bmp) ;;
+  *) exit 0 ;;
+esac
+
+# Transcribe via the gateway vision model. On success `out` is the extracted
+# text; on failure it is the diagnostic (transcribe writes errors to stderr,
+# exit 1). EITHER way we DENY the native read — the image must never reach the
+# text-only model. The `&& rc=0 || rc=$?` capture keeps a non-zero transcribe
+# from tripping the ERR trap (which would emit no deny and let the image slip
+# through). The reason string is delivered to the model on a deny.
+out=$(tale-vision-transcribe "$file_path" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then
+  reason="[Your own model cannot see images. A vision model read this image for you; its contents follow.]
+
+$out"
+else
+  reason="[Your own model cannot see images, and the vision model could not read this image: ${out:-unknown error}. Do not assume its contents.]"
+fi
+
+jq -cn --arg r "$reason" '{
+  hookSpecificOutput: {
+    hookEventName: "PreToolUse",
+    permissionDecision: "deny",
+    permissionDecisionReason: $r
+  }
+}'
+exit 0

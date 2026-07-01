@@ -85,6 +85,13 @@ export interface AgentJsonConfig {
    * denial. Absent/`false` keeps the governed default; BYO is unaffected.
    */
   nativeWebTools?: boolean;
+  /**
+   * For managed `primaryBehavior: 'external-agent'` only — the vision model that
+   * backs the `vision_read` polyfill when this agent's own model is text-only.
+   * Unset falls back to the provider registry's `vision`-tagged default; ignored
+   * for BYO and when the agent's own model already sees images.
+   */
+  visionModel?: string;
   systemInstructions?: string;
   toolNames?: string[];
   integrationBindings?: string[];

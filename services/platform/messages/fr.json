@@ -5443,6 +5443,13 @@
           "sectionDescription": "Comment cet agent accède au web.",
           "nativeLabel": "Utiliser la recherche et la récupération web natives",
           "nativeDescription": "Laisse l'agent utiliser directement les outils WebSearch et WebFetch intégrés à son runtime — idéal quand le modèle les prend en charge (par ex. OpenRouter). Désactivé, les outils web natifs sont bloqués et l'accès web doit passer par une intégration de recherche connectée (audité et facturé)."
+        },
+        "vision": {
+          "sectionTitle": "Modèle de vision",
+          "sectionDescription": "Quand le modèle propre à cet agent ne peut pas voir les images, chaque image qu'il lit est automatiquement transcrite par ce modèle de vision — via la passerelle, si bien qu'aucune clé de fournisseur n'entre dans le bac à sable. Utilisé uniquement pour les modèles purement textuels.",
+          "label": "Modèle de vision pour lire les images",
+          "autoLabel": "Utiliser la valeur par défaut de l'org",
+          "autoDescription": "Revenir au modèle de vision par défaut du fournisseur."
         }
       },
       "delegation": {

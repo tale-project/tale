@@ -659,6 +659,11 @@ export async function startAgentChat(
         ...(enforcedConfig.nativeWebTools !== undefined && {
           nativeWebTools: enforcedConfig.nativeWebTools,
         }),
+        // Per-agent vision model for the managed text-only image polyfill; the
+        // turn prefers it over the provider registry's `vision`-tagged default.
+        ...(enforcedConfig.visionModel !== undefined && {
+          visionModel: enforcedConfig.visionModel,
+        }),
         // Single mode-resolution point: every turn entry (composer send, queue
         // drain, plan approval) re-enters here and reads the thread's sticky
         // plan/act posture fresh.

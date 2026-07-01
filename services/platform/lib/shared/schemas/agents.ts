@@ -209,6 +209,22 @@ export const agentJsonSchema = z
      * default. BYO is unaffected (already native).
      */
     nativeWebTools: z.boolean().optional(),
+    /**
+     * For `primaryBehavior: 'external-agent'` with `authMode: 'managed'` only —
+     * the vision model used to polyfill image reading when this agent's own
+     * model is text-only. A text-only managed agent's image reads are
+     * intercepted by a hook that transcribes them through THIS model via the
+     * gateway (no provider key enters the sandbox). When unset the runtime falls
+     * back to the provider registry's `vision`-tagged default. Ignored for BYO
+     * (never polyfilled) and when the agent's own model already sees images.
+     */
+    visionModel: z
+      .string()
+      .min(1)
+      .refine(isValidModelRef, {
+        message: 'Invalid model ref (expected "[provider:]model-id")',
+      })
+      .optional(),
     systemInstructions: z.string().optional(),
     toolNames: z.array(z.string()).optional(),
     integrationBindings: z.array(z.string().min(1)).optional(),
@@ -456,6 +472,19 @@ export const agentJsonSchema = z
         path: ['nativeWebTools'],
         message:
           'nativeWebTools is only valid when primaryBehavior is "external-agent".',
+      });
+    }
+
+    // visionModel only applies to external-agent (the managed vision polyfill).
+    if (
+      data.visionModel !== undefined &&
+      data.primaryBehavior !== 'external-agent'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['visionModel'],
+        message:
+          'visionModel is only valid when primaryBehavior is "external-agent".',
       });
     }
 

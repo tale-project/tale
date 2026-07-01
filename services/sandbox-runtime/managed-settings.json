@@ -17,6 +17,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/tale-vision-read-hook",
+            "timeout": 75
+          }
+        ]
       }
     ],
     "PostToolUse": [
