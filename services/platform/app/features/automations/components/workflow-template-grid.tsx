@@ -24,6 +24,8 @@ import { parseWorkflowTemplates } from '../utils/workflow-templates';
 interface WorkflowTemplateGridProps {
   organizationId: string;
   integrationName?: string;
+  /** Free-text filter over template name + description (catalog page only). */
+  searchQuery?: string;
   onTemplateInstalled: (slug: string) => void;
   /**
    * Constrain the grid to its own scroll area (the create dialog). The full
@@ -58,6 +60,7 @@ function TemplateBrandChips({ integrations }: { integrations: string[] }) {
 export function WorkflowTemplateGrid({
   organizationId,
   integrationName,
+  searchQuery,
   onTemplateInstalled,
   scrollable = true,
 }: WorkflowTemplateGridProps) {
@@ -75,10 +78,16 @@ export function WorkflowTemplateGrid({
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const filteredTemplates = useMemo(
-    () => parseWorkflowTemplates(workflows, integrationName),
-    [workflows, integrationName],
-  );
+  const filteredTemplates = useMemo(() => {
+    const templates = parseWorkflowTemplates(workflows, integrationName);
+    const q = searchQuery?.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(
+      (template) =>
+        template.name.toLowerCase().includes(q) ||
+        (template.description ?? '').toLowerCase().includes(q),
+    );
+  }, [workflows, integrationName, searchQuery]);
 
   const handleSelectTemplate = useCallback(
     async (slug: string) => {
@@ -122,7 +131,13 @@ export function WorkflowTemplateGrid({
   }
 
   if (filteredTemplates.length === 0) {
-    return <Text variant="muted">{t('templates.noTemplates')}</Text>;
+    return (
+      <Text variant="muted">
+        {searchQuery?.trim()
+          ? t('search.noResults')
+          : t('templates.noTemplates')}
+      </Text>
+    );
   }
 
   return (

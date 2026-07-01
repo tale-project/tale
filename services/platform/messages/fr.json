@@ -1,6 +1,8 @@
 {
   "apps": {
     "title": "Applications",
+    "searchPlaceholder": "Rechercher des applications…",
+    "searchNoResults": "Aucune application ne correspond à votre recherche.",
     "upload": {
       "uploadApp": "Téléverser une application",
       "dialogTitle": "Téléverser une application privée",
@@ -671,8 +673,6 @@
       "metrics": "Métriques"
     },
     "catalog": {
-      "title": "Catalogue d'automatisations",
-      "subtitle": "Parcours des automatisations prêtes à l'emploi et installe-les.",
       "installed": "Automatisation installée"
     },
     "aria": {
@@ -728,7 +728,8 @@
       "createStepsHint": "Crée des étapes pour voir l'aperçu de l'automatisation, ou utilise l'assistant IA pour t'aider à démarrer."
     },
     "search": {
-      "placeholder": "Rechercher des automatisations"
+      "placeholder": "Rechercher des automatisations",
+      "noResults": "Aucune automatisation ne correspond à votre recherche."
     },
     "entityLabel": "automatisations",
     "createWithAI": "Créer une automatisation avec l'IA",
