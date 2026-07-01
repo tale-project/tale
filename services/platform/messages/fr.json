@@ -4221,7 +4221,8 @@
       "invalidUrl": "Saisis une URL HTTP ou HTTPS valide",
       "validation": {
         "nameRequired": "Le nom est requis",
-        "nameFormat": "Doit être en minuscules alphanumériques avec des traits d'union",
+        "nameTooLong": "Doit comporter au maximum {max} caractères",
+        "nameInvalid": "Uniquement des minuscules, des chiffres et des traits d'union",
         "displayNameRequired": "Le nom d'affichage est requis",
         "urlRequired": "L'URL est requise",
         "commandRequired": "La commande est requise",
@@ -4599,7 +4600,9 @@
       "discard": "Ignorer"
     },
     "errors": {
-      "saveFailed": "Échec de l'enregistrement. Réessaie."
+      "saveFailed": "Échec de l'enregistrement. Réessaie.",
+      "tooLong": "Les instructions personnalisées dépassent {max} caractères.",
+      "illegalChars": "Supprime les chevrons, les accents graves et les caractères de contrôle."
     },
     "toasts": {
       "saved": "Enregistré.",
@@ -5273,6 +5276,7 @@
       "loadingMembers": "Chargement...",
       "unknownMember": "Inconnu",
       "memberChecklistHint": "Un membre peut appartenir à plusieurs équipes. Si personne n'est sélectionné, tu seras ajouté automatiquement.",
+      "lastMemberHint": "Une équipe doit conserver au moins un membre. Supprime plutôt l'équipe pour retirer le dernier membre.",
       "description": "Crée et gère des équipes au sein de ton organisation pour un contrôle d'accès granulaire"
     },
     "agents": {

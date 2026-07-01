@@ -26,6 +26,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 
 import { type McpServerFormData, McpServerForm } from './mcp-server-form';
 import type { McpServerListItem } from './types';
@@ -115,6 +116,7 @@ export function McpServerPanel({
         console.error('[mcp-server-panel] update failed', err);
         toast({
           title: t('error'),
+          description: convexErrorMessage(err, '') || undefined,
           variant: 'destructive',
         });
       } finally {

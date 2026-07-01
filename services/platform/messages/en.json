@@ -4220,7 +4220,8 @@
       "invalidUrl": "Enter a valid HTTP or HTTPS URL",
       "validation": {
         "nameRequired": "Name is required",
-        "nameFormat": "Must be lowercase alphanumeric with hyphens",
+        "nameTooLong": "Must be at most {max} characters",
+        "nameInvalid": "Must be lowercase alphanumeric with hyphens",
         "displayNameRequired": "Display name is required",
         "urlRequired": "URL is required",
         "commandRequired": "Command is required",
@@ -4598,7 +4599,9 @@
       "discard": "Discard"
     },
     "errors": {
-      "saveFailed": "Couldn't save. Please try again."
+      "saveFailed": "Couldn't save. Please try again.",
+      "tooLong": "Custom instructions exceed {max} characters.",
+      "illegalChars": "Remove angle brackets, backticks, and control characters."
     },
     "toasts": {
       "saved": "Saved.",
@@ -5536,6 +5539,7 @@
       "loadingMembers": "Loading...",
       "unknownMember": "Unknown",
       "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically.",
+      "lastMemberHint": "A team must keep at least one member. Delete the team instead to remove the last member.",
       "description": "Create and manage teams within your organization for granular access control"
     },
     "agents": {

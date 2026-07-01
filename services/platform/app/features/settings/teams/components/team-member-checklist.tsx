@@ -17,15 +17,29 @@ interface TeamMemberChecklistProps {
   organizationId: string;
   selectedMemberIds: Set<string>;
   onToggleMember: (userId: string) => void;
+  /**
+   * Enforce the "a team must keep at least one member" constraint (disable the
+   * sole selected member's checkbox + show the hint). Only the edit flow needs
+   * this; the create flow allows 0 selected (the current user is auto-added),
+   * so it must stay off there.
+   */
+  enforceMinimumOne?: boolean;
 }
 
 export function TeamMemberChecklist({
   organizationId,
   selectedMemberIds,
   onToggleMember,
+  enforceMinimumOne = false,
 }: TeamMemberChecklistProps) {
   const { t: tSettings } = useT('settings');
   const { members: orgMembers, isLoading } = useMembers(organizationId);
+
+  // A team must keep at least one member (the backend rejects removing the
+  // last one), so the sole remaining selected member's checkbox is disabled
+  // rather than silently refusing the click with no feedback. Only enforced in
+  // the edit flow — the create flow permits 0 selected members.
+  const isLastMember = enforceMinimumOne && selectedMemberIds.size <= 1;
 
   if (isLoading) {
     return (
@@ -59,16 +73,25 @@ export function TeamMemberChecklist({
         {orgMembers.map((member: MemberOption, index: number) => {
           const isLast = index === orgMembers.length - 1;
           const isChecked = selectedMemberIds.has(member.userId);
+          // Block unchecking the only remaining member — keeping a team
+          // memberless is rejected server-side.
+          const disableUncheck = isChecked && isLastMember;
 
           return (
             <label
               key={member.userId}
-              className={`hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-3 py-2.5 transition-colors ${
-                !isLast ? 'border-border border-b' : ''
-              }`}
+              className={`flex items-center gap-2.5 px-3 py-2.5 transition-colors ${
+                disableUncheck
+                  ? 'cursor-not-allowed'
+                  : 'hover:bg-muted/50 cursor-pointer'
+              } ${!isLast ? 'border-border border-b' : ''}`}
+              title={
+                disableUncheck ? tSettings('teams.lastMemberHint') : undefined
+              }
             >
               <Checkbox
                 checked={isChecked}
+                disabled={disableUncheck}
                 onCheckedChange={() => onToggleMember(member.userId)}
               />
               <span className="flex items-center gap-2">
@@ -89,6 +112,11 @@ export function TeamMemberChecklist({
           );
         })}
       </div>
+      {isLastMember && (
+        <p className="text-muted-foreground text-xs">
+          {tSettings('teams.lastMemberHint')}
+        </p>
+      )}
     </Stack>
   );
 }

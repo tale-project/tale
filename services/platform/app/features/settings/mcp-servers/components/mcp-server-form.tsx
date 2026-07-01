@@ -8,6 +8,10 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  MCP_SERVER_NAME_MAX_LENGTH,
+  MCP_SERVER_NAME_RE,
+} from '@/convex/mcp_servers/constants';
 import { useT } from '@/lib/i18n/client';
 import { isHttpUrl } from '@/lib/utils/url';
 
@@ -133,10 +137,15 @@ export function McpServerForm({
   const validate = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       newErrors.name = t('form.validation.nameRequired');
-    } else if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && name.length > 1) {
-      newErrors.name = t('form.validation.nameFormat');
+    } else if (trimmedName.length > MCP_SERVER_NAME_MAX_LENGTH) {
+      newErrors.name = t('form.validation.nameTooLong', {
+        max: MCP_SERVER_NAME_MAX_LENGTH,
+      });
+    } else if (!MCP_SERVER_NAME_RE.test(trimmedName)) {
+      newErrors.name = t('form.validation.nameInvalid');
     }
 
     if (!displayName.trim()) {
