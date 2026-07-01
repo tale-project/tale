@@ -29,7 +29,37 @@ export interface OpenAIToolCall {
   function: { name: string; arguments: string };
 }
 
+/**
+ * Generated-image entry attached to an assistant chat message. Matches the
+ * OpenRouter / Vercel-Gateway `choices[0].message.images[]` convention (and
+ * what `fetchChatCompletionImages` already parses) so image-producing chat
+ * models surface their output instead of having it silently dropped.
+ */
+export interface OpenAIChatImage {
+  type: 'image_url';
+  image_url: { url: string };
+}
+
 type FinishReason = 'stop' | 'length' | 'tool_calls';
+
+/**
+ * Map an AI SDK `finishReason` to the OpenAI `finish_reason` enum so the
+ * completion reports what actually happened (e.g. a truncated `length` finish)
+ * instead of a hardcoded `stop`.
+ */
+export function mapFinishReason(
+  aiFinishReason: string | undefined,
+): FinishReason {
+  switch (aiFinishReason) {
+    case 'length':
+      return 'length';
+    case 'tool-calls':
+    case 'tool_calls':
+      return 'tool_calls';
+    default:
+      return 'stop';
+  }
+}
 
 interface ChatCompletionResponse {
   id: string;
@@ -42,6 +72,7 @@ interface ChatCompletionResponse {
       role: 'assistant';
       content: string | null;
       tool_calls?: OpenAIToolCall[];
+      images?: OpenAIChatImage[];
     };
     finish_reason: FinishReason;
   }>;
@@ -56,7 +87,9 @@ export function buildChatCompletion(
   created: number,
   citations: Citation[] = [],
   usage: OpenAIUsage = ZERO_USAGE,
+  opts: { finishReason?: FinishReason; images?: OpenAIChatImage[] } = {},
 ): ChatCompletionResponse {
+  const hasImages = opts.images != null && opts.images.length > 0;
   return {
     id: `chatcmpl-${id}`,
     object: 'chat.completion',
@@ -65,8 +98,12 @@ export function buildChatCompletion(
     choices: [
       {
         index: 0,
-        message: { role: 'assistant', content },
-        finish_reason: 'stop',
+        message: {
+          role: 'assistant',
+          content,
+          ...(hasImages ? { images: opts.images } : {}),
+        },
+        finish_reason: opts.finishReason ?? 'stop',
       },
     ],
     usage,
@@ -115,6 +152,7 @@ interface ChatCompletionChunkDelta {
     type?: 'function';
     function?: { name?: string; arguments?: string };
   }>;
+  images?: OpenAIChatImage[];
 }
 
 interface ChatCompletionChunk {
@@ -181,6 +219,29 @@ export function formatSSEDone(): string {
 
 export function formatSSECitations(citations: Citation[]): string {
   return `data: ${JSON.stringify({ citations })}\n\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Images generations response (OpenAI `/v1/images/generations` format)
+// ---------------------------------------------------------------------------
+
+export interface OpenAIImageDatum {
+  /** Present when `response_format: 'url'` (default). */
+  url?: string;
+  /** Present when `response_format: 'b64_json'`. */
+  b64_json?: string;
+}
+
+interface ImagesGenerationsResponse {
+  created: number;
+  data: OpenAIImageDatum[];
+}
+
+export function buildImagesGenerationsResponse(
+  created: number,
+  data: OpenAIImageDatum[],
+): ImagesGenerationsResponse {
+  return { created, data };
 }
 
 // ---------------------------------------------------------------------------

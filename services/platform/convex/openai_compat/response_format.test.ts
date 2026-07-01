@@ -5,10 +5,12 @@ import {
   buildChatCompletion,
   buildChatCompletionChunk,
   buildChatCompletionWithToolCalls,
+  buildImagesGenerationsResponse,
   buildStreamingUsageChunk,
   formatSSECitations,
   formatSSEChunk,
   formatSSEDone,
+  mapFinishReason,
   type OpenAIUsage,
 } from './response_format';
 
@@ -82,6 +84,31 @@ describe('buildChatCompletion', () => {
     });
   });
 
+  it('defaults finish_reason to stop and omits images', () => {
+    const result = buildChatCompletion('id', 'm', 'hi', 1700000000);
+    expect(result.choices[0].finish_reason).toBe('stop');
+    expect(result.choices[0].message.images).toBeUndefined();
+  });
+
+  it('carries an explicit finish_reason and generated images', () => {
+    const result = buildChatCompletion(
+      'id',
+      'm',
+      '',
+      1700000000,
+      [],
+      undefined,
+      {
+        finishReason: 'length',
+        images: [{ type: 'image_url', image_url: { url: 'https://x/a.png' } }],
+      },
+    );
+    expect(result.choices[0].finish_reason).toBe('length');
+    expect(result.choices[0].message.images).toEqual([
+      { type: 'image_url', image_url: { url: 'https://x/a.png' } },
+    ]);
+  });
+
   it('passes through custom usage values', () => {
     const usage: OpenAIUsage = {
       prompt_tokens: 100,
@@ -99,6 +126,39 @@ describe('buildChatCompletion', () => {
     );
 
     expect(result.usage).toEqual(usage);
+  });
+});
+
+describe('mapFinishReason', () => {
+  it('maps AI SDK finish reasons to the OpenAI enum', () => {
+    expect(mapFinishReason('stop')).toBe('stop');
+    expect(mapFinishReason('length')).toBe('length');
+    expect(mapFinishReason('tool-calls')).toBe('tool_calls');
+    expect(mapFinishReason('tool_calls')).toBe('tool_calls');
+  });
+
+  it('falls back to stop for unknown/undefined reasons', () => {
+    expect(mapFinishReason('content-filter')).toBe('stop');
+    expect(mapFinishReason(undefined)).toBe('stop');
+  });
+});
+
+describe('buildImagesGenerationsResponse', () => {
+  it('wraps url data in the OpenAI images shape', () => {
+    const result = buildImagesGenerationsResponse(1700000000, [
+      { url: 'https://x/a.png' },
+    ]);
+    expect(result).toEqual({
+      created: 1700000000,
+      data: [{ url: 'https://x/a.png' }],
+    });
+  });
+
+  it('carries b64_json data', () => {
+    const result = buildImagesGenerationsResponse(1700000000, [
+      { b64_json: 'AAAA' },
+    ]);
+    expect(result.data).toEqual([{ b64_json: 'AAAA' }]);
   });
 });
 

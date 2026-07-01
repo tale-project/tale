@@ -36,6 +36,7 @@ Les cookies authentifient la session navigateur ; les appels API depuis le navig
 | Agents                                                     | diverses | `/api/v1/agents/...`               | Clé API         | List, get, run.                                            |
 | Chat                                                       | diverses | `/api/v1/chat/...`                 | Clé API         | Stream de complétions chat contre un agent ou un modèle.   |
 | Compatible OpenAI                                          | POST     | `/api/v1/chat/completions`         | Clé API         | Forme Chat Completions OpenAI ; utilise les SDK existants. |
+| Compatible OpenAI                                          | POST     | `/api/v1/images/generations`       | Clé API         | Génère des images ; forme Images OpenAI.                   |
 | Compatible OpenAI                                          | GET      | `/api/v1/models`                   | Clé API         | Liste les modèles disponibles au format OpenAI.            |
 | Automatisations                                            | diverses | `/api/v1/automations/...`          | Clé API         | List, get, trigger, executions.                            |
 | Déclencheurs de workflow                                   | POST     | `/api/v1/workflows/triggers/<nom>` | Clé déclencheur | Invocations de workflow déclenchées par webhook.           |
@@ -51,6 +52,16 @@ Les formes exactes de champs pour chaque endpoint vivent dans le document OpenAP
 `POST /api/v1/chat/completions` accepte un payload en forme Chat Completions OpenAI et retourne une réponse streaming ou non en même forme. Le champ `model` est interprété comme l'ID d'agent — passe un ID d'agent pour router via les instructions, connaissances et outils de cet agent. Passe un nom de modèle brut (ex. `gpt-4o`) pour contourner les agents et appeler le fournisseur directement.
 
 Les SDK OpenAI existants marchent avec un changement : pointe l'URL de base sur `https://your-host.example.com/api/v1` et substitue la clé API. Le streaming utilise les Server-Sent Events.
+
+### Vision
+
+Pour envoyer une image, donne au message utilisateur un `content` en tableau de parties plutôt qu'une chaîne — une partie `text` plus une ou plusieurs parties `image_url`, chacune portant une URL `data:` ou une URL `https` publique. C'est la forme vision standard d'OpenAI, donc un SDK qui construit déjà des messages multimodaux n'a besoin d'aucun changement. Un `content` en chaîne simple marche toujours pour les tours en texte seul ; seule l'entrée image exige la forme tableau.
+
+### Génération d'images
+
+`POST /api/v1/images/generations` prend `{ model, prompt, n?, response_format? }` et retourne la forme Images OpenAI — `{ created, data: [...] }`. `response_format` vaut `url` (par défaut — chaque entrée est une URL de téléchargement) ou `b64_json` (chaque entrée est des octets d'image en base64) ; `n` est plafonné à 4. Appelle-le via le `images.generate` de n'importe quel SDK OpenAI.
+
+Passer un modèle de génération d'images à `/api/v1/chat/completions` marche aussi : l'image générée revient sur le message assistant sous `choices[0].message.images[]` — chacune une `image_url` — suivant la convention des passerelles capables d'images, de sorte que l'appel est facturé contre une image retournée plutôt que contre une image perdue. Pour éditer une image existante, envoie cette même requête avec une partie `text` et une partie `image_url` portant une URL `data:` à un modèle qui prend en charge l'édition ; l'image éditée revient de la même façon. Seules les URL `data:` sont lues comme entrées d'édition — Tale ne va jamais chercher une URL d'image `http` côté serveur.
 
 ## Modèle d'erreur
 
