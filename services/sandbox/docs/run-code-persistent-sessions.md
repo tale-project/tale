@@ -188,12 +188,14 @@ Properties:
   attacks the duplicate-generation and re-install behaviors, independent of the
   persistence work — so the manifest is worth shipping on the **ephemeral path
   too**, as an early, standalone improvement.
-- Each entry is identified by its **workspace path** — the same identity every
-  other file tool already uses (`file_read`, `file_list`, `file_write`,
-  `run_code`). Structured field
-  `sandboxState: { uploads[], code[], outputs[], packages{} }` where each file is
-  `{ path, size, contentType }`, plus a short human-readable rendering on the
-  result message.
+- Each entry is identified by its **absolute workspace path** — the same
+  identity every other file tool uses. Structured field
+  `sandboxState: { uploads[], code[], outputs[] }` where each file is
+  `{ path, fileId, size, contentType }` (`fileId` = storage id, the handoff
+  token to the `image` / `document_write` tools), plus a short human-readable
+  rendering on the result message. Reported on every run, success or failure.
+  (Implemented on the ephemeral path today; `packages` joins it with the
+  persistent session, which has durable installed-package state.)
 
 **Path is the file identity; the storage id is a handoff token, not a second
 identity.** The sandbox is a filesystem — the model writes scripts against

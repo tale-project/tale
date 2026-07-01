@@ -146,6 +146,49 @@ function checkPackagesAgainstPolicy(
   );
 }
 
+interface SandboxStateEntry {
+  path: string;
+  fileId: string;
+  size: number;
+  contentType: string;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Compact human-readable rendering of the sandbox-state manifest, appended to
+ * the tool-result message. The structured `sandboxState` field carries the
+ * full data (incl. every `fileId`); this is the at-a-glance summary.
+ */
+function formatSandboxState(area: {
+  uploads: SandboxStateEntry[];
+  code: SandboxStateEntry[];
+  outputs: SandboxStateEntry[];
+}): string {
+  const lines: string[] = [];
+  const render = (root: string, entries: SandboxStateEntry[]) => {
+    if (entries.length === 0) return;
+    const shown = entries.slice(0, 12);
+    const names = shown
+      .map((e) => `${e.path.slice(root.length + 1)} (${formatBytes(e.size)})`)
+      .join(', ');
+    const more =
+      entries.length > shown.length
+        ? ` … +${entries.length - shown.length} more`
+        : '';
+    lines.push(`  ${root}: ${names}${more}`);
+  };
+  render('/user/uploads', area.uploads);
+  render('/user/code', area.code);
+  render('/user/output', area.outputs);
+  if (lines.length === 0) return '';
+  return `Sandbox state (reference files by path; pass a file's fileId to the image / document_write tools):\n${lines.join('\n')}`;
+}
+
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   tool: createTool({
@@ -173,7 +216,9 @@ The sandbox sees three directories pre-populated from the thread workspace:
 - \`/user/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
 - \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
-Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
+Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
+
+Every result includes a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
@@ -506,6 +551,50 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
           ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
           : `run_code finished with status=${run.status} and no output files.`;
 
+      // Sandbox-state manifest: the current workspace files grouped by area,
+      // each with its `fileId` (storage id). Reported on every run (success
+      // OR failure) so the model always has ground truth — what it already
+      // produced (don't regenerate), what the user uploaded (edit it), and the
+      // id to hand to the image / document_write tools.
+      const sandboxState: {
+        uploads: SandboxStateEntry[];
+        code: SandboxStateEntry[];
+        outputs: SandboxStateEntry[];
+      } = { uploads: [], code: [], outputs: [] };
+      const stateRows = await ctx.runQuery(
+        internal.thread_files.internal_queries.listThreadFiles,
+        { threadId },
+      );
+      for (const e of stateRows
+        .filter(
+          (r: { organizationId: string }) =>
+            r.organizationId === organizationId,
+        )
+        .map(
+          (r: {
+            path: string;
+            storageId: string;
+            size: number;
+            contentType: string;
+            source: 'user_upload' | 'agent_write' | 'run_output';
+          }) => ({
+            entry: {
+              path: r.path,
+              fileId: r.storageId,
+              size: r.size,
+              contentType: r.contentType,
+            },
+            source: r.source,
+          }),
+        )) {
+        if (e.source === 'user_upload') sandboxState.uploads.push(e.entry);
+        else if (e.source === 'run_output') sandboxState.outputs.push(e.entry);
+        else sandboxState.code.push(e.entry);
+      }
+      const stateSummary = formatSandboxState(sandboxState);
+      const messageWithState =
+        stateSummary.length > 0 ? `${message}\n\n${stateSummary}` : message;
+
       return {
         ok: true as const,
         success,
@@ -521,7 +610,8 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
         durationMs: run.durationMs,
         files: run.files,
         ...(run.steps !== undefined && { steps: run.steps }),
-        message,
+        sandboxState,
+        message: messageWithState,
       };
     },
   }),
