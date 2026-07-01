@@ -7,15 +7,18 @@ import type {
   ApiKeyAuth,
   BasicAuth,
   OAuth2Auth,
+  SmtpAuth,
   ApiKeyAuthEncrypted,
   BasicAuthEncrypted,
   OAuth2AuthEncrypted,
+  SmtpAuthEncrypted,
 } from './types';
 
 export interface EncryptableCredentials {
   apiKeyAuth?: ApiKeyAuth;
   basicAuth?: BasicAuth;
   oauth2Auth?: OAuth2Auth;
+  smtpAuth?: SmtpAuth;
 }
 
 export async function encryptCredentials(
@@ -24,10 +27,12 @@ export async function encryptCredentials(
   apiKeyAuth?: ApiKeyAuthEncrypted;
   basicAuth?: BasicAuthEncrypted;
   oauth2Auth?: OAuth2AuthEncrypted;
+  smtpAuth?: SmtpAuthEncrypted;
 }> {
   let apiKeyAuth = undefined;
   let basicAuth = undefined;
   let oauth2Auth = undefined;
+  let smtpAuth = undefined;
 
   if (args.apiKeyAuth) {
     const keyEncrypted = await encryptString(args.apiKeyAuth.key);
@@ -41,6 +46,14 @@ export async function encryptCredentials(
     const passwordEncrypted = await encryptString(args.basicAuth.password);
     basicAuth = {
       username: args.basicAuth.username,
+      passwordEncrypted,
+    };
+  }
+
+  if (args.smtpAuth) {
+    const passwordEncrypted = await encryptString(args.smtpAuth.password);
+    smtpAuth = {
+      username: args.smtpAuth.username,
       passwordEncrypted,
     };
   }
@@ -61,5 +74,5 @@ export async function encryptCredentials(
     };
   }
 
-  return { apiKeyAuth, basicAuth, oauth2Auth };
+  return { apiKeyAuth, basicAuth, oauth2Auth, smtpAuth };
 }

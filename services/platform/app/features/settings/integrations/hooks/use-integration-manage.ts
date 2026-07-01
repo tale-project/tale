@@ -118,6 +118,7 @@ export type Integration = Record<string, unknown> & {
     requiresApproval?: boolean;
   }>;
   basicAuth?: { username?: string; password?: string; [key: string]: unknown };
+  smtpAuth?: { username?: string; password?: string; [key: string]: unknown };
   apiKeyAuth?: { key?: string; [key: string]: unknown };
   oauth2Auth?: {
     accessToken?: string;
@@ -551,6 +552,19 @@ export function useIntegrationManage(
         payload.oauth2Auth = {
           accessToken: credentials['accessToken'],
           refreshToken: credentials['refreshToken']?.trim() || undefined,
+        };
+      }
+    }
+
+    // imap_smtp: optional separate SMTP credentials (e.g. Resend). When either
+    // field is set, send a distinct smtpAuth; blank means SMTP reuses basicAuth.
+    if (integration.type === 'imap_smtp') {
+      const smtpUsername = credentials['smtpUsername']?.trim();
+      const smtpPassword = credentials['smtpPassword']?.trim();
+      if (smtpUsername || smtpPassword) {
+        payload.smtpAuth = {
+          username: smtpUsername || integration.smtpAuth?.username || '',
+          password: smtpPassword || '',
         };
       }
     }

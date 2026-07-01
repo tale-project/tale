@@ -13,14 +13,15 @@ Two surfaces let an agent reach beyond Tale. **Integrations** are first-party, O
 
 ## Communication
 
-| Integration | What it does                                         | Setup                              |
-| ----------- | ---------------------------------------------------- | ---------------------------------- |
-| **Slack**   | Read channels, send messages, react to events.       | OAuth2 from the Slack workspace.   |
-| **Teams**   | Same shape for Microsoft Teams — channels and chats. | OAuth via Microsoft Entra ID.      |
-| **Discord** | Bot-driven message send and channel read.            | Discord bot token.                 |
-| **Gmail**   | Read inbox, send mail, label.                        | OAuth via Google.                  |
-| **Outlook** | Read inbox, send mail, calendar reads.               | OAuth via Microsoft Entra ID.      |
-| **Twilio**  | SMS, voice, WhatsApp Business.                       | Twilio account SID and auth token. |
+| Integration   | What it does                                            | Setup                                 |
+| ------------- | ------------------------------------------------------- | ------------------------------------- |
+| **Slack**     | Read channels, send messages, react to events.          | OAuth2 from the Slack workspace.      |
+| **Teams**     | Same shape for Microsoft Teams — channels and chats.    | OAuth via Microsoft Entra ID.         |
+| **Discord**   | Bot-driven message send and channel read.               | Discord bot token.                    |
+| **Gmail**     | Read inbox, send mail, label.                           | OAuth via Google.                     |
+| **Outlook**   | Read inbox, send mail, calendar reads.                  | OAuth via Microsoft Entra ID.         |
+| **IMAP/SMTP** | Receive and send mail via a private mailbox — no OAuth. | IMAP + SMTP host, port, and password. |
+| **Twilio**    | SMS, voice, WhatsApp Business.                          | Twilio account SID and auth token.    |
 
 ## Storage and documents
 

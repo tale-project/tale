@@ -1,0 +1,98 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+
+import type { Integration } from '../../hooks/use-integration-manage';
+import { IntegrationCredentialsForm } from './integration-credentials-form';
+
+vi.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+// SlackSetupGuide pulls Convex queries not available here; it's never rendered
+// in these cases (non-slack), but stub it to be safe.
+vi.mock('./slack-setup-guide', () => ({ SlackSetupGuide: () => null }));
+
+type FormProps = Parameters<typeof IntegrationCredentialsForm>[0];
+
+function makeProps(integration: Integration): FormProps {
+  return {
+    integration,
+    isSql: false,
+    busy: false,
+    isSavingOAuth2: false,
+    selectedAuthMethod: 'basic_auth',
+    supportedMethods: ['basic_auth'],
+    hasMultipleAuthMethods: false,
+    hasOAuth2Config: false,
+    hasOAuth2Credentials: false,
+    oauth2Fields: {
+      authorizationUrl: '',
+      tokenUrl: '',
+      clientId: '',
+      clientSecret: '',
+      signingSecret: '',
+      scopes: '',
+    },
+    oauth2FieldsComplete: false,
+    isEditingOAuth2: false,
+    credentials: {},
+    displayBindings: ['username', 'password'],
+    editableConfigFields: [],
+    configValues: {},
+    sqlConfig: {},
+    testResult: null,
+    onAuthMethodChange: vi.fn(),
+    onCredentialChange: vi.fn(),
+    onConfigValueChange: vi.fn(),
+    onSqlConfigChange: vi.fn(),
+    onOAuth2FieldChange: vi.fn(),
+    onEditOAuth2: vi.fn(),
+    onSaveOAuth2: vi.fn(),
+    onDismissTestResult: vi.fn(),
+  };
+}
+
+function makeIntegration(type: string): Integration {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal Integration fixture
+  return {
+    _id: 'cred-1',
+    title: 'Mailbox',
+    name: type,
+    type,
+    authMethod: 'basic_auth',
+  } as Integration;
+}
+
+describe('IntegrationCredentialsForm — SMTP fields', () => {
+  it('renders optional SMTP credential fields for imap_smtp', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('imap_smtp'))}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText('integrations.manageDialog.smtpUsername'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('integrations.manageDialog.smtpPassword'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('integrations.manageDialog.smtpHint'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not render SMTP fields for a normal REST integration', () => {
+    render(
+      <IntegrationCredentialsForm
+        {...makeProps(makeIntegration('rest_api'))}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText('integrations.manageDialog.smtpUsername'),
+    ).not.toBeInTheDocument();
+  });
+});

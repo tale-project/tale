@@ -6,6 +6,7 @@ import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import { buildThreadingHeaders } from './build_threading_headers';
+import { inboundRecipientAddress } from './reply_from';
 
 export interface SendMessageViaIntegrationArgs {
   conversationId: Id<'conversations'>;
@@ -117,6 +118,14 @@ export async function sendMessageViaIntegration(
     metadata: messageMetadata,
   });
 
+  // Reply from the address the customer originally wrote to (multi-address
+  // support). The send action validates it against the sender's domain and
+  // falls back to the integration's configured From when it can't be used.
+  const replyFrom = inboundRecipientAddress(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is jsonRecord
+    conversation.metadata as Record<string, unknown> | undefined,
+  );
+
   await ctx.scheduler.runAfter(
     0,
     internal.conversations.internal_actions.sendMessageViaIntegrationAction,
@@ -131,6 +140,7 @@ export async function sendMessageViaIntegration(
       contentType: args.html ? 'HTML' : 'Text',
       inReplyTo,
       references,
+      ...(replyFrom ? { from: replyFrom } : {}),
       ...(args.attachments?.length ? { attachments: args.attachments } : {}),
     },
   );

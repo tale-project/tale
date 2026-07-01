@@ -20,6 +20,7 @@ import {
   oauth2ConfigStoredValidator,
   connectionConfigValidator,
   capabilitiesValidator,
+  smtpAuthEncryptedValidator,
   sqlConnectionConfigValidator,
 } from './validators';
 
@@ -68,6 +69,7 @@ export const createCredentials = internalMutation({
     basicAuth: v.optional(basicAuthEncryptedValidator),
     oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
     oauth2Config: v.optional(oauth2ConfigStoredValidator),
+    smtpAuth: v.optional(smtpAuthEncryptedValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
@@ -108,6 +110,7 @@ const updateCredentialsArgs = {
   basicAuth: v.optional(basicAuthEncryptedValidator),
   oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
   oauth2Config: v.optional(oauth2ConfigStoredValidator),
+  smtpAuth: v.optional(smtpAuthEncryptedValidator),
   connectionConfig: v.optional(connectionConfigValidator),
   sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   capabilities: v.optional(capabilitiesValidator),

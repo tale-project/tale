@@ -15,7 +15,7 @@ Konversationen durchlaufen drei Lebenszyklus-Zustände: **offen** (aktiv, wartet
 
 ## Kanäle, die Konversationen erzeugen
 
-Die Kanäle, die Konversationen speisen, sind dieselben Kanäle, die unter [Integrationen](/de/platform/integrations/overview) in der Kommunikations-Gruppe gelistet sind: Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio (SMS und WhatsApp). Eine installierte Kanal-Integration routet eingehenden Verkehr in den Inbox; die Routing-Regeln unter **Einstellungen > Konversationen** entscheiden, an welches Team oder welchen Agent jeder eingehende Thread landet.
+Die Kanäle, die Konversationen speisen, sind dieselben Kanäle, die unter [Integrationen](/de/platform/integrations/overview) in der Kommunikations-Gruppe gelistet sind: Slack, Microsoft Teams, Discord, Gmail, Outlook, IMAP/SMTP (beliebiges privates Postfach), Twilio (SMS und WhatsApp). Eine installierte Kanal-Integration routet eingehenden Verkehr in den Inbox; die Routing-Regeln unter **Einstellungen > Konversationen** entscheiden, an welches Team oder welchen Agent jeder eingehende Thread landet.
 
 Der Web-Chat-Kanal ist eingebaut und benötigt keine Integration; er erscheint als einbettbares Widget, das die Organisation auf ihre eigene Seite legen kann.
 

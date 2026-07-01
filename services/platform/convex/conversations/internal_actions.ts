@@ -5,8 +5,11 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
+import { isImapSmtpIntegration } from '../integrations/guards/is_imap_smtp_integration';
+import { resolveImapSmtpConnection } from '../integrations/imap_smtp_config';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { resolveReplyFrom } from './reply_from';
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 const MAX_DELIVERY_CHECK_RETRIES = 5;
 
@@ -22,6 +25,9 @@ export const sendMessageViaIntegrationAction = internalAction({
     contentType: v.optional(v.string()),
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
+    // The address the customer originally wrote to (multi-address support):
+    // reply as that address when it's on the sender's domain (imap_smtp only).
+    from: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -50,6 +56,84 @@ export const sendMessageViaIntegrationAction = internalAction({
         throw new Error(
           `Integration "${args.integrationName}" not found in organization "${args.organizationId}"`,
         );
+      }
+
+      // IMAP/SMTP mailbox integrations send via the Node SMTP action
+      // (nodemailer), not the HTTP-only connector sandbox.
+      if (isImapSmtpIntegration(integration)) {
+        const connection = await resolveImapSmtpConnection(ctx, integration);
+
+        // From resolution (multi-address): default to the configured From
+        // (connectionConfig.fromAddress) or the SMTP login, then prefer the
+        // address the customer actually wrote to (args.from) when it shares the
+        // sender's domain — so one mailbox replies as support@, billing@, etc.
+        // The domain guard avoids an unverified From the provider (e.g. Resend)
+        // would reject.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() with mailbox-specific keys
+        const connConfig = integration.connectionConfig as
+          | Record<string, unknown>
+          | undefined;
+        const fallbackFrom =
+          typeof connConfig?.fromAddress === 'string' &&
+          connConfig.fromAddress.trim() !== ''
+            ? connConfig.fromAddress.trim()
+            : connection.smtp.user;
+        const from = resolveReplyFrom(args.from, fallbackFrom);
+
+        // The conversation body is HTML unless the caller marks it text.
+        const isHtml = (args.contentType ?? 'HTML')
+          .toLowerCase()
+          .includes('html');
+
+        const smtpAttachments = args.attachments
+          ? await Promise.all(
+              args.attachments.map(async (att) => {
+                const url = await ctx.storage.getUrl(att.storageId);
+                if (!url) {
+                  throw new Error(`Attachment URL not found: ${att.storageId}`);
+                }
+                return {
+                  filename: att.fileName,
+                  contentType: att.contentType,
+                  url,
+                };
+              }),
+            )
+          : undefined;
+
+        const sendResult = await ctx.runAction(
+          internal.node_only.imap_smtp.internal_actions.sendMessage,
+          {
+            smtp: connection.smtp,
+            from,
+            to: args.to,
+            cc: args.cc,
+            subject: args.subject,
+            text: isHtml ? undefined : args.body,
+            html: isHtml ? args.body : undefined,
+            inReplyTo: args.inReplyTo,
+            references: args.references,
+            attachments: smtpAttachments,
+          },
+        );
+
+        if (!sendResult.success) {
+          throw new Error(`SMTP send failed: ${sendResult.error}`);
+        }
+
+        // SMTP acceptance is the strongest signal available (no mailbox
+        // read-back like the Gmail delivery check), so settle at 'sent'.
+        await ctx.runMutation(
+          internal.conversations.internal_mutations.updateConversationMessage,
+          {
+            messageId: args.messageId,
+            externalMessageId: sendResult.messageId,
+            deliveryState: 'sent',
+            sentAt: Date.now(),
+          },
+        );
+
+        return null;
       }
 
       const connectorConfig = integration.connector;
