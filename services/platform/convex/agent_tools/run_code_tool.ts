@@ -21,9 +21,13 @@ import {
   runCodePolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
-import { toSandboxStorageUrl } from '../lib/helpers/public_storage_url';
+import {
+  buildDownloadUrl,
+  toSandboxStorageUrl,
+} from '../lib/helpers/public_storage_url';
 import { inferStepLanguage, refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
+import { appendFilePart } from './files/helpers/append_file_part';
 import type { ToolDefinition } from './types';
 
 const RUN_CODE_MAX_STEPS = 10;
@@ -425,6 +429,30 @@ Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uplo
       };
 
       const success = run.status === 'completed';
+
+      // Surface each harvested deliverable as a downloadable chat card — the
+      // same file-card the native document tools produce — so a file produced
+      // by code is as visible as one produced by a dedicated tool (it also
+      // stays in the canvas via the `run_output` thread file). `appendFilePart`
+      // no-ops for sub-agent threads, so the `files` array below is still the
+      // fallback the parent agent reads.
+      if (success && run.files.length > 0) {
+        for (const f of run.files) {
+          try {
+            await appendFilePart(ctx, {
+              fileName: f.path,
+              mimeType: f.contentType,
+              downloadUrl: buildDownloadUrl(f.storageId, f.path),
+            });
+          } catch (err) {
+            console.warn(
+              `[run_code] appendFilePart failed for ${f.path}:`,
+              err,
+            );
+          }
+        }
+      }
+
       const emptyFilesHint = `run_code succeeded in ${run.durationMs}ms. No output files were harvested.
 
 If the script was supposed to produce a deliverable file, only paths under \`/user/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/user/code/\` are discarded when the container exits.

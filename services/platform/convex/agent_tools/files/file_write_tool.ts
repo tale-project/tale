@@ -76,6 +76,8 @@ USE THIS TO:
 - Save generated content the user should be able to download (\`landing.html\`, \`report.md\`, etc.)
 - Materialize intermediate data the next \`run_code\` call should read
 
+SANDBOX OUTPUT: a file you write here is staged at \`/user/code/<path>\` — the \`run_code\` cwd. Any **deliverable** your script then produces (an \`.xlsx\`, \`.pdf\`, chart image, …) must be written to \`/user/output/\` — the ONLY directory \`run_code\` harvests back into the thread. Files left in the cwd, \`/user/code/\`, or \`/tmp\` are discarded when the container exits. If a skill's example saves to a bare relative path like \`output.xlsx\`, rewrite it as \`/user/output/output.xlsx\`.
+
 QUOTAS:
 - ≤ 10 MB per file
 - ≤ 100 files per workspace
