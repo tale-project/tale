@@ -15,6 +15,15 @@ export const upsertThreadFile = internalMutation({
     storageId: v.id('_storage'),
     size: v.number(),
     contentType: v.string(),
+    /**
+     * SHA-256 (hex) of the bytes. When provided and it matches the existing
+     * row's `sha256` for the same `source`, the upsert is a no-op — the caller
+     * re-harvested an unchanged file (the platform re-stages prior `run_output`
+     * files into `/user/output` so scripts can read them, then the harvest
+     * re-collects them). Returning `unchanged: true` lets the caller drop the
+     * redundant blob and skip re-carding, killing the duplicate-file bug.
+     */
+    sha256: v.optional(v.string()),
     source: v.union(
       v.literal('user_upload'),
       v.literal('agent_write'),
@@ -78,6 +87,16 @@ export const upsertThreadFile = internalMutation({
 
     const now = Date.now();
     if (existing !== null) {
+      // Unchanged re-harvest: same bytes, same source → no-op. Keep the
+      // existing row + blob untouched; the caller drops the redundant new
+      // blob it just uploaded and skips re-carding.
+      if (
+        args.sha256 !== undefined &&
+        existing.sha256 === args.sha256 &&
+        existing.source === args.source
+      ) {
+        return { id: existing._id, replaced: false, unchanged: true };
+      }
       // Replace — drop the old storage blob to avoid leak.
       try {
         await ctx.storage.delete(existing.storageId);
@@ -91,9 +110,10 @@ export const upsertThreadFile = internalMutation({
         source: args.source,
         updatedAt: now,
       };
+      if (args.sha256 !== undefined) patch.sha256 = args.sha256;
       if (args.renderHint !== undefined) patch.renderHint = args.renderHint;
       await ctx.db.patch(existing._id, patch);
-      return { id: existing._id, replaced: true };
+      return { id: existing._id, replaced: true, unchanged: false };
     }
 
     const id = await ctx.db.insert('threadFiles', {
@@ -104,11 +124,12 @@ export const upsertThreadFile = internalMutation({
       size: args.size,
       contentType: args.contentType,
       source: args.source,
+      ...(args.sha256 !== undefined && { sha256: args.sha256 }),
       ...(args.renderHint !== undefined && { renderHint: args.renderHint }),
       createdAt: now,
       updatedAt: now,
     });
-    return { id, replaced: false };
+    return { id, replaced: false, unchanged: false };
   },
 });
 

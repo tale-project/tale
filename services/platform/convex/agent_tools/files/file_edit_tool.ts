@@ -19,11 +19,8 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import {
-  InvalidFilePathError,
-  inferContentType,
-  validatePath,
-} from './_shared';
+import { InvalidFilePathError, inferContentType } from './_shared';
+import { parseWorkspacePath } from './sandbox_paths';
 
 const fileEditArgs = z.object({
   path: z
@@ -31,7 +28,7 @@ const fileEditArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'POSIX-relative path of the file to edit. Must already exist in the workspace.',
+      'Absolute path under `/user/code/` of the file to edit — e.g. `/user/code/gen.py`. Must already exist.',
     ),
   old_string: z
     .string()
@@ -118,9 +115,9 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
         };
       }
 
-      let normalizedPath: string;
+      let parsed;
       try {
-        normalizedPath = validatePath(args.path);
+        parsed = parseWorkspacePath(args.path);
       } catch (err) {
         if (err instanceof InvalidFilePathError) {
           return {
@@ -132,6 +129,15 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
         }
         throw err;
       }
+      if (parsed === null || parsed.source !== 'agent_write') {
+        return {
+          ok: false as const,
+          code: 'INVALID_PATH' as const,
+          reason: 'path_wrong_root' as const,
+          message: `file_edit edits files under /user/code/ only (e.g. /user/code/gen.py).`,
+        };
+      }
+      const normalizedPath = parsed.path;
 
       const row = await ctx.runQuery(
         internal.thread_files.internal_queries.getThreadFileByPath,

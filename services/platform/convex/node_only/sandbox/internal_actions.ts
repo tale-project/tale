@@ -421,6 +421,30 @@ export const executeCode = internalAction({
     for (const f of spawnerResult.outputFiles) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId branded at the wire layer
       const storageId = f.storageId as unknown as Id<'_storage'>;
+      // Dedup: the platform re-stages prior `run_output` files into
+      // `/user/output` so scripts can read them, and the harvest re-collects
+      // everything there — so an unchanged prior output comes back every run.
+      // If a byte-identical file already exists at this path, drop the freshly
+      // uploaded blob: no duplicate fileMetadata row, no duplicate threadFile,
+      // no duplicate chat card. (First run after this ships still re-collects
+      // once, until `threadFiles.sha256` is populated below.)
+      if (args.threadId !== undefined) {
+        const existing = await ctx.runQuery(
+          internal.thread_files.internal_queries.getThreadFileByPath,
+          { threadId: args.threadId, path: `/user/output/${f.name}` },
+        );
+        if (existing !== null && existing.sha256 === f.sha256) {
+          try {
+            await ctx.storage.delete(storageId);
+          } catch (err) {
+            console.warn(
+              `[sandbox.executeCode] dedup blob delete(${f.name}) failed:`,
+              err,
+            );
+          }
+          continue;
+        }
+      }
       uploadedStorageIds.add(String(storageId));
       stagedForInsert.push({
         name: f.name,
@@ -474,16 +498,20 @@ export const executeCode = internalAction({
       contentType: string;
     }> = [];
     for (const f of insertResult.insertedFiles) {
+      // Canonical absolute workspace path — harvest names are relative to
+      // `/user/output`, which is where run_code outputs live.
+      const absPath = `/user/output/${f.name}`;
       try {
         await ctx.runMutation(
           internal.thread_files.internal_mutations.upsertThreadFile,
           {
             organizationId: args.organizationId,
             threadId: args.threadId,
-            path: f.name,
+            path: absPath,
             storageId: f.storageId,
             size: f.size,
             contentType: f.contentType,
+            sha256: f.sha256,
             source: 'run_output' as const,
           },
         );
@@ -492,7 +520,7 @@ export const executeCode = internalAction({
         // throw doesn't double-free.
         uploadedStorageIds.delete(String(f.storageId));
         upserted.push({
-          path: f.name,
+          path: absPath,
           storageId: f.storageId,
           size: f.size,
           contentType: f.contentType,

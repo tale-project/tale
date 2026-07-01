@@ -28,6 +28,7 @@ import {
 import { inferStepLanguage, refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
+import { parseWorkspacePath, relOf } from './files/sandbox_paths';
 import type { ToolDefinition } from './types';
 
 const RUN_CODE_MAX_STEPS = 10;
@@ -40,7 +41,7 @@ const runCodeArgs = z
       .max(200)
       .optional()
       .describe(
-        'Single-script mode: workspace-relative path to execute, e.g. `gen.py`. Mutually exclusive with `steps`.',
+        'Single-script mode: absolute path of a script under `/user/code`, e.g. `/user/code/gen.py`. Mutually exclusive with `steps`.',
       ),
     steps: z
       .array(z.object({ path: z.string().min(1).max(200) }))
@@ -48,7 +49,7 @@ const runCodeArgs = z
       .max(RUN_CODE_MAX_STEPS)
       .optional()
       .describe(
-        'Multi-step mode: workspace files to execute sequentially in one container. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
+        'Multi-step mode: scripts to execute sequentially in one container — each `path` is an absolute `/user/code/<script>`. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
       ),
     packages: z
       .object({
@@ -152,8 +153,8 @@ export const runCodeTool: ToolDefinition = {
 
 WORKFLOW:
 1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
-2. \`run_code({entryPath: "<script>"})\` for a one-shot
-   OR \`run_code({steps: [{path: "step_a"}, {path: "step_b"}]})\` for sequential steps sharing one container
+2. \`run_code({entryPath: "/user/code/<script>"})\` for a one-shot
+   OR \`run_code({steps: [{path: "/user/code/step_a.py"}, {path: "/user/code/step_b.py"}]})\` for sequential steps sharing one container
 3. Any file the script writes under \`/user/output/\` is harvested back into the thread workspace and appears in the canvas
 
 PACKAGES:
@@ -226,6 +227,29 @@ Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uplo
         }
         stepPaths = [args.entryPath];
       }
+      // entry/steps are absolute `/user/code/<script>` paths (what file_write
+      // returns). Resolve to the sandbox-relative form the spawner + matching
+      // use. Only `/user/code` scripts run.
+      {
+        const rels: string[] = [];
+        for (const raw of stepPaths) {
+          let parsed;
+          try {
+            parsed = parseWorkspacePath(raw);
+          } catch {
+            parsed = null;
+          }
+          if (parsed === null || parsed.source !== 'agent_write') {
+            return {
+              ok: false as const,
+              code: 'INVALID_STEP_PATH' as const,
+              message: `Step path "${raw}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
+            };
+          }
+          rels.push(parsed.rel);
+        }
+        stepPaths = rels;
+      }
       // Only `agent_write` files land in /user/code/ — they are the
       // executable surface. `user_upload` lives in /user/uploads/ and
       // `run_output` lives in /user/output/; neither is executable
@@ -235,7 +259,7 @@ Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uplo
       const knownPaths = new Set(
         workspaceFiles
           .filter((f: { source: string }) => f.source === 'agent_write')
-          .map((f: { path: string }) => f.path),
+          .map((f: { path: string }) => relOf(f.path)),
       );
       for (const p of stepPaths) {
         if (!SCRIPT_EXT_REGEX.test(p)) {
@@ -346,13 +370,16 @@ Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uplo
           };
         }
         const url = toSandboxStorageUrl(rawUrl);
+        // The stored path is the canonical absolute `/user/<root>/<rel>`; the
+        // spawner stages each source into its dir by the *relative* name.
+        const rel = relOf(wf.path);
         if (wf.source === 'run_output') {
-          priorOutputDownloadsPayload.push({ name: wf.path, url });
+          priorOutputDownloadsPayload.push({ name: rel, url });
         } else if (wf.source === 'user_upload') {
-          userUploadDownloadsPayload.push({ name: wf.path, url });
+          userUploadDownloadsPayload.push({ name: rel, url });
         } else {
-          // agent_write (default) — staged at /user/code/<path>.
-          filesPayload.push({ path: wf.path, url });
+          // agent_write (default) — staged at /user/code/<rel>.
+          filesPayload.push({ path: rel, url });
         }
       }
 
@@ -438,11 +465,14 @@ Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uplo
       // fallback the parent agent reads.
       if (success && run.files.length > 0) {
         for (const f of run.files) {
+          // The card shows the file's basename; the harvested path is the
+          // canonical absolute `/user/output/<name>`.
+          const name = f.path.split('/').pop() ?? f.path;
           try {
             await appendFilePart(ctx, {
-              fileName: f.path,
+              fileName: name,
               mimeType: f.contentType,
-              downloadUrl: buildDownloadUrl(f.storageId, f.path),
+              downloadUrl: buildDownloadUrl(f.storageId, name),
             });
           } catch (err) {
             console.warn(

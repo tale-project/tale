@@ -66,6 +66,7 @@ import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/fil
 import type * as agent_tools_files_image_tool from "../agent_tools/files/image_tool.js";
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_internal_mutations from "../agent_tools/files/internal_mutations.js";
+import type * as agent_tools_files_sandbox_paths from "../agent_tools/files/sandbox_paths.js";
 import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
@@ -956,6 +957,8 @@ import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_index 
 import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_meta from "../migrations/versions/v0_2_88/02_app_schedules_per_project/meta.js";
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index.js";
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta.js";
+import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_index from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/index.js";
+import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -1692,6 +1695,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/image_tool": typeof agent_tools_files_image_tool;
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/internal_mutations": typeof agent_tools_files_internal_mutations;
+  "agent_tools/files/sandbox_paths": typeof agent_tools_files_sandbox_paths;
   "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
@@ -2582,6 +2586,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_88/02_app_schedules_per_project/meta": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_meta;
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index;
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta;
+  "migrations/versions/v0_2_89/02_thread_files_absolute_paths/index": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_index;
+  "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

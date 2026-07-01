@@ -15,7 +15,7 @@ const fileListArgs = z.object({
     .max(200)
     .optional()
     .describe(
-      'Optional path prefix filter, e.g. `scripts/` returns only files under `scripts/`.',
+      'Optional absolute path prefix, e.g. `/user/output/` for run_code outputs, `/user/uploads/` for user uploads.',
     ),
 });
 
@@ -26,7 +26,7 @@ export const fileListTool: ToolDefinition = {
   tool: createTool({
     description: `**file_list** — list every file currently in the thread's workspace, sorted newest first.
 
-Use this to discover what files exist (user uploads, prior \`run_code\` outputs, your own writes) before reading or executing. Returns lightweight metadata only (path, size, contentType, source, updatedAt).`,
+Use this to discover what files exist (user uploads, prior \`run_code\` outputs, your own writes) before reading or executing. Returns lightweight metadata (path, fileId, size, contentType, source, updatedAt). Use \`path\` with \`file_read\` / \`run_code\`; pass \`fileId\` to the \`image\` tool (analyze) or \`document_write\`. \`source\` (\`user_upload\` / \`agent_write\` / \`run_output\`) tells you which sandbox dir a file maps to.`,
     inputSchema: fileListArgs,
     execute: async (ctx: ToolCtx, args: FileListArgs) => {
       const { organizationId, threadId } = ctx;
@@ -38,34 +38,43 @@ Use this to discover what files exist (user uploads, prior \`run_code\` outputs,
             'file_list requires a thread context (organizationId + threadId).',
         };
       }
+      const prefix = args.prefix;
+      // Stored paths are the canonical absolute `/user/<root>/…`, so an
+      // absolute prefix filters directly.
       const rows = await ctx.runQuery(
         internal.thread_files.internal_queries.listThreadFiles,
-        {
-          threadId,
-          ...(args.prefix !== undefined && { prefix: args.prefix }),
-        },
+        { threadId, ...(prefix !== undefined && { prefix }) },
       );
-      const filtered = rows.filter(
-        (r: { organizationId: string }) => r.organizationId === organizationId,
-      );
-      return {
-        ok: true as const,
-        count: filtered.length,
-        files: filtered.map(
+      const files = rows
+        .filter(
+          (r: { organizationId: string }) =>
+            r.organizationId === organizationId,
+        )
+        .map(
           (r: {
             path: string;
+            storageId: string;
             size: number;
             contentType: string;
             source: 'user_upload' | 'agent_write' | 'run_output';
             updatedAt: number;
           }) => ({
             path: r.path,
+            // Storage id handoff token — pass as `fileId` to the `image` tool
+            // (analyze) or `document_write`. `path` remains the identity for
+            // file_read/file_write/file_delete; this changes on overwrite, so
+            // use it now rather than caching it.
+            fileId: r.storageId,
             size: r.size,
             contentType: r.contentType,
             source: r.source,
             updatedAt: r.updatedAt,
           }),
-        ),
+        );
+      return {
+        ok: true as const,
+        count: files.length,
+        files,
       };
     },
   }),

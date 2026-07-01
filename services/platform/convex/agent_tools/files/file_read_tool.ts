@@ -8,7 +8,8 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { InvalidFilePathError, validatePath } from './_shared';
+import { InvalidFilePathError } from './_shared';
+import { parseWorkspacePath } from './sandbox_paths';
 
 const MAX_INLINE_BYTES = 1024 * 1024; // 1 MB inline reply cap
 
@@ -17,7 +18,9 @@ const fileReadArgs = z.object({
     .string()
     .min(1)
     .max(200)
-    .describe('Workspace-relative path of the file to read.'),
+    .describe(
+      'Absolute workspace path, e.g. `/user/output/report.pptx`, `/user/uploads/data.csv`, or `/user/code/gen.py` — the same path `run_code` uses.',
+    ),
   encoding: z
     .enum(['utf8', 'base64'])
     .optional()
@@ -45,9 +48,9 @@ Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for bi
             'file_read requires a thread context (organizationId + threadId).',
         };
       }
-      let normalizedPath: string;
+      let parsed;
       try {
-        normalizedPath = validatePath(args.path);
+        parsed = parseWorkspacePath(args.path);
       } catch (err) {
         if (err instanceof InvalidFilePathError) {
           return {
@@ -59,16 +62,24 @@ Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for bi
         }
         throw err;
       }
+      if (parsed === null) {
+        return {
+          ok: false as const,
+          code: 'INVALID_PATH' as const,
+          reason: 'path_invalid_root' as const,
+          message: `Path "${args.path}" must be an absolute workspace path under /user/uploads, /user/code, or /user/output.`,
+        };
+      }
 
       const row = await ctx.runQuery(
         internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId, path: normalizedPath },
+        { threadId, path: parsed.path },
       );
       if (row === null) {
         return {
           ok: false as const,
           code: 'NOT_FOUND' as const,
-          message: `No workspace file at path "${normalizedPath}".`,
+          message: `No workspace file at "${args.path}".`,
         };
       }
       if (row.organizationId !== organizationId) {

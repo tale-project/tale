@@ -18,11 +18,8 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import {
-  InvalidFilePathError,
-  inferContentType,
-  validatePath,
-} from './_shared';
+import { InvalidFilePathError, inferContentType } from './_shared';
+import { parseWorkspacePath } from './sandbox_paths';
 
 const RENDER_HINTS = [
   'html',
@@ -40,7 +37,7 @@ const fileWriteArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'POSIX-relative path inside the thread workspace, e.g. `scripts/gen.py` or `deck.pptx`. No leading slash, no `..`, no hidden dotfiles.',
+      'Absolute path under `/user/code/`, e.g. `/user/code/gen.py` — the workspace code dir (also the `run_code` cwd). Deliverables are produced by `run_code` into `/user/output/`, not here.',
     ),
   content: z
     .string()
@@ -95,9 +92,9 @@ The canvas (right pane) renders workspace files by extension automatically — \
             'file_write requires a thread context (organizationId + threadId).',
         };
       }
-      let normalizedPath: string;
+      let parsed;
       try {
-        normalizedPath = validatePath(args.path);
+        parsed = parseWorkspacePath(args.path);
       } catch (err) {
         if (err instanceof InvalidFilePathError) {
           return {
@@ -109,6 +106,17 @@ The canvas (right pane) renders workspace files by extension automatically — \
         }
         throw err;
       }
+      // file_write authors workspace files → `/user/code` (agent_write). It
+      // does not write user uploads or run_code outputs.
+      if (parsed === null || parsed.source !== 'agent_write') {
+        return {
+          ok: false as const,
+          code: 'INVALID_PATH' as const,
+          reason: 'path_wrong_root' as const,
+          message: `file_write writes under /user/code/ only (e.g. /user/code/gen.py). /user/output/ is produced by run_code; /user/uploads/ holds user files.`,
+        };
+      }
+      const normalizedPath = parsed.path;
       const encoding = args.encoding ?? 'utf8';
       let bytes: Uint8Array;
       try {

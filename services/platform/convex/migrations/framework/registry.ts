@@ -46,6 +46,8 @@ import { meta as appSchedulesPerProjectMeta } from '../versions/v0_2_88/02_app_s
 // Reference-only (kind:'reference'): additive usageLedger.apiKeyId + apiKey
 // budget scope. Contributes meta only; never runnable.
 import { meta as apiKeyBudgetScopeMeta } from '../versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta';
+import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_files_absolute_paths';
+import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -76,6 +78,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   appConfigToBindingsMeta,
   appSchedulesPerProjectMeta,
   apiKeyBudgetScopeMeta,
+  threadFilesAbsPathsMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
@@ -86,4 +89,5 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [dropModelSyncSettings.meta.id]: dropModelSyncSettings,
   [appConfigToBindings.meta.id]: appConfigToBindings,
   [appSchedulesPerProject.meta.id]: appSchedulesPerProject,
+  [threadFilesAbsPaths.meta.id]: threadFilesAbsPaths,
 };
