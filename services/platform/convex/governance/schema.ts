@@ -150,6 +150,11 @@ export const usageLedgerTable = defineTable({
   totalTokens: v.number(),
   costEstimate: v.number(),
   requestCount: v.number(),
+  // Better Auth `apikey._id` of the key that authenticated the request, when the
+  // usage originated from a direct model-API call (openai-compat). Undefined for
+  // in-app chat/workflow turns (no API key) and for legacy rows. Enables the
+  // per-API-key budget scope to measure spend attributable to one specific key.
+  apiKeyId: v.optional(v.string()),
   // Integration accounting — populated for rows that represent external-service
   // calls (e.g. Tavily search). integrationName is unique per provider so it
   // pairs with agentSlug for attribution. `model` is unset for integration rows.
@@ -194,7 +199,13 @@ export const usageLedgerTable = defineTable({
   // (org, agentSlug, 'YYYY-MM'). Monthly/daily/weekly periodKey formats never
   // collide, so an equality on the monthly key returns only monthly rows
   // (#users × #models × #teams for that agent-month — typically < 50 rows).
-  .index('by_org_agent_period', ['organizationId', 'agentSlug', 'periodKey']);
+  .index('by_org_agent_period', ['organizationId', 'agentSlug', 'periodKey'])
+  // Per-API-key spend for the apiKey budget scope: range over
+  // (org, apiKeyId, periodKey). Only openai-compat rows carry apiKeyId, so this
+  // index is sparse (rows with apiKeyId === undefined are excluded from an
+  // equality on a concrete key id) and returns exactly the one key's usage for
+  // the period.
+  .index('by_org_apiKey_period', ['organizationId', 'apiKeyId', 'periodKey']);
 
 /**
  * Phase 8 — eDiscovery matter grouping.

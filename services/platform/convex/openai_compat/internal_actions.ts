@@ -135,11 +135,18 @@ async function enforceBudgetAndAccess(
     userId: string;
     userEmail?: string;
     modelId: string;
+    // Better Auth `apikey._id` that authenticated the request — enables the
+    // per-API-key budget scope. Undefined only for callers without a key.
+    apiKeyId?: string;
   },
 ): Promise<void> {
   const budgetResult = await ctx.runQuery(
     internal.governance.internal_queries.checkBudgetForRequest,
-    { organizationId: args.organizationId, userId: args.userId },
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+    },
   );
   if (!budgetResult.allowed) {
     throw new Error(
@@ -214,6 +221,9 @@ export const chatDirectModel = internalAction({
     userId: v.string(),
     userEmail: v.optional(v.string()),
     userName: v.optional(v.string()),
+    // Better Auth `apikey._id` that authenticated the request (openai-compat).
+    // Threaded into the budget gate (per-key scope) and the usage-ledger write.
+    apiKeyId: v.optional(v.string()),
     message: v.string(),
     /**
      * Structured last-user-message content (OpenAI `content` parts: text +
@@ -229,13 +239,14 @@ export const chatDirectModel = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<DirectModelResult> => {
-    // Per-org budget ceiling + model-access RBAC (shared with the chat/workflow
-    // paths and the image endpoint).
+    // Per-org budget ceiling + per-API-key budget + model-access RBAC (shared
+    // with the chat/workflow paths and the image endpoint).
     await enforceBudgetAndAccess(ctx, {
       organizationId: args.organizationId,
       userId: args.userId,
       userEmail: args.userEmail,
       modelId: args.modelId,
+      apiKeyId: args.apiKeyId,
     });
 
     // Resolve model directly — no agent config. Pass orgSlug so each org
@@ -299,6 +310,7 @@ export const chatDirectModel = internalAction({
         organizationId: args.organizationId,
         userId: args.userId,
         userEmail: args.userEmail,
+        apiKeyId: args.apiKeyId,
       });
     }
 
@@ -476,6 +488,9 @@ export const chatDirectModel = internalAction({
             // No agentSlug — direct model API is not agent-bound.
             model: resolved.modelData.modelId,
             provider: resolved.modelData.providerName,
+            // Attribute this request's usage to the authenticating API key so
+            // the per-API-key budget scope can measure and enforce against it.
+            ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
           },
         )
         .catch((error) => {
@@ -535,6 +550,7 @@ async function recordImageUsageAndAudit(
     organizationId: string;
     userId?: string;
     userEmail?: string;
+    apiKeyId?: string;
     img: ApiImageResult;
   },
 ): Promise<void> {
@@ -555,6 +571,7 @@ async function recordImageUsageAndAudit(
           timestamp: Date.now(),
           model: img.modelId,
           provider: img.providerName,
+          ...(opts.apiKeyId !== undefined ? { apiKeyId: opts.apiKeyId } : {}),
         },
       )
       .catch((error) => {
@@ -599,6 +616,7 @@ async function runChatImageGeneration(
     organizationId: string;
     userId: string;
     userEmail?: string;
+    apiKeyId?: string;
   },
 ): Promise<DirectModelResult> {
   try {
@@ -616,6 +634,7 @@ async function runChatImageGeneration(
       organizationId: opts.organizationId,
       userId: opts.userId,
       userEmail: opts.userEmail,
+      apiKeyId: opts.apiKeyId,
       img,
     });
     return {
@@ -669,6 +688,7 @@ export const imagesGenerateDirect = internalAction({
     userId: v.string(),
     userEmail: v.optional(v.string()),
     userName: v.optional(v.string()),
+    apiKeyId: v.optional(v.string()),
     prompt: v.string(),
     n: v.optional(v.number()),
     responseFormat: v.optional(v.string()),
@@ -680,6 +700,7 @@ export const imagesGenerateDirect = internalAction({
       userId: args.userId,
       userEmail: args.userEmail,
       modelId: args.modelId,
+      apiKeyId: args.apiKeyId,
     });
 
     const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
@@ -708,6 +729,7 @@ export const imagesGenerateDirect = internalAction({
         organizationId: args.organizationId,
         userId: args.userId,
         userEmail: args.userEmail,
+        apiKeyId: args.apiKeyId,
         img,
       });
       const data =

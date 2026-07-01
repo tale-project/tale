@@ -186,6 +186,14 @@ export const ssoConnectionViewSchema = z.object({
   samlSpMetadataUrl: z.string().nullable(),
   samlAcsUrl: z.string().nullable(),
   oidcCallbackUrl: z.string().nullable(),
+  /** Deployment env prerequisites the admin form warns on (server-read). */
+  deployment: z
+    .object({
+      siteUrlSet: z.boolean(),
+      basePathSet: z.boolean(),
+      authSecretSet: z.boolean(),
+    })
+    .optional(),
 });
 export type SsoConnectionView = z.infer<typeof ssoConnectionViewSchema>;
 

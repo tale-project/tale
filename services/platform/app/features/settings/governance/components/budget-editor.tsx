@@ -23,6 +23,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
+import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -50,6 +51,7 @@ const SCOPE_OPTIONS = [
   { value: 'user', label: 'User' },
   { value: 'team', label: 'Team' },
   { value: 'role', label: 'Role' },
+  { value: 'apiKey', label: 'API key' },
   { value: 'org', label: 'Organization' },
 ];
 
@@ -74,11 +76,17 @@ function emptyRule(): BudgetRule {
   };
 }
 
-/** Scopes that target a specific subject — they only enforce when their
- *  `scopeId` matches a user/team/role at runtime (see `budget_enforcement.ts`).
- *  Saving one with an empty `scopeId` produces a permanently dead rule. */
+/** Scopes that target a specific subject — they only enforce when their target
+ *  id matches a user/team/role/API key at runtime (see `budget_enforcement.ts`).
+ *  Saving one with an empty target produces a permanently dead rule. The apiKey
+ *  scope targets `apiKeyId`; the others target `scopeId`. */
 function scopeNeedsTarget(scope: BudgetRule['scope']): boolean {
-  return scope === 'user' || scope === 'team' || scope === 'role';
+  return (
+    scope === 'user' ||
+    scope === 'team' ||
+    scope === 'role' ||
+    scope === 'apiKey'
+  );
 }
 
 /** A rule only enforces meaningfully if at least one *positive* limit is set.
@@ -112,7 +120,11 @@ interface BudgetRuleErrors {
 function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
   const errors: BudgetRuleErrors = {};
 
-  if (scopeNeedsTarget(rule.scope) && !rule.scopeId) {
+  // The apiKey scope carries its target on `apiKeyId`; every other targeted
+  // scope carries it on `scopeId`. Either missing is a dead rule.
+  const targetMissing =
+    rule.scope === 'apiKey' ? !rule.apiKeyId : !rule.scopeId;
+  if (scopeNeedsTarget(rule.scope) && targetMissing) {
     errors.scopeId = t('budgets.targetRequired');
   }
 
@@ -179,6 +191,7 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
+  apiKeyOptions: { value: string; label: string; description?: string }[];
 }
 
 function RuleDialog({
@@ -190,6 +203,7 @@ function RuleDialog({
   cannotManage,
   memberOptions,
   teamOptions,
+  apiKeyOptions,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
@@ -225,6 +239,13 @@ function RuleDialog({
       const updated = { ...prev, ...patch };
       if (patch.scope === 'default' || patch.scope === 'org') {
         delete updated.scopeId;
+        delete updated.apiKeyId;
+      } else if (patch.scope === 'apiKey') {
+        // apiKey targets `apiKeyId`; drop any stale user/team/role `scopeId`.
+        delete updated.scopeId;
+      } else if (patch.scope !== undefined) {
+        // Switching to a scopeId-targeted scope: drop any stale `apiKeyId`.
+        delete updated.apiKeyId;
       }
       return updated;
     });
@@ -317,6 +338,23 @@ function RuleDialog({
                 searchPlaceholder={t('budgets.searchTeams')}
                 emptyText={t('budgets.noTeamsFound')}
                 aria-label={t('budgets.selectTeamAriaLabel')}
+                error={showTargetError}
+              />
+            </div>
+          )}
+
+          {draft.scope === 'apiKey' && (
+            <div className="min-w-[14rem] flex-2">
+              <SearchableSelect
+                label={t('budgets.apiKey')}
+                placeholder={t('budgets.selectApiKey')}
+                disabled={cannotManage}
+                value={draft.apiKeyId ?? null}
+                onValueChange={(value) => updateDraft({ apiKeyId: value })}
+                options={apiKeyOptions}
+                searchPlaceholder={t('budgets.searchApiKeys')}
+                emptyText={t('budgets.noApiKeysFound')}
+                aria-label={t('budgets.selectApiKeyAriaLabel')}
                 error={showTargetError}
               />
             </div>
@@ -467,6 +505,10 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy();
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
+  // API keys the current admin can attach a budget to (their own keys, the
+  // reuse-first source). A rule stores the raw `apiKeyId`, so a key that isn't
+  // in this list still shows its id in the table via the fallback below.
+  const { data: apiKeys } = useApiKeys(organizationId);
 
   const memberOptions = useMemo(
     () =>
@@ -485,6 +527,16 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         label: team.name || team.id,
       })),
     [teams],
+  );
+
+  const apiKeyOptions = useMemo(
+    () =>
+      (apiKeys ?? []).map((k) => ({
+        value: k.id,
+        label: k.name || k.start || k.id,
+        description: k.start && k.name ? k.start : undefined,
+      })),
+    [apiKeys],
   );
 
   // Memoize on the consumed value (`policy?.config`), not the `policy` wrapper.
@@ -594,6 +646,13 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         }
         case 'role':
           return rule.scopeId ?? '—';
+        case 'apiKey': {
+          if (!rule.apiKeyId) return '—';
+          return (
+            apiKeyOptions.find((o) => o.value === rule.apiKeyId)?.label ??
+            rule.apiKeyId
+          );
+        }
         case 'org':
           return t('budgets.orgScopeTarget');
         case 'default':
@@ -602,7 +661,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, t],
+    [memberOptions, teamOptions, apiKeyOptions, t],
   );
 
   const onAddRule = openAddDialog;
@@ -780,6 +839,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           cannotManage={cannotManage}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
+          apiKeyOptions={apiKeyOptions}
         />
 
         <ConfirmDialog

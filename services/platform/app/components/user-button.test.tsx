@@ -16,7 +16,7 @@ vi.mock('@/lib/i18n/client', () => ({
       const translations: Record<string, string> = {
         // auth.userButton.*
         'userButton.defaultName': 'User',
-        'userButton.helpFeedback': 'Help & feedback',
+        'userButton.documentation': 'Documentation',
         'userButton.logOut': 'Log out',
         'userButton.manageAccount': 'Manage account',
         'userButton.toast.signOutFailed': 'Sign out failed',
@@ -344,10 +344,19 @@ describe('UserButton', () => {
         within(menu).getByRole('menuitem', { name: 'Language' }),
       ).toBeInTheDocument();
 
-      // Session items: asserted present, never activated.
-      expect(
-        within(menu).getByRole('menuitem', { name: 'Help & feedback' }),
-      ).toBeInTheDocument();
+      // Session items: asserted present, never activated. The Documentation
+      // item links out to the maintained docs site, opening in a new tab.
+      const documentation = within(menu).getByRole('menuitem', {
+        name: 'Documentation',
+      });
+      expect(documentation).toBeInTheDocument();
+      const documentationLink = documentation.closest('a');
+      expect(documentationLink).toHaveAttribute(
+        'href',
+        'https://tale.dev/docs',
+      );
+      expect(documentationLink).toHaveAttribute('target', '_blank');
+      expect(documentationLink).toHaveAttribute('rel', 'noopener noreferrer');
       expect(
         within(menu).getByRole('menuitem', { name: 'Log out' }),
       ).toBeInTheDocument();

@@ -284,6 +284,7 @@ describe('isAllowedDocumentUpload', () => {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'file.docx',
     ],
+    ['application/vnd.oasis.opendocument.text', 'file.odt'],
     [
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'slides.pptx',
@@ -338,6 +339,7 @@ describe('mimeToExtension', () => {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'docx',
     ],
+    ['application/vnd.oasis.opendocument.text', 'odt'],
     ['application/vnd.ms-powerpoint', 'ppt'],
     [
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -385,6 +387,7 @@ describe('isRagIndexableFile', () => {
       'report.docx',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ],
+    ['report.odt', 'application/vnd.oasis.opendocument.text'],
     [
       'sheet.xlsx',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -291,6 +291,7 @@ import type * as conversations_query_conversation_messages from "../conversation
 import type * as conversations_query_conversations from "../conversations/query_conversations.js";
 import type * as conversations_query_latest_message_by_delivery_state from "../conversations/query_latest_message_by_delivery_state.js";
 import type * as conversations_reopen_conversation from "../conversations/reopen_conversation.js";
+import type * as conversations_reply_from from "../conversations/reply_from.js";
 import type * as conversations_send_message_via_integration from "../conversations/send_message_via_integration.js";
 import type * as conversations_transform_conversation from "../conversations/transform_conversation.js";
 import type * as conversations_types from "../conversations/types.js";
@@ -427,6 +428,7 @@ import type * as enterprise_sso_internal_queries from "../enterprise_sso/interna
 import type * as enterprise_sso_login_authorize_handler from "../enterprise_sso/login/authorize_handler.js";
 import type * as enterprise_sso_login_callback_handler from "../enterprise_sso/login/callback_handler.js";
 import type * as enterprise_sso_login_discover_handler from "../enterprise_sso/login/discover_handler.js";
+import type * as enterprise_sso_login_redirect_with_error from "../enterprise_sso/login/redirect_with_error.js";
 import type * as enterprise_sso_login_set_session_handler from "../enterprise_sso/login/set_session_handler.js";
 import type * as enterprise_sso_oauth2_adapter from "../enterprise_sso/oauth2/adapter.js";
 import type * as enterprise_sso_oidc_discovery from "../enterprise_sso/oidc_discovery.js";
@@ -789,6 +791,7 @@ import type * as lib_knowledge_embedding_service from "../lib/knowledge/embeddin
 import type * as lib_knowledge_extraction_docx from "../lib/knowledge/extraction/docx.js";
 import type * as lib_knowledge_extraction_helpers from "../lib/knowledge/extraction/helpers.js";
 import type * as lib_knowledge_extraction_image from "../lib/knowledge/extraction/image.js";
+import type * as lib_knowledge_extraction_odt from "../lib/knowledge/extraction/odt.js";
 import type * as lib_knowledge_extraction_ooxml from "../lib/knowledge/extraction/ooxml.js";
 import type * as lib_knowledge_extraction_pdf from "../lib/knowledge/extraction/pdf.js";
 import type * as lib_knowledge_extraction_pdfjs_dom_polyfill from "../lib/knowledge/extraction/pdfjs_dom_polyfill.js";
@@ -955,6 +958,8 @@ import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_index fro
 import type * as migrations_versions_v0_2_88_01_app_config_to_bindings_meta from "../migrations/versions/v0_2_88/01_app_config_to_bindings/meta.js";
 import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_index from "../migrations/versions/v0_2_88/02_app_schedules_per_project/index.js";
 import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_meta from "../migrations/versions/v0_2_88/02_app_schedules_per_project/meta.js";
+import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index.js";
+import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -1916,6 +1921,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/query_conversations": typeof conversations_query_conversations;
   "conversations/query_latest_message_by_delivery_state": typeof conversations_query_latest_message_by_delivery_state;
   "conversations/reopen_conversation": typeof conversations_reopen_conversation;
+  "conversations/reply_from": typeof conversations_reply_from;
   "conversations/send_message_via_integration": typeof conversations_send_message_via_integration;
   "conversations/transform_conversation": typeof conversations_transform_conversation;
   "conversations/types": typeof conversations_types;
@@ -2052,6 +2058,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/login/authorize_handler": typeof enterprise_sso_login_authorize_handler;
   "enterprise_sso/login/callback_handler": typeof enterprise_sso_login_callback_handler;
   "enterprise_sso/login/discover_handler": typeof enterprise_sso_login_discover_handler;
+  "enterprise_sso/login/redirect_with_error": typeof enterprise_sso_login_redirect_with_error;
   "enterprise_sso/login/set_session_handler": typeof enterprise_sso_login_set_session_handler;
   "enterprise_sso/oauth2/adapter": typeof enterprise_sso_oauth2_adapter;
   "enterprise_sso/oidc_discovery": typeof enterprise_sso_oidc_discovery;
@@ -2414,6 +2421,7 @@ declare const fullApi: ApiFromModules<{
   "lib/knowledge/extraction/docx": typeof lib_knowledge_extraction_docx;
   "lib/knowledge/extraction/helpers": typeof lib_knowledge_extraction_helpers;
   "lib/knowledge/extraction/image": typeof lib_knowledge_extraction_image;
+  "lib/knowledge/extraction/odt": typeof lib_knowledge_extraction_odt;
   "lib/knowledge/extraction/ooxml": typeof lib_knowledge_extraction_ooxml;
   "lib/knowledge/extraction/pdf": typeof lib_knowledge_extraction_pdf;
   "lib/knowledge/extraction/pdfjs_dom_polyfill": typeof lib_knowledge_extraction_pdfjs_dom_polyfill;
@@ -2580,6 +2588,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_88/01_app_config_to_bindings/meta": typeof migrations_versions_v0_2_88_01_app_config_to_bindings_meta;
   "migrations/versions/v0_2_88/02_app_schedules_per_project/index": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_index;
   "migrations/versions/v0_2_88/02_app_schedules_per_project/meta": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_meta;
+  "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index;
+  "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

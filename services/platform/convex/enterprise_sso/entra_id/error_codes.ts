@@ -15,6 +15,21 @@ const ENTRA_ERROR_MAP: Record<string, EntraErrorInfo> = {
     recoveryKey: 'sso.errors.recovery.contactAdmin',
     requiresStepUp: false,
   },
+  AADSTS50011: {
+    messageKey: 'sso.errors.redirectMismatch',
+    recoveryKey: 'sso.errors.recovery.contactAdmin',
+    requiresStepUp: false,
+  },
+  AADSTS700016: {
+    messageKey: 'sso.errors.clientNotFound',
+    recoveryKey: 'sso.errors.recovery.contactAdmin',
+    requiresStepUp: false,
+  },
+  AADSTS7000215: {
+    messageKey: 'sso.errors.invalidClientSecret',
+    recoveryKey: 'sso.errors.recovery.contactAdmin',
+    requiresStepUp: false,
+  },
   AADSTS50105: {
     messageKey: 'sso.errors.userNotAssigned',
     recoveryKey: 'sso.errors.recovery.contactAdmin',

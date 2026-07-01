@@ -17,6 +17,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Label } from '@/app/components/ui/forms/label';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { ConditionalAccessError } from '@/app/features/auth/components/conditional-access-error';
 import {
   useHasAnyUsers,
   useIsSsoConfigured,
@@ -37,6 +38,15 @@ const searchSchema = z.object({
   // unknown value degrades to the plain login page instead of erroring the
   // route.
   reason: z.literal('idle').optional().catch(undefined),
+  // Set by the SSO authorize/callback handlers when a sign-in fails
+  // (`redirectWithError`). `error` is a translation key for a known Entra
+  // AADSTS code, or a plain-text fallback otherwise; `error_code` is the raw
+  // AADSTS code; `recovery` is a translation key for a next-step hint. Without
+  // these, a failed SSO login bounced to a blank form (the real IdP error was
+  // discarded). `.catch` so a malformed value degrades to the plain page.
+  error: z.string().optional().catch(undefined),
+  error_code: z.string().optional().catch(undefined),
+  recovery: z.string().optional().catch(undefined),
 });
 
 export const Route = createFileRoute('/_auth/log-in')({
@@ -59,11 +69,43 @@ type LogInFormData = {
 export function LogInPage() {
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
-  const { redirectTo, reason } = useSearch({ from: '/_auth/log-in' });
+  const {
+    redirectTo,
+    reason,
+    error: ssoError,
+    error_code: ssoErrorCode,
+    recovery: ssoRecovery,
+  } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
   const signedOutForIdle = reason === 'idle';
+
+  // Conditional-access / MFA codes get the dedicated recovery UI (a "complete
+  // MFA" or "blocked — contact admin" affordance); every other failure renders
+  // a standard alert with the mapped reason.
+  const CONDITIONAL_ACCESS_CODES = new Set([
+    'AADSTS50076',
+    'AADSTS50079',
+    'AADSTS53003',
+  ]);
+  const showConditionalAccessError =
+    !!ssoError && !!ssoErrorCode && CONDITIONAL_ACCESS_CODES.has(ssoErrorCode);
+
+  // Clearing the SSO error strips the params so a retry (or a plain reload)
+  // starts from a clean login form instead of re-showing the stale failure.
+  const clearSsoError = useCallback(() => {
+    void navigate({
+      to: '/log-in',
+      search: (prev) => ({
+        ...prev,
+        error: undefined,
+        error_code: undefined,
+        recovery: undefined,
+      }),
+      replace: true,
+    });
+  }, [navigate]);
 
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
@@ -375,6 +417,35 @@ export function LogInPage() {
             {tCommon('sessionIdle.signedOutNotice')}
           </p>
         )}
+        {/* A failed SSO sign-in surfaces the REAL reason the IdP reported
+            (routed here by the authorize/callback handlers) instead of a blank
+            form. `ssoError` is a translation key for a mapped Entra code, or a
+            plain-text fallback — `t()` renders either. */}
+        {ssoError &&
+          (showConditionalAccessError && ssoErrorCode ? (
+            <ConditionalAccessError
+              errorCode={ssoErrorCode}
+              errorMessage={ssoError}
+              recoveryKey={ssoRecovery}
+              onRetry={clearSsoError}
+            />
+          ) : (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="border-destructive/30 bg-destructive/5 flex flex-col gap-1 rounded-lg border p-3"
+            >
+              <p className="text-destructive flex items-start gap-1.5 text-sm font-medium">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {t(ssoError)}
+              </p>
+              {ssoRecovery && (
+                <p className="text-muted-foreground pl-[1.375rem] text-sm">
+                  {t(ssoRecovery)}
+                </p>
+              )}
+            </div>
+          ))}
         <FormSection>
           <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             <Input

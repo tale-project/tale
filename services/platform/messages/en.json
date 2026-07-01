@@ -600,7 +600,7 @@
         "step2": "Choose \"Add to Home Screen\", then tap \"Add\".",
         "done": "Got it"
       },
-      "helpFeedback": "Help & feedback",
+      "documentation": "Documentation",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
       "updateAvailable": "Update available",
@@ -661,6 +661,32 @@
       "description": "Your account uses external sign-in. Set a password to also sign in with email and password.",
       "newPassword": "New password",
       "confirmPassword": "Confirm password"
+    },
+    "sso": {
+      "errors": {
+        "serverError": "Single sign-on could not complete due to a server error. Please try again, or contact your administrator if it persists.",
+        "mfaRequired": "Multi-factor authentication is required to sign in.",
+        "conditionalAccessBlocked": "Sign-in was blocked by a conditional-access policy.",
+        "userNotAssigned": "Your account is not assigned to this application. Contact your administrator to request access.",
+        "silentAuthFailed": "Silent sign-in failed. Please sign in interactively.",
+        "refreshTokenExpired": "Your session has expired. Please sign in again.",
+        "consentRequired": "This application needs admin consent before you can sign in.",
+        "redirectMismatch": "The sign-in redirect URL does not match the one registered in Microsoft Entra ID. Ask your administrator to register the exact redirect URL.",
+        "clientNotFound": "The single sign-on application could not be found in the directory. Ask your administrator to check the client ID.",
+        "invalidClientSecret": "The single sign-on client secret is invalid or expired. Ask your administrator to update it.",
+        "recovery": {
+          "completeMfa": "Complete the multi-factor prompt from your authenticator to continue.",
+          "contactAdmin": "Contact your administrator for access.",
+          "signInInteractively": "Try signing in again and complete any prompts.",
+          "signInAgain": "Sign in again to continue.",
+          "grantConsent": "An administrator must grant consent for this application."
+        }
+      },
+      "actions": {
+        "tryAgain": "Try again",
+        "completeMfa": "Complete multi-factor sign-in",
+        "contactAdminMessage": "Contact your administrator to resolve this."
+      }
     }
   },
   "automations": {
@@ -2556,12 +2582,12 @@
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
       "dropZoneTitle": "Upload a file",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT up to {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, ODT, XLSX, CSV, TXT up to {maxSize} MB",
       "retryUpload": "Retry upload",
       "retry": "Retry",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded — indexing runs in the background",
       "unsupportedFileType": "Unsupported file type",
-      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images.",
       "extensionBlocked": "{name}: .{ext} files are blocked by upload policy.",
       "extensionNotAllowed": "{name}: .{ext} is not allowed. Allowed types: {allowed}.",
       "uploadDocuments": "Upload"
@@ -2804,6 +2830,11 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
+      "apiKey": "API key",
+      "selectApiKey": "Select API key...",
+      "searchApiKeys": "Search API keys...",
+      "noApiKeysFound": "No API keys found",
+      "selectApiKeyAriaLabel": "Select API key",
       "saved": "Budget rules have been updated",
       "targetRequired": "Select a target for this scope, or the rule will never apply.",
       "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
@@ -6183,6 +6214,13 @@
           "targetRoleLabel": "Assigns role",
           "claimLabel": "Claim path",
           "claimHelp": "Dot-path into the token claims, e.g. realm_access.roles."
+        },
+        "redirectUrlLabel": "Redirect URL to register in Entra",
+        "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
+        "deploymentWarning": {
+          "title": "Deployment not fully configured for SSO",
+          "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",
+          "authSecretMissing": "BETTER_AUTH_SECRET is not set on the server. SSO sign-in will fail with a server error until it is configured."
         },
         "guide": {
           "title": "Setup guide",

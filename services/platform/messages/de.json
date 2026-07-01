@@ -600,7 +600,7 @@
         "step2": "Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.",
         "done": "Verstanden"
       },
-      "helpFeedback": "Hilfe & Feedback",
+      "documentation": "Dokumentation",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
       "updateAvailable": "Update verfügbar",
@@ -661,6 +661,32 @@
       "description": "Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um dich auch mit E-Mail und Passwort anmelden zu können.",
       "newPassword": "Neues Passwort",
       "confirmPassword": "Passwort bestätigen"
+    },
+    "sso": {
+      "errors": {
+        "serverError": "Single Sign-On konnte wegen eines Serverfehlers nicht abgeschlossen werden. Versuche es erneut oder wende dich an deine Administration, falls das Problem bestehen bleibt.",
+        "mfaRequired": "Für die Anmeldung ist eine Multi-Faktor-Authentifizierung erforderlich.",
+        "conditionalAccessBlocked": "Die Anmeldung wurde durch eine Richtlinie für bedingten Zugriff blockiert.",
+        "userNotAssigned": "Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an deine Administration, um Zugriff anzufordern.",
+        "silentAuthFailed": "Die stille Anmeldung ist fehlgeschlagen. Bitte melde dich interaktiv an.",
+        "refreshTokenExpired": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+        "consentRequired": "Für diese Anwendung ist eine Administrator-Zustimmung erforderlich, bevor du dich anmelden kannst.",
+        "redirectMismatch": "Die Weiterleitungs-URL für die Anmeldung stimmt nicht mit der in Microsoft Entra ID hinterlegten überein. Bitte deine Administration, die exakte Weiterleitungs-URL zu hinterlegen.",
+        "clientNotFound": "Die Single-Sign-On-Anwendung wurde im Verzeichnis nicht gefunden. Bitte deine Administration, die Client-ID zu prüfen.",
+        "invalidClientSecret": "Der Single-Sign-On-Client-Schlüssel ist ungültig oder abgelaufen. Bitte deine Administration, ihn zu aktualisieren.",
+        "recovery": {
+          "completeMfa": "Bestätige die Multi-Faktor-Abfrage in deiner Authenticator-App, um fortzufahren.",
+          "contactAdmin": "Wende dich für Zugriff an deine Administration.",
+          "signInInteractively": "Versuche die Anmeldung erneut und schließe alle Abfragen ab.",
+          "signInAgain": "Melde dich erneut an, um fortzufahren.",
+          "grantConsent": "Eine Administration muss dieser Anwendung zustimmen."
+        }
+      },
+      "actions": {
+        "tryAgain": "Erneut versuchen",
+        "completeMfa": "Multi-Faktor-Anmeldung abschließen",
+        "contactAdminMessage": "Wende dich an deine Administration, um das zu beheben."
+      }
     }
   },
   "automations": {
@@ -2556,12 +2582,12 @@
       "noTeamsAvailable": "Du bist kein Mitglied eines Teams",
       "allMembersHint": "Organisationsweite Dokumente sind für alle in der Organisation zugänglich.",
       "dropZoneTitle": "Datei hochladen",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV, TXT bis zu {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, ODT, XLSX, CSV, TXT bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
+      "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, Bilder.",
       "extensionBlocked": "{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
       "extensionNotAllowed": "{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.",
       "uploadDocuments": "Hochladen"
@@ -2804,6 +2830,11 @@
       "searchTeams": "Teams suchen...",
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeamAriaLabel": "Team auswählen",
+      "apiKey": "API-Schlüssel",
+      "selectApiKey": "API-Schlüssel auswählen...",
+      "searchApiKeys": "API-Schlüssel suchen...",
+      "noApiKeysFound": "Keine API-Schlüssel gefunden",
+      "selectApiKeyAriaLabel": "API-Schlüssel auswählen",
       "saved": "Budgetregeln wurden aktualisiert",
       "targetRequired": "Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.",
       "limitRequired": "Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen) fest, damit die Regel greifen kann.",
@@ -5919,6 +5950,13 @@
           "targetRoleLabel": "Weist Rolle zu",
           "claimLabel": "Claim-Pfad",
           "claimHelp": "Punktpfad in die Token-Claims, z. B. realm_access.roles."
+        },
+        "redirectUrlLabel": "In Entra zu registrierende Weiterleitungs-URL",
+        "redirectUrlHelp": "Registrieren Sie genau diese URL als \"Web\"-Weiterleitungs-URI in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011 fehl.",
+        "deploymentWarning": {
+          "title": "Deployment für SSO nicht vollständig konfiguriert",
+          "callbackMissing": "Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies konfiguriert ist.",
+          "authSecretMissing": "BETTER_AUTH_SECRET ist auf dem Server nicht gesetzt. Die SSO-Anmeldung schlägt mit einem Serverfehler fehl, bis dies konfiguriert ist."
         },
         "guide": {
           "title": "Einrichtungsleitfaden",
