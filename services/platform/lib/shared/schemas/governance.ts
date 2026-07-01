@@ -121,6 +121,13 @@ export const sandboxQuotaConfigSchema = z.object({
   maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
   maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
+  /**
+   * Max concurrently-active crawler **render** sessions (headless-Chromium
+   * document/page rendering). Isolated in its own budget so heavy crawling can't
+   * starve interactive agent/run_code sessions — the session-model replacement
+   * for the old one-shot render pool.
+   */
+  maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(4),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =

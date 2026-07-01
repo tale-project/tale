@@ -58,11 +58,7 @@
 import type { GenericActionCtx } from 'convex/server';
 
 import type { DataModel, Id } from '../../_generated/dataModel';
-import {
-  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT,
-  toSandboxStorageUrl,
-} from '../../lib/helpers/public_storage_url';
-import { spawnerExecute } from '../../node_only/sandbox/helpers/spawner_client';
+import { renderInSession } from './render_session';
 
 export interface SandboxRenderDocumentContext {
   ctx: GenericActionCtx<DataModel>;
@@ -124,44 +120,9 @@ export interface SandboxRenderDocumentResult {
 
 const DEFAULT_RENDER_TIMEOUT_MS = 60_000;
 
-/**
- * Decode the tail of the spawner's base64 stderr so a failed render surfaces
- * the script's actual error (e.g. a Chromium launch failure) instead of the
- * opaque `RUNTIME_ERROR: User code exited with status 1`.
- */
-function decodeStderrTail(stderrBase64: string, maxChars = 800): string {
-  if (!stderrBase64) return '';
-  try {
-    const text = Buffer.from(stderrBase64, 'base64').toString('utf8').trim();
-    return text.length > maxChars ? `…${text.slice(-maxChars)}` : text;
-  } catch (err) {
-    console.warn('[documents] failed to decode spawner stderr:', err);
-    return '';
-  }
-}
-
 const OUTPUT_FILE_PDF = 'document.pdf';
 const OUTPUT_FILE_PNG = 'document.png';
 const OUTPUT_FILE_JPEG = 'document.jpeg';
-
-/** Compute the spawner upload-callback endpoints (mirrors `sandbox_render.ts`). */
-function resolveCallbackEndpoints(): {
-  outputUrlEndpoint: string;
-  reportUploadedEndpoint: string;
-} {
-  const storageBase = (
-    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-    SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
-  ).replace(/\/$/, '');
-  const httpApiBase = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ??
-    storageBase.replace(/:3210(\/|$)/, ':3211$1')
-  ).replace(/\/$/, '');
-  return {
-    outputUrlEndpoint: `${httpApiBase}/api/sandbox/output_upload_url`,
-    reportUploadedEndpoint: `${httpApiBase}/api/sandbox/record_uploaded`,
-  };
-}
 
 function outputFileFor(request: SandboxRenderRequest): {
   name: string;
@@ -287,93 +248,31 @@ export async function renderDocumentInSandbox(
   const { ctx, organizationId } = renderCtx;
   const { name: outputFileName, contentType } = outputFileFor(request);
 
-  // Mint one output upload slot — the spawner POSTs the harvested bytes here
-  // and reports back the Convex storageId it landed in.
-  const rawUploadUrl = await ctx.storage.generateUploadUrl();
-  const slotUrl = toSandboxStorageUrl(rawUploadUrl);
-
   const script = buildRenderScript(request, outputFileName, timeoutMs);
-  // Stage the render script as a Convex storage blob and hand the spawner an
-  // internal http(s) URL. The spawner's input-fetch layer requires every
-  // `files[].url` to be an http(s) URL ≤4096 chars (services/sandbox
-  // validate-request.ts), so the script — which inlines the full document
-  // HTML — cannot ride in a `data:` URL. Mirrors the proven executeCode /
-  // run_code_tool staging path.
-  const scriptStorageId = await ctx.storage.store(
-    new Blob([script], { type: 'text/javascript' }),
-  );
-  const rawScriptUrl = await ctx.storage.getUrl(scriptStorageId);
-  if (!rawScriptUrl) {
-    throw new Error('failed to mint render-script storage url');
-  }
-  const scriptUrl = toSandboxStorageUrl(rawScriptUrl);
-
-  const { outputUrlEndpoint, reportUploadedEndpoint } =
-    resolveCallbackEndpoints();
-
-  const executionId = `crawler-doc-render-${Date.now()}-${Math.random()
+  const renderKey = `crawler-doc-render-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2)}`;
 
-  try {
-    const spawnerResult = await spawnerExecute(
-      {
-        executionId,
-        organizationId,
-        language: 'node',
-        files: [{ path: 'render.js', url: scriptUrl }],
-        entryPath: 'render.js',
-        outputUploadSlots: [{ url: slotUrl }],
-        outputUrlEndpoint,
-        reportUploadedEndpoint,
-        timeoutMs,
-      },
-      AbortSignal.timeout(timeoutMs + 120_000),
-    );
+  // Run the render in an ephemeral render session and read the produced file's
+  // bytes straight off the session (the render session tears itself down).
+  const output = await renderInSession(ctx, {
+    organizationId,
+    renderKey,
+    scriptContent: script,
+    outputFileName,
+    timeoutMs,
+    logTag: 'documents',
+  });
 
-    if (spawnerResult.status !== 'completed') {
-      const code = spawnerResult.errorCode
-        ? `, code=${spawnerResult.errorCode}`
-        : '';
-      const message = spawnerResult.errorMessage
-        ? `: ${spawnerResult.errorMessage}`
-        : '';
-      const stderrTail = decodeStderrTail(spawnerResult.stderrBase64);
-      const stderr = stderrTail ? `; stderr: ${stderrTail}` : '';
-      throw new Error(
-        `sandbox document render did not complete (status=${spawnerResult.status}${code}${message}${stderr})`,
-      );
-    }
+  // Unlike the crawl path (which re-parses transient JSON), the produced
+  // PDF/image IS the deliverable — persist it and hand the caller its storageId.
+  const storageId: Id<'_storage'> = await ctx.storage.store(
+    new Blob([output.bytes], { type: output.contentType || contentType }),
+  );
 
-    const outputFile = spawnerResult.outputFiles.find(
-      (f) => f.name === outputFileName,
-    );
-    if (!outputFile) {
-      throw new Error(
-        `sandbox document render produced no ${outputFileName} output file`,
-      );
-    }
-
-    // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts and sandbox_render.ts
-    const storageId = outputFile.storageId as unknown as Id<'_storage'>;
-
-    return {
-      storageId,
-      size: outputFile.size,
-      contentType: outputFile.contentType || contentType,
-    };
-  } finally {
-    // Best-effort cleanup of the transient render-script blob — it has served
-    // its purpose once the spawner has fetched and run it.
-    try {
-      await ctx.storage.delete(scriptStorageId);
-    } catch (err) {
-      console.warn(
-        `[documents] failed to delete transient render-script blob ${String(
-          scriptStorageId,
-        )}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
+  return {
+    storageId,
+    size: output.size,
+    contentType: output.contentType || contentType,
+  };
 }

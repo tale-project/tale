@@ -68,37 +68,31 @@ export function stagePathOf(absolutePath: string): string {
   return absolutePath.replace(/^\/user\//, '');
 }
 
+export interface StepRunResult {
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 /**
- * Shared session-exec core: install declared packages, run each step in order
- * (stop at the first failure), then harvest top-level `/user/output` — storing
- * only new/changed files (sha256) into Convex storage and upserting them as
- * `run_output` threadFiles keyed by `workspaceThreadId`. The CALLER owns the
- * session lifecycle (ensure/create + any teardown) and stages the inputs before
- * calling this. Used by BOTH chat run_code (per-thread session) and workflow
- * script steps (per-run session) so the two execution paths never diverge.
- *
- * Explicit return type — like the action below, it references `internal`, so TS
- * can't infer the type without a cycle.
+ * Install declared packages, then run each step in order (stopping at the first
+ * failure), collecting stdout/stderr. Pure session I/O — no `ctx`, no harvest —
+ * so every session caller shares the exact run semantics: the threadFiles
+ * harvest (`runAndHarvestInSession`, below) AND the crawler render (which reads
+ * `/user/output` straight off the session). The CALLER owns the session
+ * lifecycle (create/teardown) and stages inputs before calling this.
  */
-export async function runAndHarvestInSession(
-  ctx: ActionCtx,
+export async function runStepsInSession(
+  sessionId: string,
   args: {
-    organizationId: string;
-    /** threadFiles owner key for harvested outputs — a threadId (chat) or a
-     * workflow executionId (workflow script step). */
-    workspaceThreadId: string;
-    sessionId: string;
     /** Absolute `/user/code/<script>` paths to run in order. */
     stepPaths: string[];
     packagesByLang?: { python?: string[]; node?: string[] };
     timeoutMs?: number;
   },
-): Promise<SessionExecResultShape> {
-  const startedAt = Date.now();
-  const execId = randomUUID();
+): Promise<StepRunResult> {
   const timeoutMs = args.timeoutMs ?? 30_000;
-  const { sessionId, workspaceThreadId, organizationId } = args;
-
   const abort = new AbortController();
   const stdoutParts: string[] = [];
   const stderrParts: string[] = [];
@@ -154,6 +148,51 @@ export async function runAndHarvestInSession(
     }
   }
 
+  return {
+    status,
+    exitCode,
+    stdout: stdoutParts.join(''),
+    stderr: stderrParts.join(''),
+  };
+}
+
+/**
+ * Session-exec + threadFiles harvest: run `stepPaths` via {@link
+ * runStepsInSession}, then harvest top-level `/user/output` — storing only
+ * new/changed files (sha256) into Convex storage and upserting them as
+ * `run_output` threadFiles keyed by `workspaceThreadId`. The CALLER owns the
+ * session lifecycle and stages inputs. Used by chat run_code (per-thread
+ * session) and workflow script steps (per-run session).
+ *
+ * Explicit return type — like the action below, it references `internal`, so TS
+ * can't infer the type without a cycle.
+ */
+export async function runAndHarvestInSession(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    /** threadFiles owner key for harvested outputs — a threadId (chat) or a
+     * workflow executionId (workflow script step). */
+    workspaceThreadId: string;
+    sessionId: string;
+    /** Absolute `/user/code/<script>` paths to run in order. */
+    stepPaths: string[];
+    packagesByLang?: { python?: string[]; node?: string[] };
+    timeoutMs?: number;
+  },
+): Promise<SessionExecResultShape> {
+  const startedAt = Date.now();
+  const execId = randomUUID();
+  const { sessionId, workspaceThreadId, organizationId } = args;
+
+  const run = await runStepsInSession(sessionId, {
+    stepPaths: args.stepPaths,
+    ...(args.packagesByLang !== undefined && {
+      packagesByLang: args.packagesByLang,
+    }),
+    ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+  });
+
   // Harvest top-level /user/output, upserting only new/changed files (sha256).
   const files: Array<{
     path: string;
@@ -200,14 +239,12 @@ export async function runAndHarvestInSession(
     });
   }
 
-  const stdout = stdoutParts.join('');
-  const stderr = stderrParts.join('');
   return {
     executionId: execId,
-    status,
-    exitCode,
-    stdoutPreview: stdout.slice(0, 4096),
-    stderrPreview: stderr.slice(0, 4096),
+    status: run.status,
+    exitCode: run.exitCode,
+    stdoutPreview: run.stdout.slice(0, 4096),
+    stderrPreview: run.stderr.slice(0, 4096),
     durationMs: Date.now() - startedAt,
     files,
   };
