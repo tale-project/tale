@@ -1,6 +1,8 @@
 {
   "apps": {
     "title": "Apps",
+    "searchPlaceholder": "Search apps…",
+    "searchNoResults": "No apps match your search.",
     "upload": {
       "uploadApp": "Upload app",
       "dialogTitle": "Upload private app",
@@ -670,8 +672,6 @@
       "metrics": "Metrics"
     },
     "catalog": {
-      "title": "Automation catalog",
-      "subtitle": "Browse and install ready-made automations for your workspace.",
       "installed": "Automation installed"
     },
     "aria": {
@@ -727,7 +727,8 @@
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
     "search": {
-      "placeholder": "Search automations"
+      "placeholder": "Search automations",
+      "noResults": "No automations match your search."
     },
     "entityLabel": "automations",
     "createWithAI": "Create automation with AI",
