@@ -24,7 +24,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
-import { internalAction } from '../../_generated/server';
+import { internalAction, type ActionCtx } from '../../_generated/server';
 import { inferStepLanguage } from '../../agent_tools/files/_shared';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
@@ -39,7 +39,7 @@ const OUTPUT_DIR = '/user/output';
 
 // Explicit return type — the handler references `internal` (which transitively
 // includes this action), so TS cannot infer its return type without a cycle.
-interface SessionExecResultShape {
+export interface SessionExecResultShape {
   executionId: string;
   status: 'completed' | 'failed' | 'cancelled';
   exitCode: number | null;
@@ -64,8 +64,153 @@ function interpreterCommand(absPath: string): string[] | null {
 
 /** Strip the `/user/` mount prefix — `sessionStageFiles` paths are relative to
  *  the workspace root (`/user`). `/user/code/gen.py` → `code/gen.py`. */
-function stagePathOf(absolutePath: string): string {
+export function stagePathOf(absolutePath: string): string {
   return absolutePath.replace(/^\/user\//, '');
+}
+
+/**
+ * Shared session-exec core: install declared packages, run each step in order
+ * (stop at the first failure), then harvest top-level `/user/output` — storing
+ * only new/changed files (sha256) into Convex storage and upserting them as
+ * `run_output` threadFiles keyed by `workspaceThreadId`. The CALLER owns the
+ * session lifecycle (ensure/create + any teardown) and stages the inputs before
+ * calling this. Used by BOTH chat run_code (per-thread session) and workflow
+ * script steps (per-run session) so the two execution paths never diverge.
+ *
+ * Explicit return type — like the action below, it references `internal`, so TS
+ * can't infer the type without a cycle.
+ */
+export async function runAndHarvestInSession(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    /** threadFiles owner key for harvested outputs — a threadId (chat) or a
+     * workflow executionId (workflow script step). */
+    workspaceThreadId: string;
+    sessionId: string;
+    /** Absolute `/user/code/<script>` paths to run in order. */
+    stepPaths: string[];
+    packagesByLang?: { python?: string[]; node?: string[] };
+    timeoutMs?: number;
+  },
+): Promise<SessionExecResultShape> {
+  const startedAt = Date.now();
+  const execId = randomUUID();
+  const timeoutMs = args.timeoutMs ?? 30_000;
+  const { sessionId, workspaceThreadId, organizationId } = args;
+
+  const abort = new AbortController();
+  const stdoutParts: string[] = [];
+  const stderrParts: string[] = [];
+  const runExec = async (command: string[], perTimeout: number) =>
+    drainSessionExecResilient(
+      sessionId,
+      {
+        execId: randomUUID(),
+        command,
+        cwd: '/user/code',
+        collectOutput: true,
+        timeoutMs: perTimeout,
+      },
+      abort.signal,
+    );
+
+  // Install declared packages first (persist in the session for later runs).
+  const py = args.packagesByLang?.python ?? [];
+  const node = args.packagesByLang?.node ?? [];
+  if (py.length > 0) {
+    const r = await runExec(
+      ['python3', '-m', 'pip', 'install', '--no-input', ...py],
+      Math.min(timeoutMs, 300_000),
+    );
+    stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
+  }
+  if (node.length > 0) {
+    const r = await runExec(
+      ['npm', 'install', '-g', ...node],
+      Math.min(timeoutMs, 300_000),
+    );
+    stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
+  }
+
+  // Run each step in order; stop at the first failure.
+  let exitCode: number | null = 0;
+  let status: 'completed' | 'failed' | 'cancelled' = 'completed';
+  for (const absPath of args.stepPaths) {
+    const command = interpreterCommand(absPath);
+    if (command === null) {
+      status = 'failed';
+      stderrParts.push(`No interpreter for "${absPath}".`);
+      exitCode = 1;
+      break;
+    }
+    const r = await runExec(command, timeoutMs);
+    stdoutParts.push(Buffer.from(r.stdoutBase64, 'base64').toString('utf8'));
+    stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
+    exitCode = r.exitCode;
+    if (r.status !== 'completed' || (r.exitCode ?? 0) !== 0) {
+      status = r.status === 'cancelled' ? 'cancelled' : 'failed';
+      break;
+    }
+  }
+
+  // Harvest top-level /user/output, upserting only new/changed files (sha256).
+  const files: Array<{
+    path: string;
+    storageId: string;
+    size: number;
+    contentType: string;
+  }> = [];
+  const entries = (await sessionListFiles(sessionId, OUTPUT_DIR)) ?? [];
+  for (const e of entries) {
+    if (e.type !== 'file') continue;
+    if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) break;
+    const absPath = `${OUTPUT_DIR}/${e.name}`;
+    const read = await sessionReadFile(sessionId, absPath);
+    if (read === null) continue;
+    const buf = Buffer.from(read.bytes);
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    const existing = await ctx.runQuery(
+      internal.thread_files.internal_queries.getThreadFileByPath,
+      { threadId: workspaceThreadId, path: absPath },
+    );
+    if (existing !== null && existing.sha256 === sha256) continue; // unchanged
+    const ab = new ArrayBuffer(buf.byteLength);
+    new Uint8Array(ab).set(buf);
+    const storageId = await ctx.storage.store(new Blob([ab]));
+    await ctx.runMutation(
+      internal.thread_files.internal_mutations.upsertThreadFile,
+      {
+        organizationId,
+        threadId: workspaceThreadId,
+        path: absPath,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
+        storageId: storageId as Id<'_storage'>,
+        size: buf.byteLength,
+        contentType: read.contentType,
+        sha256,
+        source: 'run_output' as const,
+      },
+    );
+    files.push({
+      path: absPath,
+      storageId,
+      size: buf.byteLength,
+      contentType: read.contentType,
+    });
+  }
+
+  const stdout = stdoutParts.join('');
+  const stderr = stderrParts.join('');
+  return {
+    executionId: execId,
+    status,
+    exitCode,
+    stdoutPreview: stdout.slice(0, 4096),
+    stderrPreview: stderr.slice(0, 4096),
+    durationMs: Date.now() - startedAt,
+    files,
+  };
 }
 
 export const executeCodeInSession = internalAction({
@@ -104,10 +249,6 @@ export const executeCodeInSession = internalAction({
     ),
   }),
   handler: async (ctx, args): Promise<SessionExecResultShape> => {
-    const startedAt = Date.now();
-    const execId = randomUUID();
-    const timeoutMs = args.timeoutMs ?? 30_000;
-
     const { sessionId, created } = await ctx.runAction(
       internal.node_only.sandbox.thread_session.ensureThreadSession,
       {
@@ -144,117 +285,15 @@ export const executeCodeInSession = internalAction({
       await sessionStageFiles(sessionId, toStage);
     }
 
-    const abort = new AbortController();
-    const stdoutParts: string[] = [];
-    const stderrParts: string[] = [];
-    const runExec = async (command: string[], perTimeout: number) =>
-      drainSessionExecResilient(
-        sessionId,
-        {
-          execId: randomUUID(),
-          command,
-          cwd: '/user/code',
-          collectOutput: true,
-          timeoutMs: perTimeout,
-        },
-        abort.signal,
-      );
-
-    // Install declared packages first (persist in the session for later runs).
-    const py = args.packagesByLang?.python ?? [];
-    const node = args.packagesByLang?.node ?? [];
-    if (py.length > 0) {
-      const r = await runExec(
-        ['python3', '-m', 'pip', 'install', '--no-input', ...py],
-        Math.min(timeoutMs, 300_000),
-      );
-      stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
-    }
-    if (node.length > 0) {
-      const r = await runExec(
-        ['npm', 'install', '-g', ...node],
-        Math.min(timeoutMs, 300_000),
-      );
-      stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
-    }
-
-    // Run each step in order; stop at the first failure.
-    let exitCode: number | null = 0;
-    let status: 'completed' | 'failed' | 'cancelled' = 'completed';
-    for (const absPath of args.stepPaths) {
-      const command = interpreterCommand(absPath);
-      if (command === null) {
-        status = 'failed';
-        stderrParts.push(`No interpreter for "${absPath}".`);
-        exitCode = 1;
-        break;
-      }
-      const r = await runExec(command, timeoutMs);
-      stdoutParts.push(Buffer.from(r.stdoutBase64, 'base64').toString('utf8'));
-      stderrParts.push(Buffer.from(r.stderrBase64, 'base64').toString('utf8'));
-      exitCode = r.exitCode;
-      if (r.status !== 'completed' || (r.exitCode ?? 0) !== 0) {
-        status = r.status === 'cancelled' ? 'cancelled' : 'failed';
-        break;
-      }
-    }
-
-    // Harvest top-level /user/output, upserting only new/changed files (sha256).
-    const files: Array<{
-      path: string;
-      storageId: string;
-      size: number;
-      contentType: string;
-    }> = [];
-    const entries = (await sessionListFiles(sessionId, OUTPUT_DIR)) ?? [];
-    for (const e of entries) {
-      if (e.type !== 'file') continue;
-      if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) break;
-      const absPath = `${OUTPUT_DIR}/${e.name}`;
-      const read = await sessionReadFile(sessionId, absPath);
-      if (read === null) continue;
-      const buf = Buffer.from(read.bytes);
-      const sha256 = createHash('sha256').update(buf).digest('hex');
-      const existing = await ctx.runQuery(
-        internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId: args.threadId, path: absPath },
-      );
-      if (existing !== null && existing.sha256 === sha256) continue; // unchanged
-      const ab = new ArrayBuffer(buf.byteLength);
-      new Uint8Array(ab).set(buf);
-      const storageId = await ctx.storage.store(new Blob([ab]));
-      await ctx.runMutation(
-        internal.thread_files.internal_mutations.upsertThreadFile,
-        {
-          organizationId: args.organizationId,
-          threadId: args.threadId,
-          path: absPath,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
-          storageId: storageId as Id<'_storage'>,
-          size: buf.byteLength,
-          contentType: read.contentType,
-          sha256,
-          source: 'run_output' as const,
-        },
-      );
-      files.push({
-        path: absPath,
-        storageId,
-        size: buf.byteLength,
-        contentType: read.contentType,
-      });
-    }
-
-    const stdout = stdoutParts.join('');
-    const stderr = stderrParts.join('');
-    return {
-      executionId: execId,
-      status,
-      exitCode,
-      stdoutPreview: stdout.slice(0, 4096),
-      stderrPreview: stderr.slice(0, 4096),
-      durationMs: Date.now() - startedAt,
-      files,
-    };
+    return runAndHarvestInSession(ctx, {
+      organizationId: args.organizationId,
+      workspaceThreadId: args.threadId,
+      sessionId,
+      stepPaths: args.stepPaths,
+      ...(args.packagesByLang !== undefined && {
+        packagesByLang: args.packagesByLang,
+      }),
+      ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+    });
   },
 });

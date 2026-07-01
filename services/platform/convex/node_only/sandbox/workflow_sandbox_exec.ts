@@ -87,6 +87,7 @@ import {
   shouldAttemptResumeRotation,
 } from './resume_rotation';
 import { runAgentInSessionImpl } from './run_agent';
+import { runAndHarvestInSession } from './session_exec';
 import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
@@ -488,6 +489,8 @@ export const runSandboxScript = internalAction({
       return toSandboxStorageUrl(raw);
     };
 
+    const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
+    let rowId: Id<'sandboxSessions'> | null = null;
     try {
       // Resolve the frozen pack:// script to its bundled content.
       const PREFIX = 'pack://';
@@ -509,16 +512,16 @@ export const runSandboxScript = internalAction({
       const scriptContent = await readFile(scriptPath, 'utf8');
       const scriptName = relPath.split('/').pop() ?? 'script';
 
-      // Stage the script + inline-content inputs as code files; fileId inputs as
-      // workspace uploads. (folderId staging is a later increment.)
-      const files: Array<{ path: string; url: string }> = [
-        { path: scriptName, url: await storeAsUrl(scriptContent) },
+      // Stage the script + inline-content inputs + params.json under /user/code
+      // (the script's cwd); fileId inputs under /user/uploads. (folderId staging
+      // is a later increment.)
+      const stageInputs: SessionStageFile[] = [
+        { path: `code/${scriptName}`, url: await storeAsUrl(scriptContent) },
       ];
-      const userUploadDownloads: Array<{ name: string; url: string }> = [];
       for (const input of args.inputs) {
         if ('content' in input.from) {
-          files.push({
-            path: input.as,
+          stageInputs.push({
+            path: `code/${input.as}`,
             url: await storeAsUrl(input.from.content),
           });
         } else if ('fileId' in input.from) {
@@ -526,8 +529,8 @@ export const runSandboxScript = internalAction({
             toId<'_storage'>(input.from.fileId),
           );
           if (!raw) return fail(`input file not found: ${input.from.fileId}`);
-          userUploadDownloads.push({
-            name: input.as,
+          stageInputs.push({
+            path: `uploads/${input.as}`,
             url: toSandboxStorageUrl(raw),
           });
         } else {
@@ -535,45 +538,95 @@ export const runSandboxScript = internalAction({
         }
       }
       if (args.params) {
-        files.push({
-          path: 'params.json',
+        stageInputs.push({
+          path: 'code/params.json',
           url: await storeAsUrl(JSON.stringify(args.params)),
         });
       }
 
-      const res = await ctx.runAction(
-        internal.node_only.sandbox.internal_actions.executeCode,
+      // Reserve + create the ephemeral workflow-run session — the SAME session
+      // machinery chat run_code and workflow AGENT steps run on, keyed per
+      // (execution, step) and torn down at step end (the `finally`). Park-on-
+      // capacity: the reserve claims the FIFO ticket the admission poll parked; a
+      // peer that won the slot first throws WAIT_FIFO → `awaiting_capacity` below.
+      rowId = await ctx.runMutation(
+        internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
         {
           organizationId: args.organizationId,
-          uploadedBy: 'workflow',
-          threadId: args.executionId,
-          language: args.language,
-          files,
-          ...(userUploadDownloads.length > 0 && { userUploadDownloads }),
-          entryPath: scriptName,
-          ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-          ...(args.env !== undefined &&
-            Object.keys(args.env).length > 0 && { env: args.env }),
-          purpose: `sandbox step ${args.stepSlug}`,
-          // Park-on-capacity: a per-org concurrency-cap hit waits (FIFO) instead
-          // of failing the step. The reserve claims this ticket atomically; an
-          // un-eligible waiter throws WAIT_FIFO (caught below → awaiting_capacity).
+          sessionId,
+          profile: 'default',
+          ownerType: 'workflow_run',
+          ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+          createdBy: 'workflow',
           ticket: {
-            ownerType: 'workflow_run',
-            ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
-            source: 'workflow' as const,
+            source: 'workflow',
             wfExecutionId: args.executionId,
             stepSlug: args.stepSlug,
           },
         },
       );
+      try {
+        try {
+          await sessionCreate({
+            sessionId,
+            organizationId: args.organizationId,
+            profile: 'default',
+          });
+        } catch (createErr) {
+          // A deterministic-id collision can only be an orphan (the reserve
+          // serializes platform-side creation) — reap and retry once.
+          if (!(createErr instanceof SessionDuplicateError)) throw createErr;
+          await sessionDestroy(sessionId);
+          await sessionCreate({
+            sessionId,
+            organizationId: args.organizationId,
+            profile: 'default',
+          });
+        }
+      } catch (createErr) {
+        // Mark the reserved row terminal so it stops holding a slot; the
+        // sessionId-keyed teardown in `finally` is then a no-op on it.
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.setSessionStatus,
+          { rowId, status: 'failed' },
+        );
+        throw createErr;
+      }
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.setSessionStatus,
+        { rowId, status: 'active', lastActivityAt: Date.now() },
+      );
+
+      // Inject the step-scoped env (resolved/templated secrets) into the session
+      // so the script's process sees it — the spawner sanitizes + refuses
+      // reserved names (returned as `denied`).
+      if (args.env !== undefined && Object.keys(args.env).length > 0) {
+        const denied = await sessionEnvPatch(sessionId, { set: args.env });
+        if (denied.length > 0) {
+          console.warn(
+            `[runSandboxScript] ${denied.length} step env var(s) refused (reserved names): ${denied.join(', ')}`,
+          );
+        }
+      }
+
+      await sessionStageFiles(sessionId, stageInputs);
+
+      const res = await runAndHarvestInSession(ctx, {
+        organizationId: args.organizationId,
+        workspaceThreadId: args.executionId,
+        sessionId,
+        stepPaths: [`/user/code/${scriptName}`],
+        ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+      });
 
       // Read the small structured verdict (result.json) back into `result`.
       let result: unknown;
       const resultFileName = args.output?.resultFile ?? 'result.json';
       const resultFile = res.files.find((f) => f.path.endsWith(resultFileName));
       if (resultFile) {
-        const blob = await ctx.storage.get(resultFile.storageId);
+        const blob = await ctx.storage.get(
+          toId<'_storage'>(resultFile.storageId),
+        );
         if (blob) {
           try {
             result = JSON.parse(await blob.text());
@@ -585,15 +638,18 @@ export const runSandboxScript = internalAction({
 
       return {
         mode: 'script' as const,
-        ok: res.success,
+        ok: res.status === 'completed',
         status: res.status,
         ...(result !== undefined && { result }),
-        outputFileIds: res.files.map((f) => f.storageId as string),
+        outputFileIds: res.files.map((f) => f.storageId),
         ...(res.exitCode !== null && { exitCode: res.exitCode }),
         stdoutPreview: res.stdoutPreview,
         stderrPreview: res.stderrPreview,
         durationMs: res.durationMs,
-        ...(res.errorMessage !== undefined && { error: res.errorMessage }),
+        ...(res.status === 'failed' &&
+          res.stderrPreview.length > 0 && {
+            error: res.stderrPreview.slice(0, 1024),
+          }),
       };
     } catch (e) {
       // Park-on-capacity: a per-org FIFO wait (WAIT_FIFO) or a global host-cap
@@ -617,6 +673,25 @@ export const runSandboxScript = internalAction({
         };
       }
       return fail(e instanceof Error ? e.message : String(e));
+    } finally {
+      // Ephemeral: tear the session down at step end (like agent steps). Skipped
+      // when we never reserved (a park/early-return) so a parked ticket keeps its
+      // place; best-effort, and markSessionRowDestroyed no-ops a non-live row.
+      if (rowId !== null) {
+        try {
+          await sessionDestroy(sessionId);
+        } catch (err) {
+          console.warn('[runSandboxScript] session destroy failed:', err);
+        }
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.markSessionRowDestroyed,
+            { organizationId: args.organizationId, sessionId },
+          );
+        } catch (err) {
+          console.warn('[runSandboxScript] row destroy failed:', err);
+        }
+      }
     }
   },
 });
