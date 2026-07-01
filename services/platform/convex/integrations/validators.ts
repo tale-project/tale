@@ -9,6 +9,7 @@ import { jsonRecordValidator } from '../lib/validators/json';
 export const integrationTypeValidator = v.union(
   v.literal('rest_api'),
   v.literal('sql'),
+  v.literal('imap_smtp'),
 );
 
 export const authMethodValidator = v.union(
@@ -52,6 +53,23 @@ export const basicAuthValidator = v.object({
 });
 
 export const basicAuthEncryptedValidator = v.object({
+  username: v.string(),
+  passwordEncrypted: v.string(),
+});
+
+/**
+ * Optional second credential for the imap_smtp integration: the SMTP (sending)
+ * login when it differs from the IMAP (receiving) login — e.g. IMAP = a private
+ * mailbox, SMTP = Resend (`resend` + an API key). When absent, SMTP falls back
+ * to `basicAuth`. Plaintext form (UI input).
+ */
+export const smtpAuthValidator = v.object({
+  username: v.string(),
+  password: v.string(),
+});
+
+/** Stored (encrypted-at-rest) form of {@link smtpAuthValidator}. */
+export const smtpAuthEncryptedValidator = v.object({
   username: v.string(),
   passwordEncrypted: v.string(),
 });

@@ -11,7 +11,9 @@ import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { buildIntegrationSecrets } from './build_test_secrets';
+import { isImapSmtpIntegration } from './guards/is_imap_smtp_integration';
 import { isSqlIntegration } from './guards/is_sql_integration';
+import { resolveImapSmtpConnection } from './imap_smtp_config';
 import type { LoadedIntegration } from './load_integration';
 import type {
   ApiKeyAuth,
@@ -30,6 +32,8 @@ export interface TestConnectionArgs {
   apiKeyAuth?: ApiKeyAuth;
   /** Inline basic auth for pre-save testing (plaintext password, not yet encrypted) */
   basicAuth?: BasicAuth;
+  /** Inline SMTP auth (imap_smtp) for pre-save testing (plaintext, not yet encrypted) */
+  smtpAuth?: BasicAuth;
   /** Inline OAuth2 auth for pre-save testing (plaintext tokens, not yet encrypted) */
   oauth2Auth?: OAuth2Auth;
   /** Inline connection config for pre-save testing (not yet persisted) */
@@ -241,6 +245,38 @@ async function testSqlConnection(
 }
 
 /**
+ * Test an IMAP/SMTP mailbox connection by establishing a live IMAP (and SMTP)
+ * connection. Supports inline overrides for pre-save (dry-run) testing.
+ */
+async function testImapSmtpConnection(
+  ctx: ActionCtx,
+  integration: LoadedIntegration,
+  overrides?: {
+    basicAuth?: TestConnectionArgs['basicAuth'];
+    smtpAuth?: TestConnectionArgs['smtpAuth'];
+    connectionConfig?: TestConnectionArgs['connectionConfig'];
+  },
+): Promise<void> {
+  const connection = await resolveImapSmtpConnection(ctx, integration, {
+    basicAuth: overrides?.basicAuth,
+    smtpAuth: overrides?.smtpAuth,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() with mailbox-specific keys
+    connectionConfig: overrides?.connectionConfig as
+      | Record<string, unknown>
+      | undefined,
+  });
+
+  const result = await ctx.runAction(
+    internal.node_only.imap_smtp.internal_actions.testConnection,
+    { imap: connection.imap, smtp: connection.smtp },
+  );
+
+  if (!result.success) {
+    throw new Error(result.error ?? 'Mailbox connection test failed');
+  }
+}
+
+/**
  * Test an integration connection (REST via sandbox, SQL via ping)
  */
 export async function testConnection(
@@ -276,6 +312,7 @@ export async function testConnection(
   const isDryRun = !!(
     args.sqlConnectionConfig ||
     args.basicAuth ||
+    args.smtpAuth ||
     args.apiKeyAuth ||
     args.oauth2Auth ||
     args.connectionConfig
@@ -288,6 +325,12 @@ export async function testConnection(
       await testSqlConnection(ctx, integration, {
         sqlConnectionConfig: args.sqlConnectionConfig,
         basicAuth: args.basicAuth,
+      });
+    } else if (isImapSmtpIntegration(integration)) {
+      await testImapSmtpConnection(ctx, integration, {
+        basicAuth: args.basicAuth,
+        smtpAuth: args.smtpAuth,
+        connectionConfig: args.connectionConfig,
       });
     } else {
       const hasInlineOverrides = !!(

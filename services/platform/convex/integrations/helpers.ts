@@ -15,3 +15,4 @@ export * from './get_decrypted_credentials';
 // Type guards
 export * from './guards/is_sql_integration';
 export * from './guards/is_rest_api_integration';
+export * from './guards/is_imap_smtp_integration';

@@ -240,6 +240,41 @@ export function IntegrationCredentialsForm({
           );
         })}
 
+        {integration.type === 'imap_smtp' && (
+          <>
+            <Text variant="label">
+              {t('integrations.manageDialog.smtpSection')}
+            </Text>
+            <Input
+              id="manage-smtp-username"
+              label={t('integrations.manageDialog.smtpUsername')}
+              placeholder={
+                integration.smtpAuth?.username ??
+                t('integrations.manageDialog.optional')
+              }
+              value={credentials['smtpUsername'] ?? ''}
+              onChange={(e) =>
+                onCredentialChange('smtpUsername', e.target.value)
+              }
+              disabled={busy}
+            />
+            <Input
+              id="manage-smtp-password"
+              label={t('integrations.manageDialog.smtpPassword')}
+              type="password"
+              placeholder="••••••••"
+              value={credentials['smtpPassword'] ?? ''}
+              onChange={(e) =>
+                onCredentialChange('smtpPassword', e.target.value)
+              }
+              disabled={busy}
+            />
+            <Text variant="caption" className="text-muted-foreground">
+              {t('integrations.manageDialog.smtpHint')}
+            </Text>
+          </>
+        )}
+
         {editableConfigFields.length > 0 && (
           <>
             <Text variant="label">
@@ -254,6 +289,12 @@ export function IntegrationCredentialsForm({
                 placeholder={String(field.defaultValue)}
                 value={configValues[field.key] ?? ''}
                 onChange={(e) => onConfigValueChange(field.key, e.target.value)}
+                description={
+                  integration.type === 'imap_smtp' &&
+                  field.key === 'fromAddress'
+                    ? t('integrations.manageDialog.fromAddressHint')
+                    : undefined
+                }
                 disabled={busy}
               />
             ))}

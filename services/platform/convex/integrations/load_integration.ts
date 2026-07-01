@@ -25,7 +25,7 @@ export interface LoadedIntegration {
   name: string;
   title: string;
   description?: string;
-  type?: 'rest_api' | 'sql';
+  type?: 'rest_api' | 'sql' | 'imap_smtp';
   status: 'active' | 'inactive' | 'error' | 'testing';
   isActive: boolean;
   authMethod: 'api_key' | 'bearer_token' | 'basic_auth' | 'oauth2';
@@ -34,6 +34,9 @@ export interface LoadedIntegration {
   >;
   apiKeyAuth?: { keyEncrypted: string; keyPrefix?: string };
   basicAuth?: { username: string; passwordEncrypted: string };
+  // Optional SMTP-only credential (imap_smtp): used for sending when it differs
+  // from the IMAP login. Falls back to basicAuth when absent.
+  smtpAuth?: { username: string; passwordEncrypted: string };
   oauth2Auth?: {
     accessTokenEncrypted: string;
     refreshTokenEncrypted?: string;
@@ -164,7 +167,7 @@ export const loadIntegration = internalAction({
       title: string;
       description?: string;
       version?: number;
-      type?: 'rest_api' | 'sql';
+      type?: 'rest_api' | 'sql' | 'imap_smtp';
       authMethod: string;
       supportedAuthMethods?: string[];
       secretBindings?: string[];
@@ -216,9 +219,11 @@ export const loadIntegration = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action v.any() return
     const connectorCode = fileResult.connectorCode as string | null;
 
-    // Build connector object for REST API integrations
+    // Build connector object for REST API integrations only. SQL and
+    // imap_smtp integrations run as Node actions (raw TCP), not in the
+    // HTTP-only connector sandbox, so they never carry connector code.
     let connector: LoadedIntegration['connector'];
-    if (connectorCode && config.type !== 'sql') {
+    if (connectorCode && config.type !== 'sql' && config.type !== 'imap_smtp') {
       connector = {
         code: connectorCode,
         version: config.version ?? 1,
@@ -265,6 +270,7 @@ export const loadIntegration = internalAction({
       supportedAuthMethods: credentials.supportedAuthMethods,
       apiKeyAuth: credentials.apiKeyAuth,
       basicAuth: credentials.basicAuth,
+      smtpAuth: credentials.smtpAuth,
       oauth2Auth: credentials.oauth2Auth,
       oauth2Config,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema

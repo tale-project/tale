@@ -15,7 +15,7 @@ Les conversations parcourent trois états de cycle de vie : **ouverte** (active,
 
 ## Canaux qui produisent des conversations
 
-Les canaux qui alimentent Conversations sont les mêmes canaux listés sous [Intégrations](/fr/platform/integrations/overview) dans le groupe Communication : Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio (SMS et WhatsApp). Une intégration de canal installée route le trafic entrant vers l'inbox ; les règles de routage sous **Paramètres > Conversations** décident à quelle équipe ou agent atterrit chaque thread entrant.
+Les canaux qui alimentent Conversations sont les mêmes canaux listés sous [Intégrations](/fr/platform/integrations/overview) dans le groupe Communication : Slack, Microsoft Teams, Discord, Gmail, Outlook, IMAP/SMTP (toute boîte privée), Twilio (SMS et WhatsApp). Une intégration de canal installée route le trafic entrant vers l'inbox ; les règles de routage sous **Paramètres > Conversations** décident à quelle équipe ou agent atterrit chaque thread entrant.
 
 Le canal chat web est intégré et ne demande pas d'intégration ; il apparaît comme widget intégrable que l'org peut déposer sur son propre site.
 

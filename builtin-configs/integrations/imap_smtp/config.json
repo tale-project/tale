@@ -1,0 +1,57 @@
+{
+  "title": "IMAP / SMTP Mailbox",
+  "description": "Connect a private IMAP + SMTP mail server to Conversations — no Gmail or Outlook account required.",
+  "metadata": {
+    "labels": ["Email"]
+  },
+  "version": 1,
+  "type": "imap_smtp",
+  "bundles": {
+    "workflows": ["imap_smtp/sync-emails-from-imap_smtp"]
+  },
+  "authMethod": "basic_auth",
+  "supportedAuthMethods": ["basic_auth"],
+  "secretBindings": ["username", "password"],
+  "connectionConfig": {
+    "imapHost": "",
+    "imapPort": 993,
+    "imapSecure": "true",
+    "smtpHost": "",
+    "smtpPort": 587,
+    "smtpSecure": "false",
+    "fromAddress": ""
+  },
+  "operations": [
+    {
+      "name": "list_messages",
+      "title": "List Messages",
+      "description": "Fetch recent inbound messages from the IMAP mailbox as standard email objects (from, to, subject, body, attachments). Used by the scheduled sync to import new mail into conversations.",
+      "operationType": "read",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "number",
+            "description": "Only return messages received on/after this epoch-millisecond timestamp (the sync cursor).",
+            "required": false
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of messages to return in one pass (default 25).",
+            "required": false
+          },
+          "mailbox": {
+            "type": "string",
+            "description": "IMAP mailbox/folder to read (default INBOX).",
+            "required": false
+          }
+        }
+      }
+    }
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  },
+  "setupGuide": "Connect any standard mailbox over IMAP (receiving) + SMTP (sending) — no Gmail or Outlook OAuth needed.\n\n1. **Username / Password** — your full email address and its password. If your provider uses 2-factor auth (e.g. Fastmail, Zoho, a self-hosted server with app passwords), generate an **app-specific password** and use that here.\n2. **IMAP** — set the IMAP host (e.g. `imap.your-domain.com`). Port `993` with IMAP Secure `true` is implicit TLS (recommended). Port `143` with `false` uses STARTTLS.\n3. **SMTP** — set the SMTP host (e.g. `smtp.your-domain.com`). Port `587` with SMTP Secure `false` uses STARTTLS (recommended); port `465` with `true` is implicit TLS.\n4. **From Address** — the default/fallback sender. Set it to an address on the domain you send from (e.g. `hello@your-domain.com`).\n5. **SMTP username / password** — optional. Leave blank to send through the same mailbox login. Fill them to send through a separate provider — e.g. **Resend**: SMTP host `smtp.resend.com`, port `465`/Secure `true`, SMTP username `resend`, SMTP password = your `re_…` API key, and set From Address to a domain you verified in Resend.\n6. Click **Test** to verify both IMAP and SMTP, then **Save**. New inbound mail syncs into Conversations on a schedule, and replies send out over SMTP.\n\n**Multiple addresses (support@, billing@, …):** you don't need one integration per address. Route every address into this one mailbox (a catch-all alias, or forwards), and replies automatically go out **from whichever address the customer wrote to** — as long as it's on your send domain (the From Address above is used as the fallback). One mailbox, many addresses."
+}
