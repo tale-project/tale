@@ -21,6 +21,10 @@ async function startWorkflowForTask(
   args: { organizationId: string; task: Doc<'tasks'>; workflowSlug: string },
 ): Promise<string | null> {
   const issueNumber = parseIssueNumber(args.task.externalId);
+  // owner/repo from the same "owner/repo#N" ref, so a workflow can address the
+  // upstream issue (e.g. the desk pre-check's get_issue) without re-parsing;
+  // null for a non-issue/malformed ref, which the workflow guards on.
+  const repoRef = parseRepoRef(args.task.externalId);
   // An app-owned workflow (slug `<app>/<name>`) gets its install's PER-PROJECT
   // config injected as `input.appConfig`, resolved by THIS task's project so two
   // projects bound to the same app never see each other's config. Empty for a
@@ -43,7 +47,13 @@ async function startWorkflowForTask(
         organizationId: args.organizationId,
         workflowSlug: args.workflowSlug,
         triggeredBy: 'user',
-        input: { task: args.task, issueNumber, appConfig },
+        input: {
+          task: args.task,
+          issueNumber,
+          owner: repoRef?.owner ?? null,
+          repo: repoRef?.repo ?? null,
+          appConfig,
+        },
         subject: { type: 'task', id: args.task._id },
       },
     );
