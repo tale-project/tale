@@ -10,21 +10,7 @@ import {
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../lib/validators/json';
-
-/**
- * The app's workflow slugs from the org install resource ledger (no FS read) —
- * the schedules whose `variables` carry per-install config get keyed by these.
- */
-function workflowSlugsFromInstall(
-  resources: {
-    domain: string;
-    path: string;
-  }[],
-): string[] {
-  return resources
-    .filter((r) => r.domain === 'workflows')
-    .map((r) => r.path.replace(/\.json$/, ''));
-}
+import { appWorkflowSlugs } from './app_workflow_slugs';
 
 /**
  * Merge `config` into the `variables` of the app's schedules for the given
@@ -143,8 +129,10 @@ export const getProjectAppConfigInternal = internalQuery({
  * Set an installed app's per-install config (the `requires.config` values, e.g.
  * github owner/repo). Syncs them into the `variables` of the app's schedules so a
  * scheduled workflow (e.g. the issue-desk reconcile) targets the configured repo
- * instead of a hardcoded default. The app's workflow slugs come from the install
- * resource ledger, so no manifest/FS read is needed.
+ * instead of a hardcoded default. The app's workflow slugs come from the
+ * authoritative `wfInstallations` ownership ledger (`appWorkflowSlugs`), NOT the
+ * `appInstallations.resources` file ledger — that records only fan-out domains
+ * (integrations) and never workflows, so it would sync nothing.
  *
  * Scope: pass `projectId` for a `scope: 'project'` app to write THAT project's
  * config onto its binding and sync only that project's schedules — config never
@@ -190,7 +178,11 @@ export const setAppConfig = mutation({
         `App "${args.appSlug}" is not installed in this organization`,
       );
     }
-    const workflowSlugs = workflowSlugsFromInstall(row.resources);
+    const workflowSlugs = await appWorkflowSlugs(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+    );
 
     if (args.projectId) {
       // Project-scoped: the binding owns the config; only this project's

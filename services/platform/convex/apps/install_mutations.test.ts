@@ -250,7 +250,9 @@ describe('beginUninstall guard (I1/I7)', () => {
 
   it("deleteProjectSchedules removes only the target project's schedules", async () => {
     const t = convexTest(schema, modules);
-    // Install carrying a workflow resource — the slug source for the sweep.
+    // The sweep's slug source is the `wfInstallations` ownership ledger (appSlug
+    // stamped at install), NOT the `resources` file ledger — which never lists
+    // workflows (fan-out domains only). Seed it the realistic way.
     await t.run(async (ctx) => {
       await ctx.db.insert('appInstallations', {
         organizationId: ORG,
@@ -259,13 +261,15 @@ describe('beginUninstall guard (I1/I7)', () => {
         installedBy: 'tester',
         status: 'active',
         requiredIntegrations: [],
-        resources: [
-          {
-            domain: 'workflows',
-            path: 'issue-desk/reconcile.json',
-            contentHash: 'h',
-          },
-        ],
+        resources: [],
+      });
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: 'issue-desk/reconcile',
+        appSlug: APP,
+        installedAt: 0,
+        installedBy: 'tester',
+        contentHash: 'h',
       });
     });
     const a = await seedProject(t, 'Alpha');
@@ -298,5 +302,218 @@ describe('beginUninstall guard (I1/I7)', () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0]._id).toBe(schedB);
     expect(remaining[0].projectId).toBe(b);
+  });
+});
+
+describe('reconcileAppSchedules', () => {
+  const SLUG = 'issue-desk/reconcile';
+  const CRON = '*/15 * * * *';
+
+  async function seedWfInstall(t: T): Promise<void> {
+    await t.run((ctx) =>
+      ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: SLUG,
+        appSlug: APP,
+        installedAt: 0,
+        installedBy: 'tester',
+        contentHash: 'h',
+      }),
+    );
+  }
+
+  function mkSched(
+    t: T,
+    opts: {
+      projectId?: Id<'projects'>;
+      variables: Record<string, unknown>;
+      isActive?: boolean;
+      workflowSlug?: string;
+    },
+  ): Promise<Id<'wfSchedules'>> {
+    return t.run((ctx) =>
+      ctx.db.insert('wfSchedules', {
+        organizationId: ORG,
+        ...(opts.projectId ? { projectId: opts.projectId } : {}),
+        workflowSlug: opts.workflowSlug ?? SLUG,
+        cronExpression: CRON,
+        timezone: 'UTC',
+        isActive: opts.isActive ?? true,
+        variables: opts.variables,
+        createdAt: 0,
+        createdBy: 'system',
+      }),
+    );
+  }
+
+  it('heals a drifted schedule and prunes org-level + unbound-project orphans', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    const bound = await seedProject(t, 'Bound');
+    const gone = await seedProject(t, 'Unbound');
+    // B: the bound project's schedule, stale (repo configured after provisioning).
+    const schedB = await mkSched(t, {
+      projectId: bound,
+      variables: { state: 'all' },
+    });
+    // A: org-level leftover from a pre-project-scope era. C: a since-unbound
+    // project. Both must be pruned — they'd otherwise fire with no owner/repo.
+    await mkSched(t, { variables: { state: 'all' } });
+    await mkSched(t, { projectId: gone, variables: { state: 'all' } });
+
+    const result = await t.mutation(
+      internal.apps.install_mutations.reconcileAppSchedules,
+      {
+        organizationId: ORG,
+        appSlug: APP,
+        desired: [
+          {
+            workflowSlug: SLUG,
+            cronExpression: CRON,
+            timezone: 'UTC',
+            projectId: bound,
+            variables: { state: 'all', owner: 'acme', repo: 'widgets' },
+          },
+        ],
+      },
+    );
+    expect(result).toEqual({ created: 0, updated: 1, pruned: 2 });
+
+    const rows = await t.run((ctx) => ctx.db.query('wfSchedules').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]._id).toBe(schedB);
+    expect(rows[0].variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'widgets',
+    });
+  });
+
+  it('creates a desired schedule that does not yet exist', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    const p = await seedProject(t, 'Fresh');
+
+    const result = await t.mutation(
+      internal.apps.install_mutations.reconcileAppSchedules,
+      {
+        organizationId: ORG,
+        appSlug: APP,
+        desired: [
+          {
+            workflowSlug: SLUG,
+            cronExpression: CRON,
+            timezone: 'UTC',
+            projectId: p,
+            variables: { state: 'all', owner: 'acme', repo: 'new' },
+          },
+        ],
+      },
+    );
+    expect(result).toEqual({ created: 1, updated: 0, pruned: 0 });
+
+    const rows = await t.run((ctx) => ctx.db.query('wfSchedules').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].projectId).toBe(p);
+    expect(rows[0].isActive).toBe(true);
+    expect(rows[0].variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'new',
+    });
+  });
+
+  it('converges variables but leaves a disabled schedule disabled (opt-out sticks)', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    const p = await seedProject(t, 'Paused');
+    const sched = await mkSched(t, {
+      projectId: p,
+      variables: { state: 'all' },
+      isActive: false,
+    });
+
+    await t.mutation(internal.apps.install_mutations.reconcileAppSchedules, {
+      organizationId: ORG,
+      appSlug: APP,
+      desired: [
+        {
+          workflowSlug: SLUG,
+          cronExpression: CRON,
+          timezone: 'UTC',
+          projectId: p,
+          variables: { state: 'all', owner: 'acme', repo: 'paused' },
+        },
+      ],
+    });
+
+    const row = await t.run((ctx) => ctx.db.get(sched));
+    expect(row?.isActive).toBe(false);
+    expect(row?.variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'paused',
+    });
+  });
+
+  it('never touches a schedule this app does not own', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    // A schedule for a workflow NOT owned by this app (no matching wfInstallations
+    // appSlug) — a global/default-pack schedule that must survive reconcile.
+    const foreign = await mkSched(t, {
+      workflowSlug: 'projects/tasks/sweep-stale-work',
+      variables: { keep: 'me' },
+    });
+
+    const result = await t.mutation(
+      internal.apps.install_mutations.reconcileAppSchedules,
+      { organizationId: ORG, appSlug: APP, desired: [] },
+    );
+    expect(result).toEqual({ created: 0, updated: 0, pruned: 0 });
+
+    const row = await t.run((ctx) => ctx.db.get(foreign));
+    expect(row?.variables).toEqual({ keep: 'me' });
+  });
+
+  it('collapses accidental duplicate schedules to exactly one', async () => {
+    const t = convexTest(schema, modules);
+    await seedOrgInstall(t);
+    await seedWfInstall(t);
+    const p = await seedProject(t, 'Dup');
+    // Two rows with the SAME identity (org, slug, cron, project) — an accidental
+    // duplicate. Reconcile keeps one (converged) and prunes the other.
+    await mkSched(t, { projectId: p, variables: { state: 'all' } });
+    await mkSched(t, { projectId: p, variables: { state: 'all' } });
+
+    const result = await t.mutation(
+      internal.apps.install_mutations.reconcileAppSchedules,
+      {
+        organizationId: ORG,
+        appSlug: APP,
+        desired: [
+          {
+            workflowSlug: SLUG,
+            cronExpression: CRON,
+            timezone: 'UTC',
+            projectId: p,
+            variables: { state: 'all', owner: 'acme', repo: 'dup' },
+          },
+        ],
+      },
+    );
+    expect(result).toEqual({ created: 0, updated: 1, pruned: 1 });
+
+    const rows = await t.run((ctx) => ctx.db.query('wfSchedules').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'dup',
+    });
   });
 });
