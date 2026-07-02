@@ -22,7 +22,7 @@ Bündle ihr Wissen, delegiere Aufgaben und bau deinen Schwarm aus Agents.
 
 ---
 
-Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Automatisierungen und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI und starte mit einem einzigen Befehl.
+Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dein Team bereits nutzt, zu einer koordinierten Belegschaft verbindet. Gib ihnen eine gemeinsame Wissensdatenbank, binde deine Tools und Integrationen an und delegiere Arbeit über sie hinweg — Agents, Automatisierungen und ein gemeinsamer Posteingang, alles auf deiner eigenen Infrastruktur. Installiere die CLI, dann reichen zwei Befehle zum Start.
 
 **Wähl deinen Weg:**
 
@@ -32,7 +32,7 @@ Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dei
 
 ## Schnellstart
 
-Bring Tale in drei Befehlen auf deine Maschine — CLI installieren, Projekt anlegen, starten. Die CLI installiert Docker, falls es fehlt, und generiert jedes Secret für dich, sodass nichts vorab einzurichten und nichts von Hand zu editieren ist.
+Bring Tale auf deine Maschine — CLI installieren, dann zwei Befehle: Projekt anlegen, starten. Die CLI installiert Docker, falls es fehlt, und generiert jedes Secret für dich, sodass nichts vorab einzurichten und nichts von Hand zu editieren ist.
 
 **Voraussetzungen für einen lokalen Test: keine.** Der Installer richtet Docker für dich ein, und `tale init` generiert jedes Secret — du musst nichts mitbringen, um den Stack hochzubekommen. Ein [OpenRouter-API-Key](https://openrouter.ai) (oder ein beliebiger OpenAI-kompatibler Anbieter) ist optional und erst nötig, bevor ein Agent antworten kann: du fügst ihn in der App nach der Anmeldung hinzu, im Einrichtungsassistenten oder unter **Einstellungen → KI-Anbieter**. `tale init` fragt nicht danach.
 
@@ -59,7 +59,7 @@ tale init my-project
 cd my-project
 ```
 
-Die CLI stellt eine Frage — **lokaler Test** oder **Produktiv-Domain** — und konfiguriert alles für dieses Ziel: TLS, alle Sicherheits-Secrets, Konfigurationsdateien für KI-Editoren und den nach `.tale/reference/` entpackten Plattform-Quellcode, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können. Dasselbe Projekt funktioniert für einen lokalen Test und ein echtes Deployment.
+`tale init` schreibt localhost-Defaults mit selbstsigniertem Zertifikat und generiert jedes Sicherheits-Secret — die Domain wählst du später, bei `tale deploy`. Es fragt einmal, ob Agents in ihren Sandboxes Docker ausführen dürfen (Standard: nein), legt Beispiel-Configs unter `default/` ab und schreibt `AGENTS.md` plus einen `CLAUDE.md`-Verweis; der Plattform-Quellcode liegt entpackt in `.tale/reference/`, damit KI-Editoren Configs mit voller Plattform-Kenntnis erstellen und ändern können. Dasselbe Projekt funktioniert für einen lokalen Test und ein echtes Deployment.
 
 ### 3. Tale starten
 
@@ -67,7 +67,7 @@ Die CLI stellt eine Frage — **lokaler Test** oder **Produktiv-Domain** — und
 tale dev
 ```
 
-Öffne https://localhost (oder deine konfigurierte Domain), sobald "Tale Platform is running!" erscheint.
+Sobald "Tale is running" erscheint, öffnet `tale dev` https://localhost (oder deine konfigurierte Domain) in deinem Browser — kann es das nicht, gibt es die URL zum Besuchen aus.
 
 > **Hinweis:** Dein Browser zeigt eine Zertifikatswarnung für selbstsignierte Zertifikate. Die ist sicher zu akzeptieren.
 
@@ -75,16 +75,16 @@ Eine ausführliche Einrichtungsanleitung findest du im [Self-hosted-Quickstart](
 
 ## Was kannst du tun?
 
-| Ziel                           | Wie                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------------------- |
-| **Eigene Agents bauen**        | JSON-Dateien in `agents/` bearbeiten — Anweisungen, Tools und Modelle definieren          |
-| **Automatisierungen bauen**    | JSON-Dateien in `workflows/` bearbeiten — Trigger, Bedingungen, Schleifen, KI-Schritte    |
-| **Integrationen hinzufügen**   | Dateien in `integrations/` bearbeiten — REST-APIs, SQL-Datenbanken, eigene Konnektoren    |
-| **Configs mit KI bauen**       | Projekt in Claude Code, Cursor, Copilot oder Windsurf öffnen — die KI kennt deine Schemas |
-| **Mit KI-Assistenten chatten** | Direkt in der Plattform — sofort einsatzbereit                                            |
-| **Wissensdatenbank aufbauen**  | Dokumente hochladen, Websites crawlen, Produkte und Kunden verwalten                      |
-| **Konversationen verwalten**   | Gemeinsamer Posteingang für Kunden-Konversationen mit KI-gestützten Antworten             |
-| **Backend-Daten ansehen**      | `tale convex admin` ausführen und das Convex Dashboard öffnen                             |
+| Ziel                           | Wie                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| **Eigene Agents bauen**        | JSON-Dateien in `agents/` bearbeiten — Anweisungen, Tools und Modelle definieren           |
+| **Automatisierungen bauen**    | JSON-Dateien in `workflows/` bearbeiten — Trigger, Bedingungen, Schleifen, KI-Schritte     |
+| **Integrationen hinzufügen**   | Dateien in `integrations/` bearbeiten — REST-APIs, SQL-Datenbanken, eigene Konnektoren     |
+| **Configs mit KI bauen**       | Projekt in deinem KI-Editor öffnen — `AGENTS.md` und `.tale/reference/` tragen die Schemas |
+| **Mit KI-Assistenten chatten** | Direkt in der Plattform — sofort einsatzbereit                                             |
+| **Wissensdatenbank aufbauen**  | Dokumente hochladen, Websites crawlen, Produkte und Kunden verwalten                       |
+| **Konversationen verwalten**   | Gemeinsamer Posteingang für Kunden-Konversationen mit KI-gestützten Antworten              |
+| **Backend-Daten ansehen**      | `tale convex admin` ausführen und das Convex Dashboard öffnen                              |
 
 Alle Dateien in `agents/`, `workflows/` und `integrations/` werden live neu geladen — bearbeiten und Änderungen sofort sehen.
 
@@ -97,7 +97,7 @@ tale init [directory]              # Neues Projekt mit Beispiel-Configs anlegen 
 tale dev                           # Alle Dienste lokal starten
 tale dev --detach                  # Im Hintergrund starten
 tale dev --port 8443               # Eigenen HTTPS-Port nutzen
-tale upgrade                       # CLI upgraden und Projektdateien synchronisieren
+tale update                        # CLI aktualisieren + Projektdateien synchronisieren (danach `tale deploy`; die CLI gleicht sich automatisch an)
 tale convex admin                  # Convex-Dashboard-Admin-Key generieren
 tale config                        # CLI-Konfiguration verwalten
 ```
