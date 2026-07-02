@@ -1743,6 +1743,8 @@
       "fileActionsAriaLabel": "Actions du fichier",
       "fileSizeAriaLabel": "Taille du fichier",
       "sourceRunOutput": "Sortie de code",
+      "outputExpand": "Afficher tous les fichiers",
+      "outputCollapse": "Afficher moins de fichiers",
       "sourceAgentWrite": "Fichiers IA",
       "sourceUserUpload": "Téléversés",
       "noFilesYet": "Aucun fichier pour le moment",
@@ -3117,11 +3119,8 @@
     "sandboxQuota": {
       "title": "Limites de simultanéité des sandboxes",
       "description": "Limitez le nombre de sandboxes que cette organisation peut exécuter simultanément. Ces limites par organisation s'inscrivent sous la capacité hôte définie au niveau du déploiement ; les réduire protège les ressources serveur partagées contre la saturation.",
-      "maxConcurrent": "Exécutions ponctuelles simultanées max.",
-      "maxConcurrentHint": "Sandboxes jetables (run_code et étapes de script de workflow) pouvant s'exécuter en même temps pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
       "maxSessions": "Sessions actives max.",
       "maxSessionsHint": "Sessions de sandbox persistantes (agents de discussion et étapes d'agent de workflow) pouvant être actives simultanément pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
-      "invalidConcurrent": "Doit être un nombre entier compris entre 1 et 100.",
       "invalidSessions": "Doit être un nombre entier compris entre 1 et 500.",
       "saved": "Les limites de simultanéité des sandboxes ont été mises à jour",
       "saveFailed": "Échec de l'enregistrement des limites de simultanéité des sandboxes"

@@ -69,8 +69,11 @@ export async function executeSandboxNode(
     const poll = await ctx.runMutation(
       internal.sandbox.admission.pollAdmission,
       {
+        // Both agent and script steps now run in a workflow-run session, so both
+        // draw from the per-org workflow SESSION budget (one unified capacity
+        // model — the one-shot 'oneshot' kind is retired).
         organizationId,
-        kind: isAgent ? 'session' : 'oneshot',
+        kind: 'session',
         ownerType,
         ownerId,
         source: 'workflow',

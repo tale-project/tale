@@ -11,11 +11,8 @@ import type { OutputFile as SpawnerOutputFile } from '../../../sandbox/src/types
 // that the docstring claimed this guard existed when it didn't.
 import type {
   sandboxErrorCodeLiterals as SpawnerErrorCodes,
-  sandboxLanguageLiterals as SpawnerLanguages,
-  sandboxPhaseEventLiterals as SpawnerPhases,
   sandboxSessionProfileLiterals as SpawnerSessionProfiles,
   sandboxSseEventLiterals as SpawnerSseEvents,
-  sandboxStepStatusLiterals as SpawnerStepStatuses,
 } from '../../../sandbox/src/wire';
 
 /**
@@ -139,14 +136,6 @@ export const sandboxErrorCodeValidator = v.union(
 );
 
 /**
- * Wire-level phase events emitted by the spawner SSE stream. The Convex
- * action translates these into `runStatus` and `runPhase` patches on the
- * artifact row. `preparing` corresponds to docker-pull / workspace setup;
- * `installing` to dependency install; `running` to user-code execution;
- * `completed` to terminal (success or failure — the result body carries
- * the outcome).
- */
-/**
  * SSE event-type vocabulary emitted by the spawner's `POST /v1/execute`.
  * Mirror of `services/sandbox/src/wire.ts:sandboxSseEventLiterals`. The
  * compile-time `Equal<>` parity check below catches drift in either
@@ -177,15 +166,6 @@ export const sandboxSessionProfileValidator = v.union(
 );
 
 export type SandboxSessionProfile = 'default' | 'agent';
-
-export const sandboxPhaseEventLiterals = [
-  'preparing',
-  'installing',
-  'running',
-  'completed',
-] as const;
-
-export type SandboxPhaseEvent = (typeof sandboxPhaseEventLiterals)[number];
 
 /**
  * Structured progress payload persisted on the artifact row alongside the
@@ -274,64 +254,6 @@ export const sandboxTruncatedValidator = v.object({
   files: v.number(),
 });
 
-export const sandboxLanguageLiterals = [
-  'python',
-  'node',
-  'bash',
-  'polyglot',
-] as const;
-export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
-
-export const sandboxLanguageValidator = v.union(
-  v.literal('python'),
-  v.literal('node'),
-  // Bash mode: single-step `.sh` runs invoke `exec bash <entryPath>`.
-  // No package bucket — bash relies on whatever ships in the image.
-  v.literal('bash'),
-  // Polyglot mode: per-step interpreter is chosen by file extension
-  // (.py → python3, .js/.cjs/.mjs → node, .sh → bash). Packages are
-  // split into python/node buckets via `packagesByLang` on the wire.
-  v.literal('polyglot'),
-);
-
-/**
- * Per-step outcome populated only for multi-step runs (where
- * `artifact_run` was invoked with `steps: [{path}]`). One row per
- * requested step, in the requested order. `status` is:
- *   `completed` — exit 0
- *   `failed`    — exit ≠ 0; the wrapper aborts subsequent steps
- *   `skipped`   — a prior step failed or the wrapper never reached this one
- *
- * `exitCode` is `null` for `skipped` (no process was started).
- */
-export const sandboxStepStatusLiterals = [
-  'completed',
-  'failed',
-  'skipped',
-] as const;
-
-export type SandboxStepStatus = (typeof sandboxStepStatusLiterals)[number];
-
-export const sandboxStepStatusValidator = v.union(
-  v.literal('completed'),
-  v.literal('failed'),
-  v.literal('skipped'),
-);
-
-export const sandboxStepResultValidator = v.object({
-  path: v.string(),
-  status: sandboxStepStatusValidator,
-  exitCode: v.union(v.number(), v.null()),
-  durationMs: v.number(),
-});
-
-export type SandboxStepResult = {
-  path: string;
-  status: SandboxStepStatus;
-  exitCode: number | null;
-  durationMs: number;
-};
-
 // ---------------------------------------------------------------------------
 // Spawner ↔ Convex literal parity (audit finding R2-B3)
 // ---------------------------------------------------------------------------
@@ -360,24 +282,6 @@ type Equal<A, B> = [A] extends [B]
 const _errorCodeParity: Equal<
   (typeof sandboxErrorCodeLiterals)[number],
   (typeof SpawnerErrorCodes)[number]
-> = true;
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _phaseEventParity: Equal<
-  (typeof sandboxPhaseEventLiterals)[number],
-  (typeof SpawnerPhases)[number]
-> = true;
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _languageParity: Equal<
-  (typeof sandboxLanguageLiterals)[number],
-  (typeof SpawnerLanguages)[number]
-> = true;
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _stepStatusParity: Equal<
-  (typeof sandboxStepStatusLiterals)[number],
-  (typeof SpawnerStepStatuses)[number]
 > = true;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

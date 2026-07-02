@@ -36,9 +36,10 @@ interface DockerSessionRunInput {
   createdAtMs: number;
   /**
    * Per-session docker storage volume name, mounted at /var/lib/docker. Required
-   * (and only used) when cfg.dockerInContainer is true; the backend creates an
-   * ephemeral, size-bounded volume so the inner dockerd's image/layer store is
-   * isolated per session and doesn't share the (overlay-backed) workspace.
+   * (and only used) when `sessionDindEnabled` — DinD is agent-profile only; the
+   * backend creates an ephemeral, size-bounded volume so the inner dockerd's
+   * image/layer store is isolated per session and doesn't share the
+   * (overlay-backed) workspace.
    */
   dockerStorageVolume?: string;
   /**
@@ -89,6 +90,24 @@ const DEFAULT_PROFILE: SessionAgentProfileConfig = {
   gid: 65534,
 };
 
+/**
+ * DinD is an AGENT-profile capability, never a `default`-profile one. The
+ * `default` profile is the hardened run_code posture (untrusted user code,
+ * uid 65534): giving it the DinD boot would (a) hand untrusted code a
+ * `--privileged` container on the runc tier, and (b) crash the session —
+ * the entrypoint's DinD branch setpriv-drops to the agent uid (10001)
+ * unconditionally, which cannot write the 65534-owned workspace, so the
+ * skeleton mkdir dies and runnerd never comes up. Gating here (not in the
+ * caller) keeps the argv builder and the backend's volume/buildkitd setup in
+ * lockstep.
+ */
+export function sessionDindEnabled(
+  cfg: SpawnerConfig,
+  profile: SandboxSessionProfile,
+): boolean {
+  return cfg.dockerInContainer && profile === 'agent';
+}
+
 export function buildDockerSessionRunArgs(
   cfg: SpawnerConfig,
   inp: DockerSessionRunInput,
@@ -118,7 +137,7 @@ export function buildDockerSessionRunArgs(
   //     root). config.ts allows this only with a loud trusted-only warning.
   // When !dind every conditional collapses to today's hardened argv (byte-for-
   // byte, unit-tested).
-  const dind = cfg.dockerInContainer;
+  const dind = sessionDindEnabled(cfg, inp.profile);
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
   // Transparent egress for the session's OWN processes. The entrypoint installs
@@ -263,7 +282,12 @@ export function buildDockerSessionRunArgs(
   // headed-Chromium + x11vnc read-only mirror (start_browser_stack). Additive
   // and only present when enabled — off keeps today's argv byte-identical. The
   // CDP (9222) / VNC (5900) endpoints are loopback-only; no port is published.
-  const browserViewEnv = cfg.browserView ? ['--env', 'TALE_BROWSER_CDP=1'] : [];
+  // Agent-only, like DinD: a run_code (`default`) session has no browser tool,
+  // so the headed-Chromium stack would be pure boot latency + attack surface.
+  const browserViewEnv =
+    cfg.browserView && inp.profile === 'agent'
+      ? ['--env', 'TALE_BROWSER_CDP=1']
+      : [];
 
   // Transparent egress signal for the entrypoint. On the non-DinD hardening path
   // the container boots as root, so TALE_DROP_UID/GID tell the entrypoint which

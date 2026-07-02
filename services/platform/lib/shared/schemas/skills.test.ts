@@ -1,3 +1,7 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { parseSkillMd, SkillFrontmatterError } from './skills';
@@ -207,3 +211,59 @@ describe('parseSkillMd — YAML security', () => {
 
 // SKILL_RESERVED_TOOL_NAMES retired with the skill_run tool — skills no
 // longer declare `tool-names` so there's nothing to reserve against.
+
+/**
+ * Guard: every shipped `SKILL.md` — the product catalog under
+ * `builtin-configs/skills/` and `skills/`, plus the generated repo-dev
+ * mirrors (`.agents/skills/`, `.claude/skills/`) — must parse with the same
+ * strict parser the runtime uses. An unquoted `: ` (or any other invalid
+ * YAML) in a description previously shipped undetected because `skills:sync`
+ * copies files verbatim and never runs `parseSkillMd`; this locks that gap.
+ */
+describe('parseSkillMd — shipped SKILL.md frontmatter', () => {
+  // repo root: .../services/platform/lib/shared/schemas → up 5 levels.
+  const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const roots = [
+    'builtin-configs/skills',
+    'skills',
+    '.agents/skills',
+    '.claude/skills',
+  ];
+
+  function shippedSkillMds(): { rel: string; content: string }[] {
+    const out: { rel: string; content: string }[] = [];
+    for (const root of roots) {
+      const abs = path.join(repoRoot, root);
+      let entries: string[];
+      try {
+        entries = readdirSync(abs);
+      } catch {
+        continue; // a root may be absent in some checkouts
+      }
+      for (const name of entries) {
+        const file = path.join(abs, name, 'SKILL.md');
+        try {
+          out.push({
+            rel: `${root}/${name}`,
+            content: readFileSync(file, 'utf8'),
+          });
+        } catch {
+          // not a skill dir (no SKILL.md) — skip.
+        }
+      }
+    }
+    return out;
+  }
+
+  const skills = shippedSkillMds();
+
+  it('discovers the shipped skills (sanity: the roots resolve)', () => {
+    expect(skills.length).toBeGreaterThan(0);
+  });
+
+  it.each(skills.map((s) => s.rel))('parses %s', (rel) => {
+    const skill = skills.find((s) => s.rel === rel);
+    expect(skill).toBeDefined();
+    expect(() => parseSkillMd(skill!.content)).not.toThrow();
+  });
+});

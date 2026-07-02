@@ -10,8 +10,54 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import { sessionDestroy } from './helpers/session_client';
+import { sessionDestroy, sessionDestroyIfIdle } from './helpers/session_client';
 import { revokeVirtualKey } from './llm_gateway_admin';
+
+/**
+ * End-of-turn teardown for the per-thread run_code session — the CONDITIONAL
+ * flavour. Scheduled by `runGenerationCore`'s finally with the turn's own
+ * threadId (a delegate sub-turn passes its sub-thread id, so every turn
+ * cleans up exactly its own session). Destroys via `?if_idle=1`: when a
+ * sibling turn on the same thread still has a live exec, the spawner no-ops
+ * with busy=true and we leave EVERYTHING alone — the surviving turn's own
+ * finally performs the teardown when it ends. Only after the spawner confirms
+ * the destroy do we flip the platform rows (mark destroyed + capacity wake +
+ * schedule the VK/op cleanup via destroyThreadOwnedSessions).
+ */
+export const teardownThreadSessionAtTurnEnd = internalAction({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.runQuery(
+      internal.sandbox.session_queries.getActiveSessionByOwner,
+      { ownerType: 'thread', ownerId: args.threadId },
+    );
+    if (row === null) return null;
+    try {
+      const res = await sessionDestroyIfIdle(row.sessionId);
+      if (res.busy) {
+        console.log(
+          `[teardownThreadSessionAtTurnEnd] ${row.sessionId} busy (live exec) — leaving it to the surviving turn's teardown`,
+        );
+        return null;
+      }
+    } catch (err) {
+      // Leave the row live: flipping it while the backend may survive would
+      // 409 every future create against the deterministic sessionId. The next
+      // turn's teardown (or the TTL reaper) retries.
+      console.warn(
+        `[teardownThreadSessionAtTurnEnd] conditional destroy ${row.sessionId} failed:`,
+        err,
+      );
+      return null;
+    }
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.destroyThreadOwnedSessions,
+      { threadId: args.threadId },
+    );
+    return null;
+  },
+});
 
 export const teardownThreadSessions = internalAction({
   args: { sessionIds: v.array(v.string()) },

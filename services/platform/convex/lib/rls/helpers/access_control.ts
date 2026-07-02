@@ -32,7 +32,6 @@ type PlatformTable =
   | 'artifacts'
   | 'artifactRevisions'
   | 'auditLogChainGenesis'
-  | 'sandboxExecutions'
   // Multi-file artifact tables — added audit follow-up F14. Writes go
   // exclusively through internalMutation (handlers/*.ts); reads need
   // an explicit READ_ONLY role-matrix entry so the new rls_rules.ts
@@ -86,7 +85,6 @@ const platformPermissions: Record<
     // Genesis row is an internal sentinel — no client-facing reads/writes.
     auditLogChainGenesis: NONE,
     // Audit table; user-facing access is read-only across all roles.
-    sandboxExecutions: READ_ONLY,
     // Multi-file artifact tables: writes are internal-only (handlers/*.ts);
     // reads through RLS-wrapped queries get READ_ONLY across all org roles.
     artifactFiles: READ_ONLY,
@@ -119,7 +117,6 @@ const platformPermissions: Record<
     artifacts: ALL,
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
-    sandboxExecutions: READ_ONLY,
     artifactFiles: READ_ONLY,
     artifactRuns: READ_ONLY,
     artifactRunFiles: READ_ONLY,
@@ -150,7 +147,6 @@ const platformPermissions: Record<
     artifacts: ALL,
     artifactRevisions: ALL,
     auditLogChainGenesis: NONE,
-    sandboxExecutions: READ_ONLY,
     artifactFiles: READ_ONLY,
     artifactRuns: READ_ONLY,
     artifactRunFiles: READ_ONLY,
@@ -185,7 +181,6 @@ const platformPermissions: Record<
     artifacts: READ_ONLY,
     artifactRevisions: READ_ONLY,
     auditLogChainGenesis: NONE,
-    sandboxExecutions: READ_ONLY,
     artifactFiles: READ_ONLY,
     artifactRuns: READ_ONLY,
     artifactRunFiles: READ_ONLY,
@@ -214,7 +209,6 @@ const platformPermissions: Record<
     artifacts: NONE,
     artifactRevisions: NONE,
     auditLogChainGenesis: NONE,
-    sandboxExecutions: NONE,
     artifactFiles: NONE,
     artifactRuns: NONE,
     artifactRunFiles: NONE,

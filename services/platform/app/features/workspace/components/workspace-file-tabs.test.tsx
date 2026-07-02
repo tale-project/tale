@@ -212,4 +212,101 @@ describe('WorkspaceOutputDock', () => {
     await user.click(screen.getByRole('button', { name: 'chart.png' }));
     expect(onSelect).toHaveBeenCalledWith('/user/workspace/output/chart.png');
   });
+
+  describe('overflow expand toggle', () => {
+    const MANY = Array.from({ length: 9 }, (_, i) =>
+      file(`/user/output/slide-${i + 1}.jpg`, 'run_output'),
+    );
+
+    /** jsdom has no layout: scrollWidth/clientWidth are always 0, so the row
+     *  never measures as overflowing. Force the geometry to simulate a strip
+     *  wider than its container (the user-reported 9-slide case). */
+    function forceOverflow() {
+      Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+        configurable: true,
+        get() {
+          return 800;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+        configurable: true,
+        get() {
+          return 400;
+        },
+      });
+      return () => {
+        // oxlint-disable-next-line typescript/no-dynamic-delete
+        delete (HTMLElement.prototype as { scrollWidth?: unknown }).scrollWidth;
+        // oxlint-disable-next-line typescript/no-dynamic-delete
+        delete (HTMLElement.prototype as { clientWidth?: unknown }).clientWidth;
+      };
+    }
+
+    it('hides the toggle when the chips fit (no overflow)', () => {
+      render(
+        <WorkspaceOutputDock
+          files={FILES}
+          activePath={null}
+          onSelect={vi.fn()}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Show all files' }),
+      ).toBeNull();
+    });
+
+    it('shows the toggle when the row overflows and expands to reveal all files', async () => {
+      const restore = forceOverflow();
+      try {
+        const { user } = render(
+          <WorkspaceOutputDock
+            files={MANY}
+            activePath={null}
+            onSelect={vi.fn()}
+          />,
+        );
+        const toggle = screen.getByRole('button', { name: 'Show all files' });
+        expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+        await user.click(toggle);
+        const collapse = screen.getByRole('button', {
+          name: 'Show fewer files',
+        });
+        expect(collapse.getAttribute('aria-expanded')).toBe('true');
+        // Every chip stays reachable in the expanded wrap.
+        for (const f of MANY) {
+          const name = f.path.split('/').at(-1) ?? '';
+          expect(screen.getByRole('button', { name })).toBeDefined();
+        }
+
+        await user.click(collapse);
+        expect(
+          screen
+            .getByRole('button', { name: 'Show all files' })
+            .getAttribute('aria-expanded'),
+        ).toBe('false');
+      } finally {
+        restore();
+      }
+    });
+
+    it('passes axe audit while expanded', async () => {
+      const restore = forceOverflow();
+      try {
+        const { user, container } = render(
+          <WorkspaceOutputDock
+            files={MANY}
+            activePath={null}
+            onSelect={vi.fn()}
+          />,
+        );
+        await user.click(
+          screen.getByRole('button', { name: 'Show all files' }),
+        );
+        await checkAccessibility(container);
+      } finally {
+        restore();
+      }
+    });
+  });
 });

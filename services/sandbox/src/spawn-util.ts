@@ -218,23 +218,6 @@ export async function runDocker(
   };
 }
 
-/**
- * Send a signal to a container. Default is SIGTERM (graceful); cancel paths
- * escalate to KILL when the graceful kill timed out. `timeoutMs` is
- * forwarded to `runDocker` so a wedged daemon kills the docker CLI
- * subprocess too — without it the outer caller's `withTimeout` would
- * reject but the underlying Bun child would leak.
- */
-export async function dockerKill(
-  containerName: string,
-  signal: 'TERM' | 'KILL' = 'TERM',
-  opts: { timeoutMs?: number } = {},
-): Promise<void> {
-  const runOpts: RunDockerOptions = {};
-  if (opts.timeoutMs !== undefined) runOpts.timeoutMs = opts.timeoutMs;
-  await runDocker(['kill', `--signal=SIG${signal}`, containerName], runOpts);
-}
-
 export async function dockerRm(containerName: string): Promise<void> {
   // Bounded: a wedged inner dockerd (DinD) with stuck mounts could otherwise
   // hang teardown indefinitely. SIGKILL of PID 1 normally collapses everything

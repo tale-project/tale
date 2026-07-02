@@ -296,7 +296,12 @@ function createExpandSkillTool(bySlug: Map<string, SkillRuntimeEntry>) {
         return {
           ok: true as const,
           slug: entry.slug,
-          body: `<skill-content slug="${entry.slug}">\n${escapeForXmlTag(entry.body, 'skill-content')}\n</skill-content>`,
+          // Harness guidance appended OUTSIDE the untrusted <skill-content>
+          // tag: many skills illustrate saving to a bare relative path
+          // (`output.xlsx`), which lands in the run_code cwd `/user/code` and
+          // is never harvested. Remind the model of the real output contract
+          // so it writes the deliverable correctly on the first run.
+          body: `<skill-content slug="${entry.slug}">\n${escapeForXmlTag(entry.body, 'skill-content')}\n</skill-content>\n\nSANDBOX OUTPUT: when a step here produces a deliverable file via \`run_code\`, save it under \`/user/output/\` — the ONLY directory harvested back into the thread. Override any relative example path (e.g. \`output.xlsx\` → \`/user/output/output.xlsx\`).`,
           inlineAssets,
           largeAssets,
           inlineTotalBytes: runningBytes,

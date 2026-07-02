@@ -27,7 +27,6 @@ interface SandboxQuotaEditorProps {
 }
 
 interface SandboxQuotaForm {
-  maxConcurrentPerOrg: number;
   maxSessionsPerOrg: number;
 }
 
@@ -38,12 +37,12 @@ const parseConfig = createConfigParser(sandboxQuotaConfigSchema, () => ({
 }));
 
 // =============================================================================
-// Per-org sandbox concurrency quota. Two batched number fields (one-shot exec
-// cap + active-session cap); no instant-save toggle since the quota always
-// applies. The deployment-wide host caps are spawner env — this is the
-// per-tenant slice. Mirrors the other policy editors: owns its fetch, the form
-// controller, and the loading state, rendering the real layout once inside
-// `<Skeletonize>`.
+// Per-org sandbox session quota. Edits the per-org USER-agent session cap; the
+// per-thread / workflow / render session budgets are config/API-tuned and
+// preserved on save. No instant-save toggle since the quota always applies. The
+// deployment-wide host cap is spawner env — this is the per-tenant slice.
+// Mirrors the other policy editors: owns its fetch, the form controller, and the
+// loading state, rendering the real layout once inside `<Skeletonize>`.
 // =============================================================================
 export function SandboxQuotaEditor({
   organizationId,
@@ -65,11 +64,6 @@ export function SandboxQuotaEditor({
   const schema = useMemo(
     () =>
       z.object({
-        maxConcurrentPerOrg: z
-          .number()
-          .int()
-          .min(1, t('sandboxQuota.invalidConcurrent'))
-          .max(100, t('sandboxQuota.invalidConcurrent')),
         maxSessionsPerOrg: z
           .number()
           .int()
@@ -82,7 +76,6 @@ export function SandboxQuotaEditor({
   const data = useMemo<SandboxQuotaForm | undefined>(() => {
     if (isLoading) return undefined;
     return {
-      maxConcurrentPerOrg: savedConfig.maxConcurrentPerOrg,
       maxSessionsPerOrg: savedConfig.maxSessionsPerOrg,
     };
   }, [isLoading, savedConfig]);
@@ -94,7 +87,10 @@ export function SandboxQuotaEditor({
           organizationId,
           policyType: 'sandbox_quota',
           config: {
-            maxConcurrentPerOrg: values.maxConcurrentPerOrg,
+            // Preserve the per-thread / workflow / render session caps (not in
+            // this editor — tuned via config/API); only the user session cap
+            // below is edited here.
+            ...savedConfig,
             maxSessionsPerOrg: values.maxSessionsPerOrg,
           } satisfies SandboxQuotaConfig,
         });
@@ -112,7 +108,7 @@ export function SandboxQuotaEditor({
         throw err;
       }
     },
-    [organizationId, t, toast, upsertMutation],
+    [organizationId, savedConfig, t, toast, upsertMutation],
   );
 
   const editor = useFormEditor<SandboxQuotaForm>({ data, schema, save });
@@ -134,21 +130,6 @@ export function SandboxQuotaEditor({
             className="contents"
           >
             <Stack gap={6} className="max-w-2xl">
-              <div>
-                <Input
-                  label={t('sandboxQuota.maxConcurrent')}
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  errorMessage={errors.maxConcurrentPerOrg?.message}
-                  {...register('maxConcurrentPerOrg', { valueAsNumber: true })}
-                />
-                <Text variant="muted" className="mt-1 text-xs">
-                  {t('sandboxQuota.maxConcurrentHint')}
-                </Text>
-              </div>
-
               <div>
                 <Input
                   label={t('sandboxQuota.maxSessions')}

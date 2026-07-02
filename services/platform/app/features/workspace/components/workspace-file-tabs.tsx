@@ -1,16 +1,27 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
-import { Sparkles, Terminal, Upload, type LucideIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Terminal,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   memo,
+  useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
+  useState,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
 
+import { useResizeObserver } from '@/app/hooks/use-resize-observer';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -203,43 +214,91 @@ function WorkspaceOutputDockComponent({
     [files],
   );
 
+  // Expandable overflow: collapsed = today's single scroll row; expanded =
+  // wrapped rows (bounded, so a huge run can't swallow the viewer). The
+  // toggle renders only when chips genuinely overflow the row — measured, not
+  // guessed — so the affordance never shows for a strip that already fits.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const rowId = useId();
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const measureOverflow = useCallback(() => {
+    const el = rowRef.current;
+    if (el === null) return;
+    setOverflowing(el.scrollWidth > el.clientWidth + 1);
+  }, []);
+  // A ResizeObserver fires only when the row's own box resizes — new chips
+  // grow scrollWidth without a box resize, so re-measure on file changes too.
+  useEffect(() => {
+    measureOverflow();
+  }, [measureOverflow, outputFiles]);
+  useResizeObserver(rowRef, measureOverflow);
+
   if (outputFiles.length === 0) return null;
 
   const label = t('canvas.sourceRunOutput', { defaultValue: 'Code output' });
+  const toggleLabel = expanded
+    ? t('canvas.outputCollapse', { defaultValue: 'Show fewer files' })
+    : t('canvas.outputExpand', { defaultValue: 'Show all files' });
+  const ToggleIcon = expanded ? ChevronUp : ChevronDown;
 
   return (
     <div
       role="group"
       aria-label={label}
-      className="border-border scrollbar-hide flex shrink-0 items-center gap-2 overflow-x-auto border-t px-3 py-1.5"
+      className="border-border flex shrink-0 items-start gap-2 border-t px-3 py-1.5"
     >
-      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-[11px] font-medium">
+      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 py-0.5 text-[11px] font-medium">
         <Terminal className="size-3.5 shrink-0" aria-hidden />
         {label}
       </span>
-      {outputFiles.map((f) => {
-        const isActive = f.path === activePath;
-        const name = filename(f.path);
-        return (
-          <button
-            key={f.path}
-            type="button"
-            aria-controls={viewerId}
-            aria-label={name}
-            aria-current={isActive ? 'true' : undefined}
-            title={f.path}
-            onClick={() => onSelect(f.path)}
-            className={cn(
-              'focus-visible:ring-ring shrink-0 rounded px-2 py-0.5 font-mono text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none',
-              isActive
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-            )}
-          >
-            {name}
-          </button>
-        );
-      })}
+      <div
+        id={rowId}
+        ref={rowRef}
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-2',
+          expanded
+            ? 'max-h-24 flex-wrap overflow-y-auto'
+            : 'scrollbar-hide overflow-x-auto',
+        )}
+      >
+        {outputFiles.map((f) => {
+          const isActive = f.path === activePath;
+          const name = filename(f.path);
+          return (
+            <button
+              key={f.path}
+              type="button"
+              aria-controls={viewerId}
+              aria-label={name}
+              aria-current={isActive ? 'true' : undefined}
+              title={f.path}
+              onClick={() => onSelect(f.path)}
+              className={cn(
+                'focus-visible:ring-ring shrink-0 rounded px-2 py-0.5 font-mono text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                isActive
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+              )}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      {(overflowing || expanded) && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={rowId}
+          aria-label={toggleLabel}
+          title={toggleLabel}
+          onClick={() => setExpanded((v) => !v)}
+          className="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-ring flex size-6 shrink-0 items-center justify-center rounded transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <ToggleIcon className="size-3.5" aria-hidden />
+        </button>
+      )}
     </div>
   );
 }

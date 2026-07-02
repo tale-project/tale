@@ -38,3 +38,29 @@ export async function readSandboxQuotaPolicy(
   }
   return parsed.data;
 }
+
+/**
+ * The three persistent-session workloads are limited separately so they never
+ * compete for one pool: external-agent **user** sessions, per-**thread**
+ * run_code sessions, and per-**workflow-run** sessions.
+ */
+export type SessionBudget = 'user' | 'thread' | 'workflow' | 'render';
+
+/** Which budget an `ownerType` draws from. */
+export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
+  if (ownerType === 'thread') return 'thread';
+  if (ownerType === 'workflow_run') return 'workflow';
+  if (ownerType === 'render') return 'render';
+  return 'user';
+}
+
+/** The per-org cap for a session budget, from the quota policy. */
+export function sessionCapFor(
+  budget: SessionBudget,
+  quota: SandboxQuotaConfig,
+): number {
+  if (budget === 'thread') return quota.maxThreadSessionsPerOrg;
+  if (budget === 'workflow') return quota.maxWorkflowSessionsPerOrg;
+  if (budget === 'render') return quota.maxRenderSessionsPerOrg;
+  return quota.maxSessionsPerOrg;
+}

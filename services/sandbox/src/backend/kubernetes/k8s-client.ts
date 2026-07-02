@@ -49,8 +49,6 @@ export interface K8sClient {
 
 /** Default per-request budget for control-plane calls (small JSON bodies). */
 const K8S_API_TIMEOUT_MS = 10_000;
-/** Log reads can ship up to stdoutMaxBytes through the apiserver→kubelet proxy. */
-const K8S_LOG_TIMEOUT_MS = 30_000;
 
 /**
  * Per-call options that arm an AbortSignal timeout on the underlying fetch.
@@ -162,32 +160,4 @@ export async function withRetry<T>(
     }
   }
   throw lastErr;
-}
-
-/**
- * One-shot read of a container's logs (no follow / no websocket — a plain HTTP
- * GET). Used both to poll the runner's stdout for live progress and to read the
- * harvest container's result line. `limitBytes` caps the response from the
- * START (matches our "truncate the tail" stdout policy). Because every read is
- * a discrete request/response, there is no long-lived stream to abort — the
- * whole k8s path is Bun-robust by construction.
- */
-export async function readPodLog(
-  client: K8sClient,
-  podName: string,
-  container: string,
-  opts: { limitBytes?: number; tailLines?: number } = {},
-): Promise<string> {
-  return withRetry('read-log', () =>
-    client.core.readNamespacedPodLog(
-      {
-        name: podName,
-        namespace: client.namespace,
-        container,
-        ...(opts.limitBytes !== undefined && { limitBytes: opts.limitBytes }),
-        ...(opts.tailLines !== undefined && { tailLines: opts.tailLines }),
-      },
-      apiTimeout(K8S_LOG_TIMEOUT_MS),
-    ),
-  );
 }

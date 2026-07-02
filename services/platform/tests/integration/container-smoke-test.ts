@@ -180,7 +180,6 @@ async function main(): Promise<number> {
     'proxy',
     'sandbox',
     'sandbox-egress',
-    'smoke-fileserver',
   ];
   let healthFailed = false;
   for (const svc of services) {
@@ -300,8 +299,8 @@ async function main(): Promise<number> {
   // KNOWLEDGE_DATABASE_URL); there's no HTTP endpoint to probe cross-container,
   // so we don't add a synthetic connectivity check here.
 
-  // 6. Sandbox /v1/execute end-to-end probe
-  await sandboxExecuteProbe();
+  // 6. Sandbox session API end-to-end probe
+  await sandboxSessionProbe();
 
   return r.failed === 0 ? 0 : 1;
 }
@@ -370,50 +369,29 @@ async function waitForHealthy(service: string): Promise<boolean> {
 }
 
 // =============================================================================
-// Sandbox /v1/execute end-to-end probe (+ negative cases).
+// Sandbox session API end-to-end probe (+ negative cases).
+//
+// The session model replaced the one-shot /v1/execute contract: every run is
+// create session → stage files → exec (SSE) → destroy. The probe walks that
+// exact lifecycle. The source ships inline (`contentBase64`) — runnerd inside
+// the session container writes it to /user; a URL fixture host would not be
+// reachable from the isolated sandbox network.
 // =============================================================================
-async function sandboxExecuteProbe(): Promise<void> {
-  header('Sandbox /v1/execute end-to-end');
 
-  // Pull SANDBOX_TOKEN from .env.test rather than re-defining it.
-  const envText = await Bun.file(`${PROJECT_ROOT}/.env.test`).text();
-  const tokenLine = envText
-    .split('\n')
-    .find((l) => l.startsWith('SANDBOX_TOKEN='));
-  const token = tokenLine ? tokenLine.slice('SANDBOX_TOKEN='.length) : '';
-  if (!token) {
-    r.fail('Sandbox e2e: SANDBOX_TOKEN missing from .env.test');
-    return;
-  }
-
-  // Unique per-run executionId so re-running doesn't return 409 Duplicate.
-  const execId = `smoke-${process.pid}-${nowSec()}${String(process.hrtime.bigint()).slice(-6)}`;
-  // Source ships in `files[]` as a URL the spawner GETs; `smoke-fileserver`
-  // (compose.test.yml) hosts a 1-line `print(1)` over the internal network.
-  const body = JSON.stringify({
-    executionId: execId,
-    organizationId: 'smoke',
-    language: 'python',
-    files: [{ path: 'main.py', url: 'http://smoke-fileserver:8000/main.py' }],
-    entryPath: 'main.py',
-    timeoutMs: 30000,
-    outputUploadSlots: [],
-    outputUrlEndpoint: 'http://platform:3000/api/sandbox/output_upload_url',
-    reportUploadedEndpoint: 'http://platform:3000/api/sandbox/record_uploaded',
-  });
+/** HMAC-signed curl against the sandbox spawner. Signing contract (auth.ts):
+ * METHOD\npath\ntimestamp\nsha256Hex(body). */
+async function signedSandboxCurl(
+  token: string,
+  method: string,
+  path: string,
+  body: string,
+  maxTimeSec: number,
+): Promise<{ httpCode: string; responseBody: string }> {
   const ts = Date.now();
-  const path = '/v1/execute';
-  // Signing contract (auth.ts): METHOD\npath\ntimestamp\nsha256Hex(body)
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  const signedString = `POST\n${path}\n${ts}\n${bodyHash}`;
+  const signedString = `${method}\n${path}\n${ts}\n${bodyHash}`;
   const sig = createHmac('sha256', token).update(signedString).digest('hex');
-  if (!sig) {
-    r.fail('Sandbox e2e: failed to compute HMAC signature');
-    return;
-  }
-
   const outFile = `${PROJECT_ROOT}/.sandbox-smoke-out.${process.pid}`;
-  // The endpoint streams SSE; --max-time bounds the probe.
   const probe = await capture([
     'curl',
     '-sS',
@@ -422,9 +400,9 @@ async function sandboxExecuteProbe(): Promise<void> {
     '-w',
     '%{http_code}',
     '--max-time',
-    '60',
+    String(maxTimeSec),
     '-X',
-    'POST',
+    method,
     '-H',
     'content-type: application/json',
     '-H',
@@ -440,23 +418,112 @@ async function sandboxExecuteProbe(): Promise<void> {
     ? await Bun.file(outFile).text()
     : '';
   rmSync(outFile, { force: true });
+  return { httpCode, responseBody };
+}
 
-  if (
-    httpCode === '200' &&
-    /^event: result/m.test(responseBody) &&
-    responseBody.includes('"status":"completed"')
-  ) {
-    r.pass('Sandbox /v1/execute: completed result');
+function dumpSandboxResponse(httpCode: string, responseBody: string): void {
+  console.log(`  ${YELLOW}sandbox response (HTTP ${httpCode}):${NC}`);
+  console.log(
+    (responseBody.slice(0, 4000) || '    (empty body)')
+      .split('\n')
+      .map((l) => `    ${l}`)
+      .join('\n'),
+  );
+  console.log('');
+}
+
+async function sandboxSessionProbe(): Promise<void> {
+  header('Sandbox session API end-to-end');
+
+  // Pull SANDBOX_TOKEN from .env.test rather than re-defining it.
+  const envText = await Bun.file(`${PROJECT_ROOT}/.env.test`).text();
+  const tokenLine = envText
+    .split('\n')
+    .find((l) => l.startsWith('SANDBOX_TOKEN='));
+  const token = tokenLine ? tokenLine.slice('SANDBOX_TOKEN='.length) : '';
+  if (!token) {
+    r.fail('Sandbox e2e: SANDBOX_TOKEN missing from .env.test');
+    return;
+  }
+
+  // Unique per-run sessionId so re-running doesn't return 409 Duplicate.
+  const sessionId = `smoke-${process.pid}-${nowSec()}${String(process.hrtime.bigint()).slice(-6)}`;
+  const sessionPath = `/v1/sessions/${sessionId}`;
+
+  // Create — boots the session container and waits for runnerd health, so
+  // the time budget is the largest of the probe.
+  const create = await signedSandboxCurl(
+    token,
+    'POST',
+    '/v1/sessions',
+    JSON.stringify({
+      sessionId,
+      organizationId: 'smoke',
+      profile: 'default',
+    }),
+    120,
+  );
+  const created =
+    create.httpCode === '201' && create.responseBody.includes('"session"');
+  if (created) {
+    r.pass('Sandbox session create: 201 + session info');
   } else {
-    console.log(`  ${YELLOW}sandbox response (HTTP ${httpCode}):${NC}`);
-    console.log(
-      (responseBody.slice(0, 4000) || '    (empty body)')
-        .split('\n')
-        .map((l) => `    ${l}`)
-        .join('\n'),
+    dumpSandboxResponse(create.httpCode, create.responseBody);
+    r.fail('Sandbox session create: expected 201 + session info');
+  }
+
+  if (created) {
+    // Stage the 1-line source inline; runnerd writes it under /user.
+    const stage = await signedSandboxCurl(
+      token,
+      'POST',
+      `${sessionPath}/files/stage`,
+      JSON.stringify({
+        files: [
+          {
+            path: 'code/main.py',
+            contentBase64: Buffer.from('print(1)\n', 'utf8').toString('base64'),
+          },
+        ],
+      }),
+      30,
     );
-    console.log('');
-    r.fail('Sandbox /v1/execute: expected HTTP 200 + completed result');
+    // The staged/skipped arrays echo the request path — a skip would echo it
+    // too, so require a non-empty `staged` and an empty `skipped`.
+    if (
+      stage.httpCode === '200' &&
+      stage.responseBody.includes('"staged":[{') &&
+      stage.responseBody.includes('"skipped":[]')
+    ) {
+      r.pass('Sandbox session stage: main.py staged');
+    } else {
+      dumpSandboxResponse(stage.httpCode, stage.responseBody);
+      r.fail('Sandbox session stage: expected 200 + staged main.py');
+    }
+
+    // Exec — the endpoint streams SSE and ends with an `event: result`.
+    const execId = `exec-${nowSec()}${String(process.hrtime.bigint()).slice(-6)}`;
+    const exec = await signedSandboxCurl(
+      token,
+      'POST',
+      `${sessionPath}/exec`,
+      JSON.stringify({
+        execId,
+        command: ['python3', '/user/code/main.py'],
+        timeoutMs: 30000,
+      }),
+      60,
+    );
+    if (
+      exec.httpCode === '200' &&
+      /^event: result/m.test(exec.responseBody) &&
+      exec.responseBody.includes('"status":"completed"')
+    ) {
+      r.pass('Sandbox session exec: completed result');
+    } else {
+      dumpSandboxResponse(exec.httpCode, exec.responseBody);
+      r.fail('Sandbox session exec: expected HTTP 200 + completed result');
+    }
   }
 
   // ---- Negative cases ----
@@ -475,15 +542,15 @@ async function sandboxExecuteProbe(): Promise<void> {
     '-H',
     'content-type: application/json',
     '--data-binary',
-    '{"executionId":"unauth","organizationId":"smoke","language":"python","code":"print(1)"}',
-    'http://localhost:8003/v1/execute',
+    '{"sessionId":"unauth","organizationId":"smoke"}',
+    'http://localhost:8003/v1/sessions',
   ]);
   const noSigCode = noSig.exitCode === 0 ? noSig.stdout.trim() || '000' : '000';
   if (noSigCode === '401') {
-    r.pass('Sandbox /v1/execute: 401 without signature');
+    r.pass('Sandbox session create: 401 without signature');
   } else {
     r.fail(
-      `Sandbox /v1/execute: expected 401 without signature, got ${noSigCode}`,
+      `Sandbox session create: expected 401 without signature, got ${noSigCode}`,
     );
   }
 
@@ -506,18 +573,39 @@ async function sandboxExecuteProbe(): Promise<void> {
       'content-type: application/json',
       '--data-binary',
       '@-',
-      'http://localhost:8003/v1/execute',
+      'http://localhost:8003/v1/sessions',
     ],
     { stdin: tooBig },
   );
   const oversizedCode =
     oversized.exitCode === 0 ? oversized.stdout.trim() || '000' : '000';
   if (oversizedCode === '413') {
-    r.pass('Sandbox /v1/execute: 413 on oversized body');
+    r.pass('Sandbox session create: 413 on oversized body');
   } else {
     r.fail(
-      `Sandbox /v1/execute: expected 413 on oversized body, got ${oversizedCode}`,
+      `Sandbox session create: expected 413 on oversized body, got ${oversizedCode}`,
     );
+  }
+
+  // Destroy — always attempted for a created session so a failed exec probe
+  // doesn't leak the container into later runs.
+  if (created) {
+    const destroy = await signedSandboxCurl(
+      token,
+      'DELETE',
+      sessionPath,
+      '',
+      30,
+    );
+    if (
+      destroy.httpCode === '200' &&
+      destroy.responseBody.includes('"destroyed":true')
+    ) {
+      r.pass('Sandbox session destroy: destroyed');
+    } else {
+      dumpSandboxResponse(destroy.httpCode, destroy.responseBody);
+      r.fail('Sandbox session destroy: expected 200 + destroyed');
+    }
   }
 }
 

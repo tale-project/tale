@@ -1125,6 +1125,31 @@ export async function runGenerationCore(
       error,
       'generation_error',
     );
+  } finally {
+    // The per-thread run_code session is TURN-scoped: destroy whatever this
+    // turn created (success, failure, or cancel — the next turn recreates it
+    // and re-stages from threadFiles). Conditional (`if_idle`): a sibling
+    // turn on the same thread (e.g. the same delegate invoked twice in
+    // parallel onto one sub-thread) with a live exec makes the spawner no-op,
+    // and that turn's own finally tears down instead — never destroy a
+    // session someone is executing in. Scheduled + best-effort so teardown
+    // can never affect the turn's outcome; a turn that ran no run_code no-ops
+    // inside the action. Prewarm never runs tools — skip entirely.
+    if (!args.prewarm) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.node_only.sandbox.session_teardown
+            .teardownThreadSessionAtTurnEnd,
+          { threadId },
+        );
+      } catch (teardownError) {
+        console.warn(
+          '[runAgentGeneration] end-of-turn session teardown scheduling failed:',
+          teardownError,
+        );
+      }
+    }
   }
 }
 

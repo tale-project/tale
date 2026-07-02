@@ -67,8 +67,11 @@ async function wakeHeadsForOrgKind(
   count: number,
 ): Promise<number> {
   if (count <= 0) return 0;
-  const cap = await admissionCap(ctx, organizationId, kind);
-  const inFlight = await admissionInFlight(ctx, organizationId, kind);
+  // Un-budgeted slot count (total org sessions vs the user cap): the wake only
+  // needs to be "sane", not exact — a waiter woken while ITS budget is full just
+  // re-parks (assertFifoEligible rechecks the owner's budget at reserve time).
+  const cap = await admissionCap(ctx, organizationId);
+  const inFlight = await admissionInFlight(ctx, organizationId);
   const slotsOpen = cap - inFlight;
   if (slotsOpen <= 0) return 0;
   const toWake = Math.min(count, slotsOpen, MAX_WAKES_PER_CALL);

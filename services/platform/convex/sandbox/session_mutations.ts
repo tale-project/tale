@@ -21,7 +21,11 @@ import {
   reserveTicketArg,
   upsertWaitingTicket,
 } from './admission';
-import { readSandboxQuotaPolicy } from './quota_policy';
+import {
+  readSandboxQuotaPolicy,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+} from './quota_policy';
 import {
   isLiveSessionStatus,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -101,26 +105,29 @@ export const reserveSessionSlotAndInsert = internalMutation({
         args.organizationId,
         'session',
         ticketCreatedAt,
+        sessionBudgetForOwnerType(args.ownerType),
       );
       await claimTicket(ctx, args.ownerType, args.ownerId, now);
     } else {
       // Per-org cap (defense in depth; the spawner enforces its own cap too).
-      const { maxSessionsPerOrg } = await readSandboxQuotaPolicy(
-        ctx.db,
-        args.organizationId,
-      );
+      // The three session workloads (user agent / thread run_code / workflow)
+      // are limited separately, so count + cap only this owner's budget.
+      const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
+      const budget = sessionBudgetForOwnerType(args.ownerType);
+      const cap = sessionCapFor(budget, quota);
       let orgActive = 0;
       for (const status of ['creating', 'active'] as const) {
-        for await (const _row of ctx.db
+        for await (const row of ctx.db
           .query('sandboxSessions')
           .withIndex('by_organizationId_and_status', (q) =>
             q.eq('organizationId', args.organizationId).eq('status', status),
           )) {
+          if (sessionBudgetForOwnerType(row.ownerType) !== budget) continue;
           orgActive += 1;
-          if (orgActive >= maxSessionsPerOrg) {
+          if (orgActive >= cap) {
             throw new ConvexError({
               code: 'QUOTA_EXCEEDED',
-              message: `At most ${maxSessionsPerOrg} sandbox sessions can be active for this organization.`,
+              message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
             });
           }
         }
@@ -329,6 +336,50 @@ export const markSessionRowDestroyed = internalMutation({
     // A freed per-org session slot → wake a parked waiter immediately.
     if (destroyed) await scheduleSessionCapacityWake(ctx, args.organizationId);
     return destroyed;
+  },
+});
+
+/**
+ * Row-flip half of the end-of-turn thread-session teardown: mark every live
+ * `thread`-owned row of the thread `destroyed`, wake capacity waiters, and
+ * schedule the out-of-band VK/op cleanup (whose sessionDestroy re-run is an
+ * idempotent no-op). Called by `teardownThreadSessionAtTurnEnd` ONLY AFTER
+ * the spawner confirmed the conditional (`if_idle`) destroy — never flip a
+ * row while the container may survive with a live exec. Thread sessions are
+ * TURN-scoped by design — one session amortizes the turn's run_code calls,
+ * but it must not linger as idle compute once the turn ends; the next turn
+ * recreates it and re-stages the workspace from `threadFiles`. A turn that
+ * ran no run_code finds no live row and schedules nothing. Idempotent
+ * against a concurrent reaper/cascade.
+ */
+export const destroyThreadOwnedSessions = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const sessionIds: string[] = [];
+    const orgIds = new Set<string>();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', 'thread').eq('ownerId', args.threadId),
+      )) {
+      if (!isLiveSessionStatus(row.status)) continue;
+      await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
+      sessionIds.push(row.sessionId);
+      orgIds.add(row.organizationId);
+    }
+    if (sessionIds.length === 0) return null;
+    // Freed per-org session slots → wake parked waiters immediately.
+    for (const organizationId of orgIds) {
+      await scheduleSessionCapacityWake(ctx, organizationId);
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.session_teardown.teardownThreadSessions,
+      { sessionIds },
+    );
+    return null;
   },
 });
 

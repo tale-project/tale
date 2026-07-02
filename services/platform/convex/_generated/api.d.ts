@@ -51,8 +51,6 @@ import type * as agent_tools_documents_internal_actions from "../agent_tools/doc
 import type * as agent_tools_documents_internal_mutations from "../agent_tools/documents/internal_mutations.js";
 import type * as agent_tools_escalation_create_escalation_tool from "../agent_tools/escalation/create_escalation_tool.js";
 import type * as agent_tools_files__shared from "../agent_tools/files/_shared.js";
-import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
-import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_file_delete_tool from "../agent_tools/files/file_delete_tool.js";
 import type * as agent_tools_files_file_edit_tool from "../agent_tools/files/file_edit_tool.js";
 import type * as agent_tools_files_file_list_tool from "../agent_tools/files/file_list_tool.js";
@@ -68,8 +66,7 @@ import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/fil
 import type * as agent_tools_files_image_tool from "../agent_tools/files/image_tool.js";
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_internal_mutations from "../agent_tools/files/internal_mutations.js";
-import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
-import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
+import type * as agent_tools_files_sandbox_paths from "../agent_tools/files/sandbox_paths.js";
 import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
@@ -311,6 +308,7 @@ import type * as crawler_lib_html_to_sections from "../crawler/lib/html_to_secti
 import type * as crawler_lib_indexing_service from "../crawler/lib/indexing_service.js";
 import type * as crawler_lib_markdown_to_html from "../crawler/lib/markdown_to_html.js";
 import type * as crawler_lib_paragraph_dedup from "../crawler/lib/paragraph_dedup.js";
+import type * as crawler_lib_render_session from "../crawler/lib/render_session.js";
 import type * as crawler_lib_sandbox_render from "../crawler/lib/sandbox_render.js";
 import type * as crawler_lib_sandbox_render_document from "../crawler/lib/sandbox_render_document.js";
 import type * as crawler_lib_search_service from "../crawler/lib/search_service.js";
@@ -960,6 +958,8 @@ import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_index 
 import type * as migrations_versions_v0_2_88_02_app_schedules_per_project_meta from "../migrations/versions/v0_2_88/02_app_schedules_per_project/meta.js";
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index.js";
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta.js";
+import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_index from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/index.js";
+import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -992,7 +992,6 @@ import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/
 import type * as node_only_sandbox_api_error_detection from "../node_only/sandbox/api_error_detection.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
-import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
@@ -1001,10 +1000,12 @@ import type * as node_only_sandbox_resume_rotation from "../node_only/sandbox/re
 import type * as node_only_sandbox_run_agent from "../node_only/sandbox/run_agent.js";
 import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
+import type * as node_only_sandbox_session_exec from "../node_only/sandbox/session_exec.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_steer_delivery from "../node_only/sandbox/steer_delivery.js";
 import type * as node_only_sandbox_steer_files from "../node_only/sandbox/steer_files.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
+import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thread_session.js";
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
 import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
@@ -1151,10 +1152,7 @@ import type * as rag_lib_secret_scanner from "../rag/lib/secret_scanner.js";
 import type * as rag_lib_semantic_cache from "../rag/lib/semantic_cache.js";
 import type * as rag_search from "../rag/search.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
-import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
-import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
 import type * as sandbox_quota_policy from "../sandbox/quota_policy.js";
-import type * as sandbox_sandbox_http from "../sandbox/sandbox_http.js";
 import type * as sandbox_session_mutations from "../sandbox/session_mutations.js";
 import type * as sandbox_session_naming from "../sandbox/session_naming.js";
 import type * as sandbox_session_queries from "../sandbox/session_queries.js";
@@ -1681,8 +1679,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/documents/internal_mutations": typeof agent_tools_documents_internal_mutations;
   "agent_tools/escalation/create_escalation_tool": typeof agent_tools_escalation_create_escalation_tool;
   "agent_tools/files/_shared": typeof agent_tools_files__shared;
-  "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
-  "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/file_delete_tool": typeof agent_tools_files_file_delete_tool;
   "agent_tools/files/file_edit_tool": typeof agent_tools_files_file_edit_tool;
   "agent_tools/files/file_list_tool": typeof agent_tools_files_file_list_tool;
@@ -1698,8 +1694,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/image_tool": typeof agent_tools_files_image_tool;
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/internal_mutations": typeof agent_tools_files_internal_mutations;
-  "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
-  "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
+  "agent_tools/files/sandbox_paths": typeof agent_tools_files_sandbox_paths;
   "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
@@ -1941,6 +1936,7 @@ declare const fullApi: ApiFromModules<{
   "crawler/lib/indexing_service": typeof crawler_lib_indexing_service;
   "crawler/lib/markdown_to_html": typeof crawler_lib_markdown_to_html;
   "crawler/lib/paragraph_dedup": typeof crawler_lib_paragraph_dedup;
+  "crawler/lib/render_session": typeof crawler_lib_render_session;
   "crawler/lib/sandbox_render": typeof crawler_lib_sandbox_render;
   "crawler/lib/sandbox_render_document": typeof crawler_lib_sandbox_render_document;
   "crawler/lib/search_service": typeof crawler_lib_search_service;
@@ -2590,6 +2586,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_88/02_app_schedules_per_project/meta": typeof migrations_versions_v0_2_88_02_app_schedules_per_project_meta;
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/index": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_index;
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta;
+  "migrations/versions/v0_2_89/02_thread_files_absolute_paths/index": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_index;
+  "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
@@ -2622,7 +2620,6 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/api_error_detection": typeof node_only_sandbox_api_error_detection;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
-  "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
@@ -2631,10 +2628,12 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/run_agent": typeof node_only_sandbox_run_agent;
   "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
+  "node_only/sandbox/session_exec": typeof node_only_sandbox_session_exec;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/steer_delivery": typeof node_only_sandbox_steer_delivery;
   "node_only/sandbox/steer_files": typeof node_only_sandbox_steer_files;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
+  "node_only/sandbox/thread_session": typeof node_only_sandbox_thread_session;
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
   "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
@@ -2781,10 +2780,7 @@ declare const fullApi: ApiFromModules<{
   "rag/lib/semantic_cache": typeof rag_lib_semantic_cache;
   "rag/search": typeof rag_search;
   "sandbox/admission": typeof sandbox_admission;
-  "sandbox/internal_mutations": typeof sandbox_internal_mutations;
-  "sandbox/output_mutations": typeof sandbox_output_mutations;
   "sandbox/quota_policy": typeof sandbox_quota_policy;
-  "sandbox/sandbox_http": typeof sandbox_sandbox_http;
   "sandbox/session_mutations": typeof sandbox_session_mutations;
   "sandbox/session_naming": typeof sandbox_session_naming;
   "sandbox/session_queries": typeof sandbox_session_queries;

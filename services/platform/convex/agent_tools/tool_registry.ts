@@ -17,8 +17,6 @@ import { discussionWriteTool } from './discussions/discussion_write_tool';
 import { documentFindTool } from './documents/document_find_tool';
 import { documentRetrieveTool } from './documents/document_retrieve_tool';
 import { documentWriteTool } from './documents/document_write_tool';
-import { docxTool } from './files/docx_tool';
-import { excelTool } from './files/excel_tool';
 import { fileDeleteTool } from './files/file_delete_tool';
 import { fileEditTool } from './files/file_edit_tool';
 import { fileListTool } from './files/file_list_tool';
@@ -26,8 +24,6 @@ import { fileReadTool } from './files/file_read_tool';
 import { fileWriteTool } from './files/file_write_tool';
 import { generateImageTool } from './files/generate_image_tool';
 import { imageTool } from './files/image_tool';
-import { pdfTool } from './files/pdf_tool';
-import { textTool } from './files/text_tool';
 import { requestHumanInputTool } from './human_input/request_human_input_tool';
 import { integrationBatchTool } from './integrations/integration_batch_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
@@ -84,12 +80,8 @@ export const TOOL_REGISTRY = [
   saveWorkflowDefinitionTool,
   createWorkflowTool,
   runWorkflowTool,
-  excelTool,
-  pdfTool,
   imageTool,
   generateImageTool,
-  docxTool,
-  textTool,
   integrationTool,
   integrationBatchTool,
   integrationIntrospectTool,

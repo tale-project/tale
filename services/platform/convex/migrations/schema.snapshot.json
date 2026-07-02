@@ -818,6 +818,12 @@
         },
         "optional": false
       },
+      "config": {
+        "ft": {
+          "type": "any"
+        },
+        "optional": true
+      },
       "installedAt": {
         "ft": {
           "type": "number"
@@ -916,6 +922,12 @@
         },
         "optional": false
       },
+      "config": {
+        "ft": {
+          "type": "any"
+        },
+        "optional": true
+      },
       "organizationId": {
         "ft": {
           "type": "string"
@@ -926,6 +938,59 @@
         "ft": {
           "tableName": "projects",
           "type": "id"
+        },
+        "optional": false
+      }
+    },
+    "appUploadClaims": {
+      "claimedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "expiresAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "slug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      }
+    },
+    "appUploadIntents": {
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "storageId": {
+        "ft": {
+          "tableName": "_storage",
+          "type": "id"
+        },
+        "optional": false
+      },
+      "userId": {
+        "ft": {
+          "type": "string"
         },
         "optional": false
       }
@@ -1115,6 +1180,44 @@
           "type": "id"
         },
         "optional": true
+      }
+    },
+    "auditIntegrityProgress": {
+      "headReached": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": false
+      },
+      "lastVerifiedId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "lastVerifiedTimestamp": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "previousExpectedHash": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "updatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
       }
     },
     "auditLogChainGenesis": {
@@ -6527,6 +6630,10 @@
             {
               "type": "literal",
               "value": "model_sync"
+            },
+            {
+              "type": "literal",
+              "value": "sandbox_quota"
             }
           ]
         },
@@ -7754,6 +7861,104 @@
         "optional": false
       }
     },
+    "sandboxAdmissionTickets": {
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "kind": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "session"
+            },
+            {
+              "type": "literal",
+              "value": "oneshot"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "lastSeenAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "ownerId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "ownerType": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "source": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "chat"
+            },
+            {
+              "type": "literal",
+              "value": "workflow"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "waiting"
+            },
+            {
+              "type": "literal",
+              "value": "admitted"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "stepSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "threadId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "wfExecutionId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      }
+    },
     "sandboxAgentCheckpoints": {
       "agentIdle": {
         "ft": {
@@ -7878,556 +8083,6 @@
           "type": "string"
         },
         "optional": false
-      }
-    },
-    "sandboxExecutions": {
-      "actualSeconds": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "agentSlug": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "codePreview": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "codeStorageId": {
-        "ft": {
-          "tableName": "_storage",
-          "type": "id"
-        },
-        "optional": true
-      },
-      "completedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "durationMs": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "errorCode": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "TIMEOUT"
-            },
-            {
-              "type": "literal",
-              "value": "OOM"
-            },
-            {
-              "type": "literal",
-              "value": "EGRESS_DENIED"
-            },
-            {
-              "type": "literal",
-              "value": "INSTALL_FAILED"
-            },
-            {
-              "type": "literal",
-              "value": "PACKAGE_NOT_FOUND"
-            },
-            {
-              "type": "literal",
-              "value": "QUOTA_EXCEEDED"
-            },
-            {
-              "type": "literal",
-              "value": "RUNTIME_ERROR"
-            },
-            {
-              "type": "literal",
-              "value": "SPAWNER_UNAVAILABLE"
-            },
-            {
-              "type": "literal",
-              "value": "CANCELLED"
-            },
-            {
-              "type": "literal",
-              "value": "INPUT_REJECTED"
-            },
-            {
-              "type": "literal",
-              "value": "HARVEST_READ_FAILED"
-            },
-            {
-              "type": "literal",
-              "value": "UPLOAD_FAILED"
-            },
-            {
-              "type": "literal",
-              "value": "UPLOAD_QUOTA_EXCEEDED"
-            },
-            {
-              "type": "literal",
-              "value": "UPLOAD_REPORT_FAILED"
-            },
-            {
-              "type": "literal",
-              "value": "PRE_STAGE_FAILED"
-            },
-            {
-              "type": "literal",
-              "value": "UPLOAD_INCOMPLETE"
-            },
-            {
-              "type": "literal",
-              "value": "SESSION_LOST"
-            },
-            {
-              "type": "literal",
-              "value": "INVALID_CWD"
-            }
-          ]
-        },
-        "optional": true
-      },
-      "errorMessage": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "estimatedSeconds": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "exitCode": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "heartbeatAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "language": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "python"
-            },
-            {
-              "type": "literal",
-              "value": "node"
-            },
-            {
-              "type": "literal",
-              "value": "bash"
-            },
-            {
-              "type": "literal",
-              "value": "polyglot"
-            }
-          ]
-        },
-        "optional": false
-      },
-      "messageId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "organizationId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "outputFiles": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "object",
-            "value": {
-              "contentType": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              },
-              "fileMetadataId": {
-                "fieldType": {
-                  "tableName": "fileMetadata",
-                  "type": "id"
-                },
-                "optional": false
-              },
-              "name": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              },
-              "sha256": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": true
-              },
-              "size": {
-                "fieldType": {
-                  "type": "number"
-                },
-                "optional": false
-              },
-              "storageId": {
-                "fieldType": {
-                  "tableName": "_storage",
-                  "type": "id"
-                },
-                "optional": true
-              }
-            }
-          }
-        },
-        "optional": false
-      },
-      "outputUploadSlots": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "string"
-          }
-        },
-        "optional": true
-      },
-      "outputUrlQuotaRemaining": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "packages": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "string"
-          }
-        },
-        "optional": false
-      },
-      "path": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "purpose": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "skillSlug": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "skillVersionHash": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "spawnerColor": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "startedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "status": {
-        "ft": {
-          "type": "union",
-          "value": [
-            {
-              "type": "literal",
-              "value": "queued"
-            },
-            {
-              "type": "literal",
-              "value": "installing"
-            },
-            {
-              "type": "literal",
-              "value": "running"
-            },
-            {
-              "type": "literal",
-              "value": "completed"
-            },
-            {
-              "type": "literal",
-              "value": "failed"
-            },
-            {
-              "type": "literal",
-              "value": "cancelled"
-            }
-          ]
-        },
-        "optional": false
-      },
-      "statusChangedAt": {
-        "ft": {
-          "type": "number"
-        },
-        "optional": false
-      },
-      "stderrPreview": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "stderrStorageId": {
-        "ft": {
-          "tableName": "_storage",
-          "type": "id"
-        },
-        "optional": true
-      },
-      "stdoutPreview": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "stdoutStorageId": {
-        "ft": {
-          "tableName": "_storage",
-          "type": "id"
-        },
-        "optional": true
-      },
-      "steps": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "type": "object",
-            "value": {
-              "durationMs": {
-                "fieldType": {
-                  "type": "number"
-                },
-                "optional": false
-              },
-              "exitCode": {
-                "fieldType": {
-                  "type": "union",
-                  "value": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "optional": false
-              },
-              "path": {
-                "fieldType": {
-                  "type": "string"
-                },
-                "optional": false
-              },
-              "status": {
-                "fieldType": {
-                  "type": "union",
-                  "value": [
-                    {
-                      "type": "literal",
-                      "value": "completed"
-                    },
-                    {
-                      "type": "literal",
-                      "value": "failed"
-                    },
-                    {
-                      "type": "literal",
-                      "value": "skipped"
-                    }
-                  ]
-                },
-                "optional": false
-              }
-            }
-          }
-        },
-        "optional": true
-      },
-      "threadId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "timing": {
-        "ft": {
-          "type": "object",
-          "value": {
-            "executeMs": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            },
-            "harvestMs": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            },
-            "stageMs": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            },
-            "uploadMs": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            }
-          }
-        },
-        "optional": true
-      },
-      "toolCallId": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "truncated": {
-        "ft": {
-          "type": "object",
-          "value": {
-            "files": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            },
-            "stderr": {
-              "fieldType": {
-                "type": "boolean"
-              },
-              "optional": false
-            },
-            "stdout": {
-              "fieldType": {
-                "type": "boolean"
-              },
-              "optional": false
-            }
-          }
-        },
-        "optional": true
-      },
-      "uploadStats": {
-        "ft": {
-          "type": "object",
-          "value": {
-            "attempted": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            },
-            "failures": {
-              "fieldType": {
-                "type": "array",
-                "value": {
-                  "type": "object",
-                  "value": {
-                    "errorSnippet": {
-                      "fieldType": {
-                        "type": "string"
-                      },
-                      "optional": false
-                    },
-                    "fileName": {
-                      "fieldType": {
-                        "type": "string"
-                      },
-                      "optional": false
-                    },
-                    "httpStatus": {
-                      "fieldType": {
-                        "type": "number"
-                      },
-                      "optional": false
-                    },
-                    "slotIndex": {
-                      "fieldType": {
-                        "type": "number"
-                      },
-                      "optional": false
-                    }
-                  }
-                }
-              },
-              "optional": false
-            },
-            "succeeded": {
-              "fieldType": {
-                "type": "number"
-              },
-              "optional": false
-            }
-          }
-        },
-        "optional": true
-      },
-      "uploadedBy": {
-        "ft": {
-          "type": "string"
-        },
-        "optional": false
-      },
-      "uploadedStorageIds": {
-        "ft": {
-          "type": "array",
-          "value": {
-            "tableName": "_storage",
-            "type": "id"
-          }
-        },
-        "optional": true
       }
     },
     "sandboxIntegrationCalls": {
@@ -9574,6 +9229,325 @@
         "optional": false
       }
     },
+    "supportCaseActivity": {
+      "action": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "actorId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "actorType": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "user"
+            },
+            {
+              "type": "literal",
+              "value": "agent"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "caseId": {
+        "ft": {
+          "tableName": "supportCases",
+          "type": "id"
+        },
+        "optional": false
+      },
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "fromValue": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "toValue": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      }
+    },
+    "supportCaseComments": {
+      "authorId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "authorType": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "user"
+            },
+            {
+              "type": "literal",
+              "value": "agent"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "body": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "caseId": {
+        "ft": {
+          "tableName": "supportCases",
+          "type": "id"
+        },
+        "optional": false
+      },
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "editedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "internal": {
+        "ft": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      }
+    },
+    "supportCases": {
+      "archivedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "assigneeId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "assigneeType": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "user"
+            },
+            {
+              "type": "literal",
+              "value": "agent"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "closedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "commentCount": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "createdAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      },
+      "createdBy": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "createdByType": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "user"
+            },
+            {
+              "type": "literal",
+              "value": "agent"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "customerId": {
+        "ft": {
+          "tableName": "customers",
+          "type": "id"
+        },
+        "optional": true
+      },
+      "description": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "escalatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "escalationLevel": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "firstRespondedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "organizationId": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "priority": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "low"
+            },
+            {
+              "type": "literal",
+              "value": "medium"
+            },
+            {
+              "type": "literal",
+              "value": "high"
+            },
+            {
+              "type": "literal",
+              "value": "urgent"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "requesterEmail": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "requesterName": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "resolvedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "slaDueAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "status": {
+        "ft": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "open"
+            },
+            {
+              "type": "literal",
+              "value": "pending"
+            },
+            {
+              "type": "literal",
+              "value": "resolved"
+            },
+            {
+              "type": "literal",
+              "value": "closed"
+            }
+          ]
+        },
+        "optional": false
+      },
+      "statusChangedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "subject": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": false
+      },
+      "updatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": false
+      }
+    },
     "taskActivity": {
       "action": {
         "ft": {
@@ -10345,6 +10319,42 @@
         },
         "optional": true
       },
+      "attachments": {
+        "ft": {
+          "type": "array",
+          "value": {
+            "type": "object",
+            "value": {
+              "fileId": {
+                "fieldType": {
+                  "tableName": "_storage",
+                  "type": "id"
+                },
+                "optional": false
+              },
+              "fileName": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              },
+              "fileSize": {
+                "fieldType": {
+                  "type": "number"
+                },
+                "optional": false
+              },
+              "fileType": {
+                "fieldType": {
+                  "type": "string"
+                },
+                "optional": false
+              }
+            }
+          }
+        },
+        "optional": true
+      },
       "claimedAt": {
         "ft": {
           "type": "number"
@@ -10645,6 +10655,12 @@
           "type": "number"
         },
         "optional": false
+      },
+      "forkOrderCreatedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
       },
       "parentThreadId": {
         "ft": {
@@ -10976,6 +10992,12 @@
         "optional": true
       },
       "generationHeartbeatAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "generationQueuedSince": {
         "ft": {
           "type": "number"
         },
@@ -13557,6 +13579,12 @@
       }
     },
     "wfExecutions": {
+      "awaitingCapacityStepSlug": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "completedAt": {
         "ft": {
           "type": "number"
@@ -13903,6 +13931,13 @@
           "type": "string"
         },
         "optional": false
+      },
+      "projectId": {
+        "ft": {
+          "tableName": "projects",
+          "type": "id"
+        },
+        "optional": true
       },
       "timezone": {
         "ft": {

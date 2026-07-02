@@ -2,9 +2,9 @@
  * run_code — execute code in the thread workspace sandbox.
  *
  * Reads every file currently in the calling thread's `threadFiles` table,
- * mounts them at `/workspace/code/<path>` inside the sandbox, runs either
+ * mounts them at `/user/code/<path>` inside the sandbox, runs either
  * a single entry script or a sequential list of steps, and harvests any
- * files produced under `/workspace/output/` back into the workspace
+ * files produced under `/user/output/` back into the workspace
  * (source `'run_output'`).
  *
  * The thread workspace IS the workspace — there is no separate file
@@ -21,9 +21,11 @@ import {
   runCodePolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
-import { toSandboxStorageUrl } from '../lib/helpers/public_storage_url';
-import { inferStepLanguage, refinePackagesObject } from './files/_shared';
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import { refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
+import { appendFilePart } from './files/helpers/append_file_part';
+import { parseWorkspacePath, relOf } from './files/sandbox_paths';
 import type { ToolDefinition } from './types';
 
 const RUN_CODE_MAX_STEPS = 10;
@@ -36,7 +38,7 @@ const runCodeArgs = z
       .max(200)
       .optional()
       .describe(
-        'Single-script mode: workspace-relative path to execute, e.g. `gen.py`. Mutually exclusive with `steps`.',
+        'Single-script mode: absolute path of a script under `/user/code`, e.g. `/user/code/gen.py`. Mutually exclusive with `steps`.',
       ),
     steps: z
       .array(z.object({ path: z.string().min(1).max(200) }))
@@ -44,7 +46,7 @@ const runCodeArgs = z
       .max(RUN_CODE_MAX_STEPS)
       .optional()
       .describe(
-        'Multi-step mode: workspace files to execute sequentially in one container. Step N sees step N-1 outputs in `/workspace/output/`. Mutually exclusive with `entryPath`.',
+        'Multi-step mode: scripts to execute sequentially in one container — each `path` is an absolute `/user/code/<script>`. Step N sees step N-1 outputs in `/user/output/`. Mutually exclusive with `entryPath`.',
       ),
     packages: z
       .object({
@@ -141,6 +143,49 @@ function checkPackagesAgainstPolicy(
   );
 }
 
+interface SandboxStateEntry {
+  path: string;
+  fileId: string;
+  size: number;
+  contentType: string;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Compact human-readable rendering of the sandbox-state manifest, appended to
+ * the tool-result message. The structured `sandboxState` field carries the
+ * full data (incl. every `fileId`); this is the at-a-glance summary.
+ */
+function formatSandboxState(area: {
+  uploads: SandboxStateEntry[];
+  code: SandboxStateEntry[];
+  outputs: SandboxStateEntry[];
+}): string {
+  const lines: string[] = [];
+  const render = (root: string, entries: SandboxStateEntry[]) => {
+    if (entries.length === 0) return;
+    const shown = entries.slice(0, 12);
+    const names = shown
+      .map((e) => `${e.path.slice(root.length + 1)} (${formatBytes(e.size)})`)
+      .join(', ');
+    const more =
+      entries.length > shown.length
+        ? ` … +${entries.length - shown.length} more`
+        : '';
+    lines.push(`  ${root}: ${names}${more}`);
+  };
+  render('/user/uploads', area.uploads);
+  render('/user/code', area.code);
+  render('/user/output', area.outputs);
+  if (lines.length === 0) return '';
+  return `Sandbox state (reference files by path; pass a file's fileId to the image / document_write tools):\n${lines.join('\n')}`;
+}
+
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
   tool: createTool({
@@ -148,9 +193,9 @@ export const runCodeTool: ToolDefinition = {
 
 WORKFLOW:
 1. \`file_write\` every script you need (the workspace IS the sandbox source tree — no inline file param)
-2. \`run_code({entryPath: "<script>"})\` for a one-shot
-   OR \`run_code({steps: [{path: "step_a"}, {path: "step_b"}]})\` for sequential steps sharing one container
-3. Any file the script writes under \`/workspace/output/\` is harvested back into the thread workspace and appears in the canvas
+2. \`run_code({entryPath: "/user/code/<script>"})\` for a one-shot
+   OR \`run_code({steps: [{path: "/user/code/step_a.py"}, {path: "/user/code/step_b.py"}]})\` for sequential steps sharing one container
+3. Any file the script writes under \`/user/output/\` is harvested back into the thread workspace and appears in the canvas
 
 PACKAGES:
 - Pip specs go in \`packages.python\`, npm specs in \`packages.node\` — these install **before** the script runs.
@@ -164,15 +209,17 @@ TIMEOUTS / LIMITS:
 - Max 16 harvested output files per run
 
 The sandbox sees three directories pre-populated from the thread workspace:
-- \`/workspace/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
-- \`/workspace/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
-- \`/workspace/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
+- \`/user/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
+- \`/user/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
+- \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
-Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user-uploaded asset → \`/workspace/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.`,
+Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
+
+Every result includes a **\`sandboxState\`** manifest — the current files under each dir, each with its \`fileId\`. Read it before acting: don't regenerate an output already listed there, and hand a file's \`fileId\` to the \`image\` (analyze) or \`document_write\` tool.`,
     // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- the match is prose in this LLM tool-description string, not rendered HTML
     inputSchema: runCodeArgs,
     execute: async (ctx: ToolCtx, args: RunCodeArgs) => {
-      const { organizationId, threadId, messageId, userId } = ctx;
+      const { organizationId, threadId, userId } = ctx;
       if (!organizationId || !threadId) {
         return {
           ok: false as const,
@@ -222,16 +269,39 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         }
         stepPaths = [args.entryPath];
       }
-      // Only `agent_write` files land in /workspace/code/ — they are the
-      // executable surface. `user_upload` lives in /workspace/uploads/ and
-      // `run_output` lives in /workspace/output/; neither is executable
+      // entry/steps are absolute `/user/code/<script>` paths (what file_write
+      // returns). Resolve to the sandbox-relative form the spawner + matching
+      // use. Only `/user/code` scripts run.
+      {
+        const rels: string[] = [];
+        for (const raw of stepPaths) {
+          let parsed;
+          try {
+            parsed = parseWorkspacePath(raw);
+          } catch {
+            parsed = null;
+          }
+          if (parsed === null || parsed.source !== 'agent_write') {
+            return {
+              ok: false as const,
+              code: 'INVALID_STEP_PATH' as const,
+              message: `Step path "${raw}" must be an absolute workspace script under /user/code/ (e.g. /user/code/gen.py).`,
+            };
+          }
+          rels.push(parsed.rel);
+        }
+        stepPaths = rels;
+      }
+      // Only `agent_write` files land in /user/code/ — they are the
+      // executable surface. `user_upload` lives in /user/uploads/ and
+      // `run_output` lives in /user/output/; neither is executable
       // via entryPath/steps. If the user wants to run a user-uploaded
-      // script, they can copy it into /workspace/code/ with file_write.
+      // script, they can copy it into /user/code/ with file_write.
       const seen = new Set<string>();
       const knownPaths = new Set(
         workspaceFiles
           .filter((f: { source: string }) => f.source === 'agent_write')
-          .map((f: { path: string }) => f.path),
+          .map((f: { path: string }) => relOf(f.path)),
       );
       for (const p of stepPaths) {
         if (!SCRIPT_EXT_REGEX.test(p)) {
@@ -283,75 +353,6 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         return policyResult;
       }
 
-      // Dispatch runtimes:
-      //   - Single-step with .sh → 'bash' (entrypoint runs `exec bash`).
-      //   - Multi-step touching .sh (alone or mixed) → 'polyglot'
-      //     (Python-hosted dispatcher routes each step to python3 / node /
-      //     bash by extension; no dedicated bash multi-step wrapper).
-      //   - Otherwise unchanged: 'polyglot' iff multiple runtimes are
-      //     needed, else the single-runtime spawner.
-      const runtimesNeeded = new Set<'python' | 'node' | 'bash'>();
-      for (const p of stepPaths) {
-        const lang = inferStepLanguage(p);
-        if (lang !== null) runtimesNeeded.add(lang);
-      }
-      const multiStep = stepPaths.length > 1;
-      let spawnerLanguage: 'python' | 'node' | 'bash' | 'polyglot';
-      if (!multiStep) {
-        spawnerLanguage = runtimesNeeded.has('bash')
-          ? 'bash'
-          : runtimesNeeded.has('node')
-            ? 'node'
-            : 'python';
-      } else if (runtimesNeeded.size >= 2 || runtimesNeeded.has('bash')) {
-        spawnerLanguage = 'polyglot';
-      } else {
-        spawnerLanguage = runtimesNeeded.has('node') ? 'node' : 'python';
-      }
-      if (spawnerLanguage === 'polyglot' && stepPaths.length < 2) {
-        return {
-          ok: false as const,
-          code: 'POLYGLOT_REQUIRES_STEPS' as const,
-          message:
-            'Polyglot runs (mixed Python / Node / bash) require `steps` mode with multiple files.',
-        };
-      }
-
-      // Mint a Caddy-aliased download URL per thread file so the spawner
-      // fetches bytes itself (binary-safe; bypasses the body cap). No bytes
-      // flow through this action's memory. Files are routed by `source`:
-      //   - agent_write → /workspace/code/<path>   (executable scripts)
-      //   - run_output  → /workspace/output/<path> (previous run artifacts)
-      //   - user_upload → /workspace/uploads/<path>(user-supplied assets)
-      const filesPayload: Array<{ path: string; url: string }> = [];
-      const priorOutputDownloadsPayload: Array<{
-        name: string;
-        url: string;
-      }> = [];
-      const userUploadDownloadsPayload: Array<{
-        name: string;
-        url: string;
-      }> = [];
-      for (const wf of workspaceFiles) {
-        const rawUrl = await ctx.storage.getUrl(wf.storageId);
-        if (rawUrl === null) {
-          return {
-            ok: false as const,
-            code: 'STORAGE_MISSING' as const,
-            message: `workspace file storage missing for path=${wf.path} storageId=${wf.storageId}`,
-          };
-        }
-        const url = toSandboxStorageUrl(rawUrl);
-        if (wf.source === 'run_output') {
-          priorOutputDownloadsPayload.push({ name: wf.path, url });
-        } else if (wf.source === 'user_upload') {
-          userUploadDownloadsPayload.push({ name: wf.path, url });
-        } else {
-          // agent_write (default) — staged at /workspace/code/<path>.
-          filesPayload.push({ path: wf.path, url });
-        }
-      }
-
       const packagesByLang: { python?: string[]; node?: string[] } = {};
       if (args.packages?.python !== undefined) {
         packagesByLang.python = args.packages.python;
@@ -360,41 +361,21 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
         packagesByLang.node = args.packages.node;
       }
 
-      const isSingleStep = stepPaths.length === 1 && args.steps === undefined;
-
-      const sandboxArgs: Record<string, unknown> = {
-        organizationId,
-        uploadedBy: userId,
-        threadId,
-        ...(messageId !== undefined && { messageId }),
-        language: spawnerLanguage,
-        files: filesPayload,
-        ...(priorOutputDownloadsPayload.length > 0 && {
-          priorOutputDownloads: priorOutputDownloadsPayload,
-        }),
-        ...(userUploadDownloadsPayload.length > 0 && {
-          userUploadDownloads: userUploadDownloadsPayload,
-        }),
-        ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-        ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
-        purpose: 'run_code',
-        ...(args.sourceCitation !== undefined && {
-          sourceCitationSkillSlug: args.sourceCitation.skillSlug,
-          sourceCitationFiles: args.sourceCitation.fileReferences,
-        }),
-      };
-      if (isSingleStep) {
-        sandboxArgs.entryPath = stepPaths[0];
-      } else {
-        sandboxArgs.steps = stepPaths;
-      }
-
+      // Execute in the thread's persistent sandbox session — it stages inputs
+      // and harvests outputs; prior outputs persist in the workspace across
+      // runs (no re-stage / re-harvest churn).
       let raw: unknown;
       try {
         raw = await ctx.runAction(
-          internal.node_only.sandbox.internal_actions.executeCode,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- sandbox executeCode accepts this subset; passed verbatim
-          sandboxArgs as never,
+          internal.node_only.sandbox.session_exec.executeCodeInSession,
+          {
+            organizationId,
+            threadId,
+            uploadedBy: userId,
+            stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
+            ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
+            ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+          },
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -425,28 +406,99 @@ Reading a previous run's output → \`/workspace/output/<name>\`. Reading a user
       };
 
       const success = run.status === 'completed';
+
+      // Surface each harvested deliverable as a downloadable chat card — the
+      // same file-card the native document tools produce — so a file produced
+      // by code is as visible as one produced by a dedicated tool (it also
+      // stays in the canvas via the `run_output` thread file). `appendFilePart`
+      // no-ops for sub-agent threads, so the `files` array below is still the
+      // fallback the parent agent reads.
+      if (success && run.files.length > 0) {
+        for (const f of run.files) {
+          // The card shows the file's basename; the harvested path is the
+          // canonical absolute `/user/output/<name>`.
+          const name = f.path.split('/').pop() ?? f.path;
+          try {
+            await appendFilePart(ctx, {
+              fileName: name,
+              mimeType: f.contentType,
+              downloadUrl: buildDownloadUrl(f.storageId, name),
+            });
+          } catch (err) {
+            console.warn(
+              `[run_code] appendFilePart failed for ${f.path}:`,
+              err,
+            );
+          }
+        }
+      }
+
       const emptyFilesHint = `run_code succeeded in ${run.durationMs}ms. No output files were harvested.
 
-If the script was supposed to produce a deliverable file, only paths under \`/workspace/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/workspace/code/\` are discarded when the container exits.
+If the script was supposed to produce a deliverable file, only paths under \`/user/output/\` are harvested back into the thread workspace — files written to the cwd, \`/tmp\`, or \`/user/code/\` are discarded when the container exits.
 
 Wrong (file is lost, NOT harvested):
   open("report.pptx", "wb").write(data)              # Python
   fs.writeFileSync("report.json", data)              // Node
 
 Correct (harvested into the thread workspace):
-  open("/workspace/output/report.pptx", "wb").write(data)
-  fs.writeFileSync("/workspace/output/report.json", data)
+  open("/user/output/report.pptx", "wb").write(data)
+  fs.writeFileSync("/user/output/report.json", data)
 
-Same rule for bash: \`cp report.pdf /workspace/output/report.pdf\`.
+Same rule for bash: \`cp report.pdf /user/output/report.pdf\`.
 
 If your script genuinely had no file deliverable (e.g. a sanity check or package install), you can ignore this — the run did succeed.`;
       const message = success
         ? run.files.length > 0
-          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /workspace/output/: ${run.files.map((f) => f.path).join(', ')}.`
+          ? `run_code succeeded in ${run.durationMs}ms. Produced ${run.files.length} output file(s) at /user/output/: ${run.files.map((f) => f.path).join(', ')}.`
           : emptyFilesHint
         : run.errorCode
           ? `run_code FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read stderrPreview, fix the script via file_write, then call run_code again.`
           : `run_code finished with status=${run.status} and no output files.`;
+
+      // Sandbox-state manifest: the current workspace files grouped by area,
+      // each with its `fileId` (storage id). Reported on every run (success
+      // OR failure) so the model always has ground truth — what it already
+      // produced (don't regenerate), what the user uploaded (edit it), and the
+      // id to hand to the image / document_write tools.
+      const sandboxState: {
+        uploads: SandboxStateEntry[];
+        code: SandboxStateEntry[];
+        outputs: SandboxStateEntry[];
+      } = { uploads: [], code: [], outputs: [] };
+      const stateRows = await ctx.runQuery(
+        internal.thread_files.internal_queries.listThreadFiles,
+        { threadId },
+      );
+      for (const e of stateRows
+        .filter(
+          (r: { organizationId: string }) =>
+            r.organizationId === organizationId,
+        )
+        .map(
+          (r: {
+            path: string;
+            storageId: string;
+            size: number;
+            contentType: string;
+            source: 'user_upload' | 'agent_write' | 'run_output';
+          }) => ({
+            entry: {
+              path: r.path,
+              fileId: r.storageId,
+              size: r.size,
+              contentType: r.contentType,
+            },
+            source: r.source,
+          }),
+        )) {
+        if (e.source === 'user_upload') sandboxState.uploads.push(e.entry);
+        else if (e.source === 'run_output') sandboxState.outputs.push(e.entry);
+        else sandboxState.code.push(e.entry);
+      }
+      const stateSummary = formatSandboxState(sandboxState);
+      const messageWithState =
+        stateSummary.length > 0 ? `${message}\n\n${stateSummary}` : message;
 
       return {
         ok: true as const,
@@ -463,7 +515,8 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
         durationMs: run.durationMs,
         files: run.files,
         ...(run.steps !== undefined && { steps: run.steps }),
-        message,
+        sandboxState,
+        message: messageWithState,
       };
     },
   }),

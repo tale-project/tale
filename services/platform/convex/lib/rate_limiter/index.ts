@@ -516,17 +516,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 1,
   },
-  // Per-org lazy cleanup of sandboxExecutions audit rows. Gates the
-  // opportunistic delete-old-rows sweep in reserveSlotAndInsert so a
-  // busy org performs at most one sweep per hour. Audit retention is
-  // 90 days; older terminal rows are reclaimed here instead of via a
-  // crons.ts entry (see feedback_lazy_cleanup_over_cron).
-  'cleanup:sandbox': {
-    kind: 'token bucket',
-    rate: 1,
-    period: HOUR,
-    capacity: 1,
-  },
   // Per-org opportunistic self-heal: the agent-liveness gate schedules the
   // autoInstall sweep when it finds a never-provisioned org at run admission.
   // Caps it to one schedule per org per few minutes so concurrent admissions in

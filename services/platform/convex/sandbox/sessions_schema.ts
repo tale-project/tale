@@ -301,9 +301,9 @@ export const sandboxAgentCheckpointsTable = defineTable({
  */
 export const sandboxAdmissionTicketsTable = defineTable({
   organizationId: v.string(),
-  /** 'session' = chat + workflow agent step (caps on `sandboxSessions`);
-   *  'oneshot' = workflow script step (caps on `sandboxExecutions`). Each kind
-   *  queues independently (separate cap + separate in-flight table). */
+  /** Always 'session' now — every sandbox run is a session (the retired
+   *  'oneshot' value is kept in the union only so pre-migration ticket rows
+   *  still read-validate; nothing writes it). Caps on `sandboxSessions`. */
   kind: v.union(v.literal('session'), v.literal('oneshot')),
   // Polymorphic owner (open set, like sandboxSessions.ownerType).
   ownerType: v.string(), // 'thread' | 'user' | 'workflow_run' | …

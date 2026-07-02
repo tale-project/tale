@@ -24,6 +24,7 @@ import { memo, useState } from 'react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
@@ -349,6 +350,19 @@ export const FilePartDisplay = memo(function FilePartDisplay({
   const { t } = useT('chat');
   const [previewOpen, setPreviewOpen] = useState(false);
   const isImage = filePart.mediaType.startsWith('image/');
+  // Generated-file parts persist a raw storage download URL, but the file
+  // itself can be deleted later (e.g. the agent cleaning up run_code
+  // intermediates with file_delete). Gate on live existence — getFileUrl
+  // returns null for a deleted storage object — so cleaned-up files drop out
+  // of the transcript instead of rendering broken thumbnails / dead download
+  // cards. While the query is loading (undefined) keep rendering, so history
+  // doesn't flash.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id parsed from our own download URL; branded at runtime
+  const fileId = extractStorageFileId(filePart.url) as
+    | Id<'_storage'>
+    | undefined;
+  const { data: liveUrl } = useFileUrl(fileId);
+  if (fileId !== undefined && liveUrl === null) return null;
 
   if (isImage) {
     // When onEditImage is provided, this is an assistant-generated image for
@@ -406,7 +420,6 @@ export const FilePartDisplay = memo(function FilePartDisplay({
 
   const fileName = filePart.filename || t('fallback.file');
   const fileTypeLabel = getFileTypeLabel(fileName, filePart.mediaType, t);
-  const fileId = extractStorageFileId(filePart.url);
   const canPreview = !!(fileId && organizationId);
 
   const body = (

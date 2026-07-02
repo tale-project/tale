@@ -106,7 +106,6 @@ import {
   promptTemplatesTable,
 } from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
-import { sandboxExecutionsTable } from './sandbox/schema';
 import {
   sandboxAdmissionTicketsTable,
   sandboxAgentCheckpointsTable,
@@ -295,7 +294,6 @@ export default defineSchema({
   supportCaseComments: supportCaseCommentsTable,
   supportCaseActivity: supportCaseActivityTable,
   vendors: vendorsTable,
-  sandboxExecutions: sandboxExecutionsTable,
   sandboxSessions: sandboxSessionsTable,
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,
