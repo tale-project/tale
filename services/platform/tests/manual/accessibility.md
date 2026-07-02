@@ -106,6 +106,8 @@ Tick the checks that apply per surface (— = N/A for that surface).
 | Settings form  |     |     |     |     |     | —   | —   |     |     | B1 invalid submit               |
 | Dialog         | —   | —   |     |     |     | —   | —   |     |     | A5 focus return + A12 title     |
 | Mobile shell   |     |     |     |     | —   | —   |     |     |     | A14 touch targets ≥ 44 px       |
+| Workspace panel |    |  —  |     |     | —   | —   | —   | —   | —   | canvas/live-browser panes; depth in [workspace.md](workspace.md) A1–A5 |
+| Discussions    | —   | —   |     |     | —   | —   | —   | —   |     | mention listbox; depth in [discussions.md](discussions.md) A2 |
 
 ## Issues Found
 
@@ -118,7 +120,7 @@ Tick the checks that apply per surface (— = N/A for that surface).
 ```
 Area: Accessibility (WCAG 2.1 AA)
 Structural (A1–A14): ___/14   Boundary (B1–B4): ___/4   Perf (P1–P4): ___/4
-Surfaces swept: ___/6
+Surfaces swept: ___/8
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

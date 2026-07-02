@@ -31,6 +31,7 @@ Drive the width with the Playwright MCP `browser_resize` (or a context `viewport
 | Settings → Account (Save bar + More)  | `/dashboard/{org}/settings/account`   |
 | Customers (DataTable page)            | `/dashboard/{org}/customers`          |
 | Products (DataTable page)             | `/dashboard/{org}/products`           |
+| Discussions (project tab)             | `/dashboard/{org}/projects/{projectId}/discussions` |
 
 ## Prerequisites
 
@@ -58,6 +59,7 @@ so a shared org is safe; mint your own only if you want to keep a write.
 | F4               | 🔶 partial     | `responsive.spec.ts` (composer renders + enabled at mobile; **no send / no attach**)  |
 | F5               | 🔶 partial     | `responsive.spec.ts` (customers list usable at mobile; **no row/stack assertions**)   |
 | F6, F7           | ⛔ manual-only | —                                                                                     |
+| F8, F9           | ⛔ manual-only | — (F8 needs one discussion created; F9 needs canvas content, mode B)                  |
 | B1–B3, A1–A3, P1 | ⛔ manual-only | —                                                                                     |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
@@ -75,6 +77,8 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | F5  | DataTable page  | At 390 px, open `/dashboard/{org}/customers`                                                                 | The page settles into either the **Import customers** button (`customers.importMenu.importCustomers`) **or** the empty state **No customers yet** (`emptyStates.customers.title`) — both prove the table chrome rendered. No action is clipped off-screen.                                                                                                             |
 | F6  | Dialog / sheet  | At 390 px, open a create dialog (e.g. **New project** on `/dashboard/{org}/projects`)                        | The dialog/sheet renders within the viewport; its primary action button is visible and reachable without horizontal scroll.                                                                                                                                                                                                                                            |
 | F7  | No overflow     | At 390 px, on chat, settings/account, and customers, read `documentElement.scrollWidth`                      | `scrollWidth === clientWidth` (== 390) on each page — no horizontal scrollbar, nothing off-canvas.                                                                                                                                                                                                                                                                     |
+| F8  | Discussions     | Mode A, needs one discussion created: at 390×844, open `/dashboard/{org}/projects/{projectId}/discussions` and tap the discussion to open its thread | The reply composer with the placeholder **"Reply… use @ to mention a teammate or agent"** (`discussions.reply.placeholder`) is **visible and enabled**; `document.documentElement.scrollWidth === clientWidth` (no horizontal overflow).                                                                                                                               |
+| F9  | Workspace panel | Mode B — canvas content needed: at 390×844, open a chat thread that produced canvas files → tap **Open canvas** (`chat.canvas.stripOpen`)            | The **Canvas** panel (`chat.canvas.title`) opens **within the viewport** with a reachable close/back control; no horizontal overflow. Presentation at `< md` is unverified — **record whether it presents as a sheet or a split view** (check live).                                                                                                                   |
 
 ## Boundary & error tests
 
@@ -109,7 +113,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ```
 Area: Responsive
-Functional: ___/7   Boundary: ___/3   A11y: ___/3   Perf: ___/2
+Functional: ___/9   Boundary: ___/3   A11y: ___/3   Perf: ___/2
 Widths: 390 ☐  767 ☐  768 ☐  1280 ☐
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL

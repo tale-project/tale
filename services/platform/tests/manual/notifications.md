@@ -26,7 +26,9 @@ need no seed data. To exercise **review** items (F7) and the **unread badge /
 Mark-all-read** path (F1, F4), first generate a personal `task_review_requested`
 notification: run a flow that requests a review (e.g. a chat write-op approval, or
 a task review per [projects.md](projects.md)), then reopen the bell. A fresh
-seeded org starts with an **empty** notification stream.
+seeded org starts with an **empty** notification stream. F9–F11 need **two
+member accounts in the same org** (mode A is fine): the actor is never notified
+of their own action, so a single account cannot generate those rows.
 
 > **Agent note**: ⛔ no e2e spec. The bell's accessible name is **Notifications**
 > (`navigation.notifications`), NOT a `notifications.*` key. The unread **count
@@ -43,11 +45,13 @@ seeded org starts with an **empty** notification stream.
 
 ## Automated coverage
 
-| Case(s) | Status         | e2e spec |
-| ------- | -------------- | -------- |
-| F1–F8   | ⛔ manual-only | —        |
-| B1–B3   | ⛔ manual-only | —        |
-| A1–A3   | ⛔ manual-only | —        |
+| Case(s) | Status         | e2e spec                                              |
+| ------- | -------------- | ----------------------------------------------------- |
+| F1–F8   | ⛔ manual-only | —                                                     |
+| F9–F11  | ⛔ manual-only | — (need two accounts in one org; mode A works)        |
+| F12     | ⛔ manual-only | — (env-gated: cron/agent-driven, documentation row)   |
+| B1–B3   | ⛔ manual-only | —                                                     |
+| A1–A3   | ⛔ manual-only | —                                                     |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 There is **no** `notifications.spec.ts`; no other spec touches the bell/panel.
@@ -65,6 +69,14 @@ There is **no** `notifications.spec.ts`; no other spec touches the bell/panel.
 | F7  | Inline review    | On a `task_review_requested` row, click **Approve** (`tasks.review.approve`)                                                                     | Success toast **Task approved and completed** (`tasks.review.approvedToast`); the review controls vanish from the row; the task's status reflects approval after reload                           |
 | F7b | Request changes  | On a review row, click **Request changes** (`tasks.review.requestChanges`), type feedback, click **Send feedback** (`tasks.review.sendFeedback`) | **Send feedback** is disabled until feedback is non-empty; on submit, toast **Changes requested — the agent is on it** (`tasks.review.changesRequestedToast`); controls vanish from the row       |
 | F8  | Real-time update | Open the panel; in another tab/session trigger a notification for this org                                                                       | The new row appears in the open panel (and the badge increments) **without a manual reload** (Convex live query)                                                                                  |
+| F9  | Task assigned    | Mode A, two accounts: as user A, assign a project task to user B (self-assignment is **suppressed server-side** — assigning yourself creates no row, so B must be a different account); sign in as B and open the bell | B's bell shows a row titled **Task assigned to you** (`inbox.taskAssigned`) with the body **"{actor} assigned you to "{title}"."** (`inbox.taskAssignedByBody`, actor = A's display name); clicking the row deep-links to the task (URL commits) and the row becomes read |
+| F10 | Mention          | Mode A, two accounts: as user A, comment on a task mentioning `@B`; sign in as B and open the bell | B sees **You were mentioned** (`inbox.mention`) with the body **"{actor} mentioned you on "{title}"."** (`inbox.mentionByBody`). The mention **takes precedence**: B gets the mention row, not an additional comment row for the same comment |
+| F11 | New comment      | Mode A, two accounts: user B is a task **subscriber** (assignee or creator) and NOT the actor; as user A, comment on the task **without** mentioning B; open B's bell | B sees **New comment** (`inbox.taskCommented`) with the body **"{actor} commented on "{title}"."** (`inbox.taskCommentedByBody`). The actor (A) receives no row for their own comment |
+| F12 | Other types      | Documentation row (env-gated — these are cron/agent-driven, not user-triggerable on demand): the remaining catalog a tester may see is **Task unblocked** (`inbox.taskUnblocked`), **Due soon** (`inbox.taskDueSoon`), **Overdue task escalated** (`inbox.taskSlaEscalated`), **Review reminder** (`inbox.taskReviewReminder`), **Review overdue** (`inbox.taskReviewEscalated`), **Automation waiting on input** (`inbox.humanInputEscalated`), **Daily workforce digest** (`inbox.workforceDigest`), **Agent escalation** (`inbox.agentEscalation`, body `inbox.agentEscalationBody`) | Assert only that any observed row renders its **translated title** (one of the strings above) — never a raw key like `inbox.taskDueSoon` |
+
+> The **Upgraded to v{version}** changelog release toast is **not** a bell
+> notification — it belongs to the app shell and is covered in
+> [navigation.md](navigation.md) (its F12), which owns the changelog.
 
 ## Boundary & error tests
 
@@ -106,7 +118,7 @@ There is **no** `notifications.spec.ts`; no other spec touches the bell/panel.
 
 ```
 Area: Notifications & inbox
-Functional: ___/9   Boundary: ___/3   A11y: ___/3   Perf: ___/3
+Functional: ___/13   Boundary: ___/3   A11y: ___/3   Perf: ___/3
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

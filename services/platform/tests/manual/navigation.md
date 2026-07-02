@@ -6,7 +6,10 @@
 > render-only pages (workforce/automation metrics, embedded Swagger, the
 > `custom-agents` redirect), and the shared DataTable behaviours
 > (search-filter, pagination, bulk select). No provider needed — every route
-> here renders offline in the deterministic stack.
+> here renders offline in the deterministic stack. Shell/PWA/connectivity
+> behaviours (changelog release toast, install sheet, service-worker update,
+> offline gate) live HERE; [responsive.md](responsive.md) keeps
+> viewport-layout rows only.
 
 ## Scope & routes
 
@@ -49,9 +52,11 @@ the org has no teams.
 | F5, F6, F8     | ⛔ manual-only | —                                                                                                                |
 | F11            | ✅ automated   | `navigation.spec.ts` (user-menu Documentation link → `https://tale.dev/docs`) + component `user-button.test.tsx` |
 | F10            | ⛔ manual-only | — (no DataTable bulk-action spec exists)                                                                         |
+| F12–F14        | ⛔ manual-only | — (env-gated: version bump / iOS Safari UA / production build with a waiting SW)                                 |
 | B1             | ✅ automated   | `navigation.spec.ts` (not-found shell)                                                                           |
 | B2             | ✅ automated   | `navigation.spec.ts` (styled 404 for an unknown route inside the shell, incl. document title)                    |
 | B3, B4         | ⛔ manual-only | —                                                                                                                |
+| B5             | ⛔ manual-only | — (env-gated: needs browser network emulation / stopping the local backend)                                      |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 (`keyboard.spec.ts` only covers wizard focus order — NOT the Cmd+K palette.
@@ -72,6 +77,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | F9  | Render-only pages            | Visit `/dashboard/{org}/agents/metrics` (heading **Metrics**, `settings.agents.tabs.metrics`), `/dashboard/{org}/automations/metrics` (heading **Automation Metrics**, `automations.metrics.title`), `/docs` (Swagger), and `/dashboard/{org}/custom-agents`                                                                                                                                                             | Metrics pages render their heading + period switcher; `/docs` mounts `main.swagger-ui-standalone`; `/custom-agents` redirects to `/dashboard/{org}/agents/all`. None throw a console/page error                                                                                                                                           |
 | F10 | DataTable behaviours         | On a list with a DataTable (e.g. Knowledge → Documents), use the search/filter; paginate (`common.aria.previousPage` / `common.aria.nextPage`); **Select all** (`common.aria.selectAll`) → **Delete selected** (`common.actions.deleteSelected`)                                                                                                                                                                         | Filter narrows the rows; page controls change the visible page; the bulk action affects only the selected rows; **reload** to confirm the delete persisted                                                                                                                                                                                |
 | F11 | User-menu Documentation link | Open the user/avatar menu (bottom-left); in the help group find **Documentation** (`auth.userButton.documentation`, BookOpen icon)                                                                                                                                                                                                                                                                                       | The **Documentation** item is an external link to `https://tale.dev/docs` opening in a new tab (`target="_blank"`, `rel="noopener noreferrer"`); the old **Help & feedback** item (formerly `auth.userButton.helpFeedback`, HelpCircle icon, `https://tale.dev/contact`) is **gone**                                                      |
+| F12 | Changelog release toast      | Env-gated (the forcing mechanism is unverified — check live): sign in on a deployment whose version is **newer** than the account's last-toasted version (e.g. first session after a version bump)                                                                                                                                                                                                                        | A **one-shot** toast **Upgraded to v{version}** (`changelog.toast.title`, description `changelog.toast.description`) appears with a **View** action (`changelog.toast.action`); clicking **View** navigates to `/dashboard/changelog?from=…&to=…`. The toast **never re-fires for the same version** — reload and re-sign-in show no repeat (the client records the toasted version)                                                        |
+| F13 | Get app / iOS install sheet  | Env-gated (emulate an iOS Safari UA, or a browser that offers PWA install): open the user/avatar menu (bottom-left)                                                                                                                                                                                                                                                                                                       | The menu shows **Get app** (`auth.userButton.getApp`) only when the app is installable or the UA is iOS. On iOS, choosing it opens the sheet **Install Tale** (`auth.userButton.iosInstall.title`) with the steps **"Tap the Share button in your browser's toolbar."** (`auth.userButton.iosInstall.step1`) and **'Choose "Add to Home Screen", then tap "Add".'** (`auth.userButton.iosInstall.step2`), closed by **Got it** (`auth.userButton.iosInstall.done`) |
+| F14 | Service-worker update toast  | Env-gated (production build with a **waiting** service worker — a dev stack registers no SW): load the app while a newer SW is waiting                                                                                                                                                                                                                                                                                    | Toast **Update available** (`pwa.updateAvailableTitle`) with **A new version of Tale is ready.** (`pwa.updateAvailableDescription`) and an **Update now** action (`pwa.updateNow`); clicking it reloads the page onto the new version. Separately, the benign one-off toast **"Tale is ready to work offline."** (`pwa.offlineReady`) fires on first SW install — expected, do **not** file it (it can photobomb unrelated screenshots)     |
 
 ## Boundary & error tests
 
@@ -81,6 +89,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | B2  | Unknown route     | Open `/dashboard/{org}/nope-not-a-route`      | A styled 404 renders inside the dashboard layout (rail still present): heading **Page not found** (`common.notFound.title`), the message **The page you're looking for doesn't exist or may have been moved.** (`common.notFound.description`), and a **Back to dashboard** link (`common.notFound.backToDashboard`) to `/dashboard/{org}`. Document title is **Page not found** (`metadata.notFound.title`), not the marketing default. No white-screen crash |
 | B3  | Back after delete | Delete a list row, press browser Back         | No stale/ghost row reappears; the list stays consistent with the persisted state                                                                                                                                                                                                                                                                                                                                                                               |
 | B4  | Bad version range | Open `/dashboard/changelog?from=zzz&to=000`   | Handled gracefully — heading **What's new** still renders; no blank screen, no console/page error                                                                                                                                                                                                                                                                                                                                                              |
+| B5  | Offline gate      | Mode A via network emulation: on any dashboard page, set the browser **offline**; later, restore the network. Backend-stale variant: keep the device online but **stop the local backend** | After the websocket goes stale past a **~3 s grace** (both variants — a brief blip does not trigger it), a full-screen overlay (`role="alertdialog"`) shows **You're offline** (`connectivity.deviceTitle`) + its description (`connectivity.deviceDescription`). Restoring the network clears the overlay **without a reload** — the page underneath stays mounted (children keep rendering below the overlay). With the backend stopped instead, the overlay reads **Can't reach Tale** (`connectivity.backendTitle`) with a **Try again** button (`connectivity.retry`) |
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -108,7 +117,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ```
 Area: Navigation & shell
-Functional: ___/11   Boundary: ___/4   A11y: ___/4   Perf: ___/2
+Functional: ___/14   Boundary: ___/5   A11y: ___/4   Perf: ___/2
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```
