@@ -57,26 +57,26 @@ Where the automated Playwright suite already exercises an area, the manual guide
 focuses on the gaps. Status reflects the **area** as a whole; each guide's own
 _Automated coverage_ table is case-by-case.
 
-| Guide         | Status         | Automated by                                                                                                            |
-| ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                            |
-| chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                              |
-| workspace     | ⛔ manual-only | — (component tests only: `workspace-file-tabs`, `chat-panel`; no e2e touches the panes)                                 |
-| agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                |
-| apps          | ⛔ manual-only | — (no spec; the whole apps surface is untested in e2e)                                                                  |
-| projects      | ✅ strong      | `projects`, `projects-depth`                                                                                            |
-| discussions   | 🔶 partial     | unit `resolve-author` + component `message-bubble` (alignment/label); no e2e                                            |
-| knowledge     | ✅ strong      | `knowledge`                                                                                                             |
+| Guide         | Status         | Automated by                                                                                                                                                                           |
+| ------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                                                                                           |
+| chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                                                                                             |
+| workspace     | ⛔ manual-only | — (component tests only: `workspace-file-tabs`, `chat-panel`; no e2e touches the panes)                                                                                                |
+| agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                                                                               |
+| apps          | ⛔ manual-only | — (no spec; the whole apps surface is untested in e2e)                                                                                                                                 |
+| projects      | ✅ strong      | `projects`, `projects-depth`                                                                                                                                                           |
+| discussions   | 🔶 partial     | unit `resolve-author` + component `message-bubble` (alignment/label); no e2e                                                                                                           |
+| knowledge     | ✅ strong      | `knowledge`                                                                                                                                                                            |
 | conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered — and transitions currently FAIL, crit audit-log RLS defect, see the guide's Issues) |
-| automations   | ✅ strong      | `automation`, `automation-editor`                                                                                       |
-| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                            |
-| integrations  | ✅ strong      | `integrations` (connect + offline `testConnection`)                                                                     |
+| automations   | ✅ strong      | `automation`, `automation-editor`                                                                                                                                                      |
+| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                                                                                           |
+| integrations  | ✅ strong      | `integrations` (connect + offline `testConnection`)                                                                                                                                    |
 | governance    | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, usage, trash uncovered)                  |
-| notifications | ⛔ manual-only | — (no spec)                                                                                                             |
-| navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                        |
-| accessibility | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                  |
-| responsive    | ✅ strong      | `responsive`                                                                                                            |
-| performance   | ⛔ manual-only | — (load timing not asserted in e2e)                                                                                     |
+| notifications | ⛔ manual-only | — (no spec)                                                                                                                                                                            |
+| navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                                                                                       |
+| accessibility | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                                                                                 |
+| responsive    | ✅ strong      | `responsive`                                                                                                                                                                           |
+| performance   | ⛔ manual-only | — (load timing not asserted in e2e)                                                                                                                                                    |
 
 Negative paths (invalid slugs, empty names, cascade-delete typed-phrase gating)
 are automated by `validation.spec.ts` and live in each guide's _Boundary &
