@@ -9,7 +9,7 @@ This page is the reference for the columns, the filters, the categories, and the
 
 ## A worked filter
 
-To find the moment a member's role was changed, open **Settings > Governance > Audit logs**, set the **Category** filter to **Member**, and search for the actor or the target by name. Each row expands to the full payload — previous state, new state, the IP if the request was over the wire, the actor type (user, system, API, workflow). Export the filtered set as CSV or JSON from the toolbar above the table.
+To find the moment a member's role was changed, open **Settings > Governance > Logs**, set the **Category** filter to **Member**, and search for the actor or the target by name. Each row expands to the full payload — previous state, new state, the IP if the request was over the wire, the actor type (user, system, API, workflow). Export the filtered set as CSV or JSON from the toolbar above the table.
 
 ## The columns
 

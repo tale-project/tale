@@ -19,7 +19,7 @@ The alert arrives in two shapes, and the title tells you which. **Audit log inte
 
 ## Open the integrity panel
 
-An organisation's admins inspect the chain from **Settings > Governance > Audit logs**. The **Chain integrity** panel at the top of the page shows the status badge, the time of the last automated check, and a **Verify now** button that re-runs the same verification on demand. If you arrived from the notification, clicking the alert deep-links you straight to the flagged row in the audit table instead of the top of the log.
+An organisation's admins inspect the chain from **Settings > Governance > Logs**. The **Chain integrity** panel at the top of the page shows the status badge, the time of the last automated check, and a **Verify now** button that re-runs the same verification on demand. If you arrived from the notification, clicking the alert deep-links you straight to the flagged row in the audit table instead of the top of the log.
 
 Run **Verify now** to see the structured finding. For a hash-chain break, the panel shows **Chain integrity broken** with the **Entry ID** of the first row that fails, when it **Occurred**, the **Expected hash**, and the **Stored hash** that did not match — plus an **Open this entry** button that reveals the row in the table. For a checkpoint problem, it shows **Checkpoint verification failed** with the **Checkpoint ID** and a **Reason**. Record these details before you change anything: they are the evidence.
 
