@@ -20,17 +20,18 @@ Test at three widths — **390×844** (mobile, matches `responsive.spec.ts`),
 **767×1024** (just below the breakpoint — still mobile), **1280×800** (desktop).
 Drive the width with the Playwright MCP `browser_resize` (or a context `viewport`).
 
-| Surface (re-walked at mobile width)   | Route                                 |
-| ------------------------------------- | ------------------------------------- |
-| Chat (composer)                       | `/dashboard/{org}/chat`               |
-| Projects (primary tab)                | `/dashboard/{org}/projects`           |
-| Conversations (primary tab)           | `/dashboard/{org}/conversations/open` |
-| Agents (primary tab, gated)           | `/dashboard/{org}/agents`             |
-| Knowledge / Documents (More overflow) | `/dashboard/{org}/documents`          |
-| Automations (More overflow)           | `/dashboard/{org}/automations`        |
-| Settings → Account (Save bar + More)  | `/dashboard/{org}/settings/account`   |
-| Customers (DataTable page)            | `/dashboard/{org}/customers`          |
-| Products (DataTable page)             | `/dashboard/{org}/products`           |
+| Surface (re-walked at mobile width)   | Route                                               |
+| ------------------------------------- | --------------------------------------------------- |
+| Chat (composer)                       | `/dashboard/{org}/chat`                             |
+| Projects (primary tab)                | `/dashboard/{org}/projects`                         |
+| Conversations (primary tab)           | `/dashboard/{org}/conversations/open`               |
+| Agents (primary tab, gated)           | `/dashboard/{org}/agents`                           |
+| Knowledge / Documents (More overflow) | `/dashboard/{org}/documents`                        |
+| Automations (More overflow)           | `/dashboard/{org}/automations`                      |
+| Settings → Account (Save bar + More)  | `/dashboard/{org}/settings/account`                 |
+| Customers (DataTable page)            | `/dashboard/{org}/customers`                        |
+| Products (DataTable page)             | `/dashboard/{org}/products`                         |
+| Discussions (project tab)             | `/dashboard/{org}/projects/{projectId}/discussions` |
 
 ## Prerequisites
 
@@ -58,6 +59,7 @@ so a shared org is safe; mint your own only if you want to keep a write.
 | F4               | 🔶 partial     | `responsive.spec.ts` (composer renders + enabled at mobile; **no send / no attach**)  |
 | F5               | 🔶 partial     | `responsive.spec.ts` (customers list usable at mobile; **no row/stack assertions**)   |
 | F6, F7           | ⛔ manual-only | —                                                                                     |
+| F8, F9           | ⛔ manual-only | — (F8 needs one discussion created; F9 needs canvas content, mode B)                  |
 | B1–B3, A1–A3, P1 | ⛔ manual-only | —                                                                                     |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
@@ -66,15 +68,17 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Functional tests
 
-| ID  | Test            | Steps (route + control)                                                                                      | Expected (verifiable)                                                                                                                                                                                                                                                                                                                                                  |
-| --- | --------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | Bottom tab bar  | At 390 px, open `/dashboard/{org}/chat`                                                                      | The `navigation` "Primary navigation" (`navigation.aria.primaryNavigation`) is **visible**; the "Main navigation" rail (`common.aria.mainNavigation`) is **hidden**. The bar shows tabs **Projects** (`projects.title`), **Conversations** (`navigation.conversations`), **Chat** (`navigation.chat`), **Agents** (`navigation.agents`), **More** (`navigation.more`). |
-| F2  | More sheet      | Tap **More** (`navigation.more`) in the bottom bar                                                           | A `dialog` named **More** (`navigation.more`) opens with buttons **Knowledge** (`navigation.knowledge`), **Automations** (`navigation.automations`), **Settings** (`navigation.userSettings`). Pressing **Escape** hides the dialog. Tapping an item navigates and closes the sheet.                                                                                   |
-| F3  | Mobile Save bar | At 390 px, open `/dashboard/{org}/settings/account`; edit **Display name** (`settings.account.profile.name`) | Exactly **one** visible **Save** button (`common.actions.save`) exists (the mobile bar; the desktop slot is `display:none`). It is **disabled while clean**, becomes **enabled after the edit**. Reload → the field rehydrates to the **original value** (the probe edit did not persist).                                                                             |
-| F4  | Chat composer   | At 390 px, open `/dashboard/{org}/chat`                                                                      | The composer textbox **Message input** (`chat.aria.chatInput`) is **visible and enabled**. (Optional manual extension: type `hello`, click **Send message** (`chat.send`), assert it re-enables; attach a file via the composer.)                                                                                                                                      |
-| F5  | DataTable page  | At 390 px, open `/dashboard/{org}/customers`                                                                 | The page settles into either the **Import customers** button (`customers.importMenu.importCustomers`) **or** the empty state **No customers yet** (`emptyStates.customers.title`) — both prove the table chrome rendered. No action is clipped off-screen.                                                                                                             |
-| F6  | Dialog / sheet  | At 390 px, open a create dialog (e.g. **New project** on `/dashboard/{org}/projects`)                        | The dialog/sheet renders within the viewport; its primary action button is visible and reachable without horizontal scroll.                                                                                                                                                                                                                                            |
-| F7  | No overflow     | At 390 px, on chat, settings/account, and customers, read `documentElement.scrollWidth`                      | `scrollWidth === clientWidth` (== 390) on each page — no horizontal scrollbar, nothing off-canvas.                                                                                                                                                                                                                                                                     |
+| ID  | Test            | Steps (route + control)                                                                                                                              | Expected (verifiable)                                                                                                                                                                                                                                                                                                                                                  |
+| --- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Bottom tab bar  | At 390 px, open `/dashboard/{org}/chat`                                                                                                              | The `navigation` "Primary navigation" (`navigation.aria.primaryNavigation`) is **visible**; the "Main navigation" rail (`common.aria.mainNavigation`) is **hidden**. The bar shows tabs **Projects** (`projects.title`), **Conversations** (`navigation.conversations`), **Chat** (`navigation.chat`), **Agents** (`navigation.agents`), **More** (`navigation.more`). |
+| F2  | More sheet      | Tap **More** (`navigation.more`) in the bottom bar                                                                                                   | A `dialog` named **More** (`navigation.more`) opens with buttons **Knowledge** (`navigation.knowledge`), **Automations** (`navigation.automations`), **Settings** (`navigation.userSettings`). Pressing **Escape** hides the dialog. Tapping an item navigates and closes the sheet.                                                                                   |
+| F3  | Mobile Save bar | At 390 px, open `/dashboard/{org}/settings/account`; edit **Display name** (`settings.account.profile.name`)                                         | Exactly **one** visible **Save** button (`common.actions.save`) exists (the mobile bar; the desktop slot is `display:none`). It is **disabled while clean**, becomes **enabled after the edit**. Reload → the field rehydrates to the **original value** (the probe edit did not persist).                                                                             |
+| F4  | Chat composer   | At 390 px, open `/dashboard/{org}/chat`                                                                                                              | The composer textbox **Message input** (`chat.aria.chatInput`) is **visible and enabled**. (Optional manual extension: type `hello`, click **Send message** (`chat.send`), assert it re-enables; attach a file via the composer.)                                                                                                                                      |
+| F5  | DataTable page  | At 390 px, open `/dashboard/{org}/customers`                                                                                                         | The page settles into either the **Import customers** button (`customers.importMenu.importCustomers`) **or** the empty state **No customers yet** (`emptyStates.customers.title`) — both prove the table chrome rendered. No action is clipped off-screen.                                                                                                             |
+| F6  | Dialog / sheet  | At 390 px, open a create dialog (e.g. **New project** on `/dashboard/{org}/projects`)                                                                | The dialog/sheet renders within the viewport; its primary action button is visible and reachable without horizontal scroll.                                                                                                                                                                                                                                            |
+| F7  | No overflow     | At 390 px, on chat, settings/account, and customers, read `documentElement.scrollWidth`                                                              | `scrollWidth === clientWidth` (== 390) on each page — no horizontal scrollbar, nothing off-canvas.                                                                                                                                                                                                                                                                     |
+| F8  | Discussions     | Mode A, needs one discussion created: at 390×844, open `/dashboard/{org}/projects/{projectId}/discussions` and tap the discussion to open its thread | The reply composer with the placeholder **"Reply… use @ to mention a teammate or agent"** (`discussions.reply.placeholder`) is **visible and enabled**; `document.documentElement.scrollWidth === clientWidth` (no horizontal overflow).                                                                                                                               |
+| F9  | Workspace panel | Mode B — canvas content needed: at 390×844, open a chat thread that produced canvas files → tap **Open canvas** (`chat.canvas.stripOpen`)            | The **Canvas** panel (`chat.canvas.title`) opens **within the viewport** with a reachable close/back control; no horizontal overflow. Presentation at `< md` is unverified — **record whether it presents as a sheet or a split view** (check live).                                                                                                                   |
 
 ## Boundary & error tests
 
@@ -109,7 +113,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ```
 Area: Responsive
-Functional: ___/7   Boundary: ___/3   A11y: ___/3   Perf: ___/2
+Functional: ___/9   Boundary: ___/3   A11y: ___/3   Perf: ___/2
 Widths: 390 ☐  767 ☐  768 ☐  1280 ☐
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL

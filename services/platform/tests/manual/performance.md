@@ -60,6 +60,8 @@ axes** for every number, because both move it by an order of magnitude:
 | P2 (chat turn ends) | 🔶 partial     | `chat-threads.spec.ts`, `chat-depth.spec.ts` (asserts terminal state, untimed) |
 | P3 (thread switch)  | 🔶 partial     | `chat-threads.spec.ts` (switches threads functionally, untimed)                |
 | P1, P4, P6, P7      | ⛔ manual-only | — (no load-timing assertions exist in e2e)                                     |
+| B4 (provider error) | 🔶 partial     | `chat-scenarios.spec.ts` (error path functional, NOT timed)                    |
+| B1–B3, A1, A2       | ⛔ manual-only | — (load characteristics / DOM attributes, not asserted)                        |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
@@ -87,7 +89,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | B1  | Large thread        | Open a chat thread with many messages.                                | Scroll stays responsive; no `pageerror`/console error; DOM node count does not grow unbounded (older messages are recycled).                                                              |
 | B2  | Large list          | A DataTable with hundreds of rows (`/customers` or `/conversations`). | First page renders quickly and is paginated (only one page of rows in the DOM); paging does not load the whole set at once.                                                               |
 | B3  | Slow network        | DevTools throttle to **Slow 3G**, hard-reload `/dashboard/{org}`.     | Loading skeletons (`aria-busy="true"` regions) show during load with NO layout jank; the page eventually renders; no crash.                                                               |
-| B4  | Chat provider error | Send a message containing `e2:error` in `mockA`.                      | The provider-error UI renders (HTTP 500 path); the composer recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
+| B4  | Chat provider error | Send a message containing `e2e:error` in `mockA`.                     | The provider-error UI renders (HTTP 500 path); the composer recovers to **Send message** enabled — no spinner stuck on, no page crash. This is the designed error path (**ENVIRONMENT**). |
 
 ## Accessibility (WCAG 2.1 AA)
 

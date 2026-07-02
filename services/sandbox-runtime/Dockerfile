@@ -181,6 +181,16 @@ ENV CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1
 # on by default on Opus-class models and driven to full depth by max effort; we
 # simply never set CLAUDE_CODE_DISABLE_THINKING / CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING.
 ENV CLAUDE_CODE_WORKFLOWS=1
+# Output-token ceiling per request. Claude Code gives ids it RECOGNISES
+# (claude-fable-5, claude-opus-4-8, …) 64K output under a `[1m]` 1M-context
+# window, but an id it does not recognise falls back to a conservative 32K —
+# and the shipped default model is exactly such an id (the rolling
+# `~anthropic/claude-fable-latest` alias). Pin the floor to the same 64K the
+# recognised flagships already get (smoke-verified on 2.1.173: the value lands
+# verbatim as the request's max_tokens). Deliberately NOT higher — >64K at 1M
+# context is unverified against live upstreams. Same overridable-floor
+# semantics as CLAUDE_CODE_EFFORT_LEVEL above.
+ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
 
 # --- coding-agent CLIs (pinned) ---------------------------------------------
 # Claude Code + Playwright MCP via npm into /opt/agents (on PATH above).

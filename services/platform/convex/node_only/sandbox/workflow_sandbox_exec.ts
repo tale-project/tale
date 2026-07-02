@@ -44,6 +44,10 @@ import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation
 import { resolveAppAssetPathChecked } from '../../apps/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import {
+  buildSkillsGuidance,
+  SKILLS_GUIDANCE_HEADING,
+} from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
@@ -99,6 +103,7 @@ import {
   type TokenSelection,
   TokenSourceError,
 } from './token_pool_select';
+import { stageWorkflowSkills, workspaceIsTaleRepo } from './workflow_skills';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
@@ -874,6 +879,11 @@ export const runSandboxAgent = internalAction({
     // Token-source bindings from the agent's Environment-tab rows (captured in
     // the agent-env injection below, consumed by the rotation block at run).
     let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+    // Skills the agent can actually load (captured in the skill-staging block
+    // below) + whether the workspace is Tale's own monorepo — both feed the
+    // skills-guidance section of the system-prompt append.
+    let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
+    let workspaceIsTale = false;
 
     // RESUME? A prior segment of THIS step handed off (status 'running') and the
     // durable workflow handler re-entered the step. The exec is STILL RUNNING in
@@ -1216,6 +1226,8 @@ export const runSandboxAgent = internalAction({
         // 4. Stage the agent's bound integration skills (best-effort) and
         // reconcile repo precedence for the image-baked builtin skills (the
         // entrypoint symlinks those; this only drops ones the repo shadows).
+        // Also stage the org's workflow skills and probe the workspace — both
+        // feed the skills-guidance section of the system-prompt append.
         try {
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
@@ -1223,6 +1235,11 @@ export const runSandboxAgent = internalAction({
             nativeWebTools: byo || nativeWebTools === true,
           });
           await reconcileBuiltinSkills(ctx, { sessionId });
+          availableWorkflowSkills = await stageWorkflowSkills(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+          });
+          workspaceIsTale = await workspaceIsTaleRepo(sessionId);
         } catch (skillErr) {
           console.warn(
             '[runSandboxAgent] integration skill staging failed (continuing):',
@@ -1314,7 +1331,20 @@ export const runSandboxAgent = internalAction({
       const prompt =
         args.instructions ??
         (agentConfig.instructions || 'Complete the assigned task.');
-      const systemPromptAppend = [agentConfig.instructions, SUMMARY_MANDATE]
+      // Claude-Code-only skills guidance (the staged workflow skills live in
+      // CC's user-level skill dir); skipped on the Tale monorepo workspace and
+      // when the agent's own instructions already carry the section.
+      const skillsGuidance =
+        agentKind === 'claude-code' &&
+        !workspaceIsTale &&
+        !agentConfig.instructions?.includes(SKILLS_GUIDANCE_HEADING)
+          ? buildSkillsGuidance(availableWorkflowSkills)
+          : undefined;
+      const systemPromptAppend = [
+        agentConfig.instructions,
+        skillsGuidance,
+        SUMMARY_MANDATE,
+      ]
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
       // MANAGED: the gateway-format ref resolves to the gateway's model id.

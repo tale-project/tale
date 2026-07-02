@@ -32,9 +32,9 @@ is still `make-improvement` — this rides on top of whichever applies.
 Each is a defect if skipped; check how _this_ project enforces it.
 
 1. **Reuse the component library first.** Compose what exists — its button, card, input, table,
-   dialog, tooltip — never hand-roll a `div` that the library already ships. Search it and **name the
-   component before you write**. A divergent second copy of a shipped primitive is the defect, not the
-   feature.
+   dialog, tooltip — never hand-roll a `div` that the library already ships. Search it
+   (`search-codebase`) and **name the component before you write**. A divergent second copy of a
+   shipped primitive is the defect, not the feature (the doctrine: `implement-feature`).
 2. **Semantic tokens, never hex.** Write the semantic colour / spacing / type token (or its utility),
    never a raw hex or an ad-hoc grey; match the surrounding file's vocabulary. Read the tokens file for
    the live set — see `design-ui`.
@@ -60,12 +60,12 @@ Each is a defect if skipped; check how _this_ project enforces it.
 - **Name the reuse, then ship a thin slice** — that's the reuse gate from `implement-feature`; do it,
   don't restate it.
 - **Observe the real rendered outcome.** Run the app and look at the change in **every theme** and
-  every state; a green typecheck is not proof. Run the framework's component linter after the change
-  (for React, `react-doctor`).
+  every state (`test-code`; browser mechanics: `browse-web`); a green typecheck is not proof. Run the
+  framework's component linter after the change (for React, `react-doctor`).
 
-## Before you call it done
+## Gate B — before you call the UI done
 
-**Tick every box, or N/A with a reason — an unticked box means not done:**
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
 - [ ] **Composed the component library** — no hand-rolled layout; the reused component is named.
 - [ ] **Semantic tokens only** — no hardcoded hex/grey; verified in every theme.
@@ -74,11 +74,13 @@ Each is a defect if skipped; check how _this_ project enforces it.
 - [ ] **Every user-visible string localized** — all the project's locales.
 - [ ] **Accessibility AA** — keyboard, visible focus, accessible names on icon buttons, contrast, hit targets; the a11y tooling is green.
 - [ ] **Observed in the real app, every theme** — not just a typecheck; the component linter is clean.
+- [ ] **Definition of done** — the shared checklist holds (`create-pr`).
 
 ## Companion skills
 
 - `design-ui` — the design language (the _what_): the surfaces, colours, tokens, and conventions.
 - `implement-feature` / `make-improvement` — the generic process this layer rides on.
+- `search-codebase` — find the component to reuse and every surface that renders it.
 - `test-code` — prove the behaviour (happy + edge + error) and the real outcome.
 - `write-translations` — read before touching any non-default-language string.
 - `create-pr` — take the finished change to a clean PR.
