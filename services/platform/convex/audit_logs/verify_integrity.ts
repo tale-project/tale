@@ -21,7 +21,7 @@
  * checkpointsVerified, firstBrokenAt?, checkpointMismatch? }`.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
@@ -221,6 +221,68 @@ export const verifyIntegrity = query({
     }
 
     return verifyAuditChain(ctx, args);
+  },
+});
+
+/**
+ * Admin-only snapshot of an org's scheduled-integrity-check state (#1845),
+ * backing the audit-log integrity panel. Reads the single per-org
+ * `auditIntegrityProgress` row the cron maintains: how far the chain has been
+ * verified, whether the last run reached the live head, and — for the
+ * actionable alert — the fingerprint + timestamp of the incident this org was
+ * last alerted about. `alertActive` is a convenience derived flag: true iff an
+ * un-recovered incident is currently armed (a fingerprint is stored). Returns
+ * `null` when the org has no progress row yet (never checked). Gate mirrors
+ * `verifyIntegrity` — read-only, but the alert state is security-sensitive.
+ */
+export const getIntegrityStatus = query({
+  args: { organizationId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      lastVerifiedTimestamp: v.optional(v.number()),
+      lastVerifiedId: v.optional(v.string()),
+      headReached: v.boolean(),
+      updatedAt: v.number(),
+      lastAlertedFingerprint: v.optional(v.string()),
+      lastAlertedAt: v.optional(v.number()),
+      alertActive: v.boolean(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new ConvexError({ code: 'forbidden', message: 'Unauthenticated' });
+    }
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    if (!isAdmin(member.role)) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can read audit log integrity status',
+      });
+    }
+
+    const progress = await ctx.db
+      .query('auditIntegrityProgress')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    if (!progress) return null;
+
+    return {
+      lastVerifiedTimestamp: progress.lastVerifiedTimestamp,
+      lastVerifiedId: progress.lastVerifiedId,
+      headReached: progress.headReached,
+      updatedAt: progress.updatedAt,
+      lastAlertedFingerprint: progress.lastAlertedFingerprint,
+      lastAlertedAt: progress.lastAlertedAt,
+      alertActive: progress.lastAlertedFingerprint !== undefined,
+    };
   },
 });
 

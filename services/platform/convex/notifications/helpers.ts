@@ -2,6 +2,7 @@ import type { Infer } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_SEVERITIES,
@@ -10,6 +11,21 @@ import type {
 
 type Category = (typeof NOTIFICATION_CATEGORIES)[number];
 type Severity = (typeof NOTIFICATION_SEVERITIES)[number];
+
+/**
+ * Whether a member with `role` may see a notification of `category` in the
+ * bell. `security` notifications (audit-integrity alerts, login lockouts, …)
+ * are admin-only: they describe security posture and can name subjects, so they
+ * must not fan out to every org member (#1845). Everyone sees the rest. Single
+ * source of truth so `list`, `unreadCount`, and `markAllRead` cannot drift out
+ * of agreement on who sees what.
+ */
+export function canSeeNotification(
+  role: string | null | undefined,
+  category: Category,
+): boolean {
+  return category !== 'security' || isAdmin(role);
+}
 
 interface WriteNotificationArgs {
   organizationIds: string[];
