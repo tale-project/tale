@@ -40,9 +40,9 @@ function createMockCtx(folders: MockFolder[], documents: MockDocument[]) {
             },
           };
           cb(qb);
-          const source: Record<string, unknown>[] = structuredClone(
-            table === 'folders' ? folders : documents,
-          );
+          const source: Record<string, unknown>[] = (
+            table === 'folders' ? folders : documents
+          ).map((row) => Object.fromEntries(Object.entries(row)));
           const rows = source.filter((row) =>
             Object.entries(filters).every(([k, val]) => row[k] === val),
           );
