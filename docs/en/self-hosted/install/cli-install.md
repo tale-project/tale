@@ -13,7 +13,6 @@ You need:
 
 - A workstation running macOS, Linux, or Windows 10+.
 - SSH access to the host your Tale instance runs on, with the operator user able to run `docker compose`.
-- The admin key from [First admin](/self-hosted/install/first-admin) handy.
 
 The installer downloads a release binary from GitHub. Corporate networks that block raw-content downloads need to allow `raw.githubusercontent.com` and `github.com`.
 
@@ -28,10 +27,10 @@ curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/inst
 On Windows PowerShell:
 
 ```powershell
-iwr https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Both installers detect the OS, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`). To pin a version, set the `VERSION` environment variable before piping into the installer.
+Both installers detect the OS, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`) — asking for `sudo` when the install directory is not writable. Release binaries ship for Apple-silicon macOS (arm64) and x86_64 Linux only; on any other architecture the installer exits with a clear message and points you at building from source. To pin a version, set the `VERSION` environment variable before piping into the installer.
 
 | OS      | Installer script          |
 | ------- | ------------------------- |
@@ -57,7 +56,7 @@ tale config show
 
 The host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote host, point your shell's Docker context (or `DOCKER_HOST`) at it — the CLI talks to the same Docker endpoint every `docker` command does.
 
-The one-time admin key that claims the first **Owner** account at sign-up is separate from CLI configuration — generate it with `tale convex admin` when you need it (see [First admin](/self-hosted/install/first-admin)).
+The Convex dashboard admin key is separate from CLI configuration — it never gates sign-up, and it is deterministic (derived from `INSTANCE_NAME` and `INSTANCE_SECRET`, so it stays the same across restarts). Generate it with `tale convex admin` when you want to inspect the backend (see [First admin](/self-hosted/install/first-admin)).
 
 ## Step 4 — Run tale deploy
 
@@ -65,7 +64,7 @@ The one-time admin key that claims the first **Owner** account at sign-up is sep
 tale deploy
 ```
 
-`tale deploy` pulls the latest images for the configured `TALE_VERSION`, restarts the affected containers in the right order, and runs schema migrations. It is the supported replacement for the longer `docker compose pull && docker compose up -d` dance. If you prefer compose directly, the same effect lives in [Upgrades](/self-hosted/operate/upgrades).
+`tale deploy` always ships the CLI's own version: it pulls that version's images, restarts the affected containers in the right order, and runs schema migrations — `tale update` is how you move to a different version first. It is the supported replacement for the longer `docker compose pull && docker compose up -d` dance. If you prefer compose directly, the same effect lives in [Upgrades](/self-hosted/operate/upgrades).
 
 ## Command reference
 
@@ -80,7 +79,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 
 **Global flags** work on every command:
 
-- `-v, --verbose` — verbose output: debug logs and the raw subprocess stream.
+- `--verbose` — verbose output: debug logs and the raw subprocess stream (long form only; there is no `-v`).
 - `-q, --quiet` — only warnings and errors.
 - `-y, --yes` — assume "yes" for all prompts (non-interactive).
 - `--no-color` — disable ANSI colour (also honours `NO_COLOR` / `FORCE_COLOR`).
@@ -91,7 +90,7 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 ### Setup
 
-`tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + `CLAUDE.md`, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No prompts and no Docker — the production domain and TLS are chosen later, at `tale deploy`. `directory` is optional (default: the current directory).
+`tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + a `CLAUDE.md` pointer, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No Docker is needed, and the production domain and TLS are chosen later, at `tale deploy`. In a terminal it asks for a project name when `directory` is omitted, confirms before overwriting an existing project, and asks once whether agents may run `docker` inside sandboxes (default: no — enabling it runs a privileged inner Docker); non-interactive runs skip all prompts. `directory` is optional (default: the current directory).
 
 - `-f, --force` — overwrite an existing `tale.json` instead of aborting.
 - `--no-env` — scaffold the project but skip `.env` generation.
@@ -105,11 +104,11 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 `tale deploy` — blue-green, zero-downtime deploy of the current CLI version. On the first deploy it prompts for your production domain and Let's Encrypt email (or pass `--host`).
 
-- `-a, --all` — also update the stateful infrastructure services, not just the rotatable ones.
+- `--stop` — also update the stop-gated tier (`db`, `proxy`) — recreates those containers, so accept a brief downtime; without it, running `db`/`proxy` are left untouched.
 - `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
 - `--host <hostname>` — host alias for the proxy (default: the `HOST` value from `.env`).
 - `--override` — overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are always preserved).
-- `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--all`.
+- `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--stop`.
 - `-q, --quiet` — suppress container logs during the deploy.
 - `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
@@ -119,12 +118,13 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 `tale status` — show the current deployment status. No arguments.
 
-`tale logs <service>` — stream a service's logs (`service` is one of the running services).
+`tale logs <service>` — stream a service's logs (`service` is one of the running services; on a dev-only stack with no deployment, it falls back to the dev container).
 
 - `-f, --follow` — follow log output as it is written.
 - `-n, --tail <lines>` — show only the last N lines.
 - `--since <duration>` — show logs since a relative time (e.g. `1h`, `30m`).
 - `-c, --color <color>` — target a specific deployment colour (`blue` or `green`).
+- `--raw` — stream raw, unfiltered log output (no classification).
 
 `tale backup` — snapshot all data volumes into the project backups volume. No arguments.
 
@@ -174,8 +174,8 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 - **`tale deploy` targets the wrong machine.** The CLI uses your shell's Docker context / `DOCKER_HOST`. Switch with `docker context use …` (or set `DOCKER_HOST`) so it points at the intended host, then re-run.
 - **`tale deploy` uses the wrong host alias.** The host the proxy answers on comes from `HOST` in the project's `.env`, not a separate CLI store. Edit `.env` or pass `--host` to override it for one run.
-- **The sign-up screen rejects the admin key.** The bootstrap key rotates every time the platform container restarts. Generate a fresh one with `tale convex admin` and use it right away.
-- **Installer fails on macOS with a Gatekeeper warning.** The binary is signed but not notarised yet on Apple silicon; the installer prints the `xattr` command to clear the quarantine flag.
+- **The Convex dashboard rejects the admin key.** Sign-up never asks for the key — only the dashboard does. The key is deterministic (derived from `INSTANCE_NAME` and `INSTANCE_SECRET`), so a rejection usually means those values differ between the platform and Convex services, or the deployment URL is wrong — use `SITE_URL`. Regenerate with `tale convex admin` to be sure you copied the current value.
+- **Installer fails on macOS because the binary cannot execute.** When the freshly installed binary refuses to run (e.g. Gatekeeper kills it), the installer fails with recovery hints instead of reporting success — follow them, then re-run the installer.
 - **`tale` not found after install on Linux.** The installer drops the binary in `/usr/local/bin`; verify the directory is on the user's `PATH` (`echo $PATH`).
 
 ## Where this gets used

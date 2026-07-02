@@ -17,7 +17,7 @@ Wenn du dem Laptop entwächst und dasselbe Projekt auf einem echten Host willst,
 
 Wenn echter Verkehr auf der Instanz landet, ist der [Linux-Server](/de/self-hosted/install/linux-server)-Spaziergang der Weg. Er deckt TLS, eine Firewall, einen Non-root-User, den Reverse-Proxy und die operativen Haken ab, die du willst, bevor du eine Domäne darauf richtest. Die CLI macht weiterhin die Schwerarbeit — `tale deploy` fährt einen Blue-Green-Rollout ohne Ausfallzeit mit Health-Checks und Rollback — aber dieser Spaziergang fügt das Host-Level-Setup hinzu, das ein Trial überspringt.
 
-Nach dem ersten Deploy erklärt [Erster Admin](/de/self-hosted/install/first-admin) das einmalige Owner-Konto-Setup und wie du die Anmeldung schließt, sobald dein Team drin ist, und [CLI installieren](/de/self-hosted/install/cli-install) richtet die CLI auf einer Workstation ein, um eine entfernte Instanz zu deployen und zu upgraden.
+Nach dem ersten Deploy erklärt [Erster Admin](/de/self-hosted/install/first-admin) den einmaligen Setup-Wizard, der das erste Konto zum **Owner** macht — alle danach kommen per Einladung dazu, es gibt also keine offene Anmeldung zu schließen — und [CLI installieren](/de/self-hosted/install/cli-install) richtet die CLI auf einer Workstation ein, um eine entfernte Instanz zu deployen und zu upgraden.
 
 ## Die Compose-Schicht besitzen
 

@@ -13,7 +13,6 @@ Du brauchst:
 
 - Eine Workstation mit macOS, Linux oder Windows 10+.
 - SSH-Zugriff auf den Host, auf dem deine Tale-Instanz läuft, mit einem Operator-User, der `docker compose` ausführen kann.
-- Den Admin-Key aus [Erster Admin](/de/self-hosted/install/first-admin) griffbereit.
 
 Der Installer lädt ein Release-Binary von GitHub. Unternehmensnetzwerke, die Raw-Content-Downloads blockieren, müssen `raw.githubusercontent.com` und `github.com` zulassen.
 
@@ -28,10 +27,10 @@ curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/inst
 Auf Windows PowerShell:
 
 ```powershell
-iwr https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Beide Installer erkennen das Betriebssystem, ziehen das passende Release-Binary aus dem neuesten GitHub-Release und legen es im `PATH` ab (`/usr/local/bin/tale` oder `%LOCALAPPDATA%\Programs\tale\tale.exe`). Um eine Version festzuhalten, setze die Environment-Variable `VERSION`, bevor du in den Installer pipest.
+Beide Installer erkennen das Betriebssystem, ziehen das passende Release-Binary aus dem neuesten GitHub-Release und legen es im `PATH` ab (`/usr/local/bin/tale` oder `%LOCALAPPDATA%\Programs\tale\tale.exe`) — ist das Installationsverzeichnis nicht beschreibbar, fragt der Installer nach `sudo`. Release-Binaries gibt es nur für macOS auf Apple Silicon (arm64) und Linux auf x86_64; auf jeder anderen Architektur bricht der Installer mit einer klaren Meldung ab und verweist auf den Build aus dem Quellcode. Um eine Version festzuhalten, setze die Environment-Variable `VERSION`, bevor du in den Installer pipest.
 
 | OS      | Installer-Skript          |
 | ------- | ------------------------- |
@@ -57,7 +56,7 @@ tale config show
 
 Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale dev` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
 
-Der einmalige Admin-Key, der bei der Anmeldung das erste **Owner**-Konto beansprucht, ist von der CLI-Konfiguration getrennt — erzeug ihn bei Bedarf mit `tale convex admin` (siehe [Erster Admin](/de/self-hosted/install/first-admin)).
+Der Admin-Key fürs Convex-Dashboard ist von der CLI-Konfiguration getrennt — er hat mit der Anmeldung nichts zu tun und ist deterministisch (abgeleitet aus `INSTANCE_NAME` und `INSTANCE_SECRET`, bleibt also über Neustarts hinweg gleich). Erzeug ihn mit `tale convex admin`, wenn du das Backend inspizieren willst (siehe [Erster Admin](/de/self-hosted/install/first-admin)).
 
 ## Schritt 4 — tale deploy ausführen
 
@@ -65,7 +64,7 @@ Der einmalige Admin-Key, der bei der Anmeldung das erste **Owner**-Konto beanspr
 tale deploy
 ```
 
-`tale deploy` zieht die neuesten Images für die konfigurierte `TALE_VERSION`, restartet die betroffenen Container in der richtigen Reihenfolge und führt Schema-Migrationen aus. Es ist der unterstützte Ersatz für das längere `docker compose pull && docker compose up -d`-Tänzchen. Bevorzugst du Compose direkt, lebt derselbe Effekt in [Upgrades](/de/self-hosted/operate/upgrades).
+`tale deploy` liefert immer die Version der CLI selbst aus: Es zieht die Images dieser Version, restartet die betroffenen Container in der richtigen Reihenfolge und führt Schema-Migrationen aus — auf eine andere Version wechselst du vorher mit `tale update`. Es ist der unterstützte Ersatz für das längere `docker compose pull && docker compose up -d`-Tänzchen. Bevorzugst du Compose direkt, lebt derselbe Effekt in [Upgrades](/de/self-hosted/operate/upgrades).
 
 ## Befehlsreferenz
 
@@ -80,7 +79,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 
 **Globale Flags** funktionieren bei jedem Befehl:
 
-- `-v, --verbose` — ausführliche Ausgabe: Debug-Logs und der rohe Subprozess-Stream.
+- `--verbose` — ausführliche Ausgabe: Debug-Logs und der rohe Subprozess-Stream (nur die Langform; ein `-v` gibt es nicht).
 - `-q, --quiet` — nur Warnungen und Fehler.
 - `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
 - `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
@@ -91,7 +90,7 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 ### Einrichtung
 
-`tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + `CLAUDE.md` sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Keine Rückfragen und kein Docker — Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. `directory` ist optional (Standard: das aktuelle Verzeichnis).
+`tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + einen `CLAUDE.md`-Verweis sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Docker braucht es nicht; Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. Im Terminal fragt es nach einem Projektnamen, wenn `directory` fehlt, bestätigt vor dem Überschreiben eines bestehenden Projekts und fragt einmal, ob Agents in Sandboxes `docker` ausführen dürfen (Standard: nein — die Freigabe startet einen privilegierten inneren Docker); nicht-interaktive Läufe überspringen alle Rückfragen. `directory` ist optional (Standard: das aktuelle Verzeichnis).
 
 - `-f, --force` — eine vorhandene `tale.json` überschreiben statt abzubrechen.
 - `--no-env` — das Projekt anlegen, aber die `.env`-Generierung überspringen.
@@ -105,11 +104,11 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 `tale deploy` — Blue-Green-Deployment ohne Ausfallzeit der aktuellen CLI-Version. Beim ersten Deploy fragt es nach deiner Produktiv-Domain und der Let's-Encrypt-E-Mail (oder übergib `--host`).
 
-- `-a, --all` — auch die zustandsbehafteten Infrastruktur-Dienste aktualisieren, nicht nur die rotierbaren.
+- `--stop` — auch die stop-gebundene Schicht (`db`, `proxy`) aktualisieren — sie wird neu erstellt, also nimm eine kurze Ausfallzeit in Kauf; ohne das Flag bleiben laufende `db`/`proxy` unangetastet.
 - `-s, --services <list>` — nur diese kommagetrennten Dienste aktualisieren (Standard: alle rotierbaren Dienste).
 - `--host <hostname>` — Host-Alias für den Proxy (Standard: der `HOST`-Wert aus `.env`).
 - `--override` — Container-Config aus dem Host-Workspace überschreiben (verschlüsselte `*.secrets.json` und `.history/` bleiben stets erhalten).
-- `--override-all` — den Builtin-Katalog serverseitig in jede Organisation zurücksetzen; impliziert `--all`.
+- `--override-all` — den Builtin-Katalog serverseitig in jede Organisation zurücksetzen; impliziert `--stop`.
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
 - `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
@@ -119,12 +118,13 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 `tale status` — den aktuellen Deployment-Status anzeigen. Keine Argumente.
 
-`tale logs <service>` — Logs eines Dienstes streamen (`service` ist einer der laufenden Dienste).
+`tale logs <service>` — Logs eines Dienstes streamen (`service` ist einer der laufenden Dienste; auf einem reinen Dev-Stack ohne Deployment fällt der Befehl auf den Dev-Container zurück).
 
 - `-f, --follow` — der Log-Ausgabe folgen, während sie geschrieben wird.
 - `-n, --tail <lines>` — nur die letzten N Zeilen anzeigen.
 - `--since <duration>` — Logs seit einer relativen Zeit anzeigen (z. B. `1h`, `30m`).
 - `-c, --color <color>` — eine bestimmte Deployment-Farbe ansprechen (`blue` oder `green`).
+- `--raw` — die rohe, ungefilterte Log-Ausgabe streamen (keine Klassifizierung).
 
 `tale backup` — Snapshot aller Daten-Volumes in das Projekt-Backups-Volume. Keine Argumente.
 
@@ -174,8 +174,8 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 - **`tale deploy` trifft die falsche Maschine.** Die CLI nutzt den Docker-Kontext / `DOCKER_HOST` deiner Shell. Wechsle mit `docker context use …` (oder setz `DOCKER_HOST`), sodass er auf den gewünschten Host zeigt, und lauf erneut.
 - **`tale deploy` nutzt den falschen Host-Alias.** Der Host, auf dem der Proxy antwortet, kommt aus `HOST` im `.env` des Projekts, nicht aus einem separaten CLI-Speicher. Bearbeite `.env` oder übergib `--host`, um ihn für einen Lauf zu überschreiben.
-- **Der Anmelde-Bildschirm weist den Admin-Key ab.** Der Bootstrap-Key rotiert jedes Mal, wenn der Platform-Container neu startet. Erzeug mit `tale convex admin` einen frischen und nutz ihn sofort.
-- **Installer scheitert auf macOS mit einer Gatekeeper-Warnung.** Das Binary ist signiert, aber auf Apple Silicon noch nicht notarisiert; der Installer druckt den `xattr`-Befehl, um das Quarantäne-Flag zu löschen.
+- **Das Convex-Dashboard weist den Admin-Key ab.** Die Anmeldung fragt nie nach dem Key — nur das Dashboard. Der Key ist deterministisch (abgeleitet aus `INSTANCE_NAME` und `INSTANCE_SECRET`); eine Ablehnung heißt also meist, dass sich diese Werte zwischen Platform- und Convex-Service unterscheiden, oder die Deployment-URL falsch ist — nimm `SITE_URL`. Generier mit `tale convex admin` neu, um sicherzugehen, dass du den aktuellen Wert kopiert hast.
+- **Installer scheitert auf macOS, weil das Binary nicht ausführbar ist.** Verweigert das frisch installierte Binary den Start (z. B. weil Gatekeeper es beendet), bricht der Installer mit Hinweisen zur Behebung ab, statt Erfolg zu melden — folg ihnen und lauf den Installer erneut.
 - **`tale` nach der Installation auf Linux nicht gefunden.** Der Installer legt das Binary in `/usr/local/bin` ab; verifizier, dass das Verzeichnis im `PATH` des Users ist (`echo $PATH`).
 
 ## Wo das eingesetzt wird
