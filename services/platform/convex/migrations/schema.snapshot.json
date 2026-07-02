@@ -1189,6 +1189,18 @@
         },
         "optional": false
       },
+      "lastAlertedAt": {
+        "ft": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "lastAlertedFingerprint": {
+        "ft": {
+          "type": "string"
+        },
+        "optional": true
+      },
       "lastVerifiedId": {
         "ft": {
           "type": "string"
@@ -6327,6 +6339,12 @@
                     "value": "audit-logs"
                   },
                   "optional": false
+                },
+                "logId": {
+                  "fieldType": {
+                    "type": "string"
+                  },
+                  "optional": true
                 }
               }
             },
