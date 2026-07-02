@@ -10,10 +10,13 @@ import { chown, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ensureBuildkitd } from '../../buildkitd.ts';
-import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
+import {
+  buildDockerSessionRunArgs,
+  sessionDindEnabled,
+} from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
-  waitForRunnerd,
+  runnerdHealth,
 } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import {
@@ -160,6 +163,10 @@ export class DockerSessionBackend implements SessionBackend {
   async createSession(spec: SessionSpec): Promise<void> {
     const containerName = sessionContainerName(spec.sessionId);
     const workspaceHostDir = await this.resolveWorkspaceDir(spec.sessionId);
+    // Agent-profile only — see sessionDindEnabled. Every DinD side-effect below
+    // (inner-docker volume, shared buildkitd, cache-volume skip) keys off this,
+    // not the raw cfg flag, so a `default`-profile session never gets them.
+    const dind = sessionDindEnabled(this.cfg, spec.profile);
     // uid/gid for the workspace chown. The agent profile carries validated
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
@@ -202,7 +209,7 @@ export class DockerSessionBackend implements SessionBackend {
     // Shared per-org dep caches are NOT mounted under DinD (sysbox userns
     // shifting makes a cross-session shared volume unsafe — see
     // docker-session-args.ts), so don't bother creating them either.
-    if (!this.cfg.dockerInContainer) {
+    if (!dind) {
       await ensureCacheVolume(pip);
       await ensureCacheVolume(npm);
       await ensureCacheVolume(bun);
@@ -210,7 +217,7 @@ export class DockerSessionBackend implements SessionBackend {
     // Fresh, ephemeral /var/lib/docker volume for the inner dockerd (DinD only).
     // Recreated each start so a SIGKILLed dockerd's dirty overlay2 never wedges
     // resume; reaped on stop + destroy.
-    const dockerStorageVolume = this.cfg.dockerInContainer
+    const dockerStorageVolume = dind
       ? await this.ensureFreshDindVolume(spec.sessionId)
       : undefined;
 
@@ -220,7 +227,7 @@ export class DockerSessionBackend implements SessionBackend {
     // on error we proceed with no endpoint and the session falls back to its own
     // inner builder (cold cache). Only when DinD + the flag are both on.
     let buildkitdEndpoint: string | undefined;
-    if (this.cfg.dockerInContainer && this.cfg.dockerBuildCache) {
+    if (dind && this.cfg.dockerBuildCache) {
       try {
         buildkitdEndpoint = await ensureBuildkitd(
           this.cfg,
@@ -281,7 +288,7 @@ export class DockerSessionBackend implements SessionBackend {
         // earlier ensureFreshDindVolume could not actually recreate it; redo it
         // now that the container is gone so the retry mounts a genuinely fresh
         // inner store. (Volume name is deterministic, so argv stays valid.)
-        if (this.cfg.dockerInContainer) {
+        if (dind) {
           await this.ensureFreshDindVolume(spec.sessionId);
         }
         run = await runDocker(argv, { timeoutMs: 30_000 });
@@ -303,7 +310,7 @@ export class DockerSessionBackend implements SessionBackend {
         await dockerRm(containerName).catch((err) =>
           console.warn('[sandbox.session] cleanup dockerRm failed:', err),
         );
-        if (this.cfg.dockerInContainer) {
+        if (dind) {
           await this.removeDindVolume(spec.sessionId);
         }
         if (!preexisting) {
@@ -325,7 +332,8 @@ export class DockerSessionBackend implements SessionBackend {
     // resume keeps its preserved workspace (stop, not destroy).
     try {
       const baseUrl = await this.resolveEndpoint(spec.sessionId);
-      await waitForRunnerd(
+      await this.waitForRunnerdOrExit(
+        containerName,
         { baseUrl, token },
         this.cfg.session.createHealthTimeoutMs,
       );
@@ -359,6 +367,50 @@ export class DockerSessionBackend implements SessionBackend {
     // container, so the container name resolves directly. No backend lookup
     // needed (unlike K8s, where the Pod IP must be read).
     return `http://${sessionContainerName(sessionId)}:${RUNNERD_PORT}`;
+  }
+
+  /**
+   * Poll runnerd's /healthz until ready, but FAIL FAST when the container has
+   * already died. A boot crash (e.g. the entrypoint's workspace-skeleton mkdir
+   * hitting EACCES) otherwise burns the full createHealthTimeoutMs (minutes)
+   * blind-polling a container that exited in its first second, and the caller
+   * only ever sees an opaque "did not become ready" — so surface the
+   * container's last log lines in the error instead. A null status (daemon
+   * hiccup) is "unknown", never a death verdict; only a definitively dead
+   * container (exited/dead — isReapableContainerStatus) aborts the wait.
+   */
+  private async waitForRunnerdOrExit(
+    containerName: string,
+    opts: { baseUrl: string; token: string },
+    deadlineMs: number,
+    pollIntervalMs = 500,
+  ): Promise<void> {
+    const start = Date.now();
+    for (;;) {
+      try {
+        await runnerdHealth(opts);
+        return;
+      } catch {
+        const status = await this.containerStatus(containerName);
+        if (status !== null && isReapableContainerStatus(status)) {
+          const logs = await runDocker(
+            ['logs', '--tail', '10', containerName],
+            { timeoutMs: 5_000 },
+          );
+          const tail = `${logs.stdout}\n${logs.stderr}`.trim().slice(-2000);
+          throw new Error(
+            `session container exited before runnerd became ready ` +
+              `(status=${status}); last log lines:\n${tail}`,
+          );
+        }
+        if (Date.now() - start > deadlineMs) {
+          throw new Error(
+            `runnerd did not become ready within ${deadlineMs}ms`,
+          );
+        }
+        await new Promise((r) => setTimeout(r, pollIntervalMs));
+      }
+    }
   }
 
   async sessionExists(sessionId: string): Promise<boolean> {

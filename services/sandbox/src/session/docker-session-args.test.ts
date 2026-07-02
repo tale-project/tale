@@ -353,5 +353,75 @@ describe('buildDockerSessionRunArgs', () => {
         'type=volume,src=tale-dind-ses-abc-123,dst=/var/lib/docker',
       );
     });
+
+    // REGRESSION: DinD is agent-profile only. A `default`-profile (run_code)
+    // session under a DinD-enabled cfg once got the DinD boot: --privileged on
+    // runc, and — fatally — the entrypoint's DinD branch setpriv-drops to
+    // 10001 unconditionally, which cannot write the 65534-owned workspace, so
+    // the skeleton mkdir died and runnerd never became ready (3-min 502 on
+    // every chat run_code).
+    describe('default profile never gets DinD', () => {
+      test('runc DinD cfg + transparent egress: hardened caps path, drop uid 65534, no privileged/DinD flags', () => {
+        const args = buildDockerSessionRunArgs(
+          {
+            ...cfg,
+            runtimeTier: 'runc' as const,
+            dockerInContainer: true,
+            transparentEgress: true,
+          },
+          { ...goodInput, profile: 'default' },
+        );
+        expect(args).not.toContain('--privileged');
+        expect(args).not.toContain('TALE_DIND=1');
+        expect(args.some((a) => a.startsWith('TALE_RUNTIME_TIER='))).toBe(
+          false,
+        );
+        // Takes the transparent-egress hardening path: boots root with scoped
+        // caps and pins the entrypoint's setpriv drop to the profile uid.
+        expect(args).toContain('--cap-drop=ALL');
+        expect(args).toContain('--cap-add=NET_ADMIN');
+        expect(args).toContain('TALE_DROP_UID=65534');
+        expect(args).toContain('TALE_DROP_GID=65534');
+        const userIdx = args.indexOf('--user');
+        expect(args[userIdx + 1]).toBe('0:0');
+        // No inner-docker store, no shared build cache; per-org dep caches ON
+        // (the DinD userns-shifting concern doesn't apply).
+        expect(args.some((a) => a.includes('dst=/var/lib/docker'))).toBe(false);
+        expect(args.some((a) => a.startsWith('TALE_BUILDKITD_ENDPOINT='))).toBe(
+          false,
+        );
+        expect(args.some((a) => a.startsWith('PIP_CACHE_DIR='))).toBe(true);
+      });
+
+      test('sysbox DinD cfg, no egress: runs as 65534 directly, fully hardened', () => {
+        const args = buildDockerSessionRunArgs(
+          { ...cfg, runtimeTier: 'sysbox' as const, dockerInContainer: true },
+          { ...goodInput, profile: 'default' },
+        );
+        expect(args).not.toContain('TALE_DIND=1');
+        expect(args).not.toContain('apparmor=unconfined');
+        expect(args).toContain('--cap-drop=ALL');
+        expect(args).toContain('--read-only');
+        const userIdx = args.indexOf('--user');
+        expect(args[userIdx + 1]).toBe('65534:65534');
+      });
+
+      test('default profile does not require the docker storage volume', () => {
+        expect(() =>
+          buildDockerSessionRunArgs(
+            { ...cfg, runtimeTier: 'sysbox' as const, dockerInContainer: true },
+            { ...goodInput, profile: 'default' },
+          ),
+        ).not.toThrow();
+      });
+
+      test('browser stack is agent-only: default profile gets no TALE_BROWSER_CDP', () => {
+        const args = buildDockerSessionRunArgs(
+          { ...cfg, browserView: true },
+          { ...goodInput, profile: 'default' },
+        );
+        expect(args).not.toContain('TALE_BROWSER_CDP=1');
+      });
+    });
   });
 });
