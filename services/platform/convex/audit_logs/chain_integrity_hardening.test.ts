@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import { computeAuditHash } from '../lib/helpers/audit_hash';
 import schema from '../schema';
 import { createAuditLog } from './helpers';
 import * as verifyIntegrityModule from './verify_integrity';
@@ -71,6 +72,76 @@ async function progressFor(t: T, organizationId: string) {
       )
       .first(),
   );
+}
+
+// --- #1842 frozen v1 (pre-#1676) hashing oracle ---------------------------
+// An INDEPENDENT, faithful copy of the ORIGINAL audit writer's hashing as of
+// #1405 (295ef14f9): only integrityHash/previousHash excluded, and NO
+// undefined-skip so an absent optional emits a `"field":undefined` token. Used
+// to mint a genuine v1-era stored hash the MODERN recompute cannot reproduce,
+// proving the production fallback (audit_hash.ts) — not a coincidental match —
+// accepts it. Kept separate from production so a regression there is caught.
+const V1_EXCLUDED = new Set(['integrityHash', 'previousHash']);
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+function v1Canonicalize(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (Array.isArray(value)) {
+    return '[' + value.map((i) => v1Canonicalize(i)).join(',') + ']';
+  }
+  if (isPlainRecord(value)) {
+    return (
+      '{' +
+      Object.keys(value)
+        .sort()
+        .filter((k) => !V1_EXCLUDED.has(k))
+        .map((k) => JSON.stringify(k) + ':' + v1Canonicalize(value[k]))
+        .join(',') +
+      '}'
+    );
+  }
+  return JSON.stringify(value);
+}
+async function v1Hash(
+  previousHash: string,
+  record: Record<string, unknown>,
+): Promise<string> {
+  const data = new TextEncoder().encode(previousHash + v1Canonicalize(record));
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+// The exact 21-field record the v1 writer hashed (295ef14f9), absent → undefined.
+function v1Record(c: Record<string, unknown>): Record<string, unknown> {
+  return {
+    organizationId: c.organizationId,
+    actorId: c.actorId,
+    actorEmail: c.actorEmail,
+    actorRole: c.actorRole,
+    actorType: c.actorType,
+    action: c.action,
+    category: c.category,
+    resourceType: c.resourceType,
+    resourceId: c.resourceId,
+    resourceName: c.resourceName,
+    previousState: c.previousState,
+    newState: c.newState,
+    changedFields:
+      Array.isArray(c.changedFields) && c.changedFields.length > 0
+        ? c.changedFields
+        : undefined,
+    sessionId: c.sessionId,
+    ipAddress: c.ipAddress,
+    userAgent: c.userAgent,
+    requestId: c.requestId,
+    timestamp: c.timestamp,
+    status: c.status,
+    errorMessage: c.errorMessage,
+    metadata: c.metadata,
+  };
 }
 
 afterEach(() => {
@@ -382,5 +453,99 @@ describe('cron coverage + progress (#1846 items 1 + 2)', () => {
       'org_select_a',
       'org_select_b',
     ]);
+  });
+});
+
+// #1842 — audit rows written between #1405 and #1676 were hashed by a
+// canonicalizer that emitted `"field":undefined` for absent optionals. Convex
+// drops undefined at insert, so their stored hash is unreproducible by the
+// modern recompute, tripping a daily false "hash chain broken" alarm. The
+// verifier now retries with the frozen v1 algorithm and accepts a v1 match.
+describe('legacy v1 hash fallback (#1842)', () => {
+  const V1_ORG = 'org_v1_legacy';
+  // A plain success row: many optional fields (actorEmail, resourceName,
+  // errorMessage, metadata, …) are absent — the exact shape whose v1 canonical
+  // string covered them as `"field":undefined` and the modern one drops.
+  const legacyContent = {
+    organizationId: V1_ORG,
+    actorId: 'tester',
+    actorType: 'system',
+    action: 'legacy.success',
+    category: 'data',
+    resourceType: 'customer',
+    status: 'success',
+    timestamp: 1_000,
+  } as const;
+
+  async function insertLegacyRow(t: T): Promise<Id<'auditLogs'>> {
+    const storedHash = await v1Hash('', v1Record(legacyContent));
+    return t.run((ctx) =>
+      ctx.db.insert('auditLogs', {
+        ...legacyContent,
+        integrityHash: storedHash,
+      }),
+    );
+  }
+
+  it('accepts a genuine v1-era row the modern recompute cannot reproduce', async () => {
+    const t = convexTest(schema, modules);
+    const rowId = await insertLegacyRow(t);
+
+    // Sanity: the row genuinely FAILS the modern recompute — it verifies only
+    // via the legacy fallback, not because the two hashes happen to align.
+    const modern = await t.run(async (ctx) => {
+      const row = await ctx.db.get(rowId);
+      if (row === null) throw new Error('legacy row not found');
+      const {
+        integrityHash,
+        previousHash,
+        _id,
+        _creationTime,
+        piiScrubbed: _piiScrubbed,
+        ...record
+      } = row;
+      return {
+        stored: integrityHash,
+        recomputed: await computeAuditHash(previousHash ?? '', record),
+      };
+    });
+    expect(modern.recomputed).not.toBe(modern.stored);
+
+    const result = await t.run((ctx) =>
+      verifyAuditChain(ctx, { organizationId: V1_ORG }),
+    );
+    expect(result.valid).toBe(true);
+    expect(result.verifiedCount).toBe(1);
+    expect(result.firstBrokenAt).toBeUndefined();
+  });
+
+  it('still flags a tampered v1-era row (fails modern AND legacy recompute)', async () => {
+    const t = convexTest(schema, modules);
+    const rowId = await insertLegacyRow(t);
+
+    // Tamper a hashed field after the fact: the stored v1 hash now matches
+    // NEITHER recompute of the mutated content, so it must be reported.
+    await t.run((ctx) => ctx.db.patch(rowId, { action: 'tampered.action' }));
+
+    const result = await t.run((ctx) =>
+      verifyAuditChain(ctx, { organizationId: V1_ORG }),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.firstBrokenAt?.logId).toBe(String(rowId));
+  });
+
+  it('verifies a mixed chain — v1 prefix then modern rows — without masking', async () => {
+    const t = convexTest(schema, modules);
+    // A v1 genesis row, then real modern appends chained off it. Pre-fix the
+    // walk stopped at the v1 row and never verified the modern rows after it.
+    await insertLegacyRow(t);
+    await seed(t, V1_ORG, 'modern.1');
+    await seed(t, V1_ORG, 'modern.2');
+
+    const result = await t.run((ctx) =>
+      verifyAuditChain(ctx, { organizationId: V1_ORG }),
+    );
+    expect(result.valid).toBe(true);
+    expect(result.verifiedCount).toBe(3);
   });
 });
