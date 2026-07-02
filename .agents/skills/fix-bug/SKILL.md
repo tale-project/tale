@@ -17,7 +17,7 @@ the loop in order — skipping a step is how a symptom-patch ships and the bug c
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you change a line:
+**Invoke `write-notes`** and answer this form before you change a line:
 
 - **Symptom & repro:** Describe the exact observed behaviour and the smallest deterministic way to reproduce it.
 - **Expected vs actual:** Describe what should happen instead and where exactly the two diverge.
@@ -26,19 +26,22 @@ the loop in order — skipping a step is how a symptom-patch ships and the bug c
 - **Fix & regression test:** Describe the minimal change to the cause and the test that will fail on the old code and pass on the new.
 - **Risks & unknowns:** Could this be a symptom of something deeper, or could the fix affect other callers? Describe where you might be wrong.
 
-## Gate A — before you touch code
+## Gate A — before you write code
 
-**Tick every box before you change a line** — you have not earned the right to fix until they hold:
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **Reproduced it reliably** — the smallest deterministic trigger, with the exact error, stack, and
-      inputs captured. If you can't reproduce it, you can't know you fixed it.
-- [ ] **Felt the status quo and found the real owner** — traced the actual code path and data to the
-      function that owns the broken behaviour, not the first place the symptom surfaces. You read it; you
-      didn't theorize from the abstract.
-- [ ] **Minimized the case** — stripped unrelated state until only the bug remains.
-- [ ] **Proved the cause with evidence** — a specific, falsifiable hypothesis confirmed or killed by a
-      log line, the real backend's logs/data, the browser console/network, or a breakpoint, **before**
-      changing code. A fix on a hunch just relocates the bug.
+- [ ] **Note** — the form above is answered and written first (`write-notes`).
+- [ ] **Intent** — expected vs actual restated, and where exactly the two diverge stated, not
+      assumed.
+- [ ] **Status quo** — reproduced reliably: the smallest deterministic trigger, with the exact
+      error, stack, and inputs captured — and traced to the **real owner** of the broken behaviour,
+      not the first place the symptom surfaces. If you can't reproduce it, you can't know you fixed
+      it.
+- [ ] **Cause proved** — a specific, falsifiable hypothesis confirmed or killed on a **minimized
+      case** by a log line, the real backend's logs/data, the browser console/network, or a
+      breakpoint, **before** changing code. A fix on a hunch just relocates the bug.
+- [ ] **Blast radius** — if the cause sits in shared code, the other callers are enumerated
+      (`search-codebase` sweep).
 
 ## Fix the cause, minimally
 
@@ -49,14 +52,16 @@ the loop in order — skipping a step is how a symptom-patch ships and the bug c
 
 ## Gate B — before you call it done
 
-**Tick every box, or mark it N/A with a reason.** An unticked box means not done.
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **A regression test that fails on the old code and passes on the new** — you watched it do both.
+- [ ] **Regression test** — fails on the old code, passes on the new, and you watched it do both.
       This is the deliverable, not an extra.
-- [ ] **The surrounding suite is still green** — your fix didn't break a neighbour.
-- [ ] **The blast radius is handled** — if the cause sat in shared code, the _other_ callers are checked.
-- [ ] **Docs or error wording updated** if the bug was in something a user sees (or N/A).
-- [ ] **The gate is green** — the project's format/lint/typecheck/test command passes.
+- [ ] **Sweep** — every caller enumerated at Gate A is checked or explicitly ruled out
+      (`search-codebase`).
+- [ ] **Definition of done** — walk `create-pr`'s shared checklist now, not at PR time: the
+      surrounding suite still green, docs or error wording updated for anything a user sees.
+- [ ] **Observed** — the fix watched working on the original repro (`test-code`), never a green
+      typecheck alone.
 
 Then take it to a clean PR with `create-pr`.
 
