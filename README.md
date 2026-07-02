@@ -22,7 +22,7 @@ Pool their knowledge, delegate tasks, and build your swarm of agents.
 
 ---
 
-Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI and run a single command to get started.
+Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI, then two commands to get started.
 
 **Pick your path:**
 
@@ -32,7 +32,7 @@ Tale is a **self-hosted AI platform** that turns the agents and CLIs your team a
 
 ## Quick start
 
-Get Tale running on your machine in three commands — install the CLI, scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
+Get Tale running on your machine — install the CLI, then two commands: scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
 
 **Prerequisites for a local trial: none.** The installer provisions Docker for you, and `tale init` generates every secret — you do not need to bring anything to get the stack running. An [OpenRouter API key](https://openrouter.ai) (or any OpenAI-compatible provider) is optional and only needed before an agent can answer: you add it in the app after sign-up, in the setup wizard or under **Settings → AI providers**. `tale init` does not ask for it.
 
@@ -59,7 +59,7 @@ tale init my-project
 cd my-project
 ```
 
-The CLI asks one question — **local trial** or **production domain** — and configures everything for that target: TLS, all security secrets, AI-editor config files, and the platform source extracted to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. The same project works for both a local trial and a real deployment.
+`tale init` writes localhost/self-signed defaults and generates every security secret — the domain choice happens later, at `tale deploy`. It asks once whether agents may run Docker inside their sandboxes (default: no), scaffolds example configs under `default/`, and writes `AGENTS.md` plus a `CLAUDE.md` pointer, with the platform source extracted to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. The same project works for both a local trial and a real deployment.
 
 ### 3. Start Tale
 
@@ -67,7 +67,7 @@ The CLI asks one question — **local trial** or **production domain** — and c
 tale dev
 ```
 
-Visit https://localhost (or your configured domain) when you see "Tale Platform is running!"
+When you see "Tale is running", `tale dev` opens https://localhost (or your configured domain) in your browser — if it cannot, it prints the URL to visit.
 
 > **Note:** Your browser will show a certificate warning for self-signed certificates. This is safe to accept.
 
@@ -80,7 +80,7 @@ For detailed setup instructions, see the [self-hosted quickstart](docs/en/self-h
 | **Create custom agents**    | Edit JSON files in `agents/` — define instructions, tools, and models                     |
 | **Build automations**       | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps                   |
 | **Add integrations**        | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors               |
-| **Use AI to build configs** | Open the project in Claude Code, Cursor, Copilot, or Windsurf — the AI knows your schemas |
+| **Use AI to build configs** | Open the project in your AI editor — `AGENTS.md` and `.tale/reference/` carry the schemas |
 | **Chat with AI assistants** | Built into the platform — start chatting immediately                                      |
 | **Build a knowledge base**  | Upload documents, crawl websites, manage products and customers                           |
 | **Manage conversations**    | Unified inbox for customer conversations with AI-assisted replies                         |
