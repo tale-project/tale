@@ -371,7 +371,7 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
           {
             organizationId,
             threadId,
-            uploadedBy: userId ?? '',
+            uploadedBy: userId,
             stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
             ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
             ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
