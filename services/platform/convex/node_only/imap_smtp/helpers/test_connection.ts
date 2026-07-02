@@ -9,6 +9,7 @@ import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
 
 import type { TestConnectionParams, TestConnectionResult } from '../types';
+import { buildSmtpTransportOptions } from './smtp_transport';
 
 const CONNECT_TIMEOUT_MS = 10000;
 
@@ -45,10 +46,7 @@ export async function testConnection(
   // 2. SMTP (optional): verify proves host/port/TLS/credentials for sending.
   if (params.smtp) {
     const transport = nodemailer.createTransport({
-      host: params.smtp.host,
-      port: params.smtp.port,
-      secure: params.smtp.secure,
-      auth: { user: params.smtp.user, pass: params.smtp.password },
+      ...buildSmtpTransportOptions(params.smtp),
       connectionTimeout: CONNECT_TIMEOUT_MS,
     });
     try {
