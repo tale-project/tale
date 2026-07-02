@@ -49,7 +49,11 @@ in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 > key configured". To chat in mode A on such an org, open **Settings →
 > AI providers → OpenRouter**, store any dummy key and set the **Base URL** to
 > `http://127.0.0.1:4141/v1`; every turn then returns the canned mock reply.
-> The org's live config lands under `tests/e2e/fixtures/config/<org-slug>/`.
+> Wizard orgs also get **no seeded `test` workflow** and no "E2E Assistant"
+> (they get the builtin `chat/…` agents; prompts do seed) — the automations
+> guide's seeded-run cases need an e2e-minted org, or create a blank automation
+> first. The org's live config lands under
+> `tests/e2e/fixtures/config/<org-slug>/`.
 
 ### B. Full local dev (real provider, full feature set)
 
