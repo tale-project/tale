@@ -1761,6 +1761,8 @@
       "fileActionsAriaLabel": "File actions",
       "fileSizeAriaLabel": "File size",
       "sourceRunOutput": "Code output",
+      "outputExpand": "Show all files",
+      "outputCollapse": "Show fewer files",
       "sourceAgentWrite": "AI files",
       "sourceUserUpload": "Uploaded",
       "noFilesYet": "No files yet",
