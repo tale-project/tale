@@ -17,7 +17,7 @@ changes. For your own diff before opening a PR, use `review-code` instead.
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you start the review:
+**Invoke `write-notes`** and answer this form before you start the review:
 
 - **Intent:** Describe what the PR is trying to do and why, from its description and any linked issue.
 - **Understanding:** Explain how the change works in your own words, and where it does or doesn't match that intent.
