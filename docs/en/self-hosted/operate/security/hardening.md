@@ -73,7 +73,7 @@ Keep the list short and prefer specific hosts over wildcards. Package installs a
 
 `METRICS_BEARER_TOKEN` is unset in `.env.example` — that is intentional, so a fresh install does not leak metrics. Set the token, scrape from your Prometheus, and the alert thresholds in [Operations](/self-hosted/operate/observability/operations) cover the customer-impacting signals.
 
-The audit-log hash chain is verified automatically every night. Any break raises a critical security alert to org admins — in the notification bell, and in your Slack channel when one is connected — so tampering surfaces even when nobody is watching the logs. You can re-run the same verification on demand from the admin audit-log page.
+The audit-log hash chain is verified automatically every night by a scheduled integrity check. A genuine break raises a critical security alert to the organisation's admins — in the notification bell, and in your Slack channel when one is connected — so tampering surfaces even when nobody is watching the logs; a signed checkpoint that can't be verified because `TALE_AUDIT_SIGNING_KEY` is unset alerts more calmly, as the configuration gap it is. The alert fires once when a break is first detected or when it changes, not every day for the same break. Admins re-run the verification on demand from the **Chain integrity** panel on **Settings > Governance > Logs** — a status badge, the last-check time, and a **Verify now** button. When one fires, work the [audit-log integrity runbook](/self-hosted/operate/security/audit-log-integrity) to tell a real break from a benign retention or configuration artifact.
 
 ## Where this fits
 

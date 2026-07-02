@@ -809,6 +809,14 @@
       "description": "Le flux d'avis de sécurité Tale — format CVE, échelle de sévérité à quatre niveaux, calendrier de divulgation auquel les mainteneurs s'engagent, et comment t'abonner."
     }
   },
+  "fr:self-hosted/operate/security/audit-log-integrity": {
+    "slug": "self-hosted/operate/security/audit-log-integrity",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Audit-log integrity alerts",
+      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
+    }
+  },
   "fr:self-hosted/operate/security/cryptography": {
     "slug": "self-hosted/operate/security/cryptography",
     "locale": "fr",
@@ -1945,6 +1953,14 @@
       "description": "The Tale security advisory feed — CVE format, the four-tier severity scale, the disclosure timeline maintainers commit to, and how to subscribe."
     }
   },
+  "en:self-hosted/operate/security/audit-log-integrity": {
+    "slug": "self-hosted/operate/security/audit-log-integrity",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Audit-log integrity alerts",
+      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
+    }
+  },
   "en:self-hosted/operate/security/cryptography": {
     "slug": "self-hosted/operate/security/cryptography",
     "locale": "en",
@@ -3079,6 +3095,14 @@
     "frontmatter": {
       "title": "Security-Advisories",
       "description": "Der Tale-Security-Advisory-Feed — CVE-Format, die vierstufige Severity-Skala, die Disclosure-Timeline, der die Maintainer sich verpflichten, und wie du dich anmeldest."
+    }
+  },
+  "de:self-hosted/operate/security/audit-log-integrity": {
+    "slug": "self-hosted/operate/security/audit-log-integrity",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Audit-log integrity alerts",
+      "description": "How to respond when the daily audit-log integrity check raises an alert — reading the finding, telling tampering from a benign configuration gap, and preserving evidence."
     }
   },
   "de:self-hosted/operate/security/cryptography": {
