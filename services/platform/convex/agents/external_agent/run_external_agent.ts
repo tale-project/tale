@@ -436,7 +436,21 @@ export const runExternalAgentTurn = internalAction({
       let visionTool = false;
       let visionModel: string | undefined; // gateway model id the hook transcribes with
       let visionModelRef: string | undefined; // tale ref added to the VK allowlist
-      if (!byo && args.modelRef && args.modelRef !== 'default') {
+      // Model-level fallback (managed only): the catalog entry's
+      // `fallbackModelId` (e.g. Opus 4.8 behind the Fable default) rides along
+      // to the adapter, which arms Claude Code's fallback chain — overload /
+      // unavailability retries AND the content-based Fable classifier
+      // fallback. The VK below is scoped to also allow it, else the gateway
+      // 403s the fallback request and the turn fails anyway.
+      let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
+      let fallbackModel: string | undefined; // gateway model id the chain requests
+      // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
+      // defaults) names the model by its GATEWAY id, which the vendor's own
+      // API does not know — the catalog entry's `nativeModelId` is what a
+      // direct-to-vendor session must request instead. A raw id the user typed
+      // matches no catalog entry and passes through unchanged (no override).
+      let byoNativeModel: string | undefined;
+      if (args.modelRef && args.modelRef !== 'default') {
         try {
           const parsed = parseModelRef(args.modelRef);
           const catalog = await ctx.runAction(
@@ -449,7 +463,22 @@ export const runExternalAgentTurn = internalAction({
               (parsed.providerName === undefined ||
                 c.providerName === parsed.providerName),
           );
-          if (!(agentEntry?.tags.includes('vision') ?? false)) {
+          if (byo) {
+            byoNativeModel = agentEntry?.nativeModelId;
+          }
+          if (
+            !byo &&
+            agentEntry?.fallbackModelId !== undefined &&
+            agentEntry.fallbackModelId !== parsed.modelId
+          ) {
+            fallbackModelRef = formatModelRef({
+              providerName: agentEntry.providerName,
+              modelId: agentEntry.fallbackModelId,
+            });
+            fallbackModel =
+              resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
+          }
+          if (!byo && !(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
               organizationId: args.organizationId,
               ...(args.visionModel !== undefined && {
@@ -466,19 +495,24 @@ export const runExternalAgentTurn = internalAction({
           }
         } catch (err) {
           // No vision model configured (resolveLanguageModel throws) or the
-          // catalog is unavailable — skip the polyfill (the agent just can't
-          // read images this turn). Never fail the turn over a convenience tool.
+          // catalog is unavailable — skip the polyfill, the fallback, and the
+          // BYO native mapping (the agent just runs without them this turn,
+          // BYO on the raw ref). Never fail the turn over a convenience
+          // feature.
           console.warn(
-            '[runExternalAgentTurn] vision polyfill resolution skipped:',
+            '[runExternalAgentTurn] catalog model resolution skipped (vision/fallback/native):',
             err,
           );
         }
       }
       // The session VK allows the agent's model plus (when polyfilling) the
-      // vision model the bridge calls — else the gateway 403s the vision request.
-      const allowedModels = visionModelRef
-        ? [args.modelRef, visionModelRef]
-        : [args.modelRef];
+      // vision model the bridge calls and (when configured) the fallback model
+      // — else the gateway 403s those requests.
+      const allowedModels = [
+        args.modelRef,
+        visionModelRef,
+        fallbackModelRef,
+      ].filter((ref): ref is string => ref !== undefined);
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -1089,11 +1123,17 @@ export const runExternalAgentTurn = internalAction({
           // BYO passes the raw provider model id straight through; the
           // 'default' sentinel (or empty) means "no model" → omit it so Claude
           // Code falls back to the credential's own default model.
+          // BYO prefers the catalog entry's vendor-native id (the gateway id
+          // does not exist on the vendor's own API); a raw user-typed id has
+          // no catalog entry and passes through unchanged.
           model: byo
             ? args.modelRef && args.modelRef !== 'default'
-              ? args.modelRef
+              ? (byoNativeModel ?? args.modelRef)
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          // Managed model-level fallback (catalog fallbackModelId, VK-allowed
+          // above). Never sent for BYO — the user's model list is not overridden.
+          ...(fallbackModel !== undefined && { fallbackModel }),
           authMode: byo ? 'byo' : 'managed',
           ...(args.nativeWebTools !== undefined && {
             nativeWebTools: args.nativeWebTools,
