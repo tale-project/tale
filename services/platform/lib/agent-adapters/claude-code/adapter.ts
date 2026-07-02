@@ -87,35 +87,6 @@ function withMaxContext(model: string): string {
   return `${model}[1m]`;
 }
 
-/** Anthropic's native id for Claude Fable 5 — what a BYO session must request
- * instead of the gateway catalog's OpenRouter-shaped ids. */
-const BYO_NATIVE_FABLE = 'claude-fable-5';
-
-/** The shipped default pins for the Claude Code agent are OpenRouter-catalog
- * refs (`openrouter:` prefix, `anthropic/…` or rolling `~anthropic/…-latest`
- * ids) — valid only through the platform gateway. Both shapes can reach a BYO
- * run: run_external_agent passes the RAW modelRef straight through. */
-const BYO_FABLE_DEFAULT_REFS = new Set([
-  'openrouter:~anthropic/claude-fable-latest',
-  '~anthropic/claude-fable-latest',
-  'openrouter:anthropic/claude-fable-5',
-  'anthropic/claude-fable-5',
-]);
-
-/** A BYO ("bring your own credentials") session talks DIRECTLY to Anthropic —
- * user API key or OAuth token — where the OpenRouter-shaped catalog ids above
- * do not exist and would fail model resolution. Map exactly the shipped Fable
- * default refs to Anthropic's native Fable id; ANY other configured model is
- * the agent's explicit choice and passes through unchanged (no override). The
- * rolling `…-latest` alias intentionally maps to today's concrete native id —
- * Anthropic exposes no rolling alias, so BYO pins Fable 5 until this constant
- * is bumped, while managed keeps auto-tracking via OpenRouter. */
-function withByoNativeModel(model: string): string {
-  return BYO_FABLE_DEFAULT_REFS.has(model.toLowerCase().trim())
-    ? BYO_NATIVE_FABLE
-    : model;
-}
-
 /** Prepend Claude Code's `ultrathink` keyword to the turn prompt so every turn
  * requests maximum reasoning depth. On Opus-class (adaptive-thinking) models the
  * keyword is SAFE: Claude Code injects a "reason thoroughly" reminder for the
@@ -175,13 +146,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // governance-motivated native-tool denials lifted. Managed (default) keeps
     // today's gateway + governance behavior.
     const byo = spec.authMode === 'byo';
-    // BYO talks directly to Anthropic, so the shipped OpenRouter-shaped Fable
-    // default refs map to the native Fable id; anything else (and every
-    // managed model) is used exactly as specified.
-    const model =
-      spec.model !== undefined && byo
-        ? withByoNativeModel(spec.model)
-        : spec.model;
     const argv = [
       'claude',
       '-p',
@@ -217,9 +181,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // Every session (managed AND BYO) defaults to the max 1M context window:
     // withMaxContext appends the `[1m]` marker, which Claude Code strips before
     // the API call, so the provider / gateway only ever sees the bare model id —
-    // it does not change what a BYO user's own provider receives.
-    if (model) {
-      argv.push('--model', withMaxContext(model));
+    // it does not change what a BYO user's own provider receives. (spec.model
+    // is already the right id for the wire: the gateway model for managed; for
+    // BYO the catalog entry's vendor-native id when it declares one —
+    // run_external_agent resolves `nativeModelId` — else the raw user id.)
+    if (spec.model) {
+      argv.push('--model', withMaxContext(spec.model));
     }
     // Availability fallback (managed): when the primary model is overloaded or
     // unavailable (e.g. Fable under high load / usage pressure), Claude Code
@@ -359,7 +326,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // injects any platform-staged user messages at the next boundary.
       env.TALE_STEER_DIR = `/user/.runtime/tale/steer/${spec.execId}`;
     }
-    if (model) {
+    if (spec.model) {
       // The CLI's own default, ahead of the per-tier aliases: internal paths
       // that resolve a model WITHOUT consulting --model fall back here — the
       // queued-message replay (a steer message landing in a turn's closing
@@ -367,7 +334,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // (claude-sonnet-4-6), bypassing every alias pin. Observed live on
       // 2.1.173: the replayed turn requested sonnet through the gateway and
       // the org's open-models-only key 403'd the whole turn.
-      env.ANTHROPIC_MODEL = withMaxContext(model);
+      env.ANTHROPIC_MODEL = withMaxContext(spec.model);
       if (!byo) {
         // MANAGED: pin every default-model slot to a gateway model so Claude
         // Code doesn't 404 resolving opus/sonnet/haiku/fable aliases against
@@ -384,16 +351,16 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         // it is also how Claude Code IDENTIFIES the session model as Fable on
         // a gateway (the id may not contain `claude-fable-5`), which arms the
         // fallback in the first place.
-        const aliasTarget = spec.fallbackModel ?? model;
+        const aliasTarget = spec.fallbackModel ?? spec.model;
         env.ANTHROPIC_DEFAULT_OPUS_MODEL = aliasTarget;
         env.ANTHROPIC_DEFAULT_SONNET_MODEL = aliasTarget;
         env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aliasTarget;
-        env.ANTHROPIC_DEFAULT_FABLE_MODEL = model;
+        env.ANTHROPIC_DEFAULT_FABLE_MODEL = spec.model;
         // The session VK only allows the selected model (+ the fallback), so a
         // subagent whose frontmatter names a concrete model id would be
         // rejected at the gateway; this slot outranks frontmatter and pins
         // them all to the primary.
-        env.CLAUDE_CODE_SUBAGENT_MODEL = model;
+        env.CLAUDE_CODE_SUBAGENT_MODEL = spec.model;
       }
     }
 

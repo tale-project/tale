@@ -60,6 +60,7 @@ export const NEW_SUPPORTED_MODELS: readonly string[] = [
 export const FABLE_CATALOG_MODELS: readonly ModelDefinition[] = [
   {
     id: 'anthropic/claude-fable-5',
+    nativeModelId: 'claude-fable-5',
     displayName: 'Claude Fable 5',
     description: "Anthropic's most capable — Mythos-class reasoning and coding",
     tags: ['chat', 'vision'],
@@ -73,6 +74,7 @@ export const FABLE_CATALOG_MODELS: readonly ModelDefinition[] = [
   },
   {
     id: '~anthropic/claude-fable-latest',
+    nativeModelId: 'claude-fable-5',
     displayName: 'Claude Fable (latest)',
     description: "Rolling alias — always Anthropic's newest Fable-class model",
     tags: ['chat', 'vision'],

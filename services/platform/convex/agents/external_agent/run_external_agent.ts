@@ -444,7 +444,13 @@ export const runExternalAgentTurn = internalAction({
       // 403s the fallback request and the turn fails anyway.
       let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
       let fallbackModel: string | undefined; // gateway model id the chain requests
-      if (!byo && args.modelRef && args.modelRef !== 'default') {
+      // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
+      // defaults) names the model by its GATEWAY id, which the vendor's own
+      // API does not know — the catalog entry's `nativeModelId` is what a
+      // direct-to-vendor session must request instead. A raw id the user typed
+      // matches no catalog entry and passes through unchanged (no override).
+      let byoNativeModel: string | undefined;
+      if (args.modelRef && args.modelRef !== 'default') {
         try {
           const parsed = parseModelRef(args.modelRef);
           const catalog = await ctx.runAction(
@@ -457,7 +463,11 @@ export const runExternalAgentTurn = internalAction({
               (parsed.providerName === undefined ||
                 c.providerName === parsed.providerName),
           );
+          if (byo) {
+            byoNativeModel = agentEntry?.nativeModelId;
+          }
           if (
+            !byo &&
             agentEntry?.fallbackModelId !== undefined &&
             agentEntry.fallbackModelId !== parsed.modelId
           ) {
@@ -468,7 +478,7 @@ export const runExternalAgentTurn = internalAction({
             fallbackModel =
               resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
           }
-          if (!(agentEntry?.tags.includes('vision') ?? false)) {
+          if (!byo && !(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
               organizationId: args.organizationId,
               ...(args.visionModel !== undefined && {
@@ -485,11 +495,12 @@ export const runExternalAgentTurn = internalAction({
           }
         } catch (err) {
           // No vision model configured (resolveLanguageModel throws) or the
-          // catalog is unavailable — skip the polyfill and the fallback (the
-          // agent just runs without them this turn). Never fail the turn over
-          // a convenience feature.
+          // catalog is unavailable — skip the polyfill, the fallback, and the
+          // BYO native mapping (the agent just runs without them this turn,
+          // BYO on the raw ref). Never fail the turn over a convenience
+          // feature.
           console.warn(
-            '[runExternalAgentTurn] vision/fallback model resolution skipped:',
+            '[runExternalAgentTurn] catalog model resolution skipped (vision/fallback/native):',
             err,
           );
         }
@@ -1112,9 +1123,12 @@ export const runExternalAgentTurn = internalAction({
           // BYO passes the raw provider model id straight through; the
           // 'default' sentinel (or empty) means "no model" → omit it so Claude
           // Code falls back to the credential's own default model.
+          // BYO prefers the catalog entry's vendor-native id (the gateway id
+          // does not exist on the vendor's own API); a raw user-typed id has
+          // no catalog entry and passes through unchanged.
           model: byo
             ? args.modelRef && args.modelRef !== 'default'
-              ? args.modelRef
+              ? (byoNativeModel ?? args.modelRef)
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
           // Managed model-level fallback (catalog fallbackModelId, VK-allowed

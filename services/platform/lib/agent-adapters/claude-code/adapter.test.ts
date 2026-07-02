@@ -175,44 +175,30 @@ describe('ClaudeCodeAdapter buildExec — baseline house rules', () => {
   });
 });
 
-describe('ClaudeCodeAdapter buildExec — BYO native model', () => {
+describe('ClaudeCodeAdapter buildExec — model passthrough', () => {
   const prev = process.env.TALE_SANDBOX_CONTEXT_1M;
   afterEach(() => {
     if (prev === undefined) delete process.env.TALE_SANDBOX_CONTEXT_1M;
     else process.env.TALE_SANDBOX_CONTEXT_1M = prev;
   });
 
-  it('maps the shipped rolling-alias default to Anthropic-native Fable', () => {
+  it('sends spec.model as-is for BYO (native mapping happens upstream)', () => {
     delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    // run_external_agent already resolved the catalog nativeModelId for BYO;
+    // the adapter must not rewrite it (only the [1m] window marker, which
+    // Claude Code strips before the API).
     const exec = adapter.buildExec(
-      baseSpec({
-        authMode: 'byo',
-        model: 'openrouter:~anthropic/claude-fable-latest',
-      }),
+      baseSpec({ authMode: 'byo', model: 'claude-fable-5' }),
     );
     expect(modelArg(exec.argv)).toBe('claude-fable-5[1m]');
     expect(exec.env.ANTHROPIC_MODEL).toBe('claude-fable-5[1m]');
   });
 
-  it('maps every shipped Fable default ref shape (with and without prefix)', () => {
-    delete process.env.TALE_SANDBOX_CONTEXT_1M;
-    for (const ref of [
-      '~anthropic/claude-fable-latest',
-      'openrouter:anthropic/claude-fable-5',
-      'anthropic/claude-fable-5',
-    ]) {
-      const exec = adapter.buildExec(baseSpec({ authMode: 'byo', model: ref }));
-      expect(modelArg(exec.argv)).toBe('claude-fable-5[1m]');
-    }
-  });
-
-  it('passes an explicitly specified BYO model through unchanged (no override)', () => {
+  it('never rewrites a user-specified BYO model (no override)', () => {
     delete process.env.TALE_SANDBOX_CONTEXT_1M;
     const exec = adapter.buildExec(
       baseSpec({ authMode: 'byo', model: 'claude-opus-4-20250514' }),
     );
-    // Not a shipped default ref → exactly as specified (plus the [1m] window
-    // marker every session gets, which Claude Code strips before the API).
     expect(modelArg(exec.argv)).toBe('claude-opus-4-20250514[1m]');
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareVersions,
+  deriveNativeModelId,
   isFlagshipChatModel,
   type ModelFacts,
   parseModelId,
@@ -121,6 +122,24 @@ describe('syncProviderModels — cost (3-way, per sub-field)', () => {
   });
 });
 
+describe('deriveNativeModelId', () => {
+  it('derives the Anthropic-native id (vendor prefix off, dots to dashes)', () => {
+    expect(deriveNativeModelId('anthropic/claude-opus-4.8')).toBe(
+      'claude-opus-4-8',
+    );
+    expect(deriveNativeModelId('anthropic/claude-fable-5')).toBe(
+      'claude-fable-5',
+    );
+  });
+
+  it('leaves other vendors and rolling aliases to human curation', () => {
+    expect(deriveNativeModelId('openai/gpt-5.5')).toBeUndefined();
+    expect(
+      deriveNativeModelId('~anthropic/claude-fable-latest'),
+    ).toBeUndefined();
+  });
+});
+
 describe('syncProviderModels — add + hide', () => {
   it('adds a new flagship and hides the superseded older version', () => {
     const current = [chat('anthropic/claude-opus-4.6')];
@@ -135,6 +154,9 @@ describe('syncProviderModels — add + hide', () => {
     const added = models.find((m) => m.id === 'anthropic/claude-opus-4.7');
     const old = models.find((m) => m.id === 'anthropic/claude-opus-4.6');
     expect(added?.tags).toEqual(['chat', 'vision']);
+    // Auto-added Anthropic models carry the vendor-native id, so BYO
+    // (direct-to-Anthropic) sessions can use them without a code change.
+    expect(added?.nativeModelId).toBe('claude-opus-4-7');
     expect(old?.hidden).toBe(true);
     expect(changes).toContainEqual({
       kind: 'added',

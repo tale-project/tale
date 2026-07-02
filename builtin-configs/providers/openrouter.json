@@ -15,6 +15,7 @@
   "models": [
     {
       "id": "anthropic/claude-sonnet-4.6",
+      "nativeModelId": "claude-sonnet-4-6",
       "displayName": "Claude Sonnet 4.6",
       "description": "Balanced Anthropic model for everyday tasks",
       "tags": ["chat", "vision"],
@@ -36,6 +37,7 @@
     },
     {
       "id": "anthropic/claude-haiku-4.5",
+      "nativeModelId": "claude-haiku-4-5",
       "displayName": "Claude Haiku 4.5",
       "description": "Fast, lightweight Anthropic model",
       "tags": ["chat"],
@@ -555,6 +557,7 @@
     },
     {
       "id": "anthropic/claude-opus-4.8",
+      "nativeModelId": "claude-opus-4-8",
       "displayName": "Claude Opus 4.8",
       "description": "Anthropic's flagship — best for complex reasoning and coding",
       "tags": ["chat", "vision"],
@@ -575,6 +578,7 @@
     },
     {
       "id": "anthropic/claude-fable-5",
+      "nativeModelId": "claude-fable-5",
       "displayName": "Claude Fable 5",
       "description": "Anthropic's most capable — Mythos-class reasoning and coding",
       "tags": ["chat", "vision"],
@@ -597,6 +601,7 @@
     },
     {
       "id": "~anthropic/claude-fable-latest",
+      "nativeModelId": "claude-fable-5",
       "displayName": "Claude Fable (latest)",
       "description": "Rolling alias — always Anthropic's newest Fable-class model",
       "tags": ["chat", "vision"],

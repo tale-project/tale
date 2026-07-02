@@ -192,12 +192,28 @@ interface SyncResult {
   changes: ModelSyncChange[];
 }
 
+/**
+ * The vendor-native id behind a gateway-shaped model id, for vendors whose
+ * native naming is mechanically derivable. Anthropic: strip the vendor prefix
+ * and turn version dots into dashes (`anthropic/claude-opus-4.8` →
+ * `claude-opus-4-8`). Consumed by BYO (direct-to-vendor) sessions, which
+ * cannot use gateway ids. Rolling `~vendor/…` aliases have no mechanical
+ * native equivalent — theirs is hand-set in the shipped defaults. Returns
+ * undefined for every other vendor, leaving the field to human curation.
+ */
+export function deriveNativeModelId(modelId: string): string | undefined {
+  const prefix = 'anthropic/';
+  if (!modelId.startsWith(prefix)) return undefined;
+  return modelId.slice(prefix.length).replace(/\./g, '-');
+}
+
 /** Build a brand-new model definition from catalog facts. Tier/qualityScore are
  *  left unset on purpose — those are human/operator judgment, not catalog facts. */
 function buildModelFromFacts(fact: ModelFacts): ModelDefinition {
   const tags: ModelDefinition['tags'] = fact.supportsVision
     ? ['chat', 'vision']
     : ['chat'];
+  const nativeModelId = deriveNativeModelId(fact.modelId);
   const cost =
     fact.inputCentsPerMillion != null || fact.outputCentsPerMillion != null
       ? {
@@ -211,6 +227,7 @@ function buildModelFromFacts(fact: ModelFacts): ModelDefinition {
       : undefined;
   return {
     id: fact.modelId,
+    ...(nativeModelId !== undefined ? { nativeModelId } : {}),
     displayName: fact.displayName ?? fact.modelId,
     tags,
     ...(fact.reasoning ? { reasoning: fact.reasoning } : {}),
