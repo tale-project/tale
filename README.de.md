@@ -116,7 +116,7 @@ tale cleanup                       # Inaktive Container entfernen
 tale reset --force                 # Alle Container entfernen
 ```
 
-In der [CLI-Referenz](tools/cli/README.md) findest du alle Optionen und Flags. Das Aktualisieren einer bestehenden Installation erfordert eine einmalige manuelle Migration: führe `tale migrate config-layout` aus, danach `tale deploy --override-all -y`. Das vollständige Runbook findest du in [Self-hosted Upgrades](docs/de/self-hosted/operate/upgrades.md).
+In der [CLI-Referenz](tools/cli/README.md) findest du alle Optionen und Flags. Eine bestehende Installation aktualisierst du mit zwei Befehlen: `tale update` hebt die CLI und deine Projektdateien auf die neue Version, `tale deploy` rollt danach die Container. Das vollständige Runbook findest du in [Self-hosted Upgrades](docs/de/self-hosted/operate/upgrades.md).
 
 ## In Produktion deployen
 

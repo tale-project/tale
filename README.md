@@ -116,7 +116,7 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
-See the [CLI reference](tools/cli/README.md) for all options and flags. Upgrading an existing deployment requires a one-time manual migration: run `tale migrate config-layout` then `tale deploy --override-all -y`. See [Self-hosted upgrades](docs/en/self-hosted/operate/upgrades.md) for the full runbook.
+See the [CLI reference](tools/cli/README.md) for all options and flags. Upgrading an existing deployment takes two commands: `tale update` moves the CLI and your project files to the new version, then `tale deploy` rolls the containers. See [Self-hosted upgrades](docs/en/self-hosted/operate/upgrades.md) for the full runbook.
 
 ## Deploy to production
 

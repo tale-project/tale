@@ -116,7 +116,7 @@ tale cleanup                       # Supprimer les conteneurs inactifs
 tale reset --force                 # Supprimer tous les conteneurs
 ```
 
-Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Mettre à jour un déploiement existant nécessite une migration manuelle unique : exécute `tale migrate config-layout` puis `tale deploy --override-all -y`. Le runbook complet se trouve dans [Mises à niveau auto-hébergées](docs/fr/self-hosted/operate/upgrades.md).
+Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Mettre à jour un déploiement existant tient en deux commandes : `tale update` fait passer le CLI et tes fichiers de projet à la nouvelle version, puis `tale deploy` fait tourner les conteneurs. Le runbook complet se trouve dans [Mises à niveau auto-hébergées](docs/fr/self-hosted/operate/upgrades.md).
 
 ## Déployer en production
 
