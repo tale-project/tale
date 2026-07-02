@@ -25,7 +25,9 @@ import {
   type SessionStageFile,
 } from './helpers/session_client';
 
-const SKILLS_DIR = '.runtime/home/.claude/skills';
+/** Session-relative user-level skill dir (CLAUDE_CONFIG_DIR/skills). Shared
+ * with the workflow-skill stager (workflow_skills.ts). */
+export const SKILLS_DIR = '.runtime/home/.claude/skills';
 const INTEGRATION_SKILL_PREFIX = 'integration-';
 const BROWSER_CONTROL_SKILL = 'browser-human-control';
 
@@ -194,7 +196,9 @@ const REPO_SKILL_DIRS = ['workspace/.claude/skills', 'workspace/.codex/skills'];
  * precedence check never fails a turn. `.claude/skills/<name>/` are directories;
  * `.codex/skills/<name>.md` are files.
  */
-async function repoOwnedSkillNames(sessionId: string): Promise<Set<string>> {
+export async function repoOwnedSkillNames(
+  sessionId: string,
+): Promise<Set<string>> {
   const names = new Set<string>();
   for (const dir of REPO_SKILL_DIRS) {
     try {

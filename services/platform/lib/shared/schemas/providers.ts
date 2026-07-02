@@ -444,6 +444,17 @@ const modelDefinitionSchema = z.object({
   // Optional routing/cascade metadata; see `modelRoutingMetadataFields`.
   ...modelRoutingMetadataFields,
   fallbackModelId: z.string().min(1).max(200).optional(),
+  /**
+   * The VENDOR-NATIVE id of this model — what the same model is called on the
+   * vendor's own API, when this entry's `id` is gateway-shaped (e.g. the
+   * OpenRouter `anthropic/claude-fable-5` is natively `claude-fable-5`). A BYO
+   * (direct-to-vendor) session requests this id instead of the gateway one; an
+   * entry without it passes through unchanged. The weekly model sync derives it
+   * for auto-added Anthropic models and re-points rolling `~vendor/…-latest`
+   * alias entries at the newest same-family release (3-way — operator edits
+   * win).
+   */
+  nativeModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
   /** Per-model override of the provider-level `secretsEnv`; see `secretsEnvSchema`. */
   secretsEnv: secretsEnvSchema.optional(),
