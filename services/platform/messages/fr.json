@@ -5960,6 +5960,10 @@
         },
         "redirectUrlLabel": "URL de redirection à enregistrer dans Entra",
         "redirectUrlHelp": "Enregistrez exactement cette URL comme URI de redirection « Web » dans votre inscription d'application — elle doit correspondre au caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon la connexion échoue avec AADSTS50011.",
+        "domainWarning": {
+          "title": "Aucun domaine de messagerie défini",
+          "description": "Plusieurs organisations de ce déploiement utilisent le SSO. Sans domaine de messagerie, la connexion ne peut pas orienter les membres par adresse — elle est alors listée publiquement sous son nom affiché sur l’écran SSO."
+        },
         "deploymentWarning": {
           "title": "Déploiement non entièrement configuré pour le SSO",
           "callbackMissing": "L'URL de redirection est vide car SITE_URL n'est pas défini sur le serveur. La connexion SSO échouera tant qu'il ne sera pas configuré.",

@@ -5959,6 +5959,10 @@
         },
         "redirectUrlLabel": "In Entra zu registrierende Weiterleitungs-URL",
         "redirectUrlHelp": "Registrieren Sie genau diese URL als \"Web\"-Weiterleitungs-URI in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011 fehl.",
+        "domainWarning": {
+          "title": "Keine E-Mail-Domäne gesetzt",
+          "description": "Mehrere Organisationen dieses Deployments nutzen SSO. Ohne E-Mail-Domäne kann die Anmeldung Mitglieder nicht per Adresse dieser Verbindung zuordnen — sie wird stattdessen öffentlich unter ihrem Anzeigenamen auf dem SSO-Bildschirm gelistet."
+        },
         "deploymentWarning": {
           "title": "Deployment für SSO nicht vollständig konfiguriert",
           "callbackMissing": "Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies konfiguriert ist.",

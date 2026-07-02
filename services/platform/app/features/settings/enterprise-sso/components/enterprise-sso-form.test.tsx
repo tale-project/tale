@@ -495,3 +495,31 @@ describe('EnterpriseSsoForm deployment warnings + redirect URL (A2.1)', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('EnterpriseSsoForm multi-org email-domain warning', () => {
+  it('warns when enabled without a domain while other orgs also use SSO', () => {
+    renderForm({
+      ...connectedOidc,
+      domain: null,
+      otherOrgsEnabled: true,
+    });
+    expect(screen.getByText(/no email domain set/i)).toBeInTheDocument();
+  });
+
+  it('does not warn when a domain is set', () => {
+    renderForm({
+      ...connectedOidc,
+      otherOrgsEnabled: true,
+    });
+    expect(screen.queryByText(/no email domain set/i)).not.toBeInTheDocument();
+  });
+
+  it('does not warn when this is the only enabled connection', () => {
+    renderForm({
+      ...connectedOidc,
+      domain: null,
+      otherOrgsEnabled: false,
+    });
+    expect(screen.queryByText(/no email domain set/i)).not.toBeInTheDocument();
+  });
+});

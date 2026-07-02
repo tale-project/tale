@@ -6223,6 +6223,10 @@
         },
         "redirectUrlLabel": "Redirect URL to register in Entra",
         "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
+        "domainWarning": {
+          "title": "No email domain set",
+          "description": "Several organizations on this deployment use SSO. Without an email domain, sign-in cannot route members to this connection by address — it is instead listed publicly by its display name on the SSO screen."
+        },
         "deploymentWarning": {
           "title": "Deployment not fully configured for SSO",
           "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",
