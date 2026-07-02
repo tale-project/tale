@@ -541,8 +541,17 @@ export const chatDirectModel = internalAction({
 // Image generation
 // ---------------------------------------------------------------------------
 
-/** Ledger + success audit for a completed image generation. Best-effort. */
-async function recordImageUsageAndAudit(
+/**
+ * Ledger + success audit for a completed image generation. Best-effort.
+ *
+ * The ledger row is written for every generation that carries an org, even when
+ * the model reports no cost and zero tokens: for an image request the request
+ * itself is the billable unit, so the row must land to increment `requestCount`
+ * — otherwise a per-API-key `maxRequests` (or `maxCostCents`) budget could never
+ * cap an unpriced image model. Image models legitimately report `{0,0,0}` tokens,
+ * so a token budget still does not bound them; that is expected.
+ */
+export async function recordImageUsageAndAudit(
   ctx: ActionCtx,
   opts: {
     requestId: string;
@@ -555,10 +564,7 @@ async function recordImageUsageAndAudit(
   },
 ): Promise<void> {
   const { img } = opts;
-  if (
-    opts.organizationId &&
-    (img.costCents != null || img.usage.totalTokens > 0)
-  ) {
+  if (opts.organizationId) {
     await ctx
       .runMutation(
         internal.governance.internal_mutations.incrementUsageLedger,
