@@ -2,6 +2,7 @@
 // agent's own instructions, never replacing them). Kept Convex-free so it can
 // be unit-tested without the 'use node' action module that consumes it.
 
+import { SKILLS_GUIDANCE_HEADING } from '../../lib/skills/guidance';
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../lib/untrusted_content';
 
 // Appended to a PLAN turn. The in-image tale-plan-gate hook is the hard stop —
@@ -93,6 +94,10 @@ export function buildSystemPromptAppend(opts: {
   /** Live-browser-view session: append browser-recovery guidance so a wedged
    * managed Chromium doesn't make the agent loop on raw CDP errors. */
   browserCdp?: boolean;
+  /** Skill-usage workflow rendered from the skills staged this turn
+   * (lib/skills/guidance.ts). Dropped when the agent's own instructions
+   * already carry the section (idempotency on SKILLS_GUIDANCE_HEADING). */
+  skillsGuidance?: string;
 }): string {
   const isPlan = opts.permissionMode === 'plan';
   const isAutonomous = opts.interactionMode === 'autonomous';
@@ -106,6 +111,9 @@ export function buildSystemPromptAppend(opts: {
       : STEERING_RESPONSIVENESS_ADDENDUM;
   return [
     opts.systemInstructions,
+    opts.systemInstructions?.includes(SKILLS_GUIDANCE_HEADING)
+      ? undefined
+      : opts.skillsGuidance,
     postureAddendum,
     // Interactive only: AskUserQuestion is disabled, so steer the agent to ask
     // in prose instead of stalling or guessing. Autonomous must never ask.
