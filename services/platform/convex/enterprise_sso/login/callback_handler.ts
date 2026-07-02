@@ -177,6 +177,14 @@ export async function ssoCallbackHandler(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
       { organizationId: state.organizationId },
     );
+    if (config === 'ambiguous') {
+      // Only reachable for a state minted without an org (pre-#2082 flows) on
+      // a deployment where several orgs enable SSO — never guess a connection.
+      return redirectWithError(
+        frontendOrigin,
+        'sso.errors.multipleConnections',
+      );
+    }
     if (!config) {
       return redirectWithError(frontendOrigin, 'SSO configuration not found');
     }

@@ -30,10 +30,14 @@ export async function samlMetadataHandler(
   try {
     const url = new URL(req.url);
     const org = url.searchParams.get('org') ?? undefined;
-    const config = await ctx.runQuery(
+    const resolved = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSamlConfig,
       { organizationId: org },
     );
+    // SP metadata is org-independent apart from the signing certificate — an
+    // ambiguous (multi-org, no `org` param) lookup serves the generic defaults,
+    // same as no connection at all.
+    const config = resolved === 'ambiguous' ? null : resolved;
     const { spEntityId, acsUrl } = samlEndpoints();
     const wantSigned = config?.wantAssertionsSigned ?? true;
 

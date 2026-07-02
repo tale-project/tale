@@ -81,6 +81,31 @@ describe('ssoAuthorizeHandler — failure path is a readable redirect, not a 500
     expect(target.pathname).toBe('/log-in');
   });
 
+  it('bounces to the login page asking for the email when several orgs have SSO (no guess)', async () => {
+    // Multi-org deployments: resolveSignInConfig reports 'ambiguous' when no
+    // org context is given. The old behaviour silently used the first enabled
+    // connection — the user landed on another org's IdP.
+    process.env.SITE_URL = 'https://app.example.com';
+    const runAction = vi.fn();
+    const ctx = {
+      runQuery: vi.fn().mockResolvedValue('ambiguous'),
+      runAction,
+    } as unknown as ActionCtx;
+
+    const res = await ssoAuthorizeHandler(ctx, authorizeRequest());
+    delete process.env.SITE_URL;
+
+    expect(res.status).toBe(302);
+    const target = new URL(res.headers.get('Location') as string);
+    expect(target.origin).toBe('https://app.example.com');
+    expect(target.pathname).toBe('/log-in');
+    expect(target.searchParams.get('error')).toBe(
+      'sso.errors.multipleConnections',
+    );
+    // It must never have proceeded to fetch secrets for a guessed connection.
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
   it('redirects to the login page when BETTER_AUTH_SECRET is unset', async () => {
     // A missing secret is a deployment misconfig; assert it does not 500 either
     // (this branch already returned a 500 body before — keep it non-fatal for

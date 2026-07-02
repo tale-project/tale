@@ -48,11 +48,15 @@ async function loadConnection(
   return { organizationId, config: parsed.data };
 }
 
-/** First ENABLED connection across orgs (single-org deployments / email-first
- *  discovery). Ranges the `(domain, key)` slice of `configCache`. */
+/** The ONLY enabled connection across orgs (single-org deployments /
+ *  email-first discovery). Ranges the `(domain, key)` slice of `configCache`.
+ *  With two or more enabled connections there is no right answer without org
+ *  context, so this returns `'ambiguous'` — callers must ask (email-first
+ *  routing) rather than guess; guessing sent users to another org's IdP. */
 async function loadSingleEnabled(
   ctx: QueryCtx,
-): Promise<LoadedConnection | null> {
+): Promise<LoadedConnection | 'ambiguous' | null> {
+  let found: LoadedConnection | null = null;
   for await (const row of ctx.db
     .query('configCache')
     .withIndex('by_domain_key', (q) =>
@@ -61,10 +65,11 @@ async function loadSingleEnabled(
     if (row.enabled !== true) continue;
     const parsed = ssoConnectionFileSchema.safeParse(row.config);
     if (parsed.success && parsed.data.enabled) {
-      return { organizationId: row.organizationId, config: parsed.data };
+      if (found) return 'ambiguous';
+      found = { organizationId: row.organizationId, config: parsed.data };
     }
   }
-  return null;
+  return found;
 }
 
 const resolvedSignInConfigValidator = v.object({
@@ -89,16 +94,23 @@ const resolvedSignInConfigValidator = v.object({
 /**
  * Resolve the org's OIDC/OAuth2 sign-in config (NON-secret). Returns null when
  * no enabled OIDC/OAuth2 connection exists. When `organizationId` is omitted,
- * resolves the single enabled connection. The caller fetches the client id /
- * secret separately from the secrets sidecar.
+ * resolves the single enabled connection — or `'ambiguous'` when several orgs
+ * have one, so the caller can ask for the user's email instead of guessing.
+ * The caller fetches the client id / secret separately from the secrets
+ * sidecar.
  */
 export const resolveSignInConfig = internalQuery({
   args: { organizationId: v.optional(v.string()) },
-  returns: v.union(resolvedSignInConfigValidator, v.null()),
+  returns: v.union(
+    resolvedSignInConfigValidator,
+    v.null(),
+    v.literal('ambiguous'),
+  ),
   handler: async (ctx, args) => {
     const conn = args.organizationId
       ? await loadConnection(ctx, args.organizationId)
       : await loadSingleEnabled(ctx);
+    if (conn === 'ambiguous') return 'ambiguous';
     if (!conn || !conn.config.enabled || !conn.config.oidc) return null;
     const c = conn.config.oidc;
     const p = conn.config.provisioning;
@@ -157,8 +169,11 @@ export const resolveProvisioning = internalQuery({
 
 /**
  * Resolve the SAML config (NON-secret) for the ACS / metadata handlers. Returns
- * null when no enabled SAML connection exists. The SP private key is fetched
- * separately from the secrets sidecar by the ACS handler.
+ * null when no enabled SAML connection exists. When `organizationId` is
+ * omitted, resolves the single enabled connection — or `'ambiguous'` when
+ * several orgs have one (same contract as `resolveSignInConfig`). The SP
+ * private key is fetched separately from the secrets sidecar by the ACS
+ * handler.
  */
 export const resolveSamlConfig = internalQuery({
   args: { organizationId: v.optional(v.string()) },
@@ -174,11 +189,13 @@ export const resolveSamlConfig = internalQuery({
       attributeMappings: v.optional(attributeMappingValidator),
     }),
     v.null(),
+    v.literal('ambiguous'),
   ),
   handler: async (ctx, args) => {
     const conn = args.organizationId
       ? await loadConnection(ctx, args.organizationId)
       : await loadSingleEnabled(ctx);
+    if (conn === 'ambiguous') return 'ambiguous';
     if (!conn || !conn.config.enabled || !conn.config.saml) return null;
     const s = conn.config.saml;
     return {
@@ -211,6 +228,7 @@ export const discoverByEmail = internalQuery({
   handler: async (ctx, args) => {
     const domain = args.email.split('@')[1]?.toLowerCase();
     let firstEnabled: LoadedConnection | null = null;
+    let enabledCount = 0;
     let domainMatch: LoadedConnection | null = null;
     for await (const row of ctx.db
       .query('configCache')
@@ -223,13 +241,17 @@ export const discoverByEmail = internalQuery({
         continue;
       }
       const conn = { organizationId: row.organizationId, config: parsed.data };
+      enabledCount += 1;
       if (!firstEnabled) firstEnabled = conn;
       if (domain && parsed.data.domain?.toLowerCase() === domain) {
         domainMatch = conn;
         break;
       }
     }
-    const chosen = domainMatch ?? firstEnabled;
+    // No domain match: fall back only when the answer is unambiguous (exactly
+    // one enabled connection). With several, guessing routed users to another
+    // org's IdP — return null so the login flow asks for the right email.
+    const chosen = domainMatch ?? (enabledCount === 1 ? firstEnabled : null);
     if (!chosen || !chosen.config.protocol) return null;
     return {
       organizationId: chosen.organizationId,

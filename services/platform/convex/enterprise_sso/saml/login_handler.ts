@@ -1,5 +1,6 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import { redirectWithError } from '../login/redirect_with_error';
 import { samlEndpoints } from './metadata_handler';
 
 /**
@@ -18,6 +19,12 @@ export async function samlLoginHandler(
       internal.enterprise_sso.internal_queries.resolveSamlConfig,
       { organizationId: org },
     );
+    if (config === 'ambiguous') {
+      // Several orgs have SSO enabled and no org context was given — same
+      // never-guess rule as the OIDC authorize handler.
+      const publicOrigin = process.env.SITE_URL || new URL(req.url).origin;
+      return redirectWithError(publicOrigin, 'sso.errors.multipleConnections');
+    }
     if (!config) {
       return new Response('SAML is not configured', { status: 404 });
     }

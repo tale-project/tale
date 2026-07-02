@@ -42,6 +42,12 @@ export async function samlAcsHandler(
       internal.enterprise_sso.internal_queries.resolveSamlConfig,
       { organizationId: relayState },
     );
+    if (config === 'ambiguous') {
+      // IdP-initiated POST without a RelayState org on a deployment where
+      // several orgs enable SSO — never guess which connection to validate
+      // the assertion against.
+      return loginRedirect(origin, 'sso.errors.multipleConnections');
+    }
     if (!config) {
       return loginRedirect(origin, 'SAML is not configured');
     }

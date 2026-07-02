@@ -60,6 +60,13 @@ export async function ssoAuthorizeHandler(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
       { organizationId },
     );
+    if (config === 'ambiguous') {
+      // Several orgs have SSO enabled and this request carried no org context.
+      // Never guess a connection (that sends the user to another org's IdP) —
+      // bounce to the login page and ask for the organization email, which
+      // routes via /api/sso/discover.
+      return redirectWithError(publicOrigin, 'sso.errors.multipleConnections');
+    }
     if (!config) {
       return new Response('No SSO configuration found', { status: 404 });
     }
