@@ -42,6 +42,15 @@ with that file and `tests/e2e/fixtures/config/default/providers/e2e-mock.json`.
 the gateway so you can connect/test integrations offline. The integration catalog
 in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 
+> **Wizard-created orgs are NOT mock-wired** (observed live): an org minted
+> through the create-organization wizard gets the builtin **Assistant** agent
+> and an **OpenRouter** provider pointing at the real `https://openrouter.ai`
+> with its key sourced from an (unset) env var — chat is blocked with "No API
+> key configured". To chat in mode A on such an org, open **Settings →
+> AI providers → OpenRouter**, store any dummy key and set the **Base URL** to
+> `http://127.0.0.1:4141/v1`; every turn then returns the canned mock reply.
+> The org's live config lands under `tests/e2e/fixtures/config/<org-slug>/`.
+
 ### B. Full local dev (real provider, full feature set)
 
 ```bash
@@ -124,6 +133,11 @@ contract.
 
 - **Screenshots**: `services/platform/tests/screenshots/<YYYY-MM-DD_HH_MM>/<area>/` — create the
   folder before a run: `mkdir -p services/platform/tests/screenshots/$(date +%Y-%m-%d_%H_%M)/<area>`.
+- **File uploads (AI runs)**: the Playwright MCP's `browser_file_upload` only
+  accepts paths inside the repo / `.playwright-mcp/` roots — copy upload
+  artifacts into `<repo>/.playwright-mcp/` (gitignored) before attaching them.
+- **Toasts are short-lived** in this build — catch them with a
+  MutationObserver via `browser_evaluate`, not a multi-second text wait.
 - **Browser traces/sessions** (AI runs): land in `.playwright-mcp/` (gitignored)
   when the Playwright MCP runs with `--save-session`.
 - **Language**: the app renders in the browser/account locale. The Playwright MCP
@@ -167,7 +181,7 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/vendors`                            | list or empty state                                      |
 | `/dashboard/{org}/websites`                           | list or empty state                                      |
 | `/dashboard/{org}/settings/account`                   | profile + security                                       |
-| `/dashboard/{org}/settings/personalization`           | theme + language                                         |
+| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories)         |
 | `/dashboard/{org}/settings/environment`               | env vars & secrets form                                  |
 | `/dashboard/{org}/settings/organization`              | org details                                              |
 | `/dashboard/{org}/settings/teams`                     | teams list                                               |

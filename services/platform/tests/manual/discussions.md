@@ -48,11 +48,11 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Boundary & error tests
 
-| ID  | Test                    | Input                                                        | Expected                                                                                                                           |
-| --- | ----------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Legacy message degrades | Open a discussion created **before** this change             | Old messages still render: your old replies right, others left, **no** name label — nothing crashes or mis-aligns to a single side |
-| B2  | Locked discussion       | Lock the discussion (`discussions.lock`), focus the composer | Composer is disabled (`discussions.reply.lockedPlaceholder`); `@` does nothing                                                     |
-| B3  | No matches              | Type `@zzzz` (no such actor)                                 | Picker shows the empty state (`tasks.mentionPicker.empty`); Enter does not insert                                                  |
+| ID  | Test                    | Input                                                        | Expected                                                                                                                                                                                                                |
+| --- | ----------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Legacy message degrades | Open a discussion created **before** this change             | Old messages still render: your old replies right, others left, **no** name label — nothing crashes or mis-aligns to a single side                                                                                      |
+| B2  | Locked discussion       | Lock the discussion (`discussions.lock`), focus the composer | Composer is disabled (`discussions.reply.lockedPlaceholder`); `@` does nothing                                                                                                                                          |
+| B3  | No matches              | Type `@zzzz` (no such actor)                                 | Picker shows the empty state **No matches** (`tasks.mentionPicker.empty`); Enter inserts no handle — but it falls through to Send and posts the literal text (clear the composer to avoid a stray reply; see Issues #1) |
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -69,9 +69,9 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Issues Found
 
-| #   | Test ID | Route / URL | Severity (crit/high/med/low) | Description | Screenshot |
-| --- | ------- | ----------- | ---------------------------- | ----------- | ---------- |
-|     |         |             |                              |             |            |
+| #   | Test ID | Route / URL                                         | Severity (crit/high/med/low) | Description                                                                                                                                                                                                                          | Screenshot |
+| --- | ------- | --------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 1   | B3      | `/dashboard/{org}/projects/{projectId}/discussions` | low                          | With the mention picker open on "No matches", Enter is not captured — it falls through to the composer's send and posts the literal `@zzzz` as a reply. Users likely expect Enter to dismiss the empty picker, not publish the typo. | —          |
 
 ## Test summary
 
