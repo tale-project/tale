@@ -93,6 +93,13 @@ since the user is non-root): 2 CPU, 4 GiB, 512 pids, no cumulative-CPU ulimit
 (`~/.claude`, `~/.config/opencode`, `~/.gitconfig`) survives every exec and an
 in-place container restart — this _is_ the session-persistence mechanism.
 
+`TMPDIR=/user/.runtime/tmp` also lives on the workspace (disk-backed), not the
+`/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
+is small and memory-backed (charged to the container's memory cgroup), so any
+install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
+at container (re)start — no exec is live then — preserving the old /tmp
+lifecycle. `/tmp` remains for small control files (redsocks.conf, X11 socket).
+
 ## Kubernetes specifics
 
 One long-lived Pod per session (`buildSessionPod`), `restartPolicy: Always`

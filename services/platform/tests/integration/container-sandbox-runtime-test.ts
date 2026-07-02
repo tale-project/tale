@@ -279,5 +279,76 @@ console.log('--- runnerd boots under the daemon entrypoint ---');
 }
 
 console.log('');
+console.log(
+  '--- session exec temp lands on the workspace, not the /tmp tmpfs ---',
+);
+// Regression for run_code ENOSPC: pip stages a whole target install set in
+// $TMPDIR, so the daemon entrypoint must point TMPDIR at the disk-backed
+// workspace — the default profile's /tmp is a 128m memory-backed tmpfs.
+// Boot under the production session contract (read-only rootfs, sized /tmp)
+// and assert (a) runnerd's TMPDIR is on the workspace and (b) a temp write
+// bigger than the /tmp tmpfs succeeds. Both fail on a TMPDIR=/tmp entrypoint.
+{
+  const cid = await stdoutOf([
+    'docker',
+    'run',
+    '-d',
+    '--user',
+    '10001',
+    '--read-only',
+    '--tmpfs',
+    '/tmp:exec,nosuid,nodev,size=128m',
+    '--tmpfs',
+    '/user:uid=10001,gid=10001',
+    IMAGE,
+    'daemon',
+  ]);
+  try {
+    let ready = false;
+    for (let i = 0; i < 20; i++) {
+      if (
+        await ok([
+          'docker',
+          'exec',
+          cid,
+          'sh',
+          '-c',
+          'curl -fsS http://127.0.0.1:8200/readyz',
+        ])
+      ) {
+        ready = true;
+        break;
+      }
+      await sleep(500);
+    }
+    if (!ready) {
+      fail('runnerd did not become ready under the session contract');
+    } else {
+      // Execs inherit runnerd's (PID 1) env — read TMPDIR from there.
+      const { exitCode, combined } = await capture([
+        'docker',
+        'exec',
+        cid,
+        'sh',
+        '-c',
+        `T=$(tr '\\0' '\\n' </proc/1/environ | sed -n 's/^TMPDIR=//p') && \
+         test "$T" = /user/.runtime/tmp && \
+         dd if=/dev/zero of="$T/enospc-probe" bs=1M count=200 2>/dev/null && \
+         rm -f "$T/enospc-probe"`,
+      ]);
+      if (exitCode === 0) {
+        pass('TMPDIR is /user/.runtime/tmp and holds a 200 MB temp write');
+      } else {
+        fail(
+          `session TMPDIR not on the workspace or too small (got: ${combined.slice(0, 200)})`,
+        );
+      }
+    }
+  } finally {
+    if (cid) await ok(['docker', 'rm', '-f', cid]);
+  }
+}
+
+console.log('');
 console.log(`${BOLD}Passed: ${passed}  Failed: ${failed}${NC}`);
 process.exit(failed === 0 ? 0 : 1);
