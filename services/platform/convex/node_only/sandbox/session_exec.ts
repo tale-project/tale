@@ -1,8 +1,10 @@
 'use node';
 
 /**
- * Stage 2 of the persistent-session design: run chat `run_code` inside the
- * thread's persistent sandbox session instead of a fresh ephemeral container.
+ * Run chat `run_code` inside the thread's TURN-scoped sandbox session: one
+ * session amortizes all run_code calls of a turn (create once, warm HTTP
+ * execs after), and `runGenerationCore`'s finally destroys it when the turn
+ * ends — it never idles across turns.
  *
  * This is the sole chat `run_code` execution path — `run_code_tool` calls it
  * directly (the ephemeral one-shot path is no longer used by chat). An error
@@ -11,11 +13,11 @@
  * v1 scope (validate against a live session, then harden): single- and
  * multi-step scripts + package install run as sequential in-session execs;
  * harvest reads top-level `/user/output` files and upserts only new/changed
- * ones (sha256) — the persistent workspace means prior outputs already live
- * there, so the re-stage/re-harvest churn of the ephemeral path is gone. Known
- * follow-ups: nested output dirs, a `fileMetadata` row per output (as the
- * ephemeral path writes via `insertOutputFiles`), and a durable
- * `sandboxSessionOps` audit row.
+ * ones (sha256) — within a turn the workspace stays warm, so prior outputs
+ * already live there and the per-call re-stage/re-harvest churn of the
+ * ephemeral path is gone. Known follow-ups: nested output dirs, a
+ * `fileMetadata` row per output (as the ephemeral path writes via
+ * `insertOutputFiles`), and a durable `sandboxSessionOps` audit row.
  */
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -25,7 +27,10 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import { inferStepLanguage } from '../../agent_tools/files/_shared';
+import {
+  inferContentType,
+  inferStepLanguage,
+} from '../../agent_tools/files/_shared';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
   drainSessionExecResilient,
@@ -214,9 +219,21 @@ export async function runAndHarvestInSession(
       { threadId: workspaceThreadId, path: absPath },
     );
     if (existing !== null && existing.sha256 === sha256) continue; // unchanged
+    // The spawner serves the generic octet-stream — fall back to the
+    // extension-derived type (sessionReadFile's documented contract). The
+    // Blob MUST carry a non-empty type: the self-hosted backend rejects a
+    // type-less storage upload with `BadHeader` ("Error uploading file:
+    // … invalid HTTP header"), which failed every harvest of a real output
+    // file (e.g. a generated .pptx).
+    const contentType =
+      read.contentType && read.contentType !== 'application/octet-stream'
+        ? read.contentType
+        : inferContentType(absPath);
     const ab = new ArrayBuffer(buf.byteLength);
     new Uint8Array(ab).set(buf);
-    const storageId = await ctx.storage.store(new Blob([ab]));
+    const storageId = await ctx.storage.store(
+      new Blob([ab], { type: contentType }),
+    );
     await ctx.runMutation(
       internal.thread_files.internal_mutations.upsertThreadFile,
       {
@@ -226,7 +243,7 @@ export async function runAndHarvestInSession(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
         storageId: storageId as Id<'_storage'>,
         size: buf.byteLength,
-        contentType: read.contentType,
+        contentType,
         sha256,
         source: 'run_output' as const,
       },
@@ -235,7 +252,7 @@ export async function runAndHarvestInSession(
       path: absPath,
       storageId,
       size: buf.byteLength,
-      contentType: read.contentType,
+      contentType,
     });
   }
 
