@@ -64,6 +64,22 @@ describe('SearchInput', () => {
     });
   });
 
+  describe('default chrome', () => {
+    // The input is natively readOnly until focus purely to suppress
+    // password-manager autofill; that trick must not select Input's
+    // borderless read-only display variant (#2131) — a search box is
+    // always an editable control and keeps the bordered default chrome.
+    it('keeps the bordered default variant while readOnly-until-focus', () => {
+      render(
+        <SearchInput value="" onChange={vi.fn()} placeholder="Search..." />,
+      );
+      const input = screen.getByPlaceholderText('Search...');
+      expect(input).toHaveAttribute('readonly');
+      expect(input).toHaveClass('bg-input');
+      expect(input).not.toHaveClass('bg-transparent');
+    });
+  });
+
   describe('interactions', () => {
     it('calls onChange when typing', async () => {
       const handleChange = vi.fn();
