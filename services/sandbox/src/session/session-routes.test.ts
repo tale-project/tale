@@ -598,6 +598,66 @@ describe('SessionRoutes (fake runnerd)', () => {
   // docker rm, OOM teardown, K8s Pod eviction) while the registry cache still
   // routes to it. Without eviction the platform sees transport errors instead
   // of the definitive 404 its phantom self-heal keys on.
+  // REGRESSION (destroy-under-execution guard): the end-of-turn janitor
+  // destroy must never take down a session a sibling turn is still executing
+  // in — `?if_idle=1` makes the spawner the arbiter of busy.
+  describe('conditional destroy (ifIdle)', () => {
+    test('busy (runnerd reports a live exec): spared with busy=true; idle: destroyed', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'cond1', organizationId: 'org_cond' }),
+      );
+
+      // Live exec reported by runnerd (registry map is empty — this exercises
+      // the cold-cache backstop, same as sweepExpired's) → spared.
+      fakeHealth.liveExecs = 1;
+      const busyRes = await routes.handleDestroy('cond1', { ifIdle: true });
+      expect(busyRes.status).toBe(200);
+      expect(await busyRes.json()).toEqual({ destroyed: false, busy: true });
+      expect(destroyed.has('cond1')).toBe(false);
+      expect((await routes.handleGet('cond1')).status).toBe(200);
+
+      // Exec finished → the same conditional destroy proceeds.
+      fakeHealth.liveExecs = 0;
+      const idleRes = await routes.handleDestroy('cond1', { ifIdle: true });
+      expect(await idleRes.json()).toEqual({ destroyed: true, busy: false });
+      expect(destroyed.has('cond1')).toBe(true);
+      expect((await routes.handleGet('cond1')).status).toBe(404);
+    });
+
+    test('unconditional destroy ignores busy (explicit Stop/cascade keeps its semantics)', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'cond2', organizationId: 'org_cond' }),
+      );
+      fakeHealth.liveExecs = 1;
+      const res = await routes.handleDestroy('cond2');
+      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(destroyed.has('cond2')).toBe(true);
+    });
+
+    test('unreachable runnerd + backend object alive = unknown → busy (left to the reaper)', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-cond3', organizationId: 'org_cond' }),
+      );
+      const res = await routes.handleDestroy('dead-cond3', { ifIdle: true });
+      expect(await res.json()).toEqual({ destroyed: false, busy: true });
+      expect(destroyed.has('dead-cond3')).toBe(false);
+    });
+
+    test('unreachable runnerd + backend object definitively gone → destroy proceeds (row/workspace cleanup)', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'dead-cond4', organizationId: 'org_cond' }),
+      );
+      backendGone.add('dead-cond4');
+      const res = await routes.handleDestroy('dead-cond4', { ifIdle: true });
+      expect(await res.json()).toEqual({ destroyed: true, busy: false });
+      expect(destroyed.has('dead-cond4')).toBe(true);
+    });
+  });
+
   describe('zombie-session eviction', () => {
     test('aliveness probe (handleGet) 404s + evicts when the backend object is gone', async () => {
       const routes = new SessionRoutes(cfg, fakeBackend);

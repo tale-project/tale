@@ -386,7 +386,12 @@ async function handleSessionRoutes(
     if (req.method === 'DELETE') {
       const r = await readAndAuth(req);
       if ('error' in r) return r.error;
-      return getSessionRoutes().handleDestroy(id);
+      // `?if_idle=1` — conditional destroy for janitor callers: no-op with
+      // {busy:true} while the session still has a live exec. The query string
+      // is HMAC-covered (authorize signs pathname + search).
+      return getSessionRoutes().handleDestroy(id, {
+        ifIdle: url.searchParams.get('if_idle') === '1',
+      });
     }
   }
   return null;
