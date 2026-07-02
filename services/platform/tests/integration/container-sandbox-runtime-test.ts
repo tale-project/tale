@@ -45,6 +45,10 @@ function runAs(uid: number, cmd: string) {
     String(uid),
     '--tmpfs',
     `/workspace:uid=${uid},gid=${uid}`,
+    // A writable HOME, like every real sandbox run (the entrypoint exports one
+    // on the workspace) — opencode writes cache/log state even on --version.
+    '--env',
+    'HOME=/workspace',
     '--entrypoint',
     'sh',
     IMAGE,
@@ -242,8 +246,10 @@ console.log('--- runnerd boots under the daemon entrypoint ---');
     '-d',
     '--user',
     '10001',
+    // The workspace skeleton lives under /user (sessions path model) — the
+    // daemon entrypoint mkdirs there and dies without a writable mount.
     '--tmpfs',
-    '/workspace:uid=10001,gid=10001',
+    '/user:uid=10001,gid=10001',
     IMAGE,
     'daemon',
   ]);
