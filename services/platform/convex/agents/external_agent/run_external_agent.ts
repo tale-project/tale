@@ -30,6 +30,7 @@ import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { buildSkillsGuidance } from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
@@ -63,6 +64,10 @@ import {
   pickToken,
   type TokenSelection,
 } from '../../node_only/sandbox/token_pool_select';
+import {
+  stageWorkflowSkills,
+  workspaceIsTaleRepo,
+} from '../../node_only/sandbox/workflow_skills';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
 import {
@@ -838,6 +843,12 @@ export const runExternalAgentTurn = internalAction({
       // independent text; connection state comes from the tool result). Staged
       // per-turn → a connect/disconnect/binding change shows up next turn.
       // Best-effort: skill staging must never fail the turn.
+      // Feeds the skills-guidance section of the system-prompt append: the
+      // workflow skills the agent can actually load this turn + whether the
+      // workspace is Tale's own monorepo (whose AGENTS.md already carries the
+      // workflow, so the generated section is skipped there).
+      let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
+      let workspaceIsTale = false;
       try {
         await stageIntegrationSkills(ctx, {
           organizationId: args.organizationId,
@@ -858,6 +869,14 @@ export const runExternalAgentTurn = internalAction({
         if (BROWSER_VIEW_ENABLED) {
           await stageBrowserControlSkill(ctx, { sessionId });
         }
+        // The workflow disciplines (implement-feature, fix-bug, …) seeded
+        // per-org from builtin-configs — staged so the guidance below only
+        // names skills that are truly present.
+        availableWorkflowSkills = await stageWorkflowSkills(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+        });
+        workspaceIsTale = await workspaceIsTaleRepo(sessionId);
       } catch (skillErr) {
         console.warn(
           '[runExternalAgentTurn] integration skill staging failed (continuing):',
@@ -1034,6 +1053,13 @@ export const runExternalAgentTurn = internalAction({
         permissionMode: args.permissionMode,
         interactionMode: args.interactionMode,
         browserCdp: BROWSER_VIEW_ENABLED,
+        // Claude-Code-only: the staged workflow skills live in CC's user-level
+        // skill dir. Skipped on the Tale monorepo workspace — its AGENTS.md
+        // already carries the workflow and the house rules point at it.
+        skillsGuidance:
+          args.agentKind === 'claude-code' && !workspaceIsTale
+            ? buildSkillsGuidance(availableWorkflowSkills)
+            : undefined,
       });
 
       // Both attempts share ONE absolute action deadline — a fresh window for
