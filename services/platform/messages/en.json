@@ -1856,6 +1856,8 @@
     "modelFallbackNotice": "{from} was unavailable — switched to {to}.",
     "modelFallbackDefaultModel": "the default model",
     "modelFallbackUnknown": "the previous model",
+    "generationIncomplete": "The response couldn't be completed. Please try again.",
+    "generationIncompleteWithTools": "The response couldn't be completed after running {tools}. Please try again.",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",

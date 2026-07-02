@@ -62,6 +62,20 @@ const EMPTY: MessageSegments = {
   isStreaming: false,
 };
 
+/**
+ * The AI SDK reports a tool call that failed BEFORE execution (input failed
+ * schema validation, or the tool doesn't exist) as a plain tool-result whose
+ * output is the error string. The persisted error marker (`output.type:
+ * 'error-json'`) is unwrapped away by the agent component's UIMessage
+ * conversion, so by the time parts reach the client the failure reads as
+ * `state: 'output-available'` — a normal-looking chip for a call that never
+ * ran. Detect those outputs by the SDK's stable message prefixes so the chip
+ * renders as an error. If an SDK upgrade changes the wording, this only
+ * degrades back to today's unstyled output — never a false error.
+ */
+const SDK_TOOL_FAILURE_RE =
+  /^(Invalid input for tool |Model tried to call unavailable tool ')/;
+
 export function buildMessageSegments(
   parts: readonly unknown[] | undefined,
 ): MessageSegments {
@@ -137,14 +151,20 @@ export function buildMessageSegments(
       const errorText =
         typeof raw.errorText === 'string' ? raw.errorText : undefined;
 
+      const launderedFailure =
+        state === 'output-available' &&
+        errorText === undefined &&
+        typeof output === 'string' &&
+        SDK_TOOL_FAILURE_RE.test(output);
+
       const segment: Extract<ThoughtStep, { kind: 'tool' }> = {
         kind: 'tool',
         id: toolCallId,
         toolName,
-        state,
+        state: launderedFailure ? 'output-error' : state,
         input,
         output,
-        errorText,
+        errorText: launderedFailure ? output : errorText,
       };
 
       if (SKILL_TOOL_NAMES.has(toolName)) {

@@ -1837,6 +1837,8 @@
     "modelFallbackNotice": "{from} war nicht verfügbar – zu {to} gewechselt.",
     "modelFallbackDefaultModel": "das Standardmodell",
     "modelFallbackUnknown": "das vorherige Modell",
+    "generationIncomplete": "Die Antwort konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+    "generationIncompleteWithTools": "Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Bitte versuche es erneut.",
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",

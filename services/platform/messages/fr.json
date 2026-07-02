@@ -1838,6 +1838,8 @@
     "modelFallbackNotice": "{from} était indisponible — passage à {to}.",
     "modelFallbackDefaultModel": "le modèle par défaut",
     "modelFallbackUnknown": "le modèle précédent",
+    "generationIncomplete": "La réponse n'a pas pu être terminée. Merci de réessayer.",
+    "generationIncompleteWithTools": "La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",
