@@ -2030,6 +2030,7 @@
     "stepProgress": "Étape {current} sur {total} : {label}",
     "validation": {
       "required": "{field} est requis",
+      "maxLength": "{field} ne doit pas dépasser {max} caractères",
       "email": "Entre une adresse email valide",
       "invalidJson": "Format JSON invalide",
       "uploadFile": "Téléverse un fichier",
@@ -6838,6 +6839,7 @@
     "agentAccessTitle": "Accessible aux agents",
     "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
     "nameLabel": "Nom",
+    "nameInvalid": "Le nom doit commencer par une lettre et ne contenir que A–Z, 0–9 et des traits de soulignement.",
     "valueLabel": "Valeur",
     "descriptionLabel": "Description",
     "typeLabel": "Type",

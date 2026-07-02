@@ -14,6 +14,11 @@ import { useT } from '@/lib/i18n/client';
 import { useCreateTeamMember } from '../hooks/mutations';
 import { TeamMemberChecklist } from './team-member-checklist';
 
+/** Better Auth's `createTeam` sets no name cap, so a team name would otherwise
+ *  persist unbounded. Cap it client-side at the workspace-name limit (the same
+ *  80 as a project name) so an over-long name is rejected inline. */
+const TEAM_NAME_MAX = 80;
+
 interface TeamCreateDialogProps {
   organizationId: string;
   open: boolean;
@@ -37,12 +42,20 @@ export function TeamCreateDialog({
   const { mutateAsync: addMember } = useCreateTeamMember();
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
+  const nameTooLongError = tCommon('validation.maxLength', {
+    field: tSettings('teams.teamName'),
+    max: TEAM_NAME_MAX,
+  });
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, nameRequiredError),
+        name: z
+          .string()
+          .trim()
+          .min(1, nameRequiredError)
+          .max(TEAM_NAME_MAX, nameTooLongError),
       }),
-    [nameRequiredError],
+    [nameRequiredError, nameTooLongError],
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -2029,6 +2029,7 @@
     "stepProgress": "Step {current} of {total}: {label}",
     "validation": {
       "required": "{field} is required",
+      "maxLength": "{field} must be {max} characters or fewer",
       "email": "Please enter a valid email address",
       "invalidJson": "Invalid JSON format",
       "uploadFile": "Please upload a file",
@@ -7101,6 +7102,7 @@
     "agentAccessTitle": "Available to agents",
     "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
     "nameLabel": "Name",
+    "nameInvalid": "Name must start with a letter and use only A–Z, 0–9 and underscores.",
     "valueLabel": "Value",
     "descriptionLabel": "Description",
     "typeLabel": "Type",
