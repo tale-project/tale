@@ -574,6 +574,48 @@
       }
     },
     {
+      "id": "anthropic/claude-fable-5",
+      "displayName": "Claude Fable 5",
+      "description": "Anthropic's most capable — Mythos-class reasoning and coding",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "qualityScore": 0.98,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 1000,
+        "outputCentsPerMillion": 5000
+      }
+    },
+    {
+      "id": "~anthropic/claude-fable-latest",
+      "displayName": "Claude Fable (latest)",
+      "description": "Rolling alias — always Anthropic's newest Fable-class model",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "qualityScore": 0.98,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 1000,
+        "outputCentsPerMillion": 5000
+      }
+    },
+    {
       "id": "mistralai/mistral-medium-3-5",
       "displayName": "Mistral Medium 3.5",
       "description": "Mistral's balanced multimodal mid-tier model",
@@ -930,6 +972,12 @@
         "anthropic/claude-opus-4.8": {
           "description": "Anthropics Flaggschiff — am besten für komplexes Reasoning und Programmierung"
         },
+        "anthropic/claude-fable-5": {
+          "description": "Anthropics leistungsstärkstes Modell — Mythos-Klasse für Reasoning und Programmierung"
+        },
+        "~anthropic/claude-fable-latest": {
+          "description": "Rollierender Alias — immer Anthropics neuestes Fable-Modell"
+        },
         "mistralai/mistral-medium-3-5": {
           "description": "Ausgewogenes multimodales Mittelklasse-Modell von Mistral"
         },
@@ -1081,6 +1129,12 @@
         },
         "anthropic/claude-opus-4.8": {
           "description": "Le modèle phare d'Anthropic — idéal pour le raisonnement complexe et le code"
+        },
+        "anthropic/claude-fable-5": {
+          "description": "Le modèle le plus capable d'Anthropic — classe Mythos pour le raisonnement et le code"
+        },
+        "~anthropic/claude-fable-latest": {
+          "description": "Alias glissant — toujours le dernier modèle Fable d'Anthropic"
         },
         "mistralai/mistral-medium-3-5": {
           "description": "Modèle Mistral milieu de gamme, multimodal et équilibré"
