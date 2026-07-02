@@ -58,6 +58,7 @@ the page renders `AccessDenied` (`accessDenied.integrations`).
 | F1             | 🔶 partial     | `integrations.spec.ts` (loads `?tab=all` to find cards; no catalog-card-count / tab-toggle / search assertion) |
 | F4, F6, F7, F8 | ⛔ manual-only | —                                                                                                              |
 | B1, B2, B3     | ⛔ manual-only | —                                                                                                              |
+| B4             | ⛔ manual-only | — (needs a minted non-admin member; see [auth.md](auth.md) RBAC)                                               |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 (`integrations.spec.ts` is the only spec that touches this area — `settings.spec.ts`,

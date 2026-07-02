@@ -30,6 +30,8 @@ tab and open or create a discussion.
 | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | F1–F3   | 🔶 partial     | unit: `discussions/lib/resolve-author.test.ts`, component: `chat/components/message-bubble.test.tsx` (alignment + label) |
 | F4–F5   | ⛔ manual-only | —                                                                                                                        |
+| F6      | ⛔ manual-only | —                                                                                                                        |
+| B1–B3   | ⛔ manual-only | —                                                                                                                        |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 

@@ -120,5 +120,3 @@ Functional: ___/8   Boundary: ___/4   A11y: ___/3   Perf: ___/3
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```
-
-</content>

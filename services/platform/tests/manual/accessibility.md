@@ -70,6 +70,7 @@ verification is this guide's job.
 | A11 | Live regions   | Chat: send a turn, sample mid-stream                                                               | During streaming a `role="status"` + `role="log"` region with `aria-live="polite"` is present and `aria-busy="true"` is set on the streaming node; idle = no spurious live region; toasts announce via `aria-live`                                                                       |
 | A12 | Dialog title   | Open any dialog                                                                                    | The dialog exposes an accessible name (visible heading or `VisuallyHidden` title) reachable as the dialog's `aria-labelledby`/`aria-label`                                                                                                                                               |
 | A13 | Heading order  | Walk headings top→bottom on each surface                                                           | Heading levels never skip (no `h1`→`h3`). NOTE: the adaptive header renders the page title as `<h1>` twice (visible desktop strip + a second copy for the mobile slot) — confirm only **one** is exposed to AT (the other is `aria-hidden`/visually removed); flag if both are announced |
+| A14 | Touch targets  | Resize ≤ 767 px; measure the mobile shell's interactive controls (bottom-tab buttons, mobile Save bar, composer buttons) via `getBoundingClientRect()` | Every touch target is ≥ **44×44 CSS px**. Cross-ref [responsive.md](responsive.md) A1, which already measured the mobile Save button at ≈38×32 px — treat that as a candidate finding, not a pass |
 
 ## Boundary & error tests
 
@@ -116,7 +117,7 @@ Tick the checks that apply per surface (— = N/A for that surface).
 
 ```
 Area: Accessibility (WCAG 2.1 AA)
-Structural (A1–A13): ___/13   Boundary (B1–B4): ___/4   Perf (P1–P4): ___/4
+Structural (A1–A14): ___/14   Boundary (B1–B4): ___/4   Perf (P1–P4): ___/4
 Surfaces swept: ___/6
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL

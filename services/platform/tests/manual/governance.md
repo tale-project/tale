@@ -63,6 +63,7 @@ keys (`useApiKeys`).
 | B6          | ✅ automated   | `governance.spec.ts` (apiKey scope with no target → `governance.budgets.targetRequired`, no row added)                                                               |
 | F4b         | 🔶 partial     | `budget-editor.test.tsx` (apiKey scope add + target validation) + `budget_enforcement_apikey.test.ts` (backend enforcement) — no e2e happy-path (needs a seeded key) |
 | F4, F6–F12  | ⛔ manual-only | —                                                                                                                                                                    |
+| B1–B5       | ⛔ manual-only | — (B6 is the only automated boundary case)                                                                                                            |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 `governance.spec.ts` contains five tests (voice-output, system-prompt, run-code

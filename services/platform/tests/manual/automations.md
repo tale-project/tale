@@ -53,6 +53,9 @@ a single `start` step) that is runnable end-to-end offline.
 | F6, F7          | ✅ automated   | `automation-editor.spec.ts` (webhook fires execution)    |
 | F10             | ✅ automated   | `automation-editor.spec.ts` (deletes throwaway)          |
 | F1, F4, F8, F11 | ⛔ manual-only | —                                                        |
+| F12             | ⛔ manual-only | — (catalog page; no spec visits `/automations/catalog`)  |
+| B1, B2          | 🔶 component   | `automation-create-dialog.test.tsx` (Continue disabled until named; duplicate-name error) |
+| B3, B4          | ⛔ manual-only | —                                                        |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 (The 29-spec suite has no automations coverage outside `automation.spec.ts` and

@@ -50,6 +50,8 @@ the org has no teams.
 | F11            | ✅ automated   | `navigation.spec.ts` (user-menu Documentation link → `https://tale.dev/docs`) + component `user-button.test.tsx` |
 | F10            | ⛔ manual-only | — (no DataTable bulk-action spec exists)                                                                         |
 | B1             | ✅ automated   | `navigation.spec.ts` (not-found shell)                                                                           |
+| B2             | ✅ automated   | `navigation.spec.ts` (styled 404 for an unknown route inside the shell, incl. document title)                    |
+| B3, B4         | ⛔ manual-only | —                                                                                                                |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 (`keyboard.spec.ts` only covers wizard focus order — NOT the Cmd+K palette.
