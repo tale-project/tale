@@ -71,20 +71,28 @@ async function openBrowser(url: string): Promise<void> {
   }
 }
 
-/** Poll `${url}/health` until it answers 200 or the attempt budget runs out. */
+/**
+ * Poll `${url}/health` until it answers 200 or the attempt budget runs out.
+ * The dev/trial proxy serves a self-signed localhost certificate, so the
+ * probe must accept it — with default TLS verification every attempt would
+ * fail and readiness would never be observed.
+ */
 async function waitForHealth(
   url: string,
   signal?: AbortSignal,
+  maxAttempts = 120,
 ): Promise<boolean> {
   const healthUrl = `${url}/health`;
-  const maxAttempts = 120;
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) return false;
     try {
       const fetchSignal = signal
         ? AbortSignal.any([AbortSignal.timeout(2000), signal])
         : AbortSignal.timeout(2000);
-      const res = await fetch(healthUrl, { signal: fetchSignal });
+      const res = await fetch(healthUrl, {
+        signal: fetchSignal,
+        tls: { rejectUnauthorized: false },
+      });
       if (res.ok) return true;
     } catch (err) {
       if (signal?.aborted) return false;
@@ -283,14 +291,25 @@ export async function runDev(options: DevOptions): Promise<void> {
   );
 
   const announce = (async (): Promise<void> => {
-    const ok = await waitForHealth(url, abortController.signal);
-    if (abortController.signal.aborted) return;
-    if (!ok) {
-      warnLine(
-        'Services did not become healthy in time — check the log above.',
-      );
-      return;
+    // Patient by design: a first run pulls several GB of images before any
+    // service can answer, so a bounded wait would declare failure mid-pull
+    // and the READY block would never print. Poll until the stack answers or
+    // compose exits (abort), with a one-time note so the wait never looks
+    // hung.
+    const NOTE_AFTER_MS = 120_000;
+    const started = Date.now();
+    let noted = false;
+    let ok = false;
+    while (!ok && !abortController.signal.aborted) {
+      ok = await waitForHealth(url, abortController.signal, 30);
+      if (!ok && !noted && Date.now() - started >= NOTE_AFTER_MS) {
+        noted = true;
+        infoLine(
+          'Still waiting for services — a first run downloads several GB of images before they can start. Leave this running; rerun with --verbose for full output.',
+        );
+      }
     }
+    if (!ok || abortController.signal.aborted) return;
     const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
     if (abortController.signal.aborted) return;
     void openBrowser(url);
