@@ -266,13 +266,20 @@ export async function renderDocumentInSandbox(
 
   // Unlike the crawl path (which re-parses transient JSON), the produced
   // PDF/image IS the deliverable — persist it and hand the caller its storageId.
+  // The session file read serves the generic octet-stream — fall back to the
+  // request-derived type (sessionReadFile's documented contract) so the stored
+  // blob carries the true mime.
+  const resolvedContentType =
+    output.contentType && output.contentType !== 'application/octet-stream'
+      ? output.contentType
+      : contentType;
   const storageId: Id<'_storage'> = await ctx.storage.store(
-    new Blob([output.bytes], { type: output.contentType || contentType }),
+    new Blob([output.bytes], { type: resolvedContentType }),
   );
 
   return {
     storageId,
     size: output.size,
-    contentType: output.contentType || contentType,
+    contentType: resolvedContentType,
   };
 }
