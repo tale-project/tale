@@ -386,6 +386,7 @@ import type * as documents_internal_mutations from "../documents/internal_mutati
 import type * as documents_internal_queries from "../documents/internal_queries.js";
 import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
+import type * as documents_list_files_by_folder from "../documents/list_files_by_folder.js";
 import type * as documents_list_indexed_documents_for_agent from "../documents/list_indexed_documents_for_agent.js";
 import type * as documents_list_orphaned_external_docs from "../documents/list_orphaned_external_docs.js";
 import type * as documents_mutations from "../documents/mutations.js";
@@ -2014,6 +2015,7 @@ declare const fullApi: ApiFromModules<{
   "documents/internal_queries": typeof documents_internal_queries;
   "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
+  "documents/list_files_by_folder": typeof documents_list_files_by_folder;
   "documents/list_indexed_documents_for_agent": typeof documents_list_indexed_documents_for_agent;
   "documents/list_orphaned_external_docs": typeof documents_list_orphaned_external_docs;
   "documents/mutations": typeof documents_mutations;

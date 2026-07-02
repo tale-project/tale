@@ -395,10 +395,49 @@ const inputArgValidator = v.array(
     from: v.union(
       v.object({ fileId: v.string() }),
       v.object({ folderId: v.string() }),
+      v.object({ folderPath: v.string() }),
       v.object({ content: v.string() }),
     ),
   }),
 );
+
+/**
+ * Resolve a folder input (by id or human-readable documents path) to stage
+ * entries — one per document DIRECTLY in the folder (no recursion), placed
+ * under `<prefix><as>/<doc name>`. Returns null when the folder does not
+ * resolve in this org (the caller fails the step with a legible error: a
+ * typo'd path staging an empty dir would otherwise surface as a confusing
+ * downstream script failure).
+ */
+export async function folderStageFiles(
+  ctx: Pick<ActionCtx, 'runQuery' | 'storage'>,
+  organizationId: string,
+  from: { folderId: string } | { folderPath: string },
+  as: string,
+  pathPrefix: string,
+): Promise<SessionStageFile[] | null> {
+  const files = await ctx.runQuery(
+    internal.documents.internal_queries.listFilesByFolderInternal,
+    {
+      organizationId,
+      ...('folderId' in from
+        ? { folderId: toId<'folders'>(from.folderId) }
+        : { folderPath: from.folderPath }),
+    },
+  );
+  if (files === null) return null;
+  const dir = as.replace(/\/+$/, '');
+  const staged: SessionStageFile[] = [];
+  for (const file of files) {
+    const raw = await ctx.storage.getUrl(toId<'_storage'>(file.fileId));
+    if (!raw) continue; // blob purged under a live row — skip, don't fail
+    staged.push({
+      path: `${pathPrefix}${dir}/${file.name}`,
+      url: toSandboxStorageUrl(raw),
+    });
+  }
+  return staged;
+}
 
 const outputArgValidator = v.optional(
   v.object({
@@ -513,8 +552,8 @@ export const runSandboxScript = internalAction({
       const scriptName = relPath.split('/').pop() ?? 'script';
 
       // Stage the script + inline-content inputs + params.json under /user/code
-      // (the script's cwd); fileId inputs under /user/uploads. (folderId staging
-      // is a later increment.)
+      // (the script's cwd); fileId inputs under /user/uploads; a folder input
+      // stages every document directly in that folder under /user/uploads/<as>/.
       const stageInputs: SessionStageFile[] = [
         { path: `code/${scriptName}`, url: await storeAsUrl(scriptContent) },
       ];
@@ -534,7 +573,19 @@ export const runSandboxScript = internalAction({
             url: toSandboxStorageUrl(raw),
           });
         } else {
-          return fail('folderId input staging is not yet supported');
+          const staged = await folderStageFiles(
+            ctx,
+            args.organizationId,
+            input.from,
+            input.as,
+            'uploads/',
+          );
+          if (staged === null) {
+            return fail(
+              `input folder not found: ${JSON.stringify(input.from)}`,
+            );
+          }
+          stageInputs.push(...staged);
         }
       }
       if (args.params) {
@@ -1173,8 +1224,9 @@ export const runSandboxAgent = internalAction({
           );
         }
 
-        // 5. Stage declared inputs into the workspace (folderId is a later
-        // increment; the primary agent path self-fetches via GITHUB_TOKEN).
+        // 5. Stage declared inputs into the workspace: content/fileId at
+        // `<as>`; a folder input stages every document directly in that folder
+        // under `<as>/<name>` (workspace-relative, like the other agent inputs).
         const stageFiles: SessionStageFile[] = [];
         for (const input of args.inputs) {
           if ('content' in input.from) {
@@ -1189,7 +1241,19 @@ export const runSandboxAgent = internalAction({
             if (!raw) return fail(`input file not found: ${input.from.fileId}`);
             stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
           } else {
-            return fail('folderId input staging is not yet supported');
+            const staged = await folderStageFiles(
+              ctx,
+              args.organizationId,
+              input.from,
+              input.as,
+              '',
+            );
+            if (staged === null) {
+              return fail(
+                `input folder not found: ${JSON.stringify(input.from)}`,
+              );
+            }
+            stageFiles.push(...staged);
           }
         }
         if (stageFiles.length > 0) {
