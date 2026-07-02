@@ -75,6 +75,14 @@ function parseDotEnv(filePath: string): Record<string, string> {
 // pass that removes Convex vars missing from the merged dotenv map.
 const ORCHESTRATOR_MANAGED_KEYS = [
   'BETTER_AUTH_SECRET',
+  // Derived from PORT by the dev orchestrator (envNormalizeCommon) when no
+  // .env sets it. Better Auth builds its trusted-origins list from the
+  // DEPLOYMENT env's SITE_URL (convex/auth.ts), so a stack on a non-default
+  // port (e.g. an isolated E2E stack on :3100) must sync the orchestrator's
+  // value — the :3000 fallback below would make Better Auth answer every
+  // Origin-carrying browser request with INVALID_ORIGIN, org creation
+  // included, which strands the onboarding wizard on its workspace step.
+  'SITE_URL',
   // Derived from INSTANCE_SECRET by the dev orchestrator (ensureWebdavHmacKey),
   // not present in any .env file. Required by the webdav createAppPassword
   // mutation via requireHmacSecret().
@@ -289,7 +297,10 @@ async function main() {
   const envMap = findEnv();
 
   if (!envMap.SITE_URL) {
-    const inferred = 'http://localhost:3000';
+    // Standalone invocation (no orchestrator in the parent chain): derive the
+    // same value envNormalizeCommon would, so a custom PORT still yields a
+    // trusted-origin-correct SITE_URL.
+    const inferred = `http://localhost:${process.env.PORT || '3000'}`;
     console.log(
       `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
     );
