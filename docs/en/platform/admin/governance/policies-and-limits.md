@@ -1,6 +1,6 @@
 ---
 title: Policies and limits
-description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, or role. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius.
+description: Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius.
 ---
 
 Policies and limits is the surface where you cap what your members and agents can consume. Budgets cap tokens, cost, and requests per billing period; feature controls toggle web search, code execution, and file upload by scope; upload policy gates the file types and sizes a member can attach; retention policy decides how long each data type lives before cleanup. Admins and Owners read this page when a workload is over budget, when a feature should be off for a subset of users, or when a regulator names a retention window that differs from the default.
@@ -11,7 +11,7 @@ To cap an Editor's monthly spend, open **Settings > Governance > Budgets** and c
 
 ## The four policy layers
 
-**Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, or user. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap.
+**Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, user, or API key. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap. An API-key rule targets one issued key (pick **API key** as the scope, then the key from **Settings > API**) and caps only the traffic authenticated with that key — the REST and OpenAI-compatible API — so you can meter a single integration without touching in-app usage.
 
 **Feature controls** toggle web search, code execution, and file upload per scope, and cap the max context tokens for AI replies. A feature off for a scope hides the toggle in chat and refuses the request server-side.
 
@@ -21,7 +21,7 @@ To cap an Editor's monthly spend, open **Settings > Governance > Budgets** and c
 
 ## Precedence
 
-All four layers share the same scope ladder: user > team > role > org > default. The narrowest rule wins. Where a layer carries an org-wide cap (budgets), the cap applies as an additional ceiling on top of any narrower rule.
+All four layers share the same scope ladder: user > team > role > org > default. The narrowest rule wins. Where a layer carries an org-wide cap (budgets), the cap applies as an additional ceiling on top of any narrower rule. An API-key budget sits outside the ladder as its own independent bucket: it binds the key's own requests regardless of the owner's user, team, or org caps, so a single credential can be held to a tighter allotment than the person who issued it.
 
 ## Retention bounds and approvals
 

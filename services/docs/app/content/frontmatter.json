@@ -565,7 +565,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d'upload, la génération d'images et l'accès aux fonctionnalités — cadrés par utilisateur, équipe ou rôle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d'un rayon plus serré."
+      "description": "Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d'upload, la génération d'images et l'accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d'un rayon plus serré."
     }
   },
   "fr:platform/admin/governance/usage-analytics": {
@@ -1701,7 +1701,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Policies and limits",
-      "description": "Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, or role. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius."
+      "description": "Per-org caps on token cost, request count, upload size, image generation, and feature access — scoped by user, team, role, or individual API key. Admins and Owners read this when a workload is over budget or when a feature needs a tighter blast radius."
     }
   },
   "en:platform/admin/governance/usage-analytics": {
@@ -2837,7 +2837,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team oder Rolle. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht."
+      "description": "Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht."
     }
   },
   "de:platform/admin/governance/usage-analytics": {

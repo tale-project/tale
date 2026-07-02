@@ -37,9 +37,9 @@ La page appartient à la rotation d'astreinte. Les mises à jour sont poussées 
 
 ## Auto-hébergé : ce qui change
 
-Les instances auto-hébergées n'apparaissent pas sur la page de statut de Tale — la page ne couvre que Tale Cloud. Pour ton propre déploiement, la surface d'observabilité dans le produit est le bon canal : santé des conteneurs depuis `tale status`, métriques de requêtes depuis les journaux Caddy, et le journal d'audit dans le produit pour les événements du plan de contrôle. La [page de dépannage observabilité](/fr/self-hosted/operate/observability/troubleshooting) associe les symptômes aux journaux.
+Les instances auto-hébergées n'apparaissent pas sur `status.tale.dev` — cette page couvre Tale Cloud. Chaque déploiement embarque sa propre page de statut à la place, servie par la plateforme et accessible sans connexion à `https://<ton-hôte>/status`. Elle rend côté serveur un résumé de santé — operational, degraded ou outage — à partir d'une sonde de liveness contre le backend Convex, si bien qu'un opérateur (ou un utilisateur qui vérifie si le souci ne vient que de lui) peut lire la disponibilité sans se connecter. La forme lisible par machine est `https://<ton-hôte>/status.json`, qui renvoie le même résultat en JSON qu'un moniteur d'uptime peut interroger.
 
-Si tu opères une instance auto-hébergée et veux une page de statut tournée client, fais tourner un des projets open-source de page de statut contre tes propres sondes — Tale n'en livre pas pour les opérateurs auto-hébergés aujourd'hui.
+Cette page rapporte la disponibilité du déploiement lui-même. Pour un signal d'exploitation plus fin — santé des conteneurs depuis `tale status`, métriques de requêtes depuis les journaux Caddy, et événements du plan de contrôle dans le journal d'audit du produit — la [page de dépannage observabilité](/fr/self-hosted/operate/observability/troubleshooting) associe les symptômes aux journaux.
 
 ## Où cela s'inscrit
 
