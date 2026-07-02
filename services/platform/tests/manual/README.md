@@ -34,14 +34,16 @@ Playwright MCP — proving behaviour by observing the real outcome, per the
 | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | [auth.md](auth.md)                   | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
 | [chat.md](chat.md)                   | messages, attachments, tools + approvals, arena, share, reasoning                    |
+| [workspace.md](workspace.md)         | chat side panel: canvas viewers, workspace files, live browser + takeover, plan pane |
 | [agents.md](agents.md)               | agent list + editor tabs, organigram/delegation, metrics                             |
-| [apps.md](apps.md)                   | app marketplace: catalog/empty, install, run, app-scoped agents/workflows            |
-| [projects.md](projects.md)           | projects, tasks, files, secrets, instructions, threads                               |
+| [apps.md](apps.md)                   | app marketplace: catalog/empty, upload, install, run, per-project config             |
+| [projects.md](projects.md)           | projects, tasks (attachments, comments), files, secrets, instructions, threads       |
+| [discussions.md](discussions.md)     | project discussions: multi-party thread, author attribution, @-mentions              |
 | [knowledge.md](knowledge.md)         | documents, knowledge entries, products, customers, vendors, websites                 |
 | [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
 | [automations.md](automations.md)     | list, editor, configuration, triggers, executions                                    |
 | [settings.md](settings.md)           | account, personalization, org, teams, branding, integrations, API, providers, skills |
-| [integrations.md](integrations.md)   | connect/disconnect API-key, token & OAuth integrations; offline `testConnection`     |
+| [integrations.md](integrations.md)   | connect/disconnect integrations; mailbox (IMAP/SMTP), Slack config, package upload   |
 | [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
 | [notifications.md](notifications.md) | notification center, inbox reviews                                                   |
 | [navigation.md](navigation.md)       | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
@@ -59,15 +61,17 @@ _Automated coverage_ table is case-by-case.
 | ------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                            |
 | chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                              |
+| workspace     | ⛔ manual-only | — (component tests only: `workspace-file-tabs`, `chat-panel`; no e2e touches the panes)                                 |
 | agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                |
-| apps          | ⛔ manual-only | — (no spec; marketplace #1911 untested in e2e)                                                                          |
+| apps          | ⛔ manual-only | — (no spec; the whole apps surface is untested in e2e)                                                                  |
 | projects      | ✅ strong      | `projects`, `projects-depth`                                                                                            |
+| discussions   | 🔶 partial     | unit `resolve-author` + component `message-bubble` (alignment/label); no e2e                                            |
 | knowledge     | ✅ strong      | `knowledge`                                                                                                             |
-| conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered)                      |
+| conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered — and transitions currently FAIL, crit audit-log RLS defect, see the guide's Issues) |
 | automations   | ✅ strong      | `automation`, `automation-editor`                                                                                       |
 | settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                            |
 | integrations  | ✅ strong      | `integrations` (connect + offline `testConnection`)                                                                     |
-| governance    | 🔶 partial     | `governance` (toggles + DSAR/legal-hold dialogs + logs; content-models / security-monitoring / usage / trash uncovered) |
+| governance    | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, usage, trash uncovered)                  |
 | notifications | ⛔ manual-only | — (no spec)                                                                                                             |
 | navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                        |
 | accessibility | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                  |
