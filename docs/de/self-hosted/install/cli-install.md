@@ -145,6 +145,8 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
 - `--dry-run` — anzeigen, was sich ändern würde, ohne etwas zu ändern.
 
+`tale migrate` — die mitgelieferten Defaults neu provisionieren und die sicheren, ausstehenden Daten-Migrationen auf das laufende Deployment anwenden — dieselben idempotenten Schritte, die jeder Deploy ausführt, nur auf Zuruf. Die Subcommands geben dir gezielte, umkehrbare Kontrolle: `migrate status` zeigt angewendete und ausstehende Migrationen, `migrate up [--to <version>]` wendet ausstehende an (destruktive Schritte brauchen `-y, --yes` oder `--step`), `migrate down --to <version>` rollt zurück.
+
 `tale cleanup` — inaktive (nicht-aktuelle) Container entfernen. Keine Argumente.
 
 `tale reset` — alle Blue-Green-Container entfernen.

@@ -145,6 +145,8 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `-f, --force` — force re-sync and overwrite locally modified project files.
 - `--dry-run` — show what would change without modifying anything.
 
+`tale migrate` — re-provision the built-in defaults and apply the safe pending data migrations against the running deployment — the same idempotent steps every deploy runs, on demand. The subcommands give granular, reversible control: `migrate status` shows applied and pending migrations, `migrate up [--to <version>]` applies pending ones (destructive steps need `-y, --yes` or `--step`), and `migrate down --to <version>` rolls back.
+
 `tale cleanup` — remove inactive (non-current colour) containers. No arguments.
 
 `tale reset` — remove all blue-green containers.

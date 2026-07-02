@@ -145,6 +145,8 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-f, --force` — forcer la re-synchronisation et écraser les fichiers projet modifiés localement.
 - `--dry-run` — montrer ce qui changerait sans rien modifier.
 
+`tale migrate` — reprovisionner les valeurs par défaut intégrées et appliquer les migrations de données sûres en attente sur le déploiement en cours — les mêmes étapes idempotentes que chaque déploiement exécute, à la demande. Les sous-commandes donnent un contrôle fin et réversible : `migrate status` montre les migrations appliquées et en attente, `migrate up [--to <version>]` applique celles en attente (les étapes destructives demandent `-y, --yes` ou `--step`), `migrate down --to <version>` revient en arrière.
+
 `tale cleanup` — supprimer les conteneurs inactifs (couleur non courante). Aucun argument.
 
 `tale reset` — supprimer tous les conteneurs blue-green.
