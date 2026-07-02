@@ -39,10 +39,14 @@ const OWNER_TYPE = 'thread';
 const PROFILE = 'default' as const;
 
 /**
- * Ensure the thread's persistent session exists and is live; create or resume
- * it. Returns its deterministic `sessionId`. Idempotent within a turn: a warm
+ * Ensure the thread's session exists and is live; create or resume it.
+ * Returns its deterministic `sessionId`. Idempotent within a turn: a warm
  * session is reused, a reaped one is recreated against the same id (its
- * preserved workspace re-attaches).
+ * preserved workspace re-attaches). TURN-scoped: `runGenerationCore`'s
+ * finally destroys the session when the turn ends
+ * (`teardownThreadSessionAtTurnEnd`, spared while a sibling turn's exec is
+ * live) — it amortizes the run_code calls of one turn, never idles across
+ * turns.
  */
 export const ensureThreadSession = internalAction({
   args: {
@@ -78,8 +82,8 @@ export const ensureThreadSession = internalAction({
     }
 
     // No row yet — reserve a slot (per-owner + per-org caps enforced there) and
-    // create fresh. A reserve conflict / capacity wait throws; the dispatch
-    // caller catches it and falls back to the ephemeral one-shot path.
+    // create fresh. A reserve conflict / capacity wait throws and surfaces to
+    // the model as a run_code failure (there is no one-shot fallback path).
     const rowId = await ctx.runMutation(
       internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
       {

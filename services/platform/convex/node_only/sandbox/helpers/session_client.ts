@@ -270,6 +270,29 @@ export async function sessionDestroy(sessionId: string): Promise<boolean> {
   return parsed.destroyed === true;
 }
 
+/** Conditional destroy (`?if_idle=1`): the spawner no-ops with {busy:true}
+ * when the session still has a live exec — a janitor caller (the end-of-turn
+ * thread-session teardown) must never kill a sibling turn's running code.
+ * Busy is decided spawner-side (registry + runnerd's own counter); same
+ * non-2xx THROW contract as sessionDestroy. */
+export async function sessionDestroyIfIdle(
+  sessionId: string,
+): Promise<{ destroyed: boolean; busy: boolean }> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1`;
+  const headers = signedHeaders('DELETE', path, '');
+  const res = await fetch(`${getSpawnerUrl()}${path}`, {
+    method: 'DELETE',
+    headers,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    throw new Error(`sandbox session destroy failed (${res.status})`);
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await res.json()) as { destroyed?: boolean; busy?: boolean };
+  return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
+}
+
 /** PATCH /v1/sessions/:id/env — inject/rotate session env (gateway token,
  * integration creds). Returns the names runnerd rejected (deny-list). */
 export async function sessionEnvPatch(

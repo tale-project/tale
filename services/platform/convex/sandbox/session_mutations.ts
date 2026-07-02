@@ -340,6 +340,50 @@ export const markSessionRowDestroyed = internalMutation({
 });
 
 /**
+ * Row-flip half of the end-of-turn thread-session teardown: mark every live
+ * `thread`-owned row of the thread `destroyed`, wake capacity waiters, and
+ * schedule the out-of-band VK/op cleanup (whose sessionDestroy re-run is an
+ * idempotent no-op). Called by `teardownThreadSessionAtTurnEnd` ONLY AFTER
+ * the spawner confirmed the conditional (`if_idle`) destroy — never flip a
+ * row while the container may survive with a live exec. Thread sessions are
+ * TURN-scoped by design — one session amortizes the turn's run_code calls,
+ * but it must not linger as idle compute once the turn ends; the next turn
+ * recreates it and re-stages the workspace from `threadFiles`. A turn that
+ * ran no run_code finds no live row and schedules nothing. Idempotent
+ * against a concurrent reaper/cascade.
+ */
+export const destroyThreadOwnedSessions = internalMutation({
+  args: { threadId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const sessionIds: string[] = [];
+    const orgIds = new Set<string>();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', 'thread').eq('ownerId', args.threadId),
+      )) {
+      if (!isLiveSessionStatus(row.status)) continue;
+      await ctx.db.patch(row._id, { status: 'destroyed', destroyedAt: now });
+      sessionIds.push(row.sessionId);
+      orgIds.add(row.organizationId);
+    }
+    if (sessionIds.length === 0) return null;
+    // Freed per-org session slots → wake parked waiters immediately.
+    for (const organizationId of orgIds) {
+      await scheduleSessionCapacityWake(ctx, organizationId);
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.session_teardown.teardownThreadSessions,
+      { sessionIds },
+    );
+    return null;
+  },
+});
+
+/**
  * Reconcile a row to `stopped` when the spawner has released its container
  * (idle/TTL reaper) but the workspace is preserved. Org-scoped; acts on the
  * LIVE row only. Skips a row that is pinned (never reaped) or already

@@ -178,12 +178,14 @@ export async function cascadeDeleteThreadChildren(
     args.holds = holds;
   }
 
-  // 0. Sandbox sessions are per-USER now (one persistent sandbox shared across
+  // 0. The AGENT sandbox is per-USER (one persistent sandbox shared across
   // all the user's threads), so deleting a thread must NOT tear down the
-  // sandbox — only prune this thread's progress/op rows. Legacy thread-owned
-  // sessions (pre-per-user) are still destroyed for back-compat; the per-user
-  // sandbox idle/TTL-reaps on its own. Op deletion + teardown are scheduled
-  // (mutations can't make the HTTP teardown calls).
+  // sandbox — only prune this thread's progress/op rows. Thread-owned
+  // sessions (the turn-scoped run_code session, destroyed at end of turn by
+  // destroyThreadOwnedSessions; plus pre-per-user legacy rows) are destroyed
+  // here too — normally a no-op, but it covers a thread deleted mid-turn.
+  // Op deletion + teardown are scheduled (mutations can't make the HTTP
+  // teardown calls).
   await ctx.scheduler.runAfter(
     0,
     internal.sandbox.session_mutations.deleteOpsForThread,
