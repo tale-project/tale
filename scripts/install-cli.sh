@@ -20,14 +20,24 @@ error() { printf "\033[1;31mError: %s\033[0m\n" "$1" >&2; exit 1; }
 
 # Map `uname -s` to the platform suffix used in our release asset names
 # (tale_linux, tale_macos). Sets the $PLATFORM global.
+# Releases ship exactly one binary per OS — arm64 for macOS, x86_64 for
+# Linux — so reject other architectures up front with a build-from-source
+# pointer instead of letting the kernel fail later with a cryptic exec error.
 detect_platform() {
-    local os
+    local os arch
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
 
     case "$os" in
         linux*)  PLATFORM="linux" ;;
         darwin*) PLATFORM="macos" ;;
         *)       error "Unsupported OS: $os" ;;
+    esac
+
+    case "$PLATFORM-$arch" in
+        macos-arm64 | linux-x86_64 | linux-amd64) ;;
+        macos-*) error "The released macOS binary is arm64-only; this Mac reports ${arch}. Build from source instead: clone https://github.com/${REPO} and run 'bun run build:mac' in tools/cli." ;;
+        linux-*) error "No released binary for linux/${arch} (x86_64 only). Build from source instead: clone https://github.com/${REPO} and run 'bun run build:linux' in tools/cli." ;;
     esac
 }
 
@@ -210,20 +220,29 @@ install_binary() {
     fi
 }
 
-# Smoke-test the freshly installed binary by running --version. The version
-# string is folded into the success message when available.
+# Smoke-test the freshly installed binary by running --version. A binary that
+# cannot execute (killed by the kernel, wrong architecture, corrupt download)
+# must fail the install here — reporting success for a dead binary strands the
+# user at the very next command with no explanation.
 verify_installation() {
-    if command -v "$BINARY_NAME" &>/dev/null; then
-        local version
-        version=$("$BINARY_NAME" --version 2>/dev/null || true)
-        if [ -n "$version" ]; then
-            success "Successfully installed ${BINARY_NAME} (${version})"
-        else
-            success "Successfully installed ${BINARY_NAME}"
-        fi
-    else
+    if ! command -v "$BINARY_NAME" &>/dev/null; then
         error "Installation failed. ${BINARY_NAME} not found in PATH"
     fi
+
+    local version
+    if version=$("$BINARY_NAME" --version 2>/dev/null) && [ -n "$version" ]; then
+        success "Successfully installed ${BINARY_NAME} (${version})"
+        return
+    fi
+
+    info "The installed binary did not run. Common causes:"
+    if [ "$PLATFORM" = "macos" ]; then
+        info "  - macOS refused the binary's code signature ('Killed: 9')."
+        info "    Repair it with: codesign --remove-signature \"$(command -v ${BINARY_NAME})\" && codesign -s - \"$(command -v ${BINARY_NAME})\""
+        info "  - Gatekeeper quarantine: xattr -d com.apple.quarantine \"$(command -v ${BINARY_NAME})\""
+    fi
+    info "  - A corrupt download: re-run this installer to fetch it again."
+    error "Installation failed. '${BINARY_NAME} --version' did not succeed."
 }
 
 main() {
