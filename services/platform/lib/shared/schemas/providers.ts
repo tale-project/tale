@@ -450,7 +450,9 @@ const modelDefinitionSchema = z.object({
    * OpenRouter `anthropic/claude-fable-5` is natively `claude-fable-5`). A BYO
    * (direct-to-vendor) session requests this id instead of the gateway one; an
    * entry without it passes through unchanged. The weekly model sync derives it
-   * for auto-added Anthropic models.
+   * for auto-added Anthropic models and re-points rolling `~vendor/…-latest`
+   * alias entries at the newest same-family release (3-way — operator edits
+   * win).
    */
   nativeModelId: z.string().min(1).max(200).optional(),
   baseUrl: z.string().url().optional(),
