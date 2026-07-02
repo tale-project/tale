@@ -560,6 +560,12 @@
       "signingIn": "Signing in...",
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
+      "ssoTitle": "Sign in with SSO",
+      "ssoDescription": "Enter your organization email address — it selects your organization's sign-in.",
+      "ssoBackToLogin": "Back to log in",
+      "ssoPickOrganization": "Or choose your organization",
+      "ssoEmailRequired": "Enter your organization email address to continue with SSO.",
+      "ssoEmailNoMatch": "Single sign-on is not set up for this email domain. Check the address, or contact your administrator.",
       "continueWithPasskey": "Sign in with a passkey",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use your password.",
       "wrongCredentials": "Wrong email or password",
@@ -665,6 +671,7 @@
     "sso": {
       "errors": {
         "serverError": "Single sign-on could not complete due to a server error. Please try again, or contact your administrator if it persists.",
+        "multipleConnections": "More than one organization uses single sign-on here. Enter your organization email address first, then try again.",
         "mfaRequired": "Multi-factor authentication is required to sign in.",
         "conditionalAccessBlocked": "Sign-in was blocked by a conditional-access policy.",
         "userNotAssigned": "Your account is not assigned to this application. Contact your administrator to request access.",
@@ -6216,6 +6223,10 @@
         },
         "redirectUrlLabel": "Redirect URL to register in Entra",
         "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
+        "domainWarning": {
+          "title": "No email domain set",
+          "description": "Several organizations on this deployment use SSO. Without an email domain, sign-in cannot route members to this connection by address — it is instead listed publicly by its display name on the SSO screen."
+        },
         "deploymentWarning": {
           "title": "Deployment not fully configured for SSO",
           "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",

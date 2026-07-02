@@ -31,6 +31,7 @@ vi.mock('@/lib/utils/seo', () => ({ seo: () => [] }));
 vi.mock('@/app/features/auth/hooks/queries', () => ({
   useHasAnyUsers: () => ({ data: true, isLoading: false }),
   useIsSsoConfigured: () => ({ data: { enabled: false } }),
+  useSsoSelectableOrgs: () => ({ data: [] }),
 }));
 
 // ── React Query client ───────────────────────────────────────────────────────

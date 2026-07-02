@@ -264,6 +264,8 @@ apps.list.merge
 # (`redirectWithError`), which the login page renders via `t(ssoError)` — a
 # runtime value the scanner can't tie back. The Entra AADSTS→message map lives
 # in convex/enterprise_sso/entra_id/error_codes.ts; the generic server-error
-# fallback (`sso.errors.serverError`) is passed as a literal from the handlers
-# but under a namespace the client-source scanner can't resolve.
+# fallback (`sso.errors.serverError`) and the multi-org "enter your email"
+# bounce (`sso.errors.multipleConnections`) are passed as literals from the
+# handlers but under a namespace the client-source scanner can't resolve.
 auth.sso.errors.serverError
+auth.sso.errors.multipleConnections

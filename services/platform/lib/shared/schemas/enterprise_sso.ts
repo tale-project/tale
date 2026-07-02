@@ -194,6 +194,9 @@ export const ssoConnectionViewSchema = z.object({
       authSecretSet: z.boolean(),
     })
     .optional(),
+  /** Another org on this deployment also has an enabled connection — without
+   *  an email domain this one is unroutable by address (form warns). */
+  otherOrgsEnabled: z.boolean().optional(),
 });
 export type SsoConnectionView = z.infer<typeof ssoConnectionViewSchema>;
 

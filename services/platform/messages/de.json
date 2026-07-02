@@ -560,6 +560,12 @@
       "signingIn": "Anmeldung läuft...",
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
+      "ssoTitle": "Mit SSO anmelden",
+      "ssoDescription": "Gib die E-Mail-Adresse deiner Organisation ein — sie bestimmt die passende Anmeldung.",
+      "ssoBackToLogin": "Zurück zur Anmeldung",
+      "ssoPickOrganization": "Oder wähle deine Organisation",
+      "ssoEmailRequired": "Gib die E-Mail-Adresse deiner Organisation ein, um mit SSO fortzufahren.",
+      "ssoEmailNoMatch": "Für diese E-Mail-Domäne ist Single Sign-On nicht eingerichtet. Prüfe die Adresse oder wende dich an deine Administration.",
       "continueWithPasskey": "Mit einem Passkey anmelden",
       "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder nutze dein Passwort.",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
@@ -665,6 +671,7 @@
     "sso": {
       "errors": {
         "serverError": "Single Sign-On konnte wegen eines Serverfehlers nicht abgeschlossen werden. Versuche es erneut oder wende dich an deine Administration, falls das Problem bestehen bleibt.",
+        "multipleConnections": "Hier nutzen mehrere Organisationen Single Sign-On. Gib zuerst die E-Mail-Adresse deiner Organisation ein und versuche es dann erneut.",
         "mfaRequired": "Für die Anmeldung ist eine Multi-Faktor-Authentifizierung erforderlich.",
         "conditionalAccessBlocked": "Die Anmeldung wurde durch eine Richtlinie für bedingten Zugriff blockiert.",
         "userNotAssigned": "Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an deine Administration, um Zugriff anzufordern.",
@@ -5952,6 +5959,10 @@
         },
         "redirectUrlLabel": "In Entra zu registrierende Weiterleitungs-URL",
         "redirectUrlHelp": "Registrieren Sie genau diese URL als \"Web\"-Weiterleitungs-URI in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011 fehl.",
+        "domainWarning": {
+          "title": "Keine E-Mail-Domäne gesetzt",
+          "description": "Mehrere Organisationen dieses Deployments nutzen SSO. Ohne E-Mail-Domäne kann die Anmeldung Mitglieder nicht per Adresse dieser Verbindung zuordnen — sie wird stattdessen öffentlich unter ihrem Anzeigenamen auf dem SSO-Bildschirm gelistet."
+        },
         "deploymentWarning": {
           "title": "Deployment für SSO nicht vollständig konfiguriert",
           "callbackMissing": "Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies konfiguriert ist.",

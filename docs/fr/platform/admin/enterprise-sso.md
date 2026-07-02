@@ -53,6 +53,12 @@ Si un fournisseur expose OAuth2 mais pas de document de découverte, choisissez 
 
 Tale prend en charge le SAML initié par l'IdP (l'IdP envoie une assertion à l'URL ACS) et le SAML initié par le SP (un membre clique sur **Se connecter avec le SSO** et Tale redirige vers l'IdP). Les assertions signées sont requises ; les assertions chiffrées sont prises en charge si vous fournissez une paire de clés SP.
 
+## Plusieurs organisations sur un même déploiement
+
+Un déploiement peut héberger plusieurs organisations, chacune avec sa propre connexion. L’authentification est orientée selon le champ **Domaine de messagerie** : définissez-le sur chaque connexion (par exemple `example.com`), et les membres qui saisissent leur adresse e-mail sur la page de connexion atteignent l’IdP de leur organisation. Avec une seule connexion activée, le champ est facultatif — l’authentification retombe sur cette connexion. Avec plusieurs, il n’y a pas de repli : une tentative impossible à orienter demande l’adresse e-mail de l’organisation au lieu de deviner une connexion.
+
+Les connexions **sans** domaine de messagerie ne peuvent pas être atteintes par correspondance d’adresse ; l’écran SSO les liste donc sous leur **Nom affiché** pour une sélection manuelle. Ce nom est visible par quiconque sur la page de connexion — définissez un domaine de messagerie pour retirer une connexion de la liste.
+
 ## Provisionnement : rôles et équipes
 
 Chaque protocole partage une politique de provisionnement :

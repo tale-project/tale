@@ -695,6 +695,22 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               placeholder="example.com"
               {...register('domain')}
             />
+            {/* Multi-org deployments route sign-in by this domain. Leaving it
+                empty makes the connection unroutable by address — it is then
+                listed publicly by display name on the SSO screen. Warn, don't
+                block: the operator may want exactly that. */}
+            {config?.enabled &&
+              config.otherOrgsEnabled === true &&
+              !(watch('domain') ?? '').trim() && (
+                <Alert
+                  variant="warning"
+                  icon={AlertTriangle}
+                  title={t('integrations.enterpriseSso.domainWarning.title')}
+                  description={t(
+                    'integrations.enterpriseSso.domainWarning.description',
+                  )}
+                />
+              )}
           </Section>
 
           {isOidcLike ? (

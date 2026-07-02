@@ -561,6 +561,12 @@
       "signingIn": "Connexion en cours...",
       "loginButton": "Se connecter",
       "continueWithSso": "Continuer avec SSO",
+      "ssoTitle": "Se connecter avec SSO",
+      "ssoDescription": "Saisis l’adresse e-mail de ton organisation — elle détermine la connexion à utiliser.",
+      "ssoBackToLogin": "Retour à la connexion",
+      "ssoPickOrganization": "Ou choisis ton organisation",
+      "ssoEmailRequired": "Saisis l’adresse e-mail de ton organisation pour continuer avec SSO.",
+      "ssoEmailNoMatch": "L’authentification unique n’est pas configurée pour ce domaine de messagerie. Vérifie l’adresse ou contacte ton administration.",
       "continueWithPasskey": "Se connecter avec un passkey",
       "passkeyFailed": "La connexion par passkey a échoué ou a été annulée. Réessaie ou utilise ton mot de passe.",
       "wrongCredentials": "Courriel ou mot de passe incorrect",
@@ -666,6 +672,7 @@
     "sso": {
       "errors": {
         "serverError": "L’authentification unique n’a pas pu aboutir en raison d’une erreur serveur. Réessaie, ou contacte ton administration si le problème persiste.",
+        "multipleConnections": "Plusieurs organisations utilisent l’authentification unique ici. Saisis d’abord l’adresse e-mail de ton organisation, puis réessaie.",
         "mfaRequired": "Une authentification multifacteur est requise pour te connecter.",
         "conditionalAccessBlocked": "La connexion a été bloquée par une stratégie d’accès conditionnel.",
         "userNotAssigned": "Ton compte n’est pas affecté à cette application. Contacte ton administration pour demander l’accès.",
@@ -5953,6 +5960,10 @@
         },
         "redirectUrlLabel": "URL de redirection à enregistrer dans Entra",
         "redirectUrlHelp": "Enregistrez exactement cette URL comme URI de redirection « Web » dans votre inscription d'application — elle doit correspondre au caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon la connexion échoue avec AADSTS50011.",
+        "domainWarning": {
+          "title": "Aucun domaine de messagerie défini",
+          "description": "Plusieurs organisations de ce déploiement utilisent le SSO. Sans domaine de messagerie, la connexion ne peut pas orienter les membres par adresse — elle est alors listée publiquement sous son nom affiché sur l’écran SSO."
+        },
         "deploymentWarning": {
           "title": "Déploiement non entièrement configuré pour le SSO",
           "callbackMissing": "L'URL de redirection est vide car SITE_URL n'est pas défini sur le serveur. La connexion SSO échouera tant qu'il ne sera pas configuré.",
