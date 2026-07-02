@@ -174,3 +174,114 @@ describe('ClaudeCodeAdapter buildExec — baseline house rules', () => {
     expect(appendArg(exec.argv)).toContain('AGENTS.md');
   });
 });
+
+describe('ClaudeCodeAdapter buildExec — BYO native model', () => {
+  const prev = process.env.TALE_SANDBOX_CONTEXT_1M;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    else process.env.TALE_SANDBOX_CONTEXT_1M = prev;
+  });
+
+  it('maps the shipped rolling-alias default to Anthropic-native Fable', () => {
+    delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    const exec = adapter.buildExec(
+      baseSpec({
+        authMode: 'byo',
+        model: 'openrouter:~anthropic/claude-fable-latest',
+      }),
+    );
+    expect(modelArg(exec.argv)).toBe('claude-fable-5[1m]');
+    expect(exec.env.ANTHROPIC_MODEL).toBe('claude-fable-5[1m]');
+  });
+
+  it('maps every shipped Fable default ref shape (with and without prefix)', () => {
+    delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    for (const ref of [
+      '~anthropic/claude-fable-latest',
+      'openrouter:anthropic/claude-fable-5',
+      'anthropic/claude-fable-5',
+    ]) {
+      const exec = adapter.buildExec(baseSpec({ authMode: 'byo', model: ref }));
+      expect(modelArg(exec.argv)).toBe('claude-fable-5[1m]');
+    }
+  });
+
+  it('passes an explicitly specified BYO model through unchanged (no override)', () => {
+    delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    const exec = adapter.buildExec(
+      baseSpec({ authMode: 'byo', model: 'claude-opus-4-20250514' }),
+    );
+    // Not a shipped default ref → exactly as specified (plus the [1m] window
+    // marker every session gets, which Claude Code strips before the API).
+    expect(modelArg(exec.argv)).toBe('claude-opus-4-20250514[1m]');
+  });
+
+  it('leaves managed sessions on the gateway catalog ref', () => {
+    delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    const exec = adapter.buildExec(
+      baseSpec({ model: '~anthropic/claude-fable-latest' }),
+    );
+    expect(modelArg(exec.argv)).toBe('~anthropic/claude-fable-latest[1m]');
+    expect(exec.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe(
+      '~anthropic/claude-fable-latest',
+    );
+  });
+});
+
+describe('ClaudeCodeAdapter buildExec — managed fallback model', () => {
+  function fallbackArg(argv: string[]): string | undefined {
+    const i = argv.indexOf('--fallback-model');
+    return i >= 0 ? argv[i + 1] : undefined;
+  }
+
+  it('arms the availability chain and points the non-Fable slots at the fallback', () => {
+    const exec = adapter.buildExec(
+      baseSpec({
+        model: '~anthropic/claude-fable-latest',
+        fallbackModel: 'anthropic/claude-opus-4.8',
+      }),
+    );
+    expect(fallbackArg(exec.argv)).toBe('anthropic/claude-opus-4.8');
+    // Content-based Fable fallback re-runs on the OPUS slot — it must be the
+    // fallback, not the (rationed/flagged) primary.
+    expect(exec.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(
+      'anthropic/claude-opus-4.8',
+    );
+    expect(exec.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe(
+      'anthropic/claude-opus-4.8',
+    );
+    expect(exec.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(
+      'anthropic/claude-opus-4.8',
+    );
+    // The FABLE slot stays the primary — it is how Claude Code identifies the
+    // gateway id as Fable 5, which arms the fallback at all.
+    expect(exec.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe(
+      '~anthropic/claude-fable-latest',
+    );
+    expect(exec.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe(
+      '~anthropic/claude-fable-latest',
+    );
+  });
+
+  it('keeps all slots on the primary when no fallback was resolved', () => {
+    const exec = adapter.buildExec(
+      baseSpec({ model: '~anthropic/claude-fable-latest' }),
+    );
+    expect(fallbackArg(exec.argv)).toBeUndefined();
+    expect(exec.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(
+      '~anthropic/claude-fable-latest',
+    );
+  });
+
+  it('never applies to BYO (specified model, no override)', () => {
+    const exec = adapter.buildExec(
+      baseSpec({
+        authMode: 'byo',
+        model: 'claude-opus-4-20250514',
+        fallbackModel: 'anthropic/claude-opus-4.8',
+      }),
+    );
+    expect(fallbackArg(exec.argv)).toBeUndefined();
+    expect(exec.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeUndefined();
+  });
+});

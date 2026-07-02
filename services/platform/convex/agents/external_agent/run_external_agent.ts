@@ -436,6 +436,14 @@ export const runExternalAgentTurn = internalAction({
       let visionTool = false;
       let visionModel: string | undefined; // gateway model id the hook transcribes with
       let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+      // Model-level fallback (managed only): the catalog entry's
+      // `fallbackModelId` (e.g. Opus 4.8 behind the Fable default) rides along
+      // to the adapter, which arms Claude Code's fallback chain — overload /
+      // unavailability retries AND the content-based Fable classifier
+      // fallback. The VK below is scoped to also allow it, else the gateway
+      // 403s the fallback request and the turn fails anyway.
+      let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
+      let fallbackModel: string | undefined; // gateway model id the chain requests
       if (!byo && args.modelRef && args.modelRef !== 'default') {
         try {
           const parsed = parseModelRef(args.modelRef);
@@ -449,6 +457,17 @@ export const runExternalAgentTurn = internalAction({
               (parsed.providerName === undefined ||
                 c.providerName === parsed.providerName),
           );
+          if (
+            agentEntry?.fallbackModelId !== undefined &&
+            agentEntry.fallbackModelId !== parsed.modelId
+          ) {
+            fallbackModelRef = formatModelRef({
+              providerName: agentEntry.providerName,
+              modelId: agentEntry.fallbackModelId,
+            });
+            fallbackModel =
+              resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
+          }
           if (!(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
               organizationId: args.organizationId,
@@ -466,19 +485,23 @@ export const runExternalAgentTurn = internalAction({
           }
         } catch (err) {
           // No vision model configured (resolveLanguageModel throws) or the
-          // catalog is unavailable — skip the polyfill (the agent just can't
-          // read images this turn). Never fail the turn over a convenience tool.
+          // catalog is unavailable — skip the polyfill and the fallback (the
+          // agent just runs without them this turn). Never fail the turn over
+          // a convenience feature.
           console.warn(
-            '[runExternalAgentTurn] vision polyfill resolution skipped:',
+            '[runExternalAgentTurn] vision/fallback model resolution skipped:',
             err,
           );
         }
       }
       // The session VK allows the agent's model plus (when polyfilling) the
-      // vision model the bridge calls — else the gateway 403s the vision request.
-      const allowedModels = visionModelRef
-        ? [args.modelRef, visionModelRef]
-        : [args.modelRef];
+      // vision model the bridge calls and (when configured) the fallback model
+      // — else the gateway 403s those requests.
+      const allowedModels = [
+        args.modelRef,
+        visionModelRef,
+        fallbackModelRef,
+      ].filter((ref): ref is string => ref !== undefined);
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -1094,6 +1117,9 @@ export const runExternalAgentTurn = internalAction({
               ? args.modelRef
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          // Managed model-level fallback (catalog fallbackModelId, VK-allowed
+          // above). Never sent for BYO — the user's model list is not overridden.
+          ...(fallbackModel !== undefined && { fallbackModel }),
           authMode: byo ? 'byo' : 'managed',
           ...(args.nativeWebTools !== undefined && {
             nativeWebTools: args.nativeWebTools,

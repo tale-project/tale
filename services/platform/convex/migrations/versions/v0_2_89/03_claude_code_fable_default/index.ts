@@ -5,9 +5,10 @@
  * `openrouter:anthropic/claude-opus-4.8` pin to the Fable 5 default — the
  * rolling `~anthropic/claude-fable-latest` alias first (auto-tracks
  * Anthropic's newest Fable-class model), the concrete
- * `anthropic/claude-fable-5` second — appending both catalog entries to the
- * org's `providers/openrouter.json` when absent so the new pin always
- * resolves.
+ * `anthropic/claude-fable-5` second, Opus 4.8 third (the Fable entries'
+ * `fallbackModelId` and the manual switch when Fable usage is rationed) —
+ * appending both Fable catalog entries to the org's `providers/openrouter.json`
+ * when absent so the new pin always resolves.
  *
  * Conservative by design: an org without an `openrouter` provider file is
  * skipped entirely, an operator-edited `supportedModels` is left untouched,
@@ -43,10 +44,13 @@ export const OLD_SUPPORTED_MODELS: readonly string[] = [
   'openrouter:anthropic/claude-opus-4.8',
 ];
 
-/** The new shipped default: rolling latest first, concrete Fable 5 second. */
+/** The new shipped default: rolling latest first, concrete Fable 5 second,
+ * Opus 4.8 (the Fable entries' fallbackModelId) as the manual escape hatch
+ * when Fable usage is rationed. */
 export const NEW_SUPPORTED_MODELS: readonly string[] = [
   'openrouter:~anthropic/claude-fable-latest',
   'openrouter:anthropic/claude-fable-5',
+  'openrouter:anthropic/claude-opus-4.8',
 ];
 
 /**
@@ -62,6 +66,7 @@ export const FABLE_CATALOG_MODELS: readonly ModelDefinition[] = [
     reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
     promptCaching: { mode: 'explicit-breakpoints', maxBreakpoints: 4 },
     qualityScore: 0.98,
+    fallbackModelId: 'anthropic/claude-opus-4.8',
     contextWindow: 1000000,
     maxOutputTokens: 128000,
     cost: { inputCentsPerMillion: 1000, outputCentsPerMillion: 5000 },
@@ -74,6 +79,7 @@ export const FABLE_CATALOG_MODELS: readonly ModelDefinition[] = [
     reasoning: { knob: 'budgetTokens', minBudgetTokens: 1024 },
     promptCaching: { mode: 'explicit-breakpoints', maxBreakpoints: 4 },
     qualityScore: 0.98,
+    fallbackModelId: 'anthropic/claude-opus-4.8',
     contextWindow: 1000000,
     maxOutputTokens: 128000,
     cost: { inputCentsPerMillion: 1000, outputCentsPerMillion: 5000 },
