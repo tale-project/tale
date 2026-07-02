@@ -88,7 +88,6 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 
 | Name                            | Default | Beschreibung                                                                                                                              |
 | ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`        | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                                                                             |
 | `TRUSTED_HEADERS_ENABLED`       | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                         |
 | `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                        |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |

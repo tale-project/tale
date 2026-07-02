@@ -35,7 +35,7 @@ The pipeline handles the file types that cover the bulk of org knowledge:
 - **Web pages.** HTML (`.html`) and the rendered output of a page crawl.
 - **Images.** PNG, JPG, GIF, BMP, TIFF, WEBP, with OCR applied to extract any text.
 
-A file in a format outside this list — an older Office file (`.doc`, `.xls`, `.ppt`), an archive, an arbitrary binary — still uploads and stays available as a stored file, but Tale skips the indexing pipeline for it: the row shows **Not indexed** instead of an indexing error, and agents cannot retrieve its content. The list of supported formats grows as the pipeline does.
+Two different things happen to a file the pipeline does not index. An older Office file (`.doc`, `.xls`, `.ppt`) still uploads and stays available as a stored file, but Tale skips indexing — the row shows **Not indexed** rather than an indexing error, and agents cannot retrieve its content. A type the upload gate does not accept at all — an archive, an arbitrary binary — is refused on upload with an unsupported-file-type error and never lands. The list of accepted and indexed formats grows as the pipeline does.
 
 ## The per-document lifecycle
 

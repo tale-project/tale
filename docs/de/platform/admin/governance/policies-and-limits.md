@@ -1,6 +1,6 @@
 ---
 title: Richtlinien und Limits
-description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team oder Rolle. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht.
+description: Per-Org-Limits für Token-Kosten, Anzahl Anfragen, Upload-Größe, Bildgenerierung und Feature-Zugriff — skopiert nach Benutzer, Team, Rolle oder einzelnem API-Schlüssel. Admins und Inhaber lesen das, wenn eine Last über Budget ist oder wenn ein Feature einen engeren Radius braucht.
 ---
 
 Richtlinien und Limits ist die Oberfläche, auf der du deckelst, was deine Mitglieder und Agents verbrauchen können. Budgets deckeln Tokens, Kosten und Anfragen pro Abrechnungsperiode; Feature-Kontrollen schalten Web-Suche, Code-Ausführung und Datei-Upload pro Bereich um; Upload-Richtlinie regelt Dateitypen und Größen, die ein Mitglied anhängen darf; Aufbewahrungsrichtlinie entscheidet, wie lange jeder Datentyp lebt, bevor Cleanup eingreift. Admins und Inhaber lesen diese Seite, wenn eine Last über Budget ist, wenn ein Feature für eine Untermenge von Benutzern aus sein soll, oder wenn ein Regulierer ein Aufbewahrungsfenster benennt, das vom Default abweicht.
@@ -11,7 +11,7 @@ Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen 
 
 ## Die vier Richtlinienebenen
 
-**Budgets** sind Token-, Kosten- und Anfragen-Limits pro Bereich und Periode. Bereiche sind Organisation, Rolle, Team oder Benutzer. Jede Regel trägt ein Token-Limit, ein Kosten-Limit in USD, ein optionales Anfragen-Limit und eine Warnschwelle als Prozentwert des Limits.
+**Budgets** sind Token-, Kosten- und Anfragen-Limits pro Bereich und Periode. Bereiche sind Organisation, Rolle, Team, Benutzer oder API-Schlüssel. Jede Regel trägt ein Token-Limit, ein Kosten-Limit in USD, ein optionales Anfragen-Limit und eine Warnschwelle als Prozentwert des Limits. Eine API-Schlüssel-Regel zielt auf einen einzelnen ausgestellten Schlüssel (wähle **API-Schlüssel** als Bereich, dann den Schlüssel aus **Einstellungen > API**) und deckelt nur den mit diesem Schlüssel authentifizierten Traffic — die REST- und OpenAI-kompatible API — sodass du eine einzelne Integration messen kannst, ohne die In-App-Nutzung zu berühren. Bildgenerierung wird nach Kosten und Anzahl Anfragen gemessen, nicht nach Tokens — eine Bild-Anfrage meldet keine Tokens, also deckle Bild-Ausgaben mit dem Kosten- oder Anfragen-Limit, nicht mit dem Token-Limit.
 
 **Feature-Kontrollen** schalten Web-Suche, Code-Ausführung und Datei-Upload pro Bereich um und deckeln die maximalen Kontext-Tokens für AI-Antworten. Ein Feature, das für einen Bereich aus ist, blendet die Schaltfläche im Chat aus und lehnt die Anfrage serverseitig ab.
 
@@ -21,7 +21,7 @@ Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen 
 
 ## Vorrang
 
-Alle vier Ebenen teilen sich dieselbe Bereichsleiter: Benutzer > Team > Rolle > Organisation > Default. Die engste Regel gewinnt. Wo eine Ebene ein org-weites Limit trägt (Budgets), wirkt das Limit als zusätzliche Decke über jeder engeren Regel.
+Alle vier Ebenen teilen sich dieselbe Bereichsleiter: Benutzer > Team > Rolle > Organisation > Default. Die engste Regel gewinnt. Wo eine Ebene ein org-weites Limit trägt (Budgets), wirkt das Limit als zusätzliche Decke über jeder engeren Regel. Ein API-Schlüssel-Budget steht außerhalb der Leiter als eigener, unabhängiger Topf: Es bindet den Traffic des Schlüssels selbst, unabhängig von den Benutzer-, Team- oder Org-Limits des Inhabers, sodass ein einzelner Schlüssel enger gedeckelt werden kann als die Person, die ihn ausgestellt hat.
 
 ## Aufbewahrungs-Grenzen und Freigaben
 

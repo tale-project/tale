@@ -34,8 +34,11 @@ export async function ssoAuthorizeHandler(
 ): Promise<Response> {
   // Hoisted so the catch can bounce the failure back to the login page with a
   // readable reason instead of painting a raw 500 (the one place a literal
-  // "Internal server error" page used to show).
+  // "Internal server error" page used to show). Behind the reverse proxy the
+  // request origin is the INTERNAL Convex address (unreachable from a
+  // browser), so the redirect prefers the public SITE_URL.
   const normalizedOrigin = normalizeOrigin(new URL(req.url).origin);
+  const publicOrigin = process.env.SITE_URL || normalizedOrigin;
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
@@ -146,6 +149,6 @@ export async function ssoAuthorizeHandler(
     // A misconfigured issuer (extractTenantId throws) or any other unhandled
     // failure now lands readably on the login page instead of a raw 500 — the
     // real cause is logged above for the operator.
-    return redirectWithError(normalizedOrigin, 'sso.errors.serverError');
+    return redirectWithError(publicOrigin, 'sso.errors.serverError');
   }
 }
