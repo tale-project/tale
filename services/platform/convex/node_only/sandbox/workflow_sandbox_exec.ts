@@ -693,6 +693,12 @@ export const runSandboxScript = internalAction({
         status: res.status,
         ...(result !== undefined && { result }),
         outputFileIds: res.files.map((f) => f.storageId),
+        // Name↔id pairs, like agent runs — lets a follow-up step pick a
+        // harvested artifact by name (e.g. file `return.xml` as a document).
+        outputFiles: res.files.map((f) => ({
+          name: f.path.split('/').pop() ?? f.path,
+          storageId: f.storageId,
+        })),
         ...(res.exitCode !== null && { exitCode: res.exitCode }),
         stdoutPreview: res.stdoutPreview,
         stderrPreview: res.stderrPreview,
