@@ -82,7 +82,21 @@ bunx playwright show-report services/platform/playwright-report
 
 First run: install the browser once with `bunx playwright install chromium`.
 
-`reuseExistingServer` applies outside CI: if you already have `bun run dev` on :3000, the suite reuses it — **your stack's config dir and provider keys**, not the fixtures. In that mode run with `E2E_MOCK_LLM=0` so the chat specs assert the round-trip instead of the canned text (canned-content and `chat-scenarios` assertions are skipped), and a real provider key is required.
+`reuseExistingServer` applies outside CI: if you already have `bun run dev` on :3000, the suite reuses it — **your stack's config dir and provider keys**, not the fixtures. In that mode run with `E2E_MOCK_LLM=0` so the chat specs assert the round-trip instead of the canned text (canned-content and `chat-scenarios` assertions are skipped), and a real provider key is required. The default (mock) mode cannot pass against a reused dev stack — the worker bootstrap fails fast with a diagnosis instead of a wall of bare locator timeouts.
+
+### Isolated stack next to a running dev stack
+
+To run the hermetic suite while your dev stack keeps :3000/:3210, use a worktree on another port — a separate checkout gets its **own anonymous Convex deployment** with its own state (the Convex CLI auto-picks free ports and `scripts/dev.ts` adopts them for the probes and the Vite proxy), so nothing touches your dev database:
+
+```bash
+git worktree add ../tale-e2e HEAD && cd ../tale-e2e && bun install
+cd services/platform
+PORT=3100 E2E_BASE_URL=http://localhost:3100 bunx playwright test
+```
+
+Do **not** point a hermetic run at the dev deployment instead: the env sync overwrites deployment vars (`ENCRYPTION_SECRET_HEX`, `SITE_URL`, the mock bases) and every E2E write would land in your dev data.
+
+Ambient HTTP(S) proxies (`HTTP_PROXY`/`HTTPS_PROXY`) are exempted for loopback automatically by `@tale/e2e/config` — a local proxy that answers errors for dead ports otherwise convinces Playwright's availability probe that the stack is "already up", it skips booting it, and every test dies on `ECONNREFUSED`.
 
 State hygiene: each worker signs up a fresh `e2e-*@tale.test` user and creates a fresh org; per-worker `owner-w<n>.json` storageState and per-org config dirs are gitignored. The suite never deletes shared state.
 
