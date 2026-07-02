@@ -712,6 +712,7 @@ import type * as lib_agent_response_reasoning_types from "../lib/agent_response/
 import type * as lib_agent_response_resolve_template_variables from "../lib/agent_response/resolve_template_variables.js";
 import type * as lib_agent_response_retry_policy from "../lib/agent_response/retry_policy.js";
 import type * as lib_agent_response_sanitize_prompt from "../lib/agent_response/sanitize_prompt.js";
+import type * as lib_agent_response_stop_conditions from "../lib/agent_response/stop_conditions.js";
 import type * as lib_agent_response_stream_finalizers from "../lib/agent_response/stream_finalizers.js";
 import type * as lib_agent_response_structured_response_instructions from "../lib/agent_response/structured_response_instructions.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
@@ -858,6 +859,7 @@ import type * as lib_search_strategies_documents from "../lib/search/strategies/
 import type * as lib_search_types from "../lib/search/types.js";
 import type * as lib_secret_box from "../lib/secret_box.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
+import type * as lib_skills_guidance from "../lib/skills/guidance.js";
 import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
@@ -961,6 +963,8 @@ import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta.js";
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_index from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/index.js";
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
+import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_index from "../migrations/versions/v0_2_89/03_claude_code_fable_default/index.js";
+import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_meta from "../migrations/versions/v0_2_89/03_claude_code_fable_default/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -1010,6 +1014,7 @@ import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thr
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
 import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
+import type * as node_only_sandbox_workflow_skills from "../node_only/sandbox/workflow_skills.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
@@ -2341,6 +2346,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/resolve_template_variables": typeof lib_agent_response_resolve_template_variables;
   "lib/agent_response/retry_policy": typeof lib_agent_response_retry_policy;
   "lib/agent_response/sanitize_prompt": typeof lib_agent_response_sanitize_prompt;
+  "lib/agent_response/stop_conditions": typeof lib_agent_response_stop_conditions;
   "lib/agent_response/stream_finalizers": typeof lib_agent_response_stream_finalizers;
   "lib/agent_response/structured_response_instructions": typeof lib_agent_response_structured_response_instructions;
   "lib/agent_response/types": typeof lib_agent_response_types;
@@ -2487,6 +2493,7 @@ declare const fullApi: ApiFromModules<{
   "lib/search/types": typeof lib_search_types;
   "lib/secret_box": typeof lib_secret_box;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
+  "lib/skills/guidance": typeof lib_skills_guidance;
   "lib/skills/precedence": typeof lib_skills_precedence;
   "lib/sops": typeof lib_sops;
   "lib/strip_nulls": typeof lib_strip_nulls;
@@ -2590,6 +2597,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta;
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/index": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_index;
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
+  "migrations/versions/v0_2_89/03_claude_code_fable_default/index": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_index;
+  "migrations/versions/v0_2_89/03_claude_code_fable_default/meta": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
@@ -2639,6 +2648,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
   "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
+  "node_only/sandbox/workflow_skills": typeof node_only_sandbox_workflow_skills;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
