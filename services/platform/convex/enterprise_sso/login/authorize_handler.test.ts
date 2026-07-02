@@ -62,6 +62,25 @@ describe('ssoAuthorizeHandler — failure path is a readable redirect, not a 500
     expect(body).not.toContain('Internal server error');
   });
 
+  it('prefers SITE_URL over the internal request origin for the error redirect', async () => {
+    // Behind the reverse proxy the request origin is the internal Convex
+    // address — the browser can only reach the public SITE_URL.
+    process.env.SITE_URL = 'https://app.example.com';
+    const ctx = {
+      runQuery: vi.fn().mockRejectedValue(new Error('boom')),
+      runAction: vi.fn(),
+    } as unknown as ActionCtx;
+
+    const url = new URL('http://127.0.0.1:3211/api/sso/authorize');
+    const res = await ssoAuthorizeHandler(ctx, new Request(url.toString()));
+    delete process.env.SITE_URL;
+
+    expect(res.status).toBe(302);
+    const target = new URL(res.headers.get('Location') as string);
+    expect(target.origin).toBe('https://app.example.com');
+    expect(target.pathname).toBe('/log-in');
+  });
+
   it('redirects to the login page when BETTER_AUTH_SECRET is unset', async () => {
     // A missing secret is a deployment misconfig; assert it does not 500 either
     // (this branch already returned a 500 body before — keep it non-fatal for
