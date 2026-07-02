@@ -32,9 +32,34 @@ const DEFAULT_PROJECTS: PlaywrightTestConfig['projects'] = [
   { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
 ];
 
+/**
+ * Exempt loopback from any ambient HTTP(S) proxy for this runner and every
+ * child it spawns (webServers, browsers). Playwright's webServer availability
+ * probe follows the proxy env vars, and a local proxy that answers an HTTP
+ * error for unreachable loopback ports makes the probe read a dead port as
+ * "already available" — the runner then skips booting the stack and every
+ * test dies on ECONNREFUSED. Appends rather than overwrites, and leaves the
+ * proxy itself intact for genuine egress (package/binary downloads).
+ */
+function exemptLoopbackFromProxy(env: NodeJS.ProcessEnv): void {
+  for (const key of ['NO_PROXY', 'no_proxy'] as const) {
+    const entries = new Set(
+      (env[key] ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    );
+    entries.add('localhost');
+    entries.add('127.0.0.1');
+    entries.add('::1');
+    env[key] = [...entries].join(',');
+  }
+}
+
 export function createPlaywrightConfig(
   options: CreatePlaywrightConfigOptions,
 ): PlaywrightTestConfig {
+  exemptLoopbackFromProxy(process.env);
   const {
     testDir,
     port,
