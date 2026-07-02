@@ -9,7 +9,7 @@
  */
 
 import { paginationOptsValidator } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -45,7 +45,12 @@ async function getAuthContext(
   organizationId: string,
 ): Promise<{ userId: string; role: string; teamIds: string[] }> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  if (!authUser) {
+    throw new ConvexError({
+      code: 'UNAUTHENTICATED',
+      message: 'Unauthenticated',
+    });
+  }
   const member = await getOrganizationMember(ctx, organizationId, authUser);
   const teamIds = await getUserTeamIds(ctx, member.userId);
   return { userId: member.userId, role: member.role, teamIds };
@@ -61,14 +66,24 @@ async function loadAccessibleProject(
   canEdit: boolean;
 }> {
   const project = await ctx.db.get(projectId);
-  if (!project) throw new Error('PROJECT_NOT_FOUND');
+  if (!project) {
+    throw new ConvexError({
+      code: 'PROJECT_NOT_FOUND',
+      message: 'PROJECT_NOT_FOUND',
+    });
+  }
   // Active-org coherence: the task/project must belong to the caller's ACTIVE
   // org, not merely an org they are a member of — otherwise a carried-over
   // cross-org id resolves to another org's tasks. See assert_active_org.
   assertActiveOrg(project.organizationId, activeOrgId);
   const auth = await getAuthContext(ctx, project.organizationId);
   const access = checkProjectAccess(project, auth.teamIds, auth.role);
-  if (!access.canRead) throw new Error('TASK_FORBIDDEN');
+  if (!access.canRead) {
+    throw new ConvexError({
+      code: 'TASK_FORBIDDEN',
+      message: 'TASK_FORBIDDEN',
+    });
+  }
   return { project, auth, canEdit: access.canEdit };
 }
 
@@ -682,10 +697,20 @@ export const mentionTriggerPreview = query({
     let task: Doc<'tasks'> | null = null;
     if (args.taskId) {
       task = await ctx.db.get(args.taskId);
-      if (!task) throw new Error('TASK_NOT_FOUND');
+      if (!task) {
+        throw new ConvexError({
+          code: 'TASK_NOT_FOUND',
+          message: 'TASK_NOT_FOUND',
+        });
+      }
     }
     const projectId = task?.projectId ?? args.projectId;
-    if (!projectId) throw new Error('TASK_OR_PROJECT_REQUIRED');
+    if (!projectId) {
+      throw new ConvexError({
+        code: 'TASK_OR_PROJECT_REQUIRED',
+        message: 'TASK_OR_PROJECT_REQUIRED',
+      });
+    }
     const { project } = await loadAccessibleProject(
       ctx,
       projectId,
