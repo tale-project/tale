@@ -26,7 +26,9 @@ import {
 } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import { createSpawnAgentTool } from '../../agent_tools/spawn_agent/create_spawn_agent_tool';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
+import { createUpdateProgressTool } from '../../agent_tools/update_progress/update_progress_tool';
 import { routeSeedValidator, routeTuningValidator } from '../../agents/schema';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { recordFailure } from '../../providers/circuit_breaker';
@@ -69,7 +71,7 @@ import { buildBrandingContext } from './branding_context';
 import { buildHooksFromConfig } from './build_hooks';
 import {
   buildIntegrationTools,
-  buildDelegationTools,
+  buildEscalationTools,
   buildWorkflowTools,
   buildMcpTools,
   buildToolsSummary,
@@ -263,6 +265,13 @@ const runGenerationArgs = {
   /** Cache pre-warm: build the real tools + stable system prefix and issue a
    * single throwaway priming call, then return — no persistence/streaming. */
   prewarm: v.optional(v.boolean()),
+  /**
+   * Set when this generation IS a spawned agent-on-demand job (threadId is
+   * then the job's transcript thread). Splices the worker-baseline
+   * `update_progress` tool in and suppresses spawn/escalation building —
+   * jobs cannot spawn jobs (recursion guard).
+   */
+  jobRun: v.optional(v.object({ jobThreadId: v.string() })),
 };
 type RunGenerationArgs = ObjectType<typeof runGenerationArgs>;
 
@@ -370,39 +379,71 @@ export async function runGenerationCore(
       mcpExtraTools,
       integrationExtraTools,
       skillSnapshot,
-      delegationResult,
+      escalationResult,
       workflowExtraTools,
       brandingSystemPromptAppend,
+      orgLocale,
     ] = await Promise.all([
       fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
       buildMcpTools(ctx, organizationId),
       buildIntegrationTools(ctx, effectiveConfig, organizationId),
-      // orgSlug/orgLocale are awaited transitively via these dependent
-      // builders (so resolveOrgSlug errors still surface); not needed
-      // standalone after the block.
+      // orgSlug is awaited transitively via these dependent builders (so
+      // resolveOrgSlug errors still surface); not needed standalone after
+      // the block.
       orgSlugPromise.then((s) =>
         buildSkillContext(ctx, s, agentConfig.skillBindings),
       ),
-      Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
-        buildDelegationTools(ctx, effectiveConfig, organizationId, s, l),
-      ),
+      args.jobRun
+        ? undefined
+        : Promise.all([orgSlugPromise, orgLocalePromise]).then(([s, l]) =>
+            buildEscalationTools(effectiveConfig, organizationId, s, l),
+          ),
       orgSlugPromise.then((s) => buildWorkflowTools(ctx, effectiveConfig, s)),
       // Corporate-identity defaults for presentation generation. Empty unless
       // the agent binds the `pptx` skill AND the org has branding configured.
       orgSlugPromise.then((s) =>
         buildBrandingContext(s, agentConfig.skillBindings),
       ),
+      orgLocalePromise,
     ]);
 
-    // Extract delegation tools and instructions append
+    // Extract escalation tool and chain-of-command instructions append
     let delegationExtraTools: Record<string, unknown> | undefined;
     let delegationInstructionsAppend = '';
-    if (delegationResult) {
-      delegationExtraTools = delegationResult.tools;
-      delegationInstructionsAppend = delegationResult.instructionsAppend;
-      debugLog('Built delegation tools', {
+    if (escalationResult) {
+      delegationExtraTools = escalationResult.tools;
+      delegationInstructionsAppend = escalationResult.instructionsAppend;
+      debugLog('Built escalation tool', {
         names: Object.keys(delegationExtraTools),
       });
+    }
+
+    // Agent-on-demand: primary chat generations get `spawn_agent` (replaces
+    // the org-chart delegate_* tools); a spawned job run gets the
+    // worker-baseline `update_progress` instead — jobs cannot spawn jobs.
+    if (args.jobRun) {
+      const updateProgress = createUpdateProgressTool();
+      delegationExtraTools = {
+        ...delegationExtraTools,
+        [updateProgress.name]: updateProgress.tool,
+      };
+    } else if (!agentConfig.delegationDisabled) {
+      const spawnTool = createSpawnAgentTool({
+        parentConfig: agentConfig,
+        parentAgentSlug: args.agentSlug ?? agentConfig.name,
+        parentModel: model,
+        parentProvider: args.provider,
+        organizationId,
+        orgLocale,
+        skillSnapshot,
+        runGeneration: (jobCtx, jobArgs) =>
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- assembled in create_spawn_agent_tool with exactly these fields
+          runGenerationCore(jobCtx, jobArgs as unknown as RunGenerationArgs),
+      });
+      delegationExtraTools = {
+        ...delegationExtraTools,
+        [spawnTool.name]: spawnTool.tool,
+      };
     }
 
     if (workflowExtraTools) {

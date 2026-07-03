@@ -1,9 +1,9 @@
 /**
- * Router + delegation scaffold text.
+ * Router + escalation scaffold text.
  *
  * Only the FIXED scaffold is registry-owned; the dynamic roster/examples/hints
- * (router) and the delegate line list (delegation) are assembled at the call
- * site. Delegation chrome is localized (en/de/fr) with `en` fallback.
+ * (router) are assembled at the call site. Escalation chrome is localized
+ * (en/de/fr) with `en` fallback.
  */
 
 import type { PromptEntry } from '../types';
@@ -32,74 +32,10 @@ Guidance:
 - "capabilities": list only the capability slugs the chosen assistant needs for THIS message (from the assistant's tools above); omit when none are needed.`,
 };
 
-export const plannerHeaderEntry: PromptEntry = {
-  key: 'orchestrator.planner.header',
-  usedBy: ['agents/orchestrate/plan_helpers.ts:buildPlannerInstructions'],
-  template: `You are a task planner. You decompose a user's message into an ordered plan of sub-tasks, each handled by the single best specialist assistant, so the right expert handles each part rather than one generalist attempting everything.
-
-Available assistants (slug: description | tools):`,
-};
-
-export const plannerFooterEntry: PromptEntry = {
-  key: 'orchestrator.planner.footer',
-  required: ['defaultSlug', 'maxSteps'],
-  usedBy: ['agents/orchestrate/plan_helpers.ts:buildPlannerInstructions'],
-  template: `Decide whether the message needs decomposition into MULTIPLE specialist sub-tasks.
-- If a SINGLE assistant can fully handle it, return {"decompose": false, "primaryAgentSlug": "<best slug>"}.
-- Otherwise return {"decompose": true, "primaryAgentSlug": "<slug that writes the final answer>", "steps": [ ... ]}.
-
-Each step: {"id": "s1", "agentSlug": "<one of the slugs above>", "subTask": "<precise self-contained instruction>", "dependsOn": ["<id of an earlier step>"]}.
-
-Rules:
-- Use AT MOST {{maxSteps}} steps, and the FEWEST that fully cover the request. Do not invent work.
-- Use "dependsOn" ONLY when a step genuinely needs an earlier step's output; independent steps run in parallel.
-- Every "agentSlug" MUST be one of the slugs listed above. If none clearly fits a step, use "{{defaultSlug}}".
-- Write each "subTask" in the user's own language, fully self-contained (the specialist does not see the other steps).
-Reply with ONLY the JSON object.`,
-};
-
-export const delegationHeaderEntry: PromptEntry = {
-  key: 'delegation.header',
-  usedBy: [
-    'agent_tools/delegation/create_delegation_tool.ts:DELEGATION_SCAFFOLD',
-  ],
-  localized: {
-    en: 'DELEGATION AGENTS',
-    de: 'DELEGATIONS-AGENTEN',
-    fr: 'AGENTS DE DÉLÉGATION',
-  },
-};
-
-export const delegationIntroEntry: PromptEntry = {
-  key: 'delegation.intro',
-  usedBy: [
-    'agent_tools/delegation/create_delegation_tool.ts:DELEGATION_SCAFFOLD',
-  ],
-  localized: {
-    en: 'You can delegate tasks to these specialized agents:',
-    de: 'Du kannst Aufgaben an diese spezialisierten Agenten delegieren:',
-    fr: 'Vous pouvez déléguer des tâches à ces agents spécialisés :',
-  },
-};
-
-export const delegationOutroEntry: PromptEntry = {
-  key: 'delegation.outro',
-  usedBy: [
-    'agent_tools/delegation/create_delegation_tool.ts:DELEGATION_SCAFFOLD',
-  ],
-  localized: {
-    en: "Call the appropriate delegation tool with the user's request. Preserve the user's full intent.",
-    de: 'Rufe das passende Delegations-Werkzeug mit der Anfrage des Nutzers auf. Bewahre die volle Absicht des Nutzers.',
-    fr: "Appelez l'outil de délégation approprié avec la requête de l'utilisateur. Préservez l'intention complète de l'utilisateur.",
-  },
-};
-
 export const escalationSectionEntry: PromptEntry = {
   key: 'escalation.section',
   required: ['manager'],
-  usedBy: [
-    'lib/agent_chat/internal_actions.ts:buildDelegationTools (escalation scaffold)',
-  ],
+  usedBy: ['lib/agent_chat/build_tools.ts:buildEscalationTools'],
   localized: {
     en: `CHAIN OF COMMAND
 You report to {{manager}}. When you are blocked, lack a needed permission or tool, or face a decision above your authority, use the \`escalate\` tool — state the reason, what blocks you, and what you need. Escalate instead of guessing or silently giving up; do NOT escalate work you can do yourself.`,
@@ -112,9 +48,7 @@ Vous rendez compte à {{manager}}. Si vous êtes bloqué, qu'il vous manque une 
 
 export const escalationSectionRootEntry: PromptEntry = {
   key: 'escalation.sectionRoot',
-  usedBy: [
-    'lib/agent_chat/internal_actions.ts:buildDelegationTools (escalation scaffold)',
-  ],
+  usedBy: ['lib/agent_chat/build_tools.ts:buildEscalationTools'],
   localized: {
     en: `CHAIN OF COMMAND
 You are a top-level agent: you report to the humans of this organization. When you are blocked, lack a needed permission or tool, or face a decision above your authority, use the \`escalate\` tool to surface it to them — state the reason, what blocks you, and what you need. Do NOT escalate work you can do yourself.`,

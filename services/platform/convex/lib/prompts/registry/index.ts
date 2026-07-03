@@ -8,13 +8,8 @@
 
 import { jobWorkerPreambleEntry } from './entries/jobs';
 import {
-  delegationHeaderEntry,
-  delegationIntroEntry,
-  delegationOutroEntry,
   escalationSectionEntry,
   escalationSectionRootEntry,
-  plannerFooterEntry,
-  plannerHeaderEntry,
   routerScaffoldFooterEntry,
   routerScaffoldHeaderEntry,
 } from './entries/routing';
@@ -51,14 +46,9 @@ const ENTRIES = [
   visionAnalyzerEntry,
   cronGeneratorEntry,
   workflowTerminationEntry,
-  // routing / delegation scaffolds
+  // routing / escalation scaffolds
   routerScaffoldHeaderEntry,
   routerScaffoldFooterEntry,
-  plannerHeaderEntry,
-  plannerFooterEntry,
-  delegationHeaderEntry,
-  delegationIntroEntry,
-  delegationOutroEntry,
   escalationSectionEntry,
   escalationSectionRootEntry,
   // agent-on-demand jobs

@@ -79,31 +79,19 @@ vi.mock('../../agent_tools/integrations/create_bound_integration_tool', () => ({
   ),
 }));
 
-const mockLoadDelegateAgents = vi.fn();
-// Delegates are chart-derived now: give the test agent one direct report so
-// the delegation builder has work to do (the real chart math stays live).
+const mockReadWorkforceRoster = vi.fn();
+// Escalation is chart-derived: give the test agent one direct report so the
+// escalation builder has work to do (the real chart math stays live). The
+// delegate_* tools that used to build from the same chart were replaced by
+// spawn_agent, which builds synchronously from the parent config.
 vi.mock('../../agents/workforce_ops', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
   return {
     ...mod,
-    readWorkforceRoster: vi.fn(async () => [
-      { slug: 'test-agent', delegates: ['writer-agent'] },
-      { slug: 'writer-agent' },
-    ]),
+    readWorkforceRoster: (...args: unknown[]) =>
+      mockReadWorkforceRoster(...args),
   };
 });
-
-vi.mock('../../agent_tools/delegation/load_delegation_agents', () => ({
-  loadDelegateAgents: (...args: unknown[]) => mockLoadDelegateAgents(...args),
-}));
-
-vi.mock('../../agent_tools/delegation/create_delegation_tool', () => ({
-  createDelegationTool: vi.fn((delegate: { name: string }) => ({
-    name: `delegate_${delegate.name}`,
-    tool: { description: `Delegate to ${delegate.name}` },
-  })),
-  buildDelegationInstructionsSection: vi.fn(() => '\n\nDelegation info'),
-}));
 
 vi.mock('../../agent_tools/workflows/create_bound_workflow_tool', () => ({
   createBoundWorkflowTool: vi.fn(() => ({
@@ -123,7 +111,10 @@ vi.mock('../../agent_tools/tool_names', () => ({
 }));
 
 vi.mock('../../agent_tools/tool_registry', () => ({
-  getToolRegistryMap: vi.fn(() => ({})),
+  getToolRegistryMap: vi.fn(() => ({
+    web: { name: 'web', availability: 'any', tool: {} },
+    rag_search: { name: 'rag_search', availability: 'any', tool: {} },
+  })),
 }));
 
 vi.mock('../../providers/circuit_breaker', () => ({
@@ -294,8 +285,9 @@ describe('runAgentGeneration — tool building parallelization', () => {
       metadata: {},
     });
 
-    mockLoadDelegateAgents.mockResolvedValue([
-      { name: 'writer-agent', instructions: 'write stuff' },
+    mockReadWorkforceRoster.mockResolvedValue([
+      { slug: 'test-agent', delegates: ['writer-agent'] },
+      { slug: 'writer-agent' },
     ]);
 
     const modelResult = {
@@ -346,12 +338,15 @@ describe('runAgentGeneration — tool building parallelization', () => {
       },
     );
 
-    mockLoadDelegateAgents.mockImplementation(() => {
-      callTimestamps.push({ name: 'delegation', start: Date.now() });
+    mockReadWorkforceRoster.mockImplementation(() => {
+      callTimestamps.push({ name: 'escalation', start: Date.now() });
       return new Promise((resolve) =>
         setTimeout(
           () =>
-            resolve([{ name: 'writer-agent', instructions: 'write stuff' }]),
+            resolve([
+              { slug: 'test-agent', delegates: ['writer-agent'] },
+              { slug: 'writer-agent' },
+            ]),
           15,
         ),
       );
@@ -403,7 +398,7 @@ describe('runAgentGeneration — tool building parallelization', () => {
     const names = callTimestamps.map((c) => c.name);
     expect(names).toContain('integration:slack');
     expect(names).toContain('integration:jira');
-    expect(names).toContain('delegation');
+    expect(names).toContain('escalation');
     expect(names).toContain('workflow');
     expect(names).toContain('governance');
 
@@ -422,7 +417,7 @@ describe('runAgentGeneration — tool building parallelization', () => {
     // Verify integration tools were fetched for both bindings
     expect(mockFetchOperationsWithSchema).toHaveBeenCalledTimes(2);
 
-    // Verify delegation agents were loaded
-    expect(mockLoadDelegateAgents).toHaveBeenCalledTimes(1);
+    // Verify the chart was read for the escalation tool
+    expect(mockReadWorkforceRoster).toHaveBeenCalledTimes(1);
   });
 });

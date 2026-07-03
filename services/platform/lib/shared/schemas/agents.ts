@@ -269,13 +269,14 @@ export const agentJsonSchema = z
     conversationStarters: z.array(z.string().max(200)).max(4).optional(),
     visibleInChat: z.boolean().optional(),
     /**
-     * Organigram delegation edges: the slugs of the agents THIS agent
-     * delegates to (its direct reports). Many-to-many — an agent may be
-     * delegated to by several agents, and delegate to many; the only
-     * forbidden edge is a self-edge (cycles are allowed). Shape-only
-     * validation here — existence is enforced at write time and degrades
-     * gracefully at read time (dangling targets dropped + warning). The
-     * organigram canvas/assistant are the single write paths.
+     * @deprecated Organigram edges: the slugs of this agent's direct
+     * reports. The `delegate_*` chat tools these edges used to produce were
+     * replaced by `spawn_agent` (agent-on-demand jobs) — a config carrying
+     * `delegates` still loads WITHOUT error, and the edges still feed the
+     * org chart for the task-domain manager behaviors (`escalate`, epic
+     * decompose, SLA hand-up) until the workforce follow-up replaces the
+     * chart with explicit project settings. Shape-only validation here —
+     * dangling targets are dropped with a warning at read time.
      */
     delegates: z
       .array(z.string().min(1).max(64).regex(AGENT_SLUG_REGEX))
