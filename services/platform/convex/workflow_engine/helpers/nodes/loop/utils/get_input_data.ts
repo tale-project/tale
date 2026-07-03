@@ -17,7 +17,22 @@ export function getInputData(
     throw new Error('Loop items configuration is required (config.items)');
   }
 
-  const resolved = replaceVariables(itemsConfig, vars);
+  // `config.items` has ALREADY been resolved from its `{{…}}` template by the
+  // generic step-config pass (execute_step_handler → replaceVariables) before
+  // the loop node runs, so only a still-raw template string needs resolving
+  // here. A value that is already concrete — the normal case: the resolved
+  // array of items — must be used AS-IS. Re-running replaceVariables over it
+  // would recurse into every element and RE-INTERPRET any `{{…}}` inside as a
+  // JEXL expression; loop items are routinely user-controlled (e.g. GitHub
+  // issue titles/bodies), which legitimately contain `{{…}}` (spreads,
+  // ellipses, Handlebars/Vue snippets). That double pass turns benign text
+  // into a `Token . unexpected` JEXL crash that kills the whole loop before a
+  // single item is processed — and it isn't caught by continueOnError, which
+  // only guards the loop body, not item resolution.
+  const resolved =
+    typeof itemsConfig === 'string'
+      ? replaceVariables(itemsConfig, vars)
+      : itemsConfig;
 
   if (!Array.isArray(resolved)) {
     throw new Error(

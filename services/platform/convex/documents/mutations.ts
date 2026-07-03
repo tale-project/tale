@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   isAllowedDocumentUpload,
@@ -38,12 +38,18 @@ export const updateDocument = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
-      throw new Error('Document not found');
+      throw new ConvexError({
+        code: 'DOCUMENT_NOT_FOUND',
+        message: 'Document not found',
+      });
     }
 
     await getOrganizationMember(ctx, document.organizationId, authUser);
@@ -64,12 +70,18 @@ export const deleteDocument = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
-      throw new Error('Document not found');
+      throw new ConvexError({
+        code: 'DOCUMENT_NOT_FOUND',
+        message: 'Document not found',
+      });
     }
 
     await getOrganizationMember(ctx, document.organizationId, authUser);
@@ -132,7 +144,10 @@ export const createDocumentFromUpload = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -153,15 +168,18 @@ export const createDocumentFromUpload = mutation({
       args.fileSize ?? undefined,
     );
     if (!policyCheck.allowed) {
-      throw new Error(
-        policyCheck.reason ?? 'Upload rejected by organization policy',
-      );
+      throw new ConvexError({
+        code: 'UPLOAD_POLICY_REJECTED',
+        message: policyCheck.reason ?? 'Upload rejected by organization policy',
+      });
     }
 
     if (!isAllowedDocumentUpload(resolvedContentType, args.fileName)) {
-      throw new Error(
-        'Unsupported file type. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
-      );
+      throw new ConvexError({
+        code: 'UNSUPPORTED_FILE_TYPE',
+        message:
+          'Unsupported file type. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
+      });
     }
 
     let effectiveTeamId = args.teamId;
@@ -169,12 +187,18 @@ export const createDocumentFromUpload = mutation({
     if (args.folderId) {
       const folder = await ctx.db.get(args.folderId);
       if (!folder || folder.organizationId !== args.organizationId) {
-        throw new Error('Folder not found');
+        throw new ConvexError({
+          code: 'FOLDER_NOT_FOUND',
+          message: 'Folder not found',
+        });
       }
       if (folder.teamId) {
         const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
         if (!hasTeamAccess(folder, userTeamIds)) {
-          throw new Error('Folder not accessible');
+          throw new ConvexError({
+            code: 'FOLDER_NOT_ACCESSIBLE',
+            message: 'Folder not accessible',
+          });
         }
         effectiveTeamId = folder.teamId;
       }

@@ -13,7 +13,7 @@ import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
-  HelpCircle,
+  BookOpen,
   Monitor,
   Sun,
   Moon,
@@ -552,9 +552,9 @@ export function UserButton({
     helpGroup.push(
       {
         type: 'item',
-        label: t('userButton.helpFeedback'),
-        icon: HelpCircle,
-        href: 'https://tale.dev/contact',
+        label: t('userButton.documentation'),
+        icon: BookOpen,
+        href: 'https://tale.dev/docs',
         external: true,
         className: 'py-2.5',
       },

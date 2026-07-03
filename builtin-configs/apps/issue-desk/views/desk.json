@@ -40,6 +40,7 @@
                 "query": {
                   "path": "tasks/queries:listExternalKeysByProject",
                   "args": {
+                    "organizationId": "$orgId",
                     "projectId": "$projectId",
                     "externalSystem": "github"
                   }
@@ -91,6 +92,7 @@
                 "path": "tasks/queries:listTasksByProjectPaginated",
                 "args": {
                   "projectId": "$projectId",
+                  "organizationId": "$orgId",
                   "externalSystem": "github"
                 }
               },

@@ -186,6 +186,17 @@ export const ssoConnectionViewSchema = z.object({
   samlSpMetadataUrl: z.string().nullable(),
   samlAcsUrl: z.string().nullable(),
   oidcCallbackUrl: z.string().nullable(),
+  /** Deployment env prerequisites the admin form warns on (server-read). */
+  deployment: z
+    .object({
+      siteUrlSet: z.boolean(),
+      basePathSet: z.boolean(),
+      authSecretSet: z.boolean(),
+    })
+    .optional(),
+  /** Another org on this deployment also has an enabled connection — without
+   *  an email domain this one is unroutable by address (form warns). */
+  otherOrgsEnabled: z.boolean().optional(),
 });
 export type SsoConnectionView = z.infer<typeof ssoConnectionViewSchema>;
 

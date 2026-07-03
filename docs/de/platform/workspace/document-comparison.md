@@ -11,7 +11,7 @@ Der Dialog lebt neben den Dokumenten, die du vergleichst: öffne ihn aus **Wisse
 
 Zwei Auswahlfelder sitzen nebeneinander: **Basis-Dokument** links, **Vergleichs-Dokument** rechts. Jedes Feld hat zwei Tabs — **Hochladen** und **Vorhandene** — und beide Tabs füllen denselben Slot.
 
-Der Hochladen-Tab nimmt jedes Format, das die Wissensdatenbank-Pipeline bereits beherrscht: PDF, DOCX, DOC, XLSX, PPTX, Plaintext, Markdown, CSV. Die Datei lädt in Tales Objektspeicher, denselben Ort, an dem Chat-Anhänge und Bibliotheks-Dokumente leben; sie wird nicht indexiert und nicht an einen Agent gebunden, der Upload ist also ein einmaliger Input für diesen Diff und sonst nichts. Der Vorhandene-Tab listet jedes Dokument in der Bibliothek mit herunterladbarer Datei — wähle eines über die durchsuchbare Auswahl und der Slot füllt sich mit dem Namen des Dokuments.
+Der Hochladen-Tab nimmt jedes Format, das die Wissensdatenbank-Pipeline bereits beherrscht: PDF, DOCX, DOC, ODT, XLSX, PPTX, Plaintext, Markdown, CSV. Die Datei lädt in Tales Objektspeicher, denselben Ort, an dem Chat-Anhänge und Bibliotheks-Dokumente leben; sie wird nicht indexiert und nicht an einen Agent gebunden, der Upload ist also ein einmaliger Input für diesen Diff und sonst nichts. Der Vorhandene-Tab listet jedes Dokument in der Bibliothek mit herunterladbarer Datei — wähle eines über die durchsuchbare Auswahl und der Slot füllt sich mit dem Namen des Dokuments.
 
 Misch die Tabs frei. Vergleich zwei Uploads gegeneinander, wenn keine Version in der Bibliothek ist, vergleich einen Upload gegen ein vorhandenes Bibliotheks-Dokument, wenn du sehen willst, was ein eingehender Entwurf ändert, oder vergleich zwei Bibliotheks-Dokumente, wenn du sie im Wissensbereich versioniert hast.
 

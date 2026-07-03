@@ -53,6 +53,12 @@ Wenn ein Anbieter OAuth2, aber kein Discovery-Dokument bietet, wählen Sie **OAu
 
 Tale unterstützt sowohl IdP-initiiertes SAML (der IdP sendet eine Assertion an die ACS-URL) als auch SP-initiiertes SAML (ein Mitglied klickt auf **Mit SSO anmelden** und Tale leitet zum IdP weiter). Signierte Assertions sind erforderlich; verschlüsselte Assertions werden unterstützt, wenn Sie ein SP-Schlüsselpaar bereitstellen.
 
+## Mehrere Organisationen auf einem Deployment
+
+Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherbergen. Die Anmeldung wird über das Feld **E-Mail-Domäne** zugeordnet: Setzen Sie es auf jeder Verbindung (zum Beispiel `example.com`), dann erreichen Mitglieder, die ihre E-Mail-Adresse auf der Anmeldeseite eingeben, den IdP ihrer Organisation. Bei einer einzigen aktivierten Verbindung ist das Feld optional — die Anmeldung fällt auf diese Verbindung zurück. Bei mehreren gibt es keinen Rückfall: Eine Anmeldung, die sich nicht zuordnen lässt, fragt nach der E-Mail-Adresse der Organisation, statt eine Verbindung zu raten.
+
+Verbindungen **ohne** E-Mail-Domäne sind über den Adressabgleich nicht erreichbar; der SSO-Bildschirm listet sie deshalb unter ihrem **Anzeigename** zur manuellen Auswahl auf. Dieser Anzeigename ist auf der Anmeldeseite für alle sichtbar — setzen Sie eine E-Mail-Domäne, um eine Verbindung von der Liste fernzuhalten.
+
 ## Bereitstellung: Rollen und Teams
 
 Jedes Protokoll teilt sich eine Bereitstellungsrichtlinie:
@@ -65,7 +71,7 @@ Jedes Protokoll teilt sich eine Bereitstellungsrichtlinie:
 
 Mit SCIM überträgt Ihr IdP Änderungen, ohne dass sich jemand anmelden muss. Klicken Sie im Abschnitt **SCIM-Bereitstellung** auf **Token generieren** — kopieren Sie es einmalig (es wird nicht erneut angezeigt) — und fügen Sie es zusammen mit der angezeigten **SCIM-Basis-URL** in die Bereitstellungseinstellungen Ihres IdP ein. Der IdP authentifiziert sich mit dem Token als Bearer-Anmeldedaten; Tale ermittelt die Organisation aus dem Token, das damit die Mandantengrenze bildet.
 
-Tale implementiert SCIM 2.0 **Users** und **Groups**: anlegen, lesen, auflisten (mit `userName`/`displayName`-Filtern), ersetzen, patchen und löschen. Bereitgestellte Benutzer entsprechen Organisationsmitgliedern, Gruppen entsprechen Teams. **Die Deaktivierung ist sanft** — setzt der IdP einen Benutzer inaktiv (`active: false`) oder sendet ein Löschen, wird die Rolle des Mitglieds auf `disabled` gesetzt (was den Zugriff entzieht), statt es hart zu löschen, sodass eine Reaktivierung die vorherige Rolle wiederherstellt.
+Tale implementiert SCIM 2.0 **Users** und **Groups**: anlegen, lesen, auflisten (mit `userName`/`displayName`-Filtern), ersetzen, patchen und löschen. Bereitgestellte Benutzer entsprechen Organisationsmitgliedern, Gruppen entsprechen Teams. **Die Deaktivierung ist sanft** — setzt der IdP einen Benutzer inaktiv (`active: false`), wird die Rolle des Mitglieds auf `disabled` gesetzt (was den Zugriff entzieht), und eine Reaktivierung stellt die vorherige Rolle wieder her. Ein SCIM-**Löschen** entfernt die Mitgliedschaft aus der Organisation; das Benutzerkonto selbst bleibt bestehen, und eine erneute Bereitstellung fügt es mit der Standardrolle der Verbindung wieder hinzu. Der Inhaber der Organisation kann über SCIM nie entfernt werden.
 
 ## Überprüfung
 

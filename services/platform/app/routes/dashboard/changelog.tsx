@@ -10,6 +10,7 @@ import { useAction } from 'convex/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 
+import { ChangelogBackButton } from '@/app/features/changelog/components/changelog-back-button';
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { api } from '@/convex/_generated/api';
@@ -166,6 +167,7 @@ function ChangelogPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
+        <ChangelogBackButton />
         <VStack gap={4}>
           <h1 className="text-fg-base text-2xl font-semibold">
             {t('viewer.heading')}
@@ -210,6 +212,7 @@ function ChangelogPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl px-4 py-10">
+        <ChangelogBackButton />
         <VStack gap={2} className="mb-6">
           <h1 className="text-fg-base text-2xl font-semibold">
             {t('viewer.heading')}

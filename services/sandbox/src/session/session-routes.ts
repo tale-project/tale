@@ -440,7 +440,21 @@ export class SessionRoutes {
     return jsonResponse({ sessions }, 200);
   }
 
-  async handleDestroy(sessionId: string): Promise<Response> {
+  async handleDestroy(
+    sessionId: string,
+    opts: { ifIdle?: boolean } = {},
+  ): Promise<Response> {
+    // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
+    // thread-session teardown) must never destroy a session another turn is
+    // actively executing in — two turns can share one thread session (e.g.
+    // the model invoking the same delegate twice in parallel onto one
+    // sub-thread). Busy is decided HERE, not by the caller: the spawner owns
+    // the live-exec truth. The skip is always safe — the surviving turn's own
+    // teardown (or the TTL reaper) cleans up later; destroying a live exec
+    // never is.
+    if (opts.ifIdle && (await this.hasLiveExecs(sessionId))) {
+      return jsonResponse({ destroyed: false, busy: true }, 200);
+    }
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
     // destroySession. The backend destroy then runs exactly once; its return
@@ -453,7 +467,36 @@ export class SessionRoutes {
         console.warn('[sandbox.session] destroy backend failed:', err);
         return false;
       });
-    return jsonResponse({ destroyed: had || backendExisted }, 200);
+    return jsonResponse({ destroyed: had || backendExisted, busy: false }, 200);
+  }
+
+  /**
+   * Does the session have a live exec — or is it in an unknown-but-possibly-
+   * live state? Mirrors sweepExpired's two-tier check: this replica's
+   * in-flight registry map first, then runnerd's own `liveExecs` counter as
+   * the cold-cache backstop (correct after a spawner restart). A failed probe
+   * is "unknown", not "idle": only a backend object that is definitively gone
+   * may report not-busy, so a wedged-but-alive container is left to the
+   * reaper rather than destroyed under a possibly-running exec.
+   */
+  private async hasLiveExecs(sessionId: string): Promise<boolean> {
+    const s = this.registry.get(sessionId);
+    if (s !== undefined && s.liveExecs.size > 0) return true;
+    const endpoint =
+      s?.endpoint ??
+      (await this.backend.resolveEndpoint(sessionId).catch(() => null));
+    if (endpoint === null) {
+      return this.backend.sessionExists(sessionId).catch(() => true);
+    }
+    try {
+      const health = await runnerdHealth({
+        baseUrl: endpoint,
+        token: this.tokenFor(sessionId),
+      });
+      return health.liveExecs > 0;
+    } catch {
+      return this.backend.sessionExists(sessionId).catch(() => true);
+    }
   }
 
   /** POST /v1/sessions/:id/exec — proxies runnerd's NDJSON stream to SSE,

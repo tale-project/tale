@@ -28,6 +28,7 @@ import {
   capabilitiesValidator,
   connectionConfigValidator,
   oauth2AuthValidator,
+  smtpAuthValidator,
   sqlConnectionConfigValidator,
   statusValidator,
   testConnectionResultValidator,
@@ -46,6 +47,7 @@ export const saveCredentials = action({
     apiKeyAuth: v.optional(apiKeyAuthValidator),
     basicAuth: v.optional(basicAuthValidator),
     oauth2Auth: v.optional(oauth2AuthValidator),
+    smtpAuth: v.optional(smtpAuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
@@ -63,19 +65,28 @@ export const saveCredentials = action({
     );
     if (!cred) throw new Error('Credential not found or access denied');
 
-    const { credentialId, apiKeyAuth, basicAuth, oauth2Auth, ...rest } = args;
+    const {
+      credentialId,
+      apiKeyAuth,
+      basicAuth,
+      oauth2Auth,
+      smtpAuth,
+      ...rest
+    } = args;
 
     // Encrypt plaintext credentials
     const encrypted = await encryptCredentials({
       apiKeyAuth,
       basicAuth,
       oauth2Auth,
+      smtpAuth,
     });
 
     const patch: Record<string, unknown> = { ...rest };
     if (encrypted.apiKeyAuth) patch.apiKeyAuth = encrypted.apiKeyAuth;
     if (encrypted.basicAuth) patch.basicAuth = encrypted.basicAuth;
     if (encrypted.oauth2Auth) patch.oauth2Auth = encrypted.oauth2Auth;
+    if (encrypted.smtpAuth) patch.smtpAuth = encrypted.smtpAuth;
 
     await ctx.runMutation(
       internal.integrations.credential_mutations.updateCredentialsInternal,
@@ -92,6 +103,7 @@ export const testConnection = action({
     apiKeyAuth: v.optional(apiKeyAuthValidator),
     basicAuth: v.optional(basicAuthValidator),
     oauth2Auth: v.optional(oauth2AuthValidator),
+    smtpAuth: v.optional(smtpAuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   },

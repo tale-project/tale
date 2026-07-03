@@ -5,6 +5,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -24,9 +25,12 @@ export function BreadcrumbNavigation({
   const onNavigateRef = useRef(onNavigate);
   onNavigateRef.current = onNavigate;
 
+  const organizationId = useOrganizationId();
   const { data: breadcrumb, isLoading } = useConvexQuery(
     api.folders.queries.getFolderBreadcrumb,
-    { folderId: toId<'folders'>(folderId) },
+    organizationId
+      ? { folderId: toId<'folders'>(folderId), organizationId }
+      : 'skip',
   );
 
   useEffect(() => {

@@ -29,7 +29,11 @@ vi.mock('../lib/rls/organization/get_organization_member', () => ({
 
 import { ConvexError } from 'convex/values';
 
-import { createKnowledgeEntry, updateKnowledgeEntry } from './mutations';
+import {
+  createKnowledgeEntry,
+  deleteKnowledgeEntry,
+  updateKnowledgeEntry,
+} from './mutations';
 
 type Handler = (ctx: unknown, args: unknown) => Promise<unknown>;
 
@@ -132,5 +136,157 @@ describe('knowledge entry duplicate guard (#2056)', () => {
 
     expect(code).toBe('KNOWLEDGE_ENTRY_DUPLICATE');
     expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+});
+
+// Regression for #2000: every public mutation must reject with a structured
+// ConvexError code rather than a raw `Error`, which Convex redacts to an opaque
+// "Server Error" in prod — losing the message the UI needs to render feedback.
+describe('knowledge entry structured errors (#2000)', () => {
+  function handlerOf(fn: unknown): Handler {
+    return (fn as { handler: Handler }).handler;
+  }
+
+  it('createKnowledgeEntry throws UNAUTHENTICATED when there is no auth user', async () => {
+    const ctx = createMockCtx(null);
+    ctx.auth.getUserIdentity = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(createKnowledgeEntry)(ctx, {
+        organizationId: 'org_1',
+        topic: 'Refunds',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('UNAUTHENTICATED');
+  });
+
+  it('createKnowledgeEntry throws KNOWLEDGE_ENTRY_TOPIC_REQUIRED for a blank topic', async () => {
+    const ctx = createMockCtx(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(createKnowledgeEntry)(ctx, {
+        organizationId: 'org_1',
+        topic: '   ',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('KNOWLEDGE_ENTRY_TOPIC_REQUIRED');
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('createKnowledgeEntry throws KNOWLEDGE_ENTRY_CONTENT_REQUIRED for blank content', async () => {
+    const ctx = createMockCtx(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(createKnowledgeEntry)(ctx, {
+        organizationId: 'org_1',
+        topic: 'Refunds',
+        content: '   ',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('KNOWLEDGE_ENTRY_CONTENT_REQUIRED');
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('updateKnowledgeEntry throws UNAUTHENTICATED when there is no auth user', async () => {
+    const ctx = createMockCtx(null);
+    ctx.auth.getUserIdentity = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(updateKnowledgeEntry)(ctx, {
+        entryId: 'entry_existing',
+        topic: 'Refunds',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('UNAUTHENTICATED');
+  });
+
+  it('updateKnowledgeEntry throws KNOWLEDGE_ENTRY_NOT_FOUND for a missing entry', async () => {
+    const ctx = createMockCtx(null);
+    ctx.db.get = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(updateKnowledgeEntry)(ctx, {
+        entryId: 'entry_missing',
+        topic: 'Refunds',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('KNOWLEDGE_ENTRY_NOT_FOUND');
+  });
+
+  it('updateKnowledgeEntry throws KNOWLEDGE_ENTRY_NOT_ACTIVE for a superseded entry', async () => {
+    const ctx = createMockCtx(null);
+    ctx.db.get = vi.fn().mockResolvedValue({
+      _id: 'entry_old',
+      organizationId: 'org_1',
+      topic: 'Refunds',
+      topicKey: 'refunds',
+      status: 'superseded',
+      deletedAt: undefined,
+    });
+
+    let code: string | undefined;
+    try {
+      await handlerOf(updateKnowledgeEntry)(ctx, {
+        entryId: 'entry_old',
+        topic: 'Refunds',
+        content: 'How refunds work.',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('KNOWLEDGE_ENTRY_NOT_ACTIVE');
+  });
+
+  it('deleteKnowledgeEntry throws UNAUTHENTICATED when there is no auth user', async () => {
+    const ctx = createMockCtx(null);
+    ctx.auth.getUserIdentity = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: 'entry_existing' });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('UNAUTHENTICATED');
+  });
+
+  it('deleteKnowledgeEntry throws KNOWLEDGE_ENTRY_NOT_FOUND for a missing entry', async () => {
+    const ctx = createMockCtx(null);
+    ctx.db.get = vi.fn().mockResolvedValue(null);
+
+    let code: string | undefined;
+    try {
+      await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: 'entry_missing' });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('KNOWLEDGE_ENTRY_NOT_FOUND');
   });
 });

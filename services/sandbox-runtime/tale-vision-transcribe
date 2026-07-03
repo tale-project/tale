@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+// Vision transcriber CLI. Reads an image file and returns its text/contents by
+// delegating to a vision model THROUGH THE PLATFORM GATEWAY — so no raw model
+// key ever enters the container. Invoked by `tale-vision-read-hook` (the
+// PreToolUse Read hook) to polyfill image reading for a TEXT-ONLY managed agent.
+//
+//   tale-vision-transcribe <absolute-image-path> [prompt]
+//     → prints the extracted text to stdout, exit 0
+//     → on any failure prints a diagnostic to stderr, exit 1
+//
+// It calls the SAME gateway the agent uses, with the session virtual key (which
+// the platform scopes to also allow the vision model). Holds no provider key.
+// Dependency-free (Node built-ins only); mirrors the retired tale-vision-mcp.
+
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+// The platform LLM gateway root (no trailing slash) + the session virtual key.
+// Both are injected on the exec env by the adapter; the VK is scoped to allow
+// TALE_VISION_MODEL. Absent ⇒ the vision polyfill is not active for this run.
+const GATEWAY_URL = (process.env.TALE_GATEWAY_URL || '').replace(/\/$/, '');
+const GATEWAY_TOKEN = process.env.TALE_GATEWAY_TOKEN || '';
+const VISION_MODEL = process.env.TALE_VISION_MODEL || '';
+const ANTHROPIC_VERSION = '2023-06-01';
+
+const REQUEST_TIMEOUT_MS = 60000;
+const MAX_TOKENS = 1024;
+
+const MEDIA_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
+const DEFAULT_PROMPT =
+  'Read this image and extract its text and any structured fields verbatim. ' +
+  'Preserve numbers, dates, and identifiers exactly. Reply with the extracted content only.';
+
+async function callVision(imagePath, prompt) {
+  if (!GATEWAY_URL || !GATEWAY_TOKEN || !VISION_MODEL) {
+    return { ok: false, text: 'vision bridge is not configured' };
+  }
+  let data;
+  try {
+    data = fs.readFileSync(imagePath);
+  } catch (err) {
+    return {
+      ok: false,
+      text: `could not read image at ${imagePath}: ${err && err.message ? err.message : String(err)}`,
+    };
+  }
+  const mediaType =
+    MEDIA_TYPES[path.extname(imagePath).toLowerCase()] || 'image/png';
+  const body = {
+    model: VISION_MODEL,
+    max_tokens: MAX_TOKENS,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: data.toString('base64'),
+            },
+          },
+          { type: 'text', text: prompt || DEFAULT_PROMPT },
+        ],
+      },
+    ],
+  };
+  try {
+    const res = await fetch(`${GATEWAY_URL}/anthropic/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${GATEWAY_TOKEN}`,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const raw = await res.text();
+    if (!res.ok) {
+      return {
+        ok: false,
+        text: `vision model call failed (status ${res.status}): ${raw.slice(0, 500)}`,
+      };
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return {
+        ok: false,
+        text: `vision bridge received a non-JSON response (status ${res.status})`,
+      };
+    }
+    // Anthropic Messages: { content: [{ type: 'text', text }, ...] }.
+    const text = Array.isArray(parsed.content)
+      ? parsed.content
+          .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
+          .map((b) => b.text)
+          .join('\n')
+          .trim()
+      : '';
+    return { ok: true, text: text || '(vision model returned no text)' };
+  } catch (err) {
+    const reason =
+      err && err.name === 'TimeoutError'
+        ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+        : err && err.message
+          ? err.message
+          : String(err);
+    return { ok: false, text: `vision bridge request failed: ${reason}` };
+  }
+}
+
+async function main() {
+  const imagePath = process.argv[2];
+  const prompt = process.argv[3];
+  if (!imagePath) {
+    process.stderr.write('usage: tale-vision-transcribe <image-path> [prompt]\n');
+    process.exit(2);
+  }
+  const res = await callVision(imagePath, prompt);
+  if (res.ok) {
+    process.stdout.write(res.text);
+    process.exit(0);
+  }
+  process.stderr.write(res.text);
+  process.exit(1);
+}
+
+void main();

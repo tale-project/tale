@@ -12,7 +12,10 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
-import { isSqlIntegration } from '../../../integrations/helpers';
+import {
+  isImapSmtpIntegration,
+  isSqlIntegration,
+} from '../../../integrations/helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
@@ -23,6 +26,7 @@ import {
   requiresApproval,
   getOperationType,
 } from './helpers/detect_write_operation';
+import { executeImapSmtpIntegration } from './helpers/execute_imap_smtp_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { redactSecrets } from './helpers/redact_secrets';
 import { validateOperationScopes } from './helpers/validate_operation_scopes';
@@ -104,6 +108,16 @@ export const integrationAction: ActionDefinition<{
         skipApprovalCheck,
         threadId,
         messageId,
+      );
+    }
+
+    // Handle IMAP/SMTP mailbox integrations (raw-TCP Node action, like SQL)
+    if (isImapSmtpIntegration(integration)) {
+      return await executeImapSmtpIntegration(
+        ctx,
+        integration,
+        operation,
+        opParams,
       );
     }
 

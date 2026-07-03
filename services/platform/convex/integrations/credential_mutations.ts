@@ -7,8 +7,8 @@ import {
   mutation,
 } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { jsonRecordValidator } from '../lib/validators/json';
 import { deleteSlackInstallationsForCredential } from './slack_installations';
 import {
@@ -20,6 +20,7 @@ import {
   oauth2ConfigStoredValidator,
   connectionConfigValidator,
   capabilitiesValidator,
+  smtpAuthEncryptedValidator,
   sqlConnectionConfigValidator,
 } from './validators';
 
@@ -68,6 +69,7 @@ export const createCredentials = internalMutation({
     basicAuth: v.optional(basicAuthEncryptedValidator),
     oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
     oauth2Config: v.optional(oauth2ConfigStoredValidator),
+    smtpAuth: v.optional(smtpAuthEncryptedValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
@@ -108,6 +110,7 @@ const updateCredentialsArgs = {
   basicAuth: v.optional(basicAuthEncryptedValidator),
   oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
   oauth2Config: v.optional(oauth2ConfigStoredValidator),
+  smtpAuth: v.optional(smtpAuthEncryptedValidator),
   connectionConfig: v.optional(connectionConfigValidator),
   sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   capabilities: v.optional(capabilitiesValidator),
@@ -130,10 +133,15 @@ export const updateCredentials = mutation({
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
-    const member = await getOrganizationMember(
+    // Connecting/disconnecting an integration installs or cascade-disables its
+    // bundled agents/workflows and writes its stored credentials — the same
+    // capability-bearing surface the providers/skills paths gate on. A plain
+    // `member` is hidden from the integrations UI by
+    // `cannot('read','developerSettings')` but could previously call this
+    // mutation directly via the Convex client; require the capability here too.
+    const { member } = await requireOrgAdminOrDeveloper(
       ctx,
       cred.organizationId,
-      authUser,
     );
 
     const { credentialId, ...updates } = args;
@@ -207,10 +215,13 @@ export const deleteCredentials = mutation({
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
-    const member = await getOrganizationMember(
+    // Deleting a credential disconnects the integration and cascade-disables
+    // its bundled + hard-requiring agents — strictly destructive. Gate on the
+    // `developerSettings` capability, matching the providers/skills pattern,
+    // rather than admitting any non-disabled member.
+    const { member } = await requireOrgAdminOrDeveloper(
       ctx,
       cred.organizationId,
-      authUser,
     );
 
     if (cred.iconStorageId) {

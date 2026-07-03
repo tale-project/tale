@@ -209,7 +209,7 @@ export function SearchCommand({
                 className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md"
               />
             </Dialog.Overlay>
-            <Dialog.Content asChild aria-label={labels.title}>
+            <Dialog.Content asChild aria-modal="true" aria-label={labels.title}>
               <motion.div
                 key="search-dialog"
                 initial={

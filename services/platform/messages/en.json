@@ -1,6 +1,40 @@
 {
   "apps": {
     "title": "Apps",
+    "searchPlaceholder": "Search apps…",
+    "searchNoResults": "No apps match your search.",
+    "upload": {
+      "uploadApp": "Upload app",
+      "dialogTitle": "Upload private app",
+      "description": "Upload a private app to this organization. Provide a .zip of the app folder, or select the folder directly — its name becomes the app slug. Uploading does not install the app; you can install it afterwards.",
+      "dropZoneLabel": "Upload app bundle",
+      "dropHere": "Drop the .zip here",
+      "parsing": "Reading bundle…",
+      "dropOrClick": "Drop a .zip here or click to browse",
+      "acceptedFormats": "A folder containing app.json at its root",
+      "or": "or",
+      "selectFolder": "Select folder",
+      "useFolderButton": "To upload a folder, use the “Select folder” button below.",
+      "singleZipOnly": "Drop a single .zip bundle, not multiple files.",
+      "zipRequired": "Bundle must be a .zip file.",
+      "unexpectedError": "An unexpected error occurred",
+      "scopeProject": "Project app",
+      "scopeOrg": "Org app",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresIntegrations": "Requires integrations",
+      "bundleFiles": "Bundle files",
+      "fileCount": "{count, plural, one {# file} other {# files}}",
+      "submit": "Upload app",
+      "submitting": "Uploading…",
+      "uploadSuccess": "App uploaded",
+      "installHint": "Install it from the Apps list when you’re ready.",
+      "replaceSuccess": "App replaced",
+      "uploadFailed": "Failed to upload app",
+      "replaceTitle": "Replace existing app?",
+      "replaceDescription": "A private app named \"{slug}\" already exists. Uploading will overwrite its current contents.",
+      "replaceConfirm": "Replace"
+    },
     "empty": {
       "title": "No apps yet",
       "description": "Installed packs appear here as apps."
@@ -26,6 +60,7 @@
     "install": {
       "install": "Install",
       "installed": "Installed",
+      "installFailed": "Couldn't install the app",
       "reinstall": "Reinstall",
       "setup": "Finish setup",
       "uninstall": "Uninstall",
@@ -180,8 +215,11 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
+      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
-      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up."
+      "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
+      "failed": "Failed",
+      "failedHint": "The last automated run stopped on an error. Open the task to see which step failed, then re-run it."
     },
     "membership": {
       "title": "Projects",
@@ -522,6 +560,12 @@
       "signingIn": "Signing in...",
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
+      "ssoTitle": "Sign in with SSO",
+      "ssoDescription": "Enter your organization email address — it selects your organization's sign-in.",
+      "ssoBackToLogin": "Back to log in",
+      "ssoPickOrganization": "Or choose your organization",
+      "ssoEmailRequired": "Enter your organization email address to continue with SSO.",
+      "ssoEmailNoMatch": "Single sign-on is not set up for this email domain. Check the address, or contact your administrator.",
       "continueWithPasskey": "Sign in with a passkey",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use your password.",
       "wrongCredentials": "Wrong email or password",
@@ -562,7 +606,7 @@
         "step2": "Choose \"Add to Home Screen\", then tap \"Add\".",
         "done": "Got it"
       },
-      "helpFeedback": "Help & feedback",
+      "documentation": "Documentation",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
       "updateAvailable": "Update available",
@@ -623,6 +667,33 @@
       "description": "Your account uses external sign-in. Set a password to also sign in with email and password.",
       "newPassword": "New password",
       "confirmPassword": "Confirm password"
+    },
+    "sso": {
+      "errors": {
+        "serverError": "Single sign-on could not complete due to a server error. Please try again, or contact your administrator if it persists.",
+        "multipleConnections": "More than one organization uses single sign-on here. Enter your organization email address first, then try again.",
+        "mfaRequired": "Multi-factor authentication is required to sign in.",
+        "conditionalAccessBlocked": "Sign-in was blocked by a conditional-access policy.",
+        "userNotAssigned": "Your account is not assigned to this application. Contact your administrator to request access.",
+        "silentAuthFailed": "Silent sign-in failed. Please sign in interactively.",
+        "refreshTokenExpired": "Your session has expired. Please sign in again.",
+        "consentRequired": "This application needs admin consent before you can sign in.",
+        "redirectMismatch": "The sign-in redirect URL does not match the one registered in Microsoft Entra ID. Ask your administrator to register the exact redirect URL.",
+        "clientNotFound": "The single sign-on application could not be found in the directory. Ask your administrator to check the client ID.",
+        "invalidClientSecret": "The single sign-on client secret is invalid or expired. Ask your administrator to update it.",
+        "recovery": {
+          "completeMfa": "Complete the multi-factor prompt from your authenticator to continue.",
+          "contactAdmin": "Contact your administrator for access.",
+          "signInInteractively": "Try signing in again and complete any prompts.",
+          "signInAgain": "Sign in again to continue.",
+          "grantConsent": "An administrator must grant consent for this application."
+        }
+      },
+      "actions": {
+        "tryAgain": "Try again",
+        "completeMfa": "Complete multi-factor sign-in",
+        "contactAdminMessage": "Contact your administrator to resolve this."
+      }
     }
   },
   "automations": {
@@ -634,8 +705,6 @@
       "metrics": "Metrics"
     },
     "catalog": {
-      "title": "Automation catalog",
-      "subtitle": "Browse and install ready-made automations for your workspace.",
       "installed": "Automation installed"
     },
     "aria": {
@@ -691,7 +760,8 @@
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
     "search": {
-      "placeholder": "Search automations"
+      "placeholder": "Search automations",
+      "noResults": "No automations match your search."
     },
     "entityLabel": "automations",
     "createWithAI": "Create automation with AI",
@@ -861,7 +931,7 @@
     "executions": {
       "title": "Executions",
       "entityLabel": "executions",
-      "searchPlaceholder": "Search executions"
+      "searchPlaceholder": "Search by execution ID"
     },
     "createDialog": {
       "title": "Create automation",
@@ -891,16 +961,12 @@
       "namePlaceholder": "Enter automation name"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "Editing connections not yet available",
-        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet."
-      },
       "banners": {
         "hasActiveTriggers": "This automation is active — saved changes apply to new runs."
       },
       "toolbar": {
         "testAutomation": "Test automation",
-        "addStep": "Add step"
+        "addStepUnavailable": "Editing steps on the canvas isn't available yet — use the AI assistant or edit the workflow configuration."
       },
       "execution": {
         "viewingRun": "Viewing run {id}",
@@ -1067,6 +1133,7 @@
       "action": "View"
     },
     "viewer": {
+      "back": "Back",
       "heading": "What's new",
       "subheading": "{count, plural, one {# update} other {# updates}} since v{from}",
       "subheadingNew": "Release notes for v{to}",
@@ -1252,6 +1319,7 @@
       "viewProvider": "View provider settings",
       "viewInfo": "Model details",
       "noApiKey": "No API key configured for this model's provider — add one in Settings → AI providers.",
+      "noProviderKey": "No AI provider is connected yet — add an API key in Settings → AI providers to start chatting.",
       "info": {
         "provider": "Provider",
         "type": "Type",
@@ -1659,7 +1727,7 @@
       "description": "Select messages and download in your preferred format.",
       "selectAll": "Select all",
       "deselectAll": "Deselect all",
-      "messagesCount": "{count} of {total} messages selected",
+      "messagesCount": "{count, plural, one {# of {total} message selected} other {# of {total} messages selected}}",
       "downloadPdf": "Print to PDF",
       "downloadMarkdown": "Download Markdown",
       "noMessages": "No messages to export",
@@ -1698,6 +1766,8 @@
       "fileActionsAriaLabel": "File actions",
       "fileSizeAriaLabel": "File size",
       "sourceRunOutput": "Code output",
+      "outputExpand": "Show all files",
+      "outputCollapse": "Show fewer files",
       "sourceAgentWrite": "AI files",
       "sourceUserUpload": "Uploaded",
       "noFilesYet": "No files yet",
@@ -2022,6 +2092,12 @@
       "contactSupport": "contact support",
       "tryAgain": "Try again"
     },
+    "executionErrors": {
+      "unauthenticated": "You're not signed in. Refresh the page and try again.",
+      "notFound": "That run could no longer be found. It may have been deleted.",
+      "notCancelable": "This run can no longer be stopped — it has already finished.",
+      "missingWorkflow": "This run can't be re-run because its workflow is no longer available."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
@@ -2092,6 +2168,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Unknown customer",
     "messagePlaceholder": "Type a message",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
     "fallbackImageAttachment": "Image attachment",
@@ -2111,8 +2188,10 @@
       "accept": "Accept changes"
     },
     "bulkSend": {
-      "title": "Send {count} Messages",
+      "title": "Send {count, plural, one {# Message} other {# Messages}}",
       "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Type your reply...",
       "send": "Send"
     },
     "updating": "Updating conversations...",
@@ -2510,12 +2589,12 @@
       "noTeamsAvailable": "You are not a member of any teams",
       "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
       "dropZoneTitle": "Upload a file",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV up to {maxSize} MB",
+      "dropZoneDescription": "PDF, DOCX, ODT, XLSX, CSV, TXT up to {maxSize} MB",
       "retryUpload": "Retry upload",
       "retry": "Retry",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded — indexing runs in the background",
       "unsupportedFileType": "Unsupported file type",
-      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images.",
       "extensionBlocked": "{name}: .{ext} files are blocked by upload policy.",
       "extensionNotAllowed": "{name}: .{ext} is not allowed. Allowed types: {allowed}.",
       "uploadDocuments": "Upload"
@@ -2758,7 +2837,18 @@
       "searchTeams": "Search teams...",
       "noTeamsFound": "No teams found",
       "selectTeamAriaLabel": "Select team",
-      "saved": "Budget rules have been updated"
+      "apiKey": "API key",
+      "selectApiKey": "Select API key...",
+      "searchApiKeys": "Search API keys...",
+      "noApiKeysFound": "No API keys found",
+      "selectApiKeyAriaLabel": "Select API key",
+      "saved": "Budget rules have been updated",
+      "targetRequired": "Select a target for this scope, or the rule will never apply.",
+      "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
+      "invalidTokenLimit": "Token limit must be greater than zero.",
+      "invalidCostLimit": "Cost limit must be greater than zero.",
+      "invalidMaxRequests": "Request limit must be greater than zero.",
+      "invalidWarningThreshold": "Warning threshold must be between 0 and 100."
     },
     "defaultModels": {
       "title": "Default Models",
@@ -3033,11 +3123,8 @@
     "sandboxQuota": {
       "title": "Sandbox concurrency limits",
       "description": "Cap how many sandboxes this organization can run at the same time. These per-organization limits sit beneath the deployment-wide host capacity; lowering them protects shared server resources from being overwhelmed.",
-      "maxConcurrent": "Max concurrent one-shot runs",
-      "maxConcurrentHint": "Disposable sandboxes (run_code and workflow script steps) that may run at the same time for this organization. Requests beyond the cap fail with a quota error. Default: 2.",
       "maxSessions": "Max active sessions",
       "maxSessionsHint": "Persistent sandbox sessions (chat agents and workflow agent steps) that may be active at once for this organization. Requests beyond the cap fail with a quota error. Default: 2.",
-      "invalidConcurrent": "Must be a whole number between 1 and 100.",
       "invalidSessions": "Must be a whole number between 1 and 500.",
       "saved": "Sandbox concurrency limits have been updated",
       "saveFailed": "Failed to save sandbox concurrency limits"
@@ -3323,6 +3410,7 @@
       "yes": "Yes",
       "no": "No",
       "addMapping": "Add category mapping",
+      "editMappingAria": "Edit mapping for {category}",
       "editMappingTitle": "Edit category mapping",
       "addMappingTitle": "Add category mapping",
       "deleteMappingConfirmTitle": "Delete category mapping?",
@@ -3971,7 +4059,13 @@
     "updateResponse": "Update response",
     "cancelEdit": "Cancel",
     "versionPrevious": "Previous response version",
-    "versionNext": "Next response version"
+    "versionNext": "Next response version",
+    "errorTodoListRequired": "Please add at least one item",
+    "errorTodoListMinItems": "Please add at least {count} items",
+    "todoItemPlaceholder": "Sub-question {n}",
+    "todoItemAriaLabel": "{label} item {n}",
+    "todoRemoveItem": "Remove item {n}",
+    "todoAddItem": "Add item"
   },
   "integrationApproval": {
     "approve": "Approve",
@@ -4113,7 +4207,19 @@
       "saving": "Saving...",
       "cancel": "Cancel",
       "connectionSection": "Connection",
-      "authSection": "Authentication"
+      "authSection": "Authentication",
+      "validation": {
+        "nameRequired": "Name is required",
+        "nameFormat": "Must be lowercase alphanumeric with hyphens",
+        "displayNameRequired": "Display name is required",
+        "urlRequired": "URL is required",
+        "commandRequired": "Command is required",
+        "apiKeyRequired": "API Key is required",
+        "tokenUrlRequired": "Token URL is required",
+        "clientIdRequired": "Client ID is required",
+        "clientSecretRequired": "Client secret is required",
+        "authorizationUrlRequired": "Authorization URL is required"
+      }
     },
     "oauth2": {
       "tokenUrl": "Token URL",
@@ -4186,6 +4292,10 @@
     "projects": {
       "title": "Projects",
       "description": "Shared workspaces for files, instructions, and chats."
+    },
+    "apps": {
+      "title": "Apps",
+      "description": "Installed packs and the apps they add to your organization."
     },
     "websites": {
       "title": "Websites",
@@ -4421,7 +4531,13 @@
     "dsarPolicyLoosenApplied": "Data-erasure policy weakened",
     "dsarPolicyLoosenAppliedBody": "A weaker data-erasure (DSAR) policy took effect after the 24-hour grace window.",
     "dsarPolicyLoosenCancelled": "Pending data-erasure policy change cancelled",
-    "dsarPolicyLoosenCancelledBody": "A pending data-erasure (DSAR) policy change was cancelled before it took effect."
+    "dsarPolicyLoosenCancelledBody": "A pending data-erasure (DSAR) policy change was cancelled before it took effect.",
+    "agentBudgetWarnTitle": "Agent approaching its budget",
+    "agentBudgetWarnBody": "{agentSlug} has used {pct}% of its monthly budget ({spent} of {monthly}).",
+    "agentBudgetExceededTitle": "Agent budget exceeded — runs paused",
+    "agentBudgetExceededBody": "{agentSlug} reached its monthly budget ({spent} of {monthly}) and has been paused. Runs resume next month or when you raise the limit.",
+    "agentCircuitTrippedTitle": "Agent runs paused — safety limit reached",
+    "agentCircuitTrippedBody": "{agentSlug} hit the safety limit of {windowRuns} runs in {windowHours}h on \"{taskTitle}\". Change the task status to resume automation."
   },
   "personalization": {
     "page": {
@@ -4681,7 +4797,8 @@
       },
       "toast": {
         "success": "Product updated successfully",
-        "error": "Failed to update product"
+        "error": "Failed to update product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "create": {
@@ -4692,7 +4809,8 @@
       },
       "toast": {
         "success": "Product created successfully",
-        "error": "Failed to create product"
+        "error": "Failed to create product",
+        "duplicateName": "A product with this name already exists"
       }
     },
     "createWizard": {
@@ -4945,7 +5063,7 @@
       "columnActivity": "Last activity",
       "sharingOrgWide": "Org-wide",
       "sharingTeamPrefix": "Team:",
-      "sharingMultipleTeams": "{count} teams"
+      "sharingMultipleTeams": "{count, plural, one {# team} other {# teams}}"
     },
     "create": {
       "title": "Create project",
@@ -5006,6 +5124,7 @@
       "ragStatusCompleted": "Indexed",
       "ragStatusFailed": "Failed",
       "detachAction": "Remove from project",
+      "previewAction": "Preview file",
       "detachSuccess": "Document removed from project",
       "detachError": "Couldn't remove document",
       "attachSuccess": "Document added to project",
@@ -5025,6 +5144,7 @@
       "shareToggleDisclosure": "Sharing this chat hides your personal memories and instructions from the responses other members will see.",
       "shareSuccess": "Chat shared with project",
       "unshareSuccess": "Chat hidden from project",
+      "shareDisabledPersonalization": "Personalization was turned off for this chat, so your memories and instructions stay private from other members.",
       "shareError": "Couldn't update sharing"
     },
     "agents": {
@@ -5143,6 +5263,7 @@
       "PROJECT_FORBIDDEN": "You don't have access to this project.",
       "PROJECT_NOT_FOUND": "We couldn't find that project. It may have been deleted.",
       "PROJECT_HAS_BOUND_APPS": "Uninstall the apps using this project first, then delete it.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Uninstall the apps using this project first, then delete it: {apps}.",
       "PROJECT_MISMATCH": "This chat is in a different project. Switch context to continue.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} isn't available in this project. Pick another agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} isn't available in this project. Pick another model.",
@@ -5546,6 +5667,7 @@
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
+        "displayNameDuplicateWarning": "Another agent already uses this display name. The slug stays unique, but the duplicate name can be ambiguous in chat and lists.",
         "description": "Description",
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
@@ -5620,6 +5742,13 @@
           "sectionDescription": "How this agent accesses the web.",
           "nativeLabel": "Use native web search and fetch",
           "nativeDescription": "Let the agent use its runtime's built-in WebSearch and WebFetch tools directly — best when the model supports them (e.g. OpenRouter). When off, the native web tools are disabled and web access must go through a connected search integration (audited and metered)."
+        },
+        "vision": {
+          "sectionTitle": "Vision model",
+          "sectionDescription": "When this agent's own model can't see images, any image it reads is automatically transcribed by this vision model — through the gateway, so no provider key enters the sandbox. Only used for text-only models.",
+          "label": "Vision model for reading images",
+          "autoLabel": "Use org default",
+          "autoDescription": "Fall back to the provider's vision default model."
         }
       },
       "delegation": {
@@ -5692,7 +5821,7 @@
         "notPublished": "Publish this agent to enable webhook access.",
         "createButton": "Create webhook",
         "createdTitle": "Webhook created",
-        "urlWarning": "Copy this URL now. It will only be shown once.",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
         "webhookUrl": "Webhook URL",
         "copyUrl": "Copy webhook URL",
         "copyExample": "Copy example",
@@ -5941,6 +6070,11 @@
         "database": "Database",
         "username": "Username",
         "password": "Password",
+        "smtpSection": "SMTP (sending)",
+        "smtpUsername": "SMTP username",
+        "smtpPassword": "SMTP password",
+        "smtpHint": "Leave blank to send through the same mailbox login above. For Resend: username \"resend\", password = your API key.",
+        "fromAddressHint": "Fallback sender. Its domain is treated as your send domain — replies go out from whichever address the customer wrote to on it.",
         "sqlOperations": "SQL operations",
         "query": "Query",
         "requiresApproval": "Requires approval",
@@ -6084,6 +6218,17 @@
           "targetRoleLabel": "Assigns role",
           "claimLabel": "Claim path",
           "claimHelp": "Dot-path into the token claims, e.g. realm_access.roles."
+        },
+        "redirectUrlLabel": "Redirect URL to register in Entra",
+        "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
+        "domainWarning": {
+          "title": "No email domain set",
+          "description": "Several organizations on this deployment use SSO. Without an email domain, sign-in cannot route members to this connection by address — it is instead listed publicly by its display name on the SSO screen."
+        },
+        "deploymentWarning": {
+          "title": "Deployment not fully configured for SSO",
+          "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",
+          "authSecretMissing": "BETTER_AUTH_SECRET is not set on the server. SSO sign-in will fail with a server error until it is configured."
         },
         "guide": {
           "title": "Setup guide",
@@ -6306,7 +6451,6 @@
       "testSystemError": "The connection test couldn't run. Check the provider's base URL and API key, then try again.",
       "addKey": "Add API key",
       "apiKeyEnter": "Enter API key",
-      "searchProvider": "Search providers...",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
@@ -6425,6 +6569,32 @@
       "openDocs": "API docs"
     },
     "logs": {
+      "integrity": {
+        "title": "Chain integrity",
+        "neverChecked": "No automated integrity check has run yet.",
+        "lastCheck": "Last automated check: {date}",
+        "alertedAt": "Alert raised {date}",
+        "statusUnchecked": "Not yet checked",
+        "statusOk": "Verified",
+        "statusAlert": "Integrity alert active",
+        "verifyNow": "Verify now",
+        "verifyError": "Verification couldn't be completed. Please try again.",
+        "resultValidTitle": "Chain verified",
+        "resultValidBody": "{count, plural, one {Checked # entry} other {Checked # entries}} — no tampering detected.",
+        "truncatedNote": "Only the first {count} entries were checked. Run verification again to continue down the chain.",
+        "unsignedScrubNote": "{count, plural, one {# entry was trusted via an unsigned scrub record} other {# entries were trusted via unsigned scrub records}}. Review your audit signing key.",
+        "brokenTitle": "Chain integrity broken",
+        "brokenBody": "The hash chain does not match at the entry below. Preserve this evidence before making changes.",
+        "brokenAt": "Occurred",
+        "logId": "Entry ID",
+        "expectedHash": "Expected hash",
+        "actualHash": "Stored hash",
+        "openRow": "Open this entry",
+        "checkpointTitle": "Checkpoint verification failed",
+        "checkpointId": "Checkpoint ID",
+        "reason": "Reason",
+        "rowMissing": "Audit entry {logId} is no longer available."
+      },
       "heading": "Logs",
       "subheading": "View and manage system logs.",
       "auditLogs": "Audit logs",
@@ -6925,6 +7095,7 @@
     "mentionByBody": "{actor} mentioned you on \"{title}\".",
     "taskReviewRequested": "Review requested",
     "taskReviewRequestedBody": "{agentSlug} finished \"{taskTitle}\" — approve or request changes.",
+    "taskReviewRequestedBodyNoAgent": "Agent work on \"{taskTitle}\" is ready for review — approve or request changes.",
     "taskReviewApproved": "Review approved",
     "taskReviewApprovedBody": "\"{taskTitle}\" was approved and completed.",
     "taskReviewChangesRequested": "Changes requested",
@@ -6968,6 +7139,10 @@
     "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
     "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
+    "editButton": "Edit",
+    "editTitle": "Edit secret",
+    "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
+    "updateSuccess": "Secret updated",
     "deleteSuccess": "Secret deleted"
   },
   "tasks": {
@@ -7261,6 +7436,8 @@
       "description": "Sign in with a passkey (Face ID, Touch ID, Windows Hello, or a security key). A passkey is phishing-resistant and satisfies your organization's two-factor requirement.",
       "addButton": "Add a passkey",
       "revokeButton": "Remove",
+      "revokeConfirmTitle": "Remove passkey?",
+      "revokeConfirmDescription": "This removes \"{name}\" and it can no longer be used to sign in. If it was your only second factor, you may be prompted to set up two-factor authentication again.",
       "empty": "No passkeys registered yet.",
       "unnamed": "Passkey",
       "registered": "Passkey registered",
@@ -7282,7 +7459,7 @@
     "setup": {
       "title": "Set up two-factor authentication",
       "qrInstructions": "Scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code below.",
-      "manualEntry": "Can't scan? Enter this secret manually:",
+      "manualEntry": "Or enter manually:",
       "verifyCodeLabel": "Verification code",
       "verifyButton": "Verify and enable"
     },
@@ -7301,6 +7478,7 @@
     "verify": {
       "title": "Verify your identity",
       "description": "Enter the 6-digit code from your authenticator app.",
+      "backupDescription": "Enter one of your backup codes.",
       "codeLabel": "Authentication code",
       "useBackupCodeToggle": "Use a backup code instead",
       "useAuthenticatorToggle": "Use the authenticator app instead",
@@ -7308,6 +7486,7 @@
       "submitButton": "Verify",
       "invalid": "Invalid or expired code. Please try again.",
       "tooManyAttempts": "Too many failed attempts. Try again later.",
+      "success": "Signed in successfully",
       "backupCodeSuccess": "Backup code used. Consider regenerating your backup codes in Settings.",
       "usePasskeyButton": "Use a passkey instead",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use a code."

@@ -14,7 +14,8 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
-import { Pencil, Plus, Trash2, Wallet } from 'lucide-react';
+import type { TFunction } from 'i18next';
+import { Pencil, Plus, Trash2, Wallet, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -22,6 +23,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
+import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -49,6 +51,7 @@ const SCOPE_OPTIONS = [
   { value: 'user', label: 'User' },
   { value: 'team', label: 'Team' },
   { value: 'role', label: 'Role' },
+  { value: 'apiKey', label: 'API key' },
   { value: 'org', label: 'Organization' },
 ];
 
@@ -73,6 +76,86 @@ function emptyRule(): BudgetRule {
   };
 }
 
+/** Scopes that target a specific subject — they only enforce when their target
+ *  id matches a user/team/role/API key at runtime (see `budget_enforcement.ts`).
+ *  Saving one with an empty target produces a permanently dead rule. The apiKey
+ *  scope targets `apiKeyId`; the others target `scopeId`. */
+function scopeNeedsTarget(scope: BudgetRule['scope']): boolean {
+  return (
+    scope === 'user' ||
+    scope === 'team' ||
+    scope === 'role' ||
+    scope === 'apiKey'
+  );
+}
+
+/** A rule only enforces meaningfully if at least one *positive* limit is set.
+ *  With every limit unset the enforcer resolves no cap and the rule is dead.
+ *  A limit of `0` is worse than unset: the enforcer treats it as the strictest
+ *  cap (`projectedCost >= 0` etc. is always true) and blocks every request — so
+ *  a set-but-non-positive limit is rejected per-field in `validateBudgetRule`. */
+function hasUsableLimit(rule: BudgetRule): boolean {
+  return (
+    (rule.maxTokens != null && rule.maxTokens > 0) ||
+    (rule.maxCostCents != null && rule.maxCostCents > 0) ||
+    (rule.maxRequests != null && rule.maxRequests > 0)
+  );
+}
+
+interface BudgetRuleErrors {
+  scopeId?: string;
+  maxTokens?: string;
+  maxCostCents?: string;
+  maxRequests?: string;
+  warningThresholdPercent?: string;
+  /** Cross-field: no positive limit set on the rule. */
+  limits?: string;
+}
+
+/**
+ * Client-side validation mirroring the constraints the enforcer relies on.
+ * Prevents the editor from persisting a "silently dead" rule (issue #2061):
+ * a user/team/role scope with no target, or a rule with no positive limit.
+ */
+function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
+  const errors: BudgetRuleErrors = {};
+
+  // The apiKey scope carries its target on `apiKeyId`; every other targeted
+  // scope carries it on `scopeId`. Either missing is a dead rule.
+  const targetMissing =
+    rule.scope === 'apiKey' ? !rule.apiKeyId : !rule.scopeId;
+  if (scopeNeedsTarget(rule.scope) && targetMissing) {
+    errors.scopeId = t('budgets.targetRequired');
+  }
+
+  // A *set* limit must be positive. `0` (typed directly — `"0"` is truthy so it
+  // survives the `onChange` guard — or a sub-cent cost that rounds down to `0`
+  // cents) is not "no limit": the enforcer reads it as the strictest possible
+  // cap and blocks every request. Reject `<= 0` to mirror `hasUsableLimit`'s
+  // `> 0` premise so a per-field zero can't slip past as a usable limit.
+  if (rule.maxTokens != null && rule.maxTokens <= 0) {
+    errors.maxTokens = t('budgets.invalidTokenLimit');
+  }
+  if (rule.maxCostCents != null && rule.maxCostCents <= 0) {
+    errors.maxCostCents = t('budgets.invalidCostLimit');
+  }
+  if (rule.maxRequests != null && rule.maxRequests <= 0) {
+    errors.maxRequests = t('budgets.invalidMaxRequests');
+  }
+  if (
+    rule.warningThresholdPercent != null &&
+    (rule.warningThresholdPercent < 0 || rule.warningThresholdPercent > 100)
+  ) {
+    errors.warningThresholdPercent = t('budgets.invalidWarningThreshold');
+  }
+
+  if (!hasUsableLimit(rule)) {
+    errors.limits = t('budgets.limitRequired');
+  }
+
+  return errors;
+}
+
 function parseBudgetConfig(policy: unknown): BudgetConfig {
   const config = isRecord(policy) ? policy : {};
   const result = budgetConfigSchema.safeParse(config);
@@ -80,6 +163,23 @@ function parseBudgetConfig(policy: unknown): BudgetConfig {
     return result.data;
   }
   return { enabled: false, rules: [] };
+}
+
+/** Inline form-level error, styled to match the `Input` component's own error
+ *  row (destructive text + leading icon, announced via `role="alert"`). Used
+ *  for the cross-field messages (target / at-least-one-limit) that don't belong
+ *  to a single `Input`. */
+function FieldError({ message }: { message: string }) {
+  return (
+    <p
+      role="alert"
+      aria-live="polite"
+      className="text-destructive flex items-center gap-1.5 text-sm"
+    >
+      <XCircle className="size-4" aria-hidden="true" />
+      {message}
+    </p>
+  );
 }
 
 interface RuleDialogProps {
@@ -91,6 +191,7 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
+  apiKeyOptions: { value: string; label: string; description?: string }[];
 }
 
 function RuleDialog({
@@ -102,34 +203,78 @@ function RuleDialog({
   cannotManage,
   memberOptions,
   teamOptions,
+  apiKeyOptions,
 }: RuleDialogProps) {
   const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
+  // Reveal a field's error only once the user has touched it (or has attempted
+  // to submit) so a freshly-opened dialog isn't pre-filled with red. Keyed by
+  // field name; `limits` is the cross-field "at least one limit" group.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (open) {
       setDraft(initialRule);
+      setTouched({});
+      setSubmitAttempted(false);
     }
   }, [open, initialRule]);
 
   const updateDraft = useCallback((patch: Partial<BudgetRule>) => {
+    setTouched((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch)) next[key] = true;
+      // Editing any limit field flags the cross-field "at least one limit" group.
+      if (
+        'maxTokens' in patch ||
+        'maxCostCents' in patch ||
+        'maxRequests' in patch
+      ) {
+        next.limits = true;
+      }
+      return next;
+    });
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
       if (patch.scope === 'default' || patch.scope === 'org') {
         delete updated.scopeId;
+        delete updated.apiKeyId;
+      } else if (patch.scope === 'apiKey') {
+        // apiKey targets `apiKeyId`; drop any stale user/team/role `scopeId`.
+        delete updated.scopeId;
+      } else if (patch.scope !== undefined) {
+        // Switching to a scopeId-targeted scope: drop any stale `apiKeyId`.
+        delete updated.apiKeyId;
       }
       return updated;
     });
   }, []);
 
+  const errors = useMemo(() => validateBudgetRule(draft, t), [draft, t]);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      // Guard: never persist a dead rule. Reveal every error and bail.
+      if (Object.keys(validateBudgetRule(draft, t)).length > 0) {
+        setSubmitAttempted(true);
+        return;
+      }
       onSave(draft);
       onOpenChange(false);
     },
-    [draft, onSave, onOpenChange],
+    [draft, t, onSave, onOpenChange],
   );
+
+  // A field's error is shown after it's been touched or a submit was attempted.
+  // The target error also surfaces as soon as a target-requiring scope is
+  // chosen, so the requirement is visible the moment it becomes relevant.
+  const showTargetError =
+    !!errors.scopeId && (submitAttempted || touched.scope || touched.scopeId);
+  const showLimitError = !!errors.limits && (submitAttempted || touched.limits);
+  const fieldError = (key: keyof BudgetRuleErrors) =>
+    submitAttempted || touched[key] ? errors[key] : undefined;
 
   return (
     <FormDialog
@@ -160,6 +305,7 @@ function RuleDialog({
               value={draft.scopeId ?? ''}
               onValueChange={(value) => updateDraft({ scopeId: value })}
               disabled={cannotManage}
+              error={showTargetError}
             />
           )}
 
@@ -175,6 +321,7 @@ function RuleDialog({
                 searchPlaceholder={t('budgets.searchUsers')}
                 emptyText={t('budgets.noUsersFound')}
                 aria-label={t('budgets.selectUserAriaLabel')}
+                error={showTargetError}
               />
             </div>
           )}
@@ -191,6 +338,24 @@ function RuleDialog({
                 searchPlaceholder={t('budgets.searchTeams')}
                 emptyText={t('budgets.noTeamsFound')}
                 aria-label={t('budgets.selectTeamAriaLabel')}
+                error={showTargetError}
+              />
+            </div>
+          )}
+
+          {draft.scope === 'apiKey' && (
+            <div className="min-w-[14rem] flex-2">
+              <SearchableSelect
+                label={t('budgets.apiKey')}
+                placeholder={t('budgets.selectApiKey')}
+                disabled={cannotManage}
+                value={draft.apiKeyId ?? null}
+                onValueChange={(value) => updateDraft({ apiKeyId: value })}
+                options={apiKeyOptions}
+                searchPlaceholder={t('budgets.searchApiKeys')}
+                emptyText={t('budgets.noApiKeysFound')}
+                aria-label={t('budgets.selectApiKeyAriaLabel')}
+                error={showTargetError}
               />
             </div>
           )}
@@ -208,6 +373,10 @@ function RuleDialog({
           />
         </Row>
 
+        {showTargetError && errors.scopeId && (
+          <FieldError message={errors.scopeId} />
+        )}
+
         <Stack gap={3}>
           <div>
             <Input
@@ -224,6 +393,7 @@ function RuleDialog({
               disabled={cannotManage}
               placeholder="e.g. 1000000"
               min={0}
+              errorMessage={fieldError('maxTokens')}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('budgets.tokenLimitHelp')}
@@ -246,6 +416,7 @@ function RuleDialog({
               placeholder="e.g. 50.00"
               min={0}
               step={0.01}
+              errorMessage={fieldError('maxCostCents')}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('budgets.costLimitHelp')}
@@ -267,11 +438,16 @@ function RuleDialog({
               disabled={cannotManage}
               placeholder="e.g. 500"
               min={0}
+              errorMessage={fieldError('maxRequests')}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('budgets.maxRequestsHelp')}
             </Text>
           </div>
+
+          {showLimitError && errors.limits && (
+            <FieldError message={errors.limits} />
+          )}
 
           <div>
             <Input
@@ -289,6 +465,7 @@ function RuleDialog({
               placeholder="e.g. 80"
               min={0}
               max={100}
+              errorMessage={fieldError('warningThresholdPercent')}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('budgets.warningThresholdHelp')}
@@ -328,6 +505,10 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy();
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
+  // API keys the current admin can attach a budget to (their own keys, the
+  // reuse-first source). A rule stores the raw `apiKeyId`, so a key that isn't
+  // in this list still shows its id in the table via the fallback below.
+  const { data: apiKeys } = useApiKeys(organizationId);
 
   const memberOptions = useMemo(
     () =>
@@ -346,6 +527,16 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         label: team.name || team.id,
       })),
     [teams],
+  );
+
+  const apiKeyOptions = useMemo(
+    () =>
+      (apiKeys ?? []).map((k) => ({
+        value: k.id,
+        label: k.name || k.start || k.id,
+        description: k.start && k.name ? k.start : undefined,
+      })),
+    [apiKeys],
   );
 
   // Memoize on the consumed value (`policy?.config`), not the `policy` wrapper.
@@ -455,6 +646,13 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         }
         case 'role':
           return rule.scopeId ?? '—';
+        case 'apiKey': {
+          if (!rule.apiKeyId) return '—';
+          return (
+            apiKeyOptions.find((o) => o.value === rule.apiKeyId)?.label ??
+            rule.apiKeyId
+          );
+        }
         case 'org':
           return t('budgets.orgScopeTarget');
         case 'default':
@@ -463,7 +661,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, t],
+    [memberOptions, teamOptions, apiKeyOptions, t],
   );
 
   const onAddRule = openAddDialog;
@@ -641,6 +839,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           cannotManage={cannotManage}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
+          apiKeyOptions={apiKeyOptions}
         />
 
         <ConfirmDialog

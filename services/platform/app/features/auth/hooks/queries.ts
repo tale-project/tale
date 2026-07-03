@@ -26,6 +26,16 @@ export function useIsSsoConfigured() {
   );
 }
 
+// The SSO step's manual picker: enabled connections without an email domain
+// (unreachable by email routing). Pre-auth like isConfigured.
+export function useSsoSelectableOrgs() {
+  return useConvexQuery(
+    api.enterprise_sso.queries.listSelectable,
+    {},
+    { requireAuth: false },
+  );
+}
+
 export function useHasMicrosoftAccount() {
   return useConvexQuery(api.accounts.queries.hasMicrosoftAccount, {});
 }

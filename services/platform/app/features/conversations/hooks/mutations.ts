@@ -5,12 +5,6 @@ export function useGenerateUploadUrl() {
   return useConvexMutation(api.files.mutations.generateUploadUrl);
 }
 
-export function useAddMessage() {
-  return useConvexMutation(
-    api.conversations.mutations.addMessageToConversation,
-  );
-}
-
 export function useBulkArchiveConversations() {
   return useConvexMutation(
     api.conversations.mutations.bulkArchiveConversations,

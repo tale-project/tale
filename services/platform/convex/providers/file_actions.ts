@@ -58,7 +58,11 @@ import {
   requireOrgMembership,
   requireOrgMembershipById,
 } from './auth';
-import { MissingApiKeyError, NoProviderAvailableError } from './errors';
+import {
+  FRIENDLY_NO_PROVIDER,
+  MissingApiKeyError,
+  NoProviderAvailableError,
+} from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -100,6 +104,12 @@ const modelRoutingMetadataValidator = {
   qualityScore: v.optional(v.number()),
   routingTags: v.optional(v.array(v.string())),
   contextWindow: v.optional(v.number()),
+  /** Same-provider model-level fallback (the config's `fallbackModelId`) —
+   * consumed by the external-agent run to arm Claude Code's fallback chain. */
+  fallbackModelId: v.optional(v.string()),
+  /** Vendor-native id of a gateway-shaped entry (the config's `nativeModelId`)
+   * — what a BYO (direct-to-vendor) session requests instead of the id. */
+  nativeModelId: v.optional(v.string()),
 } as const;
 
 /**
@@ -420,9 +430,6 @@ interface ProviderWithSecrets {
    */
   secrets: ProviderSecrets | null;
 }
-
-const FRIENDLY_NO_PROVIDER =
-  'No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.';
 
 async function loadAllProviders(
   orgSlug: string,
@@ -1418,6 +1425,8 @@ async function readRoutingCatalog(orgSlug: string) {
         qualityScore: m.qualityScore,
         routingTags: m.routingTags,
         contextWindow: m.contextWindow,
+        fallbackModelId: m.fallbackModelId,
+        nativeModelId: m.nativeModelId,
       }));
     }),
   );

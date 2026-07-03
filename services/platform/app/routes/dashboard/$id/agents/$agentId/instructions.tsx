@@ -11,6 +11,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { LocaleTabs } from '@/app/components/ui/i18n/locale-tabs';
@@ -37,6 +41,12 @@ import {
 } from '@/lib/shared/utils/model-ref';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
+
+/** Sentinel for the vision-model picker's "use org default" choice — selecting
+ * it clears `visionModel` (undefined) so the runtime resolves the provider
+ * registry's `vision`-tagged default. Non-empty so it never collides with the
+ * spurious empty-string Radix emits on close. */
+const VISION_MODEL_AUTO = '__auto__';
 
 const PromptLibraryDialog = lazyComponent<
   import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
@@ -351,6 +361,50 @@ function InstructionsTab() {
     [modelProvidersMap],
   );
 
+  // Vision-model picker options for the managed text-only image polyfill. The
+  // first entry ('auto') clears `visionModel` so the runtime falls back to the
+  // provider registry's `vision`-tagged default; the rest are every concrete
+  // `vision`-tagged ref (one per quantization variant), saved qualified.
+  const visionModelOptions = useMemo<SearchableSelectOption[]>(() => {
+    const opts: SearchableSelectOption[] = [
+      {
+        value: VISION_MODEL_AUTO,
+        label: t('agents.form.vision.autoLabel'),
+        description: t('agents.form.vision.autoDescription'),
+      },
+    ];
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) {
+        if (!(model.tags ?? []).includes('vision')) continue;
+        const variants = Array.isArray(model.quantizations)
+          ? model.quantizations
+          : [undefined];
+        for (const quantization of variants) {
+          opts.push({
+            value: formatModelRef({
+              providerName: provider.name,
+              modelId: model.id,
+              ...(quantization !== undefined && { quantization }),
+            }),
+            label: quantization
+              ? `${model.displayName} (${getVariantBadgeLabel(quantization)})`
+              : model.displayName,
+            description: t('agents.form.viaProvider', {
+              provider: provider.name,
+            }),
+          });
+        }
+      }
+    }
+    return opts;
+  }, [providers, t]);
+
   const renderItemAction = useCallback(
     (ref: string) => {
       const { modelId } = parseModelRef(ref);
@@ -508,6 +562,27 @@ function InstructionsTab() {
             }
             label={t('agents.form.webTools.nativeLabel')}
             description={t('agents.form.webTools.nativeDescription')}
+          />
+        </PageSection>
+      )}
+
+      {isExternalAgent && !isByo && (
+        <PageSection
+          title={t('agents.form.vision.sectionTitle')}
+          description={t('agents.form.vision.sectionDescription')}
+        >
+          <SearchableSelect
+            value={config.visionModel ?? VISION_MODEL_AUTO}
+            onValueChange={(value) => {
+              // Ignore the spurious empty-string Radix emits on close.
+              if (value === '') return;
+              updateConfig({
+                visionModel: value === VISION_MODEL_AUTO ? undefined : value,
+              });
+            }}
+            options={visionModelOptions}
+            label={t('agents.form.vision.label')}
+            placeholder={t('agents.form.vision.autoLabel')}
           />
         </PageSection>
       )}

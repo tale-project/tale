@@ -20,6 +20,7 @@ import { memo, useMemo, useState } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -42,9 +43,11 @@ function TodoListCardComponent({
   const { t } = useT('todoList');
   const [collapsed, setCollapsed] = useState(false);
 
-  const { data: todosData } = useConvexQuery(api.thread_todos.queries.get, {
-    threadId,
-  });
+  const organizationId = useOrganizationId();
+  const { data: todosData } = useConvexQuery(
+    api.thread_todos.queries.get,
+    organizationId ? { threadId, organizationId } : 'skip',
+  );
 
   const counts = useMemo(() => {
     const result: Record<TodoStatus, number> & { total: number } = {

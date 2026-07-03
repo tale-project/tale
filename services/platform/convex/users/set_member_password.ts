@@ -6,6 +6,7 @@
  */
 
 import { hashPassword } from 'better-auth/crypto';
+import { ConvexError } from 'convex/values';
 
 import {
   isPasswordValid,
@@ -31,7 +32,10 @@ export async function setMemberPassword(
 ): Promise<void> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({
+      code: 'unauthenticated',
+      message: 'Unauthenticated',
+    });
   }
 
   // Look up the target member
@@ -44,15 +48,24 @@ export async function setMemberPassword(
   const member = isRecord(memberRaw) ? memberRaw : undefined;
   const memberOrgId = member ? getString(member, 'organizationId') : undefined;
   if (!memberOrgId) {
-    throw new Error('Member not found');
+    throw new ConvexError({
+      code: 'not_found',
+      message: 'Member not found',
+    });
   }
 
   if (!member) {
-    throw new Error('Member not found');
+    throw new ConvexError({
+      code: 'not_found',
+      message: 'Member not found',
+    });
   }
   const memberUserId = getString(member, 'userId');
   if (!memberUserId) {
-    throw new Error('Member missing userId');
+    throw new ConvexError({
+      code: 'invalid',
+      message: 'Member missing userId',
+    });
   }
 
   // Verify caller is an admin or owner of this organization
@@ -76,7 +89,10 @@ export async function setMemberPassword(
     ? getString(callerMemberRec, 'role')?.toLowerCase()
     : undefined;
   if (!isAdmin(callerRole)) {
-    throw new Error('Only admins can set member passwords');
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'Only admins can set member passwords',
+    });
   }
 
   // Validate against the target member's org policy (the password must
@@ -84,9 +100,10 @@ export async function setMemberPassword(
   const policy = await getPasswordPolicy(ctx, memberOrgId);
   if (!isPasswordValid(args.newPassword, policy)) {
     const violations = passwordPolicyViolations(args.newPassword, policy);
-    throw new Error(
-      `Password does not meet policy (failed: ${violations.join(', ')})`,
-    );
+    throw new ConvexError({
+      code: 'password_policy_violation',
+      message: `Password does not meet policy (failed: ${violations.join(', ')})`,
+    });
   }
 
   // Check if the target user already has a credential account
@@ -110,7 +127,11 @@ export async function setMemberPassword(
 
   if (existingCredential) {
     const credentialId = getString(existingCredential, '_id');
-    if (!credentialId) throw new Error('Credential account missing _id');
+    if (!credentialId)
+      throw new ConvexError({
+        code: 'credential_account_not_found',
+        message: 'Credential account missing _id',
+      });
     // Update existing credential account password
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {

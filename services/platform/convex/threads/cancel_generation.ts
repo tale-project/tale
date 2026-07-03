@@ -1,4 +1,5 @@
 import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
+import { ConvexError } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
@@ -40,7 +41,10 @@ export async function cancelGeneration(
     threadId,
   });
   if (!thread || thread.userId !== userId) {
-    throw new Error('Thread not found');
+    throw new ConvexError({
+      code: 'THREAD_NOT_FOUND',
+      message: 'Thread not found',
+    });
   }
 
   // Abort all active SDK streams
@@ -124,29 +128,11 @@ export async function cancelGeneration(
   // (artifact in-flight stream cleanup removed — artifacts module deleted.)
   void threadMeta;
 
-  // Cascade Stop to any running sandbox executions on this thread. Scheduled
-  // (not awaited) because the action calls the spawner over HTTP and we
-  // don't want to block the user's Stop-acknowledged response on a network
-  // round-trip. The mutation that finalizes each execution is terminal-state
-  // guarded so racing with `executeCode`'s own finalize is safe.
-  //
-  // TWO cascades, because the two sandbox paths use different tables:
-  //   - one-shot `executeCode` → `sandboxExecutions` (cancelExecutionsForThread)
-  //   - external-agent turns   → `sandboxSessionOps` (cancelSessionExecsForThread)
-  // Without the second, clicking Stop never actually cancelled an external-agent
-  // run's in-sandbox process.
-  try {
-    await ctx.scheduler.runAfter(
-      0,
-      internal.node_only.sandbox.internal_actions.cancelExecutionsForThread,
-      { threadId },
-    );
-  } catch (err) {
-    console.warn(
-      '[cancelGeneration] scheduler.runAfter(cancelExecutionsForThread) failed:',
-      err,
-    );
-  }
+  // Cascade Stop to any running sandbox run on this thread. Scheduled (not
+  // awaited) because the action calls the spawner over HTTP and we don't want to
+  // block the user's Stop-acknowledged response on a network round-trip. Every
+  // sandbox run is now a session (run_code + external-agent turns), so Stop
+  // reaches the in-sandbox process via the `sandboxSessionOps` cancel path.
   try {
     await ctx.scheduler.runAfter(
       0,

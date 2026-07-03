@@ -135,6 +135,47 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     );
   });
 
+  it('does not arm the vision-read hook unless visionTool is set', () => {
+    const { env } = new ClaudeCodeAdapter().buildExec(base);
+    // The hook self-gates on TALE_VISION_MODEL; absent ⇒ it is a no-op.
+    expect(env.TALE_VISION_MODEL).toBeUndefined();
+    expect(env.TALE_GATEWAY_URL).toBeUndefined();
+  });
+
+  it('arms the vision-read hook (gateway + key + model env) when visionTool is set', () => {
+    const { env } = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      visionTool: true,
+      visionModel: 'openrouter:qwen/qwen3-vl-32b-instruct',
+    });
+    // The tale-vision-read-hook (managed-settings.json) transcribes through the
+    // SAME gateway the agent uses, with the session key, using these env vars.
+    expect(env.TALE_GATEWAY_URL).toBe('http://sandbox-llm-gateway:8080');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+    expect(env.TALE_VISION_MODEL).toBe('openrouter:qwen/qwen3-vl-32b-instruct');
+  });
+
+  it('forces browser screenshots to disk (--image-responses omit) for a text-only agent', () => {
+    const withVision = new ClaudeCodeAdapter().buildExec({
+      ...base,
+      visionTool: true,
+      visionModel: 'openrouter:qwen/qwen3-vl-32b-instruct',
+    });
+    const pw = JSON.parse(
+      withVision.argv[withVision.argv.indexOf('--mcp-config') + 1] ?? '{}',
+    ).mcpServers.playwright;
+    // Inline screenshots bypass the Read hook and 404 the text-only model; omit
+    // saves them to disk so they route through Read → the vision hook.
+    expect(pw.args).toContain('--image-responses');
+    expect(pw.args).toContain('omit');
+    // A vision-capable agent keeps inline images (no omit).
+    const noVision = new ClaudeCodeAdapter().buildExec(base);
+    const pw2 = JSON.parse(
+      noVision.argv[noVision.argv.indexOf('--mcp-config') + 1] ?? '{}',
+    ).mcpServers.playwright;
+    expect(pw2.args).not.toContain('--image-responses');
+  });
+
   it('adds --resume when continuing a session and omits browser MCP when off', () => {
     const { argv } = new ClaudeCodeAdapter().buildExec({
       ...base,

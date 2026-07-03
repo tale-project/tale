@@ -423,6 +423,10 @@
         "visibleInChat": {
           "type": "boolean"
         },
+        "visionModel": {
+          "minLength": 1,
+          "type": "string"
+        },
         "webSearchMode": {
           "enum": ["off", "tool", "context", "both"],
           "type": "string"
@@ -779,10 +783,33 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "derive": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "into": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "pattern": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["pattern", "into"],
+                    "type": "object"
+                  },
                   "key": {
                     "type": "string"
                   },
                   "labelKey": {
+                    "type": "string"
+                  },
+                  "multiline": {
+                    "type": "boolean"
+                  },
+                  "placeholderKey": {
                     "type": "string"
                   },
                   "type": {
@@ -1126,6 +1153,9 @@
         "sandboxRuntime": {
           "additionalProperties": false,
           "properties": {
+            "dockerBuildCache": {
+              "type": "boolean"
+            },
             "dockerInContainer": {
               "type": "boolean"
             },
@@ -3068,6 +3098,38 @@
         "pythonDeny",
         "nodeAllow",
         "nodeDeny"
+      ],
+      "type": "object"
+    },
+    "governance.sandboxQuotaConfigSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "maxRenderSessionsPerOrg": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxSessionsPerOrg": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxThreadSessionsPerOrg": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxWorkflowSessionsPerOrg": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxSessionsPerOrg",
+        "maxThreadSessionsPerOrg",
+        "maxWorkflowSessionsPerOrg",
+        "maxRenderSessionsPerOrg"
       ],
       "type": "object"
     },

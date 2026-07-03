@@ -181,6 +181,50 @@ describe('IntegrationDetails', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('does not render connector code for IMAP/SMTP type, even while loading (no flash)', () => {
+    // imap_smtp runs as a Node action with no connector code. The panel still
+    // briefly sets connectorCodeLoading while it probes for code; the section
+    // must stay hidden the whole time (regression: it used to flash in then out).
+    const integration = makeIntegration({ type: 'imap_smtp' });
+
+    render(
+      <IntegrationDetails
+        integration={integration}
+        connectorCodeLoading={true}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', {
+        name: /integrations\.upload\.connectorCode/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('reserves the connector-code lines badge while loading so it does not pop in', () => {
+    // REST integration whose connector code is still being fetched.
+    const integration = makeIntegration({
+      connector: { code: '', version: 1, operations: [], secretBindings: [] },
+    });
+
+    render(
+      <IntegrationDetails
+        integration={integration}
+        connectorCodeLoading={true}
+      />,
+    );
+
+    // The section header renders during load...
+    expect(
+      screen.getByRole('button', {
+        name: /integrations\.upload\.connectorCode/,
+      }),
+    ).toBeInTheDocument();
+    // ...with the lines badge already occupying its slot (skeleton placeholder),
+    // so the real count badge won't appear later and shift the header.
+    expect(screen.getByText(/integrations\.upload\.lines/)).toBeInTheDocument();
+  });
+
   it('renders SQL config when active', async () => {
     const integration = makeIntegration({
       type: 'sql',

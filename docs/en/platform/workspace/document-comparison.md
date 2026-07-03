@@ -11,7 +11,7 @@ The dialog lives next to the documents you compare: open it from **Knowledge > D
 
 Two pickers sit side by side: **Base document** on the left, **Comparison document** on the right. Each picker has two tabs — **Upload** and **Existing** — and either tab fills the same slot.
 
-The Upload tab takes any of the formats the knowledge-base pipeline already handles: PDF, DOCX, DOC, XLSX, PPTX, plain text, Markdown, CSV. The file uploads to Tale's object store, the same place chat attachments and library documents live; it is not indexed and not bound to an agent, so the upload is a one-shot input to this diff and nothing else. The Existing tab lists every document in the library that has a downloadable file — pick one with the searchable selector and the slot fills with that document's name.
+The Upload tab takes any of the formats the knowledge-base pipeline already handles: PDF, DOCX, DOC, ODT, XLSX, PPTX, plain text, Markdown, CSV. The file uploads to Tale's object store, the same place chat attachments and library documents live; it is not indexed and not bound to an agent, so the upload is a one-shot input to this diff and nothing else. The Existing tab lists every document in the library that has a downloadable file — pick one with the searchable selector and the slot fills with that document's name.
 
 Mix the tabs freely. Compare two uploads against each other when neither version is in the library, compare an upload against an existing library document when you want to see what an incoming draft changes, or compare two library documents when you have versioned them in Knowledge.
 

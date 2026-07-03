@@ -424,6 +424,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  // Tighter than openai:chat — image generation is materially more expensive
+  // per call than a chat completion.
+  'openai:images': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 15,
+  },
   // Looser than openai:chat — listing models is cheap and frequently polled
   // by clients on startup.
   'openai:models': {
@@ -503,17 +511,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // with rate=1/hour and capacity=1 means a fresh token only arrives an
   // hour after the previous one is consumed.
   'cleanup:tts': {
-    kind: 'token bucket',
-    rate: 1,
-    period: HOUR,
-    capacity: 1,
-  },
-  // Per-org lazy cleanup of sandboxExecutions audit rows. Gates the
-  // opportunistic delete-old-rows sweep in reserveSlotAndInsert so a
-  // busy org performs at most one sweep per hour. Audit retention is
-  // 90 days; older terminal rows are reclaimed here instead of via a
-  // crons.ts entry (see feedback_lazy_cleanup_over_cron).
-  'cleanup:sandbox': {
     kind: 'token bucket',
     rate: 1,
     period: HOUR,

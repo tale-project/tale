@@ -74,6 +74,27 @@ test('admin adds a member who cannot see the add-member control', async ({
     const memberPage = await memberContext.newPage();
     await memberPage.goto(`/dashboard/${organizationId}/settings/organization`);
 
+    // An admin-provisioned credential must be rotated on first login: the app
+    // forces the member through /forced-change-password/<orgId> before any
+    // other page mounts. Complete it, then return to the settings page.
+    await memberPage.waitForURL(/\/forced-change-password\//, {
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+    const rotatedPassword = `${E2E_PASSWORD}-r0!`;
+    await memberPage
+      .getByLabel(t('auth.changePassword.newPassword'), { exact: true })
+      .fill(rotatedPassword);
+    await memberPage
+      .getByLabel(t('auth.changePassword.confirmPassword'), { exact: true })
+      .fill(rotatedPassword);
+    await memberPage
+      .getByRole('button', { name: t('auth.forcedChange.submit') })
+      .click();
+    await memberPage.waitForURL(/\/dashboard\//, {
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+    await memberPage.goto(`/dashboard/${organizationId}/settings/organization`);
+
     // Anchor on the settings rail (always rendered for every role), so we
     // assert after the settings shell has mounted. The org-name field itself is
     // admin-gated — a plain `member` sees an empty org page — so it can't be

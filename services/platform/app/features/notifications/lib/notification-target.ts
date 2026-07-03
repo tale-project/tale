@@ -20,6 +20,8 @@ export type NotificationTarget =
   | {
       to: '/dashboard/$id/settings/governance/logs';
       params: { id: string };
+      /** Deep-links to a specific broken audit row (#1845); reveals it in-page. */
+      search?: { logId?: string };
     }
   | {
       to: '/dashboard/$id/settings/governance/data-subject-requests';
@@ -36,7 +38,9 @@ export type NotificationTarget =
  */
 export type OrgNotificationLink =
   | { kind: 'agent'; agentSlug: string }
-  | { kind: 'audit-logs' }
+  // `logId` deep-links to the specific broken audit row (#1845); optional so a
+  // finding without a concrete row (config/checkpoint) still links to the page.
+  | { kind: 'audit-logs'; logId?: string }
   | { kind: 'dsar' }
   | { kind: 'security-monitoring' };
 
@@ -81,7 +85,13 @@ export function orgNotificationTarget(
         params: { id, agentId: link.agentSlug },
       };
     case 'audit-logs':
-      return { to: '/dashboard/$id/settings/governance/logs', params: { id } };
+      return link.logId
+        ? {
+            to: '/dashboard/$id/settings/governance/logs',
+            params: { id },
+            search: { logId: link.logId },
+          }
+        : { to: '/dashboard/$id/settings/governance/logs', params: { id } };
     case 'dsar':
       return {
         to: '/dashboard/$id/settings/governance/data-subject-requests',

@@ -5,15 +5,13 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import type { CoreV1Api, V1Pod, V1Secret } from '@kubernetes/client-node';
+import type { V1Pod, V1Secret } from '@kubernetes/client-node';
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
-import type { ExecuteRequest, SpawnerConfig } from '../../types.ts';
-import type { ExecuteOptions, SweepOptions } from '../types.ts';
-import { secretNameFor } from './exec-spec.ts';
+import type { SpawnerConfig } from '../../types.ts';
+import type { SweepOptions } from '../types.ts';
 import {
   HARVEST_BACKSTOP_MS,
-  KubernetesBackend,
   STARTUP_BUDGET_MS,
   SWEEP_SLACK_MS,
   TERMINAL_REAP_GRACE_MS,
@@ -21,7 +19,6 @@ import {
   shouldReapSecret,
   staleLifetimeCutoffMs,
 } from './k8s-backend.ts';
-import { podNameFor } from './k8s-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
   backend: 'kubernetes',
@@ -44,7 +41,6 @@ const cfg: SpawnerConfig = {
   },
   defaultTimeoutMs: 30_000,
   maxTimeoutMs: 300_000,
-  maxConcurrent: 4,
   hostSessionRoot: '/var/lib/tale-sandbox/sessions',
   cacheVolumePrefix: { pip: 'pip', npm: 'npm', bun: 'bun' },
   egressNetwork: 'tale-sandbox-net',
@@ -200,140 +196,5 @@ describe('shouldReapSecret', () => {
       ),
     ).toBe(false);
     expect(shouldReapSecret(secret({}), sweepOpts(), cfg, NOW)).toBe(false);
-  });
-});
-
-// ---- duplicate-executionId (409) safety -----------------------------------
-
-const req: ExecuteRequest = {
-  executionId: 'k74m9zr5b8jcgvx2pqfwsdyhntq3l1a0',
-  organizationId: 'org_456',
-  language: 'python',
-  files: [],
-  entryPath: 'main.py',
-  outputUploadSlots: [],
-  outputUrlEndpoint: 'http://platform/ep1',
-  reportUploadedEndpoint: 'http://platform/ep2',
-};
-
-function execOpts(): ExecuteOptions {
-  return { signal: new AbortController().signal, startedAtMs: Date.now() };
-}
-
-interface StubCalls {
-  deletes: string[];
-  replaces: number;
-}
-
-/** Minimal CoreV1Api stand-in; each field overrides one generated method. */
-function stubClient(behavior: {
-  createSecret?: () => Promise<unknown>;
-  createPod?: () => Promise<unknown>;
-  readPod?: () => Promise<V1Pod>;
-  readLog?: () => Promise<string>;
-}): { core: CoreV1Api; namespace: string; calls: StubCalls } {
-  const calls: StubCalls = { deletes: [], replaces: 0 };
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
-  const core = {
-    createNamespacedSecret:
-      behavior.createSecret ?? (() => Promise.resolve({})),
-    createNamespacedPod: behavior.createPod ?? (() => Promise.resolve({})),
-    readNamespacedPod:
-      behavior.readPod ??
-      (() => Promise.reject(Object.assign(new Error('404'), { code: 404 }))),
-    readNamespacedPodLog: behavior.readLog ?? (() => Promise.resolve('')),
-    replaceNamespacedSecret: () => {
-      calls.replaces += 1;
-      return Promise.resolve({});
-    },
-    deleteNamespacedPod: (p: { name: string }) => {
-      calls.deletes.push(`pod:${p.name}`);
-      return Promise.resolve({});
-    },
-    deleteNamespacedSecret: (p: { name: string }) => {
-      calls.deletes.push(`secret:${p.name}`);
-      return Promise.resolve({});
-    },
-    listNamespacedPod: () => Promise.resolve({ items: [] }),
-    listNamespacedSecret: () => Promise.resolve({ items: [] }),
-  } as unknown as CoreV1Api;
-  return { core, namespace: 'tale-sandbox', calls };
-}
-
-function http409(): Promise<never> {
-  return Promise.reject(Object.assign(new Error('conflict'), { code: 409 }));
-}
-
-describe('duplicate-executionId safety', () => {
-  test("secret 409 + live young pod ⇒ fail WITHOUT touching the owner's resources", async () => {
-    const stub = stubClient({
-      createSecret: http409,
-      readPod: () =>
-        Promise.resolve(
-          pod({ phase: 'Running', startedAt: Date.now() - 5_000 }),
-        ),
-    });
-    const backend = new KubernetesBackend(cfg, stub);
-    const res = await backend.execute(cfg, req, execOpts());
-    expect(res.status).toBe('failed');
-    expect(res.errorCode).toBe('SPAWNER_UNAVAILABLE');
-    expect(res.errorMessage).toContain('duplicate');
-    expect(stub.calls.deletes).toEqual([]);
-    expect(stub.calls.replaces).toBe(0);
-  });
-
-  test("pod-create 409 ⇒ fail WITHOUT cleanup (owner's finally will delete)", async () => {
-    const stub = stubClient({ createPod: http409 });
-    const backend = new KubernetesBackend(cfg, stub);
-    const res = await backend.execute(cfg, req, execOpts());
-    expect(res.status).toBe('failed');
-    expect(res.errorCode).toBe('SPAWNER_UNAVAILABLE');
-    expect(res.errorMessage).toContain('another replica');
-    expect(stub.calls.deletes).toEqual([]);
-  });
-
-  test('secret 409 + no pod (crashed prior attempt) ⇒ replace and proceed', async () => {
-    // After the replace, the run proceeds: waitForRunnerStart sees the stage
-    // initContainer failed ⇒ staging failure ⇒ SPAWNER_UNAVAILABLE carrying
-    // the stage log tail, and the finally cleans up what THIS call created.
-    let readCount = 0;
-    const stub = stubClient({
-      createSecret: http409,
-      readPod: () => {
-        readCount += 1;
-        if (readCount === 1) {
-          // createSecretChecked's probe: no pod.
-          return Promise.reject(Object.assign(new Error('404'), { code: 404 }));
-        }
-        // waitForRunnerStart: stage initContainer failed.
-        // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- partial V1Pod fixture
-        return Promise.resolve({
-          metadata: {},
-          status: {
-            initContainerStatuses: [
-              {
-                name: 'stage',
-                state: { terminated: { exitCode: 1, reason: 'Error' } },
-              },
-            ],
-          },
-        } as V1Pod);
-      },
-      readLog: () =>
-        Promise.resolve('workspace file fetch failed for main.py: HTTP 403'),
-    });
-    const backend = new KubernetesBackend(cfg, stub);
-    const res = await backend.execute(cfg, req, execOpts());
-    expect(stub.calls.replaces).toBe(1);
-    expect(res.status).toBe('failed');
-    expect(res.errorCode).toBe('SPAWNER_UNAVAILABLE');
-    expect(res.errorMessage).toContain('staging failed');
-    // The real fetch error from the stage container's logs reaches the wire.
-    expect(res.errorMessage).toContain('HTTP 403');
-    // This call created the pod, so its finally cleans up both resources.
-    expect(stub.calls.deletes).toContain(`pod:${podNameFor(req.executionId)}`);
-    expect(stub.calls.deletes).toContain(
-      `secret:${secretNameFor(req.executionId)}`,
-    );
   });
 });

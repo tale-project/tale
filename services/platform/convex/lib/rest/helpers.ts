@@ -323,13 +323,26 @@ export function withRestAuth(
 function httpStatusForConvexCode(code: string | undefined): number {
   switch (code) {
     case 'unauthenticated':
+    case 'UNAUTHENTICATED':
       return 401;
     case 'forbidden':
+    case 'FORBIDDEN':
       return 403;
     case 'not_found':
+    case 'VENDOR_NOT_FOUND':
+    case 'CUSTOMER_NOT_FOUND':
+    case 'WEBSITE_NOT_FOUND':
+    case 'DOCUMENT_NOT_FOUND':
+    case 'FOLDER_NOT_FOUND':
       return 404;
     case 'validation':
+    case 'EMAIL_REQUIRED':
+    case 'MISSING_FILTER':
       return 400;
+    case 'DUPLICATE_EMAIL':
+    case 'DUPLICATE_EXTERNAL_ID':
+    case 'DUPLICATE_DOMAIN':
+      return 409;
     default:
       // Codes we don't recognize fall through to the 500 path so the
       // outer console.error still logs them; no silent swallow.

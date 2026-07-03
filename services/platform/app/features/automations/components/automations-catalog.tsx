@@ -1,10 +1,10 @@
 'use client';
 
 import { Stack } from '@tale/ui/layout';
-import { SectionHeader } from '@tale/ui/section-header';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -33,6 +33,7 @@ export function AutomationsCatalog({
   const { mutateAsync: installWorkflow } = useInstallWorkflow();
   const invalidateWorkflows = useInvalidateWorkflows();
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // The catalog is a full-page browse surface — single-click installs
   // immediately (no selection step needed outside a confined dialog).
@@ -59,12 +60,15 @@ export function AutomationsCatalog({
 
   return (
     <Stack gap={6} className="p-6">
-      <SectionHeader
-        title={t('catalog.title')}
-        description={t('catalog.subtitle')}
+      <SearchInput
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder={t('search.placeholder')}
+        className="w-64 shrink-0"
       />
       <WorkflowTemplateGrid
         organizationId={organizationId}
+        searchQuery={searchQuery}
         scrollable={false}
         selectedSlug={null}
         onSelectSlug={(slug) => void handleSelectSlug(slug)}

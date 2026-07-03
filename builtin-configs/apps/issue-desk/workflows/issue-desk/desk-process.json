@@ -1,7 +1,7 @@
 {
   "name": "Issue resolution desk",
   "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, and FIRST checks whether an open pull request already resolves the issue — if one does it pushes its update onto that existing PR's branch (closing any redundant duplicate PRs) rather than opening a competing one; otherwise it fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens (or updates) a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves — or until the rework loop hits a configurable cap (config.variables.maxReworkLoops, default 3, adjustable per deployment), after which the desk stops looping, comments on the task, and parks it at In review for a human to take over. Cross-step state lives on the git branch + PR (plus a reworkCount loop counter in workflow variables); the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "metadata": {
     "pack": "issue-desk",
     "autoInstall": false
@@ -32,7 +32,85 @@
       "stepType": "start",
       "config": {},
       "nextSteps": {
-        "success": "ack"
+        "success": "precheck_has_ref"
+      }
+    },
+    {
+      "stepSlug": "precheck_has_ref",
+      "name": "Do we have the issue coordinates?",
+      "stepType": "condition",
+      "config": {
+        "expression": "input.owner && input.repo && input.issueNumber",
+        "description": "The pre-check needs owner/repo/issue_number to call get_issue. A task with a malformed or non-GitHub external ref (nothing parsed) skips straight to the normal flow, where the implementer derives the repo from the issue URL itself — so a bad ref never hard-fails the run."
+      },
+      "nextSteps": {
+        "true": "precheck_issue",
+        "false": "ack"
+      }
+    },
+    {
+      "stepSlug": "precheck_issue",
+      "name": "Fetch the issue's current state",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "github",
+          "operation": "get_issue",
+          "params": {
+            "owner": "{{input.owner}}",
+            "repo": "{{input.repo}}",
+            "issue_number": "{{input.issueNumber}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "precheck_issue_open"
+      }
+    },
+    {
+      "stepSlug": "precheck_issue_open",
+      "name": "Is the issue still open?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.precheck_issue.output.data.result.data.state == 'open'",
+        "description": "If the issue is still open, run the normal resolve → review flow. If it is ALREADY closed (merged, fixed elsewhere, won't-fix, duplicate) there is nothing for the desk to do — skip the whole implement/review loop (saving the implementer + reviewer sandbox spend) and mark the task done."
+      },
+      "nextSteps": {
+        "true": "ack",
+        "false": "already_resolved_comment"
+      }
+    },
+    {
+      "stepSlug": "already_resolved_comment",
+      "name": "Note the issue was already closed",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] GitHub issue #{{input.issueNumber}} is already closed upstream — nothing for the desk to resolve. Marking this task done."
+        }
+      },
+      "nextSteps": {
+        "success": "already_resolved_done"
+      }
+    },
+    {
+      "stepSlug": "already_resolved_done",
+      "name": "Mark as Done (issue already closed)",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "done"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
       }
     },
     {
@@ -84,7 +162,7 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-implementer",
-          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included.\n\n(1) CLONE: derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> repo && cd repo`, and export `OWNER` and `REPO` for the calls below.\n\n(2) DEDUPE BEFORE YOU BRANCH — never open a second PR for an issue that already has one. Enumerate the OPEN pull requests that resolve issue #{{input.issueNumber}}: (a) the ones GitHub has formally LINKED to it via a closing reference — `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state isDraft author{login}}}}}}'`; (b) PLUS a text fallback for PRs that mention it without a formal link — `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body' --json number,headRefName,url,author,updatedAt` and any open `tale/*` head branch. Union the results, keep only OPEN PRs, and confirm by reading each candidate's title/body/diff that it truly targets THIS issue (discard a PR that only mentions #{{input.issueNumber}} in passing but fixes something else).\n\n(3) PICK THE CANONICAL PR and set `BRANCH`:\n  - If our branch `tale/{{input.task._id}}` already has an open PR -> that is canonical (the normal rework path); `BRANCH=tale/{{input.task._id}}`.\n  - Else if exactly ONE other open PR resolves the issue -> ADOPT it: it is canonical and you commit your update onto ITS head branch; set `BRANCH` to that head ref. Do NOT open a competing PR.\n  - Else if SEVERAL open PRs resolve the issue -> read each one's contents carefully (diff, tests, CI state, review comments, how complete the fix is) and choose the single furthest-along as canonical (prefer green/most-complete CI, the most thorough fix, one already under review); set `BRANCH` to its head ref. Then, for every OTHER duplicate that is genuinely redundant (same issue, superseded by the canonical one, not merged, carrying no unique work worth keeping), close it: `gh pr close <n> --repo $OWNER/$REPO --comment 'Superseded by #<canonical> — closing as a duplicate fix for issue #{{input.issueNumber}}.'`. Be conservative — closing is reversible, but only close CLEAR duplicates; never delete a human's branch, and if a PR holds distinct work the canonical one lacks, leave it open and flag it in your summary.\n  - Else (NO open PR exists yet) -> `BRANCH=tale/{{input.task._id}}`; you will create it and open the PR in step 7.\n\n(4) CHECK OUT THE WORKING BRANCH: `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`, or for a brand-new `tale/{{input.task._id}}` with no remote yet `git checkout -b \"$BRANCH\"`.\n\n(5) IF THE CANONICAL PR ALREADY EXISTED this is a RE-WORK pass: the reviewer records what must change as comments on the PR, so act ONLY on feedback NEWER than the branch's current HEAD commit (earlier rounds were already handled by earlier commits). Get HEAD's time with `git log -1 --format=%cI`, then fetch the PR's review summaries, inline review comments, and issue comments (`gh pr view \"$BRANCH\" --repo $OWNER/$REPO --json reviews,comments` plus `gh api repos/$OWNER/$REPO/pulls/<number>/comments`) and treat only those submitted/created AFTER that HEAD timestamp as your to-do list; ignore older comments that predate HEAD.\n\n(6) Implement or refine the fix, then VERIFY IT YOURSELF — find the project's OWN test/build command from its config and run it until green.\n\n(7) COMMIT following the repo's convention (default Conventional Commits so a repo with commit-lint accepts it): `git add -A && git commit -m \"fix: {{input.task.title}} (#{{input.issueNumber}})\"` (lowercase type, no trailing period), then `git push -u origin \"$BRANCH\"`. If `$BRANCH` has NO PR yet, open one to the repo's default branch with a body that formally links the issue (include `Closes #{{input.issueNumber}}` so future runs find it via the link) via `gh pr create` or the GitHub REST API with $GITHUB_TOKEN — otherwise your push already updated the canonical PR.\n\n(8) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO --watch` (or poll `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. If the FAILING check is a commit-message / commit-lint check, the fix is NOT a new commit — AMEND the message to the repo's required convention (e.g. `git commit --amend -m \"fix: ...\"`) and force-push with `git push --force-with-lease origin \"$BRANCH\"`. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch.\n\nMANDATORY: write a summary to /user/output/summary.md (absolute path) covering what you changed, the canonical PR number + URL, any duplicate PRs you closed and why (or chose to leave open and why), the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL.",
+          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included.\n\nREPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, follow it): {{input.appConfig.repoNotes}}\n\n(1) CLONE: derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> .` (the trailing `.` clones straight into the workspace root — no nested `repo/` subdir; /user/workspace is your empty cwd, so the repo root IS the workspace root), and export `OWNER` and `REPO` for the calls below.\n\n(2) DEDUPE BEFORE YOU BRANCH — never open a second PR for an issue that already has one. Enumerate the OPEN pull requests that resolve issue #{{input.issueNumber}}: (a) the ones GitHub has formally LINKED to it via a closing reference — `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state isDraft author{login}}}}}}'`; (b) PLUS a text fallback for PRs that mention it without a formal link — `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body' --json number,headRefName,url,author,updatedAt` and any open `tale/*` head branch. Union the results, keep only OPEN PRs, and confirm by reading each candidate's title/body/diff that it truly targets THIS issue (discard a PR that only mentions #{{input.issueNumber}} in passing but fixes something else).\n\n(3) PICK THE CANONICAL PR and set `BRANCH`:\n  - If our branch `tale/{{input.task._id}}` already has an open PR -> that is canonical (the normal rework path); `BRANCH=tale/{{input.task._id}}`.\n  - Else if exactly ONE other open PR resolves the issue -> ADOPT it: it is canonical and you commit your update onto ITS head branch; set `BRANCH` to that head ref. Do NOT open a competing PR.\n  - Else if SEVERAL open PRs resolve the issue -> read each one's contents carefully (diff, tests, CI state, review comments, how complete the fix is) and choose the single furthest-along as canonical (prefer green/most-complete CI, the most thorough fix, one already under review); set `BRANCH` to its head ref. Then, for every OTHER duplicate that is genuinely redundant (same issue, superseded by the canonical one, not merged, carrying no unique work worth keeping), close it: `gh pr close <n> --repo $OWNER/$REPO --comment 'Superseded by #<canonical> — closing as a duplicate fix for issue #{{input.issueNumber}}.'`. Be conservative — closing is reversible, but only close CLEAR duplicates; never delete a human's branch, and if a PR holds distinct work the canonical one lacks, leave it open and flag it in your summary.\n  - Else (NO open PR exists yet) -> `BRANCH=tale/{{input.task._id}}`; you will create it and open the PR in step 7.\n\n(4) CHECK OUT THE WORKING BRANCH: `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`, or for a brand-new `tale/{{input.task._id}}` with no remote yet `git checkout -b \"$BRANCH\"`.\n\n(5) IF THE CANONICAL PR ALREADY EXISTED this is a RE-WORK pass: the reviewer records what must change as comments on the PR, so act ONLY on feedback NEWER than the branch's current HEAD commit (earlier rounds were already handled by earlier commits). Get HEAD's time with `git log -1 --format=%cI`, then fetch the PR's review summaries, inline review comments, and issue comments (`gh pr view \"$BRANCH\" --repo $OWNER/$REPO --json reviews,comments` plus `gh api repos/$OWNER/$REPO/pulls/<number>/comments`) and treat only those submitted/created AFTER that HEAD timestamp as your to-do list; ignore older comments that predate HEAD.\n\n(6) Implement or refine the fix, then VERIFY IT YOURSELF — find the project's OWN test/build command from its config and run it until green. Operator-configured test command for THIS repo (when non-empty, use it as the test/build command): {{input.appConfig.testCommand}}\n\n(7) COMMIT following the repo's convention (default Conventional Commits so a repo with commit-lint accepts it): `git add -A && git commit -m \"fix: {{input.task.title}} (#{{input.issueNumber}})\"` (lowercase type, no trailing period), then `git push -u origin \"$BRANCH\"`. If `$BRANCH` has NO PR yet, open one to the repo's default branch with a body that formally links the issue (include `Closes #{{input.issueNumber}}` so future runs find it via the link) via `gh pr create` or the GitHub REST API with $GITHUB_TOKEN — otherwise your push already updated the canonical PR.\n\n(8) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO --watch` (or poll `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. If the FAILING check is a commit-message / commit-lint check, the fix is NOT a new commit — AMEND the message to the repo's required convention (e.g. `git commit --amend -m \"fix: ...\"`) and force-push with `git push --force-with-lease origin \"$BRANCH\"`. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch.\n\nMANDATORY: write a summary to /user/output/summary.md (absolute path) covering what you changed, the canonical PR number + URL, any duplicate PRs you closed and why (or chose to leave open and why), the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL.",
           "budget": {
             "maxCents": 500,
             "maxWallClockMs": 5400000,
@@ -157,7 +235,7 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-reviewer",
-          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}. Git is authenticated ($GITHUB_TOKEN + helper). SET UP ONCE: (1) derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> repo && cd repo`, and export `OWNER` and `REPO`; (2) RESOLVE THE CANONICAL PR the implementer worked on — the single OPEN pull request that resolves issue #{{input.issueNumber}} (the implementer dedupes the issue down to exactly one). Find it with `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state}}}}}'` (fallbacks: `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body'`, else the `tale/{{input.task._id}}` branch). Set `BRANCH` to its head ref — that head ref IS the branch the implementer pushed its code to, so fetching and checking it out gives you exactly the implementer's work. If more than one open PR somehow remains, pick the most recently updated, review THAT, and note the anomaly in your report. Then `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`; (3) run the project's OWN tests a single time here, so your review subagents don't each re-run the suite. THEN REVIEW BY YOUR FULL METHOD — do NOT collapse this into one linear sweep, and ALWAYS run BOTH rounds: ROUND 1 (breadth) dispatching 5–30 parallel review subagents SIZED TO THE ACTUAL CHANGE (≈5 for a small focused PR, scaling up toward 30 as the changed files / logic branches / modules grow — never fewer than 5, never more than 30) as your system instructions define, then ROUND 2 (confirmation) independently re-verifying every finding you would block the merge on. As part of the bar, confirm the PR's CI with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO` — red OR still-pending CI is a BLOCKING problem you must call out. REPORT: post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
+          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}. Git is authenticated ($GITHUB_TOKEN + helper). REPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, weigh it in your review): {{input.appConfig.repoNotes}} SET UP ONCE: (1) derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> .` (the trailing `.` clones straight into the workspace root — no nested `repo/` subdir; /user/workspace is your empty cwd, so the repo root IS the workspace root), and export `OWNER` and `REPO`; (2) RESOLVE THE CANONICAL PR the implementer worked on — the single OPEN pull request that resolves issue #{{input.issueNumber}} (the implementer dedupes the issue down to exactly one). Find it with `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state}}}}}'` (fallbacks: `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body'`, else the `tale/{{input.task._id}}` branch). Set `BRANCH` to its head ref — that head ref IS the branch the implementer pushed its code to, so fetching and checking it out gives you exactly the implementer's work. If more than one open PR somehow remains, pick the most recently updated, review THAT, and note the anomaly in your report. Then `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`; (3) run the project's OWN tests a single time here, so your review subagents don't each re-run the suite (operator-configured test command for THIS repo, use it when non-empty: {{input.appConfig.testCommand}}). THEN REVIEW BY YOUR FULL METHOD — do NOT collapse this into one linear sweep, and ALWAYS run BOTH rounds: ROUND 1 (breadth) dispatching 5–30 parallel review subagents SIZED TO THE ACTUAL CHANGE (≈5 for a small focused PR, scaling up toward 30 as the changed files / logic branches / modules grow — never fewer than 5, never more than 30) as your system instructions define, then ROUND 2 (confirmation) independently re-verifying every finding you would block the merge on. As part of the bar, confirm the PR's CI with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO` — red OR still-pending CI is a BLOCKING problem you must call out. REPORT: post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
           "budget": {
             "maxCents": 2000,
             "maxWallClockMs": 5400000,

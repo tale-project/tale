@@ -1,6 +1,6 @@
 ---
 name: write-notes
-description: Use this skill whenever you start real work under any other skill — before you implement, fix, refactor, review, test, or author. It makes you write a short note FIRST: answer the active skill's note form (its questions) in a few lines, so your intent, reuse decision, and plan are explicit and reviewable before you act. Load it the moment you pick up implement-feature, make-improvement, fix-bug, review-code, review-pr, create-pr, test-code, or an authoring skill. Never start the work before the note exists — thinking on paper is cheaper than a wrong change.
+description: "Use this skill whenever you start real work under any other skill — before you implement, fix, refactor, review, test, research, delegate, or author. It makes you write a short note FIRST: answer the active skill's note form (its questions) in a few lines, so your intent, reuse decision, and plan are explicit and reviewable before you act. Load it the moment you pick up implement-feature, make-improvement, fix-bug, review-code, review-pr, create-pr, test-code, deep-research, delegate-work, or an authoring skill. Never start the work before the note exists — thinking on paper is cheaper than a wrong change."
 ---
 
 # write-notes
@@ -21,7 +21,9 @@ understanding changes mid-task. Skip it only for a trivial one-line change in a 
   note first" section: its questions. Answer each in a sentence or two, **citing the actual files,
   functions, and data flow you found** — the note doubles as a check that you _understood_ the code, so a
   vague answer ("it handles the data") means you haven't yet; go read more. "I don't know yet" is a valid
-  answer that becomes an **open question** to resolve or ask before you proceed.
+  answer that becomes an **open question** to resolve or ask before you proceed. Research findings
+  (`deep-research`) and sweep enumerations (`search-codebase`) land here too — the note is the single
+  artifact of the task's thinking.
 - **Surface what you're unsure about — don't only state confidence.** Every form ends in _risks &
   unknowns_: describe where you're least sure, the assumption that would break this if it's wrong, and
   how you'd catch the mistake. The insight is in what you _don't_ yet know — a note that only sounds
@@ -32,7 +34,8 @@ understanding changes mid-task. Skip it only for a trivial one-line change in a 
 - **Keep it short and honest.** A few lines per answer, not an essay. Write what's true now; update it
   when you learn more. A note that launders a guess into confidence is worse than none.
 - **Then act.** Only once the note's open questions are resolved (or asked) do you start the work — and
-  the skill's own gates (the Gate A/B checklists) confirm you did.
+  the skill's own gates confirm you did: Gate A's first box, **Note**, checks this note exists; Gate B
+  checks you finished what it planned.
 
 ## Why a note, not just a thought
 

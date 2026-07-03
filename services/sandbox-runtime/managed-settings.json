@@ -1,6 +1,7 @@
 {
   "autoUpdates": false,
   "includeCoAuthoredBy": false,
+  "disableBundledSkills": true,
   "env": {
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1"
@@ -14,6 +15,16 @@
             "type": "command",
             "command": "/usr/local/bin/tale-plan-gate",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/tale-vision-read-hook",
+            "timeout": 75
           }
         ]
       }

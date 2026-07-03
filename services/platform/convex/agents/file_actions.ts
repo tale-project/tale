@@ -64,6 +64,7 @@ import {
   invalidateAgentListCache,
   listAgentsForOrg,
   resolveAgentPath,
+  resolveAgentRelativePath,
 } from './internal_actions';
 import { agentSlugFromFileName } from './validators';
 
@@ -162,6 +163,49 @@ function captureCapability(
     // agent's task work executes.
     ...(config.runtime && { runtime: config.runtime }),
   };
+}
+
+/**
+ * Capability snapshot of a serialized agent config, or `undefined` when the
+ * content can't be parsed under the current schema. The `undefined` return is
+ * meaningful at the call site: a caller deciding whether a restore changes
+ * capability grants must fail closed (require the developer-settings gate) when
+ * it can't prove the snapshot leaves capability fields unchanged.
+ */
+function capabilityCaptureFromContent(
+  content: string,
+): Record<string, unknown> | undefined {
+  try {
+    return captureCapability(parseAgentJson(content));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Structural equality for two capability captures. String arrays are compared
+ * as sets (order-insensitive) and object keys are sorted, mirroring
+ * `saveAgent`'s `arrayEq` so a pure reordering isn't treated as a grant change.
+ */
+function capabilityCapturesEqual(
+  a: Record<string, unknown> | undefined,
+  b: Record<string, unknown> | undefined,
+): boolean {
+  const canonical = (value: unknown): string =>
+    JSON.stringify(value, (_key, val: unknown) => {
+      if (Array.isArray(val) && val.every((item) => typeof item === 'string')) {
+        return [...val].sort();
+      }
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+        return Object.fromEntries(
+          Object.entries(val).sort(([keyA], [keyB]) =>
+            keyA < keyB ? -1 : keyA > keyB ? 1 : 0,
+          ),
+        );
+      }
+      return val;
+    });
+  return canonical(a ?? {}) === canonical(b ?? {});
 }
 
 // ---------------------------------------------------------------------------
@@ -848,7 +892,24 @@ export const duplicateAgent = action({
 
     const normalized = normalizeAgentConfig(draft, orgLocale);
     const content = serializeAgentJson(normalized);
-    const filePath = resolveAgentFilePath(orgSlug, newName);
+    // Write the copy INTO THE SAME FOLDER as the source. A foldered global
+    // agent (chat/, workforce/, github/, …) must duplicate alongside its
+    // original — resolving the copy to the flat org/agents/<slug>.json instead
+    // gives it folder `''`, and the folder-scoped list view (`?folder=chat`)
+    // then filters it out, so the user sees "Agent duplicated" but no new row.
+    // App-owned + flat-root sources aren't indexed with a folder prefix, so
+    // they fall through to the composite/flat path as before.
+    const sourceRel = await resolveAgentRelativePath(orgSlug, args.agentName);
+    const folderPrefix =
+      sourceRel && sourceRel.includes('/')
+        ? sourceRel.split('/').slice(0, -1).join('/')
+        : '';
+    const filePath = folderPrefix
+      ? resolveAgentFilePathFromRelative(
+          orgSlug,
+          `${folderPrefix}/${newName}.json`,
+        )
+      : resolveAgentFilePath(orgSlug, newName);
     await atomicWrite(filePath, content);
     invalidateAgentListCache(orgSlug);
 
@@ -876,7 +937,14 @@ export const deleteAgent = action({
       throw new Error(`Agent '${args.agentName}' cannot be deleted`);
     }
 
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    // Deleting a custom agent destroys it and its full history, and can carry
+    // away skill-laundered grants — strictly more destructive than the
+    // create/duplicate/save paths, all of which gate on `developerSettings`
+    // (see :764 duplicateAgent, :537 saveAgent). A plain `member` is hidden
+    // from the matching UI by `cannot('read','developerSettings')` but could
+    // previously call this action directly via the Convex client. Gate it on
+    // the same capability so action-layer auth matches route-layer auth.
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
     const { orgSlug } = auth;
     const filePath = await resolveAgentPath(orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(orgSlug, args.agentName);
@@ -1026,8 +1094,8 @@ export const restoreFromHistory = action({
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const { orgSlug } = auth;
+    const memberAuth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = memberAuth;
     if (!validateTimestamp(args.timestamp)) {
       throw new Error('Invalid timestamp');
     }
@@ -1059,6 +1127,31 @@ export const restoreFromHistory = action({
 
     // Snapshot current state before overwriting
     const currentContent = await readFileSafe(agentPath);
+
+    // Capability-change gate (mirrors `saveAgent` at :537). A restore is a
+    // wholesale overwrite of the live config with an arbitrary historical
+    // snapshot — including the capability fields (`toolNames`,
+    // `integrationBindings`, `workflows`, `skillBindings`, `budget`,
+    // `maxConcurrentTasks`, `runtime`, delegation edges) that `saveAgent`
+    // only lets admin/developer roles change. Without this gate a plain
+    // `member` could re-grant a binding a developer had revoked simply by
+    // restoring an older snapshot, laundering a capability change past the
+    // `developerSettings` gate. Only require the elevated capability when the
+    // restore actually alters those fields, matching `saveAgent`'s semantics
+    // (members may still restore description/instruction-only changes). Fail
+    // closed: if the current config or the snapshot can't be parsed we cannot
+    // prove the grants are unchanged, so require the capability.
+    const restoredCapability = capabilityCaptureFromContent(historyContent);
+    const currentCapability = currentContent
+      ? capabilityCaptureFromContent(currentContent)
+      : undefined;
+    const isCapabilityChange =
+      restoredCapability === undefined ||
+      currentCapability === undefined ||
+      !capabilityCapturesEqual(currentCapability, restoredCapability);
+    const auth = isCapabilityChange
+      ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
+      : memberAuth;
 
     // Write the restored version
     await atomicWrite(agentPath, historyContent);

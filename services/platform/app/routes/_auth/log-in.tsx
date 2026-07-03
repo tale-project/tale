@@ -17,9 +17,11 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Label } from '@/app/components/ui/forms/label';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { ConditionalAccessError } from '@/app/features/auth/components/conditional-access-error';
 import {
   useHasAnyUsers,
   useIsSsoConfigured,
+  useSsoSelectableOrgs,
 } from '@/app/features/auth/hooks/queries';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
@@ -37,6 +39,19 @@ const searchSchema = z.object({
   // unknown value degrades to the plain login page instead of erroring the
   // route.
   reason: z.literal('idle').optional().catch(undefined),
+  // Set by the SSO authorize/callback handlers when a sign-in fails
+  // (`redirectWithError`). `error` is a translation key for a known Entra
+  // AADSTS code, or a plain-text fallback otherwise; `error_code` is the raw
+  // AADSTS code; `recovery` is a translation key for a next-step hint. Without
+  // these, a failed SSO login bounced to a blank form (the real IdP error was
+  // discarded). `.catch` so a malformed value degrades to the plain page.
+  error: z.string().optional().catch(undefined),
+  error_code: z.string().optional().catch(undefined),
+  recovery: z.string().optional().catch(undefined),
+  // `method=sso` renders the dedicated SSO step (organization email → routed
+  // to the org's IdP). Entered from the SSO button when several orgs have SSO
+  // enabled — an SSO user never touches the credential form.
+  method: z.literal('sso').optional().catch(undefined),
 });
 
 export const Route = createFileRoute('/_auth/log-in')({
@@ -59,14 +74,50 @@ type LogInFormData = {
 export function LogInPage() {
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
-  const { redirectTo, reason } = useSearch({ from: '/_auth/log-in' });
+  const {
+    redirectTo,
+    reason,
+    error: ssoError,
+    error_code: ssoErrorCode,
+    recovery: ssoRecovery,
+    method,
+  } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
   const signedOutForIdle = reason === 'idle';
 
+  // Conditional-access / MFA codes get the dedicated recovery UI (a "complete
+  // MFA" or "blocked — contact admin" affordance); every other failure renders
+  // a standard alert with the mapped reason.
+  const CONDITIONAL_ACCESS_CODES = new Set([
+    'AADSTS50076',
+    'AADSTS50079',
+    'AADSTS53003',
+  ]);
+  const showConditionalAccessError =
+    !!ssoError && !!ssoErrorCode && CONDITIONAL_ACCESS_CODES.has(ssoErrorCode);
+
+  // Clearing the SSO error strips the params so a retry (or a plain reload)
+  // starts from a clean login form instead of re-showing the stale failure.
+  const clearSsoError = useCallback(() => {
+    void navigate({
+      to: '/log-in',
+      search: (prev) => ({
+        ...prev,
+        error: undefined,
+        error_code: undefined,
+        recovery: undefined,
+      }),
+      replace: true,
+    });
+  }, [navigate]);
+
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
+  // Connections without an email domain can't be reached by email routing —
+  // the SSO step offers them as a manual choice instead.
+  const { data: selectableOrgs } = useSsoSelectableOrgs();
 
   // When trusted headers auth is enabled, the reverse proxy has already
   // authenticated the user. Navigate to the Convex HTTP endpoint that reads
@@ -135,6 +186,11 @@ export function LogInPage() {
   });
 
   const [loginError, setLoginError] = useState<string | null>(null);
+  // The dedicated SSO step (`?method=sso`): its own email field — an SSO user
+  // never touches the credential form — plus inline guidance when the address
+  // is missing or no connection matches its domain.
+  const [ssoEmail, setSsoEmail] = useState('');
+  const [ssoEmailHint, setSsoEmailHint] = useState<string | null>(null);
   // Standing, count-free advisory shown on a failed credential attempt. We
   // deliberately never reveal attempts-remaining: a live counter would break
   // the uniform "wrong email or password" response and hand an attacker both
@@ -262,57 +318,113 @@ export function LogInPage() {
     }
   };
 
-  const handleSsoLogin = useCallback(async () => {
-    const siteUrl = getEnv('SITE_URL');
-    const basePath = getEnv('BASE_PATH');
-    const base = `${siteUrl}${basePath}/http_api/api/sso`;
+  // Discover the org by email domain (#2082) and hand the browser to the IdP.
+  // Returns false when several connections exist and none matches — the
+  // authorize endpoint would refuse to guess, so the caller asks for a
+  // correction instead of round-tripping into a bounce.
+  const redirectToSso = useCallback(
+    async (email: string): Promise<boolean> => {
+      const siteUrl = getEnv('SITE_URL');
+      const basePath = getEnv('BASE_PATH');
+      const base = `${siteUrl}${basePath}/http_api/api/sso`;
+      const multiple = ssoConfig?.multiple === true;
 
-    // Route by the typed email's domain so a deployment with more than one SSO
-    // connection reaches the IdP of the matching org, instead of always the
-    // first enabled connection (#2082). With no email (the common single-org
-    // case) or an inconclusive lookup, fall back to the global connection.
-    const email = form.getValues('email').trim();
-    let organizationId: string | undefined;
-    let protocol: string = ssoConfig?.providerType === 'saml' ? 'saml' : 'oidc';
-    if (email) {
-      try {
-        const res = await fetch(`${base}/discover`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        if (res.ok) {
-          const data: unknown = await res.json();
-          if (isRecord(data) && data.ssoEnabled === true) {
-            const orgId = getString(data, 'organizationId');
-            const proto = getString(data, 'protocol');
-            if (orgId) {
-              organizationId = orgId;
-              if (proto) protocol = proto;
+      let organizationId: string | undefined;
+      let protocol: string =
+        ssoConfig?.providerType === 'saml' ? 'saml' : 'oidc';
+      if (email) {
+        try {
+          const res = await fetch(`${base}/discover`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          if (res.ok) {
+            const data: unknown = await res.json();
+            if (isRecord(data) && data.ssoEnabled === true) {
+              const orgId = getString(data, 'organizationId');
+              const proto = getString(data, 'protocol');
+              if (orgId) {
+                organizationId = orgId;
+                if (proto) protocol = proto;
+              }
             }
           }
+        } catch (error) {
+          console.warn(
+            '[sso] discovery failed; using default connection',
+            error,
+          );
         }
-      } catch (error) {
-        console.warn('[sso] discovery failed; using default connection', error);
+        if (multiple && !organizationId) return false;
       }
-    }
 
-    // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
-    // authorization-code flow via /authorize.
-    if (protocol === 'saml') {
-      const samlUrl = new URL(`${base}/saml/login`);
-      if (organizationId) samlUrl.searchParams.set('org', organizationId);
-      window.location.href = samlUrl.toString();
+      // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
+      // authorization-code flow via /authorize.
+      if (protocol === 'saml') {
+        const samlUrl = new URL(`${base}/saml/login`);
+        if (organizationId) samlUrl.searchParams.set('org', organizationId);
+        window.location.href = samlUrl.toString();
+        return true;
+      }
+      const authorizeUrl = new URL(`${base}/authorize`);
+      authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+      if (email) authorizeUrl.searchParams.set('email', email);
+      if (organizationId) {
+        authorizeUrl.searchParams.set('organizationId', organizationId);
+      }
+      window.location.href = authorizeUrl.toString();
+      return true;
+    },
+    [ssoConfig?.providerType, ssoConfig?.multiple],
+  );
+
+  const handleSsoLogin = useCallback(async () => {
+    // With several orgs' connections enabled the organization email is the
+    // routing key — step into the dedicated SSO screen that asks for it. An
+    // SSO user never fills the credential form, so its email is not consulted.
+    if (ssoConfig?.multiple === true) {
+      setSsoEmailHint(null);
+      void navigate({
+        to: '/log-in',
+        search: (prev) => ({ ...prev, method: 'sso' }),
+      });
       return;
     }
-    const authorizeUrl = new URL(`${base}/authorize`);
-    authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
-    if (email) authorizeUrl.searchParams.set('email', email);
-    if (organizationId) {
-      authorizeUrl.searchParams.set('organizationId', organizationId);
+    // Single connection: straight to the IdP, as before.
+    await redirectToSso(form.getValues('email').trim());
+  }, [ssoConfig?.multiple, navigate, redirectToSso, form]);
+
+  const handleSsoStepContinue = useCallback(async () => {
+    const email = ssoEmail.trim();
+    if (!email) {
+      setSsoEmailHint(t('login.ssoEmailRequired'));
+      return;
     }
-    window.location.href = authorizeUrl.toString();
-  }, [ssoConfig?.providerType, form]);
+    const routed = await redirectToSso(email);
+    if (!routed) setSsoEmailHint(t('login.ssoEmailNoMatch'));
+  }, [ssoEmail, redirectToSso, t]);
+
+  // Manual pick from the domain-less list: the org is explicit, so skip
+  // discovery and pin it straight on the sign-in URL.
+  const handleSsoOrgPick = useCallback(
+    (organizationId: string, protocol: string) => {
+      const siteUrl = getEnv('SITE_URL');
+      const basePath = getEnv('BASE_PATH');
+      const base = `${siteUrl}${basePath}/http_api/api/sso`;
+      if (protocol === 'saml') {
+        const samlUrl = new URL(`${base}/saml/login`);
+        samlUrl.searchParams.set('org', organizationId);
+        window.location.href = samlUrl.toString();
+        return;
+      }
+      const authorizeUrl = new URL(`${base}/authorize`);
+      authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
+      authorizeUrl.searchParams.set('organizationId', organizationId);
+      window.location.href = authorizeUrl.toString();
+    },
+    [],
+  );
 
   // Passkey / WebAuthn sign-in (#1508). Drives the browser's get-credential
   // ceremony; on success the session is live, so refresh the cache and route
@@ -362,6 +474,99 @@ export function LogInPage() {
     return null;
   }
 
+  // Dedicated SSO step: only the organization email — it routes the sign-in
+  // to the right org's IdP. The credential form never appears here.
+  if (method === 'sso') {
+    return (
+      <AuthFormLayout title={t('login.ssoTitle')}>
+        <Stack gap={6}>
+          <p className="text-muted-foreground text-center text-sm">
+            {t('login.ssoDescription')}
+          </p>
+          <FormSection>
+            <Form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSsoStepContinue();
+              }}
+            >
+              <Input
+                id="sso-email"
+                type="email"
+                label={t('email')}
+                placeholder={t('emailPlaceholder')}
+                autoComplete="email"
+                className="shadow-xs"
+                value={ssoEmail}
+                onChange={(event) => {
+                  setSsoEmail(event.target.value);
+                  setSsoEmailHint(null);
+                }}
+              />
+              {ssoEmailHint && (
+                <p
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive -mt-2.5 flex items-start gap-1.5 text-sm font-medium"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {ssoEmailHint}
+                </p>
+              )}
+              <Button type="submit" fullWidth>
+                <span className="mr-3 inline-flex size-4">
+                  <MicrosoftIcon />
+                </span>
+                {t('login.continueWithSso')}
+              </Button>
+            </Form>
+          </FormSection>
+          {/* Connections without an email domain can never match an address —
+              offer them as an explicit choice instead of a dead end. */}
+          {selectableOrgs && selectableOrgs.length > 0 && (
+            <>
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <span className="bg-border h-px flex-1" />
+                <span className="text-muted-foreground text-xs">
+                  {t('login.ssoPickOrganization')}
+                </span>
+                <span className="bg-border h-px flex-1" />
+              </div>
+              <Stack gap={3}>
+                {selectableOrgs.map((org) => (
+                  <Button
+                    key={org.organizationId}
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() =>
+                      handleSsoOrgPick(org.organizationId, org.protocol)
+                    }
+                  >
+                    {org.displayName}
+                  </Button>
+                ))}
+              </Stack>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => {
+              setSsoEmailHint(null);
+              void navigate({
+                to: '/log-in',
+                search: (prev) => ({ ...prev, method: undefined }),
+              });
+            }}
+          >
+            {t('login.ssoBackToLogin')}
+          </Button>
+        </Stack>
+      </AuthFormLayout>
+    );
+  }
+
   const showSsoButton = ssoConfig?.enabled;
 
   return (
@@ -375,6 +580,35 @@ export function LogInPage() {
             {tCommon('sessionIdle.signedOutNotice')}
           </p>
         )}
+        {/* A failed SSO sign-in surfaces the REAL reason the IdP reported
+            (routed here by the authorize/callback handlers) instead of a blank
+            form. `ssoError` is a translation key for a mapped Entra code, or a
+            plain-text fallback — `t()` renders either. */}
+        {ssoError &&
+          (showConditionalAccessError && ssoErrorCode ? (
+            <ConditionalAccessError
+              errorCode={ssoErrorCode}
+              errorMessage={ssoError}
+              recoveryKey={ssoRecovery}
+              onRetry={clearSsoError}
+            />
+          ) : (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="border-destructive/30 bg-destructive/5 flex flex-col gap-1 rounded-lg border p-3"
+            >
+              <p className="text-destructive flex items-start gap-1.5 text-sm font-medium">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {t(ssoError)}
+              </p>
+              {ssoRecovery && (
+                <p className="text-muted-foreground pl-[1.375rem] text-sm">
+                  {t(ssoRecovery)}
+                </p>
+              )}
+            </div>
+          ))}
         <FormSection>
           <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             <Input

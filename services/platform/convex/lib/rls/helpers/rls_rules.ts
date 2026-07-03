@@ -599,23 +599,5 @@ export async function rlsRules(
         return authorizeRls(membership?.role, 'auditLogs', 'write');
       },
     },
-
-    // Sandbox Executions - audit table. Reads go through the role
-    // matrix (members can READ their org's history); writes happen
-    // exclusively through internalMutation (reserveSlotAndInsert /
-    // finalize / recoverStuckSandboxes) which bypasses RLS, so the
-    // user-facing modify/insert remain deny-all.
-    sandboxExecutions: {
-      read: async (_, exec) => {
-        if (!user) return false;
-        if (!userOrgIds.has(exec.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === exec.organizationId,
-        );
-        return authorizeRls(membership?.role, 'sandboxExecutions', 'read');
-      },
-      modify: async () => false,
-      insert: async () => false,
-    },
   } satisfies Rules<RLSRuleContext, DataModel>;
 }

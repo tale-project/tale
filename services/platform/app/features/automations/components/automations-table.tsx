@@ -372,7 +372,19 @@ export function AutomationsTable({
           hasMore: false,
           onLoadMore: () => {},
           entityLabel: tAutomations('entityLabel'),
-          totalCount: validWorkflows?.length ?? 0,
+          // The footer reads "Showing {data.length} of {totalCount}", so both
+          // must count the same unit as the rows on screen. While searching the
+          // list is flat — every row is a workflow — so the denominator is the
+          // full workflow universe ("Showing 5 of 15 automations"). In the
+          // folder view rows are folders + direct workflows (a grouped folder
+          // hides its 15 children behind one row); there's no paged-away subset
+          // (hasMore is false), so the total is the visible row count and the
+          // footer reads "Showing all N automations" instead of mixing units
+          // ("Showing 1 of 15 automations" counted folder rows against child
+          // workflows).
+          totalCount: isSearching
+            ? (validWorkflows?.length ?? 0)
+            : tableItems.length,
         }}
         emptyState={
           searchQuery

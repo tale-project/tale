@@ -86,9 +86,14 @@ export const approxCountConversationsByStatus = queryWithRLS({
 export const getConversationWithMessages = queryWithRLS({
   args: {
     conversationId: v.id('conversations'),
+    organizationId: v.string(),
   },
   returns: v.union(conversationWithMessagesValidator, v.null()),
   handler: async (ctx, args) => {
-    return await getConversationWithMessagesHelper(ctx, args.conversationId);
+    return await getConversationWithMessagesHelper(
+      ctx,
+      args.conversationId,
+      args.organizationId,
+    );
   },
 });

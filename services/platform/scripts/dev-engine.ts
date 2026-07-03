@@ -48,6 +48,7 @@ import {
 } from './convex-supervisor';
 import { DEV_GATES } from './dev-gates';
 import {
+  adoptCliEndpoints,
   DEFAULT_CONVEX_HOST,
   DEFAULT_CONVEX_PORT,
   isTruthy,
@@ -924,7 +925,19 @@ export async function runDevFleet() {
       }
     }
 
+    // Re-read the CLI-written .env.local and back-fill CONVEX_DEPLOYMENT /
+    // CONVEX_URL / CONVEX_SITE_PROXY_URL (see adoptCliEndpoints in dev-modes:
+    // a fresh checkout beside another stack gets NON-default ports, and the
+    // probes + Vite proxy would otherwise silently target the neighbour).
+    function adoptCliEndpointsFromEnvLocal() {
+      adoptCliEndpoints(
+        process.env,
+        parseDotEnv(join(platformRoot, '.env.local')),
+      );
+    }
+
     async function waitForConvex() {
+      if (!useExternalConvex) adoptCliEndpointsFromEnvLocal();
       const target = probeTarget();
       try {
         await runCommand('bunx', [
@@ -1081,14 +1094,11 @@ export async function runDevFleet() {
       );
     }
 
-    // Re-read CONVEX_DEPLOYMENT from .env.local in case `convex dev` wrote it
-    // after our initial loadEnvFiles() call (happens on first run with fresh DB)
-    const platformEnvLocalPath = join(platformRoot, '.env.local');
-    const freshEnv = parseDotEnv(platformEnvLocalPath);
-    if (freshEnv.CONVEX_DEPLOYMENT && !process.env.CONVEX_DEPLOYMENT) {
-      // Picked up the freshly-written local deployment (routine, no log).
-      process.env.CONVEX_DEPLOYMENT = freshEnv.CONVEX_DEPLOYMENT;
-    }
+    // Re-read .env.local in case `convex dev` wrote it after our initial
+    // loadEnvFiles() call (happens on first run with a fresh DB) — picks up
+    // CONVEX_DEPLOYMENT and the CLI-allocated backend endpoints. Idempotent
+    // with the adoption inside waitForConvex (external mode skips that one).
+    adoptCliEndpointsFromEnvLocal();
 
     // Load the local deployment's admin key now that `convex dev` has written
     // it — enables the WebDAV /dav/* route in dev. External backends supply

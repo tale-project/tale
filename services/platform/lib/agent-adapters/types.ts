@@ -16,6 +16,13 @@ export interface AgentRunSpec {
   prompt: string;
   /** Gateway model id (e.g. an org-allowlisted model). */
   model?: string;
+  /** Managed only: gateway model id of the model-level fallback (the catalog
+   * entry's `fallbackModelId`, e.g. Opus 4.8 behind the Fable default). The
+   * session VK is scoped to allow it alongside `model`. Adapters wire it as
+   * BOTH fallback flavours Claude Code knows: the availability chain
+   * (`--fallback-model`, overload/unavailable) and the content-based Fable
+   * classifier fallback (the `ANTHROPIC_DEFAULT_OPUS_MODEL` slot). */
+  fallbackModel?: string;
   /** Resume handle captured from a prior run's `run-started`/`result`
    * (Claude session_id / OpenCode sessionID). Continues the same agent
    * conversation in the same workspace. */
@@ -53,6 +60,18 @@ export interface AgentRunSpec {
    * When set, buildExec adds an `integrations` MCP server the agent uses to
    * call the org's connected integrations (credentials resolved server-side). */
   integrationsBaseUrl?: string;
+  /** Managed only: enable the vision polyfill so a TEXT-ONLY agent can read
+   * images. Set by the platform when the run is managed AND the agent's own
+   * model lacks the provider registry's `vision` tag. The claude-code adapter
+   * then sets the `TALE_VISION_*` env that arms the `tale-vision-read-hook`
+   * PreToolUse(Read) hook (baked into the image): it transcribes any image the
+   * agent reads via `visionModel` with the session key — no provider key in the
+   * container. Requires `gateway` + `visionModel`; ignored for byo. */
+  visionTool?: boolean;
+  /** The gateway model id the vision hook transcribes with (the provider's
+   * `vision`-tagged model). Present iff `visionTool`; the session VK is scoped to
+   * allow it. */
+  visionModel?: string;
   /** Working directory inside the session (e.g. /user/workspace). */
   workdir: string;
   /** Absolute directories OUTSIDE `workdir` the agent must be able to read/edit

@@ -50,17 +50,20 @@ async function insertSession(
     organizationId?: string;
     createdAt?: number;
     pinned?: boolean;
+    sessionId?: string;
+    ownerType?: string;
+    ownerId?: string;
   },
 ) {
   const createdAt = overrides.createdAt ?? 0;
   return t.run((ctx) =>
     ctx.db.insert('sandboxSessions', {
       organizationId: overrides.organizationId ?? ORG,
-      sessionId: SID,
+      sessionId: overrides.sessionId ?? SID,
       profile: 'agent',
       status: overrides.status,
-      ownerType: 'user',
-      ownerId: 'user_1',
+      ownerType: overrides.ownerType ?? 'user',
+      ownerId: overrides.ownerId ?? 'user_1',
       createdBy: 'user_1',
       agentKind: 'claude-code',
       createdAt,
@@ -573,5 +576,77 @@ describe('listWorkflowRunSessionsForExecution (user-Stop teardown enumeration)',
       'sA-review',
       'sA-work',
     ]);
+  });
+});
+
+describe('destroyThreadOwnedSessions (end-of-turn run_code teardown)', () => {
+  const THREAD = 'thr_thread_1';
+
+  it('destroys the live thread-owned row and leaves other owners/threads alone', async () => {
+    const t = convexTest(schema, modules);
+    const liveId = await insertSession(t, {
+      status: 'active',
+      sessionId: 'thr-thread_1',
+      ownerType: 'thread',
+      ownerId: THREAD,
+      createdAt: 20,
+    });
+    // Terminal incarnation of the same thread — must stay untouched.
+    await insertSession(t, {
+      status: 'destroyed',
+      sessionId: 'thr-thread_1',
+      ownerType: 'thread',
+      ownerId: THREAD,
+      createdAt: 0,
+    });
+    // Another thread's live session and the per-user agent sandbox — neither
+    // may be reaped by this thread's turn end.
+    const otherThreadId = await insertSession(t, {
+      status: 'active',
+      sessionId: 'thr-thread_2',
+      ownerType: 'thread',
+      ownerId: 'thr_thread_2',
+      createdAt: 20,
+    });
+    const userSessionId = await insertSession(t, {
+      status: 'active',
+      createdAt: 20,
+    });
+
+    await t.mutation(
+      internal.sandbox.session_mutations.destroyThreadOwnedSessions,
+      { threadId: THREAD },
+    );
+
+    const rows = await allSessions(t);
+    const live = rows.find((r) => r._id === liveId);
+    expect(live?.status).toBe('destroyed');
+    expect(live?.destroyedAt).toBeGreaterThan(0);
+    expect(rows.find((r) => r._id === otherThreadId)?.status).toBe('active');
+    expect(rows.find((r) => r._id === userSessionId)?.status).toBe('active');
+    // The historical terminal row keeps its original destroyedAt (fixture: 1).
+    expect(
+      rows.find((r) => r.ownerId === THREAD && r.createdAt === 0)?.destroyedAt,
+    ).toBe(1);
+  });
+
+  it('no-ops when the turn ran no run_code (no live thread rows)', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'destroyed',
+      sessionId: 'thr-thread_1',
+      ownerType: 'thread',
+      ownerId: THREAD,
+      createdAt: 0,
+    });
+
+    await t.mutation(
+      internal.sandbox.session_mutations.destroyThreadOwnedSessions,
+      { threadId: THREAD },
+    );
+
+    const rows = await allSessions(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.destroyedAt).toBe(1);
   });
 });

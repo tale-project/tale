@@ -51,6 +51,15 @@ export const integrationCredentialsTable = defineTable({
       passwordEncrypted: v.string(),
     }),
   ),
+  // Optional SMTP-only credential for imap_smtp integrations whose sending login
+  // differs from the IMAP login (e.g. IMAP = private mailbox, SMTP = Resend).
+  // When absent, SMTP reuses basicAuth. Password encrypted at rest like basicAuth.
+  smtpAuth: v.optional(
+    v.object({
+      username: v.string(),
+      passwordEncrypted: v.string(),
+    }),
+  ),
   oauth2Auth: v.optional(
     v.object({
       accessTokenEncrypted: v.string(),

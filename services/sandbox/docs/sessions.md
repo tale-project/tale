@@ -1,11 +1,23 @@
 # Persistent sandbox sessions
 
-The sandbox service runs in two modes from one codebase + one runtime image:
+Every sandbox run is a **session** (`/v1/sessions/*`) — a long-lived "remote
+computer" that survives many operations. One model, one codebase, one runtime
+image; the only thing that varies is _when the session is destroyed_:
 
-- **One-shot** (`POST /v1/execute`) — an ephemeral container/Pod per call. Unchanged.
-- **Sessions** (`/v1/sessions/*`) — a long-lived "remote computer" that survives
-  many operations, for coding agents (Claude Code, OpenCode) and general
-  interactive work.
+- **thread run_code** — a per-thread session, idle-stopped (workspace preserved)
+  and destroyed on thread delete.
+- **external agents** (Claude Code, OpenCode) — a per-(org,user) session.
+- **workflow steps** (agent AND script) — an ephemeral per-(run,step) session,
+  torn down at step end.
+- **crawler renders** — an ephemeral render session, destroyed right after the
+  render.
+
+Per-org fairness is the governance `sandbox_quota` policy (separate user /
+thread / workflow / render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
+
+> The legacy one-shot `POST /v1/execute` route still exists in the spawner but
+> has no caller — its `ExecutionBackend` doubles as the boot/shutdown lifecycle,
+> so removing it is a separate decouple-lifecycle-from-execute refactor.
 
 ## Architecture
 
@@ -80,6 +92,13 @@ since the user is non-root): 2 CPU, 4 GiB, 512 pids, no cumulative-CPU ulimit
 `HOME=/user/.runtime/home` lives on the persistent workspace, so agent state
 (`~/.claude`, `~/.config/opencode`, `~/.gitconfig`) survives every exec and an
 in-place container restart — this _is_ the session-persistence mechanism.
+
+`TMPDIR=/user/.runtime/tmp` also lives on the workspace (disk-backed), not the
+`/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
+is small and memory-backed (charged to the container's memory cgroup), so any
+install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
+at container (re)start — no exec is live then — preserving the old /tmp
+lifecycle. `/tmp` remains for small control files (redsocks.conf, X11 socket).
 
 ## Kubernetes specifics
 

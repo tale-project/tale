@@ -1,7 +1,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 
@@ -53,13 +53,21 @@ describe('apps/config', () => {
         installedBy: USER,
         status: 'active',
         requiredIntegrations: ['github'],
-        resources: [
-          {
-            domain: 'workflows',
-            path: 'issue-desk/reconcile.json',
-            contentHash: 'h',
-          },
-        ],
+        // Realistic: the `resources` file ledger records only FAN-OUT domains
+        // (integrations), NEVER workflows (they copy under the app dir as shell).
+        // Regression guard for the bug where sync derived slugs from here and so
+        // always synced nothing.
+        resources: [],
+      });
+      // Authoritative workflow ownership — `appSlug` stamped at app install. This
+      // is what setAppConfig must key its schedule sync on.
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: 'issue-desk/reconcile',
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        contentHash: 'h',
       });
     });
     // The schedule the installer created — only static defaults, no repo yet.
@@ -121,5 +129,180 @@ describe('apps/config', () => {
         appSlug: 'issue-desk',
       });
     expect(cfg).toEqual({});
+  });
+});
+
+describe('apps/config — per-project isolation', () => {
+  async function seedInstall(t: T): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appInstallations', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        status: 'active',
+        requiredIntegrations: [],
+        // Realistic: no workflows in the file ledger (see the note in the first
+        // suite) — schedule sync must key off `wfInstallations` instead.
+        resources: [],
+      });
+      await ctx.db.insert('wfInstallations', {
+        organizationId: ORG,
+        workflowSlug: 'issue-desk/reconcile',
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        contentHash: 'h',
+      });
+    });
+  }
+  async function seedProject(t: T, name: string): Promise<Id<'projects'>> {
+    return await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name,
+        createdBy: USER,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+  }
+  async function bind(t: T, projectId: Id<'projects'>): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appProjectBindings', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId,
+        boundAt: 0,
+        boundBy: USER,
+      });
+    });
+  }
+  async function seedSchedule(
+    t: T,
+    projectId: Id<'projects'>,
+  ): Promise<Id<'wfSchedules'>> {
+    return await t.run((ctx) =>
+      ctx.db.insert('wfSchedules', {
+        organizationId: ORG,
+        projectId,
+        workflowSlug: 'issue-desk/reconcile',
+        cronExpression: '*/15 * * * *',
+        timezone: 'UTC',
+        isActive: true,
+        variables: { state: 'all' },
+        createdAt: 0,
+        createdBy: 'system',
+      }),
+    );
+  }
+
+  it('config and schedule sync are isolated per project', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    await seedInstall(t);
+    const a = await seedProject(t, 'Alpha');
+    const b = await seedProject(t, 'Beta');
+    await bind(t, a);
+    await bind(t, b);
+    const schedA = await seedSchedule(t, a);
+    const schedB = await seedSchedule(t, b);
+
+    const asUser = t.withIdentity({ subject: USER });
+    await asUser.mutation(api.apps.config.setAppConfig, {
+      organizationId: ORG,
+      appSlug: 'issue-desk',
+      projectId: a,
+      config: { owner: 'acme', repo: 'alpha' },
+    });
+    await asUser.mutation(api.apps.config.setAppConfig, {
+      organizationId: ORG,
+      appSlug: 'issue-desk',
+      projectId: b,
+      config: { owner: 'acme', repo: 'beta' },
+    });
+
+    // Each project reads back its OWN config — no cross-pollination.
+    expect(
+      await asUser.query(api.apps.config.getAppConfig, {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: a,
+      }),
+    ).toEqual({ owner: 'acme', repo: 'alpha' });
+    expect(
+      await asUser.query(api.apps.config.getAppConfig, {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: b,
+      }),
+    ).toEqual({ owner: 'acme', repo: 'beta' });
+
+    // Each project's schedule got only its own repo merged in.
+    const rowA = await t.run((ctx) => ctx.db.get(schedA));
+    const rowB = await t.run((ctx) => ctx.db.get(schedB));
+    expect(rowA?.variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'alpha',
+    });
+    expect(rowB?.variables).toEqual({
+      state: 'all',
+      owner: 'acme',
+      repo: 'beta',
+    });
+  });
+
+  it('getProjectAppConfigInternal returns binding config, else falls back to org install config', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appInstallations', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        installedAt: 0,
+        installedBy: USER,
+        status: 'active',
+        requiredIntegrations: [],
+        resources: [],
+        config: { owner: 'org', repo: 'fallback' },
+      });
+    });
+    const a = await seedProject(t, 'Alpha');
+    const b = await seedProject(t, 'Beta');
+    await t.run(async (ctx) => {
+      await ctx.db.insert('appProjectBindings', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: a,
+        boundAt: 0,
+        boundBy: USER,
+        config: { owner: 'proj', repo: 'alpha' },
+      });
+      await ctx.db.insert('appProjectBindings', {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: b,
+        boundAt: 0,
+        boundBy: USER,
+      });
+    });
+
+    // A has its own per-project config → returned verbatim.
+    expect(
+      await t.query(internal.apps.config.getProjectAppConfigInternal, {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: a,
+      }),
+    ).toEqual({ owner: 'proj', repo: 'alpha' });
+    // B has none → falls back to the org-level install config.
+    expect(
+      await t.query(internal.apps.config.getProjectAppConfigInternal, {
+        organizationId: ORG,
+        appSlug: 'issue-desk',
+        projectId: b,
+      }),
+    ).toEqual({ owner: 'org', repo: 'fallback' });
   });
 });

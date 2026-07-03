@@ -117,6 +117,35 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     ).toBe(false);
   });
 
+  it('accepts a valid visionModel ref on an external-agent', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        visionModel: 'openrouter:qwen/qwen3-vl-32b-instruct',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects an invalid visionModel ref', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        visionModel: ':bad:',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects visionModel on a non-external-agent (chat)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Chat Agent',
+        supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        systemInstructions: 'hi',
+        visionModel: 'openrouter:qwen/qwen3-vl-32b-instruct',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects loop-only fields (toolNames/workflows) on an external-agent', () => {
     expect(
       agentJsonSchema.safeParse({ ...externalBase, toolNames: ['run_code'] })

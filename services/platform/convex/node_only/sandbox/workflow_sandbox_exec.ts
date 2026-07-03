@@ -33,6 +33,10 @@ import { readFile } from 'node:fs/promises';
 
 import { type Infer, v } from 'convex/values';
 
+import {
+  formatModelRef,
+  parseModelRef,
+} from '../../../lib/shared/utils/model-ref';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
@@ -40,9 +44,14 @@ import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation
 import { resolveAppAssetPathChecked } from '../../apps/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import {
+  buildSkillsGuidance,
+  SKILLS_GUIDANCE_HEADING,
+} from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForWorkflowRun,
@@ -82,6 +91,7 @@ import {
   shouldAttemptResumeRotation,
 } from './resume_rotation';
 import { runAgentInSessionImpl } from './run_agent';
+import { runAndHarvestInSession } from './session_exec';
 import {
   shouldForceSummaryReentry,
   SUMMARY_REENTRY_MAX_TURNS,
@@ -93,6 +103,7 @@ import {
   type TokenSelection,
   TokenSourceError,
 } from './token_pool_select';
+import { stageWorkflowSkills, workspaceIsTaleRepo } from './workflow_skills';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
@@ -389,10 +400,49 @@ const inputArgValidator = v.array(
     from: v.union(
       v.object({ fileId: v.string() }),
       v.object({ folderId: v.string() }),
+      v.object({ folderPath: v.string() }),
       v.object({ content: v.string() }),
     ),
   }),
 );
+
+/**
+ * Resolve a folder input (by id or human-readable documents path) to stage
+ * entries — one per document DIRECTLY in the folder (no recursion), placed
+ * under `<prefix><as>/<doc name>`. Returns null when the folder does not
+ * resolve in this org (the caller fails the step with a legible error: a
+ * typo'd path staging an empty dir would otherwise surface as a confusing
+ * downstream script failure).
+ */
+export async function folderStageFiles(
+  ctx: Pick<ActionCtx, 'runQuery' | 'storage'>,
+  organizationId: string,
+  from: { folderId: string } | { folderPath: string },
+  as: string,
+  pathPrefix: string,
+): Promise<SessionStageFile[] | null> {
+  const files = await ctx.runQuery(
+    internal.documents.internal_queries.listFilesByFolderInternal,
+    {
+      organizationId,
+      ...('folderId' in from
+        ? { folderId: toId<'folders'>(from.folderId) }
+        : { folderPath: from.folderPath }),
+    },
+  );
+  if (files === null) return null;
+  const dir = as.replace(/\/+$/, '');
+  const staged: SessionStageFile[] = [];
+  for (const file of files) {
+    const raw = await ctx.storage.getUrl(toId<'_storage'>(file.fileId));
+    if (!raw) continue; // blob purged under a live row — skip, don't fail
+    staged.push({
+      path: `${pathPrefix}${dir}/${file.name}`,
+      url: toSandboxStorageUrl(raw),
+    });
+  }
+  return staged;
+}
 
 const outputArgValidator = v.optional(
   v.object({
@@ -483,6 +533,8 @@ export const runSandboxScript = internalAction({
       return toSandboxStorageUrl(raw);
     };
 
+    const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
+    let rowId: Id<'sandboxSessions'> | null = null;
     try {
       // Resolve the frozen pack:// script to its bundled content.
       const PREFIX = 'pack://';
@@ -504,16 +556,16 @@ export const runSandboxScript = internalAction({
       const scriptContent = await readFile(scriptPath, 'utf8');
       const scriptName = relPath.split('/').pop() ?? 'script';
 
-      // Stage the script + inline-content inputs as code files; fileId inputs as
-      // workspace uploads. (folderId staging is a later increment.)
-      const files: Array<{ path: string; url: string }> = [
-        { path: scriptName, url: await storeAsUrl(scriptContent) },
+      // Stage the script + inline-content inputs + params.json under /user/code
+      // (the script's cwd); fileId inputs under /user/uploads; a folder input
+      // stages every document directly in that folder under /user/uploads/<as>/.
+      const stageInputs: SessionStageFile[] = [
+        { path: `code/${scriptName}`, url: await storeAsUrl(scriptContent) },
       ];
-      const userUploadDownloads: Array<{ name: string; url: string }> = [];
       for (const input of args.inputs) {
         if ('content' in input.from) {
-          files.push({
-            path: input.as,
+          stageInputs.push({
+            path: `code/${input.as}`,
             url: await storeAsUrl(input.from.content),
           });
         } else if ('fileId' in input.from) {
@@ -521,54 +573,116 @@ export const runSandboxScript = internalAction({
             toId<'_storage'>(input.from.fileId),
           );
           if (!raw) return fail(`input file not found: ${input.from.fileId}`);
-          userUploadDownloads.push({
-            name: input.as,
+          stageInputs.push({
+            path: `uploads/${input.as}`,
             url: toSandboxStorageUrl(raw),
           });
         } else {
-          return fail('folderId input staging is not yet supported');
+          const staged = await folderStageFiles(
+            ctx,
+            args.organizationId,
+            input.from,
+            input.as,
+            'uploads/',
+          );
+          if (staged === null) {
+            return fail(
+              `input folder not found: ${JSON.stringify(input.from)}`,
+            );
+          }
+          stageInputs.push(...staged);
         }
       }
       if (args.params) {
-        files.push({
-          path: 'params.json',
+        stageInputs.push({
+          path: 'code/params.json',
           url: await storeAsUrl(JSON.stringify(args.params)),
         });
       }
 
-      const res = await ctx.runAction(
-        internal.node_only.sandbox.internal_actions.executeCode,
+      // Reserve + create the ephemeral workflow-run session — the SAME session
+      // machinery chat run_code and workflow AGENT steps run on, keyed per
+      // (execution, step) and torn down at step end (the `finally`). Park-on-
+      // capacity: the reserve claims the FIFO ticket the admission poll parked; a
+      // peer that won the slot first throws WAIT_FIFO → `awaiting_capacity` below.
+      rowId = await ctx.runMutation(
+        internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
         {
           organizationId: args.organizationId,
-          uploadedBy: 'workflow',
-          threadId: args.executionId,
-          language: args.language,
-          files,
-          ...(userUploadDownloads.length > 0 && { userUploadDownloads }),
-          entryPath: scriptName,
-          ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-          ...(args.env !== undefined &&
-            Object.keys(args.env).length > 0 && { env: args.env }),
-          purpose: `sandbox step ${args.stepSlug}`,
-          // Park-on-capacity: a per-org concurrency-cap hit waits (FIFO) instead
-          // of failing the step. The reserve claims this ticket atomically; an
-          // un-eligible waiter throws WAIT_FIFO (caught below → awaiting_capacity).
+          sessionId,
+          profile: 'default',
+          ownerType: 'workflow_run',
+          ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+          createdBy: 'workflow',
           ticket: {
-            ownerType: 'workflow_run',
-            ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
-            source: 'workflow' as const,
+            source: 'workflow',
             wfExecutionId: args.executionId,
             stepSlug: args.stepSlug,
           },
         },
       );
+      try {
+        try {
+          await sessionCreate({
+            sessionId,
+            organizationId: args.organizationId,
+            profile: 'default',
+          });
+        } catch (createErr) {
+          // A deterministic-id collision can only be an orphan (the reserve
+          // serializes platform-side creation) — reap and retry once.
+          if (!(createErr instanceof SessionDuplicateError)) throw createErr;
+          await sessionDestroy(sessionId);
+          await sessionCreate({
+            sessionId,
+            organizationId: args.organizationId,
+            profile: 'default',
+          });
+        }
+      } catch (createErr) {
+        // Mark the reserved row terminal so it stops holding a slot; the
+        // sessionId-keyed teardown in `finally` is then a no-op on it.
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.setSessionStatus,
+          { rowId, status: 'failed' },
+        );
+        throw createErr;
+      }
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.setSessionStatus,
+        { rowId, status: 'active', lastActivityAt: Date.now() },
+      );
+
+      // Inject the step-scoped env (resolved/templated secrets) into the session
+      // so the script's process sees it — the spawner sanitizes + refuses
+      // reserved names (returned as `denied`).
+      if (args.env !== undefined && Object.keys(args.env).length > 0) {
+        const denied = await sessionEnvPatch(sessionId, { set: args.env });
+        if (denied.length > 0) {
+          console.warn(
+            `[runSandboxScript] ${denied.length} step env var(s) refused (reserved names): ${denied.join(', ')}`,
+          );
+        }
+      }
+
+      await sessionStageFiles(sessionId, stageInputs);
+
+      const res = await runAndHarvestInSession(ctx, {
+        organizationId: args.organizationId,
+        workspaceThreadId: args.executionId,
+        sessionId,
+        stepPaths: [`/user/code/${scriptName}`],
+        ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+      });
 
       // Read the small structured verdict (result.json) back into `result`.
       let result: unknown;
       const resultFileName = args.output?.resultFile ?? 'result.json';
       const resultFile = res.files.find((f) => f.path.endsWith(resultFileName));
       if (resultFile) {
-        const blob = await ctx.storage.get(resultFile.storageId);
+        const blob = await ctx.storage.get(
+          toId<'_storage'>(resultFile.storageId),
+        );
         if (blob) {
           try {
             result = JSON.parse(await blob.text());
@@ -580,15 +694,24 @@ export const runSandboxScript = internalAction({
 
       return {
         mode: 'script' as const,
-        ok: res.success,
+        ok: res.status === 'completed',
         status: res.status,
         ...(result !== undefined && { result }),
-        outputFileIds: res.files.map((f) => f.storageId as string),
+        outputFileIds: res.files.map((f) => f.storageId),
+        // Name↔id pairs, like agent runs — lets a follow-up step pick a
+        // harvested artifact by name (e.g. file `return.xml` as a document).
+        outputFiles: res.files.map((f) => ({
+          name: f.path.split('/').pop() ?? f.path,
+          storageId: f.storageId,
+        })),
         ...(res.exitCode !== null && { exitCode: res.exitCode }),
         stdoutPreview: res.stdoutPreview,
         stderrPreview: res.stderrPreview,
         durationMs: res.durationMs,
-        ...(res.errorMessage !== undefined && { error: res.errorMessage }),
+        ...(res.status === 'failed' &&
+          res.stderrPreview.length > 0 && {
+            error: res.stderrPreview.slice(0, 1024),
+          }),
       };
     } catch (e) {
       // Park-on-capacity: a per-org FIFO wait (WAIT_FIFO) or a global host-cap
@@ -612,6 +735,25 @@ export const runSandboxScript = internalAction({
         };
       }
       return fail(e instanceof Error ? e.message : String(e));
+    } finally {
+      // Ephemeral: tear the session down at step end (like agent steps). Skipped
+      // when we never reserved (a park/early-return) so a parked ticket keeps its
+      // place; best-effort, and markSessionRowDestroyed no-ops a non-live row.
+      if (rowId !== null) {
+        try {
+          await sessionDestroy(sessionId);
+        } catch (err) {
+          console.warn('[runSandboxScript] session destroy failed:', err);
+        }
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.markSessionRowDestroyed,
+            { organizationId: args.organizationId, sessionId },
+          );
+        } catch (err) {
+          console.warn('[runSandboxScript] row destroy failed:', err);
+        }
+      }
     }
   },
 });
@@ -678,12 +820,70 @@ export const runSandboxAgent = internalAction({
       integrationBindings.includes(g),
     );
 
+    // Vision polyfill (managed only): authoring an invoice transform means
+    // SEEING the invoice, but a text-only model can't. When the agent's own
+    // model lacks the `vision` tag, inject the vision MCP bridge
+    // (tale-vision-mcp) backed by the org's configured vision model — the bridge
+    // relays to the SAME gateway with the session key (no provider key enters
+    // the container), and the VK below is scoped to also allow that model. BYO
+    // brings its own credential + model, so it is never polyfilled here.
+    let visionTool = false;
+    let visionModel: string | undefined; // gateway model id the MCP server calls
+    let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+    if (!byo && modelRef && modelRef !== 'default') {
+      try {
+        const parsed = parseModelRef(modelRef);
+        const catalog = await ctx.runAction(
+          internal.providers.file_actions.getModelRoutingCatalog,
+          { organizationId: args.organizationId },
+        );
+        const agentEntry = catalog.find(
+          (c) =>
+            c.id === parsed.modelId &&
+            (parsed.providerName === undefined ||
+              c.providerName === parsed.providerName),
+        );
+        if (!(agentEntry?.tags.includes('vision') ?? false)) {
+          const vision = await resolveLanguageModel(ctx, {
+            tag: 'vision',
+            organizationId: args.organizationId,
+          });
+          visionModelRef = formatModelRef({
+            providerName: vision.modelData.providerName,
+            modelId: vision.modelData.modelId,
+          });
+          visionModel =
+            resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+          visionTool = true;
+        }
+      } catch (err) {
+        // No vision model configured (resolveLanguageModel throws) or the
+        // catalog is unavailable — skip the polyfill (the agent just can't read
+        // images this run, as today). Never fail the run over a missing
+        // convenience tool.
+        console.warn(
+          '[runSandboxAgent] vision polyfill resolution skipped:',
+          err,
+        );
+      }
+    }
+    // The session VK allows the agent's model plus (when polyfilling) the vision
+    // model the bridge calls — otherwise the gateway 403s the vision request.
+    const allowedModels = visionModelRef
+      ? [modelRef, visionModelRef]
+      : [modelRef];
+
     const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
     const execId = `${args.executionId}-${args.stepSlug}`;
     const collectDir = args.output?.collectDir ?? 'output';
     // Token-source bindings from the agent's Environment-tab rows (captured in
     // the agent-env injection below, consumed by the rotation block at run).
     let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+    // Skills the agent can actually load (captured in the skill-staging block
+    // below) + whether the workspace is Tale's own monorepo — both feed the
+    // skills-guidance section of the system-prompt append.
+    let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
+    let workspaceIsTale = false;
 
     // RESUME? A prior segment of THIS step handed off (status 'running') and the
     // durable workflow handler re-entered the step. The exec is STILL RUNNING in
@@ -1026,6 +1226,8 @@ export const runSandboxAgent = internalAction({
         // 4. Stage the agent's bound integration skills (best-effort) and
         // reconcile repo precedence for the image-baked builtin skills (the
         // entrypoint symlinks those; this only drops ones the repo shadows).
+        // Also stage the org's workflow skills and probe the workspace — both
+        // feed the skills-guidance section of the system-prompt append.
         try {
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
@@ -1033,6 +1235,11 @@ export const runSandboxAgent = internalAction({
             nativeWebTools: byo || nativeWebTools === true,
           });
           await reconcileBuiltinSkills(ctx, { sessionId });
+          availableWorkflowSkills = await stageWorkflowSkills(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+          });
+          workspaceIsTale = await workspaceIsTaleRepo(sessionId);
         } catch (skillErr) {
           console.warn(
             '[runSandboxAgent] integration skill staging failed (continuing):',
@@ -1040,8 +1247,9 @@ export const runSandboxAgent = internalAction({
           );
         }
 
-        // 5. Stage declared inputs into the workspace (folderId is a later
-        // increment; the primary agent path self-fetches via GITHUB_TOKEN).
+        // 5. Stage declared inputs into the workspace: content/fileId at
+        // `<as>`; a folder input stages every document directly in that folder
+        // under `<as>/<name>` (workspace-relative, like the other agent inputs).
         const stageFiles: SessionStageFile[] = [];
         for (const input of args.inputs) {
           if ('content' in input.from) {
@@ -1056,7 +1264,19 @@ export const runSandboxAgent = internalAction({
             if (!raw) return fail(`input file not found: ${input.from.fileId}`);
             stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
           } else {
-            return fail('folderId input staging is not yet supported');
+            const staged = await folderStageFiles(
+              ctx,
+              args.organizationId,
+              input.from,
+              input.as,
+              '',
+            );
+            if (staged === null) {
+              return fail(
+                `input folder not found: ${JSON.stringify(input.from)}`,
+              );
+            }
+            stageFiles.push(...staged);
           }
         }
         if (stageFiles.length > 0) {
@@ -1074,7 +1294,7 @@ export const runSandboxAgent = internalAction({
         if (!byo) {
           const vk = await mintVirtualKey({
             budgetCents: args.budget.maxCents,
-            allowedModels: [modelRef],
+            allowedModels,
             organizationId: args.organizationId,
             sessionId,
           });
@@ -1088,7 +1308,7 @@ export const runSandboxAgent = internalAction({
               llmGatewayKeyId: vk.keyId,
               scope: {
                 agentKind,
-                allowedModels: [modelRef],
+                allowedModels,
                 integrationGrants: brokerGrants,
                 budgetCents: args.budget.maxCents,
               },
@@ -1111,7 +1331,20 @@ export const runSandboxAgent = internalAction({
       const prompt =
         args.instructions ??
         (agentConfig.instructions || 'Complete the assigned task.');
-      const systemPromptAppend = [agentConfig.instructions, SUMMARY_MANDATE]
+      // Claude-Code-only skills guidance (the staged workflow skills live in
+      // CC's user-level skill dir); skipped on the Tale monorepo workspace and
+      // when the agent's own instructions already carry the section.
+      const skillsGuidance =
+        agentKind === 'claude-code' &&
+        !workspaceIsTale &&
+        !agentConfig.instructions?.includes(SKILLS_GUIDANCE_HEADING)
+          ? buildSkillsGuidance(availableWorkflowSkills)
+          : undefined;
+      const systemPromptAppend = [
+        agentConfig.instructions,
+        skillsGuidance,
+        SUMMARY_MANDATE,
+      ]
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
       // MANAGED: the gateway-format ref resolves to the gateway's model id.
@@ -1265,6 +1498,8 @@ export const runSandboxAgent = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           budgetDeadlineMs,
           timeoutMs: segmentTimeoutMs,
         });
@@ -1301,6 +1536,8 @@ export const runSandboxAgent = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           budgetDeadlineMs,
           timeoutMs: segmentTimeoutMs,
         });
@@ -1595,6 +1832,8 @@ export const runSandboxAgent = internalAction({
                 gatewayToken,
                 integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
               }),
+            ...(visionTool &&
+              visionModel !== undefined && { visionTool: true, visionModel }),
             budgetDeadlineMs: Math.min(
               Date.now() + SUMMARY_REENTRY_WINDOW_MS,
               hardDeadlineMs,

@@ -90,48 +90,97 @@ export async function signInViaApi(
  * straight on `/dashboard/<orgId>`, in which case the wizard is skipped.
  */
 export async function createOrgViaWizard(page: Page): Promise<string> {
-  await page.goto('/dashboard');
-  await page.waitForURL(RESOLVED_URL, { timeout: TIMEOUT.FIRST_PAINT });
+  // The wizard's forward actions run through Better Auth endpoints that
+  // enforce the trusted-origin (CSRF) check for real browser requests. A
+  // rejection leaves the wizard visually stuck with no error the locators can
+  // see, so record auth failures and surface the last one if a step times out.
+  // (signUpViaApi never trips this: an APIRequestContext sends neither cookies
+  // nor Sec-Fetch metadata, which is exactly what arms the check.)
+  // Holder object rather than a plain `let`: the value is only ever written
+  // inside the response callback, and TS control-flow analysis would narrow a
+  // never-reassigned-in-scope local back to its `null` initializer at the
+  // read site (→ `never` under restrict-template-expressions).
+  const authFailure: { last: string | null } = { last: null };
+  const onResponse = (response: {
+    url(): string;
+    status(): number;
+    text(): Promise<string>;
+  }): void => {
+    if (response.url().includes('/api/auth/') && response.status() >= 400) {
+      authFailure.last = `${response.status()} from ${response.url()}`;
+      // Body is the actual diagnosis (e.g. INVALID_ORIGIN vs a validation
+      // error) — capture it asynchronously, best-effort.
+      void response
+        .text()
+        .then((body) => {
+          authFailure.last = `${response.status()} from ${response.url()}: ${body.slice(0, 300)}`;
+        })
+        .catch(() => {});
+    }
+  };
+  page.on('response', onResponse);
 
-  if (page.url().includes('/dashboard/create-organization')) {
-    const orgName = `E2E Org ${Date.now().toString(36)}`;
-    await page
-      .getByLabel(t('settings.organization.organizationName'))
-      .fill(orgName);
+  try {
+    await page.goto('/dashboard');
+    await page.waitForURL(RESOLVED_URL, { timeout: TIMEOUT.FIRST_PAINT });
 
-    // Step 1 → Next creates the org and advances to the provider step.
-    const nextButton = page.getByRole('button', {
-      name: t('common.actions.next'),
-      exact: true,
-    });
-    await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
-    await nextButton.click();
+    if (page.url().includes('/dashboard/create-organization')) {
+      // Same shape as uniqueCredentials: a ms timestamp ALONE collides when
+      // parallel workers bootstrap in the same instant, and the org slug
+      // derives from the name — a collision 400s the create call.
+      const orgName = `E2E Org ${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      await page
+        .getByLabel(t('settings.organization.organizationName'))
+        .fill(orgName);
 
-    // Skip the optional provider step, then Finish to the dashboard. Next
-    // creates the org (org.create + default-workflow init), which on a cold or
-    // loaded backend can take well past the default expect timeout before the
-    // provider step (and its Skip button) renders — so wait generously.
-    const skipButton = page.getByRole('button', {
-      name: t('common.actions.skip'),
-      exact: true,
-    });
-    await expect(skipButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await skipButton.click();
-
-    await page
-      .getByRole('button', {
-        name: t('onboarding.finish.goToDashboard'),
+      // Step 1 → Next creates the org and advances to the provider step.
+      const nextButton = page.getByRole('button', {
+        name: t('common.actions.next'),
         exact: true,
-      })
-      .click();
-  }
+      });
+      await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
+      await nextButton.click();
 
-  await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });
-  const organizationId = ORG_ID_URL.exec(page.url())?.[1];
-  if (!organizationId) {
-    throw new Error(`Could not extract organization id from ${page.url()}`);
+      // Skip the optional provider step, then Finish to the dashboard. Next
+      // creates the org (org.create + default-workflow init), which on a cold or
+      // loaded backend can take well past the default expect timeout before the
+      // provider step (and its Skip button) renders — so wait generously.
+      const skipButton = page.getByRole('button', {
+        name: t('common.actions.skip'),
+        exact: true,
+      });
+      try {
+        await expect(skipButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      } catch (err) {
+        if (authFailure.last) {
+          throw new Error(
+            `Create-organization never advanced past the workspace step — the last auth API failure was ${authFailure.last}. ` +
+              `A 403 INVALID_ORIGIN here means the deployment's SITE_URL does not match the app origin (${BASE_URL}), ` +
+              `so Better Auth rejects the browser's org-create call. See tests/e2e/README.md ("Running locally").`,
+            { cause: err },
+          );
+        }
+        throw err;
+      }
+      await skipButton.click();
+
+      await page
+        .getByRole('button', {
+          name: t('onboarding.finish.goToDashboard'),
+          exact: true,
+        })
+        .click();
+    }
+
+    await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });
+    const organizationId = ORG_ID_URL.exec(page.url())?.[1];
+    if (!organizationId) {
+      throw new Error(`Could not extract organization id from ${page.url()}`);
+    }
+    return organizationId;
+  } finally {
+    page.off('response', onResponse);
   }
-  return organizationId;
 }
 
 /**
@@ -165,7 +214,24 @@ export async function waitForSeededOrg(
       await expect(seededRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
       return;
     } catch (err) {
-      if (attempt === ATTEMPTS) throw err;
+      if (attempt === ATTEMPTS) {
+        // The seeded agent only exists when the stack seeds new orgs from
+        // tests/e2e/fixtures/config. The by-far most common way to get here is
+        // NOT a slow scaffold but the mock-mode/reuse trap: a dev stack was
+        // already serving this port, Playwright reused it
+        // (reuseExistingServer), and its orgs seed from THAT stack's config
+        // dir — no fixture agent can ever appear. Diagnose instead of leaving
+        // 15 bare locator timeouts.
+        throw new Error(
+          `Seeded agent "${SEEDED_AGENT_DISPLAY_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
+            `If a stack was already running on this port, Playwright reused it — with ITS config dir, not the E2E fixtures — ` +
+            `and the hermetic mock mode cannot pass against it. Either stop that stack (or run the suite from an isolated ` +
+            `worktree on another port) so the suite boots its own, or explicitly target a live stack with E2E_MOCK_LLM=0. ` +
+            `If Playwright DID boot this stack itself, org seeding is genuinely broken — check the [WebServer] logs. ` +
+            `See tests/e2e/README.md ("Running locally").`,
+          { cause: err },
+        );
+      }
       await page.reload();
     }
   }

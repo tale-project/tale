@@ -181,9 +181,21 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // Every session (managed AND BYO) defaults to the max 1M context window:
     // withMaxContext appends the `[1m]` marker, which Claude Code strips before
     // the API call, so the provider / gateway only ever sees the bare model id —
-    // it does not change what a BYO user's own provider receives.
+    // it does not change what a BYO user's own provider receives. (spec.model
+    // is already the right id for the wire: the gateway model for managed; for
+    // BYO the catalog entry's vendor-native id when it declares one —
+    // run_external_agent resolves `nativeModelId` — else the raw user id.)
     if (spec.model) {
       argv.push('--model', withMaxContext(spec.model));
+    }
+    // Availability fallback (managed): when the primary model is overloaded or
+    // unavailable (e.g. Fable under high load / usage pressure), Claude Code
+    // retries the turn on this chain instead of failing it. The VK is scoped to
+    // allow this model alongside the primary. BYO gets no platform fallback —
+    // the agent's own model list is the user's explicit choice (no override),
+    // and Claude Code's native ids already carry its built-in behavior.
+    if (!byo && spec.fallbackModel) {
+      argv.push('--fallback-model', spec.fallbackModel);
     }
     // Baseline house rules ride on every session (like withUltrathink /
     // withMaxContext), so they apply even when no per-agent systemPromptAppend
@@ -199,10 +211,22 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     if (spec.browserMcp !== false) {
       // browserCdp: attach to the session's externally-launched headed Chromium
       // over CDP (read-only mirror); otherwise self-launch headless as today.
-      mcpServers.playwright =
+      const browserServer =
         spec.browserCdp === true
           ? PLAYWRIGHT_MCP_CDP_SERVER
           : PLAYWRIGHT_MCP_SERVER;
+      // Text-only agent (vision polyfill active): force the browser tools to
+      // SAVE images (screenshots) to disk instead of returning them inline
+      // (`--image-responses omit`). An inline image bypasses the Read hook and
+      // 404s on the text-only model; a saved file is read via Read, where the
+      // vision hook transcribes it. `browser_take_screenshot` still writes the
+      // file and its text result names the path, so the agent reads it as usual.
+      mcpServers.playwright = spec.visionTool
+        ? {
+            ...browserServer,
+            args: [...browserServer.args, '--image-responses', 'omit'],
+          }
+        : browserServer;
       // Human takeover only applies to the live headed browser (browserCdp) —
       // that's the one a human can drive via x11vnc. The self-launched headless
       // browser has no VNC surface, so the tool would be a dead end there.
@@ -277,6 +301,21 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       env.ANTHROPIC_AUTH_TOKEN = spec.gateway.token;
       env.ANTHROPIC_API_KEY = '';
     }
+    if (spec.visionTool && spec.gateway && spec.visionModel) {
+      // Vision polyfill (managed, text-only model): the `tale-vision-read-hook`
+      // PreToolUse hook (registered globally in managed-settings.json) fires on
+      // every Read but self-gates on TALE_VISION_MODEL — set here ONLY for a
+      // text-only agent. When an image is Read, the hook transcribes it via the
+      // gateway's vision model with the SESSION KEY (no provider key enters the
+      // container; the VK is scoped to also allow visionModel) and denies the
+      // native read, feeding the extracted TEXT back to the model — so an image
+      // from ANY source (attachment, download, saved screenshot) never reaches
+      // the text-only model. (Images returned INLINE by an MCP tool bypass hooks
+      // and are not covered.) Env, not MCP: the hook subprocess inherits it.
+      env.TALE_GATEWAY_URL = spec.gateway.baseUrl;
+      env.TALE_GATEWAY_TOKEN = spec.gateway.token;
+      env.TALE_VISION_MODEL = spec.visionModel;
+    }
     // BYO: inject NO gateway / key / API-key-blanking env. The agent
     // authenticates with the user-injected session credentials
     // (CLAUDE_CODE_OAUTH_TOKEN or their own ANTHROPIC_API_KEY), per Claude
@@ -297,17 +336,30 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // the org's open-models-only key 403'd the whole turn.
       env.ANTHROPIC_MODEL = withMaxContext(spec.model);
       if (!byo) {
-        // MANAGED: pin every default-model slot to the gateway model so Claude
-        // Code doesn't 404 resolving opus/sonnet/haiku/fable aliases against the
-        // VK's single-model allowlist. BYO has no such allowlist, so leave the
-        // alias + subagent slots to the CLI / credential defaults.
-        env.ANTHROPIC_DEFAULT_OPUS_MODEL = spec.model;
-        env.ANTHROPIC_DEFAULT_SONNET_MODEL = spec.model;
-        env.ANTHROPIC_DEFAULT_HAIKU_MODEL = spec.model;
+        // MANAGED: pin every default-model slot to a gateway model so Claude
+        // Code doesn't 404 resolving opus/sonnet/haiku/fable aliases against
+        // the VK's allowlist. BYO has no such allowlist, so leave the alias +
+        // subagent slots to the CLI / credential defaults.
+        //
+        // When the platform resolved a model-level fallback (the catalog
+        // entry's fallbackModelId — Opus 4.8 behind the Fable default), the
+        // NON-FABLE slots point at IT rather than the primary: Claude Code's
+        // content-based Fable fallback re-runs a classifier-flagged request on
+        // "the default Opus model" (the ANTHROPIC_DEFAULT_OPUS_MODEL slot), so
+        // pointing that slot at the primary would fall back onto the very
+        // model being rationed/flagged. The FABLE slot must stay the primary —
+        // it is also how Claude Code IDENTIFIES the session model as Fable on
+        // a gateway (the id may not contain `claude-fable-5`), which arms the
+        // fallback in the first place.
+        const aliasTarget = spec.fallbackModel ?? spec.model;
+        env.ANTHROPIC_DEFAULT_OPUS_MODEL = aliasTarget;
+        env.ANTHROPIC_DEFAULT_SONNET_MODEL = aliasTarget;
+        env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aliasTarget;
         env.ANTHROPIC_DEFAULT_FABLE_MODEL = spec.model;
-        // The session VK only allows the selected model, so a subagent whose
-        // frontmatter names a concrete model id would be rejected at the
-        // gateway; this slot outranks frontmatter and pins them all.
+        // The session VK only allows the selected model (+ the fallback), so a
+        // subagent whose frontmatter names a concrete model id would be
+        // rejected at the gateway; this slot outranks frontmatter and pins
+        // them all to the primary.
         env.CLAUDE_CODE_SUBAGENT_MODEL = spec.model;
       }
     }

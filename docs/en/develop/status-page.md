@@ -37,9 +37,9 @@ The page is owned by the on-call rotation. Updates are pushed by the engineer ho
 
 ## Self-hosted: what changes
 
-Self-hosted instances do not appear on Tale's status page — the page covers Tale Cloud only. For your own deployment, the observability surface inside the platform is the right channel: container health from `tale status`, request metrics from the Caddy logs, and the in-product audit log for control-plane events. The [observability troubleshooting page](/self-hosted/operate/observability/troubleshooting) maps symptoms to logs.
+Self-hosted instances do not appear on `status.tale.dev` — that page covers Tale Cloud. Each deployment ships its own status page instead, served by the platform and reachable without signing in at `https://<your-host>/status`. It renders a server-side health summary — operational, degraded, or outage — from a liveness probe against the Convex backend, so an operator (or an end user checking whether it is just them) can read availability without a login. The machine-readable form is `https://<your-host>/status.json`, which returns the same result as JSON for an uptime monitor to poll.
 
-If you operate a self-hosted instance and want a customer-facing status page, run one of the open-source status-page projects against your own probes — Tale does not ship one for self-hosted operators today.
+That page reports the availability of the deployment itself. For deeper operational signal — container health from `tale status`, request metrics from the Caddy logs, and control-plane events in the in-product audit log — the [observability troubleshooting page](/self-hosted/operate/observability/troubleshooting) maps symptoms to logs.
 
 ## Where this fits
 

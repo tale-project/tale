@@ -37,9 +37,9 @@ Die Seite gehört der Bereitschafts-Rotation. Updates werden vom Engineer gescho
 
 ## Self-hosted: was sich ändert
 
-Selbst gehostete Instanzen erscheinen nicht auf Tales Status-Page — die Seite deckt nur Tale Cloud ab. Für dein eigenes Deployment ist die Observability-Oberfläche im Produkt der richtige Kanal: Container-Gesundheit von `tale status`, Anfrage-Metriken aus den Caddy-Logs und das In-Product-Audit-Log für Control-Plane-Events. Die [Observability-Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) bildet Symptome auf Logs ab.
+Selbst gehostete Instanzen erscheinen nicht auf `status.tale.dev` — die Seite deckt Tale Cloud ab. Jedes Deployment bringt stattdessen seine eigene Status-Page mit, von der Plattform ausgeliefert und ohne Anmeldung erreichbar unter `https://<dein-host>/status`. Sie rendert serverseitig eine Gesundheits-Zusammenfassung — operational, degraded oder outage — aus einem Liveness-Probe gegen das Convex-Backend, sodass ein Betreiber (oder ein Endnutzer, der prüft, ob es nur bei ihm hakt) die Verfügbarkeit ohne Login lesen kann. Die maschinenlesbare Form ist `https://<dein-host>/status.json`, die dasselbe Ergebnis als JSON zurückgibt, das ein Uptime-Monitor pollen kann.
 
-Wenn du eine selbst gehostete Instanz betreibst und eine kundenseitige Status-Page willst, betreib eines der quelloffenen Status-Page-Projekte gegen deine eigenen Probes — Tale liefert heute keines für Self-hosted-Betreiber aus.
+Diese Seite meldet die Verfügbarkeit des Deployments selbst. Für tieferes Betriebssignal — Container-Gesundheit von `tale status`, Anfrage-Metriken aus den Caddy-Logs und Control-Plane-Events im In-Product-Audit-Log — bildet die [Observability-Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) Symptome auf Logs ab.
 
 ## Wo das hingehört
 

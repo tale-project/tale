@@ -8,6 +8,7 @@ import {
   ENCRYPTION_SECRET_TAG,
   ensureEncryptionSecret,
   ensureKnowledgeDatabaseUrl,
+  ensureSandboxLlmGatewayUrl,
 } from './dev-secrets';
 
 function envWith(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
@@ -58,6 +59,24 @@ describe('deriveDevSecrets', () => {
     const noPw = envWith({});
     ensureKnowledgeDatabaseUrl(noPw);
     expect(noPw.KNOWLEDGE_DATABASE_URL).toBeUndefined();
+  });
+
+  it('derives SANDBOX_LLM_GATEWAY_URL at the loopback port (host can reach it)', () => {
+    const env = envWith();
+    ensureSandboxLlmGatewayUrl(env);
+    // The compose alias `sandbox-llm-gateway` is unresolvable from the host, so
+    // host-run Convex must use the loopback port compose publishes.
+    expect(env.SANDBOX_LLM_GATEWAY_URL).toBe('http://127.0.0.1:8080');
+    expect(env.SANDBOX_LLM_GATEWAY_URL).not.toContain('sandbox-llm-gateway');
+  });
+
+  it('skips SANDBOX_LLM_GATEWAY_URL when it (or the pre-rename name) is set', () => {
+    const explicit = envWith({ SANDBOX_LLM_GATEWAY_URL: 'http://gw:9000' });
+    ensureSandboxLlmGatewayUrl(explicit);
+    expect(explicit.SANDBOX_LLM_GATEWAY_URL).toBe('http://gw:9000');
+    const legacy = envWith({ LLM_GATEWAY_URL: 'http://legacy:9000' });
+    ensureSandboxLlmGatewayUrl(legacy);
+    expect(legacy.SANDBOX_LLM_GATEWAY_URL).toBeUndefined();
   });
 
   it('is idempotent — explicit values are never overwritten', () => {

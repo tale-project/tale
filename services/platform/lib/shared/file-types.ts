@@ -22,6 +22,7 @@ const MIME_TYPES = {
   PDF: 'application/pdf',
   DOC: 'application/msword',
   DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ODT: 'application/vnd.oasis.opendocument.text',
 
   // Presentations
   PPT: 'application/vnd.ms-powerpoint',
@@ -73,6 +74,7 @@ const DOCUMENT_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
+  MIME_TYPES.ODT,
 ]);
 
 const PRESENTATION_MIME_TYPES: ReadonlySet<string> = new Set([
@@ -250,6 +252,7 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   pdf: MIME_TYPES.PDF,
   doc: MIME_TYPES.DOC,
   docx: MIME_TYPES.DOCX,
+  odt: MIME_TYPES.ODT,
   ppt: MIME_TYPES.PPT,
   pptx: MIME_TYPES.PPTX,
   xls: MIME_TYPES.XLS,
@@ -266,6 +269,7 @@ const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
   [MIME_TYPES.PDF]: 'pdf',
   [MIME_TYPES.DOC]: 'doc',
   [MIME_TYPES.DOCX]: 'docx',
+  [MIME_TYPES.ODT]: 'odt',
   [MIME_TYPES.PPT]: 'ppt',
   [MIME_TYPES.PPTX]: 'pptx',
   [MIME_TYPES.XLS]: 'xls',
@@ -405,6 +409,7 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.PLAIN,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
+  MIME_TYPES.ODT,
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
   MIME_TYPES.XLS,
@@ -445,6 +450,7 @@ export const TASK_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.PLAIN,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
+  MIME_TYPES.ODT,
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
   MIME_TYPES.XLS,
@@ -460,6 +466,7 @@ const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
+  MIME_TYPES.ODT,
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
   MIME_TYPES.XLS,
@@ -477,6 +484,7 @@ const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'pdf',
   'doc',
   'docx',
+  'odt',
   'ppt',
   'pptx',
   'xls',
@@ -495,6 +503,7 @@ export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
+  MIME_TYPES.ODT,
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
   MIME_TYPES.XLS,
@@ -505,7 +514,7 @@ export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.PNG,
   MIME_TYPES.GIF,
   MIME_TYPES.WEBP,
-  '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp',
+  '.pdf,.doc,.docx,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp',
 ].join(',');
 
 /** Data import forms: spreadsheets only */
@@ -580,8 +589,15 @@ const TOOL_FILE_MAP: Record<
     mimeTypes: [MIME_TYPES.PDF],
   },
   docx: {
-    accept: ['.doc', '.docx', MIME_TYPES.DOC, MIME_TYPES.DOCX],
-    mimeTypes: [MIME_TYPES.DOC, MIME_TYPES.DOCX],
+    accept: [
+      '.doc',
+      '.docx',
+      '.odt',
+      MIME_TYPES.DOC,
+      MIME_TYPES.DOCX,
+      MIME_TYPES.ODT,
+    ],
+    mimeTypes: [MIME_TYPES.DOC, MIME_TYPES.DOCX, MIME_TYPES.ODT],
   },
   pptx: {
     accept: ['.ppt', '.pptx', MIME_TYPES.PPT, MIME_TYPES.PPTX],
@@ -738,6 +754,7 @@ const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   // Documents
   'pdf',
   'docx',
+  'odt',
   'pptx',
   'xlsx',
   // Images

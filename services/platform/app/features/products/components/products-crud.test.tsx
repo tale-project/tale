@@ -68,6 +68,7 @@ vi.mock('@/app/hooks/use-toast', () => ({
 
 import { ProductCreateDialog } from './product-create-dialog';
 import { ProductRowActions } from './product-row-actions';
+import { ProductStatusBadge } from './product-status-badge';
 
 // Doc<'products'> shape the row/edit dialog reads. Cast the branded Id via
 // `unknown` so the fixture stays a plain object.
@@ -191,5 +192,46 @@ describe('Product row actions: delete', () => {
 
     expect(mockDeleteAsync).toHaveBeenCalledTimes(1);
     expect(mockDeleteAsync).toHaveBeenCalledWith({ productId: 'product-1' });
+  });
+});
+
+// Regression for #2052 [71]: the products table Status column and the view
+// dialog used to render the raw backend enum (`active`, `draft`, …) with a
+// `capitalize` class. The shared badge now resolves the value through the
+// `common.status.<key>` keys and falls back to the raw value for unknown ones.
+describe('ProductStatusBadge', () => {
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<ProductStatusBadge status="active" />);
+      await checkAccessibility(container);
+    });
+  });
+
+  it('renders the localized label with the blue variant for active', () => {
+    render(<ProductStatusBadge status="active" />);
+
+    const badge = screen.getByText('Active');
+    expect(badge).toBeInTheDocument();
+    // `active` -> `blue` variant.
+    expect(badge.closest('[title="Active"]')).toHaveClass('bg-blue-100');
+  });
+
+  it('renders the localized label with the outline variant for a non-active status', () => {
+    render(<ProductStatusBadge status="draft" />);
+
+    const badge = screen.getByText('Draft');
+    expect(badge).toBeInTheDocument();
+    const wrapper = badge.closest('[title="Draft"]');
+    // Non-active -> default `outline` variant, not the blue active style.
+    expect(wrapper).toHaveClass('border');
+    expect(wrapper).not.toHaveClass('bg-blue-100');
+  });
+
+  it('falls back to the raw value for an unknown status', () => {
+    render(<ProductStatusBadge status="mystery" />);
+
+    // No translation key -> raw value rendered, no `status.*` key leak.
+    expect(screen.getByText('mystery')).toBeInTheDocument();
+    expect(screen.queryByText('status.mystery')).not.toBeInTheDocument();
   });
 });

@@ -8,14 +8,17 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { InvalidFilePathError, validatePath } from './_shared';
+import { InvalidFilePathError } from './_shared';
+import { parseWorkspacePath } from './sandbox_paths';
 
 const fileDeleteArgs = z.object({
   path: z
     .string()
     .min(1)
     .max(200)
-    .describe('Workspace-relative path of the file to delete.'),
+    .describe(
+      'Absolute workspace path to delete, e.g. `/user/output/old.pptx` or `/user/code/tmp.py`.',
+    ),
 });
 
 type FileDeleteArgs = z.infer<typeof fileDeleteArgs>;
@@ -37,9 +40,9 @@ Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`delet
             'file_delete requires a thread context (organizationId + threadId).',
         };
       }
-      let normalizedPath: string;
+      let parsed;
       try {
-        normalizedPath = validatePath(args.path);
+        parsed = parseWorkspacePath(args.path);
       } catch (err) {
         if (err instanceof InvalidFilePathError) {
           return {
@@ -51,6 +54,15 @@ Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`delet
         }
         throw err;
       }
+      if (parsed === null) {
+        return {
+          ok: false as const,
+          code: 'INVALID_PATH' as const,
+          reason: 'path_invalid_root' as const,
+          message: `Path "${args.path}" must be an absolute workspace path under /user/{uploads,code,output}/.`,
+        };
+      }
+      const normalizedPath = parsed.path;
       const result = await ctx.runMutation(
         internal.thread_files.internal_mutations.deleteThreadFile,
         {

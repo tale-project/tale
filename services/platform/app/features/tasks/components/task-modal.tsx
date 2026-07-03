@@ -326,6 +326,7 @@ function CreateTaskBody({
             uploadingFiles={uploadingFiles}
             canEdit
             disabled={submitting}
+            organizationId={organizationId}
             onUpload={(files) => void uploadFiles(files)}
             onRemove={removeAttachment}
           />
@@ -566,6 +567,7 @@ function EditTaskBody({
             attachments={task.attachments ?? []}
             uploadingFiles={uploadingFiles}
             canEdit={canEdit}
+            organizationId={task.organizationId}
             onUpload={onUploadAttachments}
             onRemove={onRemoveAttachment}
           />

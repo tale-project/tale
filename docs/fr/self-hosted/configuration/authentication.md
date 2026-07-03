@@ -1,11 +1,11 @@
 ---
 title: Authentification
-description: Les quatre modes de sign-in que Tale ship — mot de passe local, Microsoft Entra, OIDC générique et trusted headers — et quelles variables d'env basculent entre eux.
+description: Les quatre modes de sign-in que Tale ship — mot de passe local, Microsoft Entra, OIDC générique et trusted headers — et comment un opérateur bascule entre eux.
 ---
 
 Tale ship quatre modes de sign-in qu'un opérateur choisit par instance. Le défaut est mot de passe local, avec un utilisateur par e-mail ; Microsoft Entra et OIDC générique délèguent l'identité à un fournisseur externe ; trusted headers remet la responsabilité à un reverse proxy qui termine déjà SSO en amont. La décision est permanente au sens où elle façonne comment les utilisateurs sont provisionnés — changer de mode après le rollout est possible, mais chaque utilisateur existant doit être re-mappé sur la nouvelle source d'identité.
 
-Les variables d'env qui activent chaque mode vivent dans [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference). Cette page est le walkthrough mode par mode — quand choisir chacun, ce qu'il change pour l'utilisateur, ce qui casse quand il est mal configuré.
+Mot de passe local et trusted headers se basculent par variables d'env ([Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference)) ; Microsoft Entra et OIDC générique se configurent par organisation dans l'app en marche. Cette page est le walkthrough mode par mode — quand choisir chacun, ce qu'il change pour l'utilisateur, ce qui casse quand il est mal configuré.
 
 ## Mot de passe local (défaut)
 
@@ -22,14 +22,9 @@ BETTER_AUTH_SECRET=...
 
 ## Microsoft Entra
 
-Le mode Microsoft Entra ajoute un bouton OAuth/OIDC à l'écran de sign-in et accepte les utilisateurs d'un tenant que tu contrôles. Mets `MICROSOFT_AUTH_ENABLED=true` pour activer le bouton ; le client ID, le client secret et l'URI de redirection par tenant se configurent sur la carte **Authentification unique** sous **Paramètres > Intégrations** une fois la plateforme démarrée.
+Le mode Microsoft Entra ajoute un bouton **Continuer avec SSO** à l'écran de sign-in et accepte les utilisateurs d'un tenant que tu contrôles. Il n'y a pas d'interrupteur par variable d'env : la connexion se configure par organisation sous **Paramètres > SSO d'entreprise** une fois la plateforme démarrée — choisis le protocole **Microsoft Entra ID** et renseigne le client ID, le client secret et l'URL d'issuer de ton enregistrement d'application. Le walkthrough complet, y compris le mapping des rôles et la synchronisation groupes-vers-équipes, est [SSO d'entreprise et provisionnement](/fr/platform/admin/enterprise-sso).
 
-```bash
-# .env
-MICROSOFT_AUTH_ENABLED=true
-```
-
-L'URI de redirection dont Entra a besoin est `${SITE_URL}/api/auth/callback/microsoft`. L'ID du tenant dans l'enregistrement d'application Entra restreint qui peut se connecter ; un enregistrement multi-tenant accepte quiconque a un compte Microsoft, ce qui est rarement ce que tu veux.
+Deux valeurs de déploiement doivent être justes avant que le flow fonctionne : `SITE_URL`, car l'URL de redirection de sign-in en est dérivée, et `BETTER_AUTH_SECRET`, qui signe le state OAuth. L'URI de redirection à enregistrer dans Entra est `${SITE_URL}${BASE_PATH}/http_api/api/sso/callback` — la page de paramètres affiche l'URL exacte à copier, et elle doit correspondre octet pour octet, sinon Entra rejette le sign-in avec `AADSTS50011`. L'ID du tenant dans l'enregistrement d'application Entra restreint qui peut se connecter ; un enregistrement multi-tenant accepte quiconque a un compte Microsoft, ce qui est rarement ce que tu veux.
 
 ## OIDC générique
 

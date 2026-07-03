@@ -125,8 +125,104 @@ describe('listExternalKeysByProject', () => {
     await expect(
       t.query(api.tasks.queries.listExternalKeysByProject, {
         projectId,
+        // Matching org so the call passes the active-org guard and reaches the
+        // auth gate this test is exercising.
+        organizationId: ORG,
         externalSystem: 'github',
       }),
     ).rejects.toThrow();
+  });
+});
+
+// The tasks domain derives access from the parent project via
+// `loadAccessibleProject`, which now enforces active-org coherence: a task or
+// project carried over from another org (a stale URL after an org switch) is
+// denied even when the caller is a member of that other org. The project EXISTS
+// here (seeded in ORG), so a reject on a different active org is the coherence
+// guard firing, not "project not found". Projects analogue: projects/queries.test.ts.
+describe('tasks active-org coherence', () => {
+  it('denies a project read when the active org does not match', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Roadmap');
+
+    await expect(
+      t.query(api.tasks.queries.listExternalKeysByProject, {
+        projectId,
+        organizationId: 'org_other',
+        externalSystem: 'github',
+      }),
+    ).rejects.toThrow(/different organization/i);
+  });
+});
+
+// The task-first reconcile enumerates the board's OPEN github tasks and rechecks
+// each issue's state. This pins the enumeration: only non-terminal tasks, only
+// the exact repo (the "#"→"$" range boundary must not leak a sibling repo whose
+// name extends this one, e.g. `tale-x`), parsed into the issue refs get_issue
+// needs. A regression here reintroduces the class of bug this reconcile replaced
+// (tasks silently skipped → their closed issues never close the task).
+describe('listOpenExternalTaskRefs', () => {
+  it('returns only non-terminal tasks for the exact repo, parsed into refs', async () => {
+    const t = convexTest(schema, modules);
+    const project = await seedProject(t, 'Desk');
+
+    // Non-terminal, repo "tale" → returned.
+    await upsertIssue(t, project, 'github', 'tale-project/tale#2033');
+    await upsertIssue(t, project, 'github', 'tale-project/tale#2117');
+    // Closed on create → the task lands as `done` (terminal) → excluded (this
+    // pass only closes still-open work, never revisits terminal tasks).
+    await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'user_1',
+        projectId: project,
+        externalSystem: 'github',
+        externalId: 'tale-project/tale#500',
+        title: 'already closed',
+        externalState: 'closed',
+      },
+    );
+    // Sibling repo whose name extends "tale" → must NOT leak past the
+    // "tale-project/tale#".."tale-project/tale$" range boundary.
+    await upsertIssue(t, project, 'github', 'tale-project/tale-x#1');
+    // Different owner, and a non-github system → both excluded.
+    await upsertIssue(t, project, 'github', 'other-org/tale#7');
+    await upsertIssue(t, project, 'jira', 'tale-project/tale#42');
+
+    const refs = await t.query(
+      internal.tasks.internal_queries.listOpenExternalTaskRefs,
+      {
+        organizationId: ORG,
+        externalSystem: 'github',
+        owner: 'tale-project',
+        repo: 'tale',
+      },
+    );
+
+    expect(
+      refs
+        .map(({ externalId, owner, repo, issueNumber }) => ({
+          externalId,
+          owner,
+          repo,
+          issueNumber,
+        }))
+        .sort((a, b) => a.issueNumber - b.issueNumber),
+    ).toEqual([
+      {
+        externalId: 'tale-project/tale#2033',
+        owner: 'tale-project',
+        repo: 'tale',
+        issueNumber: 2033,
+      },
+      {
+        externalId: 'tale-project/tale#2117',
+        owner: 'tale-project',
+        repo: 'tale',
+        issueNumber: 2117,
+      },
+    ]);
+    expect(refs.every((r) => typeof r.taskId === 'string')).toBe(true);
   });
 });

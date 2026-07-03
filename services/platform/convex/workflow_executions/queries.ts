@@ -1,8 +1,9 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { isParkedOnCapacity } from '../../lib/shared/platform/run_capacity';
+import { deriveRunIndicator } from '../../lib/shared/platform/run_capacity';
 import { queryWithRLS } from '../lib/rls';
+import { TERMINAL_STATUSES } from '../tasks/helpers';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
 import { getExecutionStepStatuses as getExecutionStepStatusesHelper } from '../workflows/executions/get_execution_step_statuses';
 import { getOrgWorkflowMetrics as getOrgWorkflowMetricsHelper } from '../workflows/executions/get_org_workflow_metrics';
@@ -101,20 +102,45 @@ export const getLatestExecutionForSubject = queryWithRLS({
 });
 
 /**
- * Whether the latest run "about" a subject is currently parked on sandbox
- * capacity (queued behind the org's concurrency cap). A tiny boolean so a list
- * can show a per-row ambient "Queued for capacity" chip without subscribing each
- * visible row to the full execution summary — Convex pushes an update only when
- * the boolean flips, not on every ~4s poll of the running execution.
+ * The ambient run indicator for a subject's row, derived from the subject's
+ * latest run (see `deriveRunIndicator`): `state` is `'parked' | 'failed' | null`
+ * and, when failed, `failedExecutionId` carries that run's id so the row can
+ * offer a one-click re-run (`rerunExecution`). A tiny value (not the full run
+ * summary) so a list can show a per-row chip + retry without subscribing each
+ * visible row to the heavy execution summary: Convex pushes an update only when
+ * the indicator flips, not on every ~4s poll of a running execution.
+ *
+ * A RESOLVED subject returns `null`: a task already done/cancelled keeps showing
+ * its real terminal status, never a stale "Failed" chip or a Re-run offer for a
+ * past crashed automation — the work is closed regardless of that run.
  */
-export const getSubjectAwaitingCapacity = queryWithRLS({
+export const getSubjectRunIndicator = queryWithRLS({
   args: {
     organizationId: v.string(),
     subjectType: v.string(),
     subjectId: v.string(),
   },
-  returns: v.boolean(),
+  returns: v.object({
+    state: v.union(v.literal('parked'), v.literal('failed'), v.null()),
+    failedExecutionId: v.union(v.id('wfExecutions'), v.null()),
+  }),
   handler: async (ctx, args) => {
+    // A resolved subject has no actionable run state to surface. For a task
+    // that's already done/cancelled, keep its real terminal badge instead of
+    // overriding it with a "Failed" chip (or offering a Re-run) for an old run.
+    // RLS wraps the wfExecutions query below; `ctx.db.get` bypasses it, so match
+    // the org explicitly.
+    if (args.subjectType === 'task') {
+      const taskId = ctx.db.normalizeId('tasks', args.subjectId);
+      const task = taskId ? await ctx.db.get(taskId) : null;
+      if (
+        task &&
+        task.organizationId === args.organizationId &&
+        TERMINAL_STATUSES.has(task.status)
+      ) {
+        return { state: null, failedExecutionId: null };
+      }
+    }
     const row = await ctx.db
       .query('wfExecutions')
       .withIndex('by_org_subject', (q) =>
@@ -125,7 +151,11 @@ export const getSubjectAwaitingCapacity = queryWithRLS({
       )
       .order('desc')
       .first();
-    return isParkedOnCapacity(row);
+    const state = deriveRunIndicator(row);
+    return {
+      state,
+      failedExecutionId: state === 'failed' && row ? row._id : null,
+    };
   },
 });
 

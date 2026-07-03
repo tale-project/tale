@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  adoptCliEndpoints,
   DEFAULT_CONVEX_HOST,
   DEFAULT_CONVEX_PORT,
   isTruthy,
@@ -47,6 +48,48 @@ describe('shouldOpenBrowser', () => {
 
   it('opens when explicitly enabled', () => {
     expect(shouldOpenBrowser(env({ TALE_DEV_OPEN: '1' }))).toBe(true);
+  });
+});
+
+describe('adoptCliEndpoints', () => {
+  // The regression this guards: a fresh checkout's .env.local (written by the
+  // Convex CLI) carries only VITE_* endpoint vars on CLI-picked ports; without
+  // adoption, probes and the Vite proxy fall back to :3210/:3211 and silently
+  // target whichever NEIGHBOURING stack owns the default ports.
+  it('back-fills deployment + endpoints from a CLI-written .env.local', () => {
+    const processEnv = env({});
+    adoptCliEndpoints(processEnv, {
+      CONVEX_DEPLOYMENT: 'anonymous:anonymous-agent',
+      VITE_CONVEX_URL: 'http://127.0.0.1:3212',
+      VITE_CONVEX_SITE_URL: 'http://127.0.0.1:3213',
+    });
+    expect(processEnv.CONVEX_DEPLOYMENT).toBe('anonymous:anonymous-agent');
+    expect(processEnv.CONVEX_URL).toBe('http://127.0.0.1:3212');
+    expect(processEnv.CONVEX_SITE_PROXY_URL).toBe('http://127.0.0.1:3213');
+  });
+
+  it('never overrides explicit values already in the environment', () => {
+    const processEnv = env({
+      CONVEX_DEPLOYMENT: 'anonymous:anonymous-platform',
+      CONVEX_URL: 'http://127.0.0.1:3210',
+      CONVEX_SITE_PROXY_URL: 'http://127.0.0.1:3211',
+    });
+    adoptCliEndpoints(processEnv, {
+      CONVEX_DEPLOYMENT: 'anonymous:anonymous-agent',
+      VITE_CONVEX_URL: 'http://127.0.0.1:3212',
+      VITE_CONVEX_SITE_URL: 'http://127.0.0.1:3213',
+    });
+    expect(processEnv.CONVEX_DEPLOYMENT).toBe('anonymous:anonymous-platform');
+    expect(processEnv.CONVEX_URL).toBe('http://127.0.0.1:3210');
+    expect(processEnv.CONVEX_SITE_PROXY_URL).toBe('http://127.0.0.1:3211');
+  });
+
+  it('leaves the environment untouched when .env.local has no endpoints', () => {
+    const processEnv = env({});
+    adoptCliEndpoints(processEnv, {});
+    expect(processEnv.CONVEX_DEPLOYMENT).toBeUndefined();
+    expect(processEnv.CONVEX_URL).toBeUndefined();
+    expect(processEnv.CONVEX_SITE_PROXY_URL).toBeUndefined();
   });
 });
 

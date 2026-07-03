@@ -747,11 +747,17 @@ if [ "$1" = "daemon" ]; then
   # state (~/.claude, ~/.config/opencode, ~/.gitconfig) survives every exec
   # and container restart within the session. Idempotent — the dirs already
   # exist on a container restart against the same workspace volume.
+  # Exec temp (TMPDIR below) is wiped like the steer queue: no exec is live at
+  # a container (re)start, so anything left there is garbage from a previous
+  # incarnation — this keeps the old /tmp lifecycle (temp died with the
+  # container) now that the dir persists on the workspace.
+  $DROP rm -rf /user/.runtime/tmp
   $DROP mkdir -p \
     /user/workspace \
     /user/uploads \
     /user/output \
     /user/.runtime/home \
+    /user/.runtime/tmp \
     /user/.runtime/deps/python \
     /user/.runtime/deps/node
   # Stale per-exec steer queues (mid-turn message injection): a container
@@ -762,7 +768,13 @@ if [ "$1" = "daemon" ]; then
   # Same install env the one-shot path exports, so inline pip/npm from a
   # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
   export HOME=/user/.runtime/home
-  export TMPDIR=/tmp
+  # Exec temp on the workspace (disk-backed on both backends), NOT the /tmp
+  # tmpfs: pip stages the ENTIRE resolved package set in $TMPDIR before copying
+  # it to PIP_TARGET, and the tmpfs is small AND memory-backed (its pages are
+  # charged to the container's memory cgroup) — on the default profile's 128 MB
+  # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
+  # 223 MB). /tmp itself stays for small control files (redsocks.conf, X11).
+  export TMPDIR=/user/.runtime/tmp
   export PIP_TARGET=/user/.runtime/deps/python
   export PYTHONPATH=/user/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1

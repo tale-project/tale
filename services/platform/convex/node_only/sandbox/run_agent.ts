@@ -155,6 +155,9 @@ export interface RunAgentInSessionArgs {
   agentSlug: 'claude-code' | 'opencode';
   prompt: string;
   model?: string;
+  /** Managed only: gateway model id of the model-level fallback (catalog
+   * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
+  fallbackModel?: string;
   /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
   agentSessionId?: string;
   maxTurns?: number;
@@ -190,6 +193,14 @@ export interface RunAgentInSessionArgs {
   gatewayToken?: string;
   /** Platform base URL for the integration-dispatch bridge (/api/integrations). */
   integrationsBaseUrl?: string;
+  /** Managed only: auto-inject the vision MCP bridge so a text-only agent can
+   * read images via the gateway's vision model. Set by the caller when the run
+   * is managed AND the agent's own model lacks vision; requires the gateway +
+   * `visionModel`. */
+  visionTool?: boolean;
+  /** Gateway model id the vision bridge calls. Present iff `visionTool`; the
+   * session VK is scoped to allow it alongside the agent's own model. */
+  visionModel?: string;
   workdir?: string;
   /** Absolute dirs outside `workdir` the agent must read (e.g. /user/uploads
    * for chat attachments). Threaded to the adapter as `--add-dir` grants. */
@@ -362,6 +373,9 @@ export async function runAgentInSessionImpl(
     : adapter.buildExec({
         prompt: args.prompt,
         ...(args.model !== undefined && { model: args.model }),
+        ...(args.fallbackModel !== undefined && {
+          fallbackModel: args.fallbackModel,
+        }),
         ...(args.agentSessionId !== undefined && {
           agentSessionId: args.agentSessionId,
         }),
@@ -390,6 +404,10 @@ export async function runAgentInSessionImpl(
           }),
         ...(args.integrationsBaseUrl !== undefined && {
           integrationsBaseUrl: args.integrationsBaseUrl,
+        }),
+        ...(args.visionTool !== undefined && { visionTool: args.visionTool }),
+        ...(args.visionModel !== undefined && {
+          visionModel: args.visionModel,
         }),
         ...(args.additionalDirs !== undefined &&
           args.additionalDirs.length > 0 && {
@@ -1591,6 +1609,8 @@ export const runAgentInSession = internalAction({
     gatewayBaseUrl: v.optional(v.string()),
     gatewayToken: v.optional(v.string()),
     integrationsBaseUrl: v.optional(v.string()),
+    visionTool: v.optional(v.boolean()),
+    visionModel: v.optional(v.string()),
     workdir: v.optional(v.string()),
     timeoutMs: v.optional(v.number()),
   },

@@ -29,13 +29,13 @@ La pipeline est idempotente sur le hash du fichier source. Téléverser le même
 La pipeline gère les types de fichiers qui couvrent le gros de la connaissance d'org :
 
 - **Texte et code.** Markdown (`.md`), texte brut (`.txt`), code source (chaque langage que Tale colorise — voir la liste du highlighter).
-- **Documents.** PDF (`.pdf`), Word (`.docx`).
+- **Documents.** PDF (`.pdf`), Word (`.docx`), OpenDocument Text (`.odt`).
 - **Tableurs.** Excel (`.xlsx`), CSV (`.csv`), TSV (`.tsv`).
 - **Présentations.** PowerPoint (`.pptx`).
 - **Pages web.** HTML (`.html`) et la sortie rendue d'un crawl de page.
 - **Images.** PNG, JPG, GIF, BMP, TIFF, WEBP, avec OCR appliqué pour extraire tout texte.
 
-Un fichier dans un format hors de cette liste — un ancien fichier Office (`.doc`, `.xls`, `.ppt`), une archive, un binaire quelconque — se téléverse quand même et reste disponible comme fichier stocké, mais Tale saute la pipeline d'indexation pour lui : la ligne affiche **Non indexé** au lieu d'une erreur d'indexation, et les agents ne peuvent pas récupérer son contenu. La liste des formats supportés grandit en même temps que la pipeline.
+Deux choses différentes arrivent à un fichier que la pipeline n'indexe pas. Un ancien fichier Office (`.doc`, `.xls`, `.ppt`) se téléverse quand même et reste disponible comme fichier stocké, mais Tale saute l'indexation — la ligne affiche **Non indexé** au lieu d'une erreur d'indexation, et les agents ne peuvent pas récupérer son contenu. Un type que le contrôle d'upload n'accepte pas du tout — une archive, un binaire quelconque — est refusé au téléversement avec une erreur « type de fichier non supporté » et n'arrive jamais. La liste des formats acceptés et indexés grandit en même temps que la pipeline.
 
 ## Le cycle de vie par document
 

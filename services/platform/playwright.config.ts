@@ -104,6 +104,12 @@ export default createPlaywrightConfig({
         // the E2E CI job, so the bring-up can only fail and waste the cold-boot
         // budget — skip it. Applies in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',
+        // Same E2E marker CI exports at the workflow level: crons.ts drops the
+        // sub-hourly sweeps that starve a loaded local backend past its ~1s
+        // function timeout, and dev-engine renices the backend. Only applies
+        // when Playwright boots the stack itself — a reused stack keeps its
+        // own env, so a dev stack's crons are never affected.
+        TALE_E2E: '1',
         // Never pop a browser when the orchestrator is the e2e webServer — a
         // local (non-CI) `bun test:e2e` that spawns the stack would otherwise
         // steal focus on every run. The READY banner still prints the URL.

@@ -1,6 +1,40 @@
 {
   "apps": {
     "title": "Applications",
+    "searchPlaceholder": "Rechercher des applications…",
+    "searchNoResults": "Aucune application ne correspond à votre recherche.",
+    "upload": {
+      "uploadApp": "Téléverser une application",
+      "dialogTitle": "Téléverser une application privée",
+      "description": "Téléversez une application privée dans cette organisation. Fournissez un .zip du dossier de l'application, ou sélectionnez le dossier directement — son nom devient le slug de l'application. Le téléversement n'installe pas l'application ; vous pourrez l'installer ensuite.",
+      "dropZoneLabel": "Téléverser le bundle de l'application",
+      "dropHere": "Déposez le .zip ici",
+      "parsing": "Lecture du bundle…",
+      "dropOrClick": "Déposez un .zip ici ou cliquez pour parcourir",
+      "acceptedFormats": "Un dossier contenant app.json à sa racine",
+      "or": "ou",
+      "selectFolder": "Sélectionner un dossier",
+      "useFolderButton": "Pour téléverser un dossier, utilisez le bouton « Sélectionner un dossier » ci-dessous.",
+      "singleZipOnly": "Déposez un seul fichier .zip, pas plusieurs fichiers.",
+      "zipRequired": "Le bundle doit être un fichier .zip.",
+      "unexpectedError": "Une erreur inattendue s'est produite",
+      "scopeProject": "Application de projet",
+      "scopeOrg": "Application d'organisation",
+      "workflows": "Workflows",
+      "agents": "Agents",
+      "requiresIntegrations": "Nécessite des intégrations",
+      "bundleFiles": "Fichiers du bundle",
+      "fileCount": "{count, plural, one {# fichier} other {# fichiers}}",
+      "submit": "Téléverser l'application",
+      "submitting": "Téléversement…",
+      "uploadSuccess": "Application téléversée",
+      "installHint": "Installez-la depuis la liste des applications quand vous êtes prêt.",
+      "replaceSuccess": "Application remplacée",
+      "uploadFailed": "Échec du téléversement de l'application",
+      "replaceTitle": "Remplacer l'application existante ?",
+      "replaceDescription": "Une application privée nommée « {slug} » existe déjà. Le téléversement écrasera son contenu actuel.",
+      "replaceConfirm": "Remplacer"
+    },
     "empty": {
       "title": "Aucune application",
       "description": "Les packs installés apparaissent ici comme des applications."
@@ -26,6 +60,7 @@
     "install": {
       "install": "Installer",
       "installed": "Installé",
+      "installFailed": "Impossible d'installer l'application",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
@@ -180,8 +215,11 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct",
+      "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
-      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère."
+      "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
+      "failed": "Échec",
+      "failedHint": "La dernière exécution automatique s'est arrêtée sur une erreur. Ouvrez la tâche pour voir quelle étape a échoué, puis relancez-la."
     },
     "membership": {
       "title": "Projets",
@@ -523,6 +561,12 @@
       "signingIn": "Connexion en cours...",
       "loginButton": "Se connecter",
       "continueWithSso": "Continuer avec SSO",
+      "ssoTitle": "Se connecter avec SSO",
+      "ssoDescription": "Saisis l’adresse e-mail de ton organisation — elle détermine la connexion à utiliser.",
+      "ssoBackToLogin": "Retour à la connexion",
+      "ssoPickOrganization": "Ou choisis ton organisation",
+      "ssoEmailRequired": "Saisis l’adresse e-mail de ton organisation pour continuer avec SSO.",
+      "ssoEmailNoMatch": "L’authentification unique n’est pas configurée pour ce domaine de messagerie. Vérifie l’adresse ou contacte ton administration.",
       "continueWithPasskey": "Se connecter avec un passkey",
       "passkeyFailed": "La connexion par passkey a échoué ou a été annulée. Réessaie ou utilise ton mot de passe.",
       "wrongCredentials": "Courriel ou mot de passe incorrect",
@@ -563,7 +607,7 @@
         "step2": "Choisis « Sur l'écran d'accueil », puis appuie sur « Ajouter ».",
         "done": "Compris"
       },
-      "helpFeedback": "Aide et retours",
+      "documentation": "Documentation",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
       "updateAvailable": "Mise à jour disponible",
@@ -624,6 +668,33 @@
       "description": "Ton compte utilise une connexion externe. Définis un mot de passe pour te connecter également avec ton email et un mot de passe.",
       "newPassword": "Nouveau mot de passe",
       "confirmPassword": "Confirmer le mot de passe"
+    },
+    "sso": {
+      "errors": {
+        "serverError": "L’authentification unique n’a pas pu aboutir en raison d’une erreur serveur. Réessaie, ou contacte ton administration si le problème persiste.",
+        "multipleConnections": "Plusieurs organisations utilisent l’authentification unique ici. Saisis d’abord l’adresse e-mail de ton organisation, puis réessaie.",
+        "mfaRequired": "Une authentification multifacteur est requise pour te connecter.",
+        "conditionalAccessBlocked": "La connexion a été bloquée par une stratégie d’accès conditionnel.",
+        "userNotAssigned": "Ton compte n’est pas affecté à cette application. Contacte ton administration pour demander l’accès.",
+        "silentAuthFailed": "La connexion silencieuse a échoué. Connecte-toi de manière interactive.",
+        "refreshTokenExpired": "Ta session a expiré. Reconnecte-toi.",
+        "consentRequired": "Cette application nécessite le consentement d’un administrateur avant que tu puisses te connecter.",
+        "redirectMismatch": "L’URL de redirection de connexion ne correspond pas à celle enregistrée dans Microsoft Entra ID. Demande à ton administration d’enregistrer l’URL de redirection exacte.",
+        "clientNotFound": "L’application d’authentification unique est introuvable dans l’annuaire. Demande à ton administration de vérifier l’ID client.",
+        "invalidClientSecret": "Le secret client de l’authentification unique est invalide ou expiré. Demande à ton administration de le mettre à jour.",
+        "recovery": {
+          "completeMfa": "Valide la demande multifacteur depuis ton authentificateur pour continuer.",
+          "contactAdmin": "Contacte ton administration pour obtenir l’accès.",
+          "signInInteractively": "Réessaie de te connecter et complète les éventuelles demandes.",
+          "signInAgain": "Reconnecte-toi pour continuer.",
+          "grantConsent": "Une administration doit accorder son consentement à cette application."
+        }
+      },
+      "actions": {
+        "tryAgain": "Réessayer",
+        "completeMfa": "Terminer la connexion multifacteur",
+        "contactAdminMessage": "Contacte ton administration pour résoudre ce problème."
+      }
     }
   },
   "automations": {
@@ -635,8 +706,6 @@
       "metrics": "Métriques"
     },
     "catalog": {
-      "title": "Catalogue d'automatisations",
-      "subtitle": "Parcours des automatisations prêtes à l'emploi et installe-les.",
       "installed": "Automatisation installée"
     },
     "aria": {
@@ -692,7 +761,8 @@
       "createStepsHint": "Crée des étapes pour voir l'aperçu de l'automatisation, ou utilise l'assistant IA pour t'aider à démarrer."
     },
     "search": {
-      "placeholder": "Rechercher des automatisations"
+      "placeholder": "Rechercher des automatisations",
+      "noResults": "Aucune automatisation ne correspond à votre recherche."
     },
     "entityLabel": "automatisations",
     "createWithAI": "Créer une automatisation avec l'IA",
@@ -862,7 +932,7 @@
     "executions": {
       "title": "Exécutions",
       "entityLabel": "exécutions",
-      "searchPlaceholder": "Rechercher des exécutions"
+      "searchPlaceholder": "Rechercher par ID d'exécution"
     },
     "createDialog": {
       "title": "Créer une automatisation",
@@ -892,16 +962,12 @@
       "namePlaceholder": "Saisis le nom de l'automatisation"
     },
     "steps": {
-      "toast": {
-        "editingNotAvailable": "La modification des connexions n'est pas encore disponible",
-        "apiNotWired": "Les API publiques pour la modification des étapes de workflow ne sont pas encore connectées."
-      },
       "banners": {
         "hasActiveTriggers": "Cette automatisation est active — les modifications enregistrées s’appliquent aux nouvelles exécutions."
       },
       "toolbar": {
         "testAutomation": "Tester l'automatisation",
-        "addStep": "Ajouter une étape"
+        "addStepUnavailable": "La modification des étapes sur le canevas n'est pas encore disponible — utilise l'assistant IA ou modifie la configuration du workflow."
       },
       "execution": {
         "viewingRun": "Affichage de l'exécution {id}",
@@ -1068,6 +1134,7 @@
       "action": "Voir"
     },
     "viewer": {
+      "back": "Retour",
       "heading": "Nouveautés",
       "subheading": "{count, plural, one {# mise à jour} other {# mises à jour}} depuis v{from}",
       "subheadingNew": "Notes de version pour v{to}",
@@ -1253,6 +1320,7 @@
       "viewProvider": "Voir les paramètres du fournisseur",
       "viewInfo": "Détails du modèle",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
+      "noProviderKey": "Aucun fournisseur d’IA n’est encore connecté — ajoute une clé API dans Paramètres → Fournisseurs d’IA pour commencer à discuter.",
       "info": {
         "provider": "Fournisseur",
         "type": "Type",
@@ -1641,7 +1709,7 @@
       "description": "Sélectionne les messages et télécharge-les dans le format de ton choix.",
       "selectAll": "Tout sélectionner",
       "deselectAll": "Tout désélectionner",
-      "messagesCount": "{count} sur {total} messages sélectionnés",
+      "messagesCount": "{count, plural, one {# sur {total} message sélectionné} other {# sur {total} messages sélectionnés}}",
       "downloadPdf": "Imprimer en PDF",
       "downloadMarkdown": "Télécharger en Markdown",
       "noMessages": "Aucun message à exporter",
@@ -1680,6 +1748,8 @@
       "fileActionsAriaLabel": "Actions du fichier",
       "fileSizeAriaLabel": "Taille du fichier",
       "sourceRunOutput": "Sortie de code",
+      "outputExpand": "Afficher tous les fichiers",
+      "outputCollapse": "Afficher moins de fichiers",
       "sourceAgentWrite": "Fichiers IA",
       "sourceUserUpload": "Téléversés",
       "noFilesYet": "Aucun fichier pour le moment",
@@ -2023,6 +2093,12 @@
       "contactSupport": "contacter le support",
       "tryAgain": "Réessayer"
     },
+    "executionErrors": {
+      "unauthenticated": "Tu n'es pas connecté. Actualise la page et réessaie.",
+      "notFound": "Cette exécution est introuvable. Elle a peut-être été supprimée.",
+      "notCancelable": "Cette exécution ne peut plus être arrêtée — elle est déjà terminée.",
+      "missingWorkflow": "Cette exécution ne peut pas être relancée car son workflow n'est plus disponible."
+    },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Entrée",
       "escape": "Échap"
@@ -2093,6 +2169,7 @@
   },
   "conversations": {
     "title": "Conversations",
+    "unknownCustomer": "Client inconnu",
     "messagePlaceholder": "Saisis un message",
     "suggestEditsPlaceholder": "Suggère des modifications au texte (optionnel)",
     "fallbackImageAttachment": "Pièce jointe image",
@@ -2112,8 +2189,10 @@
       "accept": "Accepter les modifications"
     },
     "bulkSend": {
-      "title": "Envoyer {count} messages",
+      "title": "Envoyer {count, plural, one {# message} other {# messages}}",
       "description": "Tu es sur le point d'envoyer des réponses pour {count, plural, one {# conversation} other {# conversations}}. Cette action est irréversible.",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Saisis ta réponse...",
       "send": "Envoyer"
     },
     "updating": "Mise à jour des conversations...",
@@ -2511,12 +2590,12 @@
       "noTeamsAvailable": "Tu n'es membre d'aucune équipe",
       "allMembersHint": "Les documents accessibles à toute l'organisation sont disponibles pour tous les membres de l'organisation.",
       "dropZoneTitle": "Téléverser un fichier",
-      "dropZoneDescription": "PDF, DOCX, XLSX, CSV jusqu'à {maxSize} Mo",
+      "dropZoneDescription": "PDF, DOCX, ODT, XLSX, CSV, TXT jusqu'à {maxSize} Mo",
       "retryUpload": "Réessayer le téléversement",
       "retry": "Réessayer",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document téléversé} other {documents téléversés}} — indexation en cours en arrière-plan",
       "unsupportedFileType": "Type de fichier non pris en charge",
-      "unsupportedFileTypeDescription": "{name} n'est pas un format pris en charge. Formats acceptés : PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "unsupportedFileTypeDescription": "{name} n'est pas un format pris en charge. Formats acceptés : PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images.",
       "extensionBlocked": "{name} : les fichiers .{ext} sont bloqués par la politique de téléversement.",
       "extensionNotAllowed": "{name} : .{ext} n'est pas autorisé. Types autorisés : {allowed}.",
       "uploadDocuments": "Téléverser"
@@ -2759,7 +2838,18 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeamAriaLabel": "Sélectionner une équipe",
-      "saved": "Les règles de budget ont été mises à jour"
+      "apiKey": "Clé API",
+      "selectApiKey": "Sélectionner une clé API...",
+      "searchApiKeys": "Rechercher des clés API...",
+      "noApiKeysFound": "Aucune clé API trouvée",
+      "selectApiKeyAriaLabel": "Sélectionner une clé API",
+      "saved": "Les règles de budget ont été mises à jour",
+      "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
+      "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
+      "invalidTokenLimit": "La limite de jetons doit être supérieure à zéro.",
+      "invalidCostLimit": "La limite de coût doit être supérieure à zéro.",
+      "invalidMaxRequests": "La limite de requêtes doit être supérieure à zéro.",
+      "invalidWarningThreshold": "Le seuil d'alerte doit être compris entre 0 et 100."
     },
     "defaultModels": {
       "title": "Modèles par défaut",
@@ -3034,11 +3124,8 @@
     "sandboxQuota": {
       "title": "Limites de simultanéité des sandboxes",
       "description": "Limitez le nombre de sandboxes que cette organisation peut exécuter simultanément. Ces limites par organisation s'inscrivent sous la capacité hôte définie au niveau du déploiement ; les réduire protège les ressources serveur partagées contre la saturation.",
-      "maxConcurrent": "Exécutions ponctuelles simultanées max.",
-      "maxConcurrentHint": "Sandboxes jetables (run_code et étapes de script de workflow) pouvant s'exécuter en même temps pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
       "maxSessions": "Sessions actives max.",
       "maxSessionsHint": "Sessions de sandbox persistantes (agents de discussion et étapes d'agent de workflow) pouvant être actives simultanément pour cette organisation. Les demandes au-delà de la limite échouent avec une erreur de quota. Par défaut : 2.",
-      "invalidConcurrent": "Doit être un nombre entier compris entre 1 et 100.",
       "invalidSessions": "Doit être un nombre entier compris entre 1 et 500.",
       "saved": "Les limites de simultanéité des sandboxes ont été mises à jour",
       "saveFailed": "Échec de l'enregistrement des limites de simultanéité des sandboxes"
@@ -3324,6 +3411,7 @@
       "yes": "Oui",
       "no": "Non",
       "addMapping": "Ajouter une correspondance",
+      "editMappingAria": "Modifier le mappage pour {category}",
       "editMappingTitle": "Modifier la correspondance",
       "addMappingTitle": "Ajouter une correspondance",
       "deleteMappingConfirmTitle": "Supprimer la correspondance ?",
@@ -3972,7 +4060,13 @@
     "updateResponse": "Mettre à jour la réponse",
     "cancelEdit": "Annuler",
     "versionPrevious": "Version de réponse précédente",
-    "versionNext": "Version de réponse suivante"
+    "versionNext": "Version de réponse suivante",
+    "errorTodoListRequired": "Merci d’ajouter au moins un élément",
+    "errorTodoListMinItems": "Merci d’ajouter au moins {count} éléments",
+    "todoItemPlaceholder": "Sous-question {n}",
+    "todoItemAriaLabel": "{label} élément {n}",
+    "todoRemoveItem": "Supprimer l’élément {n}",
+    "todoAddItem": "Ajouter un élément"
   },
   "integrationApproval": {
     "approve": "Approuver",
@@ -4114,7 +4208,19 @@
       "saving": "Enregistrement...",
       "cancel": "Annuler",
       "connectionSection": "Connexion",
-      "authSection": "Authentification"
+      "authSection": "Authentification",
+      "validation": {
+        "nameRequired": "Le nom est requis",
+        "nameFormat": "Doit être en minuscules alphanumériques avec des traits d'union",
+        "displayNameRequired": "Le nom d'affichage est requis",
+        "urlRequired": "L'URL est requise",
+        "commandRequired": "La commande est requise",
+        "apiKeyRequired": "La clé API est requise",
+        "tokenUrlRequired": "L'URL du jeton est requise",
+        "clientIdRequired": "L'ID client est requis",
+        "clientSecretRequired": "Le secret client est requis",
+        "authorizationUrlRequired": "L'URL d'autorisation est requise"
+      }
     },
     "oauth2": {
       "tokenUrl": "URL du jeton",
@@ -4187,6 +4293,10 @@
     "projects": {
       "title": "Projets",
       "description": "Espaces de travail partagés pour fichiers, instructions et discussions."
+    },
+    "apps": {
+      "title": "Applications",
+      "description": "Modules installés et les applications qu'ils ajoutent à ton organisation."
     },
     "websites": {
       "title": "Sites web",
@@ -4422,7 +4532,13 @@
     "dsarPolicyLoosenApplied": "Politique d'effacement assouplie",
     "dsarPolicyLoosenAppliedBody": "Une politique d'effacement (DSAR) assouplie a pris effet après le délai de grâce de 24 heures.",
     "dsarPolicyLoosenCancelled": "Modification en attente de la politique d'effacement annulée",
-    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet."
+    "dsarPolicyLoosenCancelledBody": "Une modification en attente de la politique d'effacement (DSAR) a été annulée avant de prendre effet.",
+    "agentBudgetWarnTitle": "L'agent approche de son budget",
+    "agentBudgetWarnBody": "{agentSlug} a utilisé {pct} % de son budget mensuel ({spent} sur {monthly}).",
+    "agentBudgetExceededTitle": "Budget de l'agent dépassé — exécutions en pause",
+    "agentBudgetExceededBody": "{agentSlug} a atteint son budget mensuel ({spent} sur {monthly}) et a été mis en pause. Les exécutions reprennent le mois prochain ou lorsque tu augmentes la limite.",
+    "agentCircuitTrippedTitle": "Exécutions de l'agent en pause — limite de sécurité atteinte",
+    "agentCircuitTrippedBody": "{agentSlug} a atteint la limite de sécurité de {windowRuns} exécutions en {windowHours} h sur « {taskTitle} ». Change le statut de la tâche pour reprendre l'automatisation."
   },
   "personalization": {
     "page": {
@@ -4682,7 +4798,8 @@
       },
       "toast": {
         "success": "Produit mis à jour avec succès",
-        "error": "Échec de la mise à jour du produit"
+        "error": "Échec de la mise à jour du produit",
+        "duplicateName": "Un produit portant ce nom existe déjà"
       }
     },
     "create": {
@@ -4693,7 +4810,8 @@
       },
       "toast": {
         "success": "Produit créé avec succès",
-        "error": "Échec de la création du produit"
+        "error": "Échec de la création du produit",
+        "duplicateName": "Un produit portant ce nom existe déjà"
       }
     },
     "createWizard": {
@@ -5286,6 +5404,7 @@
         "displayName": "Nom d'affichage",
         "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
         "displayNamePlaceholder": "Mon Agent",
+        "displayNameDuplicateWarning": "Un autre agent utilise déjà ce nom affiché. Le slug reste unique, mais le nom en double peut prêter à confusion dans le chat et les listes.",
         "description": "Description",
         "descriptionPlaceholder": "Que fait cet agent ?",
         "systemInstructions": "Instructions système",
@@ -5360,6 +5479,13 @@
           "sectionDescription": "Comment cet agent accède au web.",
           "nativeLabel": "Utiliser la recherche et la récupération web natives",
           "nativeDescription": "Laisse l'agent utiliser directement les outils WebSearch et WebFetch intégrés à son runtime — idéal quand le modèle les prend en charge (par ex. OpenRouter). Désactivé, les outils web natifs sont bloqués et l'accès web doit passer par une intégration de recherche connectée (audité et facturé)."
+        },
+        "vision": {
+          "sectionTitle": "Modèle de vision",
+          "sectionDescription": "Quand le modèle propre à cet agent ne peut pas voir les images, chaque image qu'il lit est automatiquement transcrite par ce modèle de vision — via la passerelle, si bien qu'aucune clé de fournisseur n'entre dans le bac à sable. Utilisé uniquement pour les modèles purement textuels.",
+          "label": "Modèle de vision pour lire les images",
+          "autoLabel": "Utiliser la valeur par défaut de l'org",
+          "autoDescription": "Revenir au modèle de vision par défaut du fournisseur."
         }
       },
       "delegation": {
@@ -5432,7 +5558,7 @@
         "notPublished": "Publie cet agent pour activer l'accès par webhook.",
         "createButton": "Créer un webhook",
         "createdTitle": "Webhook créé",
-        "urlWarning": "Copie cette URL maintenant. Elle ne sera affichée qu'une seule fois.",
+        "urlWarning": "Enregistre cette URL de webhook. Le jeton dans l'URL sert d'identifiant d'authentification.",
         "webhookUrl": "URL du webhook",
         "copyUrl": "Copier l'URL du webhook",
         "copyExample": "Copier l'exemple",
@@ -5681,6 +5807,11 @@
         "database": "Base de données",
         "username": "Nom d'utilisateur",
         "password": "Mot de passe",
+        "smtpSection": "SMTP (envoi)",
+        "smtpUsername": "Nom d'utilisateur SMTP",
+        "smtpPassword": "Mot de passe SMTP",
+        "smtpHint": "Laissez vide pour envoyer via les mêmes identifiants de boîte ci-dessus. Pour Resend : nom d'utilisateur « resend », mot de passe = votre clé API.",
+        "fromAddressHint": "Expéditeur de secours. Son domaine est considéré comme votre domaine d'envoi — les réponses partent de l'adresse à laquelle le client a écrit.",
         "sqlOperations": "Opérations SQL",
         "query": "Requête",
         "requiresApproval": "Nécessite une approbation",
@@ -5824,6 +5955,17 @@
           "targetRoleLabel": "Attribue le rôle",
           "claimLabel": "Chemin du claim",
           "claimHelp": "Chemin pointé dans les claims du jeton, p. ex. realm_access.roles."
+        },
+        "redirectUrlLabel": "URL de redirection à enregistrer dans Entra",
+        "redirectUrlHelp": "Enregistrez exactement cette URL comme URI de redirection « Web » dans votre inscription d'application — elle doit correspondre au caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon la connexion échoue avec AADSTS50011.",
+        "domainWarning": {
+          "title": "Aucun domaine de messagerie défini",
+          "description": "Plusieurs organisations de ce déploiement utilisent le SSO. Sans domaine de messagerie, la connexion ne peut pas orienter les membres par adresse — elle est alors listée publiquement sous son nom affiché sur l’écran SSO."
+        },
+        "deploymentWarning": {
+          "title": "Déploiement non entièrement configuré pour le SSO",
+          "callbackMissing": "L'URL de redirection est vide car SITE_URL n'est pas défini sur le serveur. La connexion SSO échouera tant qu'il ne sera pas configuré.",
+          "authSecretMissing": "BETTER_AUTH_SECRET n'est pas défini sur le serveur. La connexion SSO échouera avec une erreur serveur tant qu'il ne sera pas configuré."
         },
         "guide": {
           "title": "Guide de configuration",
@@ -6046,7 +6188,6 @@
       "testSystemError": "Le test de connexion n'a pas pu s'exécuter. Vérifie l'URL de base et la clé API du fournisseur, puis réessaie.",
       "addKey": "Ajouter une clé API",
       "apiKeyEnter": "Saisis la clé API",
-      "searchProvider": "Rechercher des fournisseurs...",
       "created": "Fournisseur créé",
       "modelCount": "{count, plural, one {# modèle} other {# modèles}}",
       "removeModel": "Supprimer le modèle",
@@ -6165,6 +6306,32 @@
       "openDocs": "Documentation API"
     },
     "logs": {
+      "integrity": {
+        "title": "Intégrité de la chaîne",
+        "neverChecked": "Aucune vérification d'intégrité automatique n'a encore été exécutée.",
+        "lastCheck": "Dernière vérification automatique : {date}",
+        "alertedAt": "Alerte déclenchée le {date}",
+        "statusUnchecked": "Pas encore vérifié",
+        "statusOk": "Vérifié",
+        "statusAlert": "Alerte d'intégrité active",
+        "verifyNow": "Vérifier maintenant",
+        "verifyError": "La vérification n'a pas pu aboutir. Réessaie.",
+        "resultValidTitle": "Chaîne vérifiée",
+        "resultValidBody": "{count, plural, one {# entrée vérifiée} other {# entrées vérifiées}} — aucune altération détectée.",
+        "truncatedNote": "Seules les {count} premières entrées ont été vérifiées. Relance la vérification pour poursuivre le long de la chaîne.",
+        "unsignedScrubNote": "{count, plural, one {# entrée a été validée via un enregistrement d'effacement non signé} other {# entrées ont été validées via des enregistrements d'effacement non signés}}. Vérifie ta clé de signature d'audit.",
+        "brokenTitle": "Intégrité de la chaîne rompue",
+        "brokenBody": "La chaîne de hachage ne correspond pas à l'entrée ci-dessous. Conserve cette preuve avant toute modification.",
+        "brokenAt": "Survenue le",
+        "logId": "ID de l'entrée",
+        "expectedHash": "Hachage attendu",
+        "actualHash": "Hachage stocké",
+        "openRow": "Ouvrir cette entrée",
+        "checkpointTitle": "Échec de la vérification du point de contrôle",
+        "checkpointId": "ID du point de contrôle",
+        "reason": "Raison",
+        "rowMissing": "L'entrée d'audit {logId} n'est plus disponible."
+      },
       "heading": "Journaux",
       "subheading": "Consulte et gère les journaux système.",
       "auditLogs": "Journaux d'audit",
@@ -6665,6 +6832,7 @@
     "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
+    "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
     "taskReviewApproved": "Revue approuvée",
     "taskReviewApprovedBody": "« {taskTitle} » a été approuvée et terminée.",
     "taskReviewChangesRequested": "Modifications demandées",
@@ -6708,6 +6876,10 @@
     "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
     "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
     "saveSuccess": "Secret enregistré",
+    "editButton": "Modifier",
+    "editTitle": "Modifier le secret",
+    "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
+    "updateSuccess": "Secret mis à jour",
     "deleteSuccess": "Secret supprimé"
   },
   "tasks": {
@@ -7001,6 +7173,8 @@
       "description": "Connecte-toi avec un passkey (Face ID, Touch ID, Windows Hello ou une clé de sécurité). Un passkey est résistant au phishing et satisfait l'exigence de double authentification de ton organisation.",
       "addButton": "Ajouter un passkey",
       "revokeButton": "Supprimer",
+      "revokeConfirmTitle": "Supprimer le passkey ?",
+      "revokeConfirmDescription": "Cela supprime « {name} » qui ne pourra plus être utilisé pour se connecter. S'il s'agissait de ton seul second facteur, il se peut que tu doives reconfigurer la double authentification.",
       "empty": "Aucun passkey enregistré pour l'instant.",
       "unnamed": "Passkey",
       "registered": "Passkey enregistré",
@@ -7022,7 +7196,7 @@
     "setup": {
       "title": "Configurer l'authentification à double facteur",
       "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
-      "manualEntry": "Impossible de scanner ? Saisis ce secret manuellement :",
+      "manualEntry": "Ou saisir manuellement :",
       "verifyCodeLabel": "Code de vérification",
       "verifyButton": "Vérifier et activer"
     },
@@ -7041,6 +7215,7 @@
     "verify": {
       "title": "Vérifier ton identité",
       "description": "Saisis le code à 6 chiffres de ton application d'authentification.",
+      "backupDescription": "Saisis l'un de tes codes de secours.",
       "codeLabel": "Code d'authentification",
       "useBackupCodeToggle": "Utiliser un code de secours à la place",
       "useAuthenticatorToggle": "Utiliser l'application d'authentification à la place",
@@ -7048,6 +7223,7 @@
       "submitButton": "Vérifier",
       "invalid": "Code invalide ou expiré. Merci de réessayer.",
       "tooManyAttempts": "Trop de tentatives échouées. Merci de réessayer plus tard.",
+      "success": "Connecté avec succès",
       "backupCodeSuccess": "Code de secours utilisé. Pense à régénérer tes codes de secours dans les Paramètres.",
       "usePasskeyButton": "Utiliser un passkey à la place",
       "passkeyFailed": "Connexion par passkey échouée ou annulée. Réessaie ou utilise un code."
@@ -7317,7 +7493,7 @@
       "columnActivity": "Dernière activité",
       "sharingOrgWide": "Toute l'organisation",
       "sharingTeamPrefix": "Équipe :",
-      "sharingMultipleTeams": "{count} équipes"
+      "sharingMultipleTeams": "{count, plural, one {# équipe} other {# équipes}}"
     },
     "create": {
       "title": "Créer un projet",
@@ -7378,6 +7554,7 @@
       "ragStatusCompleted": "Indexé",
       "ragStatusFailed": "Échec",
       "detachAction": "Retirer du projet",
+      "previewAction": "Aperçu du fichier",
       "detachSuccess": "Document retiré du projet",
       "detachError": "Impossible de retirer le document",
       "attachSuccess": "Document ajouté au projet",
@@ -7397,6 +7574,7 @@
       "shareToggleDisclosure": "Si tu partages ce chat, tes souvenirs et instructions personnels resteront cachés des autres membres.",
       "shareSuccess": "Chat partagé avec le projet",
       "unshareSuccess": "Chat retiré du projet",
+      "shareDisabledPersonalization": "La personnalisation a été désactivée pour ce chat, afin que tes souvenirs et instructions restent privés vis-à-vis des autres membres.",
       "shareError": "Impossible de mettre à jour le partage"
     },
     "agents": {
@@ -7515,6 +7693,7 @@
       "PROJECT_FORBIDDEN": "Tu n'as pas accès à ce projet.",
       "PROJECT_NOT_FOUND": "Impossible de trouver ce projet. Il a peut-être été supprimé.",
       "PROJECT_HAS_BOUND_APPS": "Désinstallez d'abord les applications qui utilisent ce projet, puis supprimez-le.",
+      "PROJECT_HAS_BOUND_APPS_NAMED": "Désinstallez d'abord les applications qui utilisent ce projet, puis supprimez-le : {apps}.",
       "PROJECT_MISMATCH": "Ce chat se trouve dans un autre projet. Change de contexte pour continuer.",
       "PROJECT_AGENT_NOT_ALLOWED": "{agentName} n'est pas disponible dans ce projet. Choisis un autre agent.",
       "PROJECT_MODEL_NOT_ALLOWED": "{modelName} n'est pas disponible dans ce projet. Choisis un autre modèle.",

@@ -474,6 +474,159 @@ describe('checkRuleAgainstUsage — multi-period scenarios', () => {
   });
 });
 
+describe('collectAllApplicableRules — apiKey scope', () => {
+  const rules: BudgetRule[] = [
+    { scope: 'default', period: 'monthly', maxRequests: 1000 },
+    {
+      scope: 'apiKey',
+      apiKeyId: 'key-A',
+      period: 'monthly',
+      maxRequests: 2,
+    },
+    {
+      scope: 'apiKey',
+      apiKeyId: 'key-B',
+      period: 'monthly',
+      maxRequests: 50,
+    },
+  ];
+
+  it('matches an apiKey rule only for the request that carries that key id', () => {
+    const result = collectAllApplicableRules(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    const keyRules = result.filter((r) => r.scope === 'apiKey');
+    expect(keyRules).toHaveLength(1);
+    expect(keyRules[0]?.apiKeyId).toBe('key-A');
+  });
+
+  it('does not match any apiKey rule when the request carries no key', () => {
+    const result = collectAllApplicableRules(rules, 'user-1', [], 'member');
+    expect(result.some((r) => r.scope === 'apiKey')).toBe(false);
+  });
+
+  it('does not match key-B rule for a key-A request (per-key isolation)', () => {
+    const result = collectAllApplicableRules(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    expect(
+      result.some((r) => r.scope === 'apiKey' && r.apiKeyId === 'key-B'),
+    ).toBe(false);
+  });
+
+  it('still returns the default rule alongside the matched apiKey rule', () => {
+    const result = collectAllApplicableRules(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    expect(result.some((r) => r.scope === 'default')).toBe(true);
+  });
+});
+
+describe('resolveEffectiveLimits — apiKey scope (independent bucket)', () => {
+  it('resolves apiKey caps into their own bucket, not the per-user tier', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'user',
+        scopeId: 'user-1',
+        period: 'monthly',
+        maxRequests: 1000,
+      },
+      {
+        scope: 'apiKey',
+        apiKeyId: 'key-A',
+        period: 'monthly',
+        maxRequests: 2,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    // The user cap stays the effective per-user limit; the key cap is separate.
+    expect(result.maxRequests).toBe(1000);
+    expect(result.apiKeyMaxRequests).toBe(2);
+  });
+
+  it('a per-key cap binds even when the user cap is much higher', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'user',
+        scopeId: 'user-1',
+        period: 'monthly',
+        maxCostCents: 100_000,
+      },
+      {
+        scope: 'apiKey',
+        apiKeyId: 'key-A',
+        period: 'monthly',
+        maxCostCents: 5,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    expect(result.maxCostCents).toBe(100_000);
+    expect(result.apiKeyMaxCostCents).toBe(5);
+  });
+
+  it('leaves apiKey caps undefined when no key is supplied', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'apiKey',
+        apiKeyId: 'key-A',
+        period: 'monthly',
+        maxRequests: 2,
+      },
+    ];
+    const result = resolveEffectiveLimits(rules, 'user-1', [], 'member');
+    expect(result.apiKeyMaxRequests).toBeUndefined();
+  });
+
+  it('uses the tightest (min) cap across multiple rules for the same key', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'apiKey',
+        apiKeyId: 'key-A',
+        period: 'monthly',
+        maxRequests: 10,
+      },
+      {
+        scope: 'apiKey',
+        apiKeyId: 'key-A',
+        period: 'monthly',
+        maxRequests: 3,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      [],
+      'member',
+      'key-A',
+    );
+    expect(result.apiKeyMaxRequests).toBe(3);
+  });
+});
+
 describe('collectAllApplicableRules — mixed periods', () => {
   it('collects rules across different periods for the same user', () => {
     const rules: BudgetRule[] = [

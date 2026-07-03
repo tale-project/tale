@@ -101,7 +101,22 @@ export function createConfigWatcher(configDir: string): ConfigWatcher {
     ignored: [
       /(^|[/\\])\.history/, // history directories
       ATOMIC_WRITE_TMP_RE, // atomicWrite temp files
+      // Special files (unix sockets, FIFOs): fs.watch cannot open them, and
+      // the resulting ENXIO escaped chokidar and killed the platform. Convex
+      // writes its executor socket under the config dir on self-hosted
+      // installs, so a fresh instance crash-looped on first boot. The name
+      // pattern catches the known case even when stats are unavailable; the
+      // stats matcher covers every other special file.
+      /\.sock$/,
+      (_path, stats) =>
+        stats != null && !stats.isFile() && !stats.isDirectory(),
     ],
+  });
+
+  // A watch failure on one path must never take the platform down — log it
+  // and keep watching the rest of the tree.
+  watcher.on('error', (error) => {
+    console.warn('[config-watcher] watch error (ignored):', error);
   });
 
   // Per-key tail debounce: collapses bursts of events for the same

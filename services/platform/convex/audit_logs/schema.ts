@@ -164,3 +164,49 @@ export const auditLogChainGenesisTable = defineTable({
   organizationId: v.string(),
   lastInsertedAt: v.number(),
 }).index('by_organizationId', ['organizationId']);
+
+/**
+ * Per-org progress cursor for the scheduled integrity check (#1505, #1846).
+ *
+ * The daily cron can only verify a bounded number of rows per org per run
+ * (`MAX_ENTRIES_PER_ORG`) and a bounded number of orgs per run
+ * (`MAX_ORGS_PER_RUN`). Without persisted progress the cron re-walked the
+ * oldest window every run, so the NEWEST rows — where live tampering would
+ * land — and every org beyond the first window were never checked (#1846
+ * items 1 + 2). This row stores how far each org's chain has been verified so
+ * the cron pages forward across runs, and `updatedAt` drives round-robin org
+ * selection so every org is reached even past `MAX_ORGS_PER_RUN`.
+ *
+ * Read + written by `audit_logs/integrity_check.ts`.
+ */
+export const auditIntegrityProgressTable = defineTable({
+  organizationId: v.string(),
+  /** Timestamp of the last verified row — resume lower bound (`fromTimestamp`). */
+  lastVerifiedTimestamp: v.optional(v.number()),
+  /** `_id` of the last verified row — exact resume cursor (`afterId`). */
+  lastVerifiedId: v.optional(v.string()),
+  /** `integrityHash` of the last verified row — seeds the next page's linkage. */
+  previousExpectedHash: v.optional(v.string()),
+  /**
+   * True when the last run reached the live chain head (no truncation). Still
+   * revisited on later runs to verify newly-appended rows.
+   */
+  headReached: v.boolean(),
+  /**
+   * When this org's cursor was last advanced. Round-robin selection verifies
+   * the stalest orgs first so a deployment with more than `MAX_ORGS_PER_RUN`
+   * audited orgs still covers all of them across runs.
+   */
+  updatedAt: v.number(),
+  /**
+   * Fingerprint of the integrity incident this org was last ALERTED about
+   * (#1845). The cron writes an in-band audit row on every failing run, but
+   * only fires the out-of-band notification when the fingerprint of the current
+   * break differs from this — so the SAME unresolved break isn't re-alerted
+   * daily. Cleared when a run verifies cleanly, so a later re-break re-alerts.
+   * Absent means no active alert.
+   */
+  lastAlertedFingerprint: v.optional(v.string()),
+  /** When the last out-of-band integrity alert fired (paired with the above). */
+  lastAlertedAt: v.optional(v.number()),
+}).index('by_organizationId', ['organizationId']);

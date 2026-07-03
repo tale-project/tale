@@ -37,9 +37,6 @@ vi.mock('./invisible-handle', () => ({
 vi.mock('./automation-callbacks-context', () => ({
   useAutomationCallbacks: () => ({
     onNodeClick: h.onNodeClick,
-    onAddStep: vi.fn(),
-    onAddStepOnEdge: vi.fn(),
-    onDeleteEdge: vi.fn(),
   }),
 }));
 

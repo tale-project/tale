@@ -1,6 +1,13 @@
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
+
+import { useListAgents } from '../hooks/queries';
+import { toConfigurableAgent } from '../utils/agent-list-item';
 
 export interface WorkforceTrendPoint {
   dateKey: string;
@@ -131,4 +138,37 @@ export function useNeedsAttention(organizationId: string) {
 
 export function useSetTaskAutomation() {
   return useConvexAction(api.governance.mutations.setTaskAutomationEnabled);
+}
+
+/**
+ * Resolves an agent slug to its locale-aware display name for the workforce
+ * surfaces (leaderboard + needs-attention lists). The metrics queries are
+ * reactive DB reads and the agent display names live in config FILES (only the
+ * Node-runtime `listAgents` action can read them), so the backend payload
+ * carries only `agentSlug`. We resolve the friendly name client-side from the
+ * same roster the agents List uses — keeping the slug as the fallback (and for
+ * the routing param), so an unknown/uninstalled slug still renders sensibly.
+ *
+ * App-owned agents key on their composite `<appSlug>/<name>` slug, which is the
+ * same value the metrics rollups record, so those resolve too.
+ */
+export function useAgentDisplayName(
+  organizationId: string,
+): (slug: string) => string {
+  const { agents } = useListAgents(organizationId);
+  const { i18n } = useTranslation();
+  const locale = i18n.language;
+
+  const bySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const raw of agents ?? []) {
+      const agent = toConfigurableAgent(raw);
+      if (!agent) continue;
+      const { displayName } = resolveAgentLocale(agent, locale);
+      if (displayName) map.set(agent.name, displayName);
+    }
+    return map;
+  }, [agents, locale]);
+
+  return useMemo(() => (slug: string) => bySlug.get(slug) ?? slug, [bySlug]);
 }

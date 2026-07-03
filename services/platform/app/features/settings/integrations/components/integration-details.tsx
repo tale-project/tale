@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Row } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react';
@@ -224,6 +225,11 @@ export function IntegrationDetails({
 
   const connectorCode = integration.connector?.code ?? '';
   const isSql = integration.type === 'sql';
+  // SQL and IMAP/SMTP integrations run as Node actions, not in the connector
+  // sandbox, so they have no connector code. Gate the connector-code section on
+  // this (derived synchronously from `type`) to avoid a load-race flash where
+  // the section renders during the (empty) connector fetch then vanishes.
+  const hasConnectorCode = !isSql && integration.type !== 'imap_smtp';
 
   const trimmedCode = connectorCode.trim();
   const lineCount = trimmedCode.length > 0 ? trimmedCode.split('\n').length : 0;
@@ -312,7 +318,7 @@ export function IntegrationDetails({
   if (isSql && integration.isActive && integration.sqlConnectionConfig)
     sections.push('sqlConfig');
   if (allowedHosts.length > 0) sections.push('allowedHosts');
-  if (!isSql && (lineCount > 0 || connectorCodeLoading))
+  if (hasConnectorCode && (lineCount > 0 || connectorCodeLoading))
     sections.push('connectorCode');
   sections.push('automations');
   if (children) sections.push('update');
@@ -482,15 +488,25 @@ export function IntegrationDetails({
         </SectionRow>
       )}
 
-      {!isSql && (lineCount > 0 || connectorCodeLoading) && (
+      {hasConnectorCode && (lineCount > 0 || connectorCodeLoading) && (
         <SectionRow
           label={t('integrations.upload.connectorCode')}
           badge={
-            lineCount > 0 ? (
+            // Badge is itself skeleton-aware (it wraps in <SkeletonBox>), so
+            // just provide the loading context and let it mask ITSELF at its
+            // exact footprint — wrapping it in another SkeletonBox double-masks
+            // and shifts by a pixel. Rendered in both states (loading toggles)
+            // so the slot never pops in; '000' reserves a typical width until
+            // the real line count arrives.
+            <Skeletonize
+              loading={!!connectorCodeLoading && lineCount === 0}
+              label={t('integrations.upload.connectorCode')}
+              className="inline-flex"
+            >
               <Badge variant="outline" className="text-xs">
-                {lineCount} {t('integrations.upload.lines')}
+                {lineCount || '000'} {t('integrations.upload.lines')}
               </Badge>
-            ) : undefined
+            </Skeletonize>
           }
           expanded={expanded.has('connectorCode')}
           onToggle={() => toggle('connectorCode')}

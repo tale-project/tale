@@ -90,6 +90,25 @@ export function ProjectDeleteDialog({
           });
           return;
         }
+        if (code === 'PROJECT_HAS_BOUND_APPS') {
+          // The backend names the bound app(s) in error.data.apps so the
+          // operator knows exactly what to uninstall first; surface them when
+          // present, otherwise fall back to the generic actionable message.
+          const rawApps: unknown = error.data?.apps;
+          const apps = Array.isArray(rawApps)
+            ? rawApps.filter((app): app is string => typeof app === 'string')
+            : [];
+          toast({
+            title:
+              apps.length > 0
+                ? t('errors.PROJECT_HAS_BOUND_APPS_NAMED', {
+                    apps: apps.join(', '),
+                  })
+                : t('errors.PROJECT_HAS_BOUND_APPS'),
+            variant: 'destructive',
+          });
+          return;
+        }
         if (code === 'PROJECT_LEGAL_HOLD') {
           toast({
             title: t('errors.PROJECT_LEGAL_HOLD'),

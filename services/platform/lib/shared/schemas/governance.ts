@@ -57,10 +57,10 @@ export const POLICY_TYPES = [
   // Per-org opt-out for the weekly in-instance provider-config auto-sync cron.
   // Missing file → enabled. See `modelSyncConfigSchema`.
   'model_sync',
-  // Per-org sandbox concurrency quota (one-shot execs + persistent sessions).
-  // The deployment-wide host-capacity caps are spawner env
-  // (`SANDBOX_MAX_CONCURRENT`, `SANDBOX_MAX_SESSIONS`); this policy is the
-  // per-tenant slice an org admin tunes. See `sandboxQuotaConfigSchema`.
+  // Per-org sandbox session budgets (user / thread / workflow / render — every
+  // sandbox is a session). The deployment-wide host-capacity ceiling is spawner
+  // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
+  // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
@@ -99,19 +99,34 @@ export const taskAutomationConfigSchema = z.object({
 export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 
 /**
- * Per-org sandbox concurrency quota. Missing row ⇒ these schema defaults.
+ * Per-org sandbox SESSION budgets. Missing row ⇒ these schema defaults.
  *
- * Two-tier model: the GLOBAL host-capacity caps (total across every org) are
- * spawner env — `SANDBOX_MAX_CONCURRENT` (one-shot) and `SANDBOX_MAX_SESSIONS`
- * (sessions) — sized to the physical box. THIS policy is the per-tenant slice
- * an org admin tunes. A per-org value set above the global env cap simply never
- * binds: the global host cap always wins.
+ * Every sandbox run is a session now, split into isolated per-workload budgets
+ * so no one workload can starve another. Two-tier model: the GLOBAL host cap
+ * (total sessions across every org) is spawner env `SANDBOX_MAX_SESSIONS`, sized
+ * to the physical box. THIS policy is the per-tenant slice under it an org admin
+ * tunes; a per-org value above the host cap simply never binds (the host cap
+ * always wins).
  */
 export const sandboxQuotaConfigSchema = z.object({
-  /** Max concurrent one-shot executions (run_code / workflow script steps). */
-  maxConcurrentPerOrg: z.number().int().min(1).max(100).default(2),
-  /** Max concurrently-active persistent sandbox sessions (chat / agent steps). */
+  /**
+   * Max concurrently-active persistent **user** sandbox sessions (external
+   * agents — Claude Code / OpenCode, one per user). Per-thread run_code and
+   * per-workflow-run sessions have their own separate budgets below so the
+   * three workloads never compete for one pool.
+   */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
+  /** Max concurrently-active per-**thread** run_code sandbox sessions. */
+  maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
+  /** Max concurrently-active per-**workflow-run** sandbox sessions. */
+  maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
+  /**
+   * Max concurrently-active crawler **render** sessions (headless-Chromium
+   * document/page rendering). Isolated in its own budget so heavy crawling can't
+   * starve interactive agent/run_code sessions — the session-model replacement
+   * for the old one-shot render pool.
+   */
+  maxRenderSessionsPerOrg: z.number().int().min(1).max(500).default(4),
 });
 export type SandboxQuotaConfig = z.infer<typeof sandboxQuotaConfigSchema>;
 export const DEFAULT_SANDBOX_QUOTA: SandboxQuotaConfig =
@@ -193,8 +208,16 @@ export const dataNoticeConfigSchema = z.object({
 });
 
 export const budgetRuleSchema = z.object({
-  scope: z.enum(['user', 'team', 'role', 'org', 'default']),
+  scope: z.enum(['user', 'team', 'role', 'org', 'default', 'apiKey']),
   scopeId: z.string().optional(),
+  /**
+   * Target for the `apiKey` scope: the Better Auth `apikey._id` this rule caps.
+   * A per-API-key budget binds independently of the key owner's user/team/org
+   * budget, so a single credential can carry its own spend cap. Only meaningful
+   * (and only read) when `scope === 'apiKey'`; kept as a separate field from
+   * `scopeId` so the user/team/role targeting semantics are untouched.
+   */
+  apiKeyId: z.string().optional(),
   period: z.enum(['daily', 'weekly', 'monthly']),
   maxTokens: z.number().nonnegative().optional(),
   maxCostCents: z.number().nonnegative().optional(),

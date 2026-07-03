@@ -88,7 +88,6 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 
 | Name                            | Default | Beschreibung                                                                                                                              |
 | ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `MICROSOFT_AUTH_ENABLED`        | `false` | Aktiviert die Microsoft-Entra-Sign-in-Option.                                                                                             |
 | `TRUSTED_HEADERS_ENABLED`       | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                         |
 | `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                        |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |
@@ -117,12 +116,6 @@ Re-Ranking ist standardmässig deaktiviert, weil es Latenz pro Query addiert und
 
 Lass es unset, um die Standard-Sitzungsdauer zu behalten. Wenn gesetzt, läuft eine inaktive Sitzung serverseitig ab, sobald das Fenster verstrichen ist, während eine aktive sich bei jeder Anfrage weiter verschiebt. Org-Admins können das wirksame Fenster pro Organisation verkürzen — niemals über diese Obergrenze hinaus verlängern — über die [Governance-Richtlinie zur Sitzungs-Leerlaufzeit](/de/platform/admin/governance/policies-and-limits); inaktive Sitzungen unter dieser Richtlinie widerruft ein Lauf, der etwa alle fünf Minuten läuft.
 
-## Versionierung
-
-| Name           | Default        | Beschreibung                                                                                                               |
-| -------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_VERSION` | letzte stabile | Der Image-Tag, der von `docker compose pull` gezogen wird. Auf einen spezifischen Tag pinnen für reproduzierbare Upgrades. |
-
 ## Wo das hingehört
 
-Die Variablen hier sind die Kontaktoberfläche des Operators; die UI-Oberfläche, die die meisten von ihnen konsumiert, lebt unter [Plattform-Verwaltung](/de/platform/admin/overview). Provider-Keys sind die eine Halb-und-Halb-Sache: die Keys selbst leben in `providers/*.secrets.json`, aber die UI unter **Einstellungen > Anbieter** ist, wie du sie in der Praxis hinzufügst und rotierst. Die nächste Lektüre, die sich lohnt, ist [Anbieter](/de/self-hosted/configuration/providers) — sie behandelt die Datei-Form, die SOPS-Modi und das Resolve-und-Failover-Verhalten.
+Die Variablen hier sind die Kontaktoberfläche des Operators; die UI-Oberfläche, die die meisten von ihnen konsumiert, lebt unter [Plattform-Verwaltung](/de/platform/admin/overview). Provider-Keys sind die eine Halb-und-Halb-Sache: die Keys selbst leben in `providers/*.secrets.json`, aber die UI unter **Einstellungen > KI-Anbieter** ist, wie du sie in der Praxis hinzufügst und rotierst. Die nächste Lektüre, die sich lohnt, ist [Anbieter](/de/self-hosted/configuration/providers) — sie behandelt die Datei-Form, die SOPS-Modi und das Resolve-und-Failover-Verhalten.

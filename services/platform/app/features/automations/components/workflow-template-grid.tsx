@@ -10,6 +10,7 @@ import {
   CatalogCardIcon,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import { useListWorkflows } from '../hooks/file-queries';
@@ -22,6 +23,8 @@ interface WorkflowTemplateGridProps {
   selectedSlug: string | null;
   onSelectSlug: (slug: string) => void;
   installingSlug: string | null;
+  /** Free-text filter over template name + description (catalog page only). */
+  searchQuery?: string;
   /**
    * Constrain the grid to its own scroll area (the create dialog). The full
    * catalog page passes `false` so the page scrolls instead.
@@ -71,18 +74,29 @@ export function WorkflowTemplateGrid({
   selectedSlug,
   onSelectSlug,
   installingSlug,
+  searchQuery,
   scrollable = true,
 }: WorkflowTemplateGridProps) {
   const { t } = useT('automations');
+  // Installing a template creates a workflow — a write action. Read-only roles
+  // (member/editor) can browse the catalog but not install (#2076).
+  const ability = useAbility();
+  const canInstall = ability.can('write', 'wfDefinitions');
   const { workflows, isLoading: isLoadingTemplates } = useListWorkflows(
     organizationId,
     'templates',
   );
 
-  const filteredTemplates = useMemo(
-    () => parseWorkflowTemplates(workflows, integrationName),
-    [workflows, integrationName],
-  );
+  const filteredTemplates = useMemo(() => {
+    const templates = parseWorkflowTemplates(workflows, integrationName);
+    const q = searchQuery?.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(
+      (template) =>
+        template.name.toLowerCase().includes(q) ||
+        (template.description ?? '').toLowerCase().includes(q),
+    );
+  }, [workflows, integrationName, searchQuery]);
 
   if (isLoadingTemplates) {
     return (
@@ -93,7 +107,13 @@ export function WorkflowTemplateGrid({
   }
 
   if (filteredTemplates.length === 0) {
-    return <Text variant="muted">{t('templates.noTemplates')}</Text>;
+    return (
+      <Text variant="muted">
+        {searchQuery?.trim()
+          ? t('search.noResults')
+          : t('templates.noTemplates')}
+      </Text>
+    );
   }
 
   const cards = filteredTemplates.map((template) => (
@@ -113,7 +133,7 @@ export function WorkflowTemplateGrid({
         ) : undefined
       }
       active={selectedSlug === template.slug}
-      disabled={!!installingSlug}
+      disabled={!!installingSlug || !canInstall}
       ariaLabel={template.name}
       onClick={() => onSelectSlug(template.slug)}
     />

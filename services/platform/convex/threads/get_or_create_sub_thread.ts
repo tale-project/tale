@@ -13,6 +13,8 @@
  * ```
  */
 
+import { ConvexError } from 'convex/values';
+
 import { parseJson } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
@@ -50,7 +52,10 @@ export async function getOrCreateSubThread(
   });
 
   if (!parentThread) {
-    throw new Error(`Parent thread not found: ${parentThreadId}`);
+    throw new ConvexError({
+      code: 'PARENT_THREAD_NOT_FOUND',
+      message: `Parent thread not found: ${parentThreadId}`,
+    });
   }
 
   // 2. Parse summary to find existing sub-thread mapping

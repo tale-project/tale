@@ -1,11 +1,11 @@
 ---
 title: Authentication
-description: The four sign-in modes Tale ships with — local password, Microsoft Entra, generic OIDC, and trusted headers — and which env vars switch between them.
+description: The four sign-in modes Tale ships with — local password, Microsoft Entra, generic OIDC, and trusted headers — and how an operator switches between them.
 ---
 
 Tale ships four sign-in modes that an operator picks per instance. The default is local password, with one user per email; Microsoft Entra and generic OIDC delegate identity to an external provider; trusted headers hands the responsibility to a reverse proxy already terminating SSO upstream. The decision is permanent in the sense that it shapes how users are provisioned — switching modes after rollout is possible, but every existing user has to be re-mapped to the new identity source.
 
-The env vars that turn each mode on live in [Environment reference](/self-hosted/configuration/environment-reference). This page is the mode-by-mode walkthrough — when to choose each, what it changes for the user, what breaks when it is misconfigured.
+Local password and trusted headers are switched by env vars ([Environment reference](/self-hosted/configuration/environment-reference)); Microsoft Entra and generic OIDC are configured per organisation inside the running app. This page is the mode-by-mode walkthrough — when to choose each, what it changes for the user, what breaks when it is misconfigured.
 
 ## Local password (default)
 
@@ -22,14 +22,9 @@ BETTER_AUTH_SECRET=...
 
 ## Microsoft Entra
 
-The Microsoft Entra mode adds an OAuth/OIDC button to the sign-in screen and accepts users from a tenant you control. Set `MICROSOFT_AUTH_ENABLED=true` to turn the button on; the per-tenant client ID, client secret, and redirect URI are configured on the **Single Sign-On** card under **Settings > Integrations** once the platform is up.
+The Microsoft Entra mode adds a **Continue with SSO** button to the sign-in screen and accepts users from a tenant you control. There is no env-var switch: the connection is configured per organisation under **Settings > Enterprise SSO** once the platform is up — pick the **Microsoft Entra ID** protocol and enter the client ID, client secret, and issuer URL from your app registration. The full walkthrough, including role mapping and group-to-team sync, is [Enterprise SSO and provisioning](/platform/admin/enterprise-sso).
 
-```bash
-# .env
-MICROSOFT_AUTH_ENABLED=true
-```
-
-The redirect URI Entra needs is `${SITE_URL}/api/auth/callback/microsoft`. The tenant ID in the Entra app registration narrows who can sign in; a multi-tenant registration accepts anyone with a Microsoft account, which is rarely what you want.
+Two deployment values must be right before the flow can work: `SITE_URL`, because the sign-in redirect URL is derived from it, and `BETTER_AUTH_SECRET`, which signs the OAuth state. The redirect URI to register in Entra is `${SITE_URL}${BASE_PATH}/http_api/api/sso/callback` — the settings page shows the exact URL to copy, and it must match byte-for-byte or Entra rejects the sign-in with `AADSTS50011`. The tenant ID in the Entra app registration narrows who can sign in; a multi-tenant registration accepts anyone with a Microsoft account, which is rarely what you want.
 
 ## Generic OIDC
 

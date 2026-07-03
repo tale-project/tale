@@ -21,11 +21,16 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import {
+  formatModelRef,
+  parseModelRef,
+} from '../../../lib/shared/utils/model-ref';
 import { components, internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import { buildSkillsGuidance } from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
@@ -59,8 +64,17 @@ import {
   pickToken,
   type TokenSelection,
 } from '../../node_only/sandbox/token_pool_select';
+import {
+  stageWorkflowSkills,
+  workspaceIsTaleRepo,
+} from '../../node_only/sandbox/workflow_skills';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
+import {
+  type ResolvedLanguageModel,
+  resolveLanguageModel,
+  resolveLanguageModelById,
+} from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   sessionIdForThread,
@@ -278,6 +292,47 @@ async function stageChatAttachments(
   };
 }
 
+/**
+ * Resolve the vision model that backs the image-read polyfill hook for a
+ * text-only managed agent. Prefers the agent's explicit `visionModel` (validated to be
+ * vision-capable); a missing/unresolvable/non-vision preferred model falls back
+ * to the provider registry's `vision`-tagged default (per-provider
+ * `defaults.vision`, else the first `vision`-tagged model). Throws only when NO
+ * vision model resolves at all (the caller then skips the polyfill, fail-open).
+ */
+async function resolveVisionModel(
+  ctx: ActionCtx,
+  opts: { organizationId: string; preferredRef?: string },
+): Promise<ResolvedLanguageModel> {
+  if (opts.preferredRef && opts.preferredRef !== 'default') {
+    const parsed = parseModelRef(opts.preferredRef);
+    try {
+      const resolved = await resolveLanguageModelById(ctx, {
+        modelId: parsed.modelId,
+        ...(parsed.providerName !== undefined && {
+          providerName: parsed.providerName,
+        }),
+        organizationId: opts.organizationId,
+      });
+      if (resolved.modelData.tags.includes('vision')) return resolved;
+      // Operator configured a model that can't see images — warn and fall back
+      // rather than wiring a bridge that would 404 on the first image.
+      console.warn(
+        `[runExternalAgentTurn] configured visionModel '${opts.preferredRef}' is not vision-capable; using the vision-tagged default instead`,
+      );
+    } catch (err) {
+      console.warn(
+        `[runExternalAgentTurn] configured visionModel '${opts.preferredRef}' did not resolve; using the vision-tagged default instead:`,
+        err,
+      );
+    }
+  }
+  return resolveLanguageModel(ctx, {
+    tag: 'vision',
+    organizationId: opts.organizationId,
+  });
+}
+
 export const runExternalAgentTurn = internalAction({
   args: {
     threadId: v.string(),
@@ -312,6 +367,10 @@ export const runExternalAgentTurn = internalAction({
      * (which integrations `integration({slug})` may invoke). Enforced
      * server-side by /api/integrations/execute; defaults to none-granted. */
     integrationBindings: v.optional(v.array(v.string())),
+    /** Per-agent vision model (managed external agents) backing the image-read
+     * polyfill hook when the agent's own model is text-only. Preferred over the
+     * provider registry's `vision`-tagged default; ignored for BYO. */
+    visionModel: v.optional(v.string()),
     /** Chat attachments uploaded with this turn. Staged into the sandbox under
      * /user/uploads/<promptMessageId>/ and referenced by absolute path in the
      * prompt so the agent can read them (the in-process path instead inlines
@@ -363,6 +422,97 @@ export const runExternalAgentTurn = internalAction({
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
+
+      // Vision polyfill (managed only): when the agent's own model lacks the
+      // `vision` tag, arm the image-read hook (tale-vision-read-hook) backed by a
+      // vision model so a text-only agent can still read images (e.g. an
+      // uploaded invoice). The model is the agent's explicit `visionModel` when
+      // set, else the org's `vision`-tagged default (see resolveVisionModel).
+      // The hook transcribes through the SAME gateway with the session key (no
+      // provider key enters the container); the VK below is scoped to also allow
+      // that model. BYO brings its own credential + model, so it is never
+      // polyfilled. (visionTool/visionModel are passed to the adapter, which
+      // sets the TALE_VISION_* env that arms the hook.)
+      let visionTool = false;
+      let visionModel: string | undefined; // gateway model id the hook transcribes with
+      let visionModelRef: string | undefined; // tale ref added to the VK allowlist
+      // Model-level fallback (managed only): the catalog entry's
+      // `fallbackModelId` (e.g. Opus 4.8 behind the Fable default) rides along
+      // to the adapter, which arms Claude Code's fallback chain — overload /
+      // unavailability retries AND the content-based Fable classifier
+      // fallback. The VK below is scoped to also allow it, else the gateway
+      // 403s the fallback request and the turn fails anyway.
+      let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
+      let fallbackModel: string | undefined; // gateway model id the chain requests
+      // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
+      // defaults) names the model by its GATEWAY id, which the vendor's own
+      // API does not know — the catalog entry's `nativeModelId` is what a
+      // direct-to-vendor session must request instead. A raw id the user typed
+      // matches no catalog entry and passes through unchanged (no override).
+      let byoNativeModel: string | undefined;
+      if (args.modelRef && args.modelRef !== 'default') {
+        try {
+          const parsed = parseModelRef(args.modelRef);
+          const catalog = await ctx.runAction(
+            internal.providers.file_actions.getModelRoutingCatalog,
+            { organizationId: args.organizationId },
+          );
+          const agentEntry = catalog.find(
+            (c) =>
+              c.id === parsed.modelId &&
+              (parsed.providerName === undefined ||
+                c.providerName === parsed.providerName),
+          );
+          if (byo) {
+            byoNativeModel = agentEntry?.nativeModelId;
+          }
+          if (
+            !byo &&
+            agentEntry?.fallbackModelId !== undefined &&
+            agentEntry.fallbackModelId !== parsed.modelId
+          ) {
+            fallbackModelRef = formatModelRef({
+              providerName: agentEntry.providerName,
+              modelId: agentEntry.fallbackModelId,
+            });
+            fallbackModel =
+              resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
+          }
+          if (!byo && !(agentEntry?.tags.includes('vision') ?? false)) {
+            const vision = await resolveVisionModel(ctx, {
+              organizationId: args.organizationId,
+              ...(args.visionModel !== undefined && {
+                preferredRef: args.visionModel,
+              }),
+            });
+            visionModelRef = formatModelRef({
+              providerName: vision.modelData.providerName,
+              modelId: vision.modelData.modelId,
+            });
+            visionModel =
+              resolveGatewayRoutingFromRef(visionModelRef).gatewayModel;
+            visionTool = true;
+          }
+        } catch (err) {
+          // No vision model configured (resolveLanguageModel throws) or the
+          // catalog is unavailable — skip the polyfill, the fallback, and the
+          // BYO native mapping (the agent just runs without them this turn,
+          // BYO on the raw ref). Never fail the turn over a convenience
+          // feature.
+          console.warn(
+            '[runExternalAgentTurn] catalog model resolution skipped (vision/fallback/native):',
+            err,
+          );
+        }
+      }
+      // The session VK allows the agent's model plus (when polyfilling) the
+      // vision model the bridge calls and (when configured) the fallback model
+      // — else the gateway 403s those requests.
+      const allowedModels = [
+        args.modelRef,
+        visionModelRef,
+        fallbackModelRef,
+      ].filter((ref): ref is string => ref !== undefined);
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -727,6 +877,12 @@ export const runExternalAgentTurn = internalAction({
       // independent text; connection state comes from the tool result). Staged
       // per-turn → a connect/disconnect/binding change shows up next turn.
       // Best-effort: skill staging must never fail the turn.
+      // Feeds the skills-guidance section of the system-prompt append: the
+      // workflow skills the agent can actually load this turn + whether the
+      // workspace is Tale's own monorepo (whose AGENTS.md already carries the
+      // workflow, so the generated section is skipped there).
+      let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
+      let workspaceIsTale = false;
       try {
         await stageIntegrationSkills(ctx, {
           organizationId: args.organizationId,
@@ -747,6 +903,14 @@ export const runExternalAgentTurn = internalAction({
         if (BROWSER_VIEW_ENABLED) {
           await stageBrowserControlSkill(ctx, { sessionId });
         }
+        // The workflow disciplines (implement-feature, fix-bug, …) seeded
+        // per-org from builtin-configs — staged so the guidance below only
+        // names skills that are truly present.
+        availableWorkflowSkills = await stageWorkflowSkills(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+        });
+        workspaceIsTale = await workspaceIsTaleRepo(sessionId);
       } catch (skillErr) {
         console.warn(
           '[runExternalAgentTurn] integration skill staging failed (continuing):',
@@ -788,7 +952,7 @@ export const runExternalAgentTurn = internalAction({
         }
         const vk = await mintVirtualKey({
           budgetCents: vkBudgetCents,
-          allowedModels: [args.modelRef],
+          allowedModels,
           organizationId: args.organizationId,
           sessionId,
         });
@@ -803,7 +967,7 @@ export const runExternalAgentTurn = internalAction({
             llmGatewayKeyId: vk.keyId,
             scope: {
               agentKind: args.agentKind,
-              allowedModels: [args.modelRef],
+              allowedModels,
               // The session's dispatch grant set = the agent's
               // integrationBindings (enforced by /api/integrations/execute).
               integrationGrants: args.integrationBindings ?? [],
@@ -923,6 +1087,13 @@ export const runExternalAgentTurn = internalAction({
         permissionMode: args.permissionMode,
         interactionMode: args.interactionMode,
         browserCdp: BROWSER_VIEW_ENABLED,
+        // Claude-Code-only: the staged workflow skills live in CC's user-level
+        // skill dir. Skipped on the Tale monorepo workspace — its AGENTS.md
+        // already carries the workflow and the house rules point at it.
+        skillsGuidance:
+          args.agentKind === 'claude-code' && !workspaceIsTale
+            ? buildSkillsGuidance(availableWorkflowSkills)
+            : undefined,
       });
 
       // Both attempts share ONE absolute action deadline — a fresh window for
@@ -952,11 +1123,17 @@ export const runExternalAgentTurn = internalAction({
           // BYO passes the raw provider model id straight through; the
           // 'default' sentinel (or empty) means "no model" → omit it so Claude
           // Code falls back to the credential's own default model.
+          // BYO prefers the catalog entry's vendor-native id (the gateway id
+          // does not exist on the vendor's own API); a raw user-typed id has
+          // no catalog entry and passes through unchanged.
           model: byo
             ? args.modelRef && args.modelRef !== 'default'
-              ? args.modelRef
+              ? (byoNativeModel ?? args.modelRef)
               : undefined
             : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          // Managed model-level fallback (catalog fallbackModelId, VK-allowed
+          // above). Never sent for BYO — the user's model list is not overridden.
+          ...(fallbackModel !== undefined && { fallbackModel }),
           authMode: byo ? 'byo' : 'managed',
           ...(args.nativeWebTools !== undefined && {
             nativeWebTools: args.nativeWebTools,
@@ -1004,6 +1181,8 @@ export const runExternalAgentTurn = internalAction({
               gatewayToken,
               integrationsBaseUrl: `${INTEGRATIONS_BASE_URL}/api/integrations`,
             }),
+          ...(visionTool &&
+            visionModel !== undefined && { visionTool: true, visionModel }),
           timeoutMs: EXEC_DEADLINE_MS,
           budgetDeadlineMs: actionDeadlineMs,
           // Durable per-flush mirror: patch the streaming message with the

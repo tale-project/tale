@@ -15,6 +15,7 @@ import {
   MICROSOFT_LOGIN_BASE,
   MICROSOFT_GRAPH_BASE,
   ONEDRIVE_SCOPES,
+  EntraIssuerError,
   extractTenantId,
 } from './constants';
 import { mapEntraRoleToPlatformRole } from './role_mapping';
@@ -226,6 +227,18 @@ async function getAppRoles(
 async function validateConfig(
   config: Omit<SsoProviderConfig, 'clientSecret'> & { clientSecret?: string },
 ): Promise<{ valid: boolean; error?: string }> {
+  // Reject a bare-GUID-degraded / v1 / non-Entra issuer BEFORE any network call
+  // — otherwise "Test connection" would probe `common` and pass, then real
+  // sign-in fails against the single-tenant app with an opaque AADSTS error.
+  try {
+    extractTenantId(config.issuer);
+  } catch (error) {
+    if (error instanceof EntraIssuerError) {
+      return { valid: false, error: error.message };
+    }
+    throw error;
+  }
+
   const discoveryUrl = config.issuer.endsWith('/')
     ? `${config.issuer}.well-known/openid-configuration`
     : `${config.issuer}/.well-known/openid-configuration`;
@@ -261,13 +274,31 @@ async function validateConfig(
         const errorDesc = errorBody.error_description || errorBody.error;
 
         if (errorDesc?.includes('AADSTS700016')) {
-          return { valid: false, error: 'Invalid Client ID' };
+          return {
+            valid: false,
+            error:
+              'Invalid Client ID — the Application (client) ID was not found in this tenant.',
+          };
         }
         if (errorDesc?.includes('AADSTS7000215')) {
-          return { valid: false, error: 'Invalid Client Secret' };
+          return {
+            valid: false,
+            error:
+              'Invalid Client Secret — check the secret Value (not the Secret ID).',
+          };
         }
         if (errorDesc?.includes('AADSTS700024')) {
-          return { valid: false, error: 'Client Secret expired' };
+          return {
+            valid: false,
+            error: 'Client Secret expired — create a new one in Entra.',
+          };
+        }
+        if (errorDesc?.includes('AADSTS50011')) {
+          return {
+            valid: false,
+            error:
+              'Redirect URI mismatch — register the exact Redirect URL shown above in the app registration.',
+          };
         }
 
         return { valid: false, error: `Authentication failed: ${errorDesc}` };

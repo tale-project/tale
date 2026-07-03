@@ -1,11 +1,12 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { Check, Copy, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
 import {
   type ReactNode,
   useCallback,
@@ -596,6 +597,45 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             {t('integrations.enterpriseSso.formHint')}
           </Text>
 
+          {/* Deployment prerequisites — a missing SITE_URL/secret yields an
+              empty callback URL and a raw 500 at sign-in (the exact hard-to-
+              debug failure this addresses). `deployment` is server-read (the
+              client cannot see BETTER_AUTH_SECRET); the empty-callback signal
+              also holds when the flag is absent. */}
+          {(() => {
+            const dep = config?.deployment;
+            const callbackMissing =
+              config?.oidcCallbackUrl === null || dep?.siteUrlSet === false;
+            const authSecretMissing = dep?.authSecretSet === false;
+            if (!callbackMissing && !authSecretMissing) return null;
+            return (
+              <Alert
+                variant="warning"
+                icon={AlertTriangle}
+                live="assertive"
+                title={t('integrations.enterpriseSso.deploymentWarning.title')}
+                description={
+                  <ul className="list-disc space-y-1 pl-4">
+                    {callbackMissing && (
+                      <li>
+                        {t(
+                          'integrations.enterpriseSso.deploymentWarning.callbackMissing',
+                        )}
+                      </li>
+                    )}
+                    {authSecretMissing && (
+                      <li>
+                        {t(
+                          'integrations.enterpriseSso.deploymentWarning.authSecretMissing',
+                        )}
+                      </li>
+                    )}
+                  </ul>
+                }
+              />
+            );
+          })()}
+
           <Section>
             <Controller
               control={control}
@@ -655,10 +695,35 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               placeholder="example.com"
               {...register('domain')}
             />
+            {/* Multi-org deployments route sign-in by this domain. Leaving it
+                empty makes the connection unroutable by address — it is then
+                listed publicly by display name on the SSO screen. Warn, don't
+                block: the operator may want exactly that. */}
+            {config?.enabled &&
+              config.otherOrgsEnabled === true &&
+              !(watch('domain') ?? '').trim() && (
+                <Alert
+                  variant="warning"
+                  icon={AlertTriangle}
+                  title={t('integrations.enterpriseSso.domainWarning.title')}
+                  description={t(
+                    'integrations.enterpriseSso.domainWarning.description',
+                  )}
+                />
+              )}
           </Section>
 
           {isOidcLike ? (
             <Section title={t('integrations.enterpriseSso.signInSection')}>
+              {/* The redirect URL to register in the IdP, shown up-front (not
+                  buried in the guide) — a mismatch here is the top cause of a
+                  failed sign-in (AADSTS50011). */}
+              <ReadOnlyCopy
+                label={t('integrations.enterpriseSso.redirectUrlLabel')}
+                value={config?.oidcCallbackUrl ?? ''}
+                helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
+                onCopy={copy}
+              />
               <Input
                 id="sso-issuer"
                 label={t('integrations.enterpriseSso.issuerLabel')}
@@ -977,10 +1042,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 function ReadOnlyCopy({
   label,
   value,
+  helpText,
   onCopy,
 }: {
   label: string;
   value: string;
+  helpText?: string;
   onCopy: (value: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -989,6 +1056,11 @@ function ReadOnlyCopy({
       <Text variant="label" className="text-sm">
         {label}
       </Text>
+      {helpText && (
+        <Text variant="muted" className="text-xs">
+          {helpText}
+        </Text>
+      )}
       <HStack gap={2} align="center">
         <code className="bg-muted block flex-1 truncate rounded-md p-2 font-mono text-xs">
           {value || '—'}

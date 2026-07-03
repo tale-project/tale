@@ -15,9 +15,14 @@ import path from 'node:path';
 
 import { v } from 'convex/values';
 
-import { appScope, isValidAppSlug } from '../../lib/shared/schemas/apps';
+import {
+  type AppManifest,
+  appScope,
+  isValidAppSlug,
+} from '../../lib/shared/schemas/apps';
 import { workflowJsonSchema } from '../../lib/shared/schemas/workflows';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
 import {
   parseAgentJson,
@@ -26,6 +31,7 @@ import {
 } from '../agents/file_utils';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { sha256 } from '../lib/file_io';
+import { requireDeveloperSettingsAccessById } from '../providers/auth';
 import {
   resolveWorkflowFilePath,
   resolveWorkflowsDir,
@@ -78,19 +84,108 @@ async function registerWorkflow(
       `[app-install] ignoring ${declaredEvents.length} org-global event trigger(s) declared by app workflow "${workflowSlug}": app workflows are scoped and must not subscribe to org-global events`,
     );
   }
-  for (const schedule of parsed.data.triggers?.schedules ?? []) {
-    await ctx.runMutation(
-      internal.workflows.provision_defaults_mutations.ensureSchedule,
-      {
-        organizationId,
-        workflowSlug,
-        cronExpression: schedule.cron,
-        timezone: schedule.timezone,
-        variables: schedule.variables,
-        isActive: true,
-      },
+  // Schedules are NOT created here. They are scope-aware — org-level for an
+  // org-scoped app, but one-per-bound-project for a `scope: 'project'` app whose
+  // config (e.g. the GitHub repo) is per-project — so they are provisioned by
+  // `syncAppSchedules` once the bindings are known (install/reinstall + each bind).
+}
+
+/**
+ * Read a copied app workflow's declared schedule specs (cron + variables) from
+ * the org config dir. Tolerant: a missing/malformed file yields no schedules (the
+ * install/integrity path surfaces broken files separately).
+ */
+async function readWorkflowScheduleSpecs(
+  orgSlug: string,
+  workflowSlug: string,
+): Promise<
+  { cron: string; timezone?: string; variables?: Record<string, unknown> }[]
+> {
+  if (!validateWorkflowSlug(workflowSlug)) return [];
+  let content: string;
+  try {
+    content = await readFile(
+      resolveWorkflowFilePath(orgSlug, workflowSlug),
+      'utf-8',
     );
+  } catch {
+    return [];
   }
+  const parsed = workflowJsonSchema.safeParse(JSON.parse(content));
+  if (!parsed.success) return [];
+  return parsed.data.triggers?.schedules ?? [];
+}
+
+/**
+ * Reconcile an app's workflow schedules to the desired set — scope-aware and
+ * idempotent. This is the single source of the app's schedule state on install,
+ * reinstall, and each bind:
+ *  - org-scoped app → one schedule per declared trigger (no projectId);
+ *  - project-scoped app → one schedule per (declared trigger × bound project),
+ *    seeded with that project's config so two projects targeting two repos get
+ *    two independent reconcile runs and never share a single org-wide schedule.
+ *
+ * It hands the fully-computed desired set to `reconcileAppSchedules`, which
+ * CONVERGES an existing schedule's `variables` to the desired config (so a plain
+ * reinstall HEALS a schedule whose repo was configured after it was provisioned —
+ * the previous per-item `ensureSchedule` skipped existing rows and so never did)
+ * and PRUNES this app's schedules that are no longer desired (an org-level or
+ * unbound-project leftover). Reinstall is therefore the recovery path.
+ */
+async function syncAppSchedules(
+  ctx: ActionCtx,
+  organizationId: string,
+  orgSlug: string,
+  appSlug: string,
+  manifest: AppManifest,
+): Promise<void> {
+  const workflows = manifest.workflows ?? [];
+  if (workflows.length === 0) return;
+
+  const desired: {
+    workflowSlug: string;
+    cronExpression: string;
+    timezone?: string;
+    projectId?: Id<'projects'>;
+    variables?: Record<string, unknown>;
+  }[] = [];
+
+  if (appScope(manifest) === 'org') {
+    for (const slug of workflows) {
+      for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
+        desired.push({
+          workflowSlug: slug,
+          cronExpression: schedule.cron,
+          timezone: schedule.timezone,
+          variables: schedule.variables,
+        });
+      }
+    }
+  } else {
+    const bindings = await ctx.runQuery(
+      internal.apps.install_mutations.listAppBindingsInternal,
+      { organizationId, appSlug },
+    );
+    for (const binding of bindings) {
+      for (const slug of workflows) {
+        for (const schedule of await readWorkflowScheduleSpecs(orgSlug, slug)) {
+          desired.push({
+            workflowSlug: slug,
+            cronExpression: schedule.cron,
+            timezone: schedule.timezone,
+            projectId: binding.projectId,
+            variables: { ...schedule.variables, ...binding.config },
+          });
+        }
+      }
+    }
+  }
+
+  await ctx.runMutation(internal.apps.install_mutations.reconcileAppSchedules, {
+    organizationId,
+    appSlug,
+    desired,
+  });
 }
 
 /**
@@ -154,7 +249,12 @@ async function prepareInstall(
   organizationId: string,
   appSlug: string,
 ): Promise<InstallContext> {
-  const { orgSlug, userId, email } = await requireOrgMembershipById(
+  // Install/reinstall (re)register an app's agents, workflows and triggers —
+  // capability-bearing surfaces that, elsewhere, only `developerSettings` roles
+  // may create or edit. A plain `member` is hidden from the install UI by
+  // `cannot('read','developerSettings')` but could previously drive this lifecycle
+  // directly via the Convex client. Gate it on the same capability.
+  const { orgSlug, userId, email } = await requireDeveloperSettingsAccessById(
     ctx,
     organizationId,
   );
@@ -174,8 +274,10 @@ async function prepareInstall(
       `Cannot install app "${appSlug}": a global workflow folder of the same name exists and would be shadowed.`,
     );
   }
-  const installedBy = email !== '' ? email : userId;
-  const manifest = await readAppBundleManifest(appSlug);
+  // `requireDeveloperSettingsAccessById` types `email` as optional, so treat an
+  // empty OR absent email as "no email" and fall back to the user id.
+  const installedBy = email ? email : userId;
+  const manifest = await readAppBundleManifest(orgSlug, appSlug);
   return { orgSlug, installedBy, manifest };
 }
 
@@ -230,6 +332,12 @@ async function ensureOrgResources(
     resources,
     requiredIntegrations: manifest.requires?.integrations ?? [],
   });
+
+  // Provision schedules scope-aware: org-level for an org app, one-per-bound-
+  // project for a project app (re-seeding each existing binding's schedules on
+  // reinstall). A newly added binding's schedules are created by `installApp`
+  // after the bind, when the binding is visible.
+  await syncAppSchedules(ctx, organizationId, orgSlug, appSlug, manifest);
 
   return {
     workflows: workflows.length,
@@ -302,6 +410,15 @@ export const installApp = action({
         projectId: args.projectId,
         boundBy: install.installedBy,
       });
+      // The binding now exists; materialize its per-project schedules (this
+      // project's own reconcile run). Idempotent on a re-add.
+      await syncAppSchedules(
+        ctx,
+        args.organizationId,
+        install.orgSlug,
+        args.appSlug,
+        install.manifest,
+      );
     }
 
     return { ok: true, ...counts };
@@ -349,7 +466,12 @@ export const uninstallApp = action({
   args: { organizationId: v.string(), appSlug: v.string() },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args): Promise<{ ok: boolean }> => {
-    const { orgSlug } = await requireOrgMembershipById(
+    // Uninstall is the most destructive app path: it tears down the app's
+    // agents, their workflows, and ALL of their env/secrets. A member blocked
+    // from disabling a single app-owned agent could otherwise wipe the whole
+    // app by uninstalling it, so this must carry at least the same
+    // `developerSettings` gate as the per-agent capability edits it bypasses.
+    const { orgSlug } = await requireDeveloperSettingsAccessById(
       ctx,
       args.organizationId,
     );
@@ -376,7 +498,7 @@ export const uninstallApp = action({
 
     // Deregister workflows (read the manifest to know which; tolerate a missing
     // bundle by falling back to nothing — the file removal still proceeds).
-    const manifest = await readAppBundleManifest(args.appSlug).catch(
+    const manifest = await readAppBundleManifest(orgSlug, args.appSlug).catch(
       () => null,
     );
     for (const slug of manifest?.workflows ?? []) {
@@ -454,6 +576,16 @@ export const removeAppFromProject = action({
     if (!isValidAppSlug(args.appSlug)) {
       throw new Error(`Invalid app slug: ${args.appSlug}`);
     }
+    // Remove this project's per-project schedules before dropping the binding —
+    // a sibling project bound to the same app keeps its own (keyed by projectId).
+    await ctx.runMutation(
+      internal.apps.install_mutations.deleteProjectSchedules,
+      {
+        organizationId: args.organizationId,
+        appSlug: args.appSlug,
+        projectId: args.projectId,
+      },
+    );
     await ctx.runMutation(
       internal.apps.install_mutations.unbindAppFromProject,
       {
@@ -491,7 +623,7 @@ export const verifyAppIntegrity = action({
     // Agents/workflows are no longer in the ledger (they live under the app dir,
     // removed by the shell rm) — check their existence from the manifest so a
     // user deleting one still surfaces a 'broken' install + reinstall prompt.
-    const manifest = await readAppBundleManifest(args.appSlug).catch(
+    const manifest = await readAppBundleManifest(orgSlug, args.appSlug).catch(
       () => null,
     );
     let appResourceMissing = false;

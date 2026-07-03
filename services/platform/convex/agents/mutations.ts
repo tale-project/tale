@@ -87,7 +87,12 @@ export const updateAgentBindings = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
 
@@ -127,7 +132,12 @@ export const updateAgentSharing = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     const member = await getOrganizationMember(
       ctx,
@@ -137,7 +147,10 @@ export const updateAgentSharing = mutation({
 
     const role = member.role ?? 'member';
     if (role !== 'owner' && role !== 'admin') {
-      throw new Error('Only admins can update agent sharing');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only admins can update agent sharing',
+      });
     }
 
     const existing = await ctx.db
@@ -180,7 +193,12 @@ export const addKnowledgeFile = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
 
@@ -254,7 +272,12 @@ export const removeKnowledgeFile = mutation({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
 

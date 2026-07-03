@@ -15,7 +15,7 @@ Conversations flow through three lifecycle states: **open** (active, waiting for
 
 ## Channels that produce conversations
 
-The channels that feed Conversations are the same channels listed under [Integrations](/platform/integrations/overview) in the Communication group: Slack, Microsoft Teams, Discord, Gmail, Outlook, Twilio (SMS and WhatsApp). An installed channel integration routes incoming traffic into the inbox; the routing rules under **Settings > Conversations** decide which team or agent each incoming thread lands on.
+The channels that feed Conversations are the same channels listed under [Integrations](/platform/integrations/overview) in the Communication group: Slack, Microsoft Teams, Discord, Gmail, Outlook, IMAP/SMTP (any private mailbox), Twilio (SMS and WhatsApp). An installed channel integration routes incoming traffic into the inbox; the routing rules under **Settings > Conversations** decide which team or agent each incoming thread lands on.
 
 The web-chat channel is built in and does not require an integration; it surfaces as an embeddable widget the org can drop into its own site.
 

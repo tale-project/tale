@@ -79,6 +79,16 @@ export class MissingApiKeyError extends Error {
   }
 }
 
+/**
+ * User-facing copy for "this org has no usable AI provider". Shared by the
+ * provider loader (which throws {@link NoProviderAvailableError} eagerly) and
+ * the agent fallback chain (which collapses an all-unconfigured chain into the
+ * same actionable error — see {@link buildChainExhaustionError}). One sentence,
+ * one source of truth so the two paths can never drift.
+ */
+export const FRIENDLY_NO_PROVIDER =
+  'No API key is configured for this organization yet. Open Settings → AI providers and add one to start chatting.';
+
 const TRANSIENT_STATUS_CODES = new Set([429, 502, 503, 504]);
 
 /**
@@ -274,4 +284,37 @@ export function classifyFailureScope(
   return PROVIDER_SCOPED_ERROR_CODES.has(classifyChatErrorCode(error))
     ? 'provider'
     : 'model';
+}
+
+/**
+ * Pick the terminal error to surface when the agent fallback chain is exhausted
+ * without any model producing a response (issue #1455).
+ *
+ * - `attemptedCount > 0` — at least one model reached a live provider call, so
+ *   the last caught error (a transient/runtime failure) is the genuine cause
+ *   and is surfaced unchanged.
+ * - `attemptedCount === 0` — NO model ever reached a provider; every entry
+ *   failed during resolution for a configuration reason (missing API key,
+ *   unconfigured model/provider). Throwing the LAST entry's per-model error
+ *   misleads the user into thinking only that one model is broken, when the
+ *   whole chain is unconfigured. Collapse it into a single actionable
+ *   {@link NoProviderAvailableError} so the chat surface renders the "configure
+ *   a provider" hint (`classifyChatErrorCode` → `missing_api_key`) instead of a
+ *   confusing tail-model message. An error that is already a
+ *   NoProviderAvailableError is passed through untouched.
+ */
+export function buildChainExhaustionError(opts: {
+  attemptedCount: number;
+  configFailures: ReadonlyArray<{ model: string; message: string }>;
+  lastError: unknown;
+}): unknown {
+  const { attemptedCount, configFailures, lastError } = opts;
+  const fallback = lastError ?? new Error('No model could be resolved');
+  if (attemptedCount > 0) return fallback;
+  if (lastError instanceof NoProviderAvailableError) return lastError;
+  if (configFailures.length === 0) return fallback;
+  return new NoProviderAvailableError(FRIENDLY_NO_PROVIDER, 'missing_api_key', [
+    `All ${configFailures.length} model(s) in the fallback chain are unconfigured:`,
+    ...configFailures.map((f) => `${f.model}: ${f.message}`),
+  ]);
 }

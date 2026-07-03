@@ -65,6 +65,7 @@
               "pages": [
                 "self-hosted/operate/security/hardening",
                 "self-hosted/operate/security/cryptography",
+                "self-hosted/operate/security/audit-log-integrity",
                 "self-hosted/operate/security/advisories"
               ]
             },

@@ -12,7 +12,7 @@
  *
  * This mirrors `convex/crawler/lib/sandbox_render.ts::renderUrlInSandbox`
  * (web-crawl HTML fetch) but the output is BINARY (PDF / image bytes) instead of
- * JSON. The spawner harvests `/workspace/output/<file>`, POSTs the bytes to a
+ * JSON. The spawner harvests `/user/output/<file>`, POSTs the bytes to a
  * pre-signed Convex upload slot, and returns the `_storage` id — so unlike the
  * crawl path (which JSON-encodes into a blob we re-parse) we read the produced
  * file straight out of storage and hand the storageId to the caller.
@@ -27,10 +27,12 @@
  * spawner + Convex storage stack. The dispatch contract is derived from reading
  * `spawner_client.ts` and the proven `sandbox_render.ts`. Specifically:
  *
- *   1. // TODO(verify): the render script is staged via a `data:` URL in
- *      `files[].url` (same as `sandbox_render.ts`). If the spawner's input-fetch
- *      layer rejects `data:` URLs, switch to the upload-then-getUrl path used by
- *      `executeCode`.
+ *   1. The render script is staged the same way `executeCode` stages user code:
+ *      uploaded to Convex storage, then handed to the spawner as an internal
+ *      http(s) URL (`ctx.storage.getUrl` + `toSandboxStorageUrl`). A `data:` URL
+ *      is NOT usable — the spawner's input-fetch layer caps `files[].url` at
+ *      4096 chars and requires an http(s) scheme (services/sandbox
+ *      validate-request.ts), and the script inlines the full document HTML.
  *
  *   2. // TODO(verify): we do NOT reserve a `run_code` audit row — a document
  *      render is internal infra, not a user code-run. The produced blob is NOT
@@ -56,11 +58,7 @@
 import type { GenericActionCtx } from 'convex/server';
 
 import type { DataModel, Id } from '../../_generated/dataModel';
-import {
-  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT,
-  toSandboxStorageUrl,
-} from '../../lib/helpers/public_storage_url';
-import { spawnerExecute } from '../../node_only/sandbox/helpers/spawner_client';
+import { renderInSession } from './render_session';
 
 export interface SandboxRenderDocumentContext {
   ctx: GenericActionCtx<DataModel>;
@@ -121,28 +119,10 @@ export interface SandboxRenderDocumentResult {
 }
 
 const DEFAULT_RENDER_TIMEOUT_MS = 60_000;
+
 const OUTPUT_FILE_PDF = 'document.pdf';
 const OUTPUT_FILE_PNG = 'document.png';
 const OUTPUT_FILE_JPEG = 'document.jpeg';
-
-/** Compute the spawner upload-callback endpoints (mirrors `sandbox_render.ts`). */
-function resolveCallbackEndpoints(): {
-  outputUrlEndpoint: string;
-  reportUploadedEndpoint: string;
-} {
-  const storageBase = (
-    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-    SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
-  ).replace(/\/$/, '');
-  const httpApiBase = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ??
-    storageBase.replace(/:3210(\/|$)/, ':3211$1')
-  ).replace(/\/$/, '');
-  return {
-    outputUrlEndpoint: `${httpApiBase}/api/sandbox/output_upload_url`,
-    reportUploadedEndpoint: `${httpApiBase}/api/sandbox/record_uploaded`,
-  };
-}
 
 function outputFileFor(request: SandboxRenderRequest): {
   name: string;
@@ -159,7 +139,7 @@ function outputFileFor(request: SandboxRenderRequest): {
 
 /**
  * Build the Playwright render script. It sets the page content (or navigates to
- * a URL), then writes the rendered PDF / image bytes to `/workspace/output/`.
+ * a URL), then writes the rendered PDF / image bytes to `/user/output/`.
  * The spawner harvests that directory and uploads each file to a Convex slot.
  *
  * The whole request is passed as a single JSON literal to keep the generated
@@ -172,7 +152,19 @@ function buildRenderScript(
 ): string {
   const spec = JSON.stringify({ request, outputFileName, timeoutMs });
   return [
-    "const { chromium } = require('playwright');",
+    // The one-shot sandbox image bakes Playwright under the Playwright MCP
+    // package (NOT on the runner's NODE_PATH), with Chromium at
+    // PLAYWRIGHT_BROWSERS_PATH. A bare `require('playwright')` therefore fails
+    // with MODULE_NOT_FOUND; resolve it from the baked location, falling back
+    // to a normal require for any other runtime.
+    'const { chromium } = (() => {',
+    "  const baked = '/opt/agents/lib/node_modules/@playwright/mcp';",
+    '  try {',
+    "    return require(require.resolve('playwright', { paths: [baked] }));",
+    '  } catch (e) {',
+    "    return require('playwright');",
+    '  }',
+    '})();',
     "const fs = require('fs');",
     `const SPEC = ${spec};`,
     '(async () => {',
@@ -231,8 +223,8 @@ function buildRenderScript(
     '      if (o.imageType === "jpeg") { shot.quality = o.quality; }',
     '      bytes = await page.screenshot(shot);',
     '    }',
-    "    fs.mkdirSync('/workspace/output', { recursive: true });",
-    '    fs.writeFileSync(`/workspace/output/${SPEC.outputFileName}`, bytes);',
+    "    fs.mkdirSync('/user/output', { recursive: true });",
+    '    fs.writeFileSync(`/user/output/${SPEC.outputFileName}`, bytes);',
     '  } finally {',
     '    await browser.close();',
     '  }',
@@ -256,68 +248,38 @@ export async function renderDocumentInSandbox(
   const { ctx, organizationId } = renderCtx;
   const { name: outputFileName, contentType } = outputFileFor(request);
 
-  // Mint one output upload slot — the spawner POSTs the harvested bytes here
-  // and reports back the Convex storageId it landed in.
-  const rawUploadUrl = await ctx.storage.generateUploadUrl();
-  const slotUrl = toSandboxStorageUrl(rawUploadUrl);
-
   const script = buildRenderScript(request, outputFileName, timeoutMs);
-  // TODO(verify): header note 1 — `data:` URL staging is unverified.
-  const scriptDataUrl = `data:text/javascript;base64,${Buffer.from(
-    script,
-    'utf8',
-  ).toString('base64')}`;
-
-  const { outputUrlEndpoint, reportUploadedEndpoint } =
-    resolveCallbackEndpoints();
-
-  const executionId = `crawler-doc-render-${Date.now()}-${Math.random()
+  const renderKey = `crawler-doc-render-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2)}`;
 
-  const spawnerResult = await spawnerExecute(
-    {
-      executionId,
-      organizationId,
-      language: 'node',
-      files: [{ path: 'render.js', url: scriptDataUrl }],
-      entryPath: 'render.js',
-      outputUploadSlots: [{ url: slotUrl }],
-      outputUrlEndpoint,
-      reportUploadedEndpoint,
-      timeoutMs,
-    },
-    AbortSignal.timeout(timeoutMs + 120_000),
+  // Run the render in an ephemeral render session and read the produced file's
+  // bytes straight off the session (the render session tears itself down).
+  const output = await renderInSession(ctx, {
+    organizationId,
+    renderKey,
+    scriptContent: script,
+    outputFileName,
+    timeoutMs,
+    logTag: 'documents',
+  });
+
+  // Unlike the crawl path (which re-parses transient JSON), the produced
+  // PDF/image IS the deliverable — persist it and hand the caller its storageId.
+  // The session file read serves the generic octet-stream — fall back to the
+  // request-derived type (sessionReadFile's documented contract) so the stored
+  // blob carries the true mime.
+  const resolvedContentType =
+    output.contentType && output.contentType !== 'application/octet-stream'
+      ? output.contentType
+      : contentType;
+  const storageId: Id<'_storage'> = await ctx.storage.store(
+    new Blob([output.bytes], { type: resolvedContentType }),
   );
-
-  if (spawnerResult.status !== 'completed') {
-    const code = spawnerResult.errorCode
-      ? `, code=${spawnerResult.errorCode}`
-      : '';
-    const message = spawnerResult.errorMessage
-      ? `: ${spawnerResult.errorMessage}`
-      : '';
-    throw new Error(
-      `sandbox document render did not complete (status=${spawnerResult.status}${code}${message})`,
-    );
-  }
-
-  const outputFile = spawnerResult.outputFiles.find(
-    (f) => f.name === outputFileName,
-  );
-  if (!outputFile) {
-    throw new Error(
-      `sandbox document render produced no ${outputFileName} output file`,
-    );
-  }
-
-  // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts and sandbox_render.ts
-  const storageId = outputFile.storageId as unknown as Id<'_storage'>;
 
   return {
     storageId,
-    size: outputFile.size,
-    contentType: outputFile.contentType || contentType,
+    size: output.size,
+    contentType: resolvedContentType,
   };
 }

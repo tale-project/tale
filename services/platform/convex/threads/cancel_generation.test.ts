@@ -346,7 +346,7 @@ describe('cancelGeneration — edge cases', () => {
         'user_1',
         'nonexistent_thread',
       ),
-    ).rejects.toThrow('Thread not found');
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('throws when thread belongs to a different user', async () => {
@@ -354,7 +354,7 @@ describe('cancelGeneration — edge cases', () => {
 
     await expect(
       cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1'),
-    ).rejects.toThrow('Thread not found');
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('treats displayedLength=0 as no snapshot (preserve streamed text if any)', async () => {
@@ -526,7 +526,7 @@ describe('cancelGeneration — edge cases', () => {
         'user_different',
         'thread_1',
       ),
-    ).rejects.toThrow('Thread not found');
+    ).rejects.toMatchObject({ data: { code: 'THREAD_NOT_FOUND' } });
   });
 
   it('skips message update when latest assistant is already successful (early stop)', async () => {

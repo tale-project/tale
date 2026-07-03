@@ -67,10 +67,11 @@ export async function transformConversation(
     })(),
   ]);
 
-  // Build customer info from fetched data
+  // Build customer info from fetched data. A missing name is left undefined so
+  // the client can render a localized fallback (e.g. conversations.unknownCustomer)
+  // instead of a hardcoded, untranslatable English string.
   let customer: CustomerInfo = {
     id: conversation.customerId || 'unknown',
-    name: 'Unknown Customer',
     email: 'unknown@example.com',
     locale: 'en',
     status: 'active',
@@ -82,7 +83,7 @@ export async function transformConversation(
     const custMeta = customerDoc.metadata ?? {};
     customer = {
       id: customerDoc._id,
-      name: customerDoc.name || 'Unknown Customer',
+      name: customerDoc.name || undefined,
       email: customerDoc.email || 'unknown@example.com',
       locale: typeof custMeta.locale === 'string' ? custMeta.locale : 'en',
       status: typeof custMeta.status === 'string' ? custMeta.status : 'active',

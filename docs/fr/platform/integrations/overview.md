@@ -13,14 +13,15 @@ Deux surfaces permettent à un agent de tendre la main au-delà de Tale. Les **i
 
 ## Communication
 
-| Intégration | Ce qu'elle fait                                               | Mise en place                     |
-| ----------- | ------------------------------------------------------------- | --------------------------------- |
-| **Slack**   | Lire des canaux, envoyer des messages, réagir aux événements. | OAuth2 depuis l'espace Slack.     |
-| **Teams**   | Même forme pour Microsoft Teams — canaux et chats.            | OAuth via Microsoft Entra ID.     |
-| **Discord** | Envoi de messages et lecture de canaux pilotés par bot.       | Token de bot Discord.             |
-| **Gmail**   | Lire la boîte, envoyer des mails, étiqueter.                  | OAuth via Google.                 |
-| **Outlook** | Lire la boîte, envoyer des mails, lecture du calendrier.      | OAuth via Microsoft Entra ID.     |
-| **Twilio**  | SMS, voix, WhatsApp Business.                                 | Account SID et auth token Twilio. |
+| Intégration   | Ce qu'elle fait                                                  | Mise en place                           |
+| ------------- | ---------------------------------------------------------------- | --------------------------------------- |
+| **Slack**     | Lire des canaux, envoyer des messages, réagir aux événements.    | OAuth2 depuis l'espace Slack.           |
+| **Teams**     | Même forme pour Microsoft Teams — canaux et chats.               | OAuth via Microsoft Entra ID.           |
+| **Discord**   | Envoi de messages et lecture de canaux pilotés par bot.          | Token de bot Discord.                   |
+| **Gmail**     | Lire la boîte, envoyer des mails, étiqueter.                     | OAuth via Google.                       |
+| **Outlook**   | Lire la boîte, envoyer des mails, lecture du calendrier.         | OAuth via Microsoft Entra ID.           |
+| **IMAP/SMTP** | Recevoir et envoyer des mails via une boîte privée — sans OAuth. | Hôte, port et mot de passe IMAP + SMTP. |
+| **Twilio**    | SMS, voix, WhatsApp Business.                                    | Account SID et auth token Twilio.       |
 
 ## Stockage et documents
 

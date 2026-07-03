@@ -9,7 +9,7 @@ import {
 } from '../../../lib/shared/schemas/enterprise_sso';
 // Raw `query` + explicit membership gate — matches the members/SCIM family
 // (org membership is resolved via Better Auth's cross-component adapter).
-import { query } from '../../_generated/server';
+import { type QueryCtx, query } from '../../_generated/server';
 import { readConfigCacheRow } from '../../lib/config_cache/read';
 import { getPublicHttpApiUrl } from '../../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
@@ -83,7 +83,34 @@ const connectionViewValidator = v.object({
   samlSpMetadataUrl: v.union(v.string(), v.null()),
   samlAcsUrl: v.union(v.string(), v.null()),
   oidcCallbackUrl: v.union(v.string(), v.null()),
+  // Deployment env health the admin form warns on — a missing SITE_URL/secret
+  // yields an empty callback URL and a raw 500 at sign-in (the real, hard-to-
+  // debug failure). Optional so it can be absent in older/other callers.
+  deployment: v.optional(
+    v.object({
+      siteUrlSet: v.boolean(),
+      basePathSet: v.boolean(),
+      authSecretSet: v.boolean(),
+    }),
+  ),
+  // Another org on this deployment also has an enabled connection — without an
+  // email domain this one is unroutable by address, so the form warns.
+  otherOrgsEnabled: v.optional(v.boolean()),
 });
+
+/**
+ * Deployment env prerequisites for SSO. Read server-side (the client cannot see
+ * `BETTER_AUTH_SECRET`) so the admin form can warn before a live sign-in fails.
+ * `BASE_PATH` is optional (empty is valid for a root deployment), so its flag
+ * is informational — the form treats an empty BASE_PATH as fine.
+ */
+function deploymentHealth() {
+  return {
+    siteUrlSet: !!process.env.SITE_URL,
+    basePathSet: process.env.BASE_PATH !== undefined,
+    authSecretSet: !!process.env.BETTER_AUTH_SECRET,
+  };
+}
 
 function publicBase(): string | null {
   try {
@@ -91,6 +118,26 @@ function publicBase(): string | null {
   } catch {
     return null;
   }
+}
+
+/** True when any OTHER org on this deployment has an enabled connection — the
+ *  multi-org state where a domain-less connection is unroutable by email and
+ *  only reachable via the login page's manual picker. */
+async function otherOrgsHaveEnabledConnections(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<boolean> {
+  for await (const row of ctx.db
+    .query('configCache')
+    .withIndex('by_domain_key', (q) =>
+      q.eq('domain', SSO_CONFIG_DOMAIN).eq('key', SSO_CONNECTION_KEY),
+    )) {
+    if (row.organizationId === organizationId) continue;
+    if (row.enabled !== true) continue;
+    const parsed = ssoConnectionFileSchema.safeParse(row.config);
+    if (parsed.success && parsed.data.enabled) return true;
+  }
+  return false;
 }
 
 export const get = query({
@@ -155,6 +202,11 @@ export const get = query({
       baseUrl: scimBaseUrl,
     };
 
+    const otherOrgsEnabled = await otherOrgsHaveEnabledConnections(
+      ctx,
+      args.organizationId,
+    );
+
     if (!config) {
       return {
         configured: false,
@@ -175,6 +227,8 @@ export const get = query({
         samlSpMetadataUrl,
         samlAcsUrl,
         oidcCallbackUrl,
+        deployment: deploymentHealth(),
+        otherOrgsEnabled,
       };
     }
 
@@ -223,6 +277,8 @@ export const get = query({
       samlSpMetadataUrl,
       samlAcsUrl,
       oidcCallbackUrl,
+      deployment: deploymentHealth(),
+      otherOrgsEnabled,
     };
   },
 });

@@ -8,15 +8,17 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card, CardGrid } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
-import { HStack, Row, VStack } from '@tale/ui/layout';
+import { HStack, Row, Stack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 
+import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
 import { type AppSummary, useApps } from '../hooks/use-apps';
 import {
   type AppInstallState,
@@ -46,6 +48,17 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
   // project) and apps with required integrations (need a connect step) route
   // through the wizard; org-scoped apps with no requirements install in one click.
   const [wizardApp, setWizardApp] = useState<AppSummary | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredApps = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return apps;
+    return apps.filter(
+      (app) =>
+        app.name.toLowerCase().includes(q) ||
+        (app.description ?? '').toLowerCase().includes(q),
+    );
+  }, [apps, searchQuery]);
 
   if (isLoading && apps.length === 0) return <SkeletonText lines={4} />;
   if (apps.length === 0) {
@@ -59,77 +72,99 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
   }
 
   return (
-    <CardGrid>
-      {apps.map((app) => {
-        const state = bySlug.get(app.slug);
-        // Every card opens the org-level app page. For a project-scoped app that
-        // page is its membership hub (the list of bound projects + Add); we never
-        // deep-link a single project from the hub, so the card behaves identically
-        // whether the app is in 0, 1, or N projects.
-        const cardLink = {
-          to: '/dashboard/$id/apps/$appSlug',
-          params: { id: organizationId, appSlug: app.slug },
-        } as const;
-        return (
-          <div key={app.slug} className="relative h-full">
-            <Link {...cardLink} aria-label={app.name} className="block h-full">
-              <Card interactive className="h-full">
-                <VStack gap={3}>
-                  <HStack gap={3} className="items-start justify-between">
-                    <HStack gap={3} className="min-w-0 items-start">
-                      <Row
-                        gap={0}
-                        justify="center"
-                        className="bg-muted text-muted-foreground size-9 shrink-0 rounded-md"
-                      >
-                        <LayoutGrid className="size-5" />
-                      </Row>
-                      <VStack gap={1} className="min-w-0">
-                        <Text as="span" className="font-semibold" truncate>
-                          {app.name}
-                        </Text>
-                        <Text variant="muted" className="line-clamp-2 text-sm">
-                          {app.description}
-                        </Text>
-                      </VStack>
-                    </HStack>
-                    {state && <InstallBadge state={state} />}
-                  </HStack>
-                  {/* Reserve the footer row for the overlaid action (Install for
-                      not-installed apps, the lifecycle ⋯ menu for installed). */}
-                  <div className="h-8" />
-                </VStack>
-              </Card>
-            </Link>
-            {/* Interactive controls live OUTSIDE the card Link so they don't
-                trigger navigation; the dropdown content portals out. */}
-            {state ? (
-              <div className="absolute right-3 bottom-3 z-10">
-                <AppLifecycleActions
-                  appSlug={app.slug}
-                  appName={app.name}
-                  organizationId={organizationId}
-                  context="org"
-                />
-              </div>
-            ) : (
-              <div className="absolute bottom-3 left-3 z-10">
-                <Button
-                  disabled={isPending}
-                  onClick={() =>
-                    app.scope === 'project' ||
-                    app.requiredIntegrations.length > 0
-                      ? setWizardApp(app)
-                      : void install(app.slug)
-                  }
+    <Stack gap={4}>
+      <SearchInput
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder={t('searchPlaceholder')}
+        className="w-64"
+      />
+      {filteredApps.length === 0 ? (
+        <EmptyState icon={LayoutGrid} title={t('searchNoResults')} />
+      ) : (
+        <CardGrid>
+          {filteredApps.map((app) => {
+            const state = bySlug.get(app.slug);
+            // Every card opens the org-level app page. For a project-scoped app that
+            // page is its membership hub (the list of bound projects + Add); we never
+            // deep-link a single project from the hub, so the card behaves identically
+            // whether the app is in 0, 1, or N projects.
+            const cardLink = {
+              to: '/dashboard/$id/apps/$appSlug',
+              params: { id: organizationId, appSlug: app.slug },
+            } as const;
+            return (
+              <div key={app.slug} className="relative h-full">
+                <Link
+                  {...cardLink}
+                  aria-label={app.name}
+                  className="block h-full"
                 >
-                  {t('install.install')}
-                </Button>
+                  <Card interactive className="h-full">
+                    <VStack gap={3}>
+                      <HStack gap={3} className="items-start justify-between">
+                        <HStack gap={3} className="min-w-0 items-start">
+                          <Row
+                            gap={0}
+                            justify="center"
+                            className="bg-muted text-muted-foreground size-9 shrink-0 rounded-md"
+                          >
+                            <LayoutGrid className="size-5" />
+                          </Row>
+                          <VStack gap={1} className="min-w-0">
+                            <Text as="span" className="font-semibold" truncate>
+                              {app.name}
+                            </Text>
+                            <Text
+                              variant="muted"
+                              className="line-clamp-2 text-sm"
+                            >
+                              {app.description}
+                            </Text>
+                          </VStack>
+                        </HStack>
+                        {state && <InstallBadge state={state} />}
+                      </HStack>
+                      {/* Reserve the footer row for the overlaid action (Install for
+                      not-installed apps, the lifecycle ⋯ menu for installed). */}
+                      <div className="h-8" />
+                    </VStack>
+                  </Card>
+                </Link>
+                {/* Interactive controls live OUTSIDE the card Link so they don't
+                trigger navigation; the dropdown content portals out. */}
+                {state ? (
+                  <div className="absolute right-3 bottom-3 z-10">
+                    <AppLifecycleActions
+                      appSlug={app.slug}
+                      appName={app.name}
+                      organizationId={organizationId}
+                      context="org"
+                    />
+                  </div>
+                ) : (
+                  <div className="absolute bottom-3 left-3 z-10">
+                    <Button
+                      disabled={isPending}
+                      onClick={() =>
+                        app.scope === 'project' ||
+                        app.requiredIntegrations.length > 0
+                          ? setWizardApp(app)
+                          : notifyOnInstallFailure(
+                              install(app.slug),
+                              t('install.installFailed'),
+                            )
+                      }
+                    >
+                      {t('install.install')}
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </CardGrid>
+      )}
       {wizardApp && (
         <AppInstallWizard
           open
@@ -143,6 +178,6 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
           requiredIntegrations={wizardApp.requiredIntegrations}
         />
       )}
-    </CardGrid>
+    </Stack>
   );
 }

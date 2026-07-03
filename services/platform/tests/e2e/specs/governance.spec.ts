@@ -256,6 +256,67 @@ test('guardrails content-safety: toggles, persists, and restores', async ({
 });
 
 // =============================================================================
+// Budget rules — per-API-key scope guard.
+//
+// The apiKey budget scope targets a specific key via `apiKeyId`; saving it with
+// no key selected would persist a permanently dead rule, so the editor blocks
+// Confirm and surfaces `budgets.targetRequired`. This exercises that guard
+// without needing a seeded API key or mutating any persisted config (Confirm
+// never succeeds), so there is nothing to restore.
+// =============================================================================
+
+test('budget rules: apiKey scope requires a target before saving', async ({
+  page,
+  org,
+}) => {
+  const { organizationId } = org;
+  await page.goto(`${governanceBase(organizationId)}/policies-limits`);
+
+  // Several editors on this page expose an "Add rule" button, so scope to the
+  // Budget-rules section (a `SettingsSection` renders a named `region`).
+  const budgetsSection = page.getByRole('region', {
+    name: t('governance.budgets.title'),
+  });
+  await expect(budgetsSection).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await budgetsSection
+    .getByRole('button', { name: t('governance.budgets.addRule'), exact: true })
+    .click();
+
+  const dialog = page.getByRole('dialog', {
+    name: t('governance.budgets.addRuleDialogTitle'),
+  });
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // Scope is a Radix Select (combobox trigger named by its "Scope" label); pick
+  // the "API key" option (its label is a static string equal to `budgets.apiKey`).
+  await dialog
+    .getByRole('combobox', { name: t('governance.budgets.scope') })
+    .click();
+  await page
+    .getByRole('option', { name: t('governance.budgets.apiKey'), exact: true })
+    .click();
+
+  // With apiKey scope chosen and no key selected, the target-required error
+  // surfaces immediately (the scope field is now "touched").
+  await expect(
+    dialog.getByText(t('governance.budgets.targetRequired')),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // Confirm is blocked — the dialog stays open and no rule is persisted.
+  await dialog
+    .getByRole('button', { name: t('governance.budgets.confirm'), exact: true })
+    .click();
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText(t('governance.budgets.targetRequired')),
+  ).toBeVisible();
+
+  // Nothing was saved; close the dialog to leave the org untouched.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+});
+
+// =============================================================================
 // Safe dialogs/tabs (DSAR file-request, legal-hold place-hold open/close), the
 // read-only Usage/Audit-logs pages, and the Trash + Feedback render checks
 // moved to component tests: data-subject-requests/file-request-dialog,

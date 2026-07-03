@@ -17,7 +17,7 @@ a change works. Driving the real app by hand for a one-off check is part of this
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you write tests:
+**Invoke `write-notes`** and answer this form before you write tests:
 
 - **What you're proving:** Describe the behaviour the test must pin down — the happy path, the edge, and the error.
 - **Current coverage:** Describe what's already covered and what the existing tests assert, and where the gap is.
@@ -30,9 +30,10 @@ a change works. Driving the real app by hand for a one-off check is part of this
 - **Every feature and fix carries a test** — happy path **+ one edge + one error** condition, minimum.
 - **Lock behaviour before you change it.** Touching untested code? Write the test that captures _today's_
   behaviour first, watch it pass, then change — now any regression is loud.
-- **Cover the blast radius, not just the unit.** A change ripples — run the suites of the callers and the
-  modules that share its code or state, and add a case where a dependent would break if your change is
-  wrong. A green test on the changed unit while a neighbour silently breaks is the classic miss.
+- **Cover the sweep set, not just the unit.** A change ripples — run the suites of the dependents
+  enumerated in the sweep (`search-codebase`), and add a case where a dependent would break if your
+  change is wrong. A green test on the changed unit while a neighbour silently breaks is the classic
+  miss.
 - **Watch a new test go red → green.** A test you never saw fail proves nothing: it might assert the
   wrong thing, or not run at all.
 - **Query by role / accessible name, not by test-id or CSS.** An accessible-name query doubles as an
@@ -50,9 +51,10 @@ Don't stop at the first green layer:
    watch it go red → green.
 3. **Backend behaviour** — exercise the function on a real backend with real arguments; read the logs
    and the returned shape. Inspecting the handler is not verifying it.
-4. **Frontend / UI** — drive the real app: navigate → snapshot → act (locate by role + label) → wait on
-   **authoritative state** (a control re-enabling, a reload settling), not on text appearing → assert →
-   screenshot before/after → check the console and network for errors.
+4. **Frontend / UI** — drive the real app (browser mechanics: `browse-web`): navigate → snapshot →
+   act (locate by role + label) → wait on **authoritative state** (a control re-enabling, a reload
+   settling), not on text appearing → assert → screenshot before/after → check the console and
+   network for errors.
 5. **Codify** — turn the manual check into a **rerunnable artifact** (a spec). Outcome-as-test, not
    outcome-as-claim — so it survives in CI and the next change can't silently break it.
 
@@ -60,15 +62,15 @@ Report **outcome vs expectation** with the evidence attached. If a layer couldn'
 live backend, a hardware-key login, a fresh-DB first-run), say **which and why** — an honest "couldn't
 verify X" beats a false "done".
 
-## Before you call it tested
+## Gate B — before you call it tested
 
-**Tick every box, or mark it N/A with a reason.** An unticked box means not done.
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **The change is covered** — happy path + one edge + one error, and you watched the new test go red → green.
-- [ ] **The blast radius is covered** — the suites of dependents and shared-code neighbours still pass, and a case guards the interaction most likely to regress.
+- [ ] **Covered** — happy path + one edge + one error, and you watched the new test go red → green.
+- [ ] **Sweep covered** — the suites of the dependents enumerated in the sweep (`search-codebase`) still pass, and a case guards the interaction most likely to regress.
 - [ ] **Located by role / accessible name**, never test-id or CSS (for UI tests).
 - [ ] **Matched the project's test conventions** — runner, file naming/location, shared helpers.
-- [ ] **Behaviour observed at the right layer** — backend exercised on a real backend, UI driven in the real app — not just a green typecheck.
+- [ ] **Observed** — behaviour watched at the right layer: backend exercised on a real backend, UI driven in the real app — not just a green typecheck.
 - [ ] **Codified as a rerunnable artifact** so the next change can't silently break it.
 - [ ] **Anything you couldn't verify is stated, with why.**
 

@@ -71,3 +71,11 @@ export function workflowRunOwnerId(
 ): string {
   return `${executionId}:${stepSlug}`;
 }
+
+/** Deterministic session id for an ephemeral crawler RENDER — one throwaway
+ * sandbox per render, created + torn down within the render. The caller passes a
+ * unique render key so concurrent renders never collide on the id. */
+export function sessionIdForRender(renderKey: string): string {
+  const suffix = fnv1a64Hex(renderKey);
+  return `rnd-${suffix}`.slice(0, 64);
+}

@@ -1,6 +1,6 @@
 ---
 title: Politiques et limites
-description: Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d'upload, la génération d'images et l'accès aux fonctionnalités — cadrés par utilisateur, équipe ou rôle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d'un rayon plus serré.
+description: Plafonds par organisation sur le coût des tokens, le nombre de requêtes, la taille d'upload, la génération d'images et l'accès aux fonctionnalités — cadrés par utilisateur, équipe, rôle ou clé API individuelle. Les Administrateurs et Propriétaires lisent ceci quand une charge dépasse le budget ou quand une fonctionnalité a besoin d'un rayon plus serré.
 ---
 
 Politiques et limites est la surface où tu plafonnes ce que tes membres et agents peuvent consommer. Les budgets plafonnent les tokens, le coût et les requêtes par période de facturation ; les contrôles de fonctionnalité activent la recherche web, l'exécution de code et l'upload de fichiers par scope ; la politique d'upload régit les types et tailles de fichiers qu'un membre peut joindre ; la politique de rétention décide combien de temps chaque type de donnée vit avant le nettoyage. Les Administrateurs et Propriétaires lisent cette page quand une charge dépasse le budget, quand une fonctionnalité doit être coupée pour un sous-ensemble d'utilisateurs, ou quand un régulateur nomme une fenêtre de rétention différente du défaut.
@@ -11,7 +11,7 @@ Pour plafonner la dépense mensuelle d'un Éditeur, ouvre **Paramètres > Gouver
 
 ## Les quatre couches de politique
 
-**Budgets** sont des plafonds de tokens, coût et requêtes par scope et période. Les scopes sont org, rôle, équipe ou utilisateur. Chaque règle porte un plafond de tokens, un plafond de coût en USD, un plafond de requêtes optionnel et un seuil d'avertissement exprimé en pourcentage du plafond.
+**Budgets** sont des plafonds de tokens, coût et requêtes par scope et période. Les scopes sont org, rôle, équipe, utilisateur ou clé API. Chaque règle porte un plafond de tokens, un plafond de coût en USD, un plafond de requêtes optionnel et un seuil d'avertissement exprimé en pourcentage du plafond. Une règle sur clé API vise une seule clé émise (choisis **Clé API** comme scope, puis la clé depuis **Paramètres > API**) et ne plafonne que le trafic authentifié avec cette clé — l'API REST et compatible OpenAI — pour que tu mesures une intégration précise sans toucher à l'usage in-app. La génération d'images est mesurée par coût et nombre de requêtes, pas par tokens — une requête d'image ne rapporte aucun token, alors plafonne les dépenses d'images avec le plafond de coût ou de requêtes, pas celui de tokens.
 
 **Contrôles de fonctionnalité** activent la recherche web, l'exécution de code et l'upload de fichiers par scope, et plafonnent les tokens de contexte max pour les réponses AI. Une fonctionnalité coupée pour un scope cache la bascule dans le chat et refuse la requête côté serveur.
 
@@ -21,7 +21,7 @@ Pour plafonner la dépense mensuelle d'un Éditeur, ouvre **Paramètres > Gouver
 
 ## Priorité
 
-Les quatre couches partagent la même échelle de scope : utilisateur > équipe > rôle > org > défaut. La règle la plus étroite l'emporte. Là où une couche porte un plafond au niveau org (budgets), le plafond s'applique comme plafond additionnel au-dessus de toute règle plus étroite.
+Les quatre couches partagent la même échelle de scope : utilisateur > équipe > rôle > org > défaut. La règle la plus étroite l'emporte. Là où une couche porte un plafond au niveau org (budgets), le plafond s'applique comme plafond additionnel au-dessus de toute règle plus étroite. Un budget sur clé API sort de l'échelle comme son propre bucket indépendant : il lie le trafic de la clé elle-même, indépendamment des plafonds utilisateur, équipe ou org de son propriétaire, si bien qu'une seule clé peut être tenue à une allocation plus serrée que la personne qui l'a émise.
 
 ## Bornes de rétention et approbations
 

@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
 import { ALL_SUPPORTED_EXTENSIONS, extractText, isSupported } from './router';
@@ -8,6 +9,7 @@ describe('isSupported', () => {
   it('supports office formats', () => {
     expect(isSupported('document.pdf')).toBe(true);
     expect(isSupported('document.docx')).toBe(true);
+    expect(isSupported('document.odt')).toBe(true);
     expect(isSupported('slides.pptx')).toBe(true);
     expect(isSupported('data.xlsx')).toBe(true);
   });
@@ -60,6 +62,20 @@ describe('extractText', () => {
     expect(visionUsed).toBe(false);
   });
 
+  it('routes an .odt file to the ODT extractor', async () => {
+    const zip = new JSZip();
+    zip.file('mimetype', 'application/vnd.oasis.opendocument.text');
+    zip.file(
+      'content.xml',
+      `<?xml version="1.0"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text><text:h>Routed Heading</text:h><text:p>Routed body content.</text:p></office:text></office:body></office:document-content>`,
+    );
+    const bytes = await zip.generateAsync({ type: 'uint8array' });
+    const [text, visionUsed] = await extractText(bytes, 'routed.odt');
+    expect(text).toContain('Routed Heading');
+    expect(text).toContain('Routed body content.');
+    expect(visionUsed).toBe(false);
+  });
+
   it('throws on unsupported types', async () => {
     await expect(extractText(enc('data'), 'archive.zip')).rejects.toThrow(
       'Unsupported file type',
@@ -72,6 +88,7 @@ describe('ALL_SUPPORTED_EXTENSIONS', () => {
     for (const ext of [
       '.pdf',
       '.docx',
+      '.odt',
       '.pptx',
       '.xlsx',
       '.png',

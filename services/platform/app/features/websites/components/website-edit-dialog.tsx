@@ -116,7 +116,7 @@ export function EditWebsiteDialog({
         id="domain"
         label={tWebsites('domain')}
         value={website.domain}
-        disabled
+        readOnly
       />
 
       <Select

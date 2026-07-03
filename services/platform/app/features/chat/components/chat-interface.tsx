@@ -228,15 +228,17 @@ export function ChatInterface({
     disableIndexing: isExternalAgentThread,
   });
 
-  const { isIndexing, statusMap: indexingStatuses } =
-    useFileIndexingStatus(attachments);
+  const { isIndexing, statusMap: indexingStatuses } = useFileIndexingStatus(
+    attachments,
+    organizationId,
+  );
 
   const {
     isTranscribing,
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
     hasFailedAudioJobs,
-  } = useFileTranscriptionStatus(attachments);
+  } = useFileTranscriptionStatus(attachments, organizationId);
 
   const {
     jobs: videoLinkJobs,
@@ -363,6 +365,19 @@ export function ChatInterface({
     !!activeProvider &&
     'hasApiKey' in activeProvider &&
     !activeProvider.hasApiKey &&
+    !activeModelInfo?.hasApiKeyOverride;
+  // A brand-new org ships the model catalog with no credentials at all. In
+  // that state even "Auto" cannot route anywhere — but no concrete provider
+  // resolves, so activeModelMissingApiKey stays false and the composer used
+  // to disable Send without ever stating a reason. Only blocks once the
+  // provider list has loaded and none of them carries a key.
+  const noProviderHasApiKey =
+    providersForEdit.length > 0 &&
+    providersForEdit.every(
+      // Only a provider that definitively reports "no key" counts — a shape
+      // without the field (redacted/partial) must never cause a false block.
+      (p) => !!p && 'hasApiKey' in p && p.hasApiKey === false,
+    ) &&
     !activeModelInfo?.hasApiKeyOverride;
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
@@ -1398,7 +1413,8 @@ export function ChatInterface({
                     (isImageGenAgent &&
                       !!activeEditingImage &&
                       !currentModelSupportsEdit) ||
-                    activeModelMissingApiKey
+                    activeModelMissingApiKey ||
+                    noProviderHasApiKey
                   }
                   sendBlockedReason={
                     isImageGenAgent &&
@@ -1407,7 +1423,9 @@ export function ChatInterface({
                       ? t('imageEdit.modelCannotEdit')
                       : activeModelMissingApiKey
                         ? t('modelSelector.noApiKey')
-                        : undefined
+                        : noProviderHasApiKey
+                          ? t('modelSelector.noProviderKey')
+                          : undefined
                   }
                   onSavePrompt={(content) =>
                     setSavePromptData({ messageId: '', content })

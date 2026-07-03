@@ -1,72 +1,29 @@
 'use node';
 
 /**
- * Headless page render delegated to the sandbox spawner (Playwright/Chromium).
+ * Headless page render delegated to a sandbox SESSION (Playwright/Chromium).
  *
  * The Python crawler used crawl4ai (headless Chromium via Playwright) to fetch
  * AND JS-render every page. In the platform-internal architecture there is no
  * Chromium inside the Convex Node runtime, so JS rendering is DELEGATED to
  * `services/sandbox-runtime`, which ships Chromium + Playwright pre-baked in its
- * execution image (`PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`, installed in
- * the sandbox-runtime Dockerfile). The spawner has no dedicated "browse"
- * endpoint — it is a code-execution service (`POST /v1/execute`, SSE; see
- * `convex/node_only/sandbox/helpers/spawner_client.ts`). Rendering is therefore
- * expressed as a tiny Playwright Node script dispatched as the spawner's
- * `entryPath`, whose harvested output file carries the rendered HTML back into
- * Convex storage; we read it back with `ctx.storage.get(storageId)`.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * ASSUMPTIONS / TODO(verify) — this seam has NOT been exercised against a live
- * spawner + Convex storage stack. The dispatch contract below is derived purely
- * from reading `spawner_client.ts` (the `SpawnerExecuteBody`/`SpawnerExecuteResponse`
- * shapes) and the real caller `convex/node_only/sandbox/internal_actions.ts`
- * (`executeCode`). Specifically:
- *
- *   1. // TODO(verify): the render script is staged via a `data:` URL in
- *      `files[].url`. `executeCode` stages bytes via
- *      `ctx.storage.getUrl(storageId)` + `toSandboxStorageUrl()`, i.e. it
- *      pre-uploads the script to storage and hands the spawner an internal
- *      Caddy URL. A `data:` URL avoids the extra upload round-trip and is a
- *      common spawner-input convention, but whether the spawner's input-fetch
- *      layer accepts `data:` URLs (vs. only http(s) storage URLs) is UNVERIFIED.
- *      If it rejects `data:`, switch to the upload-then-getUrl path used by
- *      `executeCode`.
- *
- *   2. // TODO(verify): we deliberately do NOT reserve a `run_code` audit row
- *      (`internal.sandbox.internal_mutations.reserveSlotAndInsert`) or register
- *      output files in `fileMetadata`/`threadFiles`. A crawler render is an
- *      internal infra fetch, not a user code-run, so polluting the user's
- *      run_code audit list + quota would be wrong. The trade-off: crawler
- *      renders are NOT counted against the org's sandbox quota and produce a
- *      transient storage blob that is deleted immediately after read-back
- *      (best-effort, below). Confirm with the platform owner whether crawler
- *      renders should instead flow through the audited `executeCode` path.
- *
- *   3. // TODO(verify): `outputUrlEndpoint` / `reportUploadedEndpoint` are
- *      computed identically to `executeCode`. They are HMAC-signed callbacks the
- *      spawner POSTs to for extra slots / upload receipts. With a single
- *      pre-allocated slot and a single output file they should never be hit, but
- *      they are required body fields, so we pass them through.
- *
- *   4. // TODO(verify): Chromium launch flags. `--no-sandbox` is included
- *      because the spawner container may run without the kernel privileges
- *      Chromium's own sandbox needs; whether the sandbox-runtime image already
- *      grants them (making the flag unnecessary / undesirable) is UNVERIFIED.
- * ─────────────────────────────────────────────────────────────────────────────
+ * execution image (`PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`). Rendering is
+ * expressed as a tiny Playwright Node script run in an EPHEMERAL render session
+ * (create → run → read output → destroy); its `/user/output/page.json` output is
+ * read straight off the session and parsed back into Convex. See
+ * {@link renderInSession}. Every sandbox run is a session now — there is no
+ * one-shot path left. Renders draw from the isolated per-org 'render' session
+ * budget so heavy crawling can't starve interactive agent / run_code sessions.
  */
 
 import type { GenericActionCtx } from 'convex/server';
 
-import type { DataModel, Id } from '../../_generated/dataModel';
-import {
-  SANDBOX_CONVEX_STORAGE_BASE_DEFAULT,
-  toSandboxStorageUrl,
-} from '../../lib/helpers/public_storage_url';
-import { spawnerExecute } from '../../node_only/sandbox/helpers/spawner_client';
+import type { DataModel } from '../../_generated/dataModel';
+import { renderInSession } from './render_session';
 
 /**
- * Minimal context a sandbox render needs: an action `ctx` (for storage slot
- * minting + read-back) and the owning org for the spawner audit/quota context.
+ * Minimal context a sandbox render needs: an action `ctx` (for the render
+ * session + output read-back) and the owning org for the session budget.
  */
 export interface SandboxRenderContext {
   ctx: GenericActionCtx<DataModel>;
@@ -82,29 +39,10 @@ export interface SandboxRenderResult {
 
 const DEFAULT_RENDER_TIMEOUT_MS = 30_000;
 
-/** Compute the spawner upload-callback endpoints (mirrors `executeCode`). */
-function resolveCallbackEndpoints(): {
-  outputUrlEndpoint: string;
-  reportUploadedEndpoint: string;
-} {
-  const storageBase = (
-    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
-    SANDBOX_CONVEX_STORAGE_BASE_DEFAULT
-  ).replace(/\/$/, '');
-  const httpApiBase = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ??
-    storageBase.replace(/:3210(\/|$)/, ':3211$1')
-  ).replace(/\/$/, '');
-  return {
-    outputUrlEndpoint: `${httpApiBase}/api/sandbox/output_upload_url`,
-    reportUploadedEndpoint: `${httpApiBase}/api/sandbox/record_uploaded`,
-  };
-}
-
 /**
  * Build the Playwright render script. It navigates to `url`, waits for the
  * network to settle, and writes the rendered HTML + final URL to
- * `/workspace/output/page.json` (the spawner harvests `/workspace/output/`).
+ * `/user/output/page.json` (harvested off the session).
  *
  * The script is intentionally self-contained — `require('playwright')` resolves
  * against the sandbox-runtime image's pre-baked install.
@@ -115,10 +53,21 @@ function buildRenderScript(
   timeoutMs: number,
 ): string {
   return [
-    "const { chromium } = require('playwright');",
+    // The sandbox image bakes Playwright under the Playwright MCP package (NOT
+    // on the runner's NODE_PATH), with Chromium at PLAYWRIGHT_BROWSERS_PATH. A
+    // bare `require('playwright')` therefore fails with MODULE_NOT_FOUND;
+    // resolve it from the baked location, falling back to a normal require for
+    // any other runtime.
+    'const { chromium } = (() => {',
+    "  const baked = '/opt/agents/lib/node_modules/@playwright/mcp';",
+    '  try {',
+    "    return require(require.resolve('playwright', { paths: [baked] }));",
+    '  } catch (e) {',
+    "    return require('playwright');",
+    '  }',
+    '})();',
     "const fs = require('fs');",
     '(async () => {',
-    // TODO(verify): see header note 4 — `--no-sandbox` may be unnecessary.
     "  const browser = await chromium.launch({ args: ['--no-sandbox'] });",
     '  try {',
     `    const page = await browser.newPage({ userAgent: ${JSON.stringify(userAgent)} });`,
@@ -126,8 +75,8 @@ function buildRenderScript(
     '    const html = await page.content();',
     '    const finalUrl = page.url();',
     '    const status = response ? response.status() : 0;',
-    "    fs.mkdirSync('/workspace/output', { recursive: true });",
-    "    fs.writeFileSync('/workspace/output/page.json', JSON.stringify({ url: finalUrl, html, status }));",
+    "    fs.mkdirSync('/user/output', { recursive: true });",
+    "    fs.writeFileSync('/user/output/page.json', JSON.stringify({ url: finalUrl, html, status }));",
     '  } finally {',
     '    await browser.close();',
     '  }',
@@ -139,10 +88,11 @@ function buildRenderScript(
 }
 
 /**
- * Render `url` in the sandbox spawner via Playwright and return the HTML.
+ * Render `url` in an ephemeral sandbox render session via Playwright and return
+ * the HTML.
  *
- * Throws on any spawner failure (unreachable, non-completed status, missing
- * output, malformed payload). Callers fall back to a plain fetch.
+ * Throws on any render failure (session at capacity, non-completed status,
+ * missing/malformed output). Callers fall back to a plain fetch.
  */
 export async function renderUrlInSandbox(
   renderCtx: SandboxRenderContext,
@@ -155,98 +105,32 @@ export async function renderUrlInSandbox(
     'Mozilla/5.0 (compatible; TaleCrawler/1.0; +https://tale.dev)';
 
   const { ctx, organizationId } = renderCtx;
-
-  // Mint one output upload slot — the spawner POSTs the harvested HTML blob
-  // here and reports back the Convex storageId it landed in.
-  const rawUploadUrl = await ctx.storage.generateUploadUrl();
-  const slotUrl = toSandboxStorageUrl(rawUploadUrl);
-
   const script = buildRenderScript(url, userAgent, timeoutMs);
-  // TODO(verify): header note 1 — `data:` URL staging is unverified against
-  // the spawner's input-fetch layer.
-  const scriptDataUrl = `data:text/javascript;base64,${Buffer.from(script, 'utf8').toString('base64')}`;
+  const renderKey = `crawler-render-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
 
-  const { outputUrlEndpoint, reportUploadedEndpoint } =
-    resolveCallbackEndpoints();
+  const output = await renderInSession(ctx, {
+    organizationId,
+    renderKey,
+    scriptContent: script,
+    outputFileName: 'page.json',
+    timeoutMs,
+    logTag: 'crawler',
+  });
 
-  // Use a synthetic execution id — we do not reserve a run_code audit row
-  // (header note 2). The spawner only needs a unique, opaque id for its own
-  // per-run bookkeeping / cancellation key.
-  const executionId = `crawler-render-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-  const spawnerResult = await spawnerExecute(
-    {
-      executionId,
-      organizationId,
-      language: 'node',
-      files: [{ path: 'render.js', url: scriptDataUrl }],
-      entryPath: 'render.js',
-      outputUploadSlots: [{ url: slotUrl }],
-      outputUrlEndpoint,
-      reportUploadedEndpoint,
-      timeoutMs,
-    },
-    // The spawner client applies its own fetch-timeout margin on top of this.
-    AbortSignal.timeout(timeoutMs + 120_000),
+  const parsed: unknown = JSON.parse(
+    Buffer.from(output.bytes).toString('utf8'),
   );
-
-  if (spawnerResult.status !== 'completed') {
-    const code = spawnerResult.errorCode
-      ? `, code=${spawnerResult.errorCode}`
-      : '';
-    const message = spawnerResult.errorMessage
-      ? `: ${spawnerResult.errorMessage}`
-      : '';
-    throw new Error(
-      `sandbox render did not complete (status=${spawnerResult.status}${code}${message})`,
-    );
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error('rendered output payload is not an object');
   }
-
-  const outputFile = spawnerResult.outputFiles.find(
-    (f) => f.name === 'page.json',
-  );
-  if (!outputFile) {
-    throw new Error('sandbox render produced no page.json output file');
+  const htmlVal = Reflect.get(parsed, 'html');
+  const urlVal = Reflect.get(parsed, 'url');
+  if (typeof htmlVal !== 'string') {
+    throw new Error('rendered output payload has no html string');
   }
-
-  // The spawner storageId is a `_storage` id minted by `generateUploadUrl`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner storageId is branded at the wire layer; mirrors executeCode in internal_actions.ts
-  const storageId = outputFile.storageId as unknown as Id<'_storage'>;
-
-  let html: string;
-  let finalUrl = url;
-  try {
-    const blob = await ctx.storage.get(storageId);
-    if (!blob) {
-      throw new Error('rendered output blob not found in storage');
-    }
-    const text = await blob.text();
-    const parsed: unknown = JSON.parse(text);
-    if (parsed === null || typeof parsed !== 'object') {
-      throw new Error('rendered output payload is not an object');
-    }
-    const htmlVal = Reflect.get(parsed, 'html');
-    const urlVal = Reflect.get(parsed, 'url');
-    if (typeof htmlVal !== 'string') {
-      throw new Error('rendered output payload has no html string');
-    }
-    html = htmlVal;
-    if (typeof urlVal === 'string' && urlVal.length > 0) {
-      finalUrl = urlVal;
-    }
-  } finally {
-    // Best-effort cleanup of the transient render blob — it has served its
-    // purpose once read back. A leaked blob is harmless but wasteful.
-    try {
-      await ctx.storage.delete(storageId);
-    } catch (err) {
-      console.warn(
-        `[crawler] failed to delete transient render blob ${String(storageId)}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-
-  return { url: finalUrl, html };
+  const finalUrl =
+    typeof urlVal === 'string' && urlVal.length > 0 ? urlVal : url;
+  return { url: finalUrl, html: htmlVal };
 }

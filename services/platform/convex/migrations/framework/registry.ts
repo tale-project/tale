@@ -39,6 +39,16 @@ import { migration as dropOrgPackagePolicy } from '../versions/v0_2_87/04_drop_o
 import { meta as dropOrgPackagePolicyMeta } from '../versions/v0_2_87/04_drop_org_package_policy/meta';
 import { migration as dropModelSyncSettings } from '../versions/v0_2_87/05_drop_model_sync_settings';
 import { meta as dropModelSyncSettingsMeta } from '../versions/v0_2_87/05_drop_model_sync_settings/meta';
+import { migration as appConfigToBindings } from '../versions/v0_2_88/01_app_config_to_bindings';
+import { meta as appConfigToBindingsMeta } from '../versions/v0_2_88/01_app_config_to_bindings/meta';
+import { migration as appSchedulesPerProject } from '../versions/v0_2_88/02_app_schedules_per_project';
+import { meta as appSchedulesPerProjectMeta } from '../versions/v0_2_88/02_app_schedules_per_project/meta';
+// Reference-only (kind:'reference'): additive usageLedger.apiKeyId + apiKey
+// budget scope. Contributes meta only; never runnable.
+import { meta as apiKeyBudgetScopeMeta } from '../versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta';
+import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_files_absolute_paths';
+import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
+import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -66,6 +76,11 @@ export const ALL_META: readonly MigrationMeta[] = [
   modelSyncExportMeta,
   dropOrgPackagePolicyMeta,
   dropModelSyncSettingsMeta,
+  appConfigToBindingsMeta,
+  appSchedulesPerProjectMeta,
+  apiKeyBudgetScopeMeta,
+  threadFilesAbsPathsMeta,
+  claudeCodeFableDefaultMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
@@ -74,4 +89,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [gov03.meta.id]: gov03,
   [dropOrgPackagePolicy.meta.id]: dropOrgPackagePolicy,
   [dropModelSyncSettings.meta.id]: dropModelSyncSettings,
+  [appConfigToBindings.meta.id]: appConfigToBindings,
+  [appSchedulesPerProject.meta.id]: appSchedulesPerProject,
+  [threadFilesAbsPaths.meta.id]: threadFilesAbsPaths,
 };

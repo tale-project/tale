@@ -24,6 +24,9 @@ vi.mock('../_generated/api', () => ({
     workflow_executions: {
       internal_queries: { getActiveExecutionForSubject: 'getActive' },
     },
+    apps: {
+      config: { getProjectAppConfigInternal: 'getProjectAppConfig' },
+    },
     agent_tools: {
       integrations: {
         internal_actions: { executeIntegration: 'executeIntegration' },
@@ -49,6 +52,7 @@ function createCtx(opts: {
   task?: unknown;
   active?: unknown;
   startResult?: string | null;
+  appConfig?: Record<string, unknown>;
 }) {
   const runActionCalls: Array<{ ref: unknown; args: Record<string, unknown> }> =
     [];
@@ -56,6 +60,7 @@ function createCtx(opts: {
     runQuery: vi.fn(async (ref: unknown) => {
       if (ref === 'getTask') return opts.task ?? null;
       if (ref === 'getActive') return opts.active ?? null;
+      if (ref === 'getProjectAppConfig') return opts.appConfig ?? {};
       return null;
     }),
     runAction: vi.fn(async (ref: unknown, args: Record<string, unknown>) => {
@@ -85,13 +90,31 @@ describe('startTaskWorkflow', () => {
     expect(result).toEqual({ started: true, executionId: 'exec_new' });
     expect(runActionCalls).toHaveLength(1);
     expect(runActionCalls[0].ref).toBe('startWorkflowFromFile');
+    // App-owned workflow slug → the install's per-project config is injected as
+    // input.appConfig (empty here — no binding/config seeded in the fake ctx).
     expect(runActionCalls[0].args.input).toEqual({
       task: TASK,
       issueNumber: 1851,
+      owner: 'tale-project',
+      repo: 'tale',
+      appConfig: {},
     });
     expect(runActionCalls[0].args.subject).toEqual({
       type: 'task',
       id: 'task_1',
+    });
+  });
+
+  it('injects the install per-project config as input.appConfig', async () => {
+    const { ctx, runActionCalls } = createCtx({
+      task: { task: TASK },
+      active: null,
+      startResult: 'exec_new',
+      appConfig: { repoNotes: 'use bun', testCommand: 'bun test' },
+    });
+    await handler(ctx, ARGS);
+    expect(runActionCalls[0].args.input).toMatchObject({
+      appConfig: { repoNotes: 'use bun', testCommand: 'bun test' },
     });
   });
 

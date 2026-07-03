@@ -13,7 +13,7 @@ Colle un PDF dans le composer. Le composer affiche une puce avec le nom du fichi
 
 ## Types pris en charge
 
-Trois familles : **images**, **documents structurés** (PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX), et **fichiers de type texte** (texte brut, markdown, code source, CSV, JSON, YAML). Les images vont au modèle vision que le chat utilise ; le sélecteur de modèles doit être sur un modèle capable de vision ou l'image sera silencieusement abandonnée. Les documents structurés sont extraits en texte — diagrammes, pages scannées et objets embarqués sont au mieux possible. Les fichiers de type texte atterrissent tels quels.
+Trois familles : **images**, **documents structurés** (PDF, DOC/DOCX, ODT, XLS/XLSX, PPT/PPTX), et **fichiers de type texte** (texte brut, markdown, code source, CSV, JSON, YAML). Les images vont au modèle vision que le chat utilise ; le sélecteur de modèles doit être sur un modèle capable de vision ou l'image sera silencieusement abandonnée. Les documents structurés sont extraits en texte — diagrammes, pages scannées et objets embarqués sont au mieux possible. Les fichiers de type texte atterrissent tels quels.
 
 ## Où vivent les téléversements
 

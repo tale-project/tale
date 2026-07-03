@@ -9,7 +9,6 @@
     "customer_read",
     "product_read",
     "database_schema",
-    "excel",
     "file_write",
     "document_write",
     "rag_search",
@@ -17,6 +16,7 @@
     "metrics_read",
     "task_write"
   ],
+  "skillBindings": ["xlsx"],
   "supportedModels": ["openrouter:anthropic/claude-sonnet-4.6"],
   "personalizationMode": "off",
   "maxSteps": 30,

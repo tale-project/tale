@@ -5,8 +5,10 @@ import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
+import { findFolderByPath } from './find_folder_by_path';
 
 export const listFolders = query({
   args: {
@@ -44,6 +46,7 @@ export const listFolders = query({
 export const getFolder = query({
   args: {
     folderId: v.id('folders'),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -52,7 +55,10 @@ export const getFolder = query({
     }
 
     const folder = await ctx.db.get(args.folderId);
-    if (!folder) return null;
+    // Active-org coherence: deny a folder carried over from another org.
+    if (!folder || !isActiveOrg(folder.organizationId, args.organizationId)) {
+      return null;
+    }
 
     await getOrganizationMember(ctx, folder.organizationId, authUser);
 
@@ -69,9 +75,69 @@ export const getFolder = query({
   },
 });
 
+/**
+ * Children of the folder at a human-readable documents path ("Clients/Acme"),
+ * with each child's own path included. Built for app views: a pack config can
+ * only hold scalars, so a view binds a configured folder PATH (not an opaque
+ * id) and lists its subfolders (e.g. one per quarter) as actionable rows.
+ * Same auth + team-visibility rules as `listFolders`. Returns null when the
+ * path does not resolve (lets the view distinguish "wrong path" from "empty").
+ */
+export const listFolderChildrenByPath = query({
+  args: {
+    organizationId: v.string(),
+    path: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.array(
+      v.object({
+        _id: v.id('folders'),
+        name: v.string(),
+        path: v.string(),
+      }),
+    ),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    const segments = args.path.split('/').filter((s) => s.trim().length > 0);
+    if (segments.length === 0) return null;
+    const parentId = await findFolderByPath(ctx, args.organizationId, segments);
+    if (!parentId) return null;
+
+    const parent = await ctx.db.get(parentId);
+    if (!parent) return null;
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
+    if (!hasTeamAccess(parent, userTeamIds)) return null;
+
+    const basePath = segments.join('/');
+    const children: { _id: Id<'folders'>; name: string; path: string }[] = [];
+    const q = ctx.db
+      .query('folders')
+      .withIndex('by_org_parent_name', (qb) =>
+        qb.eq('organizationId', args.organizationId).eq('parentId', parentId),
+      );
+    for await (const folder of q) {
+      if (!hasTeamAccess(folder, userTeamIds)) continue;
+      children.push({
+        _id: folder._id,
+        name: folder.name,
+        path: `${basePath}/${folder.name}`,
+      });
+    }
+    return children;
+  },
+});
+
 export const getFolderBreadcrumb = query({
   args: {
     folderId: v.id('folders'),
+    organizationId: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -80,7 +146,8 @@ export const getFolderBreadcrumb = query({
     }
 
     const folder = await ctx.db.get(args.folderId);
-    if (!folder) {
+    // Active-org coherence: deny a folder carried over from another org.
+    if (!folder || !isActiveOrg(folder.organizationId, args.organizationId)) {
       return [];
     }
 

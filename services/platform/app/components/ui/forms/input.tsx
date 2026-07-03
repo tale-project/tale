@@ -23,6 +23,12 @@ const inputVariants = cva(
         default:
           'rounded-lg border border-transparent bg-input px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-[color:var(--color-border-input)] focus-visible:ring-primary',
         unstyled: 'bg-transparent border-0 ring-0 ring-offset-0',
+        // Borderless, text-like display for values the user cannot edit in
+        // context. Keeps the field's footprint (`h-9` from the base + the same
+        // `border`/`px`/`py` box as `default`) so toggling editable ↔ read-only
+        // causes no layout shift; just drops the visible ring + filled bg.
+        readOnly:
+          'rounded-lg border border-transparent bg-transparent px-3 py-2 ring-0 ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
       },
     },
     defaultVariants: {
@@ -82,6 +88,11 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
     const errorId = `${id}-error`;
     const descriptionId = `${id}-description`;
     const isPassword = type === 'password';
+    // A native `readOnly` input auto-selects the borderless display variant
+    // (transparent, no ring) unless the caller pins an explicit `variant`, so
+    // informational values render as text with no layout shift vs. editing.
+    const resolvedVariant =
+      variant ?? (props.readOnly ? 'readOnly' : undefined);
     const [show, setShow] = useState(false);
     const [showShake, setShowShake] = useState(false);
 
@@ -178,7 +189,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               type={inputType}
               {...sensitiveAttrs}
               className={cn(
-                inputVariants({ variant }),
+                inputVariants({ variant: resolvedVariant }),
                 showInvalid &&
                   'border-destructive focus-visible:ring-destructive',
                 showShake && 'animate-shake',
@@ -248,7 +259,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           type={inputType}
           {...sensitiveAttrs}
           className={cn(
-            inputVariants({ variant }),
+            inputVariants({ variant: resolvedVariant }),
             showInvalid && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,

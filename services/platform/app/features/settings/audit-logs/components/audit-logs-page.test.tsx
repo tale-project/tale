@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -46,6 +47,18 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
+// The admin-only integrity panel calls these; stub them to a benign
+// "never checked / idle" state so the page renders without a Convex client.
+vi.mock('@/app/features/settings/audit-logs/hooks/integrity', () => ({
+  useIntegrityStatus: () => ({ data: null, isLoading: false }),
+  useVerifyIntegrity: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    mutate: vi.fn(),
+  }),
+}));
+
 // Page renders for a permitted admin: ability allows orgSettings, member is an
 // owner (so the export buttons mount, matching the E2E owner storageState).
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -53,12 +66,19 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
+// Role is mutable so a single test can flip owner → member and assert the
+// admin-only integrity panel disappears. Defaults to owner (the export buttons
+// mount, matching the migrated E2E owner storageState); reset after each test.
+const memberRole = vi.hoisted(() => ({ current: 'owner' as string }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({
-    data: { role: 'owner' },
+    data: { role: memberRole.current },
     isLoading: false,
   }),
 }));
+afterEach(() => {
+  memberRole.current = 'owner';
+});
 
 // The DataTable reads the org id from the router; outside a RouterProvider that
 // hook throws, so stub it (the table only uses it for row-level deep links).
@@ -66,10 +86,23 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-function renderPage() {
-  return render(
-    <AuditLogsPage organizationId="org-1" onCategoryChange={vi.fn()} />,
+// The active tab now round-trips through the URL (the route owns it), so the
+// component is controlled. Mirror that here with a tiny stateful harness so
+// clicking a trigger flips the selection the same way the route would.
+function ControlledAuditLogsPage() {
+  const [tab, setTab] = useState('audit');
+  return (
+    <AuditLogsPage
+      organizationId="org-1"
+      tab={tab}
+      onTabChange={setTab}
+      onCategoryChange={vi.fn()}
+    />
   );
+}
+
+function renderPage() {
+  return render(<ControlledAuditLogsPage />);
 }
 
 describe('AuditLogsPage', () => {
@@ -104,6 +137,55 @@ describe('AuditLogsPage', () => {
     await user.click(auditTab);
     expect(auditTab).toHaveAttribute('aria-selected', 'true');
     expect(activityTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('shows the category filter only on the Audit and Errors tabs', async () => {
+    // [114] The category `DataTableFilters` feeds only the audit + error
+    // queries, so the page renders it solely on those two tabs — on "Sign-in
+    // blocks" and "Activity logs" it was a no-op and is now omitted entirely.
+    // The shared toolbar's filter trigger is the `FilterButton`, accessible by
+    // its "Filter" label, so its presence/absence tracks the fix exactly.
+    const { user } = renderPage();
+
+    // Default "Audit logs" tab — filter present.
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+
+    // "Sign-in blocks" tab — filter hidden (was a no-op).
+    await user.click(screen.getByRole('tab', { name: 'Sign-in blocks' }));
+    expect(
+      screen.queryByRole('button', { name: 'Filter' }),
+    ).not.toBeInTheDocument();
+
+    // "Activity logs" tab — filter hidden (was a no-op).
+    await user.click(screen.getByRole('tab', { name: 'Activity logs' }));
+    expect(
+      screen.queryByRole('button', { name: 'Filter' }),
+    ).not.toBeInTheDocument();
+
+    // "Error logs" tab — filter present (category really filters it).
+    await user.click(screen.getByRole('tab', { name: 'Error logs' }));
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+
+    // Back to "Audit logs" — filter present again.
+    await user.click(screen.getByRole('tab', { name: 'Audit logs' }));
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
+  });
+
+  it('shows the chain-integrity panel for an admin/owner', async () => {
+    renderPage();
+    expect(await screen.findByText('Chain integrity')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Verify now' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the chain-integrity panel for a non-admin member', () => {
+    // Ability still permits the page (no AccessDenied); the panel has its own
+    // admin gate, so a plain member sees the tabs but not the panel.
+    memberRole.current = 'member';
+    renderPage();
+    expect(screen.queryByText('Chain integrity')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Logs' })).toBeInTheDocument();
   });
 
   it('passes an axe audit of the tab strip and active audit table', async () => {

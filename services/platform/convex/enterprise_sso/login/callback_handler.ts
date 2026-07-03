@@ -12,26 +12,10 @@ import {
 } from '../entra_id/error_codes';
 import { getAdapter } from '../registry';
 import { signCookieValue, verifySignedValue } from '../sign_cookie_value';
+import { redirectWithError } from './redirect_with_error';
 
 const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
-
-function redirectWithError(
-  origin: string,
-  message: string,
-  errorCode?: string,
-  recoveryKey?: string,
-): Response {
-  const basePath = process.env.BASE_PATH || '';
-  const errorUrl = new URL(`${basePath}/log-in`, origin);
-  errorUrl.searchParams.set('error', message);
-  if (errorCode) errorUrl.searchParams.set('error_code', errorCode);
-  if (recoveryKey) errorUrl.searchParams.set('recovery', recoveryKey);
-  return new Response(null, {
-    status: 302,
-    headers: { Location: errorUrl.toString() },
-  });
-}
 
 function buildAuthorizeRedirectUrl(
   origin: string,
@@ -59,6 +43,10 @@ export async function ssoCallbackHandler(
   ctx: ActionCtx,
   req: Request,
 ): Promise<Response> {
+  // Behind the reverse proxy the request origin is the INTERNAL Convex address
+  // (unreachable from a browser), so error redirects must target the public
+  // SITE_URL — refined to the state's own origin once the state is parsed.
+  let publicOrigin = process.env.SITE_URL || new URL(req.url).origin;
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
@@ -79,10 +67,13 @@ export async function ssoCallbackHandler(
                 .replace(/_/g, '/');
               const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
               const stateData = JSON.parse(atob(padded));
+              if (stateData.redirectUri) {
+                publicOrigin = new URL(stateData.redirectUri).origin;
+              }
 
               if (isSilentAuthError(error) && stateData.seamless) {
                 const authorizeUrl = buildAuthorizeRedirectUrl(
-                  url.origin,
+                  publicOrigin,
                   stateData.redirectUri,
                   {
                     prompt: 'login',
@@ -110,7 +101,7 @@ export async function ssoCallbackHandler(
                     }
                     if (claimsChallenge) params['claims'] = claimsChallenge;
                     const authorizeUrl = buildAuthorizeRedirectUrl(
-                      url.origin,
+                      publicOrigin,
                       stateData.redirectUri,
                       params,
                     );
@@ -121,7 +112,7 @@ export async function ssoCallbackHandler(
                   }
                   if (errorInfo) {
                     return redirectWithError(
-                      url.origin,
+                      publicOrigin,
                       errorInfo.messageKey,
                       errorCode,
                       errorInfo.recoveryKey,
@@ -136,14 +127,14 @@ export async function ssoCallbackHandler(
         }
       }
       return redirectWithError(
-        url.origin,
+        publicOrigin,
         `SSO login failed: ${errorDescription || error}`,
       );
     }
 
     if (!code || !stateParam) {
       return redirectWithError(
-        url.origin,
+        publicOrigin,
         'Missing authorization code or state',
       );
     }
@@ -151,12 +142,12 @@ export async function ssoCallbackHandler(
     const secret = process.env.BETTER_AUTH_SECRET;
     if (!secret) {
       console.error('[SSO] BETTER_AUTH_SECRET not configured');
-      return redirectWithError(url.origin, 'Server configuration error');
+      return redirectWithError(publicOrigin, 'Server configuration error');
     }
 
     const verifiedPayload = await verifySignedValue(stateParam, secret);
     if (!verifiedPayload) {
-      return redirectWithError(url.origin, 'Invalid state signature');
+      return redirectWithError(publicOrigin, 'Invalid state signature');
     }
 
     let state: {
@@ -170,19 +161,30 @@ export async function ssoCallbackHandler(
       const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
       state = JSON.parse(atob(padded));
     } catch {
-      return redirectWithError(url.origin, 'Invalid state parameter');
+      return redirectWithError(publicOrigin, 'Invalid state parameter');
     }
 
     if (Date.now() - state.timestamp > 10 * 60 * 1000) {
-      return redirectWithError(url.origin, 'SSO session expired');
+      return redirectWithError(publicOrigin, 'SSO session expired');
     }
 
+    // The state's redirectUri is the page the user actually came from — it
+    // wins over SITE_URL from here on (covers multi-host deployments).
     const frontendOrigin = new URL(state.redirectUri).origin;
+    publicOrigin = frontendOrigin;
 
     const config = await ctx.runQuery(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
       { organizationId: state.organizationId },
     );
+    if (config === 'ambiguous') {
+      // Only reachable for a state minted without an org (pre-#2082 flows) on
+      // a deployment where several orgs enable SSO — never guess a connection.
+      return redirectWithError(
+        frontendOrigin,
+        'sso.errors.multipleConnections',
+      );
+    }
     if (!config) {
       return redirectWithError(frontendOrigin, 'SSO configuration not found');
     }
@@ -331,6 +333,20 @@ export async function ssoCallbackHandler(
     return new Response(null, { status: 302, headers });
   } catch (error) {
     console.error('[SSO] Callback error:', error);
-    return redirectWithError(new URL(req.url).origin, 'Internal server error');
+    // Token-exchange failures throw with Microsoft's response body in the
+    // message (e.g. an invalid or expired client secret) — map its AADSTS
+    // code to the same readable login-page error the authorize stage gets.
+    const message = error instanceof Error ? error.message : String(error);
+    const errorCode = parseEntraErrorCode(message);
+    const errorInfo = errorCode ? getEntraErrorInfo(errorCode) : undefined;
+    if (errorCode && errorInfo) {
+      return redirectWithError(
+        publicOrigin,
+        errorInfo.messageKey,
+        errorCode,
+        errorInfo.recoveryKey,
+      );
+    }
+    return redirectWithError(publicOrigin, 'sso.errors.serverError');
   }
 }

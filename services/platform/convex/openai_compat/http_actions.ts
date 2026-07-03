@@ -20,12 +20,22 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { extractClientIp } from '../workflows/triggers/helpers/validate';
 import {
+  buildAiUserContent,
+  extractText,
+  hasUsableUserContent,
+  type OpenAIMessageContent,
+} from './content';
+import {
   buildChatCompletion,
   buildChatCompletionChunk,
   buildChatCompletionWithToolCalls,
+  buildImagesGenerationsResponse,
   buildStreamingUsageChunk,
   formatSSEChunk,
   formatSSEDone,
+  mapFinishReason,
+  type OpenAIChatImage,
+  type OpenAIImageDatum,
   openAIErrorResponse,
   type OpenAIToolCall,
   type OpenAIUsage,
@@ -44,7 +54,9 @@ const CORS_HEADERS = {
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  // String, or an array of content parts (text + image_url) for multimodal
+  // (vision) input — the latter is the only way to send images.
+  content: OpenAIMessageContent | null;
   tool_calls?: Array<{
     id: string;
     type: 'function';
@@ -88,7 +100,12 @@ class AuthError extends Error {
 async function authenticateRequest(
   ctx: Parameters<Parameters<typeof httpAction>[0]>[0],
   request: Request,
-): Promise<{ userId: string; email: string; name: string }> {
+): Promise<{
+  userId: string;
+  email: string;
+  name: string;
+  apiKeyId: string | undefined;
+}> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new AuthError('Missing or invalid Authorization header');
@@ -104,6 +121,30 @@ async function authenticateRequest(
 
   const auth = createAuth(ctx);
   try {
+    // `verifyApiKey` returns the key row (minus the secret) — including its
+    // `_id` — so the per-API-key budget scope can attribute this request's usage
+    // to the specific credential. It also runs the key's own validity + rate
+    // limit checks; `getSession` below then resolves the bound user identity.
+    let apiKeyId: string | undefined;
+    try {
+      const verified = await auth.api.verifyApiKey({ body: { key: apiKey } });
+      if (verified.valid && verified.key) {
+        // The row's primary key is exposed as `id` on the verify result.
+        apiKeyId =
+          typeof (verified.key as { id?: unknown }).id === 'string'
+            ? (verified.key as { id: string }).id
+            : undefined;
+      }
+    } catch (verifyError) {
+      // Non-fatal: a verify hiccup must not break auth (getSession is the
+      // authority for identity). The request then simply carries no key id and
+      // per-key budgets don't apply to it — fail-open on measurement only.
+      console.warn(
+        '[openai_compat] verifyApiKey failed; proceeding without key id:',
+        verifyError instanceof Error ? verifyError.message : verifyError,
+      );
+    }
+
     const session = await auth.api.getSession({
       headers: syntheticHeaders,
     });
@@ -116,6 +157,7 @@ async function authenticateRequest(
       userId: session.user.id,
       email: session.user.email ?? '',
       name: session.user.name ?? '',
+      apiKeyId,
     };
   } catch (error) {
     if (error instanceof AuthError) throw error;
@@ -179,15 +221,25 @@ function convertToModelMessages(
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      result.push({ role: 'user', content: msg.content ?? '' });
+      // Preserve multimodal (image) parts; no sanitization on the continuation
+      // path (matches the pre-existing behaviour for tool-calling history).
+      const content = msg.content ?? '';
+      result.push({
+        role: 'user',
+        content:
+          typeof content === 'string'
+            ? content
+            : buildAiUserContent(content, extractText(content)),
+      });
     } else if (msg.role === 'system') {
-      result.push({ role: 'system', content: msg.content ?? '' });
+      result.push({ role: 'system', content: extractText(msg.content ?? '') });
     } else if (msg.role === 'assistant') {
       if (msg.tool_calls && msg.tool_calls.length > 0) {
         // Assistant message with tool calls
         const content: Array<Record<string, unknown>> = [];
-        if (msg.content) {
-          content.push({ type: 'text', text: msg.content });
+        const assistantText = extractText(msg.content ?? '');
+        if (assistantText) {
+          content.push({ type: 'text', text: assistantText });
         }
         for (const tc of msg.tool_calls) {
           content.push({
@@ -201,7 +253,7 @@ function convertToModelMessages(
       } else {
         result.push({
           role: 'assistant',
-          content: msg.content ?? '',
+          content: extractText(msg.content ?? ''),
         });
       }
     } else if (msg.role === 'tool' && msg.tool_call_id) {
@@ -225,7 +277,7 @@ function convertToModelMessages(
             type: 'tool-result',
             toolCallId: msg.tool_call_id,
             toolName,
-            output: { type: 'text', value: msg.content ?? '' },
+            output: { type: 'text', value: extractText(msg.content ?? '') },
           },
         ],
       });
@@ -257,7 +309,12 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   }
 
   // Auth
-  let user: { userId: string; email: string; name: string };
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
   try {
     user = await authenticateRequest(ctx, request);
   } catch (error) {
@@ -320,13 +377,21 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   }
 
   const lastUserMessage = messages.findLast((m) => m.role === 'user');
-  if (!lastUserMessage || typeof lastUserMessage.content !== 'string') {
+  if (!lastUserMessage || !hasUsableUserContent(lastUserMessage.content)) {
     return openAIErrorResponse(
-      'No user message found in messages array',
+      'No user message with usable content found in messages array',
       'invalid_request_error',
       400,
     );
   }
+  // `content` is a non-empty string or content-part array here. The action
+  // receives the joined text (for sanitization signals) plus the structured
+  // content when multimodal, so image parts reach the model.
+  const lastUserContent = lastUserMessage.content ?? '';
+  const lastUserText = extractText(lastUserContent);
+  const userContent = Array.isArray(lastUserContent)
+    ? lastUserContent
+    : undefined;
 
   const shouldStream = body.stream === true;
   const includeUsage =
@@ -356,7 +421,8 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   return handleDirectModelMode(ctx, {
     model,
     messages,
-    lastUserMessage: lastUserMessage.content,
+    lastUserMessage: lastUserText,
+    userContent,
     tools,
     toolChoice: body.tool_choice,
     shouldStream,
@@ -392,6 +458,7 @@ async function handleDirectModelMode(
     model: string;
     messages: OpenAIMessage[];
     lastUserMessage: string;
+    userContent?: OpenAIMessageContent;
     tools?: ChatCompletionsRequestBody['tools'];
     toolChoice?: unknown;
     shouldStream: boolean;
@@ -400,7 +467,12 @@ async function handleDirectModelMode(
     responseFormat?: string;
     conversationMessages?: Array<Record<string, unknown>>;
     orgInfo: { organizationId: string; orgSlug: string };
-    user: { userId: string; email: string; name: string };
+    user: {
+      userId: string;
+      email: string;
+      name: string;
+      apiKeyId: string | undefined;
+    };
   },
 ) {
   const created = Math.floor(Date.now() / 1000);
@@ -409,6 +481,7 @@ async function handleDirectModelMode(
     requestId: string;
     text: string | null;
     toolCalls: OpenAIToolCall[] | null;
+    images: OpenAIChatImage[] | null;
     finishReason: string;
     inputTokens: number;
     outputTokens: number;
@@ -425,7 +498,9 @@ async function handleDirectModelMode(
         userId: opts.user.userId,
         userEmail: opts.user.email,
         userName: opts.user.name,
+        apiKeyId: opts.user.apiKeyId,
         message: opts.lastUserMessage,
+        userContent: opts.userContent,
         tools: opts.tools,
         toolChoice: opts.toolChoice,
         conversationMessages: opts.conversationMessages,
@@ -444,6 +519,7 @@ async function handleDirectModelMode(
     completion_tokens: result.outputTokens,
     total_tokens: result.totalTokens,
   };
+  const finishReason = mapFinishReason(result.finishReason);
 
   // Tool calls returned — return them to client
   if (result.toolCalls && result.toolCalls.length > 0) {
@@ -469,7 +545,8 @@ async function handleDirectModelMode(
     return jsonResponse(response);
   }
 
-  // No tool calls — return text
+  // No tool calls — return text (and any generated images).
+  const images = result.images ?? undefined;
   if (opts.shouldStream) {
     return streamDirectTextResponse(
       completionId,
@@ -477,6 +554,8 @@ async function handleDirectModelMode(
       result.text ?? '',
       created,
       opts.includeUsage ? usage : undefined,
+      finishReason,
+      images,
     );
   }
 
@@ -487,6 +566,7 @@ async function handleDirectModelMode(
     created,
     [],
     usage,
+    { finishReason, images },
   );
   return jsonResponse(response);
 }
@@ -608,6 +688,8 @@ function streamDirectTextResponse(
   text: string,
   created: number,
   usage?: OpenAIUsage,
+  finishReason: 'stop' | 'length' | 'tool_calls' = 'stop',
+  images?: OpenAIChatImage[],
 ): Response {
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -635,11 +717,24 @@ function streamDirectTextResponse(
         await writer.write(encoder.encode(formatSSEChunk(contentChunk)));
       }
 
+      // Generated images (image-generation models) — emitted as an `images`
+      // delta, matching the OpenRouter streaming convention.
+      if (images && images.length > 0) {
+        const imagesChunk = buildChatCompletionChunk(
+          completionId,
+          model,
+          { images },
+          null,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(imagesChunk)));
+      }
+
       const finishChunk = buildChatCompletionChunk(
         completionId,
         model,
         {},
-        'stop',
+        finishReason,
         created,
       );
       await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
@@ -689,6 +784,23 @@ function handleChatError(error: unknown, model: string): Response {
       'model_not_found',
     );
   }
+  // Budget rejection (per-API-key / user / team / org, or the fallback). The
+  // gate throws a message built by `checkRuleAgainstUsage` ("… limit reached for
+  // this <period> period …") or the "Usage limit reached for this period"
+  // fallback. Surface it as a clean 429 quota error instead of a raw 500 — the
+  // OpenAI-compatible signal for "you've exhausted your allotment". Covers every
+  // budget scope, so existing user/org budgets get the same clean shape.
+  if (
+    msg.includes('limit reached for this') ||
+    msg.includes('Usage limit reached')
+  ) {
+    return openAIErrorResponse(
+      msg,
+      'insufficient_quota',
+      429,
+      'budget_exceeded',
+    );
+  }
   if (msg.includes('Not a member') || msg.includes('disabled')) {
     return openAIErrorResponse(msg, 'permission_error', 403);
   }
@@ -717,7 +829,12 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  let user: { userId: string; email: string; name: string };
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
   try {
     user = await authenticateRequest(ctx, request);
   } catch (error) {
@@ -781,10 +898,143 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/v1/images/generations
+// ---------------------------------------------------------------------------
+
+interface ImagesGenerationsRequestBody {
+  model?: string;
+  prompt?: string;
+  n?: number;
+  size?: string;
+  response_format?: string;
+}
+
+export const imagesGenerationsHandler = httpAction(async (ctx, request) => {
+  const ip = extractClientIp(request.headers);
+  try {
+    await checkIpRateLimit(ctx, 'openai:images', ip);
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return openAIErrorResponse(
+        'Rate limit exceeded',
+        'rate_limit_exceeded',
+        429,
+        'rate_limit_exceeded',
+      );
+    }
+    throw error;
+  }
+
+  let user: {
+    userId: string;
+    email: string;
+    name: string;
+    apiKeyId: string | undefined;
+  };
+  try {
+    user = await authenticateRequest(ctx, request);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return openAIErrorResponse(
+        error.message,
+        'invalid_request_error',
+        401,
+        'invalid_api_key',
+      );
+    }
+    throw error;
+  }
+
+  const orgSlugHeader =
+    request.headers.get('x-organization-slug') ??
+    request.headers.get('X-Organization-Slug');
+
+  let orgInfo: { organizationId: string; orgSlug: string };
+  try {
+    orgInfo = await ctx.runQuery(
+      internal.openai_compat.internal_queries.resolveUserOrganization,
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
+    );
+  } catch (error) {
+    return mapResolveOrgError(error);
+  }
+
+  let body: ImagesGenerationsRequestBody;
+  try {
+    body = await request.json();
+  } catch {
+    return openAIErrorResponse(
+      'Invalid JSON body',
+      'invalid_request_error',
+      400,
+    );
+  }
+
+  const model = body.model;
+  if (!model || typeof model !== 'string') {
+    return openAIErrorResponse(
+      'Missing or invalid "model" field',
+      'invalid_request_error',
+      400,
+      'model_required',
+    );
+  }
+  const prompt = body.prompt;
+  if (!prompt || typeof prompt !== 'string') {
+    return openAIErrorResponse(
+      'Missing or invalid "prompt" field',
+      'invalid_request_error',
+      400,
+    );
+  }
+  if (
+    body.response_format != null &&
+    body.response_format !== 'url' &&
+    body.response_format !== 'b64_json'
+  ) {
+    return openAIErrorResponse(
+      '"response_format" must be "url" or "b64_json"',
+      'invalid_request_error',
+      400,
+    );
+  }
+
+  let result: { requestId: string; model: string; data: OpenAIImageDatum[] };
+  try {
+    result = await ctx.runAction(
+      internal.openai_compat.internal_actions.imagesGenerateDirect,
+      {
+        modelId: model,
+        organizationId: orgInfo.organizationId,
+        userId: user.userId,
+        userEmail: user.email,
+        userName: user.name,
+        apiKeyId: user.apiKeyId,
+        prompt,
+        n: typeof body.n === 'number' ? body.n : undefined,
+        responseFormat: body.response_format,
+      },
+    );
+  } catch (error) {
+    return handleChatError(error, model);
+  }
+
+  const created = Math.floor(Date.now() / 1000);
+  return jsonResponse(buildImagesGenerationsResponse(created, result.data));
+});
+
+// ---------------------------------------------------------------------------
 // OPTIONS handlers (CORS preflight)
 // ---------------------------------------------------------------------------
 
 export const chatCompletionsOptionsHandler = httpAction(async () => {
+  return new Response(null, {
+    status: 204,
+    headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },
+  });
+});
+
+export const imagesGenerationsOptionsHandler = httpAction(async () => {
   return new Response(null, {
     status: 204,
     headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },

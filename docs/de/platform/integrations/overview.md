@@ -13,14 +13,15 @@ Zwei Oberflächen lassen einen Agent über Tale hinausreichen. **Integrationen**
 
 ## Kommunikation
 
-| Integration | Was sie tut                                                 | Einrichtung                        |
-| ----------- | ----------------------------------------------------------- | ---------------------------------- |
-| **Slack**   | Kanäle lesen, Nachrichten senden, auf Ereignisse reagieren. | OAuth2 vom Slack-Workspace.        |
-| **Teams**   | Dieselbe Form für Microsoft Teams — Kanäle und Chats.       | OAuth über Microsoft Entra ID.     |
-| **Discord** | Bot-getriebener Nachrichtenversand und Kanal-Lesen.         | Discord-Bot-Token.                 |
-| **Gmail**   | Inbox lesen, Mail senden, labeln.                           | OAuth über Google.                 |
-| **Outlook** | Inbox lesen, Mail senden, Kalender lesen.                   | OAuth über Microsoft Entra ID.     |
-| **Twilio**  | SMS, Voice, WhatsApp Business.                              | Twilio Account-SID und Auth-Token. |
+| Integration   | Was sie tut                                                        | Einrichtung                             |
+| ------------- | ------------------------------------------------------------------ | --------------------------------------- |
+| **Slack**     | Kanäle lesen, Nachrichten senden, auf Ereignisse reagieren.        | OAuth2 vom Slack-Workspace.             |
+| **Teams**     | Dieselbe Form für Microsoft Teams — Kanäle und Chats.              | OAuth über Microsoft Entra ID.          |
+| **Discord**   | Bot-getriebener Nachrichtenversand und Kanal-Lesen.                | Discord-Bot-Token.                      |
+| **Gmail**     | Inbox lesen, Mail senden, labeln.                                  | OAuth über Google.                      |
+| **Outlook**   | Inbox lesen, Mail senden, Kalender lesen.                          | OAuth über Microsoft Entra ID.          |
+| **IMAP/SMTP** | Mail über ein privates Postfach empfangen und senden — ohne OAuth. | IMAP- und SMTP-Host, Port und Passwort. |
+| **Twilio**    | SMS, Voice, WhatsApp Business.                                     | Twilio Account-SID und Auth-Token.      |
 
 ## Speicher und Dokumente
 

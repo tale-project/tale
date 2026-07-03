@@ -96,7 +96,7 @@ export const integrationJsonSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   version: z.number().int().optional(),
-  type: z.enum(['rest_api', 'sql']).optional(),
+  type: z.enum(['rest_api', 'sql', 'imap_smtp']).optional(),
   exposeAsCapability: exposeAsCapabilitySchema.optional(),
   authMethod: z.enum(['api_key', 'bearer_token', 'basic_auth', 'oauth2']),
   supportedAuthMethods: z

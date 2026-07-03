@@ -3,6 +3,7 @@
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import { parseExecutionDateBounds } from './date_range_filter';
 import type { ListExecutionsArgs, WorkflowExecution } from './types';
 
 export async function listExecutions(
@@ -16,10 +17,10 @@ export async function listExecutions(
   const limit = Math.min(requestedLimit, 200);
   const maxScan = Math.min(limit * 3, 600);
 
-  const fromDate = args.dateFrom
-    ? new Date(args.dateFrom).getTime()
-    : undefined;
-  const toDate = args.dateTo ? new Date(args.dateTo).getTime() : undefined;
+  const { fromDate, toDate } = parseExecutionDateBounds(
+    args.dateFrom,
+    args.dateTo,
+  );
   const searchLower = args.search?.toLowerCase();
   const triggeredByLower = args.triggeredBy?.toLowerCase();
 

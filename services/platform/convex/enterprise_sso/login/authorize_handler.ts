@@ -6,6 +6,7 @@ import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
 import { signValue } from '../sign_cookie_value';
 import type { SsoPromptMode } from '../types';
+import { redirectWithError } from './redirect_with_error';
 
 const VALID_PROMPTS: Record<string, SsoPromptMode> = {
   none: 'none',
@@ -31,6 +32,13 @@ export async function ssoAuthorizeHandler(
   ctx: ActionCtx,
   req: Request,
 ): Promise<Response> {
+  // Hoisted so the catch can bounce the failure back to the login page with a
+  // readable reason instead of painting a raw 500 (the one place a literal
+  // "Internal server error" page used to show). Behind the reverse proxy the
+  // request origin is the INTERNAL Convex address (unreachable from a
+  // browser), so the redirect prefers the public SITE_URL.
+  const normalizedOrigin = normalizeOrigin(new URL(req.url).origin);
+  const publicOrigin = process.env.SITE_URL || normalizedOrigin;
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
@@ -38,7 +46,6 @@ export async function ssoAuthorizeHandler(
     const promptParam = url.searchParams.get('prompt');
     const seamlessParam = url.searchParams.get('seamless');
     const claimsParam = url.searchParams.get('claims');
-    const normalizedOrigin = normalizeOrigin(url.origin);
     const redirectUri =
       url.searchParams.get('redirect_uri') ||
       `${normalizedOrigin}/api/sso/callback`;
@@ -53,6 +60,13 @@ export async function ssoAuthorizeHandler(
       internal.enterprise_sso.internal_queries.resolveSignInConfig,
       { organizationId },
     );
+    if (config === 'ambiguous') {
+      // Several orgs have SSO enabled and this request carried no org context.
+      // Never guess a connection (that sends the user to another org's IdP) —
+      // bounce to the login page and ask for the organization email, which
+      // routes via /api/sso/discover.
+      return redirectWithError(publicOrigin, 'sso.errors.multipleConnections');
+    }
     if (!config) {
       return new Response('No SSO configuration found', { status: 404 });
     }
@@ -139,6 +153,9 @@ export async function ssoAuthorizeHandler(
     });
   } catch (error) {
     console.error('[SSO] Authorize error:', error);
-    return new Response('Internal server error', { status: 500 });
+    // A misconfigured issuer (extractTenantId throws) or any other unhandled
+    // failure now lands readably on the login page instead of a raw 500 — the
+    // real cause is logged above for the operator.
+    return redirectWithError(publicOrigin, 'sso.errors.serverError');
   }
 }

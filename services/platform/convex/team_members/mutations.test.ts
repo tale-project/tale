@@ -26,9 +26,13 @@ vi.mock('../lib/rls/auth/get_auth_user_identity', () => ({
   }),
 }));
 
-vi.mock('convex/values', () => {
+vi.mock('convex/values', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const stub = () => 'validator';
   return {
+    // Preserve the real `ConvexError` so the handlers' structured throws
+    // construct correctly; only the `v` validator builders are stubbed.
+    ...actual,
     v: {
       string: stub,
       number: stub,
@@ -103,7 +107,9 @@ describe('addMember handler', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow('Unauthenticated');
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
   });
 
   it('throws when caller is not admin or owner', async () => {
@@ -112,9 +118,9 @@ describe('addMember handler', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Only admins can add team members',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN' },
+    });
   });
 
   it('throws when team not found in organization', async () => {
@@ -124,9 +130,9 @@ describe('addMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce(null);
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Team not found in this organization',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'TEAM_NOT_FOUND' },
+    });
   });
 
   it('throws when team belongs to different organization', async () => {
@@ -139,9 +145,9 @@ describe('addMember handler', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Team not found in this organization',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'TEAM_NOT_FOUND' },
+    });
   });
 
   it('throws when target user is not an org member', async () => {
@@ -157,9 +163,9 @@ describe('addMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce({ page: [] });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'User is not a member of this organization',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'USER_NOT_ORG_MEMBER' },
+    });
   });
 
   it('throws when user is already a team member', async () => {
@@ -181,9 +187,9 @@ describe('addMember handler', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'User is already a member of this team',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'ALREADY_TEAM_MEMBER' },
+    });
   });
 
   it('creates team member successfully', async () => {
@@ -263,7 +269,9 @@ describe('removeMember handler', () => {
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow('Unauthenticated');
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'UNAUTHENTICATED' },
+    });
   });
 
   it('throws when team member not found', async () => {
@@ -274,9 +282,9 @@ describe('removeMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce(null);
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Team member not found',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'TEAM_MEMBER_NOT_FOUND' },
+    });
   });
 
   it('throws when non-admin removes another member', async () => {
@@ -291,9 +299,9 @@ describe('removeMember handler', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Only admins can remove other team members',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'FORBIDDEN' },
+    });
   });
 
   it('allows self-removal for non-admin when team has multiple members', async () => {
@@ -356,9 +364,9 @@ describe('removeMember handler', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Cannot remove the last team member. Delete the team instead.',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'LAST_TEAM_MEMBER' },
+    });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
@@ -379,9 +387,9 @@ describe('removeMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce(null);
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Cannot remove the last team member. Delete the team instead.',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'LAST_TEAM_MEMBER' },
+    });
     expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
@@ -399,9 +407,9 @@ describe('removeMember handler', () => {
     ctx.runQuery.mockResolvedValueOnce(null);
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Team not found in this organization',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'TEAM_NOT_FOUND' },
+    });
   });
 
   it('throws when team belongs to different organization', async () => {
@@ -421,9 +429,9 @@ describe('removeMember handler', () => {
     });
     const handler = await getHandler();
 
-    await expect(handler(ctx, defaultArgs)).rejects.toThrow(
-      'Team not found in this organization',
-    );
+    await expect(handler(ctx, defaultArgs)).rejects.toMatchObject({
+      data: { code: 'TEAM_NOT_FOUND' },
+    });
   });
 
   it('successfully removes a member when team has multiple members', async () => {

@@ -4,11 +4,12 @@ import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { Download } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { ActivityLogView } from '@/app/features/settings/audit-logs/components/activity-log-view';
+import { AuditIntegrityPanel } from '@/app/features/settings/audit-logs/components/audit-integrity-panel';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { ErrorLogTable } from '@/app/features/settings/audit-logs/components/error-log-table';
@@ -27,12 +28,23 @@ interface AuditLogsPageProps {
   organizationId: string;
   category?: string;
   onCategoryChange: (category: string | undefined) => void;
+  /** Active tab key, sourced from the URL so reload/deep-link/Back restore it. */
+  tab?: string;
+  onTabChange: (tab: string) => void;
+  /**
+   * `logId` from the URL (a notification deep link). When present, the audit
+   * table reveals that row's detail dialog on the default Audit tab (#1845).
+   */
+  revealLogId?: string;
 }
 
 export function AuditLogsPage({
   organizationId,
   category,
   onCategoryChange,
+  tab,
+  onTabChange,
+  revealLogId,
 }: AuditLogsPageProps) {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
@@ -42,6 +54,27 @@ export function AuditLogsPage({
   const memberContext = useCurrentMemberContext(organizationId);
   const memberRole = memberContext.data?.role;
   const isAdminUser = memberRole === 'admin' || memberRole === 'owner';
+
+  // A "reveal request" for the audit table's detail dialog: the URL `logId`
+  // (notification deep link) and the integrity panel's "open broken row" button
+  // both feed it. The bumping `seq` re-triggers the reveal even for the same
+  // `logId` (so re-clicking "open row" after closing the dialog reopens it).
+  const [reveal, setReveal] = useState<{ logId: string; seq: number } | null>(
+    null,
+  );
+  const requestReveal = useCallback((logId: string) => {
+    setReveal((prev) => ({ logId, seq: (prev?.seq ?? 0) + 1 }));
+  }, []);
+  useEffect(() => {
+    if (revealLogId) requestReveal(revealLogId);
+  }, [revealLogId, requestReveal]);
+
+  // Tabs are driven controlled off the URL `tab` key (default "audit"). The
+  // category filter only feeds the audit + errors queries, so it's a no-op on
+  // the "Block counters" and "Activity logs" tabs — render it only where it
+  // actually filters something.
+  const activeTab = tab ?? 'audit';
+  const showCategoryFilter = activeTab === 'audit' || activeTab === 'errors';
 
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
@@ -144,15 +177,24 @@ export function AuditLogsPage({
         description={t('logs.subheading')}
         className="min-h-0 flex-1"
       >
+        {isAdminUser && (
+          <AuditIntegrityPanel
+            organizationId={organizationId}
+            onOpenRow={requestReveal}
+          />
+        )}
         <Tabs
-          defaultValue="audit"
+          value={activeTab}
+          onValueChange={onTabChange}
           className="flex min-h-0 flex-1 flex-col"
           actions={
             <Row gap={2}>
-              <DataTableFilters
-                filters={auditFilterConfigs}
-                onClearAll={handleClearFilters}
-              />
+              {showCategoryFilter && (
+                <DataTableFilters
+                  filters={auditFilterConfigs}
+                  onClearAll={handleClearFilters}
+                />
+              )}
               {isAdminUser && (
                 <>
                   <Button
@@ -189,6 +231,9 @@ export function AuditLogsPage({
                 <AuditLogTable
                   paginatedResult={paginatedResult}
                   userEmailMap={userEmailMap}
+                  organizationId={organizationId}
+                  revealLogId={reveal?.logId}
+                  revealNonce={reveal?.seq}
                 />
               ),
             },

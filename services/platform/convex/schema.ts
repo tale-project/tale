@@ -17,8 +17,17 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
-import { appInstallationsTable, appProjectBindingsTable } from './apps/schema';
-import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
+import {
+  appInstallationsTable,
+  appProjectBindingsTable,
+  appUploadClaimTable,
+  appUploadIntentTable,
+} from './apps/schema';
+import {
+  auditIntegrityProgressTable,
+  auditLogChainGenesisTable,
+  auditLogsTable,
+} from './audit_logs/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
   notificationPreferencesTable,
@@ -97,7 +106,6 @@ import {
   promptTemplatesTable,
 } from './prompts/schema';
 import { reasoningProfilesTable } from './reasoning_profiles/schema';
-import { sandboxExecutionsTable } from './sandbox/schema';
 import {
   sandboxAdmissionTicketsTable,
   sandboxAgentCheckpointsTable,
@@ -111,6 +119,11 @@ import {
 import { skillUploadClaimTable, skillUploadIntentTable } from './skills/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import {
+  supportCaseActivityTable,
+  supportCaseCommentsTable,
+  supportCasesTable,
+} from './support_cases/schema';
 import {
   agentTaskMetricsDailyTable,
   taskAgentRunsTable,
@@ -158,9 +171,12 @@ import {
 export default defineSchema({
   appInstallations: appInstallationsTable,
   appProjectBindings: appProjectBindingsTable,
+  appUploadClaims: appUploadClaimTable,
+  appUploadIntents: appUploadIntentTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
+  auditIntegrityProgress: auditIntegrityProgressTable,
   // Generic file→cache mirror for all `v8-sync` config domains (governance
   // today). Source of truth is the per-org JSON files under
   // `$TALE_CONFIG_DIR/<org>/governance/`; this table is re-derivable. See
@@ -271,8 +287,13 @@ export default defineSchema({
   // (migrated by versions/.../enterprise_sso_unify).
   ssoConnections: ssoConnectionsTable,
   ssoProvisioningLinks: ssoProvisioningLinksTable,
+  // Customer support portal (issue #1923): org-scoped cases worked by support
+  // staff through their lifecycle, with escalation, SLA and a comment thread.
+  // See `support_cases/schema.ts`.
+  supportCases: supportCasesTable,
+  supportCaseComments: supportCaseCommentsTable,
+  supportCaseActivity: supportCaseActivityTable,
   vendors: vendorsTable,
-  sandboxExecutions: sandboxExecutionsTable,
   sandboxSessions: sandboxSessionsTable,
   sandboxSessionTokens: sandboxSessionTokensTable,
   sandboxSessionOps: sandboxSessionOpsTable,

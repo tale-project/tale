@@ -53,6 +53,12 @@ If a provider exposes OAuth2 but no discovery document, choose **OAuth2** and en
 
 Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL) and SP-initiated SAML (a member clicks **Sign in with SSO** and Tale redirects to the IdP). Signed assertions are required; encrypted assertions are supported when you supply an SP keypair.
 
+## Several organizations on one deployment
+
+A deployment can host more than one organization, each with its own connection. Sign-in routes by the **Email domain** field: set it on each connection (for example `example.com`), and members who enter their email on the login page reach their organization's IdP. With a single enabled connection the field is optional — sign-in falls back to that connection. With several, there is no fallback: a sign-in attempt that cannot be routed asks for the organization email address instead of guessing a connection.
+
+Connections **without** an email domain cannot be reached by address matching, so the SSO screen lists them by **Display name** for manual selection. That display name is visible to anyone on the login page — set an email domain on a connection to keep it off the list.
+
 ## Provisioning: roles and teams
 
 Every protocol shares one provisioning policy:
@@ -65,7 +71,7 @@ Every protocol shares one provisioning policy:
 
 SCIM lets your IdP push changes without anyone signing in. In the **SCIM provisioning** section, click **Generate token** — copy it once (it is never shown again) — and paste it, along with the **SCIM base URL** shown, into your IdP's provisioning settings. The IdP authenticates with the token as a bearer credential; Tale resolves the organisation from the token, so it is the tenant boundary.
 
-Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`) or sends a delete, the member's role is set to `disabled` (which removes their access) rather than hard-deleting them, so re-activation restores their prior role.
+Tale implements SCIM 2.0 **Users** and **Groups**: create, read, list (with `userName`/`displayName` filters), replace, patch, and delete. Provisioned users map to organisation members; groups map to teams. **Deactivation is soft** — when the IdP sets a user inactive (`active: false`), the member's role is set to `disabled` (which removes their access), and re-activation restores their prior role. A SCIM **delete** removes the membership from the organisation; the user account itself is kept, and re-provisioning attaches it again at the connection's default role. The organisation owner can never be de-provisioned via SCIM.
 
 ## Verifying
 

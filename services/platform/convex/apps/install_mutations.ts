@@ -2,6 +2,8 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
+import { jsonRecordValidator } from '../lib/validators/json';
+import { appWorkflowSlugs } from './app_workflow_slugs';
 
 const resourceValidator = v.object({
   domain: v.string(),
@@ -145,6 +147,35 @@ export const unbindAppFromProject = internalMutation({
 });
 
 /**
+ * List a `scope: 'project'` app's bindings (project + that project's per-project
+ * config) for the org. Drives `syncAppSchedules`: one schedule per bound project,
+ * seeded with the project's own config so two projects never share a schedule.
+ */
+export const listAppBindingsInternal = internalQuery({
+  args: { organizationId: v.string(), appSlug: v.string() },
+  returns: v.array(
+    v.object({
+      projectId: v.id('projects'),
+      config: v.optional(jsonRecordValidator),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out: {
+      projectId: Doc<'appProjectBindings'>['projectId'];
+      config?: Record<string, unknown>;
+    }[] = [];
+    for await (const b of ctx.db
+      .query('appProjectBindings')
+      .withIndex('by_org_slug_project', (q) =>
+        q.eq('organizationId', args.organizationId).eq('appSlug', args.appSlug),
+      )) {
+      out.push({ projectId: b.projectId, config: b.config });
+    }
+    return out;
+  },
+});
+
+/**
  * Guard + lock for full uninstall (I1/I7). Refuses with `APP_HAS_BOUND_PROJECTS`
  * (naming the projects) while any binding remains — the mirror of the
  * project-delete guard — so a project still using the app never has its shared
@@ -236,9 +267,160 @@ export const deleteAppInstallation = internalMutation({
 });
 
 /**
+ * Delete a project's per-project schedules for an app (the unbind path). A
+ * `scope: 'project'` app gets ONE schedule per bound project; removing the
+ * binding must remove exactly that project's schedules and no other's. Workflow
+ * slugs come from the authoritative `wfInstallations` ownership ledger (NOT the
+ * `appInstallations.resources` file ledger — that never lists workflows, so it
+ * would delete nothing), and the delete is keyed by (org, workflowSlug,
+ * projectId) so a sibling project's identical schedule is untouched. No-op when
+ * the app owns no workflows.
+ */
+export const deleteProjectSchedules = internalMutation({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    projectId: v.id('projects'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const workflowSlugs = await appWorkflowSlugs(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+    );
+    for (const workflowSlug of workflowSlugs) {
+      for await (const sched of ctx.db
+        .query('wfSchedules')
+        .withIndex('by_workflowSlug', (q) =>
+          q.eq('workflowSlug', workflowSlug),
+        )) {
+        if (
+          sched.organizationId === args.organizationId &&
+          sched.projectId === args.projectId
+        ) {
+          await ctx.db.delete(sched._id);
+        }
+      }
+    }
+    return null;
+  },
+});
+
+const desiredScheduleValidator = v.object({
+  workflowSlug: v.string(),
+  cronExpression: v.string(),
+  timezone: v.optional(v.string()),
+  projectId: v.optional(v.id('projects')),
+  variables: v.optional(jsonRecordValidator),
+});
+
+/**
+ * Reconcile an app's scheduled workflows to the DESIRED set — an idempotent
+ * "make it so" that turns a plain reinstall/bind into the recovery path (no
+ * manual data surgery to fix drifted or orphaned schedules).
+ *
+ * `desired` is (every current binding × each workflow's schedule specs) with the
+ * binding's config already folded into `variables`, built by the install action.
+ * The identity of a schedule is (workflowSlug, cronExpression, projectId).
+ *
+ *  - EXISTS + desired → CONVERGE: patch `variables`/`timezone` to the desired
+ *    value. Config is the source of truth, so this is what heals a schedule whose
+ *    config was set AFTER it was provisioned (the reason a reinstall previously
+ *    couldn't fix it — `ensureSchedule` skipped existing rows). `isActive` is left
+ *    untouched, so a schedule the operator disabled stays disabled (opt-out sticks).
+ *  - desired, not existing → CREATE (active).
+ *  - EXISTS + NOT desired → PRUNE: an org-level leftover from a pre-project-scope
+ *    era, or a schedule for a since-unbound project. Scoped strictly to THIS app's
+ *    own workflow slugs (the `wfInstallations` ownership ledger), so no other
+ *    app's or a global workflow's schedule is ever touched.
+ */
+export const reconcileAppSchedules = internalMutation({
+  args: {
+    organizationId: v.string(),
+    appSlug: v.string(),
+    desired: v.array(desiredScheduleValidator),
+  },
+  returns: v.object({
+    created: v.number(),
+    updated: v.number(),
+    pruned: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const keyOf = (
+      workflowSlug: string,
+      cronExpression: string,
+      projectId: string | undefined,
+    ): string => `${workflowSlug} ${cronExpression} ${projectId ?? ''}`;
+
+    const desiredByKey = new Map(
+      args.desired.map((d) => [
+        keyOf(d.workflowSlug, d.cronExpression, d.projectId),
+        d,
+      ]),
+    );
+    const seen = new Set<string>();
+    let created = 0;
+    let updated = 0;
+    let pruned = 0;
+
+    const slugs = await appWorkflowSlugs(
+      ctx,
+      args.organizationId,
+      args.appSlug,
+    );
+    for (const workflowSlug of slugs) {
+      for await (const sched of ctx.db
+        .query('wfSchedules')
+        .withIndex('by_workflowSlug', (q) =>
+          q.eq('workflowSlug', workflowSlug),
+        )) {
+        if (sched.organizationId !== args.organizationId) continue;
+        const key = keyOf(workflowSlug, sched.cronExpression, sched.projectId);
+        const want = desiredByKey.get(key);
+        // Converge the FIRST row for a desired key; prune anything else — a row
+        // for no-longer-desired scope OR a duplicate of a key already converged
+        // (so an accidental duplicate schedule collapses to exactly one).
+        if (want && !seen.has(key)) {
+          seen.add(key);
+          await ctx.db.patch(sched._id, {
+            variables: want.variables,
+            timezone: want.timezone ?? 'UTC',
+          });
+          updated++;
+        } else {
+          await ctx.db.delete(sched._id);
+          pruned++;
+        }
+      }
+    }
+
+    for (const [key, d] of desiredByKey) {
+      if (seen.has(key)) continue;
+      await ctx.db.insert('wfSchedules', {
+        organizationId: args.organizationId,
+        projectId: d.projectId,
+        workflowSlug: d.workflowSlug,
+        cronExpression: d.cronExpression,
+        timezone: d.timezone ?? 'UTC',
+        variables: d.variables,
+        isActive: true,
+        createdAt: Date.now(),
+        createdBy: 'system',
+      });
+      created++;
+    }
+
+    return { created, updated, pruned };
+  },
+});
+
+/**
  * Reverse a workflow's registration: delete its install record + every event
  * subscription + schedule for (org, slug). wfInstallations has no cascade, so
- * the trigger rows must be removed explicitly (mirrors the install loop).
+ * the trigger rows must be removed explicitly (mirrors the install loop). The
+ * schedule sweep keys on (org, slug) only, so it also clears every project's
+ * per-project schedule for the workflow — correct for a full uninstall.
  */
 export const deregisterWorkflow = internalMutation({
   args: { organizationId: v.string(), workflowSlug: v.string() },

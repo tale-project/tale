@@ -17,8 +17,16 @@ const WorkforceDashboard = lazyComponent(() =>
   })),
 );
 
-const searchSchema = z.object({
-  period: z.enum(['7', '30', '90']).optional(),
+export const searchSchema = z.object({
+  // The router parses a bare `?period=90` as the JSON number 90, which fails a
+  // plain string enum and crashes the page (issue #1987). Coerce to a string
+  // first, then fall back to the default window for any out-of-range value so a
+  // shared/bookmarked URL never renders the error boundary.
+  period: z.coerce
+    .string()
+    .pipe(z.enum(['7', '30', '90']))
+    .catch('30')
+    .optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/agents/metrics')({

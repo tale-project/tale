@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Use this skill whenever you add new behaviour a user or caller can see — a feature, screen, field, route, endpoint, flag, setting, or capability. It is the senior-engineer method: understand the real intent, feel the current product, reuse what already exists before adding anything, ship a thin vertical slice, and prove it works. Load it the moment a task says "add", "build", "support", "create", "implement", or "let users…", or whenever you're about to write code that resembles something the project may already do. Never start a feature without it. For a behaviour-preserving change use make-improvement; for a defect use fix-bug.
+description: 'Use this skill whenever you add new behaviour a user or caller can see — a feature, screen, field, route, endpoint, flag, setting, or capability. It is the senior-engineer method: understand the real intent, feel the current product, reuse what already exists before adding anything, ship a thin vertical slice, and prove it works. Load it the moment a task says "add", "build", "support", "create", "implement", or "let users…", or whenever you''re about to write code that resembles something the project may already do. Never start a feature without it. For a behaviour-preserving change use make-improvement; for a defect use fix-bug.'
 ---
 
 # implement-feature
@@ -18,7 +18,7 @@ setting, a capability. Skip the ceremony only for a one-line change in a place y
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you write any code:
+**Invoke `write-notes`** and answer this form before you implement:
 
 - **Intent:** Describe exactly what a user or caller will be able to do that they can't today — and what stays the same.
 - **Status quo:** Describe how the area behaves now and how it's built — which files/components own it, and what you saw when you ran or read it.
@@ -27,28 +27,25 @@ setting, a capability. Skip the ceremony only for a one-line change in a place y
 - **Ripple:** For each area a change of this shape can touch (tests, migration, docs, i18n, a11y), describe what this one requires.
 - **Risks & unknowns:** Where are you least confident? Describe the assumption that, if wrong, would break this — and how you'd catch it before it bites.
 
-## Gate A — before you write any code
+## Gate A — before you write code
 
-The senior move is to slow down here. **Tick every box before the first edit** — you have not earned the
-right to implement until they all hold:
+The senior move is to slow down here. **Tick every box, or N/A with a reason — an unticked box means
+not done.**
 
-- [ ] **Intent restated, the answerable questions clarified upfront.** If the request forks or is
-      ambiguous in a way that changes the design, **ask — don't guess**; a wrong guess wastes the whole
-      feature. Keep asking the moment you hit a roadblock mid-build.
-- [ ] **Felt the status quo.** Ran/navigated the real app (or exercised the real code path) for the area
-      you're extending — you've experienced the current UI/UX and adjacent features, not imagined them.
-- [ ] **Searched for the existing concept** by vocabulary (the words a user or dev would use — catalog,
-      list, picker, invite, …), in order: the design system / shared components → shared app + library
-      code → closest sibling feature. **You can name the concept you're reusing — or say why none fits.**
-      A second catalog/list/form that already exists in another shape is a defect, not a feature.
-- [ ] **Discovered the house conventions** from the enforced sources, not memory — the project's
-      linter/formatter/type configs, its commit/CI config, its test setup, and the surrounding code — so
-      your code matches and passes the gate the first time.
-- [ ] **Decided reuse → extend → generalize.** Create new only when nothing fits, in its canonical home,
-      under a name the next dev will search for.
-- [ ] **Mapped the blast radius** — who imports/calls this, and what a change of this shape must also
-      touch (translations, migrations, docs, tests, accessibility) — and picked the smallest, most
-      reversible slice.
+- [ ] **Note** — the form above is answered and written first (`write-notes`).
+- [ ] **Intent** — restated in your own words; every design-changing ambiguity **asked, not guessed**
+      — a wrong guess wastes the whole feature, and you keep asking the moment you hit a roadblock.
+      Facts you lack are researched (`deep-research`); preferences are asked.
+- [ ] **Status quo** — you ran or navigated the real app (or exercised the real code path) for the
+      area you're extending; you've experienced the current behaviour, not imagined it.
+- [ ] **Reuse** — the existing concept is found (`search-codebase`) and **named — or you can say why
+      none fits**. Reuse → extend → generalize: a second catalog/list/form that already exists in
+      another shape is a defect, not a feature; create new only when nothing fits, in its canonical
+      home, under a name the next dev will search for.
+- [ ] **Conventions** — discovered from the project's tooling and its neighbouring code
+      (`search-codebase` orient), not from memory, so your code passes the gate the first time.
+- [ ] **Blast radius** — every other site of the concept and every cross-cutting artifact enumerated
+      (`search-codebase` sweep) — and the smallest, most reversible slice picked.
 
 ## Build the vertical slice
 
@@ -61,16 +58,14 @@ right to implement until they all hold:
 
 ## Gate B — before you call it done
 
-**Tick every box, or mark it N/A with a reason.** The concept is universal; check how _this_ project
-enforces each. An unticked box means not done — don't claim otherwise.
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **Tests carry the feature** — happy path + one edge + one error, and you watched them pass.
-- [ ] **A data-model change ships its migration** in the same change — reversible and tested.
-- [ ] **Every user-visible string is localized** the way this project does it — all its locales.
-- [ ] **Docs updated** for anything a user can see, configure, or call.
-- [ ] **Accessibility** for any UI — real elements, keyboard reachable, labelled, sufficient contrast.
-- [ ] **Verified by observing the real outcome** — you ran it and watched it behave, not "it compiles".
-- [ ] **The gate is green** — the project's format/lint/typecheck/test command passes.
+- [ ] **Slice integrated** — the thin slice works end-to-end through real wiring; no dead flags or
+      orphaned UI.
+- [ ] **Definition of done** — walk `create-pr`'s shared checklist now, not at PR time: green gate,
+      tests, migration, locales, docs, accessibility.
+- [ ] **Sweep** — every site enumerated at Gate A is changed or explicitly ruled out (`search-codebase`).
+- [ ] **Observed** — the real outcome watched (`test-code`), never a green typecheck alone.
 
 Then take it to a clean PR with `create-pr`.
 
@@ -78,6 +73,6 @@ Then take it to a clean PR with `create-pr`.
 
 - **Thin slice over big bang.** Five small integrated commits that each keep the suite green beat one
   thousand-line drop nobody can review or revert.
-- **The reuse miss you can't see is the costly one.** If you're about to name a new component
-  `XList`/`XGrid`/`XPicker`, stop and grep the words first — the project almost certainly already has
+- **The reuse miss you can't see is the costly one.** About to name a new component
+  `XList`/`XGrid`/`XPicker`? Stop — `search-codebase` first; the project almost certainly already has
   the concept.
