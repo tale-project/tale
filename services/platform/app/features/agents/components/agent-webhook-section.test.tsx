@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
+import type { AgentWebhook } from '../hooks/queries';
 import { AgentWebhookSection } from './agent-webhook-section';
 
 // Migrated from the `agent-editor` E2E "webhook tab: renders the section and
@@ -12,14 +13,13 @@ import { AgentWebhookSection } from './agent-webhook-section';
 // than a mutate. None of that needs a backend — with an empty webhook list the
 // whole section is pure client-side UI — so it belongs at the component tier.
 //
-// We mock the webhook query to an empty list (the freshly-created-agent state
-// the E2E saw) and the webhook mutations (only touched on create/toggle/delete,
-// never at mount), and assert the same three seams: the "Webhooks" section
-// heading (h2), the "Create webhook" button, and the "No webhooks yet" empty
-// state.
+// We mock the webhook query (a mutable list so a test can seed a row), and the
+// webhook mutations (only touched on create/toggle/delete, never at mount).
+
+let mockWebhooks: AgentWebhook[] = [];
 
 vi.mock('../hooks/queries', () => ({
-  useAgentWebhooks: () => ({ webhooks: [], isLoading: false }),
+  useAgentWebhooks: () => ({ webhooks: mockWebhooks, isLoading: false }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -47,6 +47,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 const TITLE = 'Webhooks';
 const CREATE_BUTTON = 'Create webhook';
 const EMPTY_TITLE = 'No webhooks yet';
+const COPY_URL = 'Copy webhook URL';
 
 // The DataTable's actions column intentionally uses an empty header (header:
 // ''), a standard data-table pattern. Disable the empty-table-header rule so we
@@ -55,6 +56,20 @@ const EMPTY_TITLE = 'No webhooks yet';
 const axeOptions = {
   rules: { 'empty-table-header': { enabled: false } },
 };
+
+function webhookRow(overrides: Partial<AgentWebhook> = {}): AgentWebhook {
+  return {
+    _id: 'wh-1',
+    token: 'tok-abc',
+    isActive: true,
+    lastTriggeredAt: undefined,
+    ...overrides,
+  } as AgentWebhook;
+}
+
+afterEach(() => {
+  mockWebhooks = [];
+});
 
 describe('AgentWebhookSection', () => {
   it('renders the section heading, create affordance, and empty state', async () => {
@@ -78,5 +93,65 @@ describe('AgentWebhookSection', () => {
     expect(screen.getByText(EMPTY_TITLE)).toBeInTheDocument();
 
     await checkAccessibility(container, axeOptions);
+  });
+
+  // Regression for #2353: a denied clipboard write used to be swallowed by a
+  // comment-only catch, so the user believed the URL was copied. The shared
+  // `useCopy` hook now logs the failure (and shows a destructive toast); assert
+  // the failure surfaces and the row is NOT flipped to its "copied" state.
+  describe('copy webhook URL', () => {
+    beforeEach(() => {
+      mockWebhooks = [webhookRow()];
+    });
+
+    it('surfaces a denied clipboard write instead of swallowing it', async () => {
+      const errorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+
+      render(
+        <AgentWebhookSection organizationId="org-1" agentSlug="e2e-editor" />,
+      );
+
+      const writeText = vi
+        .spyOn(navigator.clipboard, 'writeText')
+        .mockRejectedValue(new Error('clipboard denied'));
+
+      const copyButton = screen.getByRole('button', { name: COPY_URL });
+      fireEvent.click(copyButton);
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledTimes(1);
+      });
+
+      // The failure is logged, not swallowed by a comment-only catch.
+      await waitFor(() => {
+        expect(errorSpy).toHaveBeenCalledWith(
+          'Copy to clipboard failed:',
+          expect.any(Error),
+        );
+      });
+
+      // The button never flips to its transient "copied" check on failure.
+      expect(copyButton.querySelector('.text-green-500')).toBeNull();
+    });
+
+    it('copies the webhook URL on success', async () => {
+      render(
+        <AgentWebhookSection organizationId="org-1" agentSlug="e2e-editor" />,
+      );
+
+      const writeText = vi
+        .spyOn(navigator.clipboard, 'writeText')
+        .mockResolvedValue(undefined);
+
+      fireEvent.click(screen.getByRole('button', { name: COPY_URL }));
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(
+          'https://example.test/api/agents/wh/tok-abc',
+        );
+      });
+    });
   });
 });
