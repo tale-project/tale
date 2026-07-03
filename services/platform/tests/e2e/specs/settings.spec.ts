@@ -70,7 +70,7 @@ test.describe('core settings', () => {
     // original value). The toast is the commit signal — we wait on it, then
     // reload and assert the persisted FIELD (not the toast) for persistence.
     await expect(
-      page.getByText(t('toast.success.profileUpdated')).first(),
+      page.getByText(t('toast.success.profileUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(newName, { timeout: TIMEOUT.PERSIST });
@@ -81,7 +81,7 @@ test.describe('core settings', () => {
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
     await expect(
-      page.getByText(t('toast.success.profileUpdated')).first(),
+      page.getByText(t('toast.success.profileUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {

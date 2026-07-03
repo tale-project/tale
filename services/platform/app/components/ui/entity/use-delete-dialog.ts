@@ -75,6 +75,7 @@ interface DeleteDialogTranslations {
   description: string;
   warningText?: string;
   successMessage: string;
+  successDescription?: string;
   errorMessage: string;
 }
 
@@ -126,7 +127,8 @@ export function useDeleteDialogTranslations(
       title: tEntity(keys.title),
       description: tEntity(keys.description, { name: '{name}' }),
       warningText: keys.warningText ? tEntity(keys.warningText) : undefined,
-      successMessage: tToast('success.deleted'),
+      successMessage: tToast('success.deleted.title'),
+      successDescription: tToast('success.deleted.description'),
       errorMessage: tEntity(keys.errorMessage),
     }),
     [tEntity, tToast, keys],

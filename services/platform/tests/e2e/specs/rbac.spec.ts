@@ -63,7 +63,7 @@ test('admin adds a member who cannot see the add-member control', async ({
   // A new credentialed member surfaces the generated-credentials view; the
   // success toast confirms the create either way.
   await expect(
-    page.getByText(t('toast.success.newMemberCreated')).first(),
+    page.getByText(t('toast.success.newMemberCreated.title')).first(),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   // Second context as the new member: the add-member control is admin-only, so

@@ -139,8 +139,11 @@ export function AddMemberDialog({
 
       toast({
         title: result.isExistingUser
-          ? tToast('success.existingUserAdded')
-          : tToast('success.newMemberCreated'),
+          ? tToast('success.existingUserAdded.title')
+          : tToast('success.newMemberCreated.title'),
+        description: result.isExistingUser
+          ? tToast('success.existingUserAdded.description')
+          : tToast('success.newMemberCreated.description'),
         variant: 'success',
       });
 
@@ -180,7 +183,8 @@ export function AddMemberDialog({
         return;
       }
       toast({
-        title: tToast('error.addMemberFailed'),
+        title: tToast('error.addMemberFailed.title'),
+        description: tToast('error.addMemberFailed.description'),
         variant: 'destructive',
       });
     }

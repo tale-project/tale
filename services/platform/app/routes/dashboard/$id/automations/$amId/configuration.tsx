@@ -135,10 +135,18 @@ function ConfigurationPage() {
             readResult && readResult.ok ? readResult.hash : undefined,
         });
         await refetch();
-        toast({ title: tToast('success.saved'), variant: 'success' });
+        toast({
+          title: tToast('success.saved.title'),
+          description: tToast('success.saved.description'),
+          variant: 'success',
+        });
       } catch (error) {
         console.error('Failed to save configuration:', error);
-        toast({ title: tToast('error.saveFailed'), variant: 'destructive' });
+        toast({
+          title: tToast('error.saveFailed.title'),
+          description: tToast('error.saveFailed.description'),
+          variant: 'destructive',
+        });
         throw error;
       }
     },

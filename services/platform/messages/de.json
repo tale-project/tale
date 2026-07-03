@@ -7147,33 +7147,96 @@
   },
   "toast": {
     "success": {
-      "saved": "Änderungen gespeichert",
-      "deleted": "Gelöscht",
-      "profileUpdated": "Profil aktualisiert",
-      "passwordChanged": "Passwort geändert",
-      "passwordSet": "Passwort festgelegt",
-      "organizationUpdated": "Organisation aktualisiert",
-      "newMemberCreated": "Neues Mitglied erstellt und zur Organisation hinzugefügt",
-      "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
-      "automationDuplicated": "Automatisierung dupliziert",
-      "automationRenamed": "Automatisierung umbenannt",
-      "brandingUpdated": "Branding aktualisiert",
-      "faviconGenerated": "Favicon aus deinem Logo erzeugt"
+      "saved": {
+        "title": "Änderungen gespeichert",
+        "description": "Deine Änderungen wurden gespeichert."
+      },
+      "deleted": {
+        "title": "Gelöscht",
+        "description": "Das Element wurde gelöscht."
+      },
+      "profileUpdated": {
+        "title": "Profil aktualisiert",
+        "description": "Deine Profiländerungen wurden gespeichert."
+      },
+      "passwordChanged": {
+        "title": "Passwort geändert",
+        "description": "Verwende dein neues Passwort bei der nächsten Anmeldung."
+      },
+      "passwordSet": {
+        "title": "Passwort festgelegt",
+        "description": "Du kannst dich jetzt mit deinem Passwort anmelden."
+      },
+      "organizationUpdated": {
+        "title": "Organisation aktualisiert",
+        "description": "Deine Änderungen an der Organisation wurden gespeichert."
+      },
+      "newMemberCreated": {
+        "title": "Mitglied hinzugefügt",
+        "description": "Das neue Mitglied wurde erstellt und zu deiner Organisation hinzugefügt."
+      },
+      "existingUserAdded": {
+        "title": "Mitglied hinzugefügt",
+        "description": "Der Benutzer wurde zu deiner Organisation hinzugefügt."
+      },
+      "automationDuplicated": {
+        "title": "Automatisierung dupliziert",
+        "description": "Eine Kopie der Automatisierung wurde erstellt."
+      },
+      "automationRenamed": {
+        "title": "Automatisierung umbenannt",
+        "description": "Der neue Name wurde gespeichert."
+      },
+      "brandingUpdated": {
+        "title": "Branding aktualisiert",
+        "description": "Deine Branding-Änderungen wurden gespeichert."
+      },
+      "faviconGenerated": {
+        "title": "Favicon erzeugt",
+        "description": "Wir haben aus deinem Logo ein Favicon erstellt."
+      }
     },
     "error": {
-      "saveFailed": "Änderungen konnten nicht gespeichert werden",
-      "profileUpdateFailed": "Profil konnte nicht aktualisiert werden",
-      "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte überprüfe dein aktuelles Passwort und versuche es erneut.",
-      "organizationUpdateFailed": "Organisation konnte nicht aktualisiert werden",
-      "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
+      "saveFailed": {
+        "title": "Änderungen konnten nicht gespeichert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "profileUpdateFailed": {
+        "title": "Profil konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "passwordChangeFailed": {
+        "title": "Passwort konnte nicht geändert werden",
+        "description": "Bitte überprüfe dein aktuelles Passwort und versuche es erneut."
+      },
+      "organizationUpdateFailed": {
+        "title": "Organisation konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "brandingUpdateFailed": {
+        "title": "Branding konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
       "imageUploadFailed": "Bild konnte nicht hochgeladen werden",
       "imageTooLarge": "Bild ist zu groß. Maximale Größe ist 2 MB.",
       "imageMimeUnsupported": "Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.",
       "imageTypeInvalid": "Ungültiger Bildtyp",
-      "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
-      "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
-      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
-      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      "addMemberFailed": {
+        "title": "Mitglied konnte nicht hinzugefügt werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "automationDuplicateFailed": {
+        "title": "Automatisierung konnte nicht dupliziert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "automationDeleteFailed": {
+        "title": "Automatisierung konnte nicht gelöscht werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "generic": {
+        "title": "Etwas ist schiefgelaufen",
+        "description": "Bitte versuche es erneut."
+      }
     }
   },
   "todoList": {
