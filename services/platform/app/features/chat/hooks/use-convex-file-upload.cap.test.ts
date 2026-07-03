@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { CHAT_MAX_FILE_COUNT } from '@/lib/shared/file-types';
+import { CHAT_MAX_FILE_COUNT, detectMediaMime } from '@/lib/shared/file-types';
+import { compressImage } from '@/lib/utils/compress-image';
 
 import { useConvexFileUpload } from './use-convex-file-upload';
 
@@ -62,12 +63,20 @@ vi.mock('@/lib/shared/file-types', async (importOriginal) => {
 
 const toastMock = vi.mocked(toast);
 const useUploadPolicyMock = vi.mocked(useUploadPolicy);
+const detectMediaMimeMock = vi.mocked(detectMediaMime);
+const compressImageMock = vi.mocked(compressImage);
 
 const MB = 1024 * 1024;
 
 // Override `size` so the test doesn't allocate the simulated byte count.
 function makeAudioFile(name: string, size: number): File {
   const file = new File([new Uint8Array(0)], name, { type: 'audio/mpeg' });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
+}
+
+function makeImageFile(name: string, size: number): File {
+  const file = new File([new Uint8Array(0)], name, { type: 'image/png' });
   Object.defineProperty(file, 'size', { value: size });
   return file;
 }
@@ -428,5 +437,85 @@ describe('useConvexFileUpload — slot-overflow vs total-size ordering (#2029)',
     expect(
       toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the total-attachment-size check (#2031): the check
+// summed raw `file.size` for incoming images but compressed sizes for already-
+// attached ones, over-counting image batches and falsely rejecting them.
+// Compression now runs before the size check, so both sides use the stored
+// (post-compression) size. `detectMediaMime` is forced to an image type and
+// `compressImage` is stubbed to shrink each image to ~1 MB.
+// ---------------------------------------------------------------------------
+describe('useConvexFileUpload — total-size check uses compressed sizes (#2031)', () => {
+  beforeEach(() => {
+    detectMediaMimeMock.mockResolvedValue('image/png');
+    // Each image compresses down to 1 MB regardless of its raw size.
+    compressImageMock.mockImplementation(async (file: File) => {
+      const compressed = makeImageFile(file.name, 1 * MB);
+      return {
+        file: compressed,
+        wasCompressed: true,
+        originalSize: file.size,
+        finalSize: 1 * MB,
+      };
+    });
+  });
+
+  afterEach(() => {
+    // Restore the file-level default so other suites keep sniffing audio.
+    detectMediaMimeMock.mockResolvedValue('audio/mpeg');
+  });
+
+  it('accepts an image batch whose raw size exceeds the 200MB cap but compresses under it', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    // 3 × 80MB = 240MB raw (> 200MB cap) but 3 × 1MB = 3MB compressed.
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeImageFile('a.png', 80 * MB),
+        makeImageFile('b.png', 80 * MB),
+        makeImageFile('c.png', 80 * MB),
+      ]);
+    });
+
+    await waitFor(() => expect(result.current.attachments).toHaveLength(3));
+    // No "total size exceeded" rejection should have fired.
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
+    ).toBe(false);
+    // Stored sizes are the compressed sizes.
+    for (const att of result.current.attachments) {
+      expect(att.fileSize).toBe(1 * MB);
+    }
+  });
+
+  it('still rejects when even the compressed total exceeds the 200MB cap', async () => {
+    // Compress to 90MB each: 3 × 90MB = 270MB compressed (> 200MB cap).
+    compressImageMock.mockImplementation(async (file: File) => {
+      const compressed = makeImageFile(file.name, 90 * MB);
+      return {
+        file: compressed,
+        wasCompressed: true,
+        originalSize: file.size,
+        finalSize: 90 * MB,
+      };
+    });
+
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      await result.current.uploadFiles([
+        makeImageFile('a.png', 95 * MB),
+        makeImageFile('b.png', 95 * MB),
+        makeImageFile('c.png', 95 * MB),
+      ]);
+    });
+
+    expect(result.current.attachments).toHaveLength(0);
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
+    ).toBe(true);
   });
 });
