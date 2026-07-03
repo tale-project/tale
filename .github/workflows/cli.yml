@@ -139,6 +139,17 @@ jobs:
         working-directory: tools/cli/dist
         run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
 
+      # Bun finalizes the compiled binary after signing it, so the signature
+      # never seals the shipped bytes (and 1.3.12's was outright truncated —
+      # oven-sh/bun#29120). Strip and ad-hoc re-sign so the final file carries
+      # a valid seal; without one, stock macOS kernels SIGKILL the binary.
+      - name: Normalize macOS code signature
+        if: matrix.platform == 'macos'
+        working-directory: tools/cli/dist
+        run: |
+          codesign --remove-signature ${{ matrix.artifact }}
+          codesign -s - ${{ matrix.artifact }}
+
       - name: Verify binary
         working-directory: tools/cli/dist
         run: |
