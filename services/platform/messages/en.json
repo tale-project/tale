@@ -4217,6 +4217,7 @@
       "cancel": "Cancel",
       "connectionSection": "Connection",
       "authSection": "Authentication",
+      "invalidUrl": "Enter a valid HTTP or HTTPS URL",
       "validation": {
         "nameRequired": "Name is required",
         "nameFormat": "Must be lowercase alphanumeric with hyphens",

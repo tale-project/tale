@@ -4217,6 +4217,7 @@
       "cancel": "Abbrechen",
       "connectionSection": "Verbindung",
       "authSection": "Authentifizierung",
+      "invalidUrl": "Gib eine gültige HTTP- oder HTTPS-URL ein",
       "validation": {
         "nameRequired": "Name ist erforderlich",
         "nameFormat": "Muss aus Kleinbuchstaben, Ziffern und Bindestrichen bestehen",

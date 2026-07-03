@@ -2,6 +2,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { isHttpUrl } from '../../lib/utils/url';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { encryptString } from '../lib/crypto/encrypt_string';
@@ -31,6 +32,13 @@ const oauth2InputValidator = v.object({
     v.literal('authorization_code'),
   ),
 });
+
+/** Reject malformed or non-http(s) URLs at the backend boundary. */
+function assertHttpUrl(value: string | undefined, label: string): void {
+  if (value !== undefined && !isHttpUrl(value)) {
+    throw new Error(`${label} must be a valid HTTP or HTTPS URL`);
+  }
+}
 
 interface EncryptedOAuth2Config {
   tokenUrl: string;
@@ -79,6 +87,17 @@ export const create = action({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    }
+
+    if (
+      args.transportType === 'sse' ||
+      args.transportType === 'streamable_http'
+    ) {
+      assertHttpUrl(args.url ?? '', 'URL');
+    }
+    if (args.oauth2Config) {
+      assertHttpUrl(args.oauth2Config.tokenUrl, 'Token URL');
+      assertHttpUrl(args.oauth2Config.authorizationUrl, 'Authorization URL');
     }
 
     let apiKeyEncrypted: string | undefined;
@@ -133,6 +152,14 @@ export const update = action({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    }
+
+    if (args.url) {
+      assertHttpUrl(args.url, 'URL');
+    }
+    if (args.oauth2Config) {
+      assertHttpUrl(args.oauth2Config.tokenUrl, 'Token URL');
+      assertHttpUrl(args.oauth2Config.authorizationUrl, 'Authorization URL');
     }
 
     const { id, apiKey, oauth2Config: rawOAuth2, ...rest } = args;
