@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { SKILLS_GUIDANCE_HEADING } from '../../lib/skills/guidance';
+import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../lib/untrusted_content';
 import {
   ASK_IN_CHAT_ADDENDUM,
   AUTONOMOUS_MODE_ADDENDUM,
@@ -115,5 +117,47 @@ describe('buildSystemPromptAppend', () => {
     // The interactive plan addendum promises chat-UI approval; the autonomous
     // one must not.
     expect(out).not.toContain('chat UI');
+  });
+
+  // --- skills guidance ---
+
+  const GUIDANCE = `${SKILLS_GUIDANCE_HEADING}\n\n1. steps here`;
+
+  it('inserts the skills guidance after the instructions, before the posture addendum', () => {
+    const out = buildSystemPromptAppend({
+      systemInstructions: 'AGENT RULES',
+      permissionMode: 'execute',
+      skillsGuidance: GUIDANCE,
+    });
+    const at = out.indexOf(SKILLS_GUIDANCE_HEADING);
+    expect(at).toBeGreaterThan(out.indexOf('AGENT RULES'));
+    expect(at).toBeLessThan(out.indexOf(STEERING_RESPONSIVENESS_ADDENDUM));
+    // The untrusted-content rules must stay last.
+    expect(out.endsWith(UNTRUSTED_CONTENT_SYSTEM_PROMPT)).toBe(true);
+  });
+
+  it('drops an absent or empty skills guidance without a stray blank line', () => {
+    const absent = buildSystemPromptAppend({
+      systemInstructions: 'X',
+      permissionMode: 'execute',
+    });
+    const empty = buildSystemPromptAppend({
+      systemInstructions: 'X',
+      permissionMode: 'execute',
+      skillsGuidance: '',
+    });
+    expect(absent).toBe(empty);
+    expect(absent).not.toContain(SKILLS_GUIDANCE_HEADING);
+  });
+
+  it('drops the generated guidance when the instructions already carry the section', () => {
+    const out = buildSystemPromptAppend({
+      systemInstructions: `MY RULES\n\n${SKILLS_GUIDANCE_HEADING}\n\ncustom steps`,
+      permissionMode: 'execute',
+      skillsGuidance: GUIDANCE,
+    });
+    // The agent's own copy survives; the generated one is not appended twice.
+    expect(out.match(new RegExp(SKILLS_GUIDANCE_HEADING, 'g'))).toHaveLength(1);
+    expect(out).not.toContain('1. steps here');
   });
 });

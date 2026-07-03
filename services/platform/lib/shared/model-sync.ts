@@ -5,18 +5,22 @@
  *
  * Given a provider's CURRENT models, the BASE shipped defaults, and fresh FACTS
  * fetched from OpenRouter, it produces an updated model list plus a change log.
- * Three operations, all conservative:
+ * Four operations, all conservative:
  *
- *   1. UPDATE — refresh capability fields (cost, context, reasoning, caching…)
+ *   1. UPDATE  — refresh capability fields (cost, context, reasoning, caching…)
  *      from facts, but ONLY where the current value still equals the shipped
  *      default. Anything an operator edited is left untouched (3-way merge).
- *   2. ADD    — append newly-released flagship models from a curated set of
+ *   2. ADD     — append newly-released flagship models from a curated set of
  *      frontier vendors that aren't already present (and weren't previously
  *      removed by the operator).
- *   3. HIDE   — mark a strictly-older same-family model `hidden` when a newer
+ *   3. HIDE    — mark a strictly-older same-family model `hidden` when a newer
  *      version is added, again only when the operator hasn't set `hidden` by
  *      hand. Hidden models stay resolvable, so existing agents/workflows that
  *      reference them keep working — they just drop out of the pickers.
+ *   4. RETRACK — point each rolling `~vendor/<family>-latest` alias entry's
+ *      `nativeModelId` at the newest same-family concrete entry, so BYO
+ *      (direct-to-vendor) sessions follow the alias's own upgrades. 3-way like
+ *      UPDATE: an operator-edited value is left untouched.
  *
  * No IO, no Convex/Node imports — unit-testable and importable from both a
  * plain bun script and a Convex action.
@@ -192,12 +196,44 @@ interface SyncResult {
   changes: ModelSyncChange[];
 }
 
+/**
+ * The vendor-native id behind a gateway-shaped model id, for vendors whose
+ * native naming is mechanically derivable. Anthropic: strip the vendor prefix
+ * and turn version dots into dashes (`anthropic/claude-opus-4.8` →
+ * `claude-opus-4-8`). Consumed by BYO (direct-to-vendor) sessions, which
+ * cannot use gateway ids. Rolling `~vendor/…` aliases have no mechanical
+ * native equivalent — theirs is hand-set in the shipped defaults. Returns
+ * undefined for every other vendor, leaving the field to human curation.
+ */
+export function deriveNativeModelId(modelId: string): string | undefined {
+  const prefix = 'anthropic/';
+  if (!modelId.startsWith(prefix)) return undefined;
+  return modelId.slice(prefix.length).replace(/\./g, '-');
+}
+
+/**
+ * Parse a rolling `~vendor/<family>-latest` alias id into the vendor + family
+ * stem its concrete versions share (`~anthropic/claude-fable-latest` →
+ * `anthropic` / `claude-fable`, matching `parseModelId`'s familyKey for
+ * `anthropic/claude-fable-5`). Null for anything else.
+ */
+function parseRollingAlias(
+  modelId: string,
+): { vendor: string; familyKey: string } | null {
+  const match = /^~([a-z0-9-]+)\/(.+)-latest$/.exec(modelId.toLowerCase());
+  const vendor = match?.[1];
+  const familyKey = match?.[2];
+  if (vendor === undefined || familyKey === undefined) return null;
+  return { vendor, familyKey };
+}
+
 /** Build a brand-new model definition from catalog facts. Tier/qualityScore are
  *  left unset on purpose — those are human/operator judgment, not catalog facts. */
 function buildModelFromFacts(fact: ModelFacts): ModelDefinition {
   const tags: ModelDefinition['tags'] = fact.supportsVision
     ? ['chat', 'vision']
     : ['chat'];
+  const nativeModelId = deriveNativeModelId(fact.modelId);
   const cost =
     fact.inputCentsPerMillion != null || fact.outputCentsPerMillion != null
       ? {
@@ -211,6 +247,7 @@ function buildModelFromFacts(fact: ModelFacts): ModelDefinition {
       : undefined;
   return {
     id: fact.modelId,
+    ...(nativeModelId !== undefined ? { nativeModelId } : {}),
     displayName: fact.displayName ?? fact.modelId,
     tags,
     ...(fact.reasoning ? { reasoning: fact.reasoning } : {}),
@@ -426,6 +463,39 @@ export function syncProviderModels(input: {
       return { ...m, hidden: true };
     });
   }
+
+  // 4. RETRACK rolling aliases: the gateway resolves a `~vendor/…-latest` id
+  //    to the newest release by itself, but a BYO (direct-to-vendor) session
+  //    requests the alias entry's `nativeModelId` — without this step it would
+  //    stay pinned to the version current when the alias was curated. Runs
+  //    after ADD so a flagship added in this same run is already a candidate.
+  //    3-way on the field: an operator-edited value is left untouched.
+  models = models.map((m) => {
+    const alias = parseRollingAlias(m.id);
+    if (!alias) return m;
+    const baseM = baseById.get(m.id);
+    const operatorSet = baseM
+      ? m.nativeModelId !== baseM.nativeModelId
+      : m.nativeModelId !== undefined;
+    if (operatorSet) return m;
+    let best: { version: number[]; native: string } | undefined;
+    for (const candidate of models) {
+      const p = parseModelId(candidate.id);
+      if (p.vendor !== alias.vendor || p.familyKey !== alias.familyKey) {
+        continue;
+      }
+      if (p.version.length === 0) continue; // another alias — not a release
+      const native =
+        candidate.nativeModelId ?? deriveNativeModelId(candidate.id);
+      if (native === undefined) continue;
+      if (!best || compareVersions(p.version, best.version) > 0) {
+        best = { version: p.version, native };
+      }
+    }
+    if (!best || best.native === m.nativeModelId) return m;
+    changes.push({ kind: 'updated', modelId: m.id, fields: ['nativeModelId'] });
+    return { ...m, nativeModelId: best.native };
+  });
 
   return { models, changes };
 }

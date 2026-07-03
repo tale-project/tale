@@ -17,7 +17,7 @@ When you outgrow the laptop and want the same project on a real host, the trial 
 
 When real traffic will land on the instance, the [Linux server](/self-hosted/install/linux-server) walk is the path. It covers TLS, a firewall, a non-root user, the reverse proxy, and the operational hooks you want before you point a domain at it. The CLI still does the heavy lifting — `tale deploy` runs a blue-green, zero-downtime rollout with health checks and rollback — but this walk adds the host-level setup that a trial skips.
 
-After the first deploy, [First admin](/self-hosted/install/first-admin) explains the one-time owner-account setup and how to close signup once your team is in, and [CLI install](/self-hosted/install/cli-install) sets up the CLI on a workstation to deploy and upgrade a remote instance.
+After the first deploy, [First admin](/self-hosted/install/first-admin) explains the one-time setup wizard that makes the first account the **Owner** — everyone after that joins by invite, so there is no open sign-up to close — and [CLI install](/self-hosted/install/cli-install) sets up the CLI on a workstation to deploy and upgrade a remote instance.
 
 ## Owning the Compose layer
 

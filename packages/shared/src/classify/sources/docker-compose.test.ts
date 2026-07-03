@@ -17,6 +17,14 @@ describe('classifyDockerCompose', () => {
     expect(c('a1b2c3d4e5f6: Already exists').kind).toBe('progress');
   });
 
+  it('surfaces per-image pull milestones as info, keeping layer churn collapsed', () => {
+    expect(c(' db Pulling ').kind).toBe('info');
+    expect(c(' db Pulling ').text).toBe('db pulling');
+    expect(c(' ✔ platform Pulled ').text).toBe('platform pulled');
+    expect(c(' db Pulled \r').text).toBe('db pulled');
+    expect(c('a1b2c3d4e5f6: Pulling fs layer').kind).toBe('progress');
+  });
+
   it('relabels each lifecycle verb to a clean lowercased status', () => {
     expect(c(' Container tale-db-1  Started').text).toBe('tale-db-1 started');
     expect(c(' Container tale-db-1  Created').text).toBe('tale-db-1 created');

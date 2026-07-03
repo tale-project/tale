@@ -155,6 +155,9 @@ export interface RunAgentInSessionArgs {
   agentSlug: 'claude-code' | 'opencode';
   prompt: string;
   model?: string;
+  /** Managed only: gateway model id of the model-level fallback (catalog
+   * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
+  fallbackModel?: string;
   /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
   agentSessionId?: string;
   maxTurns?: number;
@@ -370,6 +373,9 @@ export async function runAgentInSessionImpl(
     : adapter.buildExec({
         prompt: args.prompt,
         ...(args.model !== undefined && { model: args.model }),
+        ...(args.fallbackModel !== undefined && {
+          fallbackModel: args.fallbackModel,
+        }),
         ...(args.agentSessionId !== undefined && {
           agentSessionId: args.agentSessionId,
         }),

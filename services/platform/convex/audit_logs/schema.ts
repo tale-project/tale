@@ -198,4 +198,15 @@ export const auditIntegrityProgressTable = defineTable({
    * audited orgs still covers all of them across runs.
    */
   updatedAt: v.number(),
+  /**
+   * Fingerprint of the integrity incident this org was last ALERTED about
+   * (#1845). The cron writes an in-band audit row on every failing run, but
+   * only fires the out-of-band notification when the fingerprint of the current
+   * break differs from this — so the SAME unresolved break isn't re-alerted
+   * daily. Cleared when a run verifies cleanly, so a later re-break re-alerts.
+   * Absent means no active alert.
+   */
+  lastAlertedFingerprint: v.optional(v.string()),
+  /** When the last out-of-band integrity alert fired (paired with the above). */
+  lastAlertedAt: v.optional(v.number()),
 }).index('by_organizationId', ['organizationId']);

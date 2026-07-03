@@ -22,12 +22,16 @@ import {
   type MessageDoc,
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
-import { hasToolCall, type ModelMessage, stepCountIs } from 'ai';
+import { type ModelMessage, stepCountIs } from 'ai';
 
 import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../../lib/shared/chat-errors';
+import {
+  formatGenerationIncompleteBody,
+  SYSTEM_MSG_TAG,
+} from '../../../lib/shared/constants/system-message-tags';
 import { tuningInstructionSuffix } from '../../../lib/shared/response-tuning';
 import { isRecord, getString } from '../../../lib/utils/type-utils';
 import { components, internal } from '../../_generated/api';
@@ -100,10 +104,12 @@ import { buildReasoningOptions } from './reasoning/build_reasoning_options';
 import { reasoningScopeKey } from './reasoning/scope';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import {
+  endedOnHumanInputGate,
   mergeUsage,
   needsToolResultRetry,
   shouldRetryGeneration,
 } from './retry_policy';
+import { hasValidToolCall } from './stop_conditions';
 import {
   finalizePersistentStream,
   linkApprovalsToLatestAssistantMessage,
@@ -209,13 +215,18 @@ export async function generateAgentResponse(
   // tool only surfaces an approval card and tells the model to stop and wait —
   // but "stop" was a prompt-only contract the model could (and did) ignore,
   // most visibly the researcher barrelling past its plan-confirmation card
-  // straight into web searches. `hasToolCall` turns the gate into a real stop.
-  // Scoped to agents that actually expose the tool so no other agent's loop
-  // behaviour changes. Setting `stopWhen` makes the SDK ignore the config's
-  // `maxSteps`, so the step cap is re-applied here via `stepCountIs` (mirroring
-  // the default in create_agent_config.ts).
+  // straight into web searches. `hasValidToolCall` turns the gate into a real
+  // stop — but only for calls that passed input validation: an invalid call
+  // never created a card, so the loop must keep going and let the model fix
+  // its arguments. Scoped to agents that actually expose the tool so no other
+  // agent's loop behaviour changes. Setting `stopWhen` makes the SDK ignore
+  // the config's `maxSteps`, so the step cap is re-applied here via
+  // `stepCountIs` (mirroring the default in create_agent_config.ts).
   const humanInputStopWhen = convexToolNames?.includes('request_human_input')
-    ? [stepCountIs(args.maxSteps ?? 40), hasToolCall('request_human_input')]
+    ? [
+        stepCountIs(args.maxSteps ?? 40),
+        hasValidToolCall('request_human_input'),
+      ]
     : undefined;
 
   const debugLog = createDebugLog(
@@ -911,6 +922,11 @@ export async function generateAgentResponse(
 
     let didRetry = false;
     let retryInProgress = false;
+    // Set when the retry-exhausted fallback fired: `result.text` then holds a
+    // diagnostic for RETURN-value consumers (delegate ToolResponses, logs) and
+    // must NOT be persisted as the assistant's own words — the user-facing
+    // outcome is the tagged [GENERATION_INCOMPLETE] system message instead.
+    let fallbackNoticeSaved = false;
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
@@ -1782,11 +1798,17 @@ export async function generateAgentResponse(
         }
       }
 
-      // Fallback: if text is still missing after continue, provide a minimal response
-      // so the user always sees something rather than an empty message
+      // Fallback: if text is still missing after continue, provide a minimal
+      // response so the user always sees something rather than an empty
+      // message. EXCEPT when the turn ended on a VALID `request_human_input`
+      // gate: that turn intentionally has no trailing text — the question card
+      // IS the response — and firing the incomplete-notice here put a spurious
+      // "unable to generate a complete response" line under every question
+      // card the model asked without a closing sentence.
       if (
-        !result.text?.trim() ||
-        needsToolResultRetry(result.text, result.steps)
+        (!result.text?.trim() ||
+          needsToolResultRetry(result.text, result.steps)) &&
+        !endedOnHumanInputGate(result.steps)
       ) {
         const toolNames = extractToolNamesFromSteps(result.steps ?? []);
         debugLog('All retries exhausted, using fallback message', {
@@ -1794,10 +1816,32 @@ export async function generateAgentResponse(
           finishReason: result.finishReason,
         });
         didRetry = true;
+        // Diagnostic for return-value consumers only (delegate ToolResponses,
+        // logs) — never persisted as the assistant's words (see
+        // `fallbackNoticeSaved`).
         result.text =
           toolNames.length > 0
             ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
             : 'I was unable to generate a response. Please try again.';
+        // Machine-readable body — the chat UI renders a localized warning line
+        // (same pattern as MODEL_FALLBACK) instead of an English sentence
+        // masquerading as the assistant's own reply.
+        try {
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content:
+                `${SYSTEM_MSG_TAG.GENERATION_INCOMPLETE} ${formatGenerationIncompleteBody({ tools: toolNames })}`.trim(),
+            },
+          });
+          fallbackNoticeSaved = true;
+        } catch (msgError) {
+          console.error(
+            '[generateAgentResponse] Failed to save generation-incomplete message:',
+            msgError,
+          );
+        }
       }
     } catch (timeoutError) {
       if (!(timeoutError instanceof AgentTimeoutError)) throw timeoutError;
@@ -1971,9 +2015,13 @@ export async function generateAgentResponse(
 
     // Persist retry/fallback text to the saved message so it survives page reloads.
     // Retries use saveMessages: 'none', so the SDK-saved message still has the
-    // original (empty/preamble) text. Update it with the final result.
+    // original (empty/preamble) text. Update it with the final result — unless
+    // the text is the retry-exhausted diagnostic, whose user-facing form is the
+    // [GENERATION_INCOMPLETE] system message already saved above (if that save
+    // failed, fall through so the user still sees *something*).
     if (
       didRetry &&
+      !fallbackNoticeSaved &&
       savedMessageId &&
       result.text &&
       !(await checkCancelled())

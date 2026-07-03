@@ -13,7 +13,7 @@ import { getString, isRecord } from '../../../../../lib/utils/type-utils';
 import type { ValidationResult } from '../types';
 
 const SCRIPT_LANGUAGES = new Set(['python', 'node', 'bash']);
-const INPUT_SOURCE_KEYS = ['fileId', 'folderId', 'content'];
+const INPUT_SOURCE_KEYS = ['fileId', 'folderId', 'folderPath', 'content'];
 
 export function validateSandboxStep(
   config: Record<string, unknown>,
@@ -84,7 +84,7 @@ export function validateSandboxStep(
           : [];
         if (sourceKeys.length !== 1) {
           errors.push(
-            `sandbox input "${input.as}" needs exactly one source: fileId | folderId | content`,
+            `sandbox input "${input.as}" needs exactly one source: fileId | folderId | folderPath | content`,
           );
         }
       }

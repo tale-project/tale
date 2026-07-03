@@ -942,8 +942,8 @@
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
       "continue": "Weiter",
-      "installAll": "Alle installieren",
-      "installingAll": "Alle werden installiert..."
+      "install": "Installieren",
+      "installing": "Wird installiert..."
     },
     "uploadDialog": {
       "menuItem": "Datei hochladen",
@@ -953,7 +953,6 @@
     },
     "templates": {
       "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",
-      "installFailed": "Automatisierung konnte nicht aus Vorlage erstellt werden",
       "fetching": "Vorlage wird geladen...",
       "noTemplates": "Keine Vorlagen für diese Integration verfügbar."
     },
@@ -1055,10 +1054,7 @@
     },
     "toast": {
       "created": "Automatisierung erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden",
-      "installedAll": "{count} Automatisierungen installiert",
-      "installedAllNone": "Alle Vorlagen sind bereits installiert",
-      "installAllPartial": "{count} Vorlagen konnten nicht installiert werden"
+      "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
       "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",
@@ -1322,6 +1318,7 @@
       "viewProvider": "Anbietereinstellungen anzeigen",
       "viewInfo": "Modelldetails",
       "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → KI-Anbieter einen hinzu.",
+      "noProviderKey": "Noch kein KI-Anbieter verbunden — hinterlege in Einstellungen → KI-Anbieter einen API-Schlüssel, um loszulegen.",
       "info": {
         "provider": "Anbieter",
         "type": "Typ",
@@ -1837,6 +1834,8 @@
     "modelFallbackNotice": "{from} war nicht verfügbar – zu {to} gewechselt.",
     "modelFallbackDefaultModel": "das Standardmodell",
     "modelFallbackUnknown": "das vorherige Modell",
+    "generationIncomplete": "Die Antwort konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+    "generationIncompleteWithTools": "Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Bitte versuche es erneut.",
     "workspaceFiles": {
       "title": "Arbeitsbereichsdateien",
       "toggleLabel": "Arbeitsbereichsdateien",
@@ -6308,6 +6307,32 @@
       "openDocs": "API-Dokumentation"
     },
     "logs": {
+      "integrity": {
+        "title": "Ketten-Integrität",
+        "neverChecked": "Es wurde noch keine automatische Integritätsprüfung ausgeführt.",
+        "lastCheck": "Letzte automatische Prüfung: {date}",
+        "alertedAt": "Warnung ausgelöst am {date}",
+        "statusUnchecked": "Noch nicht geprüft",
+        "statusOk": "Verifiziert",
+        "statusAlert": "Integritätswarnung aktiv",
+        "verifyNow": "Jetzt prüfen",
+        "verifyError": "Die Prüfung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+        "resultValidTitle": "Kette verifiziert",
+        "resultValidBody": "{count, plural, one {# Eintrag geprüft} other {# Einträge geprüft}} – keine Manipulation festgestellt.",
+        "truncatedNote": "Nur die ersten {count} Einträge wurden geprüft. Führe die Prüfung erneut aus, um die Kette weiter zu prüfen.",
+        "unsignedScrubNote": "{count, plural, one {# Eintrag wurde über einen unsignierten Bereinigungsnachweis als vertrauenswürdig eingestuft} other {# Einträge wurden über unsignierte Bereinigungsnachweise als vertrauenswürdig eingestuft}}. Überprüfe deinen Audit-Signaturschlüssel.",
+        "brokenTitle": "Ketten-Integrität verletzt",
+        "brokenBody": "Die Hash-Kette stimmt beim unten stehenden Eintrag nicht überein. Sichere diesen Nachweis, bevor du Änderungen vornimmst.",
+        "brokenAt": "Aufgetreten",
+        "logId": "Eintrags-ID",
+        "expectedHash": "Erwarteter Hash",
+        "actualHash": "Gespeicherter Hash",
+        "openRow": "Diesen Eintrag öffnen",
+        "checkpointTitle": "Checkpoint-Prüfung fehlgeschlagen",
+        "checkpointId": "Checkpoint-ID",
+        "reason": "Grund",
+        "rowMissing": "Audit-Eintrag {logId} ist nicht mehr verfügbar."
+      },
       "heading": "Protokolle",
       "subheading": "Systemprotokolle anzeigen und verwalten.",
       "auditLogs": "Audit-Protokolle",
