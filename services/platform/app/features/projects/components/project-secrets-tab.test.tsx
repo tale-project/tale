@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -19,6 +20,7 @@ import { ProjectSecretsTab } from './project-secrets-tab';
 // button invokes deleteProjectSecret with that secret's name.
 
 const mockSetMutateAsync = vi.fn().mockResolvedValue(undefined);
+const mockSetPairMutateAsync = vi.fn().mockResolvedValue(undefined);
 const mockDeleteMutateAsync = vi.fn().mockResolvedValue(undefined);
 let secretsFixture: { name: string; description?: string }[] = [];
 
@@ -28,6 +30,10 @@ vi.mock('../hooks/secrets', () => ({
     mutateAsync: mockSetMutateAsync,
     isPending: false,
   }),
+  useSetProjectSecretPair: () => ({
+    mutateAsync: mockSetPairMutateAsync,
+    isPending: false,
+  }),
   useDeleteProjectSecret: () => ({
     mutateAsync: mockDeleteMutateAsync,
     isPending: false,
@@ -35,10 +41,12 @@ vi.mock('../hooks/secrets', () => ({
 }));
 
 // The component imports the standalone `toast` fn directly; stub it so the
-// success/error toasts don't reach the real toast store.
+// success/error toasts don't reach the real toast store while still letting
+// tests assert what was shown.
+const mockToast = vi.fn();
 vi.mock('@/app/hooks/use-toast', () => ({
-  toast: vi.fn(),
-  useToast: () => ({ toast: vi.fn() }),
+  toast: (...args: unknown[]) => mockToast(...args),
+  useToast: () => ({ toast: mockToast }),
 }));
 
 // FormDialog (the dialog shell) reads the org id from the router for its error
@@ -151,6 +159,103 @@ describe('ProjectSecretsTab', () => {
           value: 'tale-e2e-depth-secret-value',
         }),
       );
+    });
+
+    it('writes a "basic" credential through the single atomic pair action', async () => {
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      // Switch the type to "Username & password" so the form collects a pair.
+      await user.click(screen.getByRole('combobox', { name: /type/i }));
+      await user.click(
+        await screen.findByRole('option', { name: /username & password/i }),
+      );
+
+      // `Name` substring-matches `Username` too once both fields render, so
+      // anchor to the field whose accessible name starts with "Name".
+      await user.type(screen.getByLabelText(/^name/i), 'svc');
+      await user.type(
+        screen.getByLabelText('Username', { exact: false }),
+        'alice',
+      );
+      // The password field carries a show/hide toggle whose aria-label also
+      // contains "password"; anchor to the field label itself.
+      await user.type(screen.getByLabelText(/^password/i), 's3cret');
+
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      // The pair is written by ONE atomic action — never two sequential
+      // setProjectSecret calls (the non-atomic path the bug fixed).
+      await waitFor(() => {
+        expect(mockSetPairMutateAsync).toHaveBeenCalledTimes(1);
+      });
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+      expect(mockSetPairMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          projectId: PROJECT_ID,
+          baseName: 'SVC',
+          username: 'alice',
+          password: 's3cret',
+        }),
+      );
+    });
+
+    it('blocks a malformed name client-side without calling the action', async () => {
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      const nameField = screen.getByLabelText('Name', { exact: false });
+      const save = screen.getByRole('button', { name: 'Save' });
+      const invalidMessage =
+        'Name must start with a letter and use only A–Z, 0–9 and underscores.';
+
+      // Leading digit fails the `^[A-Z][A-Z0-9_]{0,63}$` shape.
+      await user.type(nameField, '1bad');
+      await user.type(
+        screen.getByLabelText('API key', { exact: false }),
+        'some-value',
+      );
+
+      // Inline field error surfaces before any submit; Save stays disabled.
+      expect(await screen.findByText(invalidMessage)).toBeInTheDocument();
+      expect(save).toBeDisabled();
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+      expect(mockSetPairMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('maps a SECRET_FORBIDDEN ConvexError to its specific toast', async () => {
+      mockSetMutateAsync.mockRejectedValueOnce(
+        new ConvexError({ code: 'SECRET_FORBIDDEN' }),
+      );
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      await user.type(
+        screen.getByLabelText('Name', { exact: false }),
+        'good_name',
+      );
+      await user.type(
+        screen.getByLabelText('API key', { exact: false }),
+        'some-value',
+      );
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title:
+              "You don't have permission to manage this project's secrets.",
+            variant: 'destructive',
+          }),
+        );
+      });
     });
   });
 

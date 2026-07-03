@@ -6891,13 +6891,21 @@
     "usernameLabel": "Nom d'utilisateur",
     "passwordLabel": "Mot de passe",
     "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
+    "nameShapeHint": "Lettres majuscules, chiffres et traits de soulignement ; doit commencer par une lettre.",
     "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
     "saveSuccess": "Secret enregistré",
     "editButton": "Modifier",
     "editTitle": "Modifier le secret",
     "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
     "updateSuccess": "Secret mis à jour",
-    "deleteSuccess": "Secret supprimé"
+    "deleteSuccess": "Secret supprimé",
+    "errors": {
+      "nameInvalid": "Utilise uniquement des lettres majuscules, des chiffres et des traits de soulignement, en commençant par une lettre (max. 64 caractères).",
+      "valueInvalid": "Saisis une valeur de 1 à 8192 caractères.",
+      "unauthenticated": "Ta session a expiré. Reconnecte-toi, puis réessaie.",
+      "forbidden": "Tu n'as pas l'autorisation de gérer les secrets de ce projet.",
+      "projectNotFound": "Ce projet est introuvable. Il a peut-être été supprimé."
+    }
   },
   "tasks": {
     "attachments": {
