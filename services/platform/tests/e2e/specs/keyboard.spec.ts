@@ -65,3 +65,35 @@ baseTest.describe('keyboard & focus (wizard, throwaway no-org user)', () => {
     },
   );
 });
+
+/**
+ * Skip-to-content bypass block (WCAG 2.4.1). The `SkipLink` is the first
+ * focusable element and points at `#main-content`; activating it must move
+ * keyboard focus *into* `<main>`, not leave it on `<body>`. That only works if
+ * the target carries `tabIndex={-1}` — the regression this guards against.
+ *
+ * Runs unauthenticated against `/log-in`, which renders the `_auth` layout's
+ * `<main id="main-content">`, so no account or worker org is needed.
+ */
+baseTest.describe('skip-to-content (unauthenticated)', () => {
+  baseTest.use({ storageState: { cookies: [], origins: [] } });
+
+  baseTest('moves keyboard focus into <main>', async ({ page }) => {
+    await page.goto('/log-in');
+
+    // The skip link is the first focusable element; focus it directly (the
+    // keyboard-user entry point) rather than depending on a fragile single-Tab
+    // landing in headless Chromium.
+    const skipLink = page.getByRole('link', {
+      name: t('common.aria.skipToContent'),
+    });
+    await skipLink.focus();
+    await baseExpect(skipLink).toBeFocused({ timeout: TIMEOUT.FIRST_PAINT });
+
+    // Activating it must transfer focus into <main>, not no-op on <body> — this
+    // only works because the target carries `tabIndex={-1}`.
+    await page.keyboard.press('Enter');
+    const main = page.locator('main#main-content');
+    await baseExpect(main).toBeFocused({ timeout: TIMEOUT.VISIBLE });
+  });
+});
