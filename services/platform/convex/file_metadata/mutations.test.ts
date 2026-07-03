@@ -69,6 +69,21 @@ vi.mock('../governance/upload_enforcement', () => ({
   checkUploadPolicy: vi.fn().mockResolvedValue({ allowed: true }),
 }));
 
+// Org-membership gate (#2039). By default every test runs as a valid member;
+// the authorization tests override this to reject (non-member).
+const mockGetOrganizationMember = vi.fn();
+vi.mock('../lib/rls/organization/get_organization_member', () => ({
+  getOrganizationMember: (...args: unknown[]) =>
+    mockGetOrganizationMember(...args),
+}));
+
+const VALID_MEMBER = {
+  _id: 'member_1',
+  organizationId: 'org_1',
+  userId: 'user_1',
+  role: 'member',
+};
+
 function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
@@ -131,6 +146,7 @@ const AUTH_USER = {
 describe('saveFileMetadata (public)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetOrganizationMember.mockResolvedValue(VALID_MEMBER);
   });
 
   it('rejects unauthenticated requests', async () => {
@@ -141,6 +157,27 @@ describe('saveFileMetadata (public)', () => {
     await expect(handler(ctx, baseArgs)).rejects.toMatchObject({
       data: { code: 'UNAUTHENTICATED' },
     });
+  });
+
+  it('rejects callers who are not a member of the target org', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    // Caller holds a valid JWT but is not a member of org_1 — the gate
+    // must throw before any fileMetadata row is written or RAG is queued.
+    mockGetOrganizationMember.mockRejectedValue(
+      new Error('Not a member of organization org_1'),
+    );
+    const { ctx } = createMockCtx(null);
+    const handler = await getHandler();
+
+    await expect(handler(ctx, baseArgs)).rejects.toThrow(
+      'Not a member of organization org_1',
+    );
+    expect(mockGetOrganizationMember).toHaveBeenCalledWith(
+      ctx,
+      'org_1',
+      expect.objectContaining({ userId: 'user_1' }),
+    );
+    expect(ctx.db.insert).not.toHaveBeenCalled();
   });
 
   it('rejects uploads blocked by organization policy, preserving the reason', async () => {
@@ -517,6 +554,7 @@ const skipArgs = { storageId: 'storage_1', organizationId: 'org_1' };
 describe('skipTranscription (public)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetOrganizationMember.mockResolvedValue(VALID_MEMBER);
   });
 
   it('rejects unauthenticated requests', async () => {
@@ -538,6 +576,24 @@ describe('skipTranscription (public)', () => {
     await expect(handler(ctx, skipArgs)).rejects.toMatchObject({
       data: { code: 'FILE_NOT_FOUND' },
     });
+  });
+
+  it('rejects callers who are not a member of the file org', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    mockGetOrganizationMember.mockRejectedValue(
+      new Error('Not a member of organization org_1'),
+    );
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      transcriptionStatus: 'running',
+    });
+    const handler = await getSkipHandler();
+
+    await expect(handler(ctx, skipArgs)).rejects.toThrow(
+      'Not a member of organization org_1',
+    );
+    expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
   it('throws NOT_AUTHORIZED when the row belongs to another org', async () => {
@@ -610,6 +666,7 @@ const retryArgs = { storageId: 'storage_1', organizationId: 'org_1' };
 describe('retryTranscription (public)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetOrganizationMember.mockResolvedValue(VALID_MEMBER);
   });
 
   it('rejects unauthenticated requests', async () => {
@@ -631,6 +688,24 @@ describe('retryTranscription (public)', () => {
     await expect(handler(ctx, retryArgs)).rejects.toMatchObject({
       data: { code: 'FILE_NOT_FOUND' },
     });
+  });
+
+  it('rejects callers who are not a member of the file org', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    mockGetOrganizationMember.mockRejectedValue(
+      new Error('Not a member of organization org_1'),
+    );
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      transcriptionStatus: 'failed',
+    });
+    const handler = await getRetryHandler();
+
+    await expect(handler(ctx, retryArgs)).rejects.toThrow(
+      'Not a member of organization org_1',
+    );
+    expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
   it('throws NOT_AUTHORIZED when the row belongs to another org', async () => {

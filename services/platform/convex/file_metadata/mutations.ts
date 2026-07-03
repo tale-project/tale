@@ -12,6 +12,7 @@ import {
   checkOrganizationRateLimit,
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 export const saveFileMetadata = mutation({
   args: {
@@ -48,6 +49,15 @@ export const saveFileMetadata = mutation({
     if (!authUser) {
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
+
+    // Authorization boundary: the caller must be an (enabled) member of the
+    // org they are writing into. Without this, any authenticated user could
+    // inject fileMetadata rows into a foreign org and RAG-index
+    // attacker-controlled content into that org's namespace (knowledge
+    // poisoning) — checkUploadPolicy/the threadId gate below are not a
+    // substitute (the policy defaults to allowed, and the threadId gate only
+    // fires for thread-bound chat uploads). Mirrors documents/mutations.ts.
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     const userId = authUser.userId;
     const ext = extractExtension(args.fileName);
@@ -293,6 +303,11 @@ export const skipTranscription = mutation({
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
+    // Authorization boundary: assert membership against the row's own org.
+    // The self-reported organizationId === metadata.organizationId check
+    // below catches caller mistakes but is not an authorization boundary on
+    // its own (both values are caller-controlled).
+    await getOrganizationMember(ctx, metadata.organizationId, authUser);
     if (metadata.organizationId !== args.organizationId) {
       throw new ConvexError({ code: 'NOT_AUTHORIZED' });
     }
@@ -348,6 +363,11 @@ export const retryTranscription = mutation({
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
+    // Authorization boundary: assert membership against the row's own org.
+    // The self-reported organizationId === metadata.organizationId check
+    // below catches caller mistakes but is not an authorization boundary on
+    // its own (both values are caller-controlled).
+    await getOrganizationMember(ctx, metadata.organizationId, authUser);
     if (metadata.organizationId !== args.organizationId) {
       throw new ConvexError({ code: 'NOT_AUTHORIZED' });
     }
