@@ -1071,6 +1071,7 @@ import type * as openai_compat_internal_queries from "../openai_compat/internal_
 import type * as openai_compat_response_format from "../openai_compat/response_format.js";
 import type * as openai_compat_tool_conversion from "../openai_compat/tool_conversion.js";
 import type * as organizations_actions from "../organizations/actions.js";
+import type * as organizations_builtin_sync from "../organizations/builtin_sync.js";
 import type * as organizations_delete_cleanup from "../organizations/delete_cleanup.js";
 import type * as organizations_get_organization from "../organizations/get_organization.js";
 import type * as organizations_has_any_organization from "../organizations/has_any_organization.js";
@@ -2715,6 +2716,7 @@ declare const fullApi: ApiFromModules<{
   "openai_compat/response_format": typeof openai_compat_response_format;
   "openai_compat/tool_conversion": typeof openai_compat_tool_conversion;
   "organizations/actions": typeof organizations_actions;
+  "organizations/builtin_sync": typeof organizations_builtin_sync;
   "organizations/delete_cleanup": typeof organizations_delete_cleanup;
   "organizations/get_organization": typeof organizations_get_organization;
   "organizations/has_any_organization": typeof organizations_has_any_organization;

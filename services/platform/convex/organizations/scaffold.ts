@@ -231,6 +231,40 @@ export async function copyTree(
 }
 
 /**
+ * Replace one bundle dir with a copy of `bundleSrc`, via a sibling staging dir
+ * + atomic rename. Eliminates the "rm before copy" window where an interrupt
+ * would leave an empty bundle on disk. `force` dropped so EACCES / EBUSY
+ * surface as real errors. Shared by the bundle-domain override seed below and
+ * the per-domain admin sync (`organizations/builtin_sync.ts`).
+ */
+export async function replaceBundleDir(
+  bundleSrc: string,
+  bundleDst: string,
+): Promise<void> {
+  const staging = `${bundleDst}.staging-${randomUUID().slice(0, 8)}`;
+  try {
+    await copyTree(bundleSrc, staging, /* allowSubdirs */ true);
+    // Best-effort old-dir removal before rename. If the old dir exists and is
+    // non-empty, `rename` will fail on most platforms — surface that.
+    await rm(bundleDst, { recursive: true }).catch((err) => {
+      if (errnoCode(err) !== 'ENOENT') throw err;
+    });
+    await rename(staging, bundleDst);
+  } catch (err) {
+    // If anything went wrong, scrub the staging dir.
+    await rm(staging, { recursive: true }).catch((scrubErr) => {
+      if (errnoCode(scrubErr) !== 'ENOENT') {
+        console.warn(
+          `[scaffold] failed to scrub staging ${staging}:`,
+          scrubErr,
+        );
+      }
+    });
+    throw err;
+  }
+}
+
+/**
  * Seed a single domain for an org. Source is `<catalogRoot>/<domain>` — the
  * generic built-in catalog (`TALE_CONFIG_BUILTIN_DIR`), whose children ARE the
  * domains. There is deliberately no `default`/org level and no fallback to any
@@ -240,8 +274,11 @@ export async function copyTree(
  * "already scaffolded, skipped" case) and `{ok:false, error}` on
  * real failure so the handler can surface or aggregate. Per-domain
  * errors are also logged here for operator visibility.
+ *
+ * Exported for the per-domain admin sync (`organizations/builtin_sync.ts`),
+ * which reuses the exact reseed copy semantics for one domain of one org.
  */
-async function seedDomain(
+export async function seedDomain(
   domain: ConfigDomain,
   catalogRoot: string,
   orgSlug: string,
@@ -333,33 +370,7 @@ async function seedDomain(
         });
         if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
         if (override) {
-          // Write into a sibling staging dir then atomic-rename onto the
-          // target. Eliminates the "rm before copy" window where an
-          // interrupt would leave an empty bundle on disk. `force` dropped
-          // so EACCES / EBUSY surface as real errors. The cleanup-on-exit
-          // path below also drops the staging dir to avoid leakage.
-          const staging = `${bundleDst}.staging-${randomUUID().slice(0, 8)}`;
-          try {
-            await copyTree(bundleSrc, staging, /* allowSubdirs */ true);
-            // Best-effort old-dir removal before rename. If the old dir
-            // exists and is non-empty, `rename` will fail on most platforms
-            // — surface that.
-            await rm(bundleDst, { recursive: true }).catch((err) => {
-              if (errnoCode(err) !== 'ENOENT') throw err;
-            });
-            await rename(staging, bundleDst);
-          } catch (err) {
-            // If anything went wrong, scrub the staging dir.
-            await rm(staging, { recursive: true }).catch((scrubErr) => {
-              if (errnoCode(scrubErr) !== 'ENOENT') {
-                console.warn(
-                  `[scaffold] ${domain.name}: failed to scrub staging ${staging}:`,
-                  scrubErr,
-                );
-              }
-            });
-            throw err;
-          }
+          await replaceBundleDir(bundleSrc, bundleDst);
         } else {
           await copyTree(bundleSrc, bundleDst, /* allowSubdirs */ true);
         }
