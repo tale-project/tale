@@ -52,7 +52,10 @@ export function SteerStatusProvider({
   const byMessageId = useMemo(() => {
     const map = new Map<string, SteerStatus>();
     if (rows) {
-      for (const r of rows) map.set(r.messageId, r.status);
+      // Persist-at-pick: the transcript bubble's id is `savedMessageId`
+      // (created at the pick); legacy rows carry it as `messageId`. A waiting
+      // deferred row has no bubble yet — the queue tray renders it instead.
+      for (const r of rows) map.set(r.savedMessageId ?? r.messageId, r.status);
     }
     return map;
   }, [rows]);

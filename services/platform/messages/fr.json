@@ -1412,6 +1412,11 @@
         "delivered": "Transmis — en attente de la réponse de l'agent",
         "deliversNow": "Transmission en cours",
         "consumed": "Pris en compte"
+      },
+      "tray": {
+        "label": "Messages en attente",
+        "remove": "Retirer le message en attente",
+        "removeFailed": "Impossible de retirer le message en attente"
       }
     },
     "errorGenerating": "Une erreur s'est produite",

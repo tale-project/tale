@@ -86,6 +86,10 @@ import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { HumanControlCard } from './human-control-card';
+import {
+  QueuedMessageTray,
+  type PendingTrayEntry,
+} from './queued-message-tray';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { SteerStatusProvider } from './steer-status';
 import { WelcomeView } from './welcome-view';
@@ -219,10 +223,13 @@ export function ChatInterface({
   const { agents } = useChatAgents(organizationId);
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
-  // Image-generation agent derivations for EditingBanner.
+  // Image-generation agent derivations for EditingBanner. The thread's locked
+  // agent wins over the global selection (see useThreadAgentLock above) so an
+  // external-agent thread keeps queue mode even when another thread's switch
+  // moved the global picker.
   const activeAgentMeta = useMemo(
-    () => agents?.find((a) => a.name === effectiveAgent?.name),
-    [agents, effectiveAgent?.name],
+    () => lockedAgent ?? agents?.find((a) => a.name === effectiveAgent?.name),
+    [lockedAgent, agents, effectiveAgent?.name],
   );
   const isImageGenAgent =
     activeAgentMeta?.primaryBehavior === 'image-generation';
@@ -450,10 +457,9 @@ export function ChatInterface({
   // new-chat remount. Null on idle threads (gated server-side on isGenerating).
   const generationStartMs = threadMeta?.generationStartTime ?? null;
 
-  // A follow-up sent while a turn runs is steered into the running turn and
-  // renders inline immediately (saved at enqueue) — steering now picks it up
-  // fast enough that a separate "waiting" area is unnecessary. Its "Thinking · Ns"
-  // timer must count from when the user sent IT, not the whole turn's elapsed
+  // A follow-up sent while a turn runs waits in the queue tray and enters the
+  // transcript at the pick (persist-at-pick). Its "Thinking · Ns" timer must
+  // count from when the agent picked it up, not the whole turn's elapsed
   // time: re-anchor to the latest current-turn follow-up's creation time. The
   // initiating prompt is the first user message at/after the turn start (its
   // save lags markGenerating, so it sorts after generationStartMs); any later
@@ -588,6 +594,11 @@ export function ChatInterface({
   const queueModeActive = isExternalAgentThread && (isGenerating ?? false);
 
   const { mutateAsync: enqueueMessage } = useEnqueueMessage();
+  // Optimistic queue-tray entries for enqueue mutations still in flight —
+  // persist-at-pick means there is no transcript bubble to bridge the
+  // round-trip, so the tray itself must echo the send instantly.
+  const [pendingQueued, setPendingQueued] = useState<PendingTrayEntry[]>([]);
+  const pendingQueueSeqRef = useRef(0);
 
   // Hand off to the authoritative signal the moment it arrives: clear the
   // optimistic flag once the server reports generating, so a fast response
@@ -787,49 +798,39 @@ export function ChatInterface({
   ) => {
     // Queue mode: a turn is running on this external-agent thread — enqueue
     // instead of dispatching. Text-only (ChatInput blocks attachment sends in
-    // queue mode); the message lands in the timeline immediately server-side
-    // and is steered into the running turn / drained at the next boundary.
-    if (queueModeActive && dataThreadId && effectiveAgent?.name) {
+    // queue mode). Persist-at-pick: the message renders in the queue TRAY
+    // (above the composer) until the agent actually picks it up — it enters
+    // the transcript only at the pick, at its final position. The optimistic
+    // tray entry below bridges the enqueue round-trip so the send never
+    // appears to vanish.
+    if (queueModeActive && dataThreadId && activeAgentMeta?.name) {
       const draftSnapshot = inputValue;
-      // Baseline for the optimistic-bubble reconciliation (see
-      // usePendingMessages): the running turn's streaming assistant is the
-      // current last message; its key is stable. When the real queued user
-      // message lands at the tail, currentLastKey diverges and the optimistic
-      // bubble swaps out for it. Capture BEFORE clearing the input.
-      const lastMessageKey = messages[messages.length - 1]?.key;
       clearInputValue();
-      // Echo the queued message instantly (no waiting for the server round-trip
-      // and subscription) AND fix auto-scroll in one move: setting the snap
-      // intent right before setPendingMessage — with no await between — mounts
-      // the optimistic bubble in the same commit, so the scroll machine's
-      // MutationObserver consumes the intent with lastUserMessageRef already on
-      // the new bubble and snaps it to the viewport top. Queue mode is never an
-      // empty chat, so always 'smooth' (never the first-message instant jump).
-      scrollIntentRef.current = 'smooth';
-      setPendingMessage({
-        content: message,
-        threadId: dataThreadId,
-        timestamp: new Date(),
-        lastMessageKey,
-      });
+      const pendingKey = `pq-${pendingQueueSeqRef.current++}`;
+      setPendingQueued((prev) => [...prev, { key: pendingKey, text: message }]);
       try {
-        const queuedModelId = selectedModelOverrides[effectiveAgent.name];
+        const queuedModelId = modelOverrideKey
+          ? selectedModelOverrides[modelOverrideKey]
+          : undefined;
         await enqueueMessage({
           threadId: dataThreadId,
           organizationId,
           message,
-          agentSlug: effectiveAgent.name,
+          agentSlug: activeAgentMeta.name,
           // Carry the picked model so the boundary drain re-enters generation
           // with it, not the org default (a single-model session VK 403s on
           // the wrong one).
           ...(queuedModelId !== undefined && { modelId: queuedModelId }),
         });
+        // Mutation resolution implies the local store already reflects the
+        // committed row (own-mutation consistency) — the server entry takes
+        // over in the same commit this optimistic one leaves.
+        setPendingQueued((prev) => prev.filter((e) => e.key !== pendingKey));
       } catch (err) {
         setInputValue(draftSnapshot);
-        // Roll back the optimistic bubble — the message never made it to the
-        // queue (QUEUE_FULL / network blip), so it must not linger in the
-        // timeline.
-        setPendingMessage(null);
+        // Roll back the optimistic tray entry — the message never made it to
+        // the queue (QUEUE_FULL / network blip).
+        setPendingQueued((prev) => prev.filter((e) => e.key !== pendingKey));
         const data: unknown = err instanceof ConvexError ? err.data : null;
         const code =
           typeof data === 'object' &&
@@ -1358,6 +1359,13 @@ export function ChatInterface({
         ) : (
           <FileUpload.Root>
             <div className="px-3">
+              {isExternalAgentThread && dataThreadId && (
+                <QueuedMessageTray
+                  threadId={dataThreadId}
+                  organizationId={organizationId}
+                  pending={pendingQueued}
+                />
+              )}
               {isImageGenAgent && threadImages.length > 0 && (
                 <div className="mx-auto w-full max-w-(--chat-max-width)">
                   <EditingBanner

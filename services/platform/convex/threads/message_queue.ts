@@ -21,15 +21,18 @@ import { persistentStreaming } from '../streaming/helpers';
  * the drain points defer to `drainQueuedMessages` after this delay; that
  * mutation self-reschedules while draining and fires for real once the flag
  * clears (`endDrain`, or `drainExpiresAt` if a deploy died). Rows stay queued
- * meanwhile (their user bubbles are already saved), so nothing is lost.
+ * meanwhile (the queue tray keeps showing them), so nothing is lost.
  */
 const DRAIN_REQUEUE_DELAY_MS = 5_000;
 
 /**
  * Queue for messages sent while a turn is already running ("keep typing while
- * it works"). The timeline user message is saved at enqueue so it renders
- * immediately; the queue row tracks delivery. Drained as ONE combined turn at
- * the next terminal turn boundary via `settleQueueOnTurnEnd`, which every
+ * it works"). Persist-at-pick: the queue row is the only record until the
+ * message is actually picked — the transcript copy is created by
+ * `persistPickedRow` at the pick (steer injection, boundary drain, or
+ * terminal reconcile), so its `_creationTime` is the injection time and its
+ * transcript position is final on first render. Drained as ONE combined turn
+ * at the next terminal turn boundary via `settleQueueOnTurnEnd`, which every
  * `generating → idle` writer calls. External-agent turns additionally get
  * mid-turn steering delivery (see node_only/sandbox/steer_delivery.ts), which
  * flips rows queued → delivered → consumed without waiting for the boundary.
@@ -37,6 +40,27 @@ const DRAIN_REQUEUE_DELAY_MS = 5_000;
 export const MAX_QUEUED_PER_THREAD = 10;
 
 type QueueRow = Doc<'chatMessageQueue'>;
+
+/**
+ * The pick: create the row's transcript copy (once) and return its id.
+ * Legacy rows (persisted at enqueue, `deferredPersist` unset) already have
+ * one — their `messageId` IS the transcript copy. Idempotent via
+ * `savedMessageId`, so racing pickers (live consumption poll vs terminal
+ * reconcile) can't double-save; Convex OCC serializes the read-then-patch.
+ */
+async function persistPickedRow(
+  ctx: MutationCtx,
+  row: QueueRow,
+): Promise<string> {
+  if (row.savedMessageId !== undefined) return row.savedMessageId;
+  if (!row.deferredPersist) return row.messageId;
+  const { messageId } = await saveMessage(ctx, components.agent, {
+    threadId: row.threadId,
+    message: { role: 'user', content: row.text },
+  });
+  await ctx.db.patch(row._id, { savedMessageId: messageId });
+  return messageId;
+}
 
 async function listByStatus(
   ctx: MutationCtx,
@@ -70,7 +94,12 @@ export async function startQueuedTurn(
 
   const streamId = await persistentStreaming.createStream(ctx);
   const now = Date.now();
+  // The drain IS the pick for boundary-queued rows: persist each as its own
+  // user bubble now (in send order, before the turn's assistant message), so
+  // N queued messages keep rendering as N bubbles at the turn boundary.
+  let lastPromptMessageId: string | undefined;
   for (const row of ordered) {
+    lastPromptMessageId = await persistPickedRow(ctx, row);
     await ctx.db.patch(row._id, {
       status: 'claimed' as const,
       claimedByStreamId: streamId,
@@ -109,9 +138,9 @@ export async function startQueuedTurn(
       // session VK only allows the picked model). The last row's pick wins —
       // a drain combines rows enqueued under one composer state.
       ...(last.modelId !== undefined && { modelId: last.modelId }),
-      // The user messages are already persisted (saved at enqueue) — the
+      // The user messages were just persisted by the pick above — the
       // pipeline must not save the combined text as a new user message.
-      queuedPromptMessageId: last.messageId,
+      queuedPromptMessageId: lastPromptMessageId,
       // External-thread agent lock (chat_turn_generate step 0): queue rows
       // carry the composer's agentSlug from enqueue time, which can be stale
       // per-user picker state — the thread's stored agent wins when it's an
@@ -280,10 +309,13 @@ export const enqueueMessage = mutation({
       throw new ConvexError({ code: 'QUEUE_FULL' });
     }
 
-    const { messageId } = await saveMessage(ctx, components.agent, {
-      threadId: args.threadId,
-      message: { role: 'user', content: trimmed },
-    });
+    // Persist-at-pick: NO transcript copy here. A copy saved at enqueue gets
+    // its `_creationTime` mid-turn, sorts between the running turn's rows,
+    // and reshuffles the list as later rows stream in — the queue tray
+    // renders the waiting row instead, and the pick creates the copy at its
+    // final position. The steer-file contract still needs a stable identity
+    // token per row; with no message to borrow an id from, the row's own id
+    // is it (unique, deterministic).
     const rowId = await ctx.db.insert('chatMessageQueue', {
       organizationId: args.organizationId,
       threadId: args.threadId,
@@ -292,11 +324,14 @@ export const enqueueMessage = mutation({
       userName: authUser.name ?? '',
       agentSlug: args.agentSlug,
       ...(args.modelId !== undefined && { modelId: args.modelId }),
-      messageId,
+      messageId: '',
+      deferredPersist: true,
       text: trimmed,
       status: 'queued' as const,
       createdAt: Date.now(),
     });
+    const messageId = String(rowId);
+    await ctx.db.patch(rowId, { messageId });
 
     if (meta.generationStatus === 'generating' && meta.streamId) {
       // External-agent turns can additionally pick this up MID-turn — schedule
@@ -511,12 +546,17 @@ export const markConsumed = internalMutation({
   handler: async (ctx, args) => {
     const wanted = new Set(args.messageIds);
     const delivered = await listByStatus(ctx, args.threadId, 'delivered');
+    const matches = delivered
+      .filter((row) => wanted.has(row.messageId))
+      .sort((a, b) => a.createdAt - b.createdAt);
     let flipped = 0;
-    for (const row of delivered) {
-      if (wanted.has(row.messageId)) {
-        await ctx.db.patch(row._id, { status: 'consumed' as const });
-        flipped += 1;
-      }
+    for (const row of matches) {
+      // The observed injection IS the pick: create the transcript copy now,
+      // BEFORE the drain trips the steer seam, so the user bubble sorts
+      // between the sealed segment and the fresh post-steer one.
+      await persistPickedRow(ctx, row);
+      await ctx.db.patch(row._id, { status: 'consumed' as const });
+      flipped += 1;
     }
     return flipped;
   },
@@ -540,6 +580,11 @@ export const reconcileDelivered = internalMutation({
     for (const row of delivered) {
       if (row.deliveredExecId !== args.execId) continue;
       if (consumed.has(row.messageId)) {
+        // Late pick (the drain died before observing the consumption): the
+        // agent DID receive the text, so the transcript copy must still be
+        // created — at reconcile time, the closest position we can honestly
+        // give it.
+        await persistPickedRow(ctx, row);
         await ctx.db.patch(row._id, { status: 'consumed' as const });
       } else {
         await ctx.db.patch(row._id, {
@@ -570,9 +615,13 @@ export const deleteQueuedMessage = mutation({
     if (row.status !== 'queued') {
       return { deleted: false };
     }
-    await ctx.runMutation(components.agent.messages.deleteByIds, {
-      messageIds: [row.messageId],
-    });
+    // Persist-at-pick rows have no transcript copy while queued — only legacy
+    // rows (saved at enqueue, in flight across the deploy) carry one.
+    if (!row.deferredPersist) {
+      await ctx.runMutation(components.agent.messages.deleteByIds, {
+        messageIds: [row.messageId],
+      });
+    }
     await ctx.db.delete(row._id);
     return { deleted: true };
   },
@@ -584,6 +633,10 @@ export const listQueuedMessages = query({
     v.object({
       queueId: v.id('chatMessageQueue'),
       messageId: v.string(),
+      /** Transcript copy id once the row was picked (persist-at-pick) — lets
+       * the UI match a retiring tray entry to its just-revealed bubble. For
+       * legacy rows this equals `messageId`. */
+      savedMessageId: v.optional(v.string()),
       text: v.string(),
       status: v.union(
         v.literal('queued'),
@@ -615,6 +668,7 @@ export const listQueuedMessages = query({
     return rows.map((r) => ({
       queueId: r._id,
       messageId: r.messageId,
+      savedMessageId: r.deferredPersist ? r.savedMessageId : r.messageId,
       text: r.text,
       status: r.status,
       createdAt: r.createdAt,

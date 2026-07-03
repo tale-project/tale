@@ -336,8 +336,12 @@ export const threadMetadataTable = defineTable({
 
 /**
  * Messages sent while a turn is running (Claude-Code-TUI-style "keep typing
- * while it works"). Each row pairs a timeline user message (already saved at
- * enqueue, so it renders immediately) with delivery state:
+ * while it works"). Persist-at-pick: the queue row is the ONLY record until
+ * the message is actually picked (steer-injected mid-turn or boundary-
+ * drained) — the composer's queue tray renders waiting rows, and the
+ * transcript copy is created at the pick so its position is final on first
+ * render (an enqueue-time copy sorted mid-turn and reshuffled the list as
+ * later rows streamed in). Delivery state:
  *
  *   queued    — waiting; drained into one combined turn at the next terminal
  *               turn boundary (`settleQueueOnTurnEnd`).
@@ -366,9 +370,21 @@ export const chatMessageQueueTable = defineTable({
    * org default — silently swapping the user's pick (and 403'ing outright
    * when the session VK is single-model). Optional: legacy rows + Auto. */
   modelId: v.optional(v.string()),
-  /** Agent-component message _id of the timeline row saved at enqueue. */
+  /** Stable identity token in the steer-file contract (file names + consumed.*
+   * markers). For rows with `deferredPersist` this is the queue row's own id —
+   * no message exists until the pick; for legacy rows (saved at enqueue) it is
+   * the agent-component message _id. */
   messageId: v.string(),
-  /** Exact persisted content; drain prompt source. */
+  /** Agent-component message _id of the transcript copy, created at the PICK
+   * (steer injection / boundary drain / terminal reconcile) — persist-at-pick
+   * keeps the copy's `_creationTime` at injection time so its transcript
+   * position is final on first render. Unset while the row is waiting. */
+  savedMessageId: v.optional(v.string()),
+  /** Marks rows under the persist-at-pick model (no message saved at enqueue).
+   * Legacy rows in flight across the deploy that introduced this keep their
+   * enqueue-time message and must not be double-saved at the pick. */
+  deferredPersist: v.optional(v.boolean()),
+  /** Exact content; drain prompt + steer payload source. */
   text: v.string(),
   status: v.union(
     v.literal('queued'),

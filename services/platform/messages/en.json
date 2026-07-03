@@ -1414,6 +1414,11 @@
         "delivered": "Delivered — waiting for the agent to respond",
         "deliversNow": "Delivering now",
         "consumed": "Picked up"
+      },
+      "tray": {
+        "label": "Queued messages",
+        "remove": "Remove queued message",
+        "removeFailed": "Couldn't remove the queued message"
       }
     },
     "errorGenerating": "Something went wrong",

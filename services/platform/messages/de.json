@@ -1411,6 +1411,11 @@
         "delivered": "Übermittelt — warte auf die Antwort des Agenten",
         "deliversNow": "Wird gerade zugestellt",
         "consumed": "Übernommen"
+      },
+      "tray": {
+        "label": "Wartende Nachrichten",
+        "remove": "Wartende Nachricht entfernen",
+        "removeFailed": "Wartende Nachricht konnte nicht entfernt werden"
       }
     },
     "errorGenerating": "Etwas ist schiefgelaufen",

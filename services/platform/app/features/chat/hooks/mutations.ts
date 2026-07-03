@@ -181,6 +181,12 @@ export function useEnqueueMessage() {
   return useConvexMutation(api.threads.message_queue.enqueueMessage);
 }
 
+/** Remove a still-waiting queued message (queue tray ×). Refused server-side
+ * once the row is claimed/delivered — it's already (being) handed over. */
+export function useDeleteQueuedMessage() {
+  return useConvexMutation(api.threads.message_queue.deleteQueuedMessage);
+}
+
 export function useShareThread() {
   return useConvexMutation(api.threads.mutations.shareThread);
 }

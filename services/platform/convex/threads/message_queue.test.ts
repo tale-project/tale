@@ -52,7 +52,10 @@ vi.mock('../lib/rls/auth/can_access_thread', () => ({
   canAccessThread: vi.fn().mockResolvedValue({ _id: 'meta_1' }),
 }));
 
+import { saveMessage } from '@convex-dev/agent';
+
 import {
+  deleteQueuedMessage,
   listDeliveredForExec,
   listQueuedMessages,
   markConsumed,
@@ -556,6 +559,198 @@ describe('delivery channel stamping', () => {
     expect(m1?.deliveredChannel).toBeUndefined();
     expect(m1?.deliveredExecId).toBeUndefined();
     expect(m2?.status).toBe('consumed');
+  });
+});
+
+// --- persist-at-pick ---------------------------------------------------------
+// Rows with `deferredPersist` have NO transcript copy until the pick; the
+// pick (steer consumption, boundary drain, or terminal reconcile) creates it
+// exactly once and stamps `savedMessageId`.
+
+describe('persist-at-pick', () => {
+  const deleteQueuedMessageHandler = (
+    deleteQueuedMessage as unknown as MutationDef<
+      { queueId: string },
+      { deleted: boolean }
+    >
+  ).handler;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCreateStream.mockResolvedValue('stream_new');
+    let n = 0;
+    vi.mocked(saveMessage).mockImplementation(() => {
+      n += 1;
+      return Promise.resolve({ messageId: `saved_${n}` }) as ReturnType<
+        typeof saveMessage
+      >;
+    });
+  });
+
+  it('markConsumed creates the transcript copy for a deferred row (once)', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'q_tok_1',
+          status: 'delivered',
+          deferredPersist: true,
+          text: 'steered text',
+        }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    expect(
+      await markConsumedHandler(ctx, {
+        threadId: 'thread_1',
+        messageIds: ['q_tok_1'],
+      }),
+    ).toBe(1);
+    expect(saveMessage).toHaveBeenCalledTimes(1);
+    expect(saveMessage).toHaveBeenCalledWith(
+      ctx,
+      expect.anything(),
+      expect.objectContaining({
+        threadId: 'thread_1',
+        message: { role: 'user', content: 'steered text' },
+      }),
+    );
+    expect(tables.chatMessageQueue[0]).toMatchObject({
+      status: 'consumed',
+      savedMessageId: 'saved_1',
+    });
+    // Replay (already consumed → delivered-only scan misses it): no re-save.
+    await markConsumedHandler(ctx, {
+      threadId: 'thread_1',
+      messageIds: ['q_tok_1'],
+    });
+    expect(saveMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('markConsumed does not save for legacy rows (persisted at enqueue)', async () => {
+    const tables = {
+      chatMessageQueue: [queueRow({ messageId: 'm1', status: 'delivered' })],
+    };
+    const { ctx } = makeCtx(tables);
+    await markConsumedHandler(ctx, {
+      threadId: 'thread_1',
+      messageIds: ['m1'],
+    });
+    expect(saveMessage).not.toHaveBeenCalled();
+    expect(tables.chatMessageQueue[0]?.status).toBe('consumed');
+  });
+
+  it('boundary drain persists deferred rows in send order and prompts with the last copy', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'q_tok_2',
+          text: 'second',
+          _creationTime: 2,
+          createdAt: 2,
+          deferredPersist: true,
+        }),
+        queueRow({
+          messageId: 'q_tok_1',
+          text: 'first',
+          _creationTime: 1,
+          createdAt: 1,
+          deferredPersist: true,
+        }),
+      ],
+      sandboxSessionOps: [],
+    };
+    const { ctx } = makeCtx(tables);
+    const result = await settleQueueOnTurnEnd(
+      ctx as unknown as MutationCtx,
+      meta,
+      'stream_old',
+    );
+    expect(result).toEqual({ drained: true });
+    // Saved in send order → 'first' gets saved_1, 'second' saved_2.
+    expect(
+      vi
+        .mocked(saveMessage)
+        .mock.calls.map(
+          (c) => (c[2] as { message: { content: string } }).message.content,
+        ),
+    ).toEqual(['first', 'second']);
+    const [, , args] = ctx.scheduler.runAfter.mock.calls[0] ?? [];
+    expect(args).toMatchObject({
+      message: 'first\n\nsecond',
+      queuedPromptMessageId: 'saved_2',
+    });
+  });
+
+  it('terminal reconcile is a late pick for confirmed rows, none for rollbacks', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'q_tok_1',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deferredPersist: true,
+          text: 'confirmed',
+        }),
+        queueRow({
+          messageId: 'q_tok_2',
+          status: 'delivered',
+          deliveredExecId: 'exec_1',
+          deferredPersist: true,
+          text: 'rolled back',
+          _creationTime: 2,
+        }),
+      ],
+    };
+    const { ctx } = makeCtx(tables);
+    await reconcileDeliveredHandler(ctx, {
+      threadId: 'thread_1',
+      execId: 'exec_1',
+      consumedMessageIds: ['q_tok_1'],
+    });
+    expect(saveMessage).toHaveBeenCalledTimes(1);
+    const confirmed = tables.chatMessageQueue.find(
+      (r) => r.messageId === 'q_tok_1',
+    );
+    const rolled = tables.chatMessageQueue.find(
+      (r) => r.messageId === 'q_tok_2',
+    );
+    expect(confirmed).toMatchObject({
+      status: 'consumed',
+      savedMessageId: 'saved_1',
+    });
+    expect(rolled).toMatchObject({ status: 'queued' });
+    expect(rolled?.savedMessageId).toBeUndefined();
+  });
+
+  it('deleteQueuedMessage deletes only the row for deferred rows, message too for legacy', async () => {
+    const tables = {
+      chatMessageQueue: [
+        queueRow({
+          messageId: 'q_tok_1',
+          userId: 'user_1',
+          deferredPersist: true,
+        }),
+        queueRow({ messageId: 'legacy_msg', userId: 'user_1' }),
+      ],
+    };
+    const { ctx, deleted } = makeCtx(tables);
+    ctx.db.get.mockImplementation((id: string) =>
+      Promise.resolve(
+        tables.chatMessageQueue.find((r) => r._id === id) ?? null,
+      ),
+    );
+    expect(
+      await deleteQueuedMessageHandler(ctx, { queueId: 'q_q_tok_1' }),
+    ).toEqual({ deleted: true });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+
+    expect(
+      await deleteQueuedMessageHandler(ctx, { queueId: 'q_legacy_msg' }),
+    ).toEqual({ deleted: true });
+    expect(ctx.runMutation).toHaveBeenCalledWith('mock-deleteByIds', {
+      messageIds: ['legacy_msg'],
+    });
+    expect(deleted).toEqual(['q_q_tok_1', 'q_legacy_msg']);
   });
 });
 
