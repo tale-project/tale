@@ -33,6 +33,7 @@ import { ensureDocker } from '../docker/ensure-docker';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
+import { getContainerHealth } from '../docker/get-container-health';
 import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
@@ -72,35 +73,25 @@ async function openBrowser(url: string): Promise<void> {
 }
 
 /**
- * Poll `${url}/health` until it answers 200 or the attempt budget runs out.
- * The dev/trial proxy serves a self-signed localhost certificate, so the
- * probe must accept it — with default TLS verification every attempt would
- * fail and readiness would never be observed.
+ * Wait for the platform container's Docker healthcheck to report healthy.
+ * The old probe fetched `${url}/health` — but that path is answered by the
+ * proxy alone (it returns 200 with no platform container at all), and the
+ * dev proxy's self-signed certificate failed default TLS verification on
+ * every poll, so readiness was never observed. The container health is the
+ * signal deploy already trusts, needs no TLS exception, and only flips once
+ * the app itself is serving.
  */
 async function waitForHealth(
-  url: string,
   signal?: AbortSignal,
   maxAttempts = 120,
 ): Promise<boolean> {
-  const healthUrl = `${url}/health`;
+  const containerName = `${getProjectId()}-platform`;
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) return false;
-    try {
-      const fetchSignal = signal
-        ? AbortSignal.any([AbortSignal.timeout(2000), signal])
-        : AbortSignal.timeout(2000);
-      const res = await fetch(healthUrl, {
-        signal: fetchSignal,
-        tls: { rejectUnauthorized: false },
-      });
-      if (res.ok) return true;
-    } catch (err) {
-      if (signal?.aborted) return false;
-      logger.debug(
-        `Health check attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    if ((await getContainerHealth(containerName)) === 'healthy') {
+      return true;
     }
-    await Bun.sleep(1000);
+    await Bun.sleep(2000);
   }
   return false;
 }
@@ -260,7 +251,9 @@ export async function runDev(options: DevOptions): Promise<void> {
     const healthy = await runStep(
       { active: 'Waiting for services', done: 'Services healthy' },
       async () => {
-        if (!(await waitForHealth(url, abortController.signal))) {
+        // First boot bootstraps Convex functions and migrations inside the
+        // platform container — allow up to 10 minutes before warning.
+        if (!(await waitForHealth(abortController.signal, 300))) {
           throw new StepWarning(
             'not healthy yet — they may still be warming up; check `tale logs`',
           );
@@ -279,7 +272,8 @@ export async function runDev(options: DevOptions): Promise<void> {
   //    compose, which stops the stack gracefully (the original contract) — no
   //    manual signal handling, no compose-down spew. Build/pull/HMR noise is
   //    classified away; only meaningful lifecycle/warn/error lines surface. A
-  //    concurrent announcer prints the READY block once /health answers. ──
+  //    concurrent announcer prints the READY block once the platform
+  //    container reports healthy. ──
   const classify = createStreamClassifier(
     chain(
       classifyBuildKit,
@@ -301,7 +295,7 @@ export async function runDev(options: DevOptions): Promise<void> {
     let noted = false;
     let ok = false;
     while (!ok && !abortController.signal.aborted) {
-      ok = await waitForHealth(url, abortController.signal, 30);
+      ok = await waitForHealth(abortController.signal, 30);
       if (!ok && !noted && Date.now() - started >= NOTE_AFTER_MS) {
         noted = true;
         infoLine(
