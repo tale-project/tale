@@ -1,3 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 import type { FunctionBinding } from '@/lib/shared/platform/function_bindings';
@@ -72,6 +74,15 @@ export interface AppSummary {
    * references (e.g. friendly workflow-step names) at render time.
    */
   messages?: Record<string, Record<string, string>>;
+}
+
+/** Refetch the hub's app list after a bundle-changing action (e.g. builtin sync). */
+export function useInvalidateApps() {
+  const queryClient = useQueryClient();
+  return (organizationId: string) =>
+    queryClient.invalidateQueries({
+      queryKey: ['apps', 'list', organizationId],
+    });
 }
 
 export function useApps(organizationId: string): {
