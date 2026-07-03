@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
+import { CHAT_MAX_FILE_COUNT } from '@/lib/shared/file-types';
 
 import { useConvexFileUpload } from './use-convex-file-upload';
 
@@ -185,5 +186,163 @@ describe('useConvexFileUpload — per-type size ceiling (#2048)', () => {
       ([arg]) => arg?.title === 'invalidFiles',
     );
     expect(tooLargeToast?.[0]?.description).toContain('50');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the in-flight slot race (#2026): the slot / dedup /
+// total-size guards read `attachmentsRef`, which only reflects *settled*
+// uploads. Two rapid batches that overlap before the first settles both used
+// to see a stale count of 0 and each admit their full batch, overshooting the
+// 10-file cap. The hook now reserves slots for in-flight uploads so the second
+// batch sees the first's files and rejects the overflow.
+// ---------------------------------------------------------------------------
+describe('useConvexFileUpload — in-flight slot cap (#2026)', () => {
+  it('does not exceed the file cap when two batches overlap in-flight', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      const batchA = result.current.uploadFiles(
+        Array.from({ length: 6 }, (_, i) =>
+          makeAudioFile(`a-${i}.mp3`, 1 * MB),
+        ),
+      );
+      const batchB = result.current.uploadFiles(
+        Array.from({ length: 6 }, (_, i) =>
+          makeAudioFile(`b-${i}.mp3`, 1 * MB),
+        ),
+      );
+      await Promise.all([batchA, batchB]);
+    });
+
+    // 12 files were dropped across two overlapping batches; only 10 may attach.
+    await waitFor(() =>
+      expect(result.current.attachments.length).toBeGreaterThan(0),
+    );
+    expect(result.current.attachments).toHaveLength(CHAT_MAX_FILE_COUNT);
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(true);
+  });
+
+  it('rejects a duplicate dropped while the first copy is still uploading', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      const first = result.current.uploadFiles([
+        makeAudioFile('dup.mp3', 1 * MB),
+      ]);
+      const second = result.current.uploadFiles([
+        makeAudioFile('dup.mp3', 1 * MB),
+      ]);
+      await Promise.all([first, second]);
+    });
+
+    // The in-flight copy is counted, so the second drop is a duplicate.
+    expect(result.current.attachments).toHaveLength(1);
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'duplicateFile'),
+    ).toBe(true);
+  });
+
+  // Reservation ids must be collision-free. The first fix derived the id from
+  // `name-Date.now()-index`, which collided for same-name files at the same
+  // index across two batches that reserved in the same millisecond — and a
+  // collision made release-by-id drop *both* entries on first settle,
+  // under-counting in-flight files. With `Date.now` pinned (so the legacy id
+  // would collide) the cap must still hold when a third drop lands while an
+  // earlier batch is still uploading.
+  it('keeps the cap when same-name/different-size batches overlap and a third drop lands mid-flight', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+    // Hold every upload in-flight via a controllable `saveFileMetadata`
+    // deferred, keyed by size so each batch can be settled independently:
+    // 1MB = batch A, 2MB = batch B. Same name + different size are NOT
+    // duplicates (dedup key is name:size), so all are admitted.
+    const pending: { size: number; resolve: () => void }[] = [];
+    saveFileMetadata.mockImplementation(
+      ({ size }: { size: number }) =>
+        new Promise<void>((resolve) => {
+          pending.push({ size, resolve });
+        }),
+    );
+
+    const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
+
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    let batchA: Promise<void> | undefined;
+    let batchB: Promise<void> | undefined;
+    await act(async () => {
+      batchA = result.current.uploadFiles(
+        Array.from({ length: 5 }, (_, i) =>
+          makeAudioFile(`f-${i}.mp3`, 1 * MB),
+        ),
+      );
+      batchB = result.current.uploadFiles(
+        Array.from({ length: 5 }, (_, i) =>
+          makeAudioFile(`f-${i}.mp3`, 2 * MB),
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // 10 distinct files reserved (5 + 5), none settled yet. Settle batch A.
+    await act(async () => {
+      for (const d of pending.filter((p) => p.size === 1 * MB)) d.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await flush();
+
+    // Batch A is committed (5 attachments); batch B's 5 are still in-flight.
+    // A third drop must see 5 + 5 = 10 slots used and be fully rejected.
+    await act(async () => {
+      await result.current.uploadFiles([makeAudioFile('late.mp3', 1 * MB)]);
+    });
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(true);
+
+    // Drain the rest. The cap holds at exactly 10 — the late file was rejected,
+    // not admitted on top of an under-counted in-flight set.
+    await act(async () => {
+      for (const d of pending.filter((p) => p.size === 2 * MB)) d.resolve();
+      await Promise.all([batchA, batchB]);
+    });
+    await flush();
+
+    expect(result.current.attachments).toHaveLength(CHAT_MAX_FILE_COUNT);
+  });
+
+  // A failed upload must release its reservation so the slot is reclaimed
+  // rather than leaked — otherwise a single transient failure permanently
+  // shrinks the usable cap.
+  it('frees the slot when an upload fails', async () => {
+    // Reset the metadata mock — an earlier test swaps in a never-resolving
+    // deferred and `clearAllMocks` only clears call history, not the impl.
+    saveFileMetadata.mockResolvedValue(undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false } as Response)
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({ storageId: 'storage-1' }),
+        } as Response),
+    );
+
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    await act(async () => {
+      await result.current.uploadFiles([makeAudioFile('bad.mp3', 1 * MB)]);
+    });
+    expect(result.current.attachments).toHaveLength(0);
+
+    // The failed reservation was released, so a follow-up upload still fits.
+    await act(async () => {
+      await result.current.uploadFiles([makeAudioFile('good.mp3', 1 * MB)]);
+    });
+    await waitFor(() => expect(result.current.attachments).toHaveLength(1));
   });
 });
