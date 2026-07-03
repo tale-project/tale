@@ -57,6 +57,9 @@ const AGENT_TAB_DIRTY_KEYS = {
     'roleRestriction',
     'composerMode',
     'i18n',
+    // The execution-timeout input is rendered on the General tab, so its
+    // diff key belongs here for the per-tab unsaved-changes indicator.
+    'timeoutMs',
   ],
   instructions: [
     'systemInstructions',
@@ -66,7 +69,6 @@ const AGENT_TAB_DIRTY_KEYS = {
     'nativeWebTools',
     'structuredResponsesEnabled',
     'maxSteps',
-    'timeoutMs',
     'outputReserve',
     'personalizationMode',
   ],
