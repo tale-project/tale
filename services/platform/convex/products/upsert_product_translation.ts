@@ -1,5 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { validateProductFields } from './field_limits';
 import { assertSupportedProductLocale } from './locale_validation';
 
 export interface UpsertProductTranslationArgs {
@@ -17,6 +18,11 @@ export async function upsertProductTranslation(
   args: UpsertProductTranslationArgs,
 ): Promise<Id<'products'>> {
   assertSupportedProductLocale(args.language);
+  validateProductFields({
+    name: args.name,
+    description: args.description,
+    category: args.category,
+  });
 
   const product = await ctx.db.get(args.productId);
   if (!product) {
