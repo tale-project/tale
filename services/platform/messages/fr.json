@@ -1929,6 +1929,7 @@
       "back": "Retour",
       "next": "Suivant",
       "skip": "Passer",
+      "completeStepToContinue": "Terminez cette étape pour continuer",
       "loading": "Chargement...",
       "done": "Terminé",
       "duplicate": "Dupliquer",

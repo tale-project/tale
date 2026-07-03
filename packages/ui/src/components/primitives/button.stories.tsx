@@ -74,6 +74,11 @@ import { Button } from '@/app/components/ui/primitives';
       control: 'boolean',
       description: 'Disables the button',
     },
+    disabledReason: {
+      control: 'text',
+      description:
+        'Why the button is disabled — shown as a tooltip on hover/focus and announced to screen readers (only while disabled)',
+    },
     collapseLabel: {
       control: 'boolean',
       description:
@@ -170,6 +175,33 @@ export const Disabled: Story = {
       </Button>
     </div>
   ),
+};
+
+export const DisabledWithReason: Story = {
+  render: () => (
+    <div className="flex gap-4">
+      <Button disabled disabledReason="Pick an agent before sending">
+        Send
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        title="Delete"
+        disabled
+        disabledReason="You can only delete your own messages"
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Pass `disabledReason` to explain *why* a disabled control is off. The reason shows as a tooltip on hover AND focus and is announced to screen readers. Because a natively-disabled button emits no events and leaves the tab order, a button with a `disabledReason` is kept focusable and switched to `aria-disabled` (still visually disabled and inert). Tab to or hover the buttons to see the reason.',
+      },
+    },
+  },
 };
 
 export const AsLink: Story = {
