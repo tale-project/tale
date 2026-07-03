@@ -2,6 +2,7 @@
 
 import { v } from 'convex/values';
 
+import { SECRET_NAME_RE } from '../../../lib/shared/schemas/secrets';
 import { internal } from '../../_generated/api';
 import { action, type ActionCtx } from '../../_generated/server';
 import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
@@ -10,8 +11,6 @@ import {
   encryptSecret,
   KeyRotatedError,
 } from '../../lib/secret_box';
-
-const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 async function requireAdmin(
   ctx: ActionCtx,
