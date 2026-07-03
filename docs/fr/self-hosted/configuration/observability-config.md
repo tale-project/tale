@@ -19,14 +19,15 @@ Tale ne ship pas de log shipper. L'échange de driver est le point d'intégratio
 
 ## Métriques
 
-Le proxy Caddy expose deux chemins de métriques derrière un seul bearer token :
+Le proxy Caddy expose trois chemins de métriques derrière un seul bearer token :
 
-| Chemin              | Source          | Ce qui est dedans                                                |
-| ------------------- | --------------- | ---------------------------------------------------------------- |
-| `/metrics/platform` | `tale-platform` | Latence HTTP, compteurs de routes, métriques de processus Node   |
-| `/metrics/convex`   | `tale-convex`   | 261 métriques Convex intégrées, plus les timings RAG et de crawl |
+| Chemin               | Source          | Ce qui est dedans                                                                                       |
+| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| `/metrics/platform`  | `tale-platform` | Latence HTTP, compteurs de routes, métriques de processus Node, gauges de cible SLA de temps de réponse |
+| `/metrics/convex`    | `tale-convex`   | 261 métriques Convex intégrées, plus les timings RAG et de crawl                                        |
+| `/metrics/sla-rules` | `tale-platform` | Rules Prometheus de recording + alerting générées pour les SLA de temps de réponse                      |
 
-Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend Convex, donc ses timings empruntent la série `/metrics/convex` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer les deux endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Tout sauf les deux chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
+Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend Convex, donc ses timings empruntent la série `/metrics/convex` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer ces endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Le chemin `/metrics/sla-rules` est un fichier YAML de rules en lecture seule que tu charges dans Prometheus, pas une cible de scrape — les seuils qu'il porte sont documentés dans [Opérations](/fr/self-hosted/operate/observability/operations). Tout sauf les chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
 
 Une stanza de scrape Prometheus qui marche :
 

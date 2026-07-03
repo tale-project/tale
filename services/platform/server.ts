@@ -25,6 +25,7 @@ import {
   WEBDAV_HMAC_KEY_MIN_LENGTH,
 } from './lib/webdav/hmac-key';
 import { WEBDAV_METHODS } from './lib/webdav/types';
+import { slaRulesResponse } from './sla-targets';
 import {
   buildStatusFeed,
   probeServices,
@@ -675,6 +676,12 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
   app.get('/metrics/convex', (c) =>
     convexMetricsResponse(c.req.query('format') ?? null),
   );
+
+  // Generated Prometheus recording + alerting rules for the response-time
+  // SLAs, derived from the canonical targets in `sla-targets.ts`. Operators
+  // load these instead of hand-copying thresholds; the rule expressions track
+  // the same budgets exposed as `tale_sla_target_seconds` on `/metrics`.
+  app.get('/metrics/sla-rules', () => slaRulesResponse());
 
   // Branding images. Defense-in-depth: filename is already locked
   // down (no `/`, no `..`), but the prefix check uses `path.sep` so a
