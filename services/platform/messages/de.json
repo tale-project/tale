@@ -5155,10 +5155,10 @@
     "account": {
       "profile": {
         "title": "Profil",
-        "description": "Dein Anzeigename und deine E-Mail — sichtbar für deine Teamkollegen.",
+        "description": "Dein Name und deine E-Mail — sichtbar für deine Teamkollegen.",
         "nameDescription": "Der Name, der deinen Teamkollegen angezeigt wird.",
         "emailDescription": "Wird zur Anmeldung und für Benachrichtigungen verwendet.",
-        "name": "Anzeigename",
+        "name": "Name",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
         "nameRequired": "Name ist erforderlich"
@@ -5183,10 +5183,11 @@
       }
     },
     "organization": {
-      "title": "Organisation (optional)",
+      "title": "Organisationsname",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "nameDescription": "Der Anzeigename deiner Organisation.",
+      "nameRequired": "Organisationsname ist erforderlich",
       "localeDescription": "Die Hauptsprache deiner Organisation.",
       "organizationId": "Organisations-ID",
       "membersSectionTitle": "Mitglieder",

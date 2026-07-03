@@ -365,9 +365,10 @@ function VerifyTotpDialog({
         </div>
         {secret && (
           <CopyableField
-            value={secret}
-            label={t('setup.manualEntry')}
             className="w-full min-w-0"
+            label={t('setup.manualEntry')}
+            value={secret}
+            copyAriaLabel={t('setup.manualEntry')}
           />
         )}
       </VStack>

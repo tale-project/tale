@@ -5156,10 +5156,10 @@
     "account": {
       "profile": {
         "title": "Profil",
-        "description": "Ton nom d'affichage et ton courriel — visibles par tes coéquipiers.",
+        "description": "Ton nom et ton courriel — visibles par tes coéquipiers.",
         "nameDescription": "Le nom affiché à tes coéquipiers.",
         "emailDescription": "Utilisé pour te connecter et recevoir des notifications.",
-        "name": "Nom d'affichage",
+        "name": "Nom",
         "namePlaceholder": "Entre ton nom",
         "email": "Courriel",
         "nameRequired": "Le nom est requis"
@@ -5184,10 +5184,11 @@
       }
     },
     "organization": {
-      "title": "Organisation (facultatif)",
+      "title": "Nom de l'organisation",
       "detailsTitle": "Détails de l'organisation",
       "detailsDescription": "Informations de base sur ton organisation.",
       "nameDescription": "Le nom d'affichage de ton organisation.",
+      "nameRequired": "Le nom de l'organisation est requis",
       "localeDescription": "La langue principale de ton organisation.",
       "organizationId": "ID de l'organisation",
       "membersSectionTitle": "Membres",
@@ -7201,7 +7202,7 @@
     "setup": {
       "title": "Configurer l'authentification à double facteur",
       "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
-      "manualEntry": "Ou saisir manuellement :",
+      "manualEntry": "Ou saisis-le manuellement :",
       "verifyCodeLabel": "Code de vérification",
       "verifyButton": "Vérifier et activer"
     },

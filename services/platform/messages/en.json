@@ -5419,10 +5419,10 @@
     "account": {
       "profile": {
         "title": "Profile",
-        "description": "Your display name and email — visible to your teammates.",
+        "description": "Your name and email — visible to your teammates.",
         "nameDescription": "The name shown to your teammates.",
         "emailDescription": "Used to sign in and receive notifications.",
-        "name": "Display name",
+        "name": "Name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
         "nameRequired": "Name is required"
@@ -5451,6 +5451,7 @@
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
       "nameDescription": "The display name for your organization.",
+      "nameRequired": "Organization name is required",
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
       "membersSectionTitle": "Members",
