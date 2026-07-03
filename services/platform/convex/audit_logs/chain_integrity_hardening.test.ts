@@ -1,6 +1,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { computeAuditHash } from '../lib/helpers/audit_hash';
@@ -82,16 +83,13 @@ async function progressFor(t: T, organizationId: string) {
 // proving the production fallback (audit_hash.ts) — not a coincidental match —
 // accepts it. Kept separate from production so a regression there is caught.
 const V1_EXCLUDED = new Set(['integrityHash', 'previousHash']);
-function isPlainRecord(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val);
-}
 function v1Canonicalize(value: unknown): string {
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
   if (Array.isArray(value)) {
     return '[' + value.map((i) => v1Canonicalize(i)).join(',') + ']';
   }
-  if (isPlainRecord(value)) {
+  if (isRecord(value)) {
     return (
       '{' +
       Object.keys(value)

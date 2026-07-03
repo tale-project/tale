@@ -13,6 +13,8 @@
  * alphabetically at every nesting level.
  */
 
+import { isRecord } from '../../../lib/utils/type-utils';
+
 /**
  * Fields excluded from hash computation because they are part of the
  * hash chain metadata itself (or post-write annotations), not the
@@ -38,10 +40,6 @@ const EXCLUDED_FIELDS = new Set([
   'lifecycleStatus',
   'statusChangedAt',
 ]);
-
-function isRecord(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val);
-}
 
 /**
  * Produce a deterministic JSON string of `value` with object keys
