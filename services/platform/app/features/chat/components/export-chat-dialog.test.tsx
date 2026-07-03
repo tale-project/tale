@@ -151,7 +151,7 @@ describe('ExportChatDialog', () => {
     expect(
       screen.getByRole('button', { name: 'Download Markdown' }),
     ).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Print to PDF' })).toBeDisabled();
   });
 
   it('reaches zero when messages are deselected one by one', async () => {
@@ -176,6 +176,6 @@ describe('ExportChatDialog', () => {
     expect(
       screen.getByRole('button', { name: 'Download Markdown' }),
     ).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Print to PDF' })).toBeDisabled();
   });
 });
