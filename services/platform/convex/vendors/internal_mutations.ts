@@ -38,7 +38,10 @@ export const createVendor = internalMutation({
         .first();
 
       if (existing) {
-        throw new Error(`Vendor with email ${email} already exists`);
+        // Structured code so the duplicate-add rejection surfaces as an
+        // actionable 409/toast instead of a raw `Error` that Convex redacts
+        // to an uncaught "Server Error" in the client console.
+        throw new ConvexError({ code: 'VENDOR_DUPLICATE_EMAIL', email });
       }
     }
 
@@ -53,9 +56,10 @@ export const createVendor = internalMutation({
         .first();
 
       if (existing) {
-        throw new Error(
-          `Vendor with external ID ${args.externalId} already exists`,
-        );
+        throw new ConvexError({
+          code: 'VENDOR_DUPLICATE_EXTERNAL_ID',
+          externalId: String(args.externalId),
+        });
       }
     }
 
