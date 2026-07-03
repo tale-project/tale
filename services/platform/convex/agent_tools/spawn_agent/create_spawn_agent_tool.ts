@@ -52,9 +52,8 @@ const spawnAgentArgs = z.object({
     .string()
     .min(2)
     .max(40)
-    .regex(/^[a-z0-9][a-z0-9-]*$/, 'lowercase slug, digits and dashes')
     .describe(
-      'Short kebab-case label for this worker, shown to the user on the job card (e.g. "byd-researcher").',
+      'Short human-readable display name for this worker, shown to the user as the job title. Write it in the conversation language, like a role on a team (e.g. "BYD market researcher").',
     ),
   description: z
     .string()
