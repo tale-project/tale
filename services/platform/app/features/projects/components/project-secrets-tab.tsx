@@ -361,9 +361,7 @@ export function ProjectSecretsTab({
         isDirty={isDirty}
         // Invalid names block submit; a name collision also requires explicit
         // confirmation before overwriting a stored credential.
-        isValid={
-          nameValid && (isEditing || !hasCollision || confirmOverwrite)
-        }
+        isValid={nameValid && (isEditing || !hasCollision || confirmOverwrite)}
         submitText={
           !isEditing && hasCollision ? t('overwriteButton') : undefined
         }

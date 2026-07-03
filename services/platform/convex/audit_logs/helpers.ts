@@ -1,7 +1,10 @@
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { computeAuditHash } from '../lib/helpers/audit_hash';
+import {
+  computeAuditHash,
+  computeAuditHashV1Legacy,
+} from '../lib/helpers/audit_hash';
 import type {
   CreateAuditLogArgs,
   ListAuditLogsArgs,
@@ -187,6 +190,51 @@ export function buildAuditRecordHashInput(
 }
 
 /**
+ * FROZEN v1 record payload for the legacy hash fallback (#1842).
+ *
+ * Rebuilds the EXACT field set the pre-#1676 writer hashed — the 21 fields
+ * present at #1405 (295ef14f9) — from a stored row. Deliberately OMITS
+ * `actorEmailHash` and `actorIpHash`: both were added AFTER v1, so including
+ * them would inject phantom `"actorEmailHash":undefined` tokens the original
+ * v1 hash never covered. Absent optionals resolve to `undefined`; the frozen
+ * `canonicalizeV1Legacy` emits them as `"field":undefined`, exactly as the
+ * original writer did.
+ *
+ * DO NOT add fields — this mirrors a historical constant, NOT the current
+ * writer (`buildAuditRecordHashInput`).
+ */
+export function buildAuditRecordHashInputV1Legacy(
+  row: Doc<'auditLogs'>,
+): Record<string, unknown> {
+  return {
+    organizationId: row.organizationId,
+    actorId: row.actorId,
+    actorEmail: row.actorEmail,
+    actorRole: row.actorRole,
+    actorType: row.actorType,
+    action: row.action,
+    category: row.category,
+    resourceType: row.resourceType,
+    resourceId: row.resourceId,
+    resourceName: row.resourceName,
+    previousState: row.previousState,
+    newState: row.newState,
+    changedFields:
+      row.changedFields && row.changedFields.length > 0
+        ? row.changedFields
+        : undefined,
+    sessionId: row.sessionId,
+    ipAddress: row.ipAddress,
+    userAgent: row.userAgent,
+    requestId: row.requestId,
+    timestamp: row.timestamp,
+    status: row.status,
+    errorMessage: row.errorMessage,
+    metadata: row.metadata,
+  };
+}
+
+/**
  * Per-mutation append serialization.
  *
  * `createAuditLog` reads the current chain head (`lastEntry`) and chains its
@@ -306,12 +354,23 @@ async function insertAuditLog(
         buildAuditRecordHashInput(lastEntry),
       );
       if (recomputed !== lastEntry.integrityHash) {
-        console.error('[audit-chain] tamper detected on prior row', {
-          orgId: args.organizationId,
-          rowId: lastEntry._id,
-          stored: lastEntry.integrityHash,
-          recomputed,
-        });
+        // Legacy (#1842) fallback: a pre-#1676 chain head is unreproducible by
+        // the modern recompute above yet matches the frozen v1 algorithm. Only
+        // a mismatch under BOTH recomputes is genuine tampering — without this
+        // the self-check logs a false positive the first time an org that went
+        // quiet during the v1 window is written to again.
+        const legacyRecomputed = await computeAuditHashV1Legacy(
+          lastEntry.previousHash ?? '',
+          buildAuditRecordHashInputV1Legacy(lastEntry),
+        );
+        if (legacyRecomputed !== lastEntry.integrityHash) {
+          console.error('[audit-chain] tamper detected on prior row', {
+            orgId: args.organizationId,
+            rowId: lastEntry._id,
+            stored: lastEntry.integrityHash,
+            recomputed,
+          });
+        }
       }
     } catch (err) {
       console.warn('[audit-chain] self-check threw, skipping', {
