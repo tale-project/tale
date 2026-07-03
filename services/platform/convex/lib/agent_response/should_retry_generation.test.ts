@@ -9,7 +9,7 @@ import {
 
 // Helper to create step-like objects matching AI SDK shape
 function makeStep(opts: {
-  toolCalls?: Array<{ toolName: string }>;
+  toolCalls?: Array<{ toolName: string; invalid?: boolean }>;
   text?: string;
 }) {
   return opts;
@@ -196,6 +196,22 @@ describe('shouldRetryGeneration', () => {
         reason: 'finish-reason-tool-calls',
       });
     });
+
+    it('still retries when the gate call failed input validation', () => {
+      // Regression: a call the SDK marked `invalid: true` never executed, so
+      // no approval card exists. Treating it as the gate halt suppressed the
+      // retry and stranded the turn on a question the user could never see.
+      const steps = [
+        makeStep({
+          toolCalls: [{ toolName: 'request_human_input', invalid: true }],
+        }),
+      ];
+      const result = shouldRetryGeneration('tool-calls', '', steps, false);
+      expect(result).toEqual({
+        retry: true,
+        reason: 'finish-reason-tool-calls',
+      });
+    });
   });
 
   describe('already-retried guard', () => {
@@ -261,6 +277,27 @@ describe('endedOnHumanInputGate', () => {
     expect(
       endedOnHumanInputGate([makeStep({ toolCalls: [{ toolName: 'web' }] })]),
     ).toBe(false);
+  });
+
+  it('returns false when the gate call failed input validation', () => {
+    const steps = [
+      makeStep({
+        toolCalls: [{ toolName: 'request_human_input', invalid: true }],
+      }),
+    ];
+    expect(endedOnHumanInputGate(steps)).toBe(false);
+  });
+
+  it('returns true when a valid gate call sits next to an invalid one', () => {
+    const steps = [
+      makeStep({
+        toolCalls: [
+          { toolName: 'request_human_input', invalid: true },
+          { toolName: 'request_human_input' },
+        ],
+      }),
+    ];
+    expect(endedOnHumanInputGate(steps)).toBe(true);
   });
 
   it('returns true when last step has tool calls (preamble-only)', () => {

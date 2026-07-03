@@ -13,6 +13,7 @@ export const SYSTEM_MSG_TAG = {
   INTEGRATION_OPERATION_COMPLETED: '[INTEGRATION_OPERATION_COMPLETED]',
   INTEGRATION_OPERATION_FAILED: '[INTEGRATION_OPERATION_FAILED]',
   MODEL_FALLBACK: '[MODEL_FALLBACK]',
+  GENERATION_INCOMPLETE: '[GENERATION_INCOMPLETE]',
 } as const;
 
 export type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
@@ -57,6 +58,7 @@ const DISPLAY_MAP: Record<SystemMsgTag, SystemMessageDisplay> = {
   [SYSTEM_MSG_TAG.INTEGRATION_OPERATION_COMPLETED]: 'info',
   [SYSTEM_MSG_TAG.INTEGRATION_OPERATION_FAILED]: 'error',
   [SYSTEM_MSG_TAG.MODEL_FALLBACK]: 'warning',
+  [SYSTEM_MSG_TAG.GENERATION_INCOMPLETE]: 'warning',
 };
 
 export function getSystemMessageDisplay(
@@ -110,6 +112,49 @@ export function parseModelFallbackBody(body: string): ModelFallbackBody {
     if (key === 'from') result.from = value;
     else if (key === 'to') result.to = value;
     else if (key === 'reason') result.reason = value;
+  }
+  return result;
+}
+
+/**
+ * Structured payload carried in a `[GENERATION_INCOMPLETE]` system-message
+ * body — written when a turn exhausts its retries without producing a final
+ * answer. Machine-readable (URL-encoded tool names, no localized prose) so the
+ * chat UI can render a localized warning instead of an English sentence
+ * masquerading as the assistant's own words.
+ */
+interface GenerationIncompleteBody {
+  /** Names of the tools the model called during the incomplete turn. */
+  tools?: string[];
+}
+
+export function formatGenerationIncompleteBody(
+  body: GenerationIncompleteBody,
+): string {
+  return body.tools && body.tools.length > 0
+    ? `tools=${body.tools.map((t) => encodeURIComponent(t)).join(',')}`
+    : '';
+}
+
+export function parseGenerationIncompleteBody(
+  body: string,
+): GenerationIncompleteBody {
+  const result: GenerationIncompleteBody = {};
+  for (const token of body.trim().split(/\s+/)) {
+    const eq = token.indexOf('=');
+    if (eq <= 0) continue;
+    if (token.slice(0, eq) !== 'tools') continue;
+    result.tools = token
+      .slice(eq + 1)
+      .split(',')
+      .filter((t) => t.length > 0)
+      .map((t) => {
+        try {
+          return decodeURIComponent(t);
+        } catch {
+          return t;
+        }
+      });
   }
   return result;
 }
