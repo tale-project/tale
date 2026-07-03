@@ -313,6 +313,55 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           ? deduped.slice(0, slotsAvailable)
           : deduped;
 
+      // Reserve a slot for every accepted file *before* any await yields, so a
+      // concurrent batch fired while compression or upload is in flight sees
+      // these in the gates above. The dedup key uses the original
+      // (pre-compression) identity to match the stored-attachment key (#2026).
+      const reservedTasks = acceptedFiles.map(
+        ({ file, resolvedType }, index) => {
+          const fileId = `${file.name}-${file.size}-${Date.now()}-${index}`;
+          pendingUploadsRef.current.set(fileId, {
+            dedupKey: `${file.name}:${file.size}`,
+            size: file.size,
+          });
+          return { file, resolvedType, fileId };
+        },
+      );
+
+      const releaseReservations = () => {
+        for (const { fileId } of reservedTasks) {
+          pendingUploadsRef.current.delete(fileId);
+        }
+      };
+
+      // Compress images up front, before the total-size check, so every size
+      // calculation works from the same (post-compression) basis. Previously
+      // compression ran inside the upload promise — AFTER this check — so
+      // `incomingSize` summed raw `file.size` while `existingSize` summed
+      // already-compressed sizes, over-counting image batches and falsely
+      // rejecting them. See #2031.
+      const preparedFiles = await Promise.all(
+        reservedTasks.map(async ({ file, resolvedType, fileId }) => {
+          if (resolvedType.startsWith('image/')) {
+            try {
+              const compressionResult = await compressImage(file);
+              return {
+                file,
+                fileToUpload: compressionResult.file,
+                resolvedType,
+                fileId,
+              };
+            } catch (error) {
+              // Fall back to the original file so a single compression failure
+              // doesn't sink the whole batch; the per-file/total caps still apply.
+              console.warn('[uploadFiles] image compression failed:', error);
+              return { file, fileToUpload: file, resolvedType, fileId };
+            }
+          }
+          return { file, fileToUpload: file, resolvedType, fileId };
+        }),
+      );
+
       // Enforce max total attachment size *before* announcing the slot trim.
       // The total-size check returns early without uploading anything, so if
       // it runs after the slot-overflow toast the user sees two contradictory
@@ -321,15 +370,20 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       // "total size exceeded" that rejects the whole batch — net zero uploads.
       // Running it first means the slot-overflow toast only fires once we know
       // the trimmed batch will actually be uploaded. (#2029)
+      const reservedIds = new Set(reservedTasks.map(({ fileId }) => fileId));
       let existingSize = attachmentsRef.current.reduce(
         (sum, att) => sum + att.fileSize,
         0,
       );
-      for (const pending of pendingUploadsRef.current.values()) {
-        existingSize += pending.size;
+      for (const [id, pending] of pendingUploadsRef.current.entries()) {
+        // Other in-flight batches only — this batch's slots are summed below
+        // from post-compression sizes so we don't double-count reservations.
+        if (!reservedIds.has(id)) {
+          existingSize += pending.size;
+        }
       }
-      const incomingSize = acceptedFiles.reduce(
-        (sum, { file }) => sum + file.size,
+      const incomingSize = preparedFiles.reduce(
+        (sum, { fileToUpload }) => sum + fileToUpload.size,
         0,
       );
       if (existingSize + incomingSize > CHAT_MAX_TOTAL_SIZE) {
@@ -340,6 +394,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           }),
           variant: 'destructive',
         });
+        releaseReservations();
         return;
       }
 
@@ -354,32 +409,12 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
         });
       }
 
-      // Reserve a slot for every accepted file *before* any upload starts, so
-      // a concurrent batch fired mid-upload sees these in the gates above. The
-      // dedup key uses the original (pre-compression) identity to match the
-      // stored-attachment key. Reservations are released in the `finally` once
-      // the file commits to `attachments` (or fails).
-      const uploadTasks = acceptedFiles.map(({ file, resolvedType }, index) => {
-        const fileId = `${file.name}-${file.size}-${Date.now()}-${index}`;
-        pendingUploadsRef.current.set(fileId, {
-          dedupKey: `${file.name}:${file.size}`,
-          size: file.size,
-        });
-        return { file, resolvedType, fileId };
-      });
-
-      const uploadPromises = uploadTasks.map(
-        async ({ file, resolvedType, fileId }) => {
+      const uploadPromises = preparedFiles.map(
+        async ({ file, fileToUpload, resolvedType, fileId }) => {
           setUploadingFiles((prev) => [...prev, fileId]);
 
           try {
-            let fileToUpload = file;
-
-            if (resolvedType.startsWith('image/')) {
-              const compressionResult = await compressImage(file);
-              fileToUpload = compressionResult.file;
-            }
-
+            // Images were already compressed before the total-size check above.
             const uploadUrl = await generateUploadUrl({});
 
             const result = await fetch(uploadUrl, {
