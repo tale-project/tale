@@ -21,6 +21,7 @@ import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { DEFAULT_PASSWORD_POLICY } from '@/lib/shared/schemas/governance';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
+import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 type AccountFormData = {
   email: string;
@@ -78,7 +79,9 @@ export function AccountStep() {
 
     try {
       const result = await authClient.signUp.email({
-        name: email,
+        // Suggest a real name from the email so the profile isn't seeded with
+        // the raw address; the user can rename later in Account settings.
+        name: deriveNameFromEmail(email) || email,
         email,
         password: pw,
       });

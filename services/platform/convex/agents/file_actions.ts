@@ -582,10 +582,9 @@ export const saveAgent = action({
       : memberAuth;
 
     // `delegates` (the organigram delegation edges) has exactly ONE write
-    // path: the organigram actions (`setAgentDelegates` / `setAgentParents`).
-    // The settings form must never carry it — a stale form would silently
-    // re-wire delegation — so the incoming value is dropped and the on-disk
-    // value re-applied here.
+    // path: the organigram `setAgentDelegates` action. The settings form must
+    // never carry it — a stale form would silently re-wire delegation — so the
+    // incoming value is dropped and the on-disk value re-applied here.
     config = {
       ...config,
       delegates: prevAgent.ok ? prevAgent.config.delegates : undefined,

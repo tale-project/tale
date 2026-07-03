@@ -206,10 +206,6 @@ export function OrganigramCanvas({
           delegateSlugs: current[slug] ?? [],
         });
       }
-      // Reseed the baseline from the authoritative server state.
-      const result = await refetch();
-      const fresh = buildReportsMap(result.data?.nodes ?? []);
-      overrideConfig(fresh);
       toast({ title: t('saved'), variant: 'success' });
     } catch (error) {
       const code = errorCode(error);
@@ -223,6 +219,20 @@ export function OrganigramCanvas({
         variant: 'destructive',
       });
     } finally {
+      // Always reseed the baseline from authoritative server state — even on a
+      // PARTIAL failure. The loop persists agents one at a time, so a mid-loop
+      // throw leaves the already-written agents committed on disk; without this
+      // resync their saved edges keep reading as unsaved and Discard would
+      // revert them to a stale baseline.
+      try {
+        const result = await refetch();
+        overrideConfig(buildReportsMap(result.data?.nodes ?? []));
+      } catch (reseedError) {
+        console.error(
+          '[organigram] baseline reseed after save failed',
+          reseedError,
+        );
+      }
       setIsSaving(false);
     }
   }, [

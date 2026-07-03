@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useIsMobile } from '@/app/hooks/use-is-mobile';
 import { cn } from '@/lib/utils/cn';
 
 // =============================================================================
@@ -75,11 +76,21 @@ interface AdaptiveHeaderSlotProps {
 
 export function AdaptiveHeaderSlot({ className }: AdaptiveHeaderSlotProps) {
   const content = useAdaptiveHeaderContent();
+  const isMobile = useIsMobile();
 
   if (!content) return null;
 
   return (
-    <div className={cn('flex items-center flex-1 min-w-0', className)}>
+    // The slot is the *mobile* mirror of the header content (which the desktop
+    // `AdaptiveHeaderRoot` also renders). Both copies carry the page-title
+    // `h1`, so the inactive copy must be removed from the accessibility tree —
+    // otherwise AT sees a duplicate heading. CSS `display:none` already hides
+    // it visually; `aria-hidden` makes the intent explicit and keeps exactly
+    // one copy exposed even where the responsive stylesheet isn't applied.
+    <div
+      aria-hidden={!isMobile || undefined}
+      className={cn('flex items-center flex-1 min-w-0', className)}
+    >
       {content}
     </div>
   );
@@ -112,6 +123,7 @@ export function AdaptiveHeaderRoot({
   standalone = true,
 }: AdaptiveHeaderRootProps) {
   const { setHeaderContent } = useAdaptiveHeader();
+  const isMobile = useIsMobile();
 
   // Register children with context for mobile rendering
   useEffect(() => {
@@ -122,6 +134,12 @@ export function AdaptiveHeaderRoot({
   return (
     <HStack
       gap={0}
+      // The root is the *desktop* copy — always `hidden` below `md` (the mobile
+      // mirror renders through `AdaptiveHeaderSlot`). Its page-title `h1` would
+      // otherwise duplicate the slot's, so mark it `aria-hidden` on mobile to
+      // keep exactly one heading in the accessibility tree even if the
+      // responsive `display:none` isn't applied.
+      aria-hidden={isMobile || undefined}
       className={cn(
         // Fixed height (not min-h): action clusters (e.g. the settings
         // Save/Discard buttons) would otherwise grow the strip by a pixel

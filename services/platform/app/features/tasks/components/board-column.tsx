@@ -19,12 +19,15 @@ export function BoardColumn({
   childrenByParent,
   onOpenTask,
   projectKey,
+  canEdit = false,
 }: {
   status: TaskStatus;
   tasks: TaskRow[];
   childrenByParent?: Map<string, TaskRow[]>;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
+  /** Caller may write to the project — gates drag-reorder and inline pickers. */
+  canEdit?: boolean;
 }) {
   const { t } = useT('tasks');
   // Column is itself a drop target so cards can be dropped into an empty lane.
@@ -65,6 +68,7 @@ export function BoardColumn({
               subtasks={childrenByParent?.get(task._id)}
               onOpen={onOpenTask}
               projectKey={projectKey}
+              canEdit={canEdit}
             />
           ))}
         </SortableContext>

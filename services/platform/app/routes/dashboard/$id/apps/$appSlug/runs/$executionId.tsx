@@ -42,7 +42,7 @@ function AppRunDetail() {
           className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
         >
           <ArrowLeft className="size-4" />
-          {t('runs.backToApp', { defaultValue: 'Back to app' })}
+          {t('runs.backToApp')}
         </Link>
         {wf ? (
           <WorkflowDag workflowSlug={wf} executionId={executionId} />

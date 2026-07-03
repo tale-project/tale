@@ -18,7 +18,7 @@ Der Server kann zusätzlich **Ressourcen** (nur-Lese-Kontext, den der Agent zieh
 Öffne **Einstellungen > MCP-Server** und klick auf **Server hinzufügen**. Das Formular fragt nach:
 
 - **Name** — ein menschliches Label, das in der Tool-Liste des Agents und auf jeder Genehmigungs-Karte erscheint.
-- **Transport** — HTTP oder stdio. HTTP-Server tragen eine URL; stdio-Server tragen einen Befehl, den Tale spawnt.
+- **Transport** — HTTP oder stdio. HTTP-Server tragen eine URL; stdio-Server tragen einen Befehl, den Tale spawnt. Die URL muss eine gültige `http://`- oder `https://`-Adresse sein — das Formular markiert eine fehlerhafte URL inline, bevor du speichern kannst.
 - **Authentifizierung** — keine, Bearer-Token oder OAuth. Tokens gehen in ein Geheimnis-Feld; OAuth geht den Tanz wie eine Erstanbieter-Integration.
 - **Erlaubte Agents** — welche Agents sich an diesen Server binden dürfen. Standard ist keine Agents; greif zu **Alle Agents** nur, wenn der Server generisch genug ist, dass jeder Agent profitiert.
 

@@ -40,6 +40,7 @@ import {
   type AppSummary,
   type AppTabDoc,
   type AppViewDoc,
+  useAppCatalog,
   useApps,
 } from '../hooks/use-apps';
 import {
@@ -47,6 +48,7 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
+import { useRequiredIntegrations } from '../hooks/use-required-integrations';
 import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
@@ -76,6 +78,17 @@ function ReadinessChecklist({
 }) {
   const { t } = useT('apps');
   const { reinstall, isPending } = useAppInstallActions(organizationId);
+  // Resolve each blocked slug to its integration display title, the same lookup
+  // the install wizard's `labelFor` uses — so the checklist reads "Connect
+  // GitHub", not the raw "github" slug.
+  const { required } = useRequiredIntegrations(
+    organizationId,
+    blockedIntegrations,
+  );
+  const titleBySlug = useMemo(
+    () => new Map(required.map((r) => [r.slug, r.integration.title])),
+    [required],
+  );
 
   if (
     status === 'active' &&
@@ -110,7 +123,9 @@ function ReadinessChecklist({
         {blockedIntegrations.map((slug) => (
           <HStack key={slug} gap={3} className="items-center justify-between">
             <Text variant="muted" className="text-sm">
-              {t('readiness.connect', { integration: slug })}
+              {t('readiness.connect', {
+                integration: titleBySlug.get(slug) ?? slug,
+              })}
             </Text>
             <Button variant="secondary" onClick={() => onConnect(slug)}>
               {t('readiness.connectButton')}
@@ -713,10 +728,18 @@ export function AppPage({
   const { t } = useT('apps');
   const { locale } = useLocale();
   const { apps, isLoading } = useApps(organizationId);
+  // Fall back to the built-in catalog so a not-yet-installed app discovered in
+  // the hub resolves to its pre-install AppDetails page instead of "App not
+  // found". The installed entry wins (it carries the full per-install data);
+  // this mirrors the union in apps-grid.tsx.
+  const { apps: catalog, isLoading: catalogLoading } =
+    useAppCatalog(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
 
-  const app = apps.find((a) => a.slug === appSlug);
+  const app =
+    apps.find((a) => a.slug === appSlug) ??
+    catalog.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
   const { bindings } = useAppBindings(organizationId, appSlug);
 
@@ -725,7 +748,7 @@ export function AppPage({
     [app?.messages, locale],
   );
 
-  if ((isLoading && !app) || stateLoading) {
+  if (((isLoading || catalogLoading) && !app) || stateLoading) {
     return <SkeletonText lines={6} />;
   }
   if (!app) {

@@ -15,6 +15,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorMessage } from '@/lib/utils/convex-error';
 
 import { useMcpServers } from '../hooks/use-mcp-servers';
 import { McpServerCard } from './mcp-server-card';
@@ -69,8 +70,12 @@ export function McpServers({
         toast({ title: t('saved'), variant: 'success' });
         onAddDialogOpenChange(false);
         void refetch();
-      } catch {
-        toast({ title: t('error'), variant: 'destructive' });
+      } catch (error) {
+        toast({
+          title: t('error'),
+          description: convexErrorMessage(error, '') || undefined,
+          variant: 'destructive',
+        });
       } finally {
         setIsCreating(false);
       }

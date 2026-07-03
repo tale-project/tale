@@ -210,6 +210,7 @@
       "error": "Workflow konnte nicht geladen werden: {error}"
     },
     "runs": {
+      "backToApp": "Zurück zur App",
       "none": "Noch keine Läufe.",
       "colRun": "Lauf",
       "colStatus": "Status",
@@ -589,6 +590,7 @@
     "validation": {
       "emailRequired": "E-Mail ist erforderlich",
       "passwordRequiredForNewUser": "Passwort ist erforderlich, um einen neuen Benutzer zu erstellen",
+      "emailAlreadyMember": "Dieser Benutzer ist bereits Mitglied dieser Organisation",
       "passwordMinLength": "Passwort muss mindestens {n} Zeichen lang sein",
       "passwordLowercase": "Passwort muss einen Kleinbuchstaben enthalten",
       "passwordUppercase": "Passwort muss einen Großbuchstaben enthalten",
@@ -2055,6 +2057,7 @@
       "completed": "Abgeschlossen",
       "back": "Zurück",
       "backTo": "Zurück zu {page}",
+      "breadcrumb": "Brotkrumennavigation",
       "automationsNavigation": "Automatisierungen-Navigation",
       "agentsNavigation": "Agents-Navigation",
       "knowledgeNavigation": "Wissen-Navigation",
@@ -2845,6 +2848,7 @@
       "noApiKeysFound": "Keine API-Schlüssel gefunden",
       "selectApiKeyAriaLabel": "API-Schlüssel auswählen",
       "saved": "Budgetregeln wurden aktualisiert",
+      "saveFailed": "Budgetregeln konnten nicht gespeichert werden",
       "targetRequired": "Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.",
       "limitRequired": "Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen) fest, damit die Regel greifen kann.",
       "invalidTokenLimit": "Das Token-Limit muss größer als null sein.",
@@ -4035,6 +4039,9 @@
         "description": "Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden abbrechen.",
         "cancel": "Vorgemerkte Änderung abbrechen"
       }
+    },
+    "errors": {
+      "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
     }
   },
   "humanInputRequest": {
@@ -4210,9 +4217,11 @@
       "cancel": "Abbrechen",
       "connectionSection": "Verbindung",
       "authSection": "Authentifizierung",
+      "invalidUrl": "Gib eine gültige HTTP- oder HTTPS-URL ein",
       "validation": {
         "nameRequired": "Name ist erforderlich",
-        "nameFormat": "Muss aus Kleinbuchstaben, Ziffern und Bindestrichen bestehen",
+        "nameTooLong": "Darf höchstens {max} Zeichen lang sein",
+        "nameInvalid": "Nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt",
         "displayNameRequired": "Anzeigename ist erforderlich",
         "urlRequired": "URL ist erforderlich",
         "commandRequired": "Befehl ist erforderlich",
@@ -4590,7 +4599,9 @@
       "discard": "Verwerfen"
     },
     "errors": {
-      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen."
+      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+      "tooLong": "Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.",
+      "illegalChars": "Entferne spitze Klammern, Backticks und Steuerzeichen."
     },
     "toasts": {
       "saved": "Gespeichert.",
@@ -5153,10 +5164,10 @@
     "account": {
       "profile": {
         "title": "Profil",
-        "description": "Dein Anzeigename und deine E-Mail — sichtbar für deine Teamkollegen.",
+        "description": "Dein Name und deine E-Mail — sichtbar für deine Teamkollegen.",
         "nameDescription": "Der Name, der deinen Teamkollegen angezeigt wird.",
         "emailDescription": "Wird zur Anmeldung und für Benachrichtigungen verwendet.",
-        "name": "Anzeigename",
+        "name": "Name",
         "namePlaceholder": "Gib deinen Namen ein",
         "email": "E-Mail",
         "nameRequired": "Name ist erforderlich"
@@ -5181,10 +5192,11 @@
       }
     },
     "organization": {
-      "title": "Organisation (optional)",
+      "title": "Organisationsname",
       "detailsTitle": "Organisationsdetails",
       "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "nameDescription": "Der Anzeigename deiner Organisation.",
+      "nameRequired": "Organisationsname ist erforderlich",
       "localeDescription": "Die Hauptsprache deiner Organisation.",
       "organizationId": "Organisations-ID",
       "membersSectionTitle": "Mitglieder",
@@ -5263,6 +5275,7 @@
       "loadingMembers": "Lädt...",
       "unknownMember": "Unbekannt",
       "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
+      "lastMemberHint": "Ein Team muss mindestens ein Mitglied behalten. Lösche stattdessen das Team, um das letzte Mitglied zu entfernen.",
       "description": "Teams innerhalb deiner Organisation erstellen und verwalten für granulare Zugriffskontrolle"
     },
     "agents": {
@@ -6338,6 +6351,11 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
+      "loadError": {
+        "title": "Protokolle konnten nicht geladen werden",
+        "description": "Das Laden der Protokolle hat zu lange gedauert. Das ist meist nur vorübergehend.",
+        "retry": "Erneut versuchen"
+      },
       "activity": {
         "period": {
           "label": "Zeitraum",
@@ -6876,13 +6894,30 @@
     "usernameLabel": "Benutzername",
     "passwordLabel": "Passwort",
     "basicNameHint": "Wird als zwei Secrets gespeichert — dein Name plus die Suffixe _USERNAME und _PASSWORD.",
+    "nameShapeHint": "Großbuchstaben, Zahlen und Unterstriche; muss mit einem Buchstaben beginnen.",
     "encryptionNotConfigured": "Die Secret-Verschlüsselung ist auf diesem Server nicht eingerichtet (ENCRYPTION_SECRET_HEX fehlt). Führe `tale init` aus und versuche es erneut.",
     "saveSuccess": "Secret gespeichert",
     "editButton": "Bearbeiten",
     "editTitle": "Secret bearbeiten",
     "editValueHint": "Gib einen neuen Wert ein, um das gespeicherte Secret zu ersetzen. Der aktuelle Wert wird nie angezeigt.",
     "updateSuccess": "Secret aktualisiert",
-    "deleteSuccess": "Secret gelöscht"
+    "deleteSuccess": "Secret gelöscht",
+    "overwriteWarningTitle": "Name bereits vergeben",
+    "overwriteWarningBody": "Ein Secret mit dem Namen {names} existiert bereits. Beim Speichern wird sein gespeicherter Wert ersetzt — das kann nicht rückgängig gemacht werden.",
+    "overwriteConfirmLabel": "Vorhandenes Secret überschreiben",
+    "overwriteButton": "Überschreiben",
+    "errors": {
+      "accessDeniedTitle": "Admin-Zugriff erforderlich",
+      "nameInvalid": "Nur Großbuchstaben, Zahlen und Unterstriche verwenden, beginnend mit einem Buchstaben (max. 64 Zeichen).",
+      "valueInvalid": "Einen Wert mit 1 bis 8192 Zeichen eingeben.",
+      "unauthenticated": "Deine Sitzung ist abgelaufen. Melde dich erneut an und versuche es noch einmal.",
+      "forbidden": "Du hast keine Berechtigung, die Secrets dieses Projekts zu verwalten.",
+      "projectNotFound": "Dieses Projekt wurde nicht gefunden. Es wurde möglicherweise gelöscht.",
+      "PROJECT_FORBIDDEN": "Du hast keinen Zugriff auf die Secrets dieses Projekts. Nur Projekt-Administratoren können sie ansehen oder verwalten.",
+      "PROJECT_NOT_FOUND": "Dieses Projekt existiert nicht mehr.",
+      "SECRET_NAME_INVALID": "Secret-Namen müssen mit einem Buchstaben beginnen und dürfen nur Großbuchstaben, Zahlen und Unterstriche enthalten (max. 64 Zeichen).",
+      "SECRET_VALUE_INVALID": "Gib einen Secret-Wert mit 1 bis 8192 Zeichen ein."
+    }
   },
   "tasks": {
     "attachments": {
@@ -7132,6 +7167,10 @@
       "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte überprüfe dein aktuelles Passwort und versuche es erneut.",
       "organizationUpdateFailed": "Organisation konnte nicht aktualisiert werden",
       "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
+      "imageUploadFailed": "Bild konnte nicht hochgeladen werden",
+      "imageTooLarge": "Bild ist zu groß. Maximale Größe ist 2 MB.",
+      "imageMimeUnsupported": "Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.",
+      "imageTypeInvalid": "Ungültiger Bildtyp",
       "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
       "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
       "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
@@ -7947,7 +7986,7 @@
       "agent": "Agent",
       "completed": "Abgeschlossen",
       "runs": "Läufe (fehlgeschl.)",
-      "bounceRate": "Änderungswünsche",
+      "bounceRate": "Änderungsrate",
       "cost": "Ausgaben"
     },
     "attention": {
@@ -7959,7 +7998,7 @@
     },
     "scorecard": {
       "title": "Agent-Metriken",
-      "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
+      "subtitle": "Letzte {days} Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
       "tasksCompleted": "Abgeschlossene Aufgaben",
       "reviewOutcome": "Direkt-Freigabequote",
       "reviewDetail": "{passed} freigegeben · {changes} Änderungswünsche · {escalations} Eskalationen",

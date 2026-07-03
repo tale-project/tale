@@ -33,6 +33,9 @@ export function useTasksByProject(
   return {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
+    // Defaults to false until the read resolves, so write controls stay hidden
+    // (rather than flashing) for a viewer who turns out to be read-only.
+    canEdit: data?.canEdit ?? false,
     isLoading,
   };
 }

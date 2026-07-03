@@ -57,6 +57,9 @@ const AGENT_TAB_DIRTY_KEYS = {
     'roleRestriction',
     'composerMode',
     'i18n',
+    // The execution-timeout input is rendered on the General tab, so its
+    // diff key belongs here for the per-tab unsaved-changes indicator.
+    'timeoutMs',
   ],
   instructions: [
     'systemInstructions',
@@ -66,7 +69,6 @@ const AGENT_TAB_DIRTY_KEYS = {
     'nativeWebTools',
     'structuredResponsesEnabled',
     'maxSteps',
-    'timeoutMs',
     'outputReserve',
     'personalizationMode',
   ],
@@ -356,11 +358,20 @@ export function AgentNavigation({
           'config' in result
         ) {
           const parsed = agentJsonSchema.safeParse(result.config);
-          if (!parsed.success) return;
-          setSelectedEntry(entry);
-          setSnapshotConfig(parsed.data);
-          setIsDiffOpen(true);
+          if (parsed.success) {
+            setSelectedEntry(entry);
+            setSnapshotConfig(parsed.data);
+            setIsDiffOpen(true);
+            return;
+          }
         }
+        // The read resolved but yielded nothing loadable — a missing, corrupt,
+        // or schema-divergent snapshot. Tell the user instead of silently doing
+        // nothing (a click that opens no diff otherwise reads as a freeze).
+        toast({
+          title: t('agents.historyLoadFailed'),
+          variant: 'destructive',
+        });
       } catch (err) {
         console.error(err);
         toast({

@@ -54,8 +54,10 @@ function NavigationItem({ item }: { item: NavItem }) {
   const iconActiveStyle =
     isActive && accentColor ? { color: accentColor } : undefined;
 
-  // Rail links are icon-only; the tooltip carries the label and, for items that
-  // own a global keyboard shortcut, a hint chip so the binding is discoverable.
+  // Rail links are icon-only, so each link carries its label as an `aria-label`
+  // for the accessible name (screen readers, keyboard users). The tooltip is the
+  // sighted-hover affordance and, for items that own a global keyboard shortcut,
+  // also shows a hint chip so the binding is discoverable.
   const tooltipContent = item.shortcut ? (
     <>
       {item.label}
@@ -75,6 +77,7 @@ function NavigationItem({ item }: { item: NavItem }) {
             href={item.href}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={item.label}
             className="focus-visible:ring-ring block rounded-lg focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
           >
             <div
@@ -116,6 +119,7 @@ function NavigationItem({ item }: { item: NavItem }) {
           to={item.to}
           params={item.params}
           preload="render"
+          aria-label={item.label}
           className="focus-visible:ring-ring block rounded-lg focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
         >
           <div

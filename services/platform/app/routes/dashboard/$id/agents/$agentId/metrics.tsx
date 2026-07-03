@@ -6,7 +6,9 @@ import { Stack } from '@tale/ui/layout';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useCallback, useMemo } from 'react';
+import { z } from 'zod';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import {
@@ -15,6 +17,8 @@ import {
   type ChartSeries,
 } from '@/app/components/metrics/charts';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
+import { Select } from '@/app/components/ui/forms/select';
+import type { PeriodDays } from '@/app/features/agents/workforce/workforce-dashboard';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { api } from '@/convex/_generated/api';
@@ -22,10 +26,23 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
+export const searchSchema = z.object({
+  // Same coercion as the workforce dashboard route (`agents/metrics.tsx`): the
+  // router parses a bare `?period=90` as the JSON number 90, so coerce to a
+  // string before the enum and fall back to the default 30-day window for any
+  // out-of-range value so a shared/bookmarked URL never renders the error page.
+  period: z.coerce
+    .string()
+    .pipe(z.enum(['7', '30', '90']))
+    .catch('30')
+    .optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/agents/$agentId/metrics')({
   head: () => ({
     meta: seo('agents'),
   }),
+  validateSearch: searchSchema,
   component: AgentMetricsTab,
 });
 
@@ -140,11 +157,43 @@ function AgentMetricsTab() {
   const { t } = useT('workforce');
   const { t: tTasks } = useT('tasks');
   const { id: organizationId, agentId } = Route.useParams();
+  const { period } = Route.useSearch();
+  const navigate = useNavigate();
   const { formatRelative } = useFormatDate();
+
+  // Honor the shared metrics period (7/30/90) instead of a hard-pinned 30-day
+  // window — the scorecard now carries the same selector as the workforce
+  // dashboard, and the window drives both the query and the subtitle.
+  const periodDays: PeriodDays = period === '7' ? 7 : period === '90' ? 90 : 30;
+
+  const periodOptions = useMemo(
+    () => [
+      { value: '7', label: t('period.last7Days') },
+      { value: '30', label: t('period.last30Days') },
+      { value: '90', label: t('period.last90Days') },
+    ],
+    [t],
+  );
+
+  const handleChangePeriod = useCallback(
+    (next: PeriodDays) => {
+      const periodParam: '7' | '30' | '90' =
+        next === 7 ? '7' : next === 90 ? '90' : '30';
+      void navigate({
+        to: '/dashboard/$id/agents/$agentId/metrics',
+        params: { id: organizationId, agentId },
+        search: { period: periodParam },
+        replace: true,
+      });
+    },
+    [navigate, organizationId, agentId],
+  );
 
   const { data } = useConvexQuery(
     api.task_metrics.queries.getAgentScorecard,
-    organizationId ? { organizationId, agentSlug: agentId, days: 30 } : 'skip',
+    organizationId
+      ? { organizationId, agentSlug: agentId, days: periodDays }
+      : 'skip',
   );
   // The query returns v.any(); the payload shape is owned by getAgentScorecard.
   const scorecard: ScorecardPayload | undefined = data ?? undefined;
@@ -184,7 +233,21 @@ function AgentMetricsTab() {
     <ContentArea variant="narrow" gap={6}>
       <MetricsLayout
         title={t('scorecard.title')}
-        description={t('scorecard.subtitle')}
+        description={t('scorecard.subtitle', { days: periodDays })}
+        toolbar={
+          <div className="w-44">
+            <Select
+              aria-label={t('period.label')}
+              options={periodOptions}
+              value={String(periodDays)}
+              onValueChange={(v) => {
+                const next = Number(v);
+                if (next === 7 || next === 30 || next === 90)
+                  handleChangePeriod(next);
+              }}
+            />
+          </div>
+        }
       >
         <StatCardGrid cols={2}>
           <StatCard

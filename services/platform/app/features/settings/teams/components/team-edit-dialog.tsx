@@ -208,6 +208,7 @@ export function TeamEditDialog({
         organizationId={organizationId}
         selectedMemberIds={selectedMemberIds}
         onToggleMember={handleToggleMember}
+        enforceMinimumOne
       />
     </FormDialog>
   );

@@ -41,6 +41,33 @@ describe('McpServerForm', () => {
     expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
   });
 
+  it('rejects a malformed URL and does not submit', async () => {
+    const onSubmit = vi.fn();
+    const { user } = render(<McpServerForm onSubmit={onSubmit} />);
+
+    await user.type(screen.getByPlaceholderText('my-mcp-server'), 'my-server');
+    await user.type(screen.getByLabelText(/display name/i), 'My Server');
+    await user.type(screen.getByLabelText(/url/i), 'not-a-url');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('submits when the URL is a valid http(s) URL', async () => {
+    const onSubmit = vi.fn();
+    const { user } = render(<McpServerForm onSubmit={onSubmit} />);
+
+    await user.type(screen.getByPlaceholderText('my-mcp-server'), 'my-server');
+    await user.type(screen.getByLabelText(/display name/i), 'My Server');
+    await user.type(screen.getByLabelText(/url/i), 'https://example.com/mcp');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://example.com/mcp' }),
+    );
+  });
+
   describe('accessibility', () => {
     it('passes axe audit for empty form', async () => {
       const { container } = render(<McpServerForm onSubmit={vi.fn()} />);

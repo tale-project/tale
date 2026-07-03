@@ -714,7 +714,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow className="hover:bg-transparent">
+                    <TableRow data-no-hover>
                       <TableCell colSpan={4} className="p-0">
                         <RulesTableEmptyState
                           icon={ShieldCheck}

@@ -49,6 +49,13 @@ const RUNTIME_DENYLIST = new Set([
   'NPM_CONFIG_PREFIX',
   'NPM_CONFIG_UPDATE_NOTIFIER',
   'NoDefaultCurrentDirectoryInExePath',
+  // Temp-dir overrides: a host TMPDIR (e.g. a sandboxed shell's private tmp)
+  // does not exist inside the container, so coreutils/Bun that honor it
+  // (mktemp in docker-entrypoint.sh, Bun's own tmpfile handling) fail with
+  // ENOENT and crash-loop the entrypoint. The container must use its own /tmp.
+  'TMPDIR',
+  'TMP',
+  'TEMP',
   // Host-relative networking vars: their value is meaningful only on the host,
   // never inside the container, so forwarding them breaks container-internal
   // networking — the same correctness floor as PATH/HOME above.

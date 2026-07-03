@@ -210,6 +210,7 @@
       "error": "Couldn't load the workflow: {error}"
     },
     "runs": {
+      "backToApp": "Back to app",
       "none": "No runs yet.",
       "colRun": "Run",
       "colStatus": "Status",
@@ -589,6 +590,7 @@
     "validation": {
       "emailRequired": "Email is required",
       "passwordRequiredForNewUser": "Password is required to create a new user",
+      "emailAlreadyMember": "This user is already a member of this organization",
       "passwordMinLength": "Password must be at least {n} characters",
       "passwordLowercase": "Password must contain a lowercase letter",
       "passwordUppercase": "Password must contain an uppercase letter",
@@ -2055,6 +2057,7 @@
       "completed": "Completed",
       "back": "Back",
       "backTo": "Back to {page}",
+      "breadcrumb": "Breadcrumb",
       "automationsNavigation": "Automations navigation",
       "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
@@ -2845,6 +2848,7 @@
       "noApiKeysFound": "No API keys found",
       "selectApiKeyAriaLabel": "Select API key",
       "saved": "Budget rules have been updated",
+      "saveFailed": "Failed to save budget rules",
       "targetRequired": "Select a target for this scope, or the rule will never apply.",
       "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
       "invalidTokenLimit": "Token limit must be greater than zero.",
@@ -4035,6 +4039,9 @@
         "description": "Proposed by {name}. Any admin can cancel before this takes effect.",
         "cancel": "Cancel pending change"
       }
+    },
+    "errors": {
+      "saveForbidden": "You don't have permission to change this setting."
     }
   },
   "humanInputRequest": {
@@ -4210,9 +4217,11 @@
       "cancel": "Cancel",
       "connectionSection": "Connection",
       "authSection": "Authentication",
+      "invalidUrl": "Enter a valid HTTP or HTTPS URL",
       "validation": {
         "nameRequired": "Name is required",
-        "nameFormat": "Must be lowercase alphanumeric with hyphens",
+        "nameTooLong": "Must be at most {max} characters",
+        "nameInvalid": "Must be lowercase alphanumeric with hyphens",
         "displayNameRequired": "Display name is required",
         "urlRequired": "URL is required",
         "commandRequired": "Command is required",
@@ -4590,7 +4599,9 @@
       "discard": "Discard"
     },
     "errors": {
-      "saveFailed": "Couldn't save. Please try again."
+      "saveFailed": "Couldn't save. Please try again.",
+      "tooLong": "Custom instructions exceed {max} characters.",
+      "illegalChars": "Remove angle brackets, backticks, and control characters."
     },
     "toasts": {
       "saved": "Saved.",
@@ -5417,10 +5428,10 @@
     "account": {
       "profile": {
         "title": "Profile",
-        "description": "Your display name and email — visible to your teammates.",
+        "description": "Your name and email — visible to your teammates.",
         "nameDescription": "The name shown to your teammates.",
         "emailDescription": "Used to sign in and receive notifications.",
-        "name": "Display name",
+        "name": "Name",
         "namePlaceholder": "Enter your name",
         "email": "Email",
         "nameRequired": "Name is required"
@@ -5449,6 +5460,7 @@
       "detailsTitle": "Organization details",
       "detailsDescription": "Basic information about your organization.",
       "nameDescription": "The display name for your organization.",
+      "nameRequired": "Organization name is required",
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
       "membersSectionTitle": "Members",
@@ -5527,6 +5539,7 @@
       "loadingMembers": "Loading...",
       "unknownMember": "Unknown",
       "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically.",
+      "lastMemberHint": "A team must keep at least one member. Delete the team instead to remove the last member.",
       "description": "Create and manage teams within your organization for granular access control"
     },
     "agents": {
@@ -6602,6 +6615,11 @@
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
+      "loadError": {
+        "title": "Couldn't load logs",
+        "description": "The logs took too long to load. This is usually temporary.",
+        "retry": "Retry"
+      },
       "activity": {
         "period": {
           "label": "Period",
@@ -7140,13 +7158,30 @@
     "usernameLabel": "Username",
     "passwordLabel": "Password",
     "basicNameHint": "Stored as two secrets — your name plus the _USERNAME and _PASSWORD suffixes.",
+    "nameShapeHint": "Uppercase letters, numbers, and underscores; must start with a letter.",
     "encryptionNotConfigured": "Secret encryption isn't set up on this server (ENCRYPTION_SECRET_HEX is missing). Run `tale init`, then try again.",
     "saveSuccess": "Secret saved",
     "editButton": "Edit",
     "editTitle": "Edit secret",
     "editValueHint": "Enter a new value to replace the stored secret. The current value is never shown.",
     "updateSuccess": "Secret updated",
-    "deleteSuccess": "Secret deleted"
+    "deleteSuccess": "Secret deleted",
+    "overwriteWarningTitle": "Name already in use",
+    "overwriteWarningBody": "A secret named {names} already exists. Saving will replace its stored value — this can't be undone.",
+    "overwriteConfirmLabel": "Overwrite the existing secret",
+    "overwriteButton": "Overwrite",
+    "errors": {
+      "accessDeniedTitle": "Admin access required",
+      "nameInvalid": "Use uppercase letters, numbers, and underscores only, starting with a letter (max 64 characters).",
+      "valueInvalid": "Enter a value between 1 and 8192 characters.",
+      "unauthenticated": "Your session has expired. Sign in again, then retry.",
+      "forbidden": "You don't have permission to manage this project's secrets.",
+      "projectNotFound": "We couldn't find that project. It may have been deleted.",
+      "PROJECT_FORBIDDEN": "You don't have access to this project's secrets. Only project administrators can view or manage them.",
+      "PROJECT_NOT_FOUND": "This project no longer exists.",
+      "SECRET_NAME_INVALID": "Secret names must start with a letter and contain only uppercase letters, numbers, and underscores (max 64 characters).",
+      "SECRET_VALUE_INVALID": "Enter a secret value between 1 and 8192 characters."
+    }
   },
   "tasks": {
     "attachments": {
@@ -7396,6 +7431,10 @@
       "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
       "organizationUpdateFailed": "Failed to update organization",
       "brandingUpdateFailed": "Failed to update branding",
+      "imageUploadFailed": "Failed to upload image",
+      "imageTooLarge": "Image is too large. Maximum size is 2 MB.",
+      "imageMimeUnsupported": "Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.",
+      "imageTypeInvalid": "Invalid image type",
       "addMemberFailed": "Failed to add member",
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationDeleteFailed": "Failed to delete automation",
@@ -7947,7 +7986,7 @@
       "agent": "Agent",
       "completed": "Completed",
       "runs": "Runs (failed)",
-      "bounceRate": "Changes requested",
+      "bounceRate": "Change rate",
       "cost": "Spend"
     },
     "attention": {
@@ -7959,7 +7998,7 @@
     },
     "scorecard": {
       "title": "Agent Metrics",
-      "subtitle": "Last 30 days — outcomes, review quality, and cost for this agent.",
+      "subtitle": "Last {days} days — outcomes, review quality, and cost for this agent.",
       "tasksCompleted": "Tasks completed",
       "reviewOutcome": "First-pass approval",
       "reviewDetail": "{passed} approved · {changes} changes requested · {escalations} escalations",
