@@ -31,6 +31,14 @@ interface UseFormEditorArgs<T extends FieldValues> {
    * want to clobber — the Convex baseline-drift fix).
    */
   data: T | undefined;
+  /**
+   * Stable, fully-defined initial values for the very first render, before the
+   * async `data` resolves. RHF reads `defaultValues` once at mount, so seeding
+   * it here keeps controlled inputs (Select/Switch) controlled from the first
+   * render instead of mounting with `undefined` and tripping React's
+   * uncontrolled→controlled warning when `data` arrives.
+   */
+  defaultValues?: DefaultValues<T>;
   /** Optional Zod schema; when present, drives validation + `isValid`. */
   schema?: AnyZodSchema;
   /** Persists the form values. Throw to keep `isDirty` true. */
@@ -70,13 +78,14 @@ interface FormEditor<T extends FieldValues> extends EditorController {
  */
 export function useFormEditor<T extends FieldValues>({
   data,
+  defaultValues,
   schema,
   save,
   mapServerError,
 }: UseFormEditorArgs<T>): FormEditor<T> {
   const form = useForm<T>({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- T extends FieldValues
-    defaultValues: data as DefaultValues<T> | undefined,
+    defaultValues: (data ?? defaultValues) as DefaultValues<T> | undefined,
     resolver: schema
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- zodResolver returns Resolver<unknown,…>; widen
         (zodResolver(schema) as unknown as Resolver<T>)
