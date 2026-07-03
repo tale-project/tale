@@ -1,6 +1,5 @@
 'use client';
 
-import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { Row } from '@tale/ui/layout';
@@ -60,7 +59,6 @@ export function AgentWebhookSection({
 
   const siteUrl = useSiteUrl();
   const basePath = getEnv('BASE_PATH');
-  const isPublished = true; // All agents are live in the file-based architecture
 
   const getWebhookUrl = useCallback(
     (token: string) => `${siteUrl}${basePath}/api/agents/wh/${token}`,
@@ -306,12 +304,6 @@ export function AgentWebhookSection({
           </Button>
         }
       />
-      {!isPublished && (
-        <Alert
-          variant="warning"
-          description={t('agents.webhook.notPublished')}
-        />
-      )}
 
       <DataTable
         columns={columns}
