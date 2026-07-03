@@ -247,6 +247,16 @@ navigation.apiRest
 navigation.webdav
 navigation.runtimes
 
+# Branding image upload: `imageUploadErrorToastKey(err)` in
+# branding/utils/image-upload-error.ts maps the server's `saveImage`
+# ConvexError code onto one of these `toast.error.*` keys, resolved at the
+# ImageUploadField catch via `tToast(imageUploadErrorToastKey(err))` — the
+# scanner sees a runtime variable, not the literals.
+toast.error.imageUploadFailed
+toast.error.imageTooLarge
+toast.error.imageMimeUnsupported
+toast.error.imageTypeInvalid
+
 # Connected app blocks: a per-row action's button label is authored in the app's
 # view JSON as `labelKey` / `doneLabelKey` and resolved at render via
 # `t(action.labelKey)` / `t(action.doneLabelKey)` in bound-button.tsx — the

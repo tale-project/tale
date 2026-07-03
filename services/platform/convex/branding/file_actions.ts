@@ -209,20 +209,31 @@ export const saveImage = action({
   handler: async (ctx, args): Promise<{ filename: string }> => {
     const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
+    // Validation failures throw `ConvexError` with a stable `code` (not a raw
+    // `Error`, whose message Convex scrubs to "Server Error" before it reaches
+    // the client) so the upload UI can surface a precise, localized toast.
     if (!validateImageType(args.type)) {
-      throw new Error(`Invalid image type: ${args.type}`);
+      throw new ConvexError({
+        code: 'IMAGE_TYPE_INVALID',
+        message: `Invalid image type: ${args.type}`,
+      });
     }
 
     const ext = mimeToExtension(args.mimeType);
     if (!ext) {
-      throw new Error(`Unsupported image MIME type: ${args.mimeType}`);
+      throw new ConvexError({
+        code: 'IMAGE_MIME_UNSUPPORTED',
+        message: `Unsupported image MIME type: ${args.mimeType}`,
+      });
     }
 
     const buffer = Buffer.from(args.base64, 'base64');
     if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
-      throw new Error(
-        `Image exceeds maximum size of ${MAX_IMAGE_SIZE_BYTES} bytes`,
-      );
+      throw new ConvexError({
+        code: 'IMAGE_TOO_LARGE',
+        message: `Image exceeds maximum size of ${MAX_IMAGE_SIZE_BYTES} bytes`,
+        maxBytes: MAX_IMAGE_SIZE_BYTES,
+      });
     }
 
     const filename = `${args.type}.${ext}`;
@@ -262,7 +273,10 @@ export const deleteImage = action({
     const { orgSlug } = await requireBrandingAdmin(ctx, args.organizationId);
 
     if (!validateImageType(args.type)) {
-      throw new Error(`Invalid image type: ${args.type}`);
+      throw new ConvexError({
+        code: 'IMAGE_TYPE_INVALID',
+        message: `Invalid image type: ${args.type}`,
+      });
     }
 
     const imagesDir = resolveImagesDir(orgSlug);
