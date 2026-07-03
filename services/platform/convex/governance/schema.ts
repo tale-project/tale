@@ -49,6 +49,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // what a budget pause does to the agent's open tasks. Config shape:
   // `agentWorkforceConfigSchema` (lib/shared/schemas/governance.ts).
   'agent_workforce',
+  // Agent-on-demand job guardrails for `spawn_agent`: org concurrency cap,
+  // terminal-row TTL, stuck-run threshold. Missing row → schema defaults.
+  // Config shape: `agentJobsConfigSchema` (lib/shared/schemas/governance.ts).
+  'agent_jobs',
   // Master switch for the task-ops automation pack (agent execution on
   // tasks). Gates BOTH halves: the run-agent action refuses when disabled,
   // and `setTaskAutomationEnabled` flips the pack's trigger rows. Missing

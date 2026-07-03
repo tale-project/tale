@@ -46,6 +46,10 @@ export const POLICY_TYPES = [
   // circuit breaker, budget-pause behaviour). See
   // `agentWorkforceConfigSchema`.
   'agent_workforce',
+  // Agent-on-demand job guardrails (spawn_agent): org concurrency cap,
+  // terminal-row TTL, stuck-run threshold. Missing row ⇒ schema defaults.
+  // See `agentJobsConfigSchema`.
+  'agent_jobs',
   // Master switch for the task-ops automation pack. Missing row → enabled.
   // See `taskAutomationConfigSchema`.
   'task_automation',
@@ -84,6 +88,30 @@ export const agentWorkforceConfigSchema = z.object({
     .default('reassign_to_manager'),
 });
 export type AgentWorkforceConfig = z.infer<typeof agentWorkforceConfigSchema>;
+
+/**
+ * Agent-on-demand job guardrails (the `spawn_agent` tool). Missing row ⇒
+ * these schema defaults; every field carries a `.default()` so
+ * `agentJobsConfigSchema.parse({})` yields the effective config.
+ */
+export const agentJobsConfigSchema = z.object({
+  /** Org-wide cap on concurrently RUNNING spawned jobs. */
+  maxConcurrentJobs: z.number().int().min(1).max(100).default(10),
+  /** Terminal job rows (and their transcript threads) older than this are GC'd. */
+  ttlMs: z
+    .number()
+    .int()
+    .min(60 * 60 * 1000)
+    .default(30 * 24 * 60 * 60 * 1000),
+  /** A `running` job older than this is presumed orphaned (its action died
+   *  before finalize) and is flipped to `timed_out` by the recovery sweep. */
+  jobStuckAfterMs: z
+    .number()
+    .int()
+    .min(60 * 1000)
+    .default(60 * 60 * 1000),
+});
+export type AgentJobsConfig = z.infer<typeof agentJobsConfigSchema>;
 
 /**
  * Master switch for the task-ops automation pack. Gates the run-agent action
@@ -759,6 +787,7 @@ export const POLICY_SCHEMAS = {
   data_classification_notice: dataNoticeConfigSchema,
   dsar_governance: dsarGovernanceConfigSchema,
   agent_workforce: agentWorkforceConfigSchema,
+  agent_jobs: agentJobsConfigSchema,
   task_automation: taskAutomationConfigSchema,
   run_code: runCodePolicyConfigSchema,
   model_sync: modelSyncConfigSchema,
