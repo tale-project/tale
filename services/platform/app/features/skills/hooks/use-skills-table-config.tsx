@@ -206,7 +206,14 @@ export function useSkillsTableConfig({
     searchPlaceholder: t('skills.searchPlaceholder', {
       defaultValue: 'Search skills…',
     }),
-    stickyLayout: true,
+    // Non-sticky (like the agents/providers lists): the DataTable renders a
+    // bordered frame contained at the page width and the page owns the single
+    // vertical scroll. Sticky layout needs a bounded-height ancestor to drive
+    // its own inner scroll container; this table renders under `SettingsPage`
+    // (and the agent Skills tab) without that chain, so a sticky inner
+    // `overflow-auto` collapsed to content height and its `overscroll-contain`
+    // swallowed the wheel over the table — scrolling only worked outside it.
+    stickyLayout: false,
     pageSize: 20,
   };
 }
