@@ -313,20 +313,14 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           ? deduped.slice(0, slotsAvailable)
           : deduped;
 
-      if (acceptedFiles.length < deduped.length) {
-        toast({
-          title: t('tooManyFiles'),
-          description: t('tooManyFilesDescription', {
-            max: CHAT_MAX_FILE_COUNT,
-            rejected: deduped.length - acceptedFiles.length,
-          }),
-          variant: 'destructive',
-        });
-      }
-
-      // Enforce max total attachment size — include in-flight uploads (using
-      // the source size as an upper bound; the compressed upload is smaller)
-      // so concurrent batches can't collectively exceed the total cap.
+      // Enforce max total attachment size *before* announcing the slot trim.
+      // The total-size check returns early without uploading anything, so if
+      // it runs after the slot-overflow toast the user sees two contradictory
+      // toasts in quick succession: first "N files were not added" (implying
+      // the trimmed batch was accepted and is uploading), then a blanket
+      // "total size exceeded" that rejects the whole batch — net zero uploads.
+      // Running it first means the slot-overflow toast only fires once we know
+      // the trimmed batch will actually be uploaded. (#2029)
       let existingSize = attachmentsRef.current.reduce(
         (sum, att) => sum + att.fileSize,
         0,
@@ -347,6 +341,17 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           variant: 'destructive',
         });
         return;
+      }
+
+      if (acceptedFiles.length < deduped.length) {
+        toast({
+          title: t('tooManyFiles'),
+          description: t('tooManyFilesDescription', {
+            max: CHAT_MAX_FILE_COUNT,
+            rejected: deduped.length - acceptedFiles.length,
+          }),
+          variant: 'destructive',
+        });
       }
 
       // Reserve a slot for every accepted file *before* any upload starts, so

@@ -346,3 +346,87 @@ describe('useConvexFileUpload — in-flight slot cap (#2026)', () => {
     await waitFor(() => expect(result.current.attachments).toHaveLength(1));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression coverage for #2029: when a batch overflows the slot cap AND the
+// trimmed batch would still push the running total past CHAT_MAX_TOTAL_SIZE,
+// the total-size check must run *before* the slot-overflow toast. Otherwise
+// the user sees a misleading "N files were not added" toast (implying the
+// trimmed batch was accepted) immediately followed by a blanket total-size
+// rejection — two contradictory toasts and zero uploads.
+// ---------------------------------------------------------------------------
+describe('useConvexFileUpload — slot-overflow vs total-size ordering (#2029)', () => {
+  it('shows only the total-size toast (not the slot-overflow toast) and uploads nothing when the trimmed batch still exceeds the total cap', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    // Pre-fill 8 of the 10 slots with 21MB files → 168MB used, 2 slots left.
+    await act(async () => {
+      await result.current.uploadFiles(
+        Array.from({ length: 8 }, (_, i) =>
+          makeAudioFile(`existing-${i}.mp3`, 21 * MB),
+        ),
+      );
+    });
+    await waitFor(() => expect(result.current.attachments).toHaveLength(8));
+    toastMock.mockClear();
+    saveFileMetadata.mockClear();
+
+    // Add 5 more 21MB files: the slot cap trims the batch to 2 (2 slots left),
+    // but 168MB + 42MB = 210MB > 200MB total cap, so the whole batch is
+    // rejected by the total-size check.
+    await act(async () => {
+      await result.current.uploadFiles(
+        Array.from({ length: 5 }, (_, i) =>
+          makeAudioFile(`incoming-${i}.mp3`, 21 * MB),
+        ),
+      );
+    });
+
+    // Nothing new was uploaded.
+    expect(result.current.attachments).toHaveLength(8);
+    expect(saveFileMetadata).not.toHaveBeenCalled();
+
+    // The total-size toast fired...
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
+    ).toBe(true);
+    // ...and the misleading slot-overflow toast did NOT.
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(false);
+  });
+
+  it('still shows the slot-overflow toast when the trimmed batch fits under the total cap', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    // Pre-fill 8 of the 10 slots with small 1MB files → 8MB used, 2 slots left.
+    await act(async () => {
+      await result.current.uploadFiles(
+        Array.from({ length: 8 }, (_, i) =>
+          makeAudioFile(`existing-${i}.mp3`, 1 * MB),
+        ),
+      );
+    });
+    await waitFor(() => expect(result.current.attachments).toHaveLength(8));
+    toastMock.mockClear();
+    saveFileMetadata.mockClear();
+
+    // Add 5 more small files: slot cap trims to 2, total stays well under
+    // 200MB, so the 2 accepted files upload and the slot-overflow toast fires.
+    await act(async () => {
+      await result.current.uploadFiles(
+        Array.from({ length: 5 }, (_, i) =>
+          makeAudioFile(`incoming-${i}.mp3`, 1 * MB),
+        ),
+      );
+    });
+
+    await waitFor(() => expect(result.current.attachments).toHaveLength(10));
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
+    ).toBe(true);
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'totalSizeExceeded'),
+    ).toBe(false);
+  });
+});
