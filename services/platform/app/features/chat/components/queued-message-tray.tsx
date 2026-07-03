@@ -70,14 +70,18 @@ export function QueuedMessageTray({
   // they leave the tray (via the ghost fade below). Claimed rows are being
   // drained into the next turn; their bubbles are saved, so they leave too.
   const live = useMemo<TrayEntry[]>(() => {
-    const fromServer = (rows ?? [])
-      .filter((r) => r.status === 'queued' || r.status === 'delivered')
-      .map((r) => ({
-        key: r.queueId,
-        queueId: r.queueId,
-        text: r.text,
-        status: r.status as TrayEntry['status'],
-      }));
+    const fromServer = (rows ?? []).flatMap<TrayEntry>((r) =>
+      r.status === 'queued' || r.status === 'delivered'
+        ? [
+            {
+              key: r.queueId,
+              queueId: r.queueId,
+              text: r.text,
+              status: r.status,
+            },
+          ]
+        : [],
+    );
     // Optimistic entries whose server row hasn't landed yet (dedup: the
     // mutation resolving removes the pending entry in the same commit the
     // row appears, but a slow subscription must not double-render).
@@ -95,7 +99,7 @@ export function QueuedMessageTray({
     new Map(),
   );
   const prevLiveRef = useRef<ReadonlyMap<string, TrayEntry>>(new Map());
-  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   useEffect(() => {
     const current = new Map(live.map((e) => [e.key, e]));
     const leaving = [...prevLiveRef.current.values()].filter(
