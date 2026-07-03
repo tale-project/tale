@@ -11,8 +11,8 @@ Verbinde **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**,
 Bündle ihr Wissen, delegiere Aufgaben und bau deinen Schwarm aus Agents.
 
 [![Lizenz: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](docs/de/index.md)
-[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](docs/de/self-hosted/install/quickstart.md)
+[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](https://tale.dev/docs/de)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](https://tale.dev/docs/de/self-hosted/install/quickstart)
 
 [Schnellstart](#schnellstart) · [Was kannst du tun?](#was-kannst-du-tun) · [Befehle](#befehlsreferenz) · [Dokumentation](#dokumentation) · [Mitwirken](#mitwirken)
 
@@ -27,7 +27,7 @@ Tale ist eine **selbstgehostete KI-Plattform**, die die Agents und CLIs, die dei
 **Wähl deinen Weg:**
 
 - **Tale lokal ausprobieren** — installier die CLI und lauf zwei Befehle auf deiner eigenen Maschine. Beginn mit [Schnellstart](#schnellstart) unten.
-- **Tale Cloud nutzen** — lass Tale den Stack betreiben, melde dich an und bring dein Team an Bord. Beginn mit [Cloud-Onboarding](docs/de/cloud/onboarding.md).
+- **Tale Cloud nutzen** — lass Tale den Stack betreiben, melde dich an und bring dein Team an Bord. Beginn mit [Cloud-Onboarding](https://tale.dev/docs/de/cloud/onboarding).
 - **Mitwirken** — lass Tale aus dem Quellcode laufen und gib eine Änderung zurück. Beginn mit [Contributor-Setup](docs/de/develop/contributor-setup.md).
 
 ## Schnellstart
@@ -71,7 +71,7 @@ Sobald "Tale is running" erscheint, öffnet `tale dev` https://localhost (oder d
 
 > **Hinweis:** Dein Browser zeigt eine Zertifikatswarnung für selbstsignierte Zertifikate. Die ist sicher zu akzeptieren.
 
-Eine ausführliche Einrichtungsanleitung findest du im [Self-hosted-Quickstart](docs/de/self-hosted/install/quickstart.md).
+Eine ausführliche Einrichtungsanleitung findest du im [Self-hosted-Quickstart](https://tale.dev/docs/de/self-hosted/install/quickstart).
 
 ## Was kannst du tun?
 
@@ -116,7 +116,7 @@ tale cleanup                       # Inaktive Container entfernen
 tale reset --force                 # Alle Container entfernen
 ```
 
-In der [CLI-Referenz](tools/cli/README.md) findest du alle Optionen und Flags. Eine bestehende Installation aktualisierst du mit zwei Befehlen: `tale update` hebt die CLI und deine Projektdateien auf die neue Version, `tale deploy` rollt danach die Container. Das vollständige Runbook findest du in [Self-hosted Upgrades](docs/de/self-hosted/operate/upgrades.md).
+In der [CLI-Referenz](tools/cli/README.md) findest du alle Optionen und Flags. Eine bestehende Installation aktualisierst du mit zwei Befehlen: `tale update` hebt die CLI und deine Projektdateien auf die neue Version, `tale deploy` rollt danach die Container. Das vollständige Runbook findest du in [Self-hosted Upgrades](https://tale.dev/docs/de/self-hosted/operate/upgrades).
 
 ## In Produktion deployen
 
@@ -124,11 +124,11 @@ In der [CLI-Referenz](tools/cli/README.md) findest du alle Optionen und Flags. E
 tale deploy
 ```
 
-Die CLI macht Blue-Green-Zero-Downtime-Deployments mit automatischen Health-Checks und Rollback. Für die volle Produktions-Einrichtung inkl. Reverse-Proxy-Konfiguration und Subpath-Deployment siehe den [Produktions-Deployment-Guide](docs/de/self-hosted/install/linux-server.md).
+Die CLI macht Blue-Green-Zero-Downtime-Deployments mit automatischen Health-Checks und Rollback. Für die volle Produktions-Einrichtung inkl. Reverse-Proxy-Konfiguration und Subpath-Deployment siehe den [Produktions-Deployment-Guide](https://tale.dev/docs/de/self-hosted/install/linux-server).
 
 ## Authentifizierungs-Optionen
 
-Tale nutzt standardmässig passwortbasierte Authentifizierung. Der erste User legt das Owner-Konto an; alle weiteren werden vom Admin angelegt. Für Self-Service-Login verbindest du SSO oder Trusted Headers über Microsoft Entra ID — siehe die [Integrationen-Übersicht](docs/de/platform/integrations/overview.md) für den Microsoft-365-Connector, der sowohl Dokumentensynchronisation als auch SSO bedient.
+Tale nutzt standardmässig passwortbasierte Authentifizierung. Der erste User legt das Owner-Konto an; alle weiteren werden vom Admin angelegt. Für Self-Service-Login verbindest du SSO oder Trusted Headers über Microsoft Entra ID — siehe die [Integrationen-Übersicht](https://tale.dev/docs/de/platform/integrations/overview) für den Microsoft-365-Connector, der sowohl Dokumentensynchronisation als auch SSO bedient.
 
 - **Microsoft Entra ID (SSO):** Single Sign-On mit Microsoft 365 / Azure AD inkl. automatischem Provisioning
 - **Trusted Headers:** Für Deployments hinter einem authentifizierenden Reverse-Proxy (Authelia, Authentik, oauth2-proxy)
@@ -172,62 +172,62 @@ Praktisch, wenn du schnelle Vite-Reloads willst, aber ein stabiles Convex-Backen
 
 ## Dokumentation
 
-Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [`docs/de/index.md`](docs/de/index.md), um nach Persona einzusteigen.
+Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plus regionalen Varianten, wo lokale Formulierungen abweichen (heute: `de-CH`; der Loader erkennt jedes neue `xx-YY`-Bundle automatisch). Varianten tragen nur die Strings, die von ihrer Basis abweichen; fehlende Keys fallen über die Basis bis auf Englisch zurück. Start unter [tale.dev/docs/de](https://tale.dev/docs/de), um nach Persona einzusteigen (Quelle: [`docs/de/index.md`](docs/de/index.md)).
 
 <details>
 <summary><strong>Für alltägliche Nutzer</strong></summary>
 
-- **[Chat-Übersicht](docs/de/platform/chat/overview.md)** — die vier Bereiche des Bildschirms, wo es tiefer geht
-- **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — Composer, Agents, Modell-Picker, Streaming, Zitate
-- **[Tiefenrecherche](docs/de/platform/chat/deep-research.md)** — der Researcher-Agent mit Live-Plan und PDF-Bericht
-- **[Anhänge](docs/de/platform/chat/attachments.md)** — Dateien im Chat, RAG vs wörtlich
-- **[Geteilte Chats](docs/de/platform/chat/shared-threads.md)** — Chat per Link mit der Org teilen, in einen eigenen forken
-- **[Genehmigungen](docs/de/platform/approvals/concepts.md)** — KI-Aktionen prüfen
+- **[Chat-Übersicht](https://tale.dev/docs/de/platform/chat/overview)** — die vier Bereiche des Bildschirms, wo es tiefer geht
+- **[KI-Chat-Grundlagen](https://tale.dev/docs/de/platform/chat/basics)** — Composer, Agents, Modell-Picker, Streaming, Zitate
+- **[Tiefenrecherche](https://tale.dev/docs/de/platform/chat/deep-research)** — der Researcher-Agent mit Live-Plan und PDF-Bericht
+- **[Anhänge](https://tale.dev/docs/de/platform/chat/attachments)** — Dateien im Chat, RAG vs wörtlich
+- **[Geteilte Chats](https://tale.dev/docs/de/platform/chat/shared-threads)** — Chat per Link mit der Org teilen, in einen eigenen forken
+- **[Genehmigungen](https://tale.dev/docs/de/platform/approvals/concepts)** — KI-Aktionen prüfen
 
 </details>
 
 <details>
 <summary><strong>Für Bauende (Agents, Automatisierungen, Integrationen)</strong></summary>
 
-- **[Agent-Konzepte](docs/de/platform/agents/concepts.md)** — das Vier-Knöpfe-Modell hinter jedem Agent
-- **[Einen Agent erstellen](docs/de/platform/agents/create.md)** — spezialisierte KI-Assistenten von Anfang bis Ende
-- **[Agent-Tools](docs/de/platform/agents/tools.md)** — die eingebauten Tool-Familien
-- **[Projekte](docs/de/platform/projects/overview.md)** — geteilter Workspace für Dateien, Chats und Projekt-Agents
-- **[Automatisierungs-Konzepte](docs/de/platform/automations/concepts.md)** — Workflows, Trigger, Genehmigungstore
-- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Modelle out of the box](docs/de/platform/models.md)** — OpenRouter als einziger Default-Provider, plus die ausgelieferten Modelllisten
+- **[Agent-Konzepte](https://tale.dev/docs/de/platform/agents/concepts)** — das Vier-Knöpfe-Modell hinter jedem Agent
+- **[Einen Agent erstellen](https://tale.dev/docs/de/platform/agents/create)** — spezialisierte KI-Assistenten von Anfang bis Ende
+- **[Agent-Tools](https://tale.dev/docs/de/platform/agents/tools)** — die eingebauten Tool-Familien
+- **[Projekte](https://tale.dev/docs/de/platform/projects/overview)** — geteilter Workspace für Dateien, Chats und Projekt-Agents
+- **[Automatisierungs-Konzepte](https://tale.dev/docs/de/platform/automations/concepts)** — Workflows, Trigger, Genehmigungstore
+- **[Integrationen-Übersicht](https://tale.dev/docs/de/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
+- **[Modelle out of the box](https://tale.dev/docs/de/platform/models)** — OpenRouter als einziger Default-Provider, plus die ausgelieferten Modelllisten
 
 </details>
 
 <details>
 <summary><strong>Für Admins</strong></summary>
 
-- **[Mitglieder und Rollen](docs/de/platform/admin/members-and-roles.md)** — Userverwaltung und Berechtigungs-Matrix
-- **[Modelle out of the box](docs/de/platform/models.md)** — welche Modelle die Defaults mitbringen; Provider tauschen oder hinzufügen
-- **[Integrationen-Übersicht](docs/de/platform/integrations/overview.md)** — Drittanbieter-Konnektoren, MCP-Server, eigene Konfigurationen
-- **[Cloud-Trust und Compliance](docs/de/cloud/trust-and-compliance.md)** — Frameworks, geteilte Verantwortung, Belege für Auditoren
+- **[Mitglieder und Rollen](https://tale.dev/docs/de/platform/admin/members-and-roles)** — Userverwaltung und Berechtigungs-Matrix
+- **[Modelle out of the box](https://tale.dev/docs/de/platform/models)** — welche Modelle die Defaults mitbringen; Provider tauschen oder hinzufügen
+- **[Integrationen-Übersicht](https://tale.dev/docs/de/platform/integrations/overview)** — Drittanbieter-Konnektoren, MCP-Server, eigene Konfigurationen
+- **[Cloud-Trust und Compliance](https://tale.dev/docs/de/cloud/trust-and-compliance)** — Frameworks, geteilte Verantwortung, Belege für Auditoren
 
 </details>
 
 <details>
 <summary><strong>Für Operators</strong></summary>
 
-- **[Self-hosted-Übersicht](docs/de/self-hosted/overview.md)** — Architektur und Dienste
-- **[Quickstart](docs/de/self-hosted/install/quickstart.md)** — Single-Host-Installation in zwanzig Minuten
-- **[Produktions-Deployment](docs/de/self-hosted/install/linux-server.md)** — Linux-Server mit TLS, Firewall, Non-Root-User
-- **[Docker-Compose-Referenz](docs/de/self-hosted/install/docker-compose-reference.md)** — Basis-Datei und Overlays
+- **[Self-hosted-Übersicht](https://tale.dev/docs/de/self-hosted/overview)** — Architektur und Dienste
+- **[Quickstart](https://tale.dev/docs/de/self-hosted/install/quickstart)** — Single-Host-Installation in zwanzig Minuten
+- **[Produktions-Deployment](https://tale.dev/docs/de/self-hosted/install/linux-server)** — Linux-Server mit TLS, Firewall, Non-Root-User
+- **[Docker-Compose-Referenz](https://tale.dev/docs/de/self-hosted/install/docker-compose-reference)** — Basis-Datei und Overlays
 - **[Tale CLI](tools/cli/README.md)** — CLI-Referenz
-- **[Environment-Referenz](docs/de/self-hosted/configuration/environment-reference.md)** — alle Environment-Variablen
-- **[Container-Architektur](docs/de/self-hosted/operate/container-architecture.md)** — sieben Container, was was besitzt
+- **[Environment-Referenz](https://tale.dev/docs/de/self-hosted/configuration/environment-reference)** — alle Environment-Variablen
+- **[Container-Architektur](https://tale.dev/docs/de/self-hosted/operate/container-architecture)** — sieben Container, was was besitzt
 
 </details>
 
 <details>
 <summary><strong>Für Developer</strong></summary>
 
-- **[API-Referenz](docs/de/develop/api-reference.md)** — REST-API für Agenten, Chat, Wissen und Workflows
-- **[Webhooks](docs/de/develop/webhooks.md)** — Workflow- und Agent-Webhooks mit Signaturprüfung
-- **[Develop-Übersicht](docs/de/develop/overview.md)** — die Entwickler-Oberfläche von Anfang bis Ende
+- **[API-Referenz](https://tale.dev/docs/de/develop/api-reference)** — REST-API für Agenten, Chat, Wissen und Workflows
+- **[Webhooks](https://tale.dev/docs/de/develop/webhooks)** — Workflow- und Agent-Webhooks mit Signaturprüfung
+- **[Develop-Übersicht](https://tale.dev/docs/de/develop/overview)** — die Entwickler-Oberfläche von Anfang bis Ende
 
 </details>
 
