@@ -3,6 +3,10 @@
 #
 # Usage:           curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 # Pin a version:   VERSION=0.9.0 curl -fsSL ... | bash
+# Install dir:     INSTALL_DIR=~/.local/bin curl -fsSL ... | bash
+#
+# GITHUB_TOKEN, when set, authenticates the GitHub API lookup of the latest
+# release — useful in CI, where the anonymous rate limit is easily exhausted.
 #
 # Mirrors scripts/install-cli.ps1 (the Windows installer) function for function
 # and message for message — keep them in sync when changing either.
@@ -18,11 +22,11 @@ info() { printf "\033[1;36m%s\033[0m\n" "$1"; }
 success() { printf "\033[1;32m%s\033[0m\n" "$1"; }
 error() { printf "\033[1;31mError: %s\033[0m\n" "$1" >&2; exit 1; }
 
-# Map `uname -s` to the platform suffix used in our release asset names
-# (tale_linux, tale_macos). Sets the $PLATFORM global.
-# Releases ship exactly one binary per OS — arm64 for macOS, x86_64 for
-# Linux — so reject other architectures up front with a build-from-source
-# pointer instead of letting the kernel fail later with a cryptic exec error.
+# Map `uname -s` + `uname -m` to the release asset for this machine. Releases
+# ship four Unix binaries — tale_macos (arm64), tale_macos_x64, tale_linux
+# (x86_64), tale_linux_arm64 — so anything else gets a build-from-source
+# pointer up front instead of a cryptic kernel exec error later.
+# Sets the $PLATFORM and $ASSET_NAME globals.
 detect_platform() {
     local os arch
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -35,9 +39,11 @@ detect_platform() {
     esac
 
     case "$PLATFORM-$arch" in
-        macos-arm64 | linux-x86_64 | linux-amd64) ;;
-        macos-*) error "The released macOS binary is arm64-only; this Mac reports ${arch}. Build from source instead: clone https://github.com/${REPO} and run 'bun run build:mac' in tools/cli." ;;
-        linux-*) error "No released binary for linux/${arch} (x86_64 only). Build from source instead: clone https://github.com/${REPO} and run 'bun run build:linux' in tools/cli." ;;
+        macos-arm64)                 ASSET_NAME="${BINARY_NAME}_macos" ;;
+        macos-x86_64)                ASSET_NAME="${BINARY_NAME}_macos_x64" ;;
+        linux-x86_64 | linux-amd64)  ASSET_NAME="${BINARY_NAME}_linux" ;;
+        linux-aarch64 | linux-arm64) ASSET_NAME="${BINARY_NAME}_linux_arm64" ;;
+        *) error "No released binary for ${PLATFORM}/${arch}. Build from source instead: clone https://github.com/${REPO} and run 'bun run build' in tools/cli." ;;
     esac
 }
 
@@ -74,7 +80,7 @@ download_file() {
 # that predate checksum publishing won't have one — warn and continue rather
 # than hard-fail, so the installer keeps working against older tags.
 verify_checksum() {
-    local file=$1 tag=$2 asset="${BINARY_NAME}_${PLATFORM}"
+    local file=$1 tag=$2 asset="$ASSET_NAME"
     local sums_url="https://github.com/${REPO}/releases/download/${tag}/tale_checksums.txt"
     local sums expected actual
 
@@ -109,32 +115,81 @@ verify_checksum() {
     success "Checksum verified"
 }
 
+# Resolve the latest release tag from the releases/latest redirect. Consumes
+# no API quota, but cannot check assets — used only as the fallback when the
+# GitHub API is rate limited or unreachable. Prints the tag, or nothing.
+get_latest_tag_from_redirect() {
+    local latest_url="https://github.com/${REPO}/releases/latest"
+    local location=""
+
+    if [ "$DOWNLOADER" = "curl" ]; then
+        location=$(curl -sI "$latest_url" 2>/dev/null | awk 'tolower($1) == "location:" {print $2}' | tr -d '\r' | tail -n 1 || true)
+    else
+        location=$(wget --spider --server-response --max-redirect=0 "$latest_url" 2>&1 | awk 'tolower($1) == "location:" {print $2}' | tr -d '\r' | tail -n 1 || true)
+    fi
+
+    case "$location" in
+        */releases/tag/*) echo "${location##*/}" ;;
+        *) echo "" ;;
+    esac
+}
+
 # Find the first release whose assets include our platform binary. Walks the
 # JSON line-by-line: remembers the most recent tag_name and prints it the
 # moment the expected asset filename appears in the same release block.
+# Sends `Authorization: Bearer $GITHUB_TOKEN` when the env var is set; on a
+# rate-limited (403/429) or empty API response, falls back to the
+# releases/latest redirect before erroring.
 get_latest_tag() {
     local api_url="https://api.github.com/repos/${REPO}/releases"
-    local asset_name="${BINARY_NAME}_${PLATFORM}"
-    local releases_json
+    local asset_name="$ASSET_NAME"
+    local response releases_json http_code tag=""
 
     if [ "$DOWNLOADER" = "curl" ]; then
-        releases_json=$(curl -fsSL "$api_url")
+        # `-w` appends the HTTP status on its own line; peel it off the body.
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+            response=$(curl -sL -w '\n%{http_code}' -H "Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>/dev/null || true)
+        else
+            response=$(curl -sL -w '\n%{http_code}' "$api_url" 2>/dev/null || true)
+        fi
+        http_code=$(printf '%s\n' "$response" | tail -n 1)
+        releases_json=$(printf '%s\n' "$response" | sed '$d')
     else
-        releases_json=$(wget -qO- "$api_url")
+        # wget swallows the response body on HTTP errors, so an empty body
+        # doubles as the rate-limit signal here.
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+            releases_json=$(wget -qO- --header="Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>/dev/null || true)
+        else
+            releases_json=$(wget -qO- "$api_url" 2>/dev/null || true)
+        fi
+        http_code=""
     fi
 
-    [ -z "$releases_json" ] && error "Failed to fetch releases"
+    if [ -z "$releases_json" ] || [ "$http_code" = "403" ] || [ "$http_code" = "429" ]; then
+        tag=$(get_latest_tag_from_redirect)
+        [ -z "$tag" ] && error "Failed to fetch releases"
+        echo "$tag"
+        return
+    fi
 
-    local tag=""
-    tag=$(echo "$releases_json" | sed -n '/"tag_name"/{ s/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/; h; }; /'"$asset_name"'/{ g; p; q; }')
+    # Match the asset name with its surrounding JSON quotes — some names are
+    # prefixes of others (tale_linux / tale_linux_arm64), so a bare substring
+    # match would hit the wrong asset.
+    tag=$(echo "$releases_json" | sed -n '/"tag_name"/{ s/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/; h; }; /"'"$asset_name"'"/{ g; p; q; }')
 
     [ -z "$tag" ] && error "No release found with ${asset_name} binary"
     echo "$tag"
 }
 
-# Pick the install directory. If `tale` is already on PATH, replace it in
-# place; otherwise default to /usr/local/bin. Sets the $INSTALL_DIR global.
+# Pick the install directory. An $INSTALL_DIR env override wins outright;
+# otherwise, if `tale` is already on PATH, replace it in place, and default
+# to /usr/local/bin when neither applies. Sets the $INSTALL_DIR global.
 detect_install_dir() {
+    if [ -n "${INSTALL_DIR:-}" ]; then
+        info "Using install directory from INSTALL_DIR: ${INSTALL_DIR}"
+        return
+    fi
+
     local existing
     existing=$(command -v "$BINARY_NAME" 2>/dev/null || true)
     if [ -n "$existing" ]; then
@@ -203,7 +258,7 @@ install_binary() {
         info "Latest version: ${tag}"
     fi
 
-    binary_url="https://github.com/${REPO}/releases/download/${tag}/${BINARY_NAME}_${PLATFORM}"
+    binary_url="https://github.com/${REPO}/releases/download/${tag}/${ASSET_NAME}"
     tmp_file="${tmp_dir}/${BINARY_NAME}"
 
     [ -n "${VERSION:-}" ] && verify_release_exists "$binary_url"
@@ -211,6 +266,14 @@ install_binary() {
     download_file "$binary_url" "$tmp_file"
     verify_checksum "$tmp_file" "$tag"
     chmod +x "$tmp_file"
+
+    # An INSTALL_DIR override may point at a directory that doesn't exist yet.
+    if [ ! -d "$INSTALL_DIR" ]; then
+        if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+            info "Requesting sudo to create ${INSTALL_DIR}"
+            sudo mkdir -p "$INSTALL_DIR"
+        fi
+    fi
 
     if [ -w "$INSTALL_DIR" ]; then
         mv "$tmp_file" "${INSTALL_DIR}/${BINARY_NAME}"
@@ -249,7 +312,7 @@ main() {
     info "Installing Tale CLI..."
 
     detect_platform
-    info "Detected platform: ${PLATFORM}"
+    info "Detected platform: ${PLATFORM} (${ASSET_NAME})"
 
     check_dependencies
     detect_install_dir

@@ -23,7 +23,9 @@ const GITHUB_REPO = 'tale-project/tale';
 
 const SUPPORTED_TARGETS: Record<string, string> = {
   'linux-x64': 'tale_linux',
+  'linux-arm64': 'tale_linux_arm64',
   'darwin-arm64': 'tale_macos',
+  'darwin-x64': 'tale_macos_x64',
   'win32-x64': 'tale_windows.exe',
 };
 

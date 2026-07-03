@@ -2,6 +2,14 @@
 #
 # Usage:           irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 # Pin a version:   $env:VERSION = '0.9.0'; irm ... | iex
+# Install dir:     $env:INSTALL_DIR = 'C:\Tools\tale'; irm ... | iex
+#
+# $env:GITHUB_TOKEN, when set, authenticates the GitHub API lookup of the
+# latest release — useful in CI, where the anonymous rate limit is easily
+# exhausted.
+#
+# Releases ship a single x64 Windows binary; Windows-on-ARM machines run it
+# through the built-in x64 emulation, so there is no arm64 asset to pick.
 #
 # Mirrors scripts/install-cli.sh (the Linux/macOS installer) function for
 # function and message for message — keep them in sync when changing either.
@@ -152,13 +160,65 @@ function Verify-Checksum {
     Write-Ok "Checksum verified"
 }
 
-# Find the first release whose assets include our platform binary.
+# Resolve the latest release tag from the releases/latest redirect. Consumes
+# no API quota, but cannot check assets — used only as the fallback when the
+# GitHub API is rate limited or unreachable. Returns the tag, or $null.
+function Get-LatestTagFromRedirect {
+    $location = $null
+    try {
+        # Some hosts hand back the 3xx response, others throw on it — read
+        # the Location header from whichever object carries it. The header
+        # shape also differs (dictionary vs. typed headers), so try the
+        # property first and the indexer second.
+        $response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -Method Head `
+            -UseBasicParsing -MaximumRedirection 0 -Headers @{ "User-Agent" = "tale-installer/1.0" } `
+            -ErrorAction Stop
+        $location = $response.Headers.Location
+        if (-not $location) { $location = $response.Headers["Location"] }
+    } catch {
+        $errResponse = $_.Exception.Response
+        if ($errResponse) {
+            try {
+                $location = $errResponse.Headers.Location
+                if (-not $location) { $location = $errResponse.Headers["Location"] }
+            } catch { $location = $null }
+        }
+    }
+    if (-not $location) { return $null }
+    $tag = ([string]$location).TrimEnd('/').Split('/')[-1]
+    if ($tag -and $tag -ne 'latest') { return $tag }
+    return $null
+}
+
+# Find the first release whose assets include our platform binary. Sends
+# `Authorization: Bearer $env:GITHUB_TOKEN` when the env var is set; on a
+# rate-limited (403/429) or empty API response, falls back to the
+# releases/latest redirect before erroring.
 function Get-LatestTag {
     $assetName = "tale_${Platform}.exe"
+    $headers = @{ "User-Agent" = "tale-installer/1.0" }
+    if ($env:GITHUB_TOKEN) {
+        $headers["Authorization"] = "Bearer $($env:GITHUB_TOKEN)"
+    }
+    $releases = $null
     try {
-        $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases" -Headers @{ "User-Agent" = "tale-installer/1.0" }
+        $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases" -Headers $headers
     } catch {
+        $statusCode = $null
+        if ($_.Exception.Response) {
+            try { $statusCode = [int]$_.Exception.Response.StatusCode }
+            catch { $statusCode = $null }
+        }
+        if ($statusCode -eq 403 -or $statusCode -eq 429 -or -not $statusCode) {
+            $tag = Get-LatestTagFromRedirect
+            if ($tag) { return $tag }
+        }
         Write-Err "Failed to fetch releases. $_"
+    }
+    if (-not $releases) {
+        $tag = Get-LatestTagFromRedirect
+        if ($tag) { return $tag }
+        Write-Err "Failed to fetch releases."
     }
     foreach ($rel in $releases) {
         if ($rel.assets.name -contains $assetName) {
@@ -168,10 +228,18 @@ function Get-LatestTag {
     Write-Err "No release found with $assetName binary"
 }
 
-# Pick the install directory. If `tale` is already on PATH, replace it in
-# place; otherwise default to %LOCALAPPDATA%\Programs\tale. Sets $script:InstallDir
+# Pick the install directory. An $env:INSTALL_DIR override wins outright;
+# otherwise, if `tale` is already on PATH, replace it in place, and default
+# to %LOCALAPPDATA%\Programs\tale when neither applies. Sets $script:InstallDir
 # and $script:ExistingTale for later consumers.
 function Detect-InstallDir {
+    if ($env:INSTALL_DIR) {
+        $script:ExistingTale = $null
+        $script:InstallDir = $env:INSTALL_DIR
+        Write-Info "Using install directory from INSTALL_DIR: $script:InstallDir"
+        return
+    }
+
     $script:ExistingTale = Get-Command tale -ErrorAction SilentlyContinue
     if ($script:ExistingTale) {
         $script:InstallDir = Split-Path $script:ExistingTale.Source

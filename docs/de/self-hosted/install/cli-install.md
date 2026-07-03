@@ -30,7 +30,7 @@ Auf Windows PowerShell:
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Beide Installer erkennen das Betriebssystem, ziehen das passende Release-Binary aus dem neuesten GitHub-Release und legen es im `PATH` ab (`/usr/local/bin/tale` oder `%LOCALAPPDATA%\Programs\tale\tale.exe`) — ist das Installationsverzeichnis nicht beschreibbar, fragt der Installer nach `sudo`. Release-Binaries gibt es nur für macOS auf Apple Silicon (arm64) und Linux auf x86_64; auf jeder anderen Architektur bricht der Installer mit einer klaren Meldung ab und verweist auf den Build aus dem Quellcode. Um eine Version festzuhalten, setze die Environment-Variable `VERSION`, bevor du in den Installer pipest.
+Beide Installer erkennen Betriebssystem und CPU-Architektur, ziehen das passende Release-Binary aus dem neuesten GitHub-Release und legen es im `PATH` ab (`/usr/local/bin/tale` oder `%LOCALAPPDATA%\Programs\tale\tale.exe`) — ist das Installationsverzeichnis nicht beschreibbar, fragt der Installer nach `sudo`. Release-Binaries gibt es für macOS auf Apple Silicon und Intel sowie für Linux auf x86_64 und arm64; Windows-on-ARM-Maschinen führen das x64-Binary über die eingebaute Emulation aus. Auf einer Architektur ohne Release-Binary bricht der Installer mit einer klaren Meldung ab und verweist auf den Build aus dem Quellcode. Um eine Version festzuhalten, setze die Environment-Variable `VERSION`, bevor du in den Installer pipest; das Installationsverzeichnis wählst du mit `INSTALL_DIR` selbst.
 
 | OS      | Installer-Skript          |
 | ------- | ------------------------- |
