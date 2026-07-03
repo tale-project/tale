@@ -942,8 +942,8 @@
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
       "creating": "Erstelle...",
       "continue": "Weiter",
-      "installAll": "Alle installieren",
-      "installingAll": "Alle werden installiert..."
+      "install": "Installieren",
+      "installing": "Wird installiert..."
     },
     "uploadDialog": {
       "menuItem": "Datei hochladen",
@@ -1055,10 +1055,7 @@
     },
     "toast": {
       "created": "Automatisierung erstellt",
-      "createFailed": "Automatisierung konnte nicht erstellt werden",
-      "installedAll": "{count} Automatisierungen installiert",
-      "installedAllNone": "Alle Vorlagen sind bereits installiert",
-      "installAllPartial": "{count} Vorlagen konnten nicht installiert werden"
+      "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
       "duplicateName": "Eine Automatisierung mit diesem Namen existiert bereits",

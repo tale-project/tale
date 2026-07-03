@@ -942,8 +942,8 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
-      "installAll": "Install all",
-      "installingAll": "Installing all..."
+      "install": "Install",
+      "installing": "Installing..."
     },
     "uploadDialog": {
       "menuItem": "Upload file",
@@ -1055,10 +1055,7 @@
     },
     "toast": {
       "created": "Automation created successfully",
-      "createFailed": "Failed to create automation",
-      "installedAll": "{count} automations installed",
-      "installedAllNone": "All templates are already installed",
-      "installAllPartial": "{count} templates could not be installed"
+      "createFailed": "Failed to create automation"
     },
     "validation": {
       "duplicateName": "An automation with this name already exists",
