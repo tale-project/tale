@@ -25,12 +25,15 @@ interface AgentsActionMenuProps {
    */
   createOpen?: boolean;
   onCreateOpenChange?: (open: boolean) => void;
+  /** Page-specific items appended after the create items (e.g. catalog sync). */
+  extraMenuItems?: DataTableActionMenuItem[];
 }
 
 export function AgentsActionMenu({
   organizationId,
   createOpen: controlledCreateOpen,
   onCreateOpenChange,
+  extraMenuItems,
 }: AgentsActionMenuProps) {
   const [internalCreateOpen, setInternalCreateOpen] = useState(false);
   const createOpen = controlledCreateOpen ?? internalCreateOpen;
@@ -66,8 +69,9 @@ export function AgentsActionMenu({
         icon: Upload,
         onClick: () => setUploadOpen(true),
       },
+      ...(extraMenuItems ?? []),
     ],
-    [t, setCreateOpen, navigate, organizationId],
+    [t, setCreateOpen, navigate, organizationId, extraMenuItems],
   );
 
   return (

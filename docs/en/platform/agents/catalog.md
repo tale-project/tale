@@ -21,6 +21,10 @@ Cards are grouped by department (their primary label — Engineering, Marketing,
 
 Some agents are installed for you when you connect an integration — for example, connecting GitHub installs the Pull Request Reviewer and Issue Triager. Those carry an **Installed by &lt;integration&gt;** badge, and the catalog won't let you disable or uninstall them by hand (disconnect the integration instead). An agent that still needs an integration shows a **Requires &lt;integration&gt;** badge until you connect it.
 
+## Updating from the built-in catalog
+
+Your organization owns its copy of every shipped agent's configuration — a platform upgrade never rewrites it behind your back. To pull the latest shipped versions, open the **Create agent** menu and choose **Update built-in agents**: every built-in agent whose configuration differs from the catalog is replaced, including agents you edited, and the previous version of each replaced agent lands in its [history](/platform/agents/versions) so you can restore it. Agents your organization created itself are never touched. The same action, with the same semantics, lives in the corresponding menu on the automations catalog, the integrations list, and the Apps page.
+
 ## Permissions
 
-Installing, enabling, disabling, and uninstalling are administrator actions (admin, developer, or owner). Editing an agent's model, instructions, or full configuration is done in the agent editor (Agents → All agents → an agent), not the catalog.
+Installing, enabling, disabling, uninstalling, and updating from the catalog are administrator actions (admin, developer, or owner). Editing an agent's model, instructions, or full configuration is done in the agent editor (Agents → All agents → an agent), not the catalog.

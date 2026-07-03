@@ -3,6 +3,9 @@
     "title": "Apps",
     "searchPlaceholder": "Apps durchsuchen…",
     "searchNoResults": "Keine Apps entsprechen Ihrer Suche.",
+    "addMenu": {
+      "label": "App hinzufügen"
+    },
     "upload": {
       "uploadApp": "App hochladen",
       "dialogTitle": "Private App hochladen",
@@ -61,6 +64,8 @@
       "install": "Installieren",
       "installed": "Installiert",
       "installFailed": "App konnte nicht installiert werden",
+      "available": "Verfügbar",
+      "open": "Öffnen",
       "reinstall": "Neu installieren",
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
@@ -5748,6 +5753,9 @@
       "title": "Integrationen",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
       "addCustomIntegration": "Integration hinzufügen",
+      "addMenu": {
+        "custom": "Eigene Integration"
+      },
       "slackNotify": {
         "title": "Slack-Bot & Benachrichtigungen",
         "agentLabel": "Agent, der auf Slack antwortet",
@@ -7966,6 +7974,25 @@
     },
     "aria": {
       "transcript": "Diskussionsnachrichten"
+    }
+  },
+  "catalogSync": {
+    "button": {
+      "agents": "Mitgelieferte Agenten aktualisieren",
+      "workflows": "Mitgelieferte Automatisierungen aktualisieren",
+      "integrations": "Mitgelieferte Integrationen aktualisieren",
+      "apps": "Mitgelieferte Apps aktualisieren"
+    },
+    "confirm": {
+      "title": "Aus dem integrierten Katalog aktualisieren",
+      "description": "Ersetzt die integrierten Einträge dieser Seite durch die neuesten Katalog-Versionen — auch dort, wo du sie geändert hast. Die vorherige Version jedes geänderten Eintrags landet im Verlauf; eigene Einträge bleiben unberührt.",
+      "action": "Aktualisieren",
+      "loading": "Aktualisiert…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {1 Eintrag aus dem Katalog aktualisiert} other {{count} Einträge aus dem Katalog aktualisiert}}",
+      "upToDate": "Bereits aktuell",
+      "failed": "Aktualisierung aus dem Katalog fehlgeschlagen"
     }
   },
   "agentCatalog": {

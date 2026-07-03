@@ -19,6 +19,10 @@ Wähl eine Integration aus dem Katalog und klick auf **Verbinden**. Die Integrat
 
 Einige Integrationen tragen Unteroptionen bei der Installation. Microsoft 365 lässt dich wählen, ob OneDrive-Sync, SharePoint-Sync, beide oder nur Single Sign-on aktiviert werden; GitHub lässt dich die Repositories wählen, auf die die Organisation Zugriff erhält; Slack fragt, in welchen Kanälen der Bot posten darf. Die Unteroptionen lassen sich später aus der Zeile der Integration ändern, ohne neu zu installieren.
 
+## Definitionen aus dem mitgelieferten Katalog aktualisieren
+
+Die Definition jeder Integration — ihr Konfigurationsschema, ihr Connector, ihr Icon — wird beim Anlegen der Organisation kopiert und bleibt danach unangetastet; ein Plattform-Upgrade ändert sie also nie hinter deinem Rücken. **Mitgelieferte Integrationen aktualisieren** im Menü **Integration hinzufügen** ersetzt jede mitgelieferte Definition, die vom aktuellen Katalog abweicht, durch die neueste Version. Anmeldedaten, Secrets und selbst hinzugefügte Integrationen bleiben unberührt; die vorherige Version jeder ersetzten Definition bleibt auf dem Server erhalten, sodass ein Operator sie wiederherstellen kann.
+
 ## Anmeldedaten rotieren
 
 Zum Rotieren öffne die Zeile der Integration und klick auf **Anmeldedaten rotieren**. OAuth-Integrationen gehen den Tanz nochmal mit denselben Scopes; API-Schlüssel-Integrationen zeigen ein Feld für den neuen Schlüssel. Die alte Anmeldung hört auf zu funktionieren, sobald die neue verifiziert ist — auf Integrations-Ebene gibt es kein Überlappungsfenster für Anmeldedaten. Greif zur Rotation in dem Rhythmus, den deine Sicherheitsrichtlinie vorgibt, oder wann immer das Upstream-System meldet, dass die Anmeldung kompromittiert ist.

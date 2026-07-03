@@ -13,6 +13,10 @@ The list shows every workflow in the org. The toolbar carries a search box, a **
 
 The list lazily loads as you scroll. Search matches the name and the description. Click any row to open the workflow.
 
+## The catalog
+
+The **Catalog** tab next to the list holds the ready-made automations that ship with Tale; one click installs one into the org. The shipped definitions evolve with the platform, so the tab's **Create automation** menu carries an **Update built-in automations** action: it replaces every shipped automation whose definition differs from the current catalog, including ones you edited, and the previous version of each replaced automation lands in its History tab so you can restore it. Automations you built yourself are never touched. Updating is an administrator action (admin, developer, or owner).
+
 ## Running a workflow
 
 Three paths fire a workflow.

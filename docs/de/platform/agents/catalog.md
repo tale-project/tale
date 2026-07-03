@@ -21,6 +21,10 @@ Karten sind nach Abteilung gruppiert (ihrem primären Label — Engineering, Mar
 
 Manche Agenten werden beim Verbinden einer Integration für dich installiert — etwa installiert das Verbinden von GitHub den Pull-Request-Reviewer und den Issue-Triager. Diese tragen das Abzeichen **Installiert von &lt;Integration&gt;**, und der Katalog lässt nicht zu, sie von Hand zu deaktivieren oder zu deinstallieren (trenne stattdessen die Integration). Ein Agent, der noch eine Integration benötigt, zeigt **Erfordert &lt;Integration&gt;**, bis du sie verbindest.
 
+## Aus dem integrierten Katalog aktualisieren
+
+Deine Organisation besitzt ihre eigene Kopie der Konfiguration jedes mitgelieferten Agenten — ein Plattform-Upgrade überschreibt sie nie hinter deinem Rücken. Um die neuesten mitgelieferten Versionen zu holen, öffne das Menü **Agent erstellen** und wähle **Mitgelieferte Agenten aktualisieren**: Jeder integrierte Agent, dessen Konfiguration vom Katalog abweicht, wird ersetzt — auch Agenten, die du bearbeitet hast. Die vorherige Version jedes ersetzten Agenten landet in seinem [Verlauf](/de/platform/agents/versions), sodass du sie wiederherstellen kannst; Agenten, die deine Organisation selbst erstellt hat, bleiben unberührt. Dieselbe Aktion mit derselben Semantik liegt im jeweiligen Menü des Automatisierungs-Katalogs, der Integrationsliste und der Apps-Seite.
+
 ## Berechtigungen
 
-Installieren, Aktivieren, Deaktivieren und Deinstallieren sind Administrator-Aktionen (Admin, Entwickler oder Inhaber). Modell, Anweisungen oder die vollständige Konfiguration eines Agenten bearbeitest du im Agenten-Editor (Agenten → Alle Agenten → ein Agent), nicht im Katalog.
+Installieren, Aktivieren, Deaktivieren, Deinstallieren und das Aktualisieren aus dem Katalog sind Administrator-Aktionen (Admin, Entwickler oder Inhaber). Modell, Anweisungen oder die vollständige Konfiguration eines Agenten bearbeitest du im Agenten-Editor (Agenten → Alle Agenten → ein Agent), nicht im Katalog.

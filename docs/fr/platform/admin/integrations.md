@@ -19,6 +19,10 @@ Choisis une intégration du catalogue et clique sur **Connecter**. L'intégratio
 
 Certaines intégrations portent des sous-options à l'installation. Microsoft 365 te laisse choisir s'il faut activer la sync OneDrive, la sync SharePoint, les deux, ou seulement le SSO ; GitHub te laisse choisir les dépôts auxquels l'org accorde l'accès ; Slack demande dans quels canaux le bot peut poster. Les sous-options peuvent être modifiées plus tard depuis la ligne de l'intégration sans réinstaller.
 
+## Mettre à jour les définitions depuis le catalogue livré
+
+La définition de chaque intégration — son schéma de configuration, son connecteur, son icône — est copiée dans l'organisation à sa création et reste intacte ensuite ; une mise à jour de la plateforme ne la change donc jamais dans ton dos. **Mettre à jour les intégrations livrées** dans le menu **Ajouter une intégration** remplace chaque définition livrée qui diffère du catalogue courant par la dernière version. Les identifiants, les secrets et les intégrations que tu as ajoutées toi-même restent intacts ; la version précédente de chaque définition remplacée est conservée sur le serveur, pour qu'un opérateur puisse la récupérer.
+
 ## Roter les identifiants
 
 Pour roter, ouvre la ligne de l'intégration et clique sur **Roter les identifiants**. Les intégrations OAuth refont la danse avec les mêmes périmètres ; les intégrations à clé API montrent un champ pour la nouvelle clé. L'ancien identifiant arrête de marcher dès que le nouveau est vérifié — il n'y a pas de fenêtre de chevauchement pour les identifiants au niveau de l'intégration. Va vers la rotation au rythme que ta politique de sécurité impose, ou chaque fois que le système amont rapporte un identifiant compromis.

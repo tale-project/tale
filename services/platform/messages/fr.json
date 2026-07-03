@@ -3,6 +3,9 @@
     "title": "Applications",
     "searchPlaceholder": "Rechercher des applications…",
     "searchNoResults": "Aucune application ne correspond à votre recherche.",
+    "addMenu": {
+      "label": "Ajouter une application"
+    },
     "upload": {
       "uploadApp": "Téléverser une application",
       "dialogTitle": "Téléverser une application privée",
@@ -61,6 +64,8 @@
       "install": "Installer",
       "installed": "Installé",
       "installFailed": "Impossible d'installer l'application",
+      "available": "Disponible",
+      "open": "Ouvrir",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
@@ -5749,6 +5754,9 @@
       "title": "Intégrations",
       "pageSubtitle": "Connecte des services tiers à ton espace de travail.",
       "addCustomIntegration": "Ajouter une intégration",
+      "addMenu": {
+        "custom": "Intégration personnalisée"
+      },
       "slackNotify": {
         "title": "Bot Slack et notifications",
         "agentLabel": "Agent qui répond sur Slack",
@@ -7967,6 +7975,25 @@
     },
     "aria": {
       "transcript": "Messages de la discussion"
+    }
+  },
+  "catalogSync": {
+    "button": {
+      "agents": "Mettre à jour les agents livrés",
+      "workflows": "Mettre à jour les automatisations livrées",
+      "integrations": "Mettre à jour les intégrations livrées",
+      "apps": "Mettre à jour les applications livrées"
+    },
+    "confirm": {
+      "title": "Mettre à jour depuis le catalogue intégré",
+      "description": "Remplace les entrées intégrées de cette page par les dernières versions du catalogue — y compris celles que tu as modifiées. La version précédente de chaque entrée modifiée est conservée dans l'historique ; les entrées que tu as créées restent intactes.",
+      "action": "Mettre à jour",
+      "loading": "Mise à jour…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {1 entrée mise à jour depuis le catalogue} other {{count} entrées mises à jour depuis le catalogue}}",
+      "upToDate": "Déjà à jour",
+      "failed": "Échec de la mise à jour depuis le catalogue"
     }
   },
   "agentCatalog": {

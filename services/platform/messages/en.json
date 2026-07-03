@@ -3,6 +3,9 @@
     "title": "Apps",
     "searchPlaceholder": "Search apps…",
     "searchNoResults": "No apps match your search.",
+    "addMenu": {
+      "label": "Add app"
+    },
     "upload": {
       "uploadApp": "Upload app",
       "dialogTitle": "Upload private app",
@@ -57,10 +60,15 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
+    "addMenu": {
+      "label": "Add app"
+    },
     "install": {
       "install": "Install",
       "installed": "Installed",
       "installFailed": "Couldn't install the app",
+      "available": "Available",
+      "open": "Open",
       "reinstall": "Reinstall",
       "setup": "Finish setup",
       "uninstall": "Uninstall",
@@ -6012,6 +6020,9 @@
       "title": "Integrations",
       "pageSubtitle": "Connect third-party services to your workspace.",
       "addCustomIntegration": "Add integration",
+      "addMenu": {
+        "custom": "Custom integration"
+      },
       "slackNotify": {
         "title": "Slack bot & notifications",
         "agentLabel": "Agent that answers Slack",
@@ -7966,6 +7977,25 @@
     },
     "aria": {
       "transcript": "Discussion messages"
+    }
+  },
+  "catalogSync": {
+    "button": {
+      "agents": "Update built-in agents",
+      "workflows": "Update built-in automations",
+      "integrations": "Update built-in integrations",
+      "apps": "Update built-in apps"
+    },
+    "confirm": {
+      "title": "Update from the built-in catalog",
+      "description": "Replaces this page's built-in entries with the latest versions from the catalog — including any you changed. The previous version of each changed entry is saved to its history; entries you created yourself stay untouched.",
+      "action": "Update",
+      "loading": "Updating…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {Updated 1 entry from the catalog} other {Updated {count} entries from the catalog}}",
+      "upToDate": "Already up to date",
+      "failed": "Could not update from the catalog"
     }
   },
   "agentCatalog": {

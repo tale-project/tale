@@ -13,6 +13,10 @@ La liste affiche chaque workflow de l'organisation. La barre d'outils porte une 
 
 La liste charge en lazy au défilement. La recherche s'applique au nom et à la description. Un clic sur une ligne ouvre le workflow.
 
+## Le catalogue
+
+L'onglet **Catalogue** à côté de la liste contient les automatisations prêtes à l'emploi livrées avec Tale ; un clic en installe une dans l'org. Les définitions livrées évoluent avec la plateforme, donc le menu **Créer une automatisation** de l'onglet porte l'action **Mettre à jour les automatisations livrées** : elle remplace chaque automatisation livrée dont la définition diffère du catalogue courant, y compris celles que tu as modifiées, et la version précédente de chaque automatisation remplacée atterrit dans son Historique pour que tu puisses la restaurer. Les automatisations que tu as construites toi-même restent intactes. La mise à jour est une action d'administrateur (admin, développeur ou propriétaire).
+
 ## Lancer un workflow
 
 Trois chemins déclenchent un workflow.
