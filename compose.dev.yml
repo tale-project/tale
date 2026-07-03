@@ -146,6 +146,17 @@ services:
       # push), default on in dev. Set to 0 to fall back to the one-shot boot
       # deploy and the static prebuilt dist/ only.
       TALE_DEV_HOT_RELOAD: ${TALE_DEV_HOT_RELOAD:-1}
+      # Auto-seed a ready-to-log-in dev account on boot (default on in this
+      # dev overlay only): dev@tale.test / TaleDev!Passw0rd owning a
+      # scaffolded "Dev Workspace" org — a fresh stack needs no manual /setup
+      # pass before testing. Set TALE_DEV_SEED_USER=0 to opt out (the /setup
+      # wizard then appears as before); override the identity via
+      # TALE_DEV_SEED_USER_EMAIL / TALE_DEV_SEED_USER_PASSWORD. The seeder
+      # (services/platform/convex/provisioning/seed_dev_user.ts) additionally
+      # refuses to run when SITE_URL is not a loopback host, so an accidental
+      # carry-over into a reachable deployment stays inert. Never used by
+      # `tale deploy` (production ignores this overlay).
+      TALE_DEV_SEED_USER: ${TALE_DEV_SEED_USER:-1}
 
   docs:
     volumes:
