@@ -3,8 +3,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockChangePassword = vi.fn();
 const mockSetPassword = vi.fn();
+const mockRevokeOtherSessions = vi.fn();
 const mockGetAuth = vi.fn();
 const mockGetAuthUser = vi.fn();
+
+// Hoisted so the same class backs both the `better-auth/api` mock the helper
+// imports and the errors the tests construct — `instanceof APIError` only
+// matches when both sides resolve to one class.
+const { MockAPIError } = vi.hoisted(() => {
+  class HoistedAPIError extends Error {
+    status: string;
+    body: unknown;
+    constructor(status: string, body?: { code?: string; message?: string }) {
+      super(body?.message ?? status);
+      this.status = status;
+      this.body = body;
+    }
+  }
+  return { MockAPIError: HoistedAPIError };
+});
+
+vi.mock('better-auth/api', () => ({ APIError: MockAPIError }));
 
 vi.mock('../auth', () => ({
   authComponent: {
@@ -72,6 +91,7 @@ vi.mock('../_generated/api', () => ({
     betterAuth: {
       adapter: {
         findMany: 'betterAuth:adapter:findMany',
+        updateMany: 'betterAuth:adapter:updateMany',
       },
     },
   },
@@ -110,6 +130,7 @@ describe('updateUserPassword', () => {
         api: {
           changePassword: mockChangePassword,
           setPassword: mockSetPassword,
+          revokeOtherSessions: mockRevokeOtherSessions,
         },
       },
       headers: MOCK_HEADERS,
@@ -166,6 +187,49 @@ describe('updateUserPassword', () => {
       },
       headers: MOCK_HEADERS,
     });
+  });
+
+  it('raises a structured INVALID_CURRENT_PASSWORD error when the current password is wrong', async () => {
+    mockHasCredentialAccount.mockResolvedValue(true);
+    mockChangePassword.mockRejectedValue(
+      new MockAPIError('UNAUTHORIZED', {
+        code: 'INVALID_PASSWORD',
+        message: 'Invalid password',
+      }),
+    );
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx as never, {
+        currentPassword: 'WrongP@ss1',
+        newPassword: VALID_PASSWORD,
+      }),
+    ).rejects.toMatchObject({
+      data: { code: 'INVALID_CURRENT_PASSWORD' },
+    });
+  });
+
+  it('forced change for credential users revokes all other sessions', async () => {
+    mockHasCredentialAccount.mockResolvedValue(true);
+    mockRevokeOtherSessions.mockResolvedValue(undefined);
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue({
+      page: [{ _id: 'account_1', userId: 'user_1', providerId: 'credential' }],
+    });
+    ctx.runMutation.mockResolvedValue(undefined);
+    const handler = await getHandler();
+
+    await handler(ctx as never, {
+      newPassword: VALID_PASSWORD,
+      trigger: 'forced',
+    });
+
+    expect(mockRevokeOtherSessions).toHaveBeenCalledWith({
+      headers: MOCK_HEADERS,
+    });
+    // Forced change updates the credential directly, never via changePassword.
+    expect(mockChangePassword).not.toHaveBeenCalled();
   });
 
   it('throws when currentPassword missing for credential users', async () => {

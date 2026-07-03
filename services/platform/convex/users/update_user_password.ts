@@ -2,6 +2,7 @@
  * Update user password - Business logic
  */
 
+import { APIError } from 'better-auth/api';
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import { ConvexError } from 'convex/values';
 
@@ -84,14 +85,34 @@ export async function updateUserPassword(
         message: 'Current password is required',
       });
     }
-    await auth.api.changePassword({
-      body: {
-        currentPassword: args.currentPassword,
-        newPassword: args.newPassword,
-        revokeOtherSessions: true,
-      },
-      headers,
-    });
+    try {
+      // `revokeOtherSessions: true` invalidates every OTHER session for this
+      // user server-side, so a stolen/forgotten device can't keep its login
+      // after a password change. The caller's own session is also signed out
+      // client-side once this resolves (see ChangePasswordDialog), so the net
+      // effect is a global sign-out (#1945).
+      await auth.api.changePassword({
+        body: {
+          currentPassword: args.currentPassword,
+          newPassword: args.newPassword,
+          revokeOtherSessions: true,
+        },
+        headers,
+      });
+    } catch (err) {
+      // A wrong current password is an expected, recoverable failure. Better
+      // Auth raises an APIError with code INVALID_PASSWORD; re-raise it as a
+      // structured ConvexError so the change-password form can show an inline
+      // field error on the current-password input instead of a generic
+      // destructive toast (#1945).
+      if (isInvalidPasswordError(err)) {
+        throw new ConvexError({
+          code: 'INVALID_CURRENT_PASSWORD',
+          message: 'Current password is incorrect',
+        });
+      }
+      throw err;
+    }
   } else {
     await auth.api.setPassword({
       body: {
@@ -126,6 +147,23 @@ export async function updateUserPassword(
       }),
     ),
   );
+}
+
+/**
+ * True when a Better Auth API error represents a rejected current password
+ * (wrong password on `changePassword`). Matches on the stable `INVALID_PASSWORD`
+ * error code, with a message fallback for resilience across Better Auth
+ * versions. Other API errors (network, validation, etc.) return false so they
+ * keep bubbling up as generic failures.
+ */
+function isInvalidPasswordError(err: unknown): boolean {
+  if (!(err instanceof APIError)) return false;
+  const body: unknown = err.body;
+  if (isRecord(body) && getString(body, 'code') === 'INVALID_PASSWORD') {
+    return true;
+  }
+  const message = err instanceof Error ? err.message : '';
+  return /invalid password/i.test(message);
 }
 
 async function forcedResetCredentialPassword(

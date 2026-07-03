@@ -19,7 +19,7 @@ Open **Settings > Account**. Three sections sit on the page: **Profile**, **Secu
 
 The Profile section shows your **email** first, then your **name** — the email implies the name Tale suggests, which you can edit freely. The name is editable inline; the change saves and propagates to every chat and approval the next time they render. Email is read-only — it is what you signed in with, and changing it goes through support. There is no avatar field on the page; Tale derives an avatar from your name's initials.
 
-The Security section holds a single button: **Change password** if you signed up with email and password, **Set password** if your account is federated through SSO and you want to add a password as a fallback. Both flows enforce the org's password policy and surface the rules live as you type. The Two-factor section pairs the account with a TOTP app or a hardware key and shows the backup codes once at enrolment.
+The Security section holds a single button: **Change password** if you signed up with email and password, **Set password** if your account is federated through SSO and you want to add a password as a fallback. Both flows enforce the org's password policy and surface the rules live as you type, and a wrong current password is flagged inline on the field rather than as a transient error. Changing your password signs you out of every device — the dialog warns you before you confirm, and you'll sign back in with the new password. The Two-factor section pairs the account with a TOTP app or a hardware key and shows the backup codes once at enrolment.
 
 ## Personalization — custom instructions, memories, voice output
 

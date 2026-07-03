@@ -651,8 +651,13 @@
       },
       "validation": {
         "currentRequired": "Aktuelles Passwort ist erforderlich",
+        "currentIncorrect": "Aktuelles Passwort ist falsch",
         "confirmRequired": "Bitte bestätige dein neues Passwort",
         "mismatch": "Passwörter stimmen nicht überein"
+      },
+      "warning": {
+        "title": "Du wirst überall abgemeldet",
+        "description": "Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet. Du musst dich anschließend mit deinem neuen Passwort erneut anmelden."
       }
     },
     "forcedChange": {

@@ -651,8 +651,13 @@
       },
       "validation": {
         "currentRequired": "Current password is required",
+        "currentIncorrect": "Current password is incorrect",
         "confirmRequired": "Please confirm your new password",
         "mismatch": "Passwords do not match"
+      },
+      "warning": {
+        "title": "You'll be signed out everywhere",
+        "description": "Changing your password signs you out of all devices. You'll need to sign in again with your new password."
       }
     },
     "forcedChange": {
