@@ -18,13 +18,18 @@ import {
 
 const UNKNOWN_CUSTOMER_EMAIL = 'unknown@example.com';
 
-function getSelectedConversationIds(
+export function getSelectedConversationIds(
   selectionState: SelectionState,
   conversations: ConversationItem[],
 ) {
+  // Intersect the selected ids with the currently-visible (filtered)
+  // conversations so bulk actions only ever touch rows the user can see.
+  // This keeps a narrowed search from silently mutating now-hidden rows.
   return isAllSelection(selectionState)
     ? conversations.map((c) => c._id)
-    : Array.from(selectionState.selectedIds);
+    : conversations
+        .filter((c) => selectionState.selectedIds.has(c.id))
+        .map((c) => c._id);
 }
 
 function getSelectedConversations(

@@ -57,36 +57,46 @@ export function useConversationSelection(conversations: ConversationItem[]) {
     [selectionState],
   );
 
-  const { isSelectAllChecked, isSelectAllIndeterminate, selectedCount } =
-    useMemo(() => {
-      if (selectionState.type === 'all') {
-        return {
-          isSelectAllChecked: true,
-          isSelectAllIndeterminate: false,
-          selectedCount: conversations.length,
-        };
-      }
-
-      const { selectedIds } = selectionState;
-      const conversationCount = conversations.length;
-      const selectedInFilteredCount = conversations.filter((c) =>
-        selectedIds.has(c._id),
-      ).length;
-
+  const {
+    isSelectAllChecked,
+    isSelectAllIndeterminate,
+    selectedCount,
+    hasIndividualSelectionInView,
+  } = useMemo(() => {
+    if (selectionState.type === 'all') {
       return {
-        isSelectAllChecked:
-          conversationCount > 0 &&
-          selectedInFilteredCount === conversationCount,
-        isSelectAllIndeterminate:
-          selectedInFilteredCount > 0 &&
-          selectedInFilteredCount < conversationCount,
-        selectedCount: selectedIds.size,
+        isSelectAllChecked: true,
+        isSelectAllIndeterminate: false,
+        selectedCount: conversations.length,
+        hasIndividualSelectionInView: false,
       };
-    }, [selectionState, conversations]);
+    }
+
+    const { selectedIds } = selectionState;
+    const conversationCount = conversations.length;
+    // Only count selections that are still visible in the current
+    // (filtered) list. Narrowing the search must not leave a stale
+    // "N selected" count that refers to now-hidden rows, and bulk
+    // actions derive their id-list from the same intersection so they
+    // never silently mutate out-of-view conversations.
+    const selectedInFilteredCount = conversations.filter((c) =>
+      selectedIds.has(c.id),
+    ).length;
+
+    return {
+      isSelectAllChecked:
+        conversationCount > 0 && selectedInFilteredCount === conversationCount,
+      isSelectAllIndeterminate:
+        selectedInFilteredCount > 0 &&
+        selectedInFilteredCount < conversationCount,
+      selectedCount: selectedInFilteredCount,
+      hasIndividualSelectionInView: selectedInFilteredCount > 0,
+    };
+  }, [selectionState, conversations]);
 
   const hasSelectedItems =
     conversations.length > 0 &&
-    (selectionState.type === 'all' || selectionState.selectedIds.size > 0);
+    (selectionState.type === 'all' || hasIndividualSelectionInView);
 
   const selectAllChecked = isSelectAllIndeterminate
     ? ('indeterminate' as const)
