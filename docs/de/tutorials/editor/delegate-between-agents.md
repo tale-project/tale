@@ -1,50 +1,34 @@
 ---
-title: Zwischen Agenten delegieren
-description: Verdrahte einen Router-Agent, der über das Sub-Agent-Tool an einen Spezialisten übergibt, und beobachte die Kette in einem einzigen Chat von Anfang bis Ende.
+title: Arbeit an einen Worker geben
+description: Bitte den Assistenten um offene Recherche, sieh zu, wie er einen fokussierten Worker startet, und folge der Job-Karte — Live-Fortschritt, Ergebnis und vollständiges Protokoll.
 ---
 
-Delegation ist die Form, zu der du greifst, wenn ein Agent für die ganze Aufgabe der falsche Zuschnitt ist, aber für eine Etappe der richtige. Ein Router-Agent liest die Anfrage, wählt einen Spezialisten, ruft ihn über das Sub-Agent-Tool auf und konsolidiert die Antwort. Dieser Spaziergang baut eine Zwei-Agenten-Kette — Router plus Billing-Spezialist — auf einer frischen Instanz.
+Wenn eine Anfrage ihren eigenen fokussierten Kontext verdient — zitierte Recherche, Massen-Extraktion, ein langer Entwurf — startet der Assistent einen **Worker**: einen flüchtigen Agenten, zusammengestellt für genau diese Aufgabe, mit genau den Fähigkeiten, die der Assistent ihm aus seinem eigenen Satz mitgibt. Es gibt nichts zu konfigurieren; dieser Durchlauf fährt einen Recherche-Job von Anfang bis Ende und zeigt dir, wie du die Job-Karte liest.
 
-Du brauchst eine Editor-Rolle und ein Modell mit Tool-Calling-Unterstützung beim primären Anbieter. Die konzeptuelle Seite lebt in [Agent-Delegation](/de/platform/agents/delegation); dieser Spaziergang ist der End-to-End-Mechanismus.
+Die konzeptionelle Seite (Fähigkeits-Teilmengen, Budgets, Methodiken) steht in [Agent-Worker](/platform/agents/delegation).
 
 ## Bevor du beginnst
 
-Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Die Org hat mindestens ein Chat-getaggtes Modell mit Tool-Calling; ohne das kann der Router keinen Tool-Call ausgeben. Das Execution-Timeout-Budget der erstellten Agenten bleibt auf dem Default (ein paar Minuten); kurze Timeouts kappen die Kette, bevor der Sub-Agent antwortet.
+Du brauchst einen chatfähigen Agenten (der eingebaute Assistent funktioniert direkt) auf einem Modell mit Tool-Calling. Für Live-Webquellen verbinde eine Such-Integration wie Tavily unter **Einstellungen > Integrationen** — ohne sie fällt der Worker auf einfaches Web-Abrufen zurück und sagt das in seinem Ergebnis.
 
-## Schritt 1 — Den Spezialisten zuerst erstellen
+## Schritt 1 — Frag nach etwas, das einen Worker verdient
 
-Der Spezialist existiert vor dem Router, weil der Router auf eine ID zeigt, die aufgelöst werden muss. Öffne **Agenten > Neuer Agent** und füll aus:
+Öffne einen Chat mit `Assistent` und bitte um offene, zitierbare Arbeit, zum Beispiel: `Recherchiere den Stand von Feststoffbatterien — Markt, wichtigste Akteure, zitierte Quellen.` Eine schnelle Faktenfrage startet keinen Worker (und sollte es auch nicht); Worker sind für Aufgaben, die von Isolation profitieren.
 
-- **Name** — `Billing specialist`
-- **Instruktionen** — `You answer billing questions concisely. State the customer ID you are answering for in the first sentence. If the question is not about billing, refuse and ask the router to re-route.`
-- **Tools** — für diesen Spaziergang alles aus
-- **Modell** — der Org-Default
+## Schritt 2 — Beobachte die Job-Karte
 
-Speichern und veröffentlichen. Kopier die Agent-ID aus der URL oder dem Agent-Header — der Router braucht sie im nächsten Schritt.
+Der Assistent ruft `spawn_agent` auf, und unter seinem Zug erscheint eine **Job-Karte**: der Name des Workers, ein Live-Status und die eigene Fortschritts-Checkliste des Workers, die sich füllt, während er plant und die Teilfragen abarbeitet. Die Karte blockiert nie den Eingabebereich — du kannst weitertippen, während der Worker läuft.
 
-## Schritt 2 — Den Router mit dem Sub-Agent-Tool erstellen
+Zeigt die Karte einen „Übersprungen“-Hinweis, hat der Assistent etwas außerhalb seiner eigenen Freigaben angefragt (etwa eine nicht verbundene Integration); der Lauf geht mit dem Rest weiter, und der Hinweis sagt dir, was du fürs nächste Mal verbinden solltest.
 
-Der Router ist der Agent, mit dem der User tatsächlich chattet. Öffne wieder **Agenten > Neuer Agent** und konfiguriere:
+## Schritt 3 — Lies Ergebnis und Protokoll
 
-- **Name** — `Support router`
-- **Instruktionen** — `You triage incoming questions. For billing questions, delegate to the Billing specialist and frame their reply in one sentence. For anything else, refuse and explain why.`
-- **Tools** — schalte **Sub-Agents** ein; wähl `Billing specialist` aus dem Dropdown
-- **Modell** — der Org-Default
+Ist der Job fertig, faltet der Assistent das Ergebnis des Workers in seine Antwort — bei Recherche ein Fazit, Kernpunkte mit Inline-Zitaten und Quellen. Klappe auf der Karte **Worker-Aktivität** auf, um das vollständige Protokoll zu sehen: jede Suche, jeden Tool-Aufruf und die Überlegungen des Workers. Dieses Protokoll ist der Audit-Trail, auf den du zeigst, wenn jemand fragt, was der Agent tatsächlich getan hat.
 
-Speichern und veröffentlichen. Die Tool-Liste des Routers enthält jetzt einen Sub-Agent: den Spezialisten aus Schritt 1.
+## Schritt 4 — Wenn etwas schiefgeht
 
-## Schritt 3 — Eine Delegation im Chat laufen lassen
+Ein Worker, dem die Zeit ausgeht oder der auf einen Fehler stößt, endet mit sichtbarem Status auf der Karte — `Zeit abgelaufen` oder `Fehlgeschlagen` — mit intaktem Teilfortschritt. Der Assistent berichtet, was er bekommen hat, und macht selbst weiter, wo er kann. Nichts scheitert still: Brauchte der Worker eine Eingabe, die nur du geben kannst, fragt dich der Assistent direkt.
 
-Öffne einen Chat mit `Support router` und frag `My last invoice has a duplicate charge — what should I do?`. Die Antwort rendert in drei Teilen: eine `sub_agent`-Tool-Call-Karte mit dem Aufruf des Routers an den Spezialisten, die Antwort des Spezialisten in dieser Karte und die Ein-Satz-Rahmung des Routers darunter. Klapp die Karte auf, um den vom Router gesendeten Prompt und die Antwort des Spezialisten zu sehen.
+## Wo das hingehört
 
-Verweigert der Router oder antwortet er selbst statt zu delegieren, drücken die Instruktionen nicht stark genug — füg eine explizite Regel hinzu (`Always delegate billing questions; do not answer them yourself.`) und veröffentliche neu.
-
-## Schritt 4 — Den Execution-Eintrag prüfen
-
-Öffne **Automationen > Executions** (oder den Tab **History** des Chats, je nachdem, wie die Org die Oberfläche benennt) und such den eben gelaufenen Chat. Die Execution listet den Parent-Lauf und den Sub-Agent-Lauf als verschachtelte Zeilen: wer ausgelöst hat, was jeder Agent erhielt, was jeder ausgab und wie lange jeder brauchte. Das ist der Audit-Trail, auf den du zeigst, wenn ein Kunde fragt „was hat der Agent eigentlich gesagt".
-
-## Wo das eingesetzt wird
-
-Eine Router-plus-Spezialist-Kette ist die kleinste nützliche Delegation: eine Routing-Entscheidung, ein Spezialist, eine konsolidierte Antwort. Dieselbe Form skaliert — füg neben dem Billing-Spezialisten einen technischen hinzu, häng eine dritte Stufe für Eskalationen dran, ersetze den Router durch einen Workflow, wenn die Etappen fest sind.
-
-Für den Trade-off zwischen Delegation und einem Workflow mit Approvals siehe [Agent-Delegation](/de/platform/agents/delegation). Für das Vier-Knöpfe-Modell hinter jedem Agent siehe [Agent-Konzepte](/de/platform/agents/concepts).
+Eine Anfrage, ein Worker, eine Karte ist die kleinste nützliche Form. Dieselbe Mechanik skaliert auf mehrere Worker in einem Zug — jeder bekommt seine eigene Karte, seinen eigenen Fortschritt und sein eigenes Protokoll. Für feste Stufen mit Freigaben oder Zeitplänen dazwischen greif stattdessen zu einer [Automation](/platform/automations/concepts).

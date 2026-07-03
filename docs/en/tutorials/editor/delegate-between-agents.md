@@ -1,50 +1,34 @@
 ---
-title: Delegate between agents
-description: Wire a router agent that hands off to a specialist agent through the sub-agents tool, then watch the chain run end to end in a single chat.
+title: Hand work to a worker
+description: Ask the assistant for open-ended research, watch it spawn a focused worker, and follow the job card — live progress, the result, and the full transcript.
 ---
 
-Delegation is the shape you reach for when one agent is the wrong scope for the whole job but the right scope for one stage of it. A router agent reads the request, picks a specialist, calls it through the sub-agents tool, and consolidates the reply. This walk builds a two-agent chain — router plus billing specialist — on a fresh instance.
+When a request deserves its own focused context — cited research, bulk extraction, a long draft — the assistant spawns a **worker**: an ephemeral agent composed for exactly that task, with exactly the capabilities the assistant grants it from its own set. There is nothing to configure; this walk runs one research job end to end and shows you how to read the job card.
 
-You need an Editor role and a model with tool-calling support on the primary provider. The conceptual side lives in [Agent delegation](/platform/agents/delegation); this walk is the end-to-end mechanic.
+The conceptual side (capability subsets, budgets, methodologies) lives in [Agent workers](/platform/agents/delegation).
 
 ## Before you begin
 
-Confirm three things. Your role is at least Editor — agent editing is gated to Editor and above. The org has at least one chat-tagged model with tool-calling on it; without that, the router cannot emit a tool call. The execution-timeout budget on the agents you create is left at the default (a few minutes); short timeouts cut the chain off before the sub-agent replies.
+You need a chat-capable agent (the built-in Assistant works as-is) on a model with tool-calling support. For live web sources, connect a search integration such as Tavily under **Settings > Integrations** — without it the worker falls back to plain web fetching and says so in its result.
 
-## Step 1 — Create the specialist first
+## Step 1 — Ask for something worth a worker
 
-The specialist exists before the router because the router has to point at an ID that resolves. Open **Agents > New agent** and fill in:
+Open a chat with `Assistant` and ask for open-ended, citable work, for example: `Research the current state of solid-state batteries — market, key players, cited sources.` A quick factual question won't (and shouldn't) spawn anything; workers are for tasks that benefit from isolation.
 
-- **Name** — `Billing specialist`
-- **Instructions** — `You answer billing questions concisely. State the customer ID you are answering for in the first sentence. If the question is not about billing, refuse and ask the router to re-route.`
-- **Tools** — leave everything off for this walk
-- **Model** — the org default
+## Step 2 — Watch the job card
 
-Save and publish. Copy the agent's ID from the URL or the agent header — the router needs it in the next step.
+The assistant calls `spawn_agent` and a **job card** appears under its turn: the worker's name, a live status, and the worker's own progress checklist filling in as it plans and works through sub-questions. The card never blocks the composer — you can keep typing while the worker runs.
 
-## Step 2 — Create the router with the sub-agents tool
+If the card shows a "skipped" note, the assistant requested something outside its own grants (say, an unconnected integration); the run continues with what remains, and the note tells you what to connect for next time.
 
-The router is the agent the user actually chats with. Open **Agents > New agent** again and configure:
+## Step 3 — Read the result and the transcript
 
-- **Name** — `Support router`
-- **Instructions** — `You triage incoming questions. For billing questions, delegate to the Billing specialist and frame their reply in one sentence. For anything else, refuse and explain why.`
-- **Tools** — toggle **Sub-agents** on; pick `Billing specialist` from the dropdown
-- **Model** — the org default
+When the job finishes, the assistant folds the worker's deliverable into its reply — for research, a conclusion, key points with inline citations, and sources. On the card, expand **worker activity** to see the full transcript: every search, every tool call, and the worker's reasoning. That transcript is the audit trail you point at when someone asks what the agent actually did.
 
-Save and publish. The router's tool list now contains one sub-agent: the specialist from Step 1.
+## Step 4 — When something goes wrong
 
-## Step 3 — Run a delegation in chat
-
-Open a chat with `Support router` and ask `My last invoice has a duplicate charge — what should I do?`. The reply renders in three pieces: a `sub_agent` tool-call card showing the router's call to the specialist, the specialist's reply inside that card, and the router's one-sentence framing below. Expand the card to see the prompt the router sent and the specialist's response back.
-
-If the router refuses or answers itself instead of delegating, the instructions are not pushing it hard enough — add an explicit rule (`Always delegate billing questions; do not answer them yourself.`) and republish.
-
-## Step 4 — Inspect the execution
-
-Open **Automations > Executions** (or the chat's **History** tab, depending on how the org names the surface) and find the chat you just ran. The execution lists the parent run and the sub-agent run as nested rows: who triggered it, what each agent received, what each emitted, and how long each took. This is the audit trail you point at when a customer asks "what did the agent actually say".
+A worker that runs out of time or hits an error ends with a visible status on the card — `timed out` or `failed` — with its partial progress intact. The assistant reports what it got and continues itself where it can. Nothing fails silently: if the worker needed input only you can give, the assistant asks you directly.
 
 ## Where this fits
 
-A router-plus-specialist chain is the smallest useful delegation: one routing decision, one specialist, one consolidated reply. The same shape scales — add a technical specialist beside the billing one, add a third tier for escalations, swap the router for a workflow when the stages get fixed.
-
-For the trade-off between delegation and a workflow with approvals, see [Agent delegation](/platform/agents/delegation). For the four-knob mental model behind every agent, see [Agent concepts](/platform/agents/concepts).
+One request, one worker, one card is the smallest useful shape. The same mechanics scale to several workers in a turn — each gets its own card, its own progress, and its own transcript. For fixed stages with approvals or scheduling between them, reach for an [automation](/platform/automations/concepts) instead.

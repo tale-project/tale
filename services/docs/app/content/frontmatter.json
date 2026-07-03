@@ -51,8 +51,8 @@
     "slug": "tutorials/editor/delegate-between-agents",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déléguer entre agents",
-      "description": "Câble un agent routeur qui transmet à un agent spécialiste via le tool sub-agents, puis observe la chaîne se dérouler de bout en bout dans un seul chat."
+      "title": "Confier du travail à un worker",
+      "description": "Demande une recherche ouverte à l'assistant, regarde-le lancer un worker ciblé et suis la carte de job — progression en direct, résultat et transcription complète."
     }
   },
   "fr:tutorials/editor/agent-with-knowledge": {
@@ -284,8 +284,8 @@
     "slug": "platform/agents/delegation",
     "locale": "fr",
     "frontmatter": {
-      "title": "Délégation d'agent",
-      "description": "Un agent peut en appeler un autre via l'outil sous-agent. Cette page donne le modèle mental pour quand déléguer, comment les délais propagent et ce qui empêche une chaîne de boucler."
+      "title": "Workers d'agent",
+      "description": "Un agent peut lancer un worker ciblé pour une tâche via le tool spawn_agent. Cette page donne le modèle mental — quand lancer un worker, comment les capacités restent bornées et ce que montre la carte de job."
     }
   },
   "fr:platform/agents/catalog": {
@@ -333,7 +333,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Organigramme",
-      "description": "L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent la délégation, le découpage d'epics, l'escalade SLA et le transfert de budget, avec les humains toujours au sommet."
+      "description": "L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent le découpage d'epics, l'escalade SLA et le transfert de budget sur le tableau des tâches, avec les humains toujours au sommet."
     }
   },
   "fr:platform/automations/execution-logs": {
@@ -1195,8 +1195,8 @@
     "slug": "tutorials/editor/delegate-between-agents",
     "locale": "en",
     "frontmatter": {
-      "title": "Delegate between agents",
-      "description": "Wire a router agent that hands off to a specialist agent through the sub-agents tool, then watch the chain run end to end in a single chat."
+      "title": "Hand work to a worker",
+      "description": "Ask the assistant for open-ended research, watch it spawn a focused worker, and follow the job card — live progress, the result, and the full transcript."
     }
   },
   "en:tutorials/editor/agent-with-knowledge": {
@@ -1428,8 +1428,8 @@
     "slug": "platform/agents/delegation",
     "locale": "en",
     "frontmatter": {
-      "title": "Agent delegation",
-      "description": "One agent can call another through the sub-agents tool. This page hands you the mental model for when to delegate, how timeouts propagate, and what stops a chain from looping."
+      "title": "Agent workers",
+      "description": "An agent can spawn a focused worker for one task through the spawn_agent tool. This page hands you the mental model for when to spawn, how capabilities stay bounded, and what the job card shows."
     }
   },
   "en:platform/agents/catalog": {
@@ -1477,7 +1477,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Organigram",
-      "description": "The agents-only org chart — reporting lines that drive delegation, epic decomposition, SLA escalation, and budget handoff, with humans always at the top."
+      "description": "The agents-only org chart — reporting lines that drive epic decomposition, SLA escalation, and budget handoff on the task board, with humans always at the top."
     }
   },
   "en:platform/automations/execution-logs": {
@@ -2339,8 +2339,8 @@
     "slug": "tutorials/editor/delegate-between-agents",
     "locale": "de",
     "frontmatter": {
-      "title": "Zwischen Agenten delegieren",
-      "description": "Verdrahte einen Router-Agent, der über das Sub-Agent-Tool an einen Spezialisten übergibt, und beobachte die Kette in einem einzigen Chat von Anfang bis Ende."
+      "title": "Arbeit an einen Worker geben",
+      "description": "Bitte den Assistenten um offene Recherche, sieh zu, wie er einen fokussierten Worker startet, und folge der Job-Karte — Live-Fortschritt, Ergebnis und vollständiges Protokoll."
     }
   },
   "de:tutorials/editor/agent-with-knowledge": {
@@ -2572,8 +2572,8 @@
     "slug": "platform/agents/delegation",
     "locale": "de",
     "frontmatter": {
-      "title": "Agent-Delegation",
-      "description": "Ein Agent kann einen anderen über das Sub-Agent-Tool aufrufen. Diese Seite erklärt, wann du delegierst, wie Timeouts propagieren und was eine Kette vor dem Looping schützt."
+      "title": "Agent-Worker",
+      "description": "Ein Agent kann über das spawn_agent-Tool einen fokussierten Worker für eine Aufgabe starten. Diese Seite gibt dir das Denkmodell — wann sich ein Worker lohnt, wie Fähigkeiten begrenzt bleiben und was die Job-Karte zeigt."
     }
   },
   "de:platform/agents/catalog": {
@@ -2621,7 +2621,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Organigramm",
-      "description": "Das Org-Chart nur für Agenten — Berichtslinien, die Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe steuern, mit Menschen immer an der Spitze."
+      "description": "Das Org-Chart nur für Agenten — Berichtslinien, die Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe auf dem Aufgaben-Board steuern, mit Menschen immer an der Spitze."
     }
   },
   "de:platform/automations/execution-logs": {

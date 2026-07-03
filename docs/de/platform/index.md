@@ -14,7 +14,7 @@ Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature geglied
 
 **[Projekte](/de/platform/projects/overview)** — geteilte Arbeitsbereiche, die Dateien, Anweisungen, Konversationen und projektgebundene Agents bündeln.
 
-**[Agents](/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools, Modell, Fähigkeiten, Delegation, Versionierung, Webhook-Trigger.
+**[Agents](/de/platform/agents/concepts)** — Anweisungen, Wissen, Tools, Modell, Fähigkeiten, Worker, Versionierung, Webhook-Trigger.
 
 **[Automatisierungen](/de/platform/automations/concepts)** — Workflows, Trigger, Ausführungen, Metriken, Genehmigungs-Gates.
 

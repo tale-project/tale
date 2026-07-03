@@ -46,7 +46,7 @@ Wechsle zum **Tools**-Tab. Tools sind das, was der Agent jenseits von Textgeneri
 Die Schalter, die besondere Überlegung brauchen:
 
 - **Run code** ist durch die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) der Org gegated. Wenn deine Org-Policy es verbietet, liest sich der Schalter als deaktiviert.
-- **Sub-agents** lässt diesen Agent an andere delegieren; [Agent-Delegation](/de/platform/agents/delegation) deckt ab, wann das der richtige Zug ist.
+- Chat-Agenten starten für einmalige Teilaufgaben selbst fokussierte **Worker**; [Agent-Worker](/de/platform/agents/delegation) deckt ab, wann das der richtige Zug ist.
 
 ## Schritt 5 — Veröffentlichen und ausprobieren
 
@@ -61,4 +61,4 @@ Zurück auf **Instructions & model**, leg **Visible in chat** um und klick **Sav
 
 ## Wo das eingesetzt wird
 
-Einen Agent zu erstellen ist der Moment, in dem sich der Rest der Plattform wie Tale anfühlt und nicht wie ein generischer Chat. Der natürliche nächste Spaziergang ist [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) — dieselbe Form, aber bindet einen Ordner voller PDFs und fordert die Zitierungs-Pipeline von Anfang bis Ende. Muss der gerade gebaute Agent an einen Spezialisten übergeben, ist [Zwischen Agents delegieren](/de/tutorials/editor/delegate-between-agents) das Kettenmuster.
+Einen Agent zu erstellen ist der Moment, in dem sich der Rest der Plattform wie Tale anfühlt und nicht wie ein generischer Chat. Der natürliche nächste Spaziergang ist [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) — dieselbe Form, aber bindet einen Ordner voller PDFs und fordert die Zitierungs-Pipeline von Anfang bis Ende. Um zu sehen, wie ein Agent eine Teilaufgabe an einen Worker gibt, ist [Arbeit an einen Worker geben](/de/tutorials/editor/delegate-between-agents) der Durchlauf.

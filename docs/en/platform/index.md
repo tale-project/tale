@@ -14,7 +14,7 @@ The section is organised by area, then by feature within an area. Most readers d
 
 **[Projects](/platform/projects/overview)** — shared workspaces that bundle files, instructions, threads, and project-scoped agents.
 
-**[Agents](/platform/agents/concepts)** — instructions, knowledge, tools, model, skills, delegation, versioning, webhook triggers.
+**[Agents](/platform/agents/concepts)** — instructions, knowledge, tools, model, skills, workers, versioning, webhook triggers.
 
 **[Automations](/platform/automations/concepts)** — workflows, triggers, executions, metrics, approval gates.
 

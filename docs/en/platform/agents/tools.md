@@ -17,7 +17,7 @@ The user asks "what is the weather in Zurich today". The agent has the web tool 
 - **Files** — reads attachments and files in the active Project.
 - **RAG** — searches knowledge sources bound to the agent and returns chunks with citations. Name a folder in your request ("search only in Contracts/2024") and the agent scopes retrieval to that folder and its subfolders.
 - **Run code** — runs Python, Node, or shell scripts in a sandbox. Gated by the org's [run-code policy](/platform/admin/governance/run-code-policy).
-- **Sub-agents** — delegates to another agent the org has marked sub-agent-callable. Loop prevention rules live on [Delegation](/platform/agents/delegation).
+- **Workers** — chat agents spawn a focused worker for one task with a subset of their own capabilities. The bounds live on [Agent workers](/platform/agents/delegation).
 - **Workflows** — invokes a Tale workflow as a tool. The workflow's outputs come back as the tool result.
 - **MCP** — calls tools exposed by registered [MCP servers](/platform/integrations/mcp-servers).
 - **Integrations** — calls a third-party integration the org has connected.

@@ -40,6 +40,6 @@ Open a chat with `Triage assistant` and paste in a real customer message. The re
 
 ## Where this fits
 
-Four knobs, one published agent, one verified reply: the same shape every agent you build later follows. The next walks specialise on one knob each — [Agent with knowledge](/tutorials/editor/agent-with-knowledge) on the second knob, [Delegate between agents](/tutorials/editor/delegate-between-agents) on the third.
+Four knobs, one published agent, one verified reply: the same shape every agent you build later follows. The next walks specialise on one knob each — [Agent with knowledge](/tutorials/editor/agent-with-knowledge) on the second knob, [Hand work to a worker](/tutorials/editor/delegate-between-agents) on the third.
 
 For the concept page that names the four knobs and the trade-offs between them, see [Agent concepts](/platform/agents/concepts). For versioning and rollback once the agent matures, see [Agent versions](/platform/agents/versions).

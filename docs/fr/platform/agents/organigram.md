@@ -1,15 +1,14 @@
 ---
 title: Organigramme
-description: L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent la délégation, le découpage d'epics, l'escalade SLA et le transfert de budget, avec les humains toujours au sommet.
+description: L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent le découpage d'epics, l'escalade SLA et le transfert de budget sur le tableau des tâches, avec les humains toujours au sommet.
 ---
 
-L'**organigramme** (Agents → Organigramme) organise vos agents en lignes hiérarchiques, comme une entreprise organise une équipe. Il remplace les anciennes cases de délégation par agent par une vue structurelle unique, et ce n'est pas un schéma décoratif — la structure est fonctionnelle.
+L'**organigramme** (Agents → Organigramme) organise vos agents en lignes hiérarchiques, comme une entreprise organise une équipe. C'est une structure du tableau des tâches : l'organigramme décide comment le travail des agents sur les tâches escalade et se transmet. (Les passations dans le chat fonctionnent autrement — l'agent avec qui vous parlez lance des [workers](/platform/agents/delegation) à la demande, sans organigramme à entretenir.)
 
-Quatre mécanismes lisent ces liens directement :
+Trois mécanismes lisent ces liens directement :
 
-- **La délégation** en découle : chaque agent peut déléguer exactement à ses subordonnés directs — l'organigramme est la seule configuration de délégation, sans entretien par agent.
 - **Les managers découpent les epics** : une tâche racine étiquetée `epic` affectée à un agent ayant des subordonnés est divisée en sous-tâches réparties dans son équipe.
-- **L'escalade suit la chaîne** : les agents reçoivent un outil `escalate`. Un agent bloqué remonte à son manager (qui s'exécute sous le budget du _manager_) ; les agents de premier niveau escaladent vers les humains de l'organisation via la boîte de réception.
+- **L'escalade suit la chaîne** : les agents exécutant des tâches reçoivent un outil `escalate`. Un agent bloqué remonte à son manager sur la tâche ; les agents de premier niveau escaladent vers les humains de l'organisation via la boîte de réception.
 - **SLA et transfert de budget** empruntent les mêmes liens : le travail en retard escalade vers le manager du responsable ; les tâches d'un agent en pause budgétaire remontent d'un cran (seulement si les garde-fous du manager le permettent).
 
 ## Modifier l'organigramme
@@ -24,4 +23,4 @@ Les agents sans manager sont des **racines** — ils rendent compte aux humains 
 
 ## Partir de zéro
 
-Un organigramme neuf affiche chaque agent comme racine. Glissez depuis l'ancre basse d'un agent vers un autre pour créer la première ligne hiérarchique ; chaque lien prend effet immédiatement et apparaît au même instant dans la délégation des agents concernés.
+Un organigramme neuf affiche chaque agent comme racine. Glissez depuis l'ancre basse d'un agent vers un autre pour créer la première ligne hiérarchique ; chaque lien prend effet immédiatement pour les mécanismes du tableau des tâches ci-dessus.
