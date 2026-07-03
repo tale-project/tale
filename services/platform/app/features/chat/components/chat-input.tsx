@@ -1138,6 +1138,7 @@ export function ChatInput({
                     <AgentSelector
                       organizationId={organizationId}
                       projectId={projectId}
+                      threadId={threadId}
                     />
                     <ModelSelector
                       organizationId={organizationId}

@@ -112,6 +112,13 @@ export const runChatTurnGeneration = internalAction({
     /** Queued-message drain turn (threads/message_queue.ts): the user
      *  message(s) are already persisted — startChat must not re-save. */
     queuedPromptMessageId: v.optional(v.string()),
+    /** The thread's stored agent BEFORE this turn's optimistic
+     *  `threadMetadata.agentSlug` patch. When it resolves to an external
+     *  agent, the thread is agent-locked: the sandbox session, --resume
+     *  transcript, and plan/act posture are bound to it, so a differing
+     *  client selection (stale per-user picker state from another thread)
+     *  or an Auto route must not re-route the turn (step 0 below). */
+    priorAgentSlug: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -133,15 +140,56 @@ export const runChatTurnGeneration = internalAction({
         : saveSystemNotice(ctx, args.threadId, content);
 
     try {
-      // 1. Auto-route (LLM classifier) — only when no agent is pinned.
-      let resolvedAgentSlug = args.agentSlug;
+      // 0. External-thread agent lock. A thread whose stored agent is an
+      //    external agent is bound to it — re-routing would silently abandon
+      //    the sandbox session, --resume transcript, and plan/act posture. The
+      //    client's slug can legitimately differ only through stale per-user
+      //    picker state (the composer pins locked threads), so the stored
+      //    agent wins and the optimistic metadata patch is corrected. A prior
+      //    agent that no longer resolves (uninstalled/renamed) falls through
+      //    to the client selection.
+      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
+      let lockedConfigResult:
+        | Awaited<ReturnType<typeof resolveAgentConfigInline>>
+        | undefined;
+      let lockedAgentSlug: string | undefined;
+      if (args.priorAgentSlug && args.priorAgentSlug !== args.agentSlug) {
+        try {
+          const prior = await resolveAgentConfigInline(ctx, {
+            orgSlug,
+            agentSlug: args.priorAgentSlug,
+            organizationId: args.organizationId,
+            modelId: args.modelId,
+          });
+          if (prior.config.primaryBehavior === 'external-agent') {
+            lockedConfigResult = prior;
+            lockedAgentSlug = args.priorAgentSlug;
+            console.warn(
+              `[runChatTurnGeneration] external-thread agent lock: keeping '${args.priorAgentSlug}' over client selection '${args.agentSlug}' for thread ${args.threadId}`,
+            );
+            await ctx.runMutation(
+              internal.threads.internal_mutations.setThreadAgentSlug,
+              { threadId: args.threadId, agentSlug: args.priorAgentSlug },
+            );
+          }
+        } catch (err: unknown) {
+          console.warn(
+            '[runChatTurnGeneration] agent-lock check failed (honoring client selection):',
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
+      // 1. Auto-route (LLM classifier) — only when no agent is pinned and the
+      //    thread isn't agent-locked (step 0).
+      let resolvedAgentSlug = lockedAgentSlug ?? args.agentSlug;
       let autoRouteReason: AutoRouteReason | undefined;
       // The router's per-message advice (Auto mode only) — applied to the
       // agentConfig once it's built below. `routeStyle` shapes the prose
       // suffix; `routeSeed` seeds the reasoning governor's prior.
       let routeStyle: ResponseStyleAdvice | undefined;
       let routeSeed: ResponseReasoningSeed | undefined;
-      if (args.agentSlug === AUTO_AGENT_SLUG) {
+      if (!lockedConfigResult && args.agentSlug === AUTO_AGENT_SLUG) {
         const allowedAgentSlugs = args.projectId
           ? await ctx.runQuery(
               internal.projects.internal_queries.getProjectAllowedAgentSlugs,
@@ -194,19 +242,21 @@ export const runChatTurnGeneration = internalAction({
       // mutation; the thread↔project persist + PROJECT_MISMATCH check run in
       // startChat below.)
 
-      // 2. orgSlug → agent config (node-local disk read, fast) yields the
-      //    agent's supportedModels, then guardrails snapshot + ALL governance
-      //    (default-model + access) resolve in parallel — governance is now a
-      //    SINGLE backend round-trip (member + teamIds fetched once) instead of
-      //    the former two/three (resolveDefaultModel + getAccessibleModels +
-      //    checkModelAccess each re-fetching membership).
-      const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-      const configResult = await resolveAgentConfigInline(ctx, {
-        orgSlug,
-        agentSlug: resolvedAgentSlug,
-        organizationId: args.organizationId,
-        modelId: args.modelId,
-      });
+      // 2. Agent config (node-local disk read, fast; already resolved in step
+      //    0 when the lock fired) yields the agent's supportedModels, then
+      //    guardrails snapshot + ALL governance (default-model + access)
+      //    resolve in parallel — governance is now a SINGLE backend round-trip
+      //    (member + teamIds fetched once) instead of the former two/three
+      //    (resolveDefaultModel + getAccessibleModels + checkModelAccess each
+      //    re-fetching membership).
+      const configResult =
+        lockedConfigResult ??
+        (await resolveAgentConfigInline(ctx, {
+          orgSlug,
+          agentSlug: resolvedAgentSlug,
+          organizationId: args.organizationId,
+          modelId: args.modelId,
+        }));
       const agentConfig = configResult.config;
       // Carry the Auto router's per-message advice onto the config for this turn
       // (both unset for a pinned agent — the router only runs under Auto).

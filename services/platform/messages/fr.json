@@ -1311,7 +1311,9 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Rechercher des agents",
       "noResults": "Aucun agent trouvé",
-      "addAgent": "Catalogue"
+      "addAgent": "Catalogue",
+      "lockedExternal": "Ce chat s'exécute dans une sandbox et garde son agent — démarre un nouveau chat pour en utiliser un autre.",
+      "lockedExternalLabel": "Agent : {{agent}} (fixé pour ce chat sandbox)"
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",

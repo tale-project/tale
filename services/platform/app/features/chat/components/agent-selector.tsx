@@ -34,17 +34,23 @@ import {
   useIntegrationReadiness,
 } from '../hooks/use-composer-capabilities';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 
 interface AgentSelectorProps {
   organizationId: string;
   /** When the chat belongs to a project that restricts agents, show only the
    *  project's `allowedAgentSlugs`. */
   projectId?: string;
+  /** Current thread, when one exists. External-agent threads are bound to
+   *  their agent (sandbox session, --resume transcript), so the selector
+   *  locks on them instead of offering a switch. */
+  threadId?: string;
 }
 
 export const AgentSelector = memo(function AgentSelector({
   organizationId,
   projectId,
+  threadId,
 }: AgentSelectorProps) {
   const { t } = useT('chat');
   const { t: tComposer } = useT('composer');
@@ -61,6 +67,7 @@ export const AgentSelector = memo(function AgentSelector({
   const readiness = useIntegrationReadiness(organizationId);
   const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);
+  const { lockedAgent } = useThreadAgentLock(organizationId, threadId);
 
   const options = useMemo(() => {
     if (!allAgents) return [];
@@ -222,6 +229,32 @@ export const AgentSelector = memo(function AgentSelector({
     },
     [canManageAgents, organizationId, t],
   );
+
+  // External-agent thread: the agent can't be switched here — the sandbox
+  // session and --resume transcript are bound to it (the backend enforces the
+  // same lock). Render a pinned, explained trigger instead of the picker;
+  // `aria-disabled` (not native `disabled`) keeps it hoverable/focusable so
+  // the explanatory Tooltip can fire (voice-mode-toggle convention).
+  if (lockedAgent) {
+    return (
+      <Tooltip content={t('agentSelector.lockedExternal')} side="top">
+        <Button
+          type="button"
+          className="cursor-not-allowed gap-1.5 sm:min-w-32"
+          variant="ghost"
+          size="sm"
+          aria-disabled="true"
+          aria-label={t('agentSelector.lockedExternalLabel', {
+            agent: lockedAgent.displayName,
+          })}
+        >
+          <Bot className="size-3.5" aria-hidden="true" />
+          <span>{lockedAgent.displayName}</span>
+          <Box className="text-muted-foreground size-3" aria-hidden="true" />
+        </Button>
+      </Tooltip>
+    );
+  }
 
   return (
     <SearchableSelect

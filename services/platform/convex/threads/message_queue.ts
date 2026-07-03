@@ -112,6 +112,11 @@ export async function startQueuedTurn(
       // The user messages are already persisted (saved at enqueue) — the
       // pipeline must not save the combined text as a new user message.
       queuedPromptMessageId: last.messageId,
+      // External-thread agent lock (chat_turn_generate step 0): queue rows
+      // carry the composer's agentSlug from enqueue time, which can be stale
+      // per-user picker state — the thread's stored agent wins when it's an
+      // external one.
+      ...(meta.agentSlug !== undefined && { priorAgentSlug: meta.agentSlug }),
     },
   );
 }

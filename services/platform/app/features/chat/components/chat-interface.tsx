@@ -69,6 +69,7 @@ import { usePrewarmChatCache } from '../hooks/use-prewarm-chat-cache';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
 import { useStreamingToolBridge } from '../hooks/use-streaming-tool-bridge';
+import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 import { useThreadApprovals } from '../hooks/use-thread-approvals';
 import { useThreadImages } from '../hooks/use-thread-images';
 import { useUserContext } from '../hooks/use-user-context';
@@ -148,7 +149,7 @@ export function ChatInterface({
     enabledCapabilities,
     insertedPrompt,
     setInsertedPrompt,
-    selectedAgent,
+    selectedAgent: globalSelectedAgent,
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
@@ -161,6 +162,19 @@ export function ChatInterface({
   // Use the active branch thread for data loading, but keep URL threadId for drafts/routing
   const dataThreadId = activeBranchThreadId ?? threadId;
 
+  // External-agent threads are agent-locked: the thread's bound agent wins
+  // over the global per-user selection (which a switch in ANOTHER thread may
+  // have moved) for everything downstream — send, queue-mode enqueue, and the
+  // optimistic thinking shell. The backend enforces the same lock
+  // (chat_turn_generate step 0); this keeps the UI honest about it.
+  const { lockedAgent } = useThreadAgentLock(organizationId, dataThreadId);
+  const selectedAgent = useMemo(
+    () =>
+      lockedAgent
+        ? { name: lockedAgent.name, displayName: lockedAgent.displayName }
+        : globalSelectedAgent,
+    [lockedAgent, globalSelectedAgent],
+  );
   // `isAgentLoading` is the chat agent catalog (action-backed, warmed in the
   // /dashboard/$id loader). Deliberately NOT used to gate first paint: the
   // WelcomeView and composer (incl. the AgentSelector trigger) render
@@ -170,6 +184,11 @@ export function ChatInterface({
   // forwarded to WelcomeView for granular masking below.
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
+
+  // Model overrides are keyed by agent name; on a locked thread the lookup
+  // must follow the locked agent, not the global selection resolved into
+  // `effectiveAgent`.
+  const modelOverrideKey = lockedAgent?.name ?? effectiveAgent?.name;
 
   // `selectedAgent == null` means the composer is in Auto mode (the raw
   // selection, not the resolved `effectiveAgent`) — the turn will be Auto-routed,
@@ -731,8 +750,8 @@ export function ChatInterface({
     // `useSendMessage` send that concrete slug instead of the AUTO_AGENT_SLUG
     // sentinel, silently bypassing `resolveAutoRoute` entirely.
     selectedAgent,
-    modelId: effectiveAgent?.name
-      ? selectedModelOverrides[effectiveAgent.name]
+    modelId: modelOverrideKey
+      ? selectedModelOverrides[modelOverrideKey]
       : undefined,
     enabledCapabilities,
     userContext,

@@ -124,6 +124,14 @@ vi.mock('../hooks/use-composer-capabilities', () => ({
   getAgentMissingIntegrations: () => [],
 }));
 
+let mockLockedAgent: { name: string; displayName: string } | null = null;
+vi.mock('../hooks/use-thread-agent-lock', () => ({
+  useThreadAgentLock: () => ({
+    lockedAgent: mockLockedAgent,
+    isLoading: false,
+  }),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockCanWrite = true;
@@ -131,12 +139,44 @@ beforeEach(() => {
   mockEffectiveAgent = { name: 'assistant', displayName: 'Default Chat' };
   mockEffectiveAgentLoading = false;
   mockSelectedAgent = null;
+  mockLockedAgent = null;
 });
 
 describe('AgentSelector', () => {
   it('renders the agent selector trigger', () => {
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByLabelText('Select agent')).toBeInTheDocument();
+  });
+
+  // External-agent threads are bound to their agent (sandbox session +
+  // --resume transcript) — the selector pins instead of offering a switch,
+  // even when the global per-user selection points elsewhere.
+  describe('external-thread lock', () => {
+    it('pins the locked agent and offers no picker', () => {
+      mockLockedAgent = { name: 'claude-code', displayName: 'Claude Code' };
+      mockSelectedAgent = { name: 'assistant', displayName: 'Default Chat' };
+      render(<AgentSelector organizationId="org-1" threadId="thread-1" />);
+
+      // The locked agent is shown, not the (stale) global selection…
+      const trigger = screen.getByRole('button', {
+        name: 'agentSelector.lockedExternalLabel',
+      });
+      expect(within(trigger).getByText('Claude Code')).toBeInTheDocument();
+      // …the control is marked non-interactive but stays focusable so the
+      // explanatory tooltip can fire (aria-disabled, not native disabled)…
+      expect(trigger).toHaveAttribute('aria-disabled', 'true');
+      expect(trigger).not.toBeDisabled();
+      // …and there is no combobox/listbox to switch with.
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    });
+
+    it('has no accessibility violations while locked', async () => {
+      mockLockedAgent = { name: 'claude-code', displayName: 'Claude Code' };
+      const { container } = render(
+        <AgentSelector organizationId="org-1" threadId="thread-1" />,
+      );
+      await checkAccessibility(container);
+    });
   });
 
   it('displays the effective agent name when an agent is pinned', () => {

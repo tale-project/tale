@@ -292,6 +292,12 @@ export const chatWithAgentTurn = mutation({
 
     const streamId = await persistentStreaming.createStream(ctx);
     const isAuto = args.agentSlug === AUTO_AGENT_SLUG;
+    // Captured BEFORE the optimistic patch below overwrites it: the generation
+    // action needs the thread's previously bound agent to enforce the
+    // external-thread agent lock (a stale client selection must never re-route
+    // a thread whose stored agent is an external one — the sandbox session and
+    // --resume transcript are bound to it).
+    const priorAgentSlug = meta.agentSlug;
     await ctx.db.patch(meta._id, {
       generationStatus: 'generating' as const,
       streamId,
@@ -349,6 +355,7 @@ export const chatWithAgentTurn = mutation({
         requestStartMs,
         arenaBranchThreadId: args.arenaBranchThreadId,
         referencedFiles,
+        priorAgentSlug,
       },
     );
 
