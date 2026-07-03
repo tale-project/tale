@@ -18,7 +18,7 @@ and tech-debt paydown — any change whose success is defined by "behaves exactl
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you change anything:
+**Invoke `write-notes`** and answer this form before you change anything:
 
 - **Goal:** Describe what will improve (structure / performance / clarity) and the exact behaviour that must stay identical.
 - **Current shape:** Walk through how the code works today — trace the path you'll restructure and name its callers.
@@ -27,22 +27,24 @@ and tech-debt paydown — any change whose success is defined by "behaves exactl
 - **Baseline:** For a performance change, describe what you measured and the number you'll compare against.
 - **Risks & unknowns:** What behaviour might you change by accident? Describe where you're least confident and how you'd notice a regression.
 
-## Gate A — before you change anything
+## Gate A — before you write code
 
-**Tick every box before the first edit** — you have not earned the right to refactor until they hold:
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **Stated what you're improving and why** — the goal is structure / performance / clarity,
-      **explicitly not** new behaviour. If "improve" hides a feature or a fix, split it into its own
-      change and commit.
-- [ ] **Felt the status quo — and measured it.** You know exactly what the code does today; for a
-      performance change you **baselined it first** (no speedup claim without a before-number).
-- [ ] **Found the existing concept** you're consolidating or extracting to — improving turns two
-      divergent copies into one canonical one, never adds a third.
-- [ ] **Discovered the house conventions** from the tooling and the neighbours, so the improved code
-      still matches the project and passes its gate.
-- [ ] **Locked behaviour with a passing test first.** If the code wasn't covered, you wrote the
-      characterization test, watched it pass, and only then refactored — your safety net for every step.
-- [ ] **Mapped the blast radius** — every caller of what you're restructuring.
+- [ ] **Note** — the form above is answered and written first (`write-notes`).
+- [ ] **Intent** — the goal is structure / performance / clarity, **explicitly not** new behaviour;
+      if "improve" hides a feature or a fix, split it into its own change and commit.
+- [ ] **Status quo** — you know exactly what the code does today, and for a performance change you
+      **baselined it first**: no speedup claim without a before-number.
+- [ ] **Reuse** — the concept you're consolidating INTO is found (`search-codebase`) — improving
+      turns two divergent copies into one canonical one, never adds a third (the doctrine:
+      `implement-feature`).
+- [ ] **Conventions** — discovered from the tooling and the neighbours (`search-codebase` orient),
+      so the improved code still matches the project and passes its gate.
+- [ ] **Blast radius** — every caller of what you're restructuring enumerated (`search-codebase`
+      sweep).
+- [ ] **Behaviour locked** — a passing test pins today's behaviour; if the code wasn't covered, you
+      wrote the characterization test and watched it pass first — your safety net for every step.
 
 ## Do the work in reversible steps
 
@@ -55,13 +57,16 @@ and tech-debt paydown — any change whose success is defined by "behaves exactl
 
 ## Gate B — before you call it done
 
-**Tick every box, or mark it N/A with a reason.** An unticked box means not done.
+**Tick every box, or N/A with a reason — an unticked box means not done.**
 
-- [ ] **Behaviour is unchanged** — the locking tests still pass, untouched.
-- [ ] **Performance claims are backed by before/after numbers**, not vibes (or N/A).
-- [ ] **Reuse is actually achieved** — the duplication is gone, not relocated.
-- [ ] **Docs and comments that described the old structure are updated** — no stale "why".
-- [ ] **The gate is green** — the project's format/lint/typecheck/test command passes.
+- [ ] **Unchanged** — the locking tests still pass, untouched.
+- [ ] **Numbers** — performance claims backed by before/after measurements, not vibes (or N/A).
+- [ ] **Duplication gone** — the reuse is achieved, not relocated; docs and comments that described
+      the old structure are updated.
+- [ ] **Definition of done** — walk `create-pr`'s shared checklist now, not at PR time.
+- [ ] **Sweep** — every caller enumerated at Gate A is checked or explicitly ruled out
+      (`search-codebase`).
+- [ ] **Observed** — the real outcome watched (`test-code`), never a green typecheck alone.
 
 Then take it to a clean PR with `create-pr`.
 

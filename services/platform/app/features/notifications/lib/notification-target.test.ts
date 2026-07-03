@@ -73,6 +73,16 @@ describe('orgNotificationTarget', () => {
     });
   });
 
+  it('carries the broken-row logId into the logs route search (#1845)', () => {
+    expect(
+      orgNotificationTarget(ORG, { kind: 'audit-logs', logId: 'log_bad' }),
+    ).toEqual({
+      to: '/dashboard/$id/settings/governance/logs',
+      params: { id: ORG },
+      search: { logId: 'log_bad' },
+    });
+  });
+
   it('maps dsar to the data-subject-requests route', () => {
     expect(orgNotificationTarget(ORG, { kind: 'dsar' })).toEqual({
       to: '/dashboard/$id/settings/governance/data-subject-requests',

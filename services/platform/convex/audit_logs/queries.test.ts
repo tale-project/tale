@@ -96,6 +96,10 @@ const UNAUTH_GATED: Array<{ name: string; args: Record<string, unknown> }> = [
     args: { paginationOpts: PAGINATION, organizationId: 'org_1' },
   },
   { name: 'getActivitySummary', args: { organizationId: 'org_1' } },
+  {
+    name: 'getAuditLogById',
+    args: { organizationId: 'org_1', logId: 'log_1' },
+  },
 ];
 
 describe('audit_logs/queries UNAUTHENTICATED gate codes (#2016)', () => {
@@ -114,4 +118,74 @@ describe('audit_logs/queries UNAUTHENTICATED gate codes (#2016)', () => {
       });
     },
   );
+});
+
+// getAuditLogById backs the #1845 deep link + integrity-panel "open row". It is
+// admin-gated and must fail closed (return null, never leak) for a malformed id
+// or a row that belongs to another org.
+describe('audit_logs/queries getAuditLogById', () => {
+  const ROW = {
+    _id: 'log_1',
+    organizationId: 'org_1',
+    action: 'add_member',
+    timestamp: 1,
+  };
+
+  function makeCtx(rowsById: Record<string, unknown>) {
+    return {
+      db: {
+        // Mirror Convex: an id that doesn't belong to the table normalizes to
+        // null; a valid one passes through.
+        normalizeId: (_table: string, id: string) =>
+          id === 'malformed' ? null : id,
+        get: async (id: string) => rowsById[id] ?? null,
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAuthUserIdentity.mockResolvedValue({ subject: 'user_1' });
+  });
+
+  it('returns the row for an admin when id + org match', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    const handlers = await importQueries();
+    const result = await handlers.getAuditLogById.handler(
+      makeCtx({ log_1: ROW }),
+      { organizationId: 'org_1', logId: 'log_1' },
+    );
+    expect(result).toEqual(ROW);
+  });
+
+  it('returns null when the row belongs to a different org', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    const handlers = await importQueries();
+    const result = await handlers.getAuditLogById.handler(
+      makeCtx({ log_1: { ...ROW, organizationId: 'org_2' } }),
+      { organizationId: 'org_1', logId: 'log_1' },
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null for a malformed id', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'admin' });
+    const handlers = await importQueries();
+    const result = await handlers.getAuditLogById.handler(makeCtx({}), {
+      organizationId: 'org_1',
+      logId: 'malformed',
+    });
+    expect(result).toBeNull();
+  });
+
+  it('throws FORBIDDEN for a non-admin member', async () => {
+    mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
+    const handlers = await importQueries();
+    await expect(
+      handlers.getAuditLogById.handler(makeCtx({ log_1: ROW }), {
+        organizationId: 'org_1',
+        logId: 'log_1',
+      }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN' } });
+  });
 });

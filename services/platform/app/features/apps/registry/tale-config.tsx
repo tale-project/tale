@@ -27,6 +27,7 @@ import {
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
 
+import { usePackLabelString } from '../runtime/app-runtime';
 import { AgentList, type AgentListProps } from './connected/agent-list';
 import { Collection, type CollectionProps } from './connected/collection';
 import {
@@ -75,6 +76,19 @@ interface TaleComponents {
 const opts = <T extends string | number>(values: readonly T[]) =>
   values.map((v) => ({ label: String(v), value: v }));
 
+/**
+ * Resolve `$label:<key>` pack references on a presentational block's text
+ * props, exactly like the connected blocks do for their titles/columns — a
+ * pack view authors ALL its display strings as catalog references (the label
+ * completeness check collects them from every prop), so a plain Text/Heading/
+ * Alert must not render the raw marker. Missing key → bare key (the visible
+ * untranslated signal); non-marker strings pass through untouched.
+ */
+function usePackText(): (value: string) => string {
+  const labelOf = usePackLabelString();
+  return (value) => labelOf(value) ?? value;
+}
+
 export const taleConfig: Config<TaleComponents> = {
   components: {
     Heading: {
@@ -83,7 +97,10 @@ export const taleConfig: Config<TaleComponents> = {
         level: { type: 'select', options: opts([1, 2, 3, 4, 5, 6] as const) },
       },
       defaultProps: { text: 'Heading', level: 2 },
-      render: ({ text, level }) => <Heading level={level}>{text}</Heading>,
+      render: function HeadingBlock({ text, level }) {
+        const t = usePackText();
+        return <Heading level={level}>{t(text)}</Heading>;
+      },
     },
     Text: {
       fields: {
@@ -103,7 +120,10 @@ export const taleConfig: Config<TaleComponents> = {
         },
       },
       defaultProps: { text: 'Text', variant: 'body' },
-      render: ({ text, variant }) => <Text variant={variant}>{text}</Text>,
+      render: function TextBlock({ text, variant }) {
+        const t = usePackText();
+        return <Text variant={variant}>{t(text)}</Text>;
+      },
     },
     Badge: {
       fields: {
@@ -122,7 +142,10 @@ export const taleConfig: Config<TaleComponents> = {
         },
       },
       defaultProps: { text: 'Badge', variant: 'slate' },
-      render: ({ text, variant }) => <Badge variant={variant}>{text}</Badge>,
+      render: function BadgeBlock({ text, variant }) {
+        const t = usePackText();
+        return <Badge variant={variant}>{t(text)}</Badge>;
+      },
     },
     Alert: {
       fields: {
@@ -134,9 +157,16 @@ export const taleConfig: Config<TaleComponents> = {
         description: { type: 'textarea' },
       },
       defaultProps: { variant: 'info', title: 'Alert', description: '' },
-      render: ({ variant, title, description }) => (
-        <Alert variant={variant} title={title} description={description} />
-      ),
+      render: function AlertBlock({ variant, title, description }) {
+        const t = usePackText();
+        return (
+          <Alert
+            variant={variant}
+            title={t(title)}
+            description={t(description)}
+          />
+        );
+      },
     },
     Card: {
       fields: {
@@ -145,19 +175,22 @@ export const taleConfig: Config<TaleComponents> = {
         body: { type: 'textarea' },
       },
       defaultProps: { title: '', description: '', body: '' },
-      render: ({ title, description, body }) => (
-        <Card>
-          {(title || description) && (
-            <CardHeader className="pb-3">
-              {title ? <CardTitle>{title}</CardTitle> : null}
-              {description ? (
-                <CardDescription>{description}</CardDescription>
-              ) : null}
-            </CardHeader>
-          )}
-          <CardContent>{body}</CardContent>
-        </Card>
-      ),
+      render: function CardBlock({ title, description, body }) {
+        const t = usePackText();
+        return (
+          <Card>
+            {(title || description) && (
+              <CardHeader className="pb-3">
+                {title ? <CardTitle>{t(title)}</CardTitle> : null}
+                {description ? (
+                  <CardDescription>{t(description)}</CardDescription>
+                ) : null}
+              </CardHeader>
+            )}
+            <CardContent>{t(body)}</CardContent>
+          </Card>
+        );
+      },
     },
     Collection: {
       fields: { title: { type: 'text' } },

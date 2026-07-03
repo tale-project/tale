@@ -104,6 +104,12 @@ const modelRoutingMetadataValidator = {
   qualityScore: v.optional(v.number()),
   routingTags: v.optional(v.array(v.string())),
   contextWindow: v.optional(v.number()),
+  /** Same-provider model-level fallback (the config's `fallbackModelId`) —
+   * consumed by the external-agent run to arm Claude Code's fallback chain. */
+  fallbackModelId: v.optional(v.string()),
+  /** Vendor-native id of a gateway-shaped entry (the config's `nativeModelId`)
+   * — what a BYO (direct-to-vendor) session requests instead of the id. */
+  nativeModelId: v.optional(v.string()),
 } as const;
 
 /**
@@ -1419,6 +1425,8 @@ async function readRoutingCatalog(orgSlug: string) {
         qualityScore: m.qualityScore,
         routingTags: m.routingTags,
         contextWindow: m.contextWindow,
+        fallbackModelId: m.fallbackModelId,
+        nativeModelId: m.nativeModelId,
       }));
     }),
   );

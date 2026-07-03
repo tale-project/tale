@@ -1013,6 +1013,15 @@ export function ChatInput({
                 optionId={(index) => `${mentionListboxId}-option-${index}`}
               />
             )}
+            {/* A blocked send must say so where the user is looking: the
+                disabled button's tooltip and the Enter toast are invisible
+                until interacted with, which read as "the app is dead" on a
+                fresh install with no provider key. */}
+            {sendBlocked && sendBlockedReason && !isLoading && (
+              <p role="status" className="text-destructive px-1 pb-1 text-xs">
+                {sendBlockedReason}
+              </p>
+            )}
             <label
               id={textareaLabelId}
               htmlFor={textareaId}

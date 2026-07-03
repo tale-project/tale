@@ -17,6 +17,25 @@ import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 
+/**
+ * Models occasionally emit nested array elements as JSON-encoded STRINGS
+ * instead of objects (`fields: ["{\"label\":...,\"type\":\"yes_no\"}"]`),
+ * which fails input validation before the tool ever executes — the turn then
+ * halts with no card on screen. Parse such strings back into objects/arrays
+ * before validation; anything else passes through and fails with the normal
+ * zod error. This is transparent to the model-facing JSON schema:
+ * `toJSONSchema(..., { io: 'input' })` renders the inner schema unchanged.
+ */
+const coerceJsonObjectString = (value: unknown): unknown => {
+  if (typeof value !== 'string') return value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === 'object' && parsed !== null ? parsed : value;
+  } catch {
+    return value;
+  }
+};
+
 const optionSchema = z.object({
   label: z.string().describe('Display label for the option.'),
   description: z
@@ -30,6 +49,8 @@ const optionSchema = z.object({
       'Optional value to return (defaults to label if not provided). When multiple options share similar labels, provide explicit distinct values to avoid ambiguity.',
     ),
 });
+
+const coercedOptionSchema = z.preprocess(coerceJsonObjectString, optionSchema);
 
 const uniqueOptionValues = (options: z.output<typeof optionSchema>[]) => {
   const values = options.map((opt) => opt.value ?? opt.label);
@@ -74,7 +95,7 @@ const fieldSchema = z.discriminatedUnion('type', [
         'Use "single_select" when the user picks ONE option, "multi_select" when the user picks ONE OR MORE.',
       ),
     options: z
-      .array(optionSchema)
+      .array(coercedOptionSchema)
       .min(2)
       .refine(uniqueOptionValues, {
         message:
@@ -86,7 +107,7 @@ const fieldSchema = z.discriminatedUnion('type', [
     ...sharedFieldProps,
     type: z.literal('yes_no').describe('Binary yes/no confirmation.'),
     options: z
-      .array(optionSchema)
+      .array(coercedOptionSchema)
       .length(2)
       .refine(uniqueOptionValues, {
         message:
@@ -105,7 +126,7 @@ const fieldSchema = z.discriminatedUnion('type', [
         'Editable checklist of todo items. Renders as rows the user can add / edit / remove before confirming. Response is a JSON-stringified array of `{id, content}` objects.',
       ),
     initialTodos: z
-      .array(todoItemInputSchema)
+      .array(z.preprocess(coerceJsonObjectString, todoItemInputSchema))
       .optional()
       .describe(
         'Pre-filled todos for the user to review/edit. IDs should be stable short slugs (e.g. q1, q2).',
@@ -124,7 +145,7 @@ const contextField = {
     ),
 };
 
-const requestHumanInputArgs = z.object({
+export const requestHumanInputArgs = z.object({
   // `question` is declared FIRST and described as REQUIRED so the model never
   // omits it. Previously the optional `context` came first and `question` read
   // as auxiliary, producing calls with no `question` that failed validation.
@@ -134,8 +155,10 @@ const requestHumanInputArgs = z.object({
       'REQUIRED. The primary question or heading shown above the form fields — ALWAYS include this string (e.g., "Please provide the following details for the purchase contract"). It is the main prompt; `context` is only optional supporting detail and is NOT a substitute for `question`.',
     ),
   fields: z
-    .array(fieldSchema)
-    .min(1)
+    .preprocess(
+      coerceJsonObjectString,
+      z.array(z.preprocess(coerceJsonObjectString, fieldSchema)).min(1),
+    )
     .describe(
       'REQUIRED. Form fields to display (at least one). Each field gets its own labeled input. Use unique labels — they serve as keys in the response.',
     ),

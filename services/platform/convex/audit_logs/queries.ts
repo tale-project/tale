@@ -60,6 +60,46 @@ export const listAuditLogs = query({
   },
 });
 
+/**
+ * Fetch a single audit-log row by id for the admin detail view. Backs the
+ * chain-integrity panel's "open broken row" affordance and the notification
+ * deep link (#1845): both point at ONE specific row that is almost never on
+ * the first loaded page, so scanning the paginated list is not a reliable
+ * reveal — a by-id read is.
+ *
+ * Same admin gate as the list queries. Returns `null` (never throws) when the
+ * id is malformed, the row was hard-deleted by retention, or it belongs to a
+ * different org — so a stale deep link degrades to "not found" instead of an
+ * error, and an admin of org A can't read org B's row by guessing an id. No
+ * `returns` validator (mirrors `listAuditLogsPaginated`) so the client keeps
+ * the exact `Doc<'auditLogs'>` shape the detail dialog already renders.
+ */
+export const getAuditLogById = query({
+  args: { organizationId: v.string(), logId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
+
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+    assertAuditLogReadAccess(member);
+
+    const id = ctx.db.normalizeId('auditLogs', args.logId);
+    if (!id) return null;
+    const row = await ctx.db.get(id);
+    if (!row || row.organizationId !== args.organizationId) return null;
+    return row;
+  },
+});
+
 export const listAuditLogsPaginated = query({
   args: {
     paginationOpts: paginationOptsValidator,

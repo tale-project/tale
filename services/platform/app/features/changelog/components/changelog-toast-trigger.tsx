@@ -15,11 +15,17 @@ import { useT } from '@/lib/i18n/client';
  * even across sessions. The red dot on UserButton persists separately
  * (governed by `markSeen`) until the user actually views the release
  * notes.
+ *
+ * On a fresh install (`needsBaseline`: no notification row exists yet)
+ * there is no previous version to have updated from, so nothing is
+ * announced — the current version is recorded silently as the baseline
+ * so the next release toasts normally.
  */
 export function ChangelogToastTrigger() {
   const { t } = useT('changelog');
   const {
     shouldShowToast,
+    needsBaseline,
     currentVersion,
     lastSeenVersion,
     markSeen,
@@ -28,8 +34,18 @@ export function ChangelogToastTrigger() {
   const firedRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldShowToast || !currentVersion) return;
+    if (!currentVersion) return;
     if (firedRef.current) return;
+
+    if (needsBaseline) {
+      // Fresh install: record the current version (seen + toasted) without
+      // notifying. `markSeen` writes both fields in one mutation.
+      firedRef.current = true;
+      markSeen();
+      return;
+    }
+
+    if (!shouldShowToast) return;
     firedRef.current = true;
 
     toast({
@@ -54,6 +70,7 @@ export function ChangelogToastTrigger() {
     markToasted();
   }, [
     shouldShowToast,
+    needsBaseline,
     currentVersion,
     lastSeenVersion,
     markSeen,

@@ -942,8 +942,8 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
-      "installAll": "Install all",
-      "installingAll": "Installing all..."
+      "install": "Install",
+      "installing": "Installing..."
     },
     "uploadDialog": {
       "menuItem": "Upload file",
@@ -953,7 +953,6 @@
     },
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",
-      "installFailed": "Unable to create automation from template",
       "fetching": "Loading template...",
       "noTemplates": "No templates available for this integration."
     },
@@ -1055,10 +1054,7 @@
     },
     "toast": {
       "created": "Automation created successfully",
-      "createFailed": "Failed to create automation",
-      "installedAll": "{count} automations installed",
-      "installedAllNone": "All templates are already installed",
-      "installAllPartial": "{count} templates could not be installed"
+      "createFailed": "Failed to create automation"
     },
     "validation": {
       "duplicateName": "An automation with this name already exists",
@@ -1322,6 +1318,7 @@
       "viewProvider": "View provider settings",
       "viewInfo": "Model details",
       "noApiKey": "No API key configured for this model's provider — add one in Settings → AI providers.",
+      "noProviderKey": "No AI provider is connected yet — add an API key in Settings → AI providers to start chatting.",
       "info": {
         "provider": "Provider",
         "type": "Type",
@@ -1856,6 +1853,8 @@
     "modelFallbackNotice": "{from} was unavailable — switched to {to}.",
     "modelFallbackDefaultModel": "the default model",
     "modelFallbackUnknown": "the previous model",
+    "generationIncomplete": "The response couldn't be completed. Please try again.",
+    "generationIncompleteWithTools": "The response couldn't be completed after running {tools}. Please try again.",
     "liveBrowser": {
       "title": "Live browser",
       "toggleLabel": "Live browser",
@@ -2029,6 +2028,7 @@
     "stepProgress": "Step {current} of {total}: {label}",
     "validation": {
       "required": "{field} is required",
+      "maxLength": "{field} must be {max} characters or fewer",
       "email": "Please enter a valid email address",
       "invalidJson": "Invalid JSON format",
       "uploadFile": "Please upload a file",
@@ -6571,6 +6571,32 @@
       "openDocs": "API docs"
     },
     "logs": {
+      "integrity": {
+        "title": "Chain integrity",
+        "neverChecked": "No automated integrity check has run yet.",
+        "lastCheck": "Last automated check: {date}",
+        "alertedAt": "Alert raised {date}",
+        "statusUnchecked": "Not yet checked",
+        "statusOk": "Verified",
+        "statusAlert": "Integrity alert active",
+        "verifyNow": "Verify now",
+        "verifyError": "Verification couldn't be completed. Please try again.",
+        "resultValidTitle": "Chain verified",
+        "resultValidBody": "{count, plural, one {Checked # entry} other {Checked # entries}} — no tampering detected.",
+        "truncatedNote": "Only the first {count} entries were checked. Run verification again to continue down the chain.",
+        "unsignedScrubNote": "{count, plural, one {# entry was trusted via an unsigned scrub record} other {# entries were trusted via unsigned scrub records}}. Review your audit signing key.",
+        "brokenTitle": "Chain integrity broken",
+        "brokenBody": "The hash chain does not match at the entry below. Preserve this evidence before making changes.",
+        "brokenAt": "Occurred",
+        "logId": "Entry ID",
+        "expectedHash": "Expected hash",
+        "actualHash": "Stored hash",
+        "openRow": "Open this entry",
+        "checkpointTitle": "Checkpoint verification failed",
+        "checkpointId": "Checkpoint ID",
+        "reason": "Reason",
+        "rowMissing": "Audit entry {logId} is no longer available."
+      },
       "heading": "Logs",
       "subheading": "View and manage system logs.",
       "auditLogs": "Audit logs",
@@ -7101,6 +7127,7 @@
     "agentAccessTitle": "Available to agents",
     "agentAccessBody": "Agent runtimes (e.g. Hermes, OpenClaw) can use these secrets when they run tasks for this project — for example to sign in to external services on your behalf. Values are injected at runtime and are never shown to the chat model or revealed in the UI.",
     "nameLabel": "Name",
+    "nameInvalid": "Name must start with a letter and use only A–Z, 0–9 and underscores.",
     "valueLabel": "Value",
     "descriptionLabel": "Description",
     "typeLabel": "Type",

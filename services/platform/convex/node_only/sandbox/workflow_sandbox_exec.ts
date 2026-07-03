@@ -44,6 +44,10 @@ import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation
 import { resolveAppAssetPathChecked } from '../../apps/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
+import {
+  buildSkillsGuidance,
+  SKILLS_GUIDANCE_HEADING,
+} from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import { resolveOrgSlug } from '../../organizations/resolve_org_slug';
 import { loadOrgGatewayProviders } from '../../providers/file_actions';
@@ -99,6 +103,7 @@ import {
   type TokenSelection,
   TokenSourceError,
 } from './token_pool_select';
+import { stageWorkflowSkills, workspaceIsTaleRepo } from './workflow_skills';
 
 // Mirrors run_external_agent: the gateway + integration-dispatch base URLs the
 // in-sandbox agent reaches over the sandbox network, and the Tier-2 grants that
@@ -395,10 +400,49 @@ const inputArgValidator = v.array(
     from: v.union(
       v.object({ fileId: v.string() }),
       v.object({ folderId: v.string() }),
+      v.object({ folderPath: v.string() }),
       v.object({ content: v.string() }),
     ),
   }),
 );
+
+/**
+ * Resolve a folder input (by id or human-readable documents path) to stage
+ * entries — one per document DIRECTLY in the folder (no recursion), placed
+ * under `<prefix><as>/<doc name>`. Returns null when the folder does not
+ * resolve in this org (the caller fails the step with a legible error: a
+ * typo'd path staging an empty dir would otherwise surface as a confusing
+ * downstream script failure).
+ */
+export async function folderStageFiles(
+  ctx: Pick<ActionCtx, 'runQuery' | 'storage'>,
+  organizationId: string,
+  from: { folderId: string } | { folderPath: string },
+  as: string,
+  pathPrefix: string,
+): Promise<SessionStageFile[] | null> {
+  const files = await ctx.runQuery(
+    internal.documents.internal_queries.listFilesByFolderInternal,
+    {
+      organizationId,
+      ...('folderId' in from
+        ? { folderId: toId<'folders'>(from.folderId) }
+        : { folderPath: from.folderPath }),
+    },
+  );
+  if (files === null) return null;
+  const dir = as.replace(/\/+$/, '');
+  const staged: SessionStageFile[] = [];
+  for (const file of files) {
+    const raw = await ctx.storage.getUrl(toId<'_storage'>(file.fileId));
+    if (!raw) continue; // blob purged under a live row — skip, don't fail
+    staged.push({
+      path: `${pathPrefix}${dir}/${file.name}`,
+      url: toSandboxStorageUrl(raw),
+    });
+  }
+  return staged;
+}
 
 const outputArgValidator = v.optional(
   v.object({
@@ -513,8 +557,8 @@ export const runSandboxScript = internalAction({
       const scriptName = relPath.split('/').pop() ?? 'script';
 
       // Stage the script + inline-content inputs + params.json under /user/code
-      // (the script's cwd); fileId inputs under /user/uploads. (folderId staging
-      // is a later increment.)
+      // (the script's cwd); fileId inputs under /user/uploads; a folder input
+      // stages every document directly in that folder under /user/uploads/<as>/.
       const stageInputs: SessionStageFile[] = [
         { path: `code/${scriptName}`, url: await storeAsUrl(scriptContent) },
       ];
@@ -534,7 +578,19 @@ export const runSandboxScript = internalAction({
             url: toSandboxStorageUrl(raw),
           });
         } else {
-          return fail('folderId input staging is not yet supported');
+          const staged = await folderStageFiles(
+            ctx,
+            args.organizationId,
+            input.from,
+            input.as,
+            'uploads/',
+          );
+          if (staged === null) {
+            return fail(
+              `input folder not found: ${JSON.stringify(input.from)}`,
+            );
+          }
+          stageInputs.push(...staged);
         }
       }
       if (args.params) {
@@ -642,6 +698,12 @@ export const runSandboxScript = internalAction({
         status: res.status,
         ...(result !== undefined && { result }),
         outputFileIds: res.files.map((f) => f.storageId),
+        // Name↔id pairs, like agent runs — lets a follow-up step pick a
+        // harvested artifact by name (e.g. file `return.xml` as a document).
+        outputFiles: res.files.map((f) => ({
+          name: f.path.split('/').pop() ?? f.path,
+          storageId: f.storageId,
+        })),
         ...(res.exitCode !== null && { exitCode: res.exitCode }),
         stdoutPreview: res.stdoutPreview,
         stderrPreview: res.stderrPreview,
@@ -817,6 +879,11 @@ export const runSandboxAgent = internalAction({
     // Token-source bindings from the agent's Environment-tab rows (captured in
     // the agent-env injection below, consumed by the rotation block at run).
     let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+    // Skills the agent can actually load (captured in the skill-staging block
+    // below) + whether the workspace is Tale's own monorepo — both feed the
+    // skills-guidance section of the system-prompt append.
+    let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
+    let workspaceIsTale = false;
 
     // RESUME? A prior segment of THIS step handed off (status 'running') and the
     // durable workflow handler re-entered the step. The exec is STILL RUNNING in
@@ -1159,6 +1226,8 @@ export const runSandboxAgent = internalAction({
         // 4. Stage the agent's bound integration skills (best-effort) and
         // reconcile repo precedence for the image-baked builtin skills (the
         // entrypoint symlinks those; this only drops ones the repo shadows).
+        // Also stage the org's workflow skills and probe the workspace — both
+        // feed the skills-guidance section of the system-prompt append.
         try {
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
@@ -1166,6 +1235,11 @@ export const runSandboxAgent = internalAction({
             nativeWebTools: byo || nativeWebTools === true,
           });
           await reconcileBuiltinSkills(ctx, { sessionId });
+          availableWorkflowSkills = await stageWorkflowSkills(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+          });
+          workspaceIsTale = await workspaceIsTaleRepo(sessionId);
         } catch (skillErr) {
           console.warn(
             '[runSandboxAgent] integration skill staging failed (continuing):',
@@ -1173,8 +1247,9 @@ export const runSandboxAgent = internalAction({
           );
         }
 
-        // 5. Stage declared inputs into the workspace (folderId is a later
-        // increment; the primary agent path self-fetches via GITHUB_TOKEN).
+        // 5. Stage declared inputs into the workspace: content/fileId at
+        // `<as>`; a folder input stages every document directly in that folder
+        // under `<as>/<name>` (workspace-relative, like the other agent inputs).
         const stageFiles: SessionStageFile[] = [];
         for (const input of args.inputs) {
           if ('content' in input.from) {
@@ -1189,7 +1264,19 @@ export const runSandboxAgent = internalAction({
             if (!raw) return fail(`input file not found: ${input.from.fileId}`);
             stageFiles.push({ path: input.as, url: toSandboxStorageUrl(raw) });
           } else {
-            return fail('folderId input staging is not yet supported');
+            const staged = await folderStageFiles(
+              ctx,
+              args.organizationId,
+              input.from,
+              input.as,
+              '',
+            );
+            if (staged === null) {
+              return fail(
+                `input folder not found: ${JSON.stringify(input.from)}`,
+              );
+            }
+            stageFiles.push(...staged);
           }
         }
         if (stageFiles.length > 0) {
@@ -1244,7 +1331,20 @@ export const runSandboxAgent = internalAction({
       const prompt =
         args.instructions ??
         (agentConfig.instructions || 'Complete the assigned task.');
-      const systemPromptAppend = [agentConfig.instructions, SUMMARY_MANDATE]
+      // Claude-Code-only skills guidance (the staged workflow skills live in
+      // CC's user-level skill dir); skipped on the Tale monorepo workspace and
+      // when the agent's own instructions already carry the section.
+      const skillsGuidance =
+        agentKind === 'claude-code' &&
+        !workspaceIsTale &&
+        !agentConfig.instructions?.includes(SKILLS_GUIDANCE_HEADING)
+          ? buildSkillsGuidance(availableWorkflowSkills)
+          : undefined;
+      const systemPromptAppend = [
+        agentConfig.instructions,
+        skillsGuidance,
+        SUMMARY_MANDATE,
+      ]
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
       // MANAGED: the gateway-format ref resolves to the gateway's model id.

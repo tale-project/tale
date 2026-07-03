@@ -11,8 +11,8 @@ Connect **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, 
 Pool their knowledge, delegate tasks, and build your swarm of agents.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](docs/en/index.md)
-[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](docs/en/self-hosted/install/quickstart.md)
+[![Docs](https://img.shields.io/badge/docs-tale-0a0a0a.svg)](https://tale.dev/docs)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-Docker-2496ed.svg)](https://tale.dev/docs/self-hosted/install/quickstart)
 
 [Quick start](#quick-start) · [What you can do](#what-can-you-do) · [Commands](#command-reference) · [Documentation](#documentation) · [Contributing](#contributing)
 
@@ -22,17 +22,17 @@ Pool their knowledge, delegate tasks, and build your swarm of agents.
 
 ---
 
-Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI and run a single command to get started.
+Tale is a **self-hosted AI platform** that turns the agents and CLIs your team already uses into one coordinated workforce. Give them a shared knowledge base, wire up your tools and integrations, and delegate work across them — agents, automations, and a unified inbox, all running on your own infrastructure. Install the CLI, then two commands to get started.
 
 **Pick your path:**
 
 - **Try Tale locally** — install the CLI and run two commands on your own machine. Start with [Quick start](#quick-start) below.
-- **Use Tale Cloud** — let Tale operate the stack, sign up, and onboard your team. Start with [Cloud onboarding](docs/en/cloud/onboarding.md).
+- **Use Tale Cloud** — let Tale operate the stack, sign up, and onboard your team. Start with [Cloud onboarding](https://tale.dev/docs/cloud/onboarding).
 - **Contribute** — run Tale from source and ship a change back. Start with [Contributor setup](docs/en/develop/contributor-setup.md).
 
 ## Quick start
 
-Get Tale running on your machine in three commands — install the CLI, scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
+Get Tale running on your machine — install the CLI, then two commands: scaffold a project, start it. The CLI installs Docker if it's missing and generates every secret for you, so there is nothing to set up first and nothing to hand-edit.
 
 **Prerequisites for a local trial: none.** The installer provisions Docker for you, and `tale init` generates every secret — you do not need to bring anything to get the stack running. An [OpenRouter API key](https://openrouter.ai) (or any OpenAI-compatible provider) is optional and only needed before an agent can answer: you add it in the app after sign-up, in the setup wizard or under **Settings → AI providers**. `tale init` does not ask for it.
 
@@ -59,7 +59,7 @@ tale init my-project
 cd my-project
 ```
 
-The CLI asks one question — **local trial** or **production domain** — and configures everything for that target: TLS, all security secrets, AI-editor config files, and the platform source extracted to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. The same project works for both a local trial and a real deployment.
+`tale init` writes localhost/self-signed defaults and generates every security secret — the domain choice happens later, at `tale deploy`. It asks once whether agents may run Docker inside their sandboxes (default: no), scaffolds example configs under `default/`, and writes `AGENTS.md` plus a `CLAUDE.md` pointer, with the platform source extracted to `.tale/reference/` so AI-powered editors can create and edit configs with full platform awareness. The same project works for both a local trial and a real deployment.
 
 ### 3. Start Tale
 
@@ -67,11 +67,11 @@ The CLI asks one question — **local trial** or **production domain** — and c
 tale dev
 ```
 
-Visit https://localhost (or your configured domain) when you see "Tale Platform is running!"
+When you see "Tale is running", `tale dev` opens https://localhost (or your configured domain) in your browser — if it cannot, it prints the URL to visit.
 
 > **Note:** Your browser will show a certificate warning for self-signed certificates. This is safe to accept.
 
-For detailed setup instructions, see the [self-hosted quickstart](docs/en/self-hosted/install/quickstart.md).
+For detailed setup instructions, see the [self-hosted quickstart](https://tale.dev/docs/self-hosted/install/quickstart).
 
 ## What can you do?
 
@@ -80,7 +80,7 @@ For detailed setup instructions, see the [self-hosted quickstart](docs/en/self-h
 | **Create custom agents**    | Edit JSON files in `agents/` — define instructions, tools, and models                     |
 | **Build automations**       | Edit JSON files in `workflows/` — triggers, conditions, loops, AI steps                   |
 | **Add integrations**        | Edit files in `integrations/` — REST APIs, SQL databases, custom connectors               |
-| **Use AI to build configs** | Open the project in Claude Code, Cursor, Copilot, or Windsurf — the AI knows your schemas |
+| **Use AI to build configs** | Open the project in your AI editor — `AGENTS.md` and `.tale/reference/` carry the schemas |
 | **Chat with AI assistants** | Built into the platform — start chatting immediately                                      |
 | **Build a knowledge base**  | Upload documents, crawl websites, manage products and customers                           |
 | **Manage conversations**    | Unified inbox for customer conversations with AI-assisted replies                         |
@@ -116,7 +116,7 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
-See the [CLI reference](tools/cli/README.md) for all options and flags. Upgrading an existing deployment requires a one-time manual migration: run `tale migrate config-layout` then `tale deploy --override-all -y`. See [Self-hosted upgrades](docs/en/self-hosted/operate/upgrades.md) for the full runbook.
+See the [CLI reference](tools/cli/README.md) for all options and flags. Upgrading an existing deployment takes two commands: `tale update` moves the CLI and your project files to the new version, then `tale deploy` rolls the containers. See [Self-hosted upgrades](https://tale.dev/docs/self-hosted/operate/upgrades) for the full runbook.
 
 ## Deploy to production
 
@@ -124,11 +124,11 @@ See the [CLI reference](tools/cli/README.md) for all options and flags. Upgradin
 tale deploy
 ```
 
-The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](docs/en/self-hosted/install/linux-server.md).
+The CLI handles blue-green zero-downtime deployments with automatic health checks and rollback. For full production setup including reverse proxy configuration and subpath deployment, see the [Production deployment guide](https://tale.dev/docs/self-hosted/install/linux-server).
 
 ## Authentication options
 
-Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers via Microsoft Entra ID — see the [Integrations overview](docs/en/platform/integrations/overview.md) for the Microsoft 365 connector that powers both document sync and SSO.
+Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers via Microsoft Entra ID — see the [Integrations overview](https://tale.dev/docs/platform/integrations/overview) for the Microsoft 365 connector that powers both document sync and SSO.
 
 - **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD with automatic provisioning
 - **Trusted headers:** For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy)
@@ -172,62 +172,62 @@ Useful when you want fast Vite reloads but a stable Convex backend that mirrors 
 
 ## Documentation
 
-The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [`docs/en/index.md`](docs/en/index.md) to pick an entry point by persona.
+The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) plus regional variants where local wording differs (today: `de-CH`; the loader picks up any new `xx-YY` bundle automatically). Variants carry only the strings that differ from their base; missing keys fall back through the base to English. Start at [tale.dev/docs](https://tale.dev/docs) to pick an entry point by persona (source: [`docs/en/index.md`](docs/en/index.md)).
 
 <details>
 <summary><strong>For everyday users</strong></summary>
 
-- **[Chat overview](docs/en/platform/chat/overview.md)** — the four parts of the screen, where to read deeper
-- **[AI chat basics](docs/en/platform/chat/basics.md)** — composer, agents, model picker, streaming, citations
-- **[Deep research](docs/en/platform/chat/deep-research.md)** — the Researcher agent with live plan and PDF report
-- **[Attachments](docs/en/platform/chat/attachments.md)** — files in chat, RAG vs verbatim
-- **[Shared chats](docs/en/platform/chat/shared-threads.md)** — share a chat with the org, fork into your own
-- **[Approvals](docs/en/platform/approvals/concepts.md)** — review AI actions
+- **[Chat overview](https://tale.dev/docs/platform/chat/overview)** — the four parts of the screen, where to read deeper
+- **[AI chat basics](https://tale.dev/docs/platform/chat/basics)** — composer, agents, model picker, streaming, citations
+- **[Deep research](https://tale.dev/docs/platform/chat/deep-research)** — the Researcher agent with live plan and PDF report
+- **[Attachments](https://tale.dev/docs/platform/chat/attachments)** — files in chat, RAG vs verbatim
+- **[Shared chats](https://tale.dev/docs/platform/chat/shared-threads)** — share a chat with the org, fork into your own
+- **[Approvals](https://tale.dev/docs/platform/approvals/concepts)** — review AI actions
 
 </details>
 
 <details>
 <summary><strong>For builders (agents, automations, integrations)</strong></summary>
 
-- **[Agent concepts](docs/en/platform/agents/concepts.md)** — the four-knob model behind every agent
-- **[Create an agent](docs/en/platform/agents/create.md)** — specialised AI assistants end to end
-- **[Agent tools](docs/en/platform/agents/tools.md)** — the built-in tool families
-- **[Projects](docs/en/platform/projects/overview.md)** — shared workspace for files, chats, project agents
-- **[Automation concepts](docs/en/platform/automations/concepts.md)** — workflows, triggers, approval gates
-- **[Integrations overview](docs/en/platform/integrations/overview.md)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
-- **[Models out of the box](docs/en/platform/models.md)** — OpenRouter as the single default provider, plus the shipped model lists
+- **[Agent concepts](https://tale.dev/docs/platform/agents/concepts)** — the four-knob model behind every agent
+- **[Create an agent](https://tale.dev/docs/platform/agents/create)** — specialised AI assistants end to end
+- **[Agent tools](https://tale.dev/docs/platform/agents/tools)** — the built-in tool families
+- **[Projects](https://tale.dev/docs/platform/projects/overview)** — shared workspace for files, chats, project agents
+- **[Automation concepts](https://tale.dev/docs/platform/automations/concepts)** — workflows, triggers, approval gates
+- **[Integrations overview](https://tale.dev/docs/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, WebDAV, GitHub, Shopify, Tavily, MCP
+- **[Models out of the box](https://tale.dev/docs/platform/models)** — OpenRouter as the single default provider, plus the shipped model lists
 
 </details>
 
 <details>
 <summary><strong>For admins</strong></summary>
 
-- **[Members and roles](docs/en/platform/admin/members-and-roles.md)** — user management and permission matrix
-- **[Models out of the box](docs/en/platform/models.md)** — which models the defaults ship with; swap or add providers
-- **[Integrations overview](docs/en/platform/integrations/overview.md)** — third-party connectors, MCP servers, custom configs
-- **[Cloud trust and compliance](docs/en/cloud/trust-and-compliance.md)** — frameworks, shared responsibility, evidence to hand auditors
+- **[Members and roles](https://tale.dev/docs/platform/admin/members-and-roles)** — user management and permission matrix
+- **[Models out of the box](https://tale.dev/docs/platform/models)** — which models the defaults ship with; swap or add providers
+- **[Integrations overview](https://tale.dev/docs/platform/integrations/overview)** — third-party connectors, MCP servers, custom configs
+- **[Cloud trust and compliance](https://tale.dev/docs/cloud/trust-and-compliance)** — frameworks, shared responsibility, evidence to hand auditors
 
 </details>
 
 <details>
 <summary><strong>For operators</strong></summary>
 
-- **[Self-hosted overview](docs/en/self-hosted/overview.md)** — architecture and services
-- **[Quickstart](docs/en/self-hosted/install/quickstart.md)** — single-host install in twenty minutes
-- **[Production deployment](docs/en/self-hosted/install/linux-server.md)** — Linux server with TLS, firewall, non-root user
-- **[Docker Compose reference](docs/en/self-hosted/install/docker-compose-reference.md)** — base file and overlays
+- **[Self-hosted overview](https://tale.dev/docs/self-hosted/overview)** — architecture and services
+- **[Quickstart](https://tale.dev/docs/self-hosted/install/quickstart)** — single-host install in twenty minutes
+- **[Production deployment](https://tale.dev/docs/self-hosted/install/linux-server)** — Linux server with TLS, firewall, non-root user
+- **[Docker Compose reference](https://tale.dev/docs/self-hosted/install/docker-compose-reference)** — base file and overlays
 - **[Tale CLI](tools/cli/README.md)** — CLI reference
-- **[Environment reference](docs/en/self-hosted/configuration/environment-reference.md)** — all environment variables
-- **[Container architecture](docs/en/self-hosted/operate/container-architecture.md)** — seven containers, what owns what
+- **[Environment reference](https://tale.dev/docs/self-hosted/configuration/environment-reference)** — all environment variables
+- **[Container architecture](https://tale.dev/docs/self-hosted/operate/container-architecture)** — seven containers, what owns what
 
 </details>
 
 <details>
 <summary><strong>For developers</strong></summary>
 
-- **[API reference](docs/en/develop/api-reference.md)** — REST API for agents, chat, knowledge, and workflows
-- **[Webhooks](docs/en/develop/webhooks.md)** — workflow and agent webhooks with signature verification
-- **[Develop overview](docs/en/develop/overview.md)** — the developer surface end to end
+- **[API reference](https://tale.dev/docs/develop/api-reference)** — REST API for agents, chat, knowledge, and workflows
+- **[Webhooks](https://tale.dev/docs/develop/webhooks)** — workflow and agent webhooks with signature verification
+- **[Develop overview](https://tale.dev/docs/develop/overview)** — the developer surface end to end
 
 </details>
 

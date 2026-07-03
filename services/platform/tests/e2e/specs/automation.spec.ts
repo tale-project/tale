@@ -36,8 +36,17 @@ test('runs the seeded test automation to completion', async ({ page, org }) => {
         name: t('automations.createDialog.tabTemplate'),
       })
       .click();
+    // Clicking a template card only selects it; the dialog's footer Install
+    // button performs the install and navigates to the new automation.
     await page
       .getByRole('button', { name: SEEDED_WORKFLOW_NAME, exact: true })
+      .click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', {
+        name: t('automations.createDialog.install'),
+        exact: true,
+      })
       .click();
   }
   await page.waitForURL(/\/automations\/test(?:[/?#]|$)/, {
