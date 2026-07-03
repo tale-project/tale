@@ -911,7 +911,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Démarrage rapide auto-hébergé",
-      "description": "Fais tourner une instance Tale sur ta machine en trois commandes avec la CLI tale — installer, tale init, tale dev, puis se connecter."
+      "description": "Fais tourner une instance Tale sur ta machine — installe la CLI tale, puis deux commandes, et l'assistant de configuration fait de toi l'Owner."
     }
   },
   "fr:self-hosted/install/first-admin": {
@@ -2055,7 +2055,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted quickstart",
-      "description": "Get a working Tale instance running on your machine in three commands with the tale CLI — install, tale init, tale dev, then sign in."
+      "description": "Get a working Tale instance running on your machine — install the tale CLI, then two commands, and the setup wizard makes you the Owner."
     }
   },
   "en:self-hosted/install/first-admin": {
@@ -3199,7 +3199,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Self-hosted Quickstart",
-      "description": "Bring eine funktionierende Tale-Instanz mit der tale-CLI in drei Befehlen auf deine Maschine — installieren, tale init, tale dev, dann anmelden."
+      "description": "Bring eine funktionierende Tale-Instanz auf deine Maschine — installier die tale-CLI, dann zwei Befehle, und der Setup-Wizard macht dich zum Owner."
     }
   },
   "de:self-hosted/install/first-admin": {

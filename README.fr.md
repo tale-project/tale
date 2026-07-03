@@ -22,7 +22,7 @@ Mets en commun leurs connaissances, délègue des tâches et construis ton essai
 
 ---
 
-Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, automatisations et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI et lance une seule commande pour démarrer.
+Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI que ton équipe utilise déjà en une force de travail coordonnée. Donne-leur une base de connaissances partagée, branche tes outils et tes intégrations, et délègue le travail entre eux — agents, automatisations et un inbox unifié, le tout sur ta propre infrastructure. Installe le CLI, puis deux commandes suffisent pour démarrer.
 
 **Choisis ta voie :**
 
@@ -32,7 +32,7 @@ Tale est une **plateforme IA auto-hébergée** qui transforme les agents et CLI 
 
 ## Démarrage rapide
 
-Fais tourner Tale sur ta machine en trois commandes — installe la CLI, échafaude un projet, démarre-le. La CLI installe Docker s'il est absent et génère chaque secret pour toi, donc il n'y a rien à installer au préalable ni à éditer à la main.
+Fais tourner Tale sur ta machine — installe la CLI, puis deux commandes : échafaude un projet, démarre-le. La CLI installe Docker s'il est absent et génère chaque secret pour toi, donc il n'y a rien à installer au préalable ni à éditer à la main.
 
 **Prérequis pour un essai local : aucun.** L'installeur met en place Docker pour toi, et `tale init` génère chaque secret — tu n'as rien à apporter pour faire tourner la stack. Une [clé API OpenRouter](https://openrouter.ai) (ou tout fournisseur compatible OpenAI) est optionnelle et n'est nécessaire qu'avant qu'un agent puisse répondre : tu l'ajoutes dans l'app après l'inscription, dans l'assistant de configuration ou sous **Paramètres → Fournisseurs IA**. `tale init` ne la demande pas.
 
@@ -59,7 +59,7 @@ tale init my-project
 cd my-project
 ```
 
-Le CLI pose une seule question — **essai local** ou **domaine de production** — et configure tout pour cette cible : TLS, tous les secrets de sécurité, les fichiers de configuration pour les éditeurs IA et le code source de la plateforme extrait dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme. Le même projet fonctionne pour un essai local comme pour un vrai déploiement.
+`tale init` écrit des valeurs par défaut localhost avec un certificat auto-signé et génère chaque secret de sécurité — le domaine se choisit plus tard, à `tale deploy`. Il demande une seule fois si les agents peuvent lancer Docker dans leurs sandboxes (par défaut : non), échafaude des configs d'exemple sous `default/` et écrit `AGENTS.md` plus un pointeur `CLAUDE.md`, avec le code source de la plateforme extrait dans `.tale/reference/` pour que les éditeurs IA puissent créer et modifier des configs en connaissant la plateforme. Le même projet fonctionne pour un essai local comme pour un vrai déploiement.
 
 ### 3. Démarrer Tale
 
@@ -67,7 +67,7 @@ Le CLI pose une seule question — **essai local** ou **domaine de production** 
 tale dev
 ```
 
-Ouvre https://localhost (ou ton domaine configuré) dès que tu vois « Tale Platform is running! »
+Dès que tu vois « Tale is running », `tale dev` ouvre https://localhost (ou ton domaine configuré) dans ton navigateur — s'il ne peut pas, il imprime l'URL à visiter.
 
 > **Note :** ton navigateur affichera un avertissement de certificat pour les certificats auto-signés. C'est sûr de l'accepter.
 
@@ -75,16 +75,16 @@ Pour les instructions détaillées d'installation, voir le [démarrage rapide au
 
 ## Que peux-tu faire ?
 
-| Objectif                            | Comment                                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Créer des agents personnalisés**  | Modifier les fichiers JSON dans `agents/` — instructions, outils et modèles                 |
-| **Construire des automatisations**  | Modifier les fichiers JSON dans `workflows/` — déclencheurs, conditions, boucles, étapes IA |
-| **Ajouter des intégrations**        | Modifier les fichiers dans `integrations/` — APIs REST, bases SQL, connecteurs sur mesure   |
-| **Construire des configs avec IA**  | Ouvrir le projet dans Claude Code, Cursor, Copilot ou Windsurf — l'IA connaît tes schémas   |
-| **Discuter avec l'IA**              | Intégré dans la plateforme — disponible immédiatement                                       |
-| **Bâtir une base de connaissances** | Téléverser des documents, crawler des sites, gérer produits et clients                      |
-| **Gérer les conversations**         | Inbox unifié pour les conversations clients avec réponses assistées par IA                  |
-| **Voir les données backend**        | Lancer `tale convex admin` et ouvrir le Convex Dashboard                                    |
+| Objectif                            | Comment                                                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Créer des agents personnalisés**  | Modifier les fichiers JSON dans `agents/` — instructions, outils et modèles                  |
+| **Construire des automatisations**  | Modifier les fichiers JSON dans `workflows/` — déclencheurs, conditions, boucles, étapes IA  |
+| **Ajouter des intégrations**        | Modifier les fichiers dans `integrations/` — APIs REST, bases SQL, connecteurs sur mesure    |
+| **Construire des configs avec IA**  | Ouvrir le projet dans ton éditeur IA — `AGENTS.md` et `.tale/reference/` portent les schémas |
+| **Discuter avec l'IA**              | Intégré dans la plateforme — disponible immédiatement                                        |
+| **Bâtir une base de connaissances** | Téléverser des documents, crawler des sites, gérer produits et clients                       |
+| **Gérer les conversations**         | Inbox unifié pour les conversations clients avec réponses assistées par IA                   |
+| **Voir les données backend**        | Lancer `tale convex admin` et ouvrir le Convex Dashboard                                     |
 
 Tous les fichiers dans `agents/`, `workflows/` et `integrations/` sont rechargés à chaud — modifie et vois les changements immédiatement.
 
@@ -97,7 +97,7 @@ tale init [directory]              # Créer un nouveau projet avec des configs d
 tale dev                           # Démarrer tous les services localement
 tale dev --detach                  # Démarrer en arrière-plan
 tale dev --port 8443               # Utiliser un port HTTPS personnalisé
-tale upgrade                       # Mettre à jour le CLI et synchroniser les fichiers du projet
+tale update                        # Mettre à jour le CLI + synchroniser les fichiers du projet (puis `tale deploy` ; le CLI se réaligne automatiquement)
 tale convex admin                  # Générer une clé admin du Convex Dashboard
 tale config                        # Gérer la configuration du CLI
 ```
@@ -116,7 +116,7 @@ tale cleanup                       # Supprimer les conteneurs inactifs
 tale reset --force                 # Supprimer tous les conteneurs
 ```
 
-Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Mettre à jour un déploiement existant nécessite une migration manuelle unique : exécute `tale migrate config-layout` puis `tale deploy --override-all -y`. Le runbook complet se trouve dans [Mises à niveau auto-hébergées](docs/fr/self-hosted/operate/upgrades.md).
+Voir la [référence du CLI](tools/cli/README.md) pour toutes les options et flags. Mettre à jour un déploiement existant tient en deux commandes : `tale update` fait passer le CLI et tes fichiers de projet à la nouvelle version, puis `tale deploy` fait tourner les conteneurs. Le runbook complet se trouve dans [Mises à niveau auto-hébergées](docs/fr/self-hosted/operate/upgrades.md).
 
 ## Déployer en production
 
