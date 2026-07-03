@@ -118,3 +118,19 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
     expect(b('    at frame').kind).toBe('noise');
   });
 });
+
+describe('createStreamClassifier — blockEnd', () => {
+  it('a blockEnd line closes an armed error block (failed push must not paint later runtime logs)', () => {
+    const stream = createStreamClassifier(classifyConvex);
+    expect(stream('✖ Hit an error while pushing:').kind).toBe('error');
+    // Push-error prose stays surfaced…
+    expect(stream('TypeScript typecheck failed').kind).toBe('error');
+    // …until a runtime function log arrives, which is clearly a new event.
+    const success = stream(
+      "7/3/2026, 5:44:46 PM [CONVEX A(agents/x:y)] [LOG] 'tool success' {",
+    );
+    expect(success.kind).toBe('noise');
+    // And the stream is back to normal afterwards.
+    expect(stream('some unrelated chatter').kind).toBe('noise');
+  });
+});

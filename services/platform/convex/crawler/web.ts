@@ -95,12 +95,26 @@ export const fetchAndExtract = internalAction({
     }
 
     const timeoutMs = args.timeout ?? 60_000;
-    const result = await crawlUrl(args.url, {
-      timeoutMs,
-      renderContext: args.organizationId
-        ? { ctx, organizationId: args.organizationId }
-        : undefined,
-    });
+    let result;
+    try {
+      result = await crawlUrl(args.url, {
+        timeoutMs,
+        renderContext: args.organizationId
+          ? { ctx, organizationId: args.organizationId }
+          : undefined,
+      });
+    } catch (error) {
+      // Network-level failures (connection reset, DNS, TLS) throw out of
+      // fetch instead of returning a status code — return the same structured
+      // failure an HTTP error gets, rather than an uncaught action error.
+      console.warn('[knowledge] fetch threw for', args.url, error);
+      return {
+        success: false,
+        url: args.url,
+        content_type: 'webpage',
+        error: `Failed to fetch ${args.url}: ${error instanceof Error ? error.message : 'network error'}`,
+      };
+    }
 
     if (result.content === null) {
       return {

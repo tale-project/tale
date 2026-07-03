@@ -12,6 +12,34 @@ import { noise } from '../kinds';
 
 export const classifyConvex: Classifier = (line) => {
   const body = stripAnsi(line);
+  // Runtime function-log lines (`<timestamp> [CONVEX A(...)] [LOG] …`) carry
+  // their own severity tag and are clearly NOT the left-aligned prose body of
+  // a push failure — they end any armed error block (`blockEnd`). Without
+  // this, one failed push painted every later runtime log line (successes
+  // included) with the error marker until the next successful push.
+  const runtimeLog = /\[CONVEX [A-Z]+\([^)]*\)\]/.test(body);
+  if (runtimeLog) {
+    if (/\[ERROR\]|Uncaught/.test(body)) {
+      return {
+        kind: 'error',
+        text: body,
+        raw: line,
+        source: 'convex',
+        blockEnd: true,
+      };
+    }
+    if (/\[WARN\]/.test(body)) {
+      return {
+        kind: 'warn',
+        text: body,
+        raw: line,
+        source: 'convex',
+        blockEnd: true,
+      };
+    }
+    return { ...noise(line, 'convex'), blockEnd: true };
+  }
+
   // Push/deploy failure header. Convex prints the server error on the FOLLOWING
   // lines as left-aligned prose (not an indented stack), so flag it as a block
   // error — the stream classifier then keeps that body surfaced until the next
