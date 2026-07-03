@@ -10,6 +10,7 @@ import {
   useRef,
 } from 'react';
 
+import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { cn } from '../../lib/cn';
 import { FALLBACK_GROUP, humanizeGroupKey } from './group-by';
 import { SearchCommandInput } from './search-command-input';
@@ -70,6 +71,10 @@ export function SearchCommand({
 }: SearchCommandProps) {
   const labels = useSearchCommandLabels(labelOverrides);
   const reduceMotion = useReducedMotion() ?? false;
+  // The palette opens programmatically (Cmd/Ctrl+K) with no Dialog.Trigger, so
+  // Radix has nothing to restore focus to on close and it falls to <body>
+  // (WCAG 2.4.3). Capture the opener and refocus it on close.
+  const restoreFocus = useRestoreFocus(open);
 
   const select = useCallback(
     (result: SearchResult) => {
@@ -209,7 +214,12 @@ export function SearchCommand({
                 className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md"
               />
             </Dialog.Overlay>
-            <Dialog.Content asChild aria-modal="true" aria-label={labels.title}>
+            <Dialog.Content
+              asChild
+              aria-modal="true"
+              aria-label={labels.title}
+              onCloseAutoFocus={restoreFocus}
+            >
               <motion.div
                 key="search-dialog"
                 initial={

@@ -2,6 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { useRestoreFocus } from '@tale/ui/use-restore-focus';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
@@ -165,6 +166,9 @@ export function Dialog({
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
   const isNested = parentDepth > 0;
+  // Without a `trigger`, Radix has no element to restore focus to on close, so
+  // focus falls to <body> (WCAG 2.4.3). Capture the opener and refocus it.
+  const restoreFocus = useRestoreFocus(open);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
@@ -186,7 +190,7 @@ export function Dialog({
               ? { 'aria-describedby': undefined }
               : {})}
             onCloseAutoFocus={
-              preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
+              preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }
           >
             {!hideClose && !customHeader && (
