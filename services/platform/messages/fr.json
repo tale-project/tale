@@ -210,6 +210,7 @@
       "error": "Impossible de charger le workflow : {error}"
     },
     "runs": {
+      "backToApp": "Retour à l'application",
       "none": "Aucune exécution pour le moment.",
       "colRun": "Exécution",
       "colStatus": "Statut",

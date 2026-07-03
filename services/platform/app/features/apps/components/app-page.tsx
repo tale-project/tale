@@ -40,6 +40,7 @@ import {
   type AppSummary,
   type AppTabDoc,
   type AppViewDoc,
+  useAppCatalog,
   useApps,
 } from '../hooks/use-apps';
 import {
@@ -713,10 +714,18 @@ export function AppPage({
   const { t } = useT('apps');
   const { locale } = useLocale();
   const { apps, isLoading } = useApps(organizationId);
+  // Fall back to the built-in catalog so a not-yet-installed app discovered in
+  // the hub resolves to its pre-install AppDetails page instead of "App not
+  // found". The installed entry wins (it carries the full per-install data);
+  // this mirrors the union in apps-grid.tsx.
+  const { apps: catalog, isLoading: catalogLoading } =
+    useAppCatalog(organizationId);
   const { bySlug, isLoading: stateLoading } =
     useAppInstallStates(organizationId);
 
-  const app = apps.find((a) => a.slug === appSlug);
+  const app =
+    apps.find((a) => a.slug === appSlug) ??
+    catalog.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
   const { bindings } = useAppBindings(organizationId, appSlug);
 
@@ -725,7 +734,7 @@ export function AppPage({
     [app?.messages, locale],
   );
 
-  if ((isLoading && !app) || stateLoading) {
+  if (((isLoading || catalogLoading) && !app) || stateLoading) {
     return <SkeletonText lines={6} />;
   }
   if (!app) {

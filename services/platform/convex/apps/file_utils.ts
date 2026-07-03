@@ -24,6 +24,33 @@ export function resolveAppsDir(orgSlug: string): string {
   return path.join(getConfigRoot('apps'), orgSlug, 'apps');
 }
 
+const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
+
+/**
+ * The built-in app catalog dir (`<builtin>/apps`) — the read-only source of
+ * installable apps the Apps hub discovers and `installApp` copies from. The
+ * catalog is the generic built-in dir (`TALE_CONFIG_BUILTIN_DIR`), whose
+ * children are the domains, so apps live at `<catalog>/apps/<slug>` with no
+ * `default`/org level and no fallback. Required: dev/prod/E2E all set the env.
+ */
+export function resolveCatalogAppsDir(): string {
+  const catalogRoot = process.env[BUILTIN_ENV];
+  if (!catalogRoot) {
+    throw new Error(
+      `${BUILTIN_ENV} is not set; cannot resolve the built-in app catalog`,
+    );
+  }
+  return path.join(catalogRoot, 'apps');
+}
+
+/** The catalog bundle dir for one app (`<builtin>/apps/<slug>`). */
+export function resolveCatalogAppDir(slug: string): string {
+  if (!isValidAppSlug(slug)) {
+    throw new Error(`Invalid app slug: ${slug}`);
+  }
+  return path.join(resolveCatalogAppsDir(), slug);
+}
+
 /**
  * Slugs of the apps installed in this org, by scanning `org/apps/` subdirectories.
  * The on-disk bundle is the source of truth for which app owns a resource, so the

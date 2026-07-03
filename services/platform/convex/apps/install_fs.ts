@@ -30,9 +30,7 @@ import {
   pathsOverlap,
   writeFileFromCatalog,
 } from '../organizations/scaffold';
-import { resolveAppDir } from './file_utils';
-
-const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
+import { resolveAppDir, resolveCatalogAppDir } from './file_utils';
 
 /**
  * Bundle subdirs that fan OUT into the org's SHARED domain dirs and so need a
@@ -66,19 +64,12 @@ export async function readAppBundleManifest(
 }
 
 /**
- * The app's bundle dir in the built-in catalog (read-only source). The catalog
- * is the generic built-in dir (`TALE_CONFIG_BUILTIN_DIR`), whose children are
- * the domains — so apps live at `<catalog>/apps/<slug>`, with no `default`/org
- * level and no fallback. Required: dev/prod/E2E all set the env.
+ * The app's bundle dir in the built-in catalog (read-only source) — the shared
+ * resolver in `file_utils`, the single source of truth for both the hub's
+ * catalog discovery and this install copy.
  */
 function appBundleTemplateDir(appSlug: string): string {
-  const catalogRoot = process.env[BUILTIN_ENV];
-  if (!catalogRoot) {
-    throw new Error(
-      `${BUILTIN_ENV} is not set; cannot resolve the built-in app catalog`,
-    );
-  }
-  return path.join(catalogRoot, 'apps', appSlug);
+  return resolveCatalogAppDir(appSlug);
 }
 
 /** Whether the slug names a first-party app in the built-in catalog. */
