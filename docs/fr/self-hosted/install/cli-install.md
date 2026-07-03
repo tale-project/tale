@@ -30,7 +30,7 @@ Sur Windows PowerShell :
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Les deux installeurs détectent l'OS, récupèrent le binaire de release correspondant depuis la dernière release GitHub, et le déposent sur le `PATH` (`/usr/local/bin/tale` ou `%LOCALAPPDATA%\Programs\tale\tale.exe`) — quand le répertoire d'installation n'est pas accessible en écriture, l'installeur demande `sudo`. Les binaires de release n'existent que pour macOS sur Apple Silicon (arm64) et Linux sur x86_64 ; sur toute autre architecture, l'installeur s'arrête avec un message clair et renvoie vers la compilation depuis les sources. Pour fixer une version, règle la variable d'environnement `VERSION` avant de piper dans l'installeur.
+Les deux installeurs détectent l'OS et l'architecture CPU, récupèrent le binaire de release correspondant depuis la dernière release GitHub, et le déposent sur le `PATH` (`/usr/local/bin/tale` ou `%LOCALAPPDATA%\Programs\tale\tale.exe`) — quand le répertoire d'installation n'est pas accessible en écriture, l'installeur demande `sudo`. Les binaires de release existent pour macOS sur Apple Silicon et Intel, et pour Linux sur x86_64 et arm64 ; les machines Windows-on-ARM exécutent le binaire x64 via l'émulation intégrée. Sur une architecture sans binaire de release, l'installeur s'arrête avec un message clair et renvoie vers la compilation depuis les sources. Pour fixer une version, règle la variable d'environnement `VERSION` avant de piper dans l'installeur ; pour choisir toi-même le répertoire d'installation, règle `INSTALL_DIR`.
 
 | OS      | Script d'installeur       |
 | ------- | ------------------------- |

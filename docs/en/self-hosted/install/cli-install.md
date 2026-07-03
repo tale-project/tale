@@ -30,7 +30,7 @@ On Windows PowerShell:
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Both installers detect the OS, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`) — asking for `sudo` when the install directory is not writable. Release binaries ship for Apple-silicon macOS (arm64) and x86_64 Linux only; on any other architecture the installer exits with a clear message and points you at building from source. To pin a version, set the `VERSION` environment variable before piping into the installer.
+Both installers detect the OS and CPU architecture, pull the matching release binary from the latest GitHub release, and drop it on the `PATH` (`/usr/local/bin/tale` or `%LOCALAPPDATA%\Programs\tale\tale.exe`) — asking for `sudo` when the install directory is not writable. Release binaries ship for macOS on Apple Silicon and Intel, and for Linux on x86_64 and arm64; Windows-on-ARM machines run the x64 binary through the built-in emulation. On an architecture without a released binary, the installer exits with a clear message and points you at building from source. To pin a version, set the `VERSION` environment variable before piping into the installer; to pick the install directory yourself, set `INSTALL_DIR`.
 
 | OS      | Installer script          |
 | ------- | ------------------------- |
