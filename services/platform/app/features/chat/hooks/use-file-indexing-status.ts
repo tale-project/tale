@@ -4,8 +4,10 @@ import { useAction } from 'convex/react';
 import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
 
 import type { FileAttachment } from './use-convex-file-upload';
 
@@ -31,6 +33,7 @@ export function useFileIndexingStatus(
   attachments: FileAttachment[],
   organizationId: string,
 ) {
+  const { t } = useT('chat');
   const fileIds = useMemo(
     () =>
       attachments
@@ -58,6 +61,45 @@ export function useFileIndexingStatus(
     }
     return map;
   }, [metadata]);
+
+  // Deferred upload feedback (#1457): the composer suppresses the
+  // "uploaded successfully" toast for files that get RAG-indexed because
+  // indexing runs asynchronously and can still fail. We own the terminal
+  // signal here — when a tracked file transitions out of a pending state
+  // (queued/running) into `completed` we fire the success toast, and into
+  // `failed` we fire the "Index failed" error toast. Keying on the
+  // transition (not the absolute status) means a remount that observes an
+  // already-finished file stays silent, and the success toast fires exactly
+  // once per upload.
+  const prevStatusRef = useRef(new Map<Id<'_storage'>, RagStatus>());
+
+  useEffect(() => {
+    if (!metadata) return;
+    const prev = prevStatusRef.current;
+    for (const m of metadata) {
+      const before = prev.get(m.storageId);
+      const current = m.ragStatus;
+      if (before === current) continue;
+      const wasPending = before === 'queued' || before === 'running';
+      if (wasPending && current === 'completed') {
+        toast({
+          title: t('fileUploaded'),
+          description: t('uploadedSuccessfully', { filename: m.fileName }),
+        });
+      } else if (wasPending && current === 'failed') {
+        toast({
+          title: t('indexingFailed'),
+          description: t('indexingFailedDescription', { filename: m.fileName }),
+          variant: 'destructive',
+        });
+      }
+      if (current === undefined) {
+        prev.delete(m.storageId);
+      } else {
+        prev.set(m.storageId, current);
+      }
+    }
+  }, [metadata, t]);
 
   const isIndexing = useMemo(() => {
     if (!metadata || fileIds.length === 0) return false;
