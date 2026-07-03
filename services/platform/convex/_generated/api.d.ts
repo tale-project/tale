@@ -1145,6 +1145,7 @@ import type * as provisioning from "../provisioning.js";
 import type * as provisioning_provision_default_agents from "../provisioning/provision_default_agents.js";
 import type * as provisioning_provision_default_prompts from "../provisioning/provision_default_prompts.js";
 import type * as provisioning_provision_task_ops_pack from "../provisioning/provision_task_ops_pack.js";
+import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.js";
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as rag_documents from "../rag/documents.js";
 import type * as rag_lib_config from "../rag/lib/config.js";
@@ -2779,6 +2780,7 @@ declare const fullApi: ApiFromModules<{
   "provisioning/provision_default_agents": typeof provisioning_provision_default_agents;
   "provisioning/provision_default_prompts": typeof provisioning_provision_default_prompts;
   "provisioning/provision_task_ops_pack": typeof provisioning_provision_task_ops_pack;
+  "provisioning/seed_dev_user": typeof provisioning_seed_dev_user;
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "rag/documents": typeof rag_documents;
   "rag/lib/config": typeof rag_lib_config;

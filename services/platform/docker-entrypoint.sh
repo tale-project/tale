@@ -72,6 +72,9 @@ VITE_PID=""
 # Set by the dev hot-reload watchers (empty in prod).
 CONVEX_DEV_PID=""
 FRONTEND_WATCH_PID=""
+# Outcome of the dev-login seed step (seeded/skipped/failed, empty when the
+# gate is off) — the final banner only prints credentials for "seeded".
+DEV_SEED_STATUS=""
 
 shutdown() {
   log_section "Platform graceful shutdown"
@@ -213,6 +216,19 @@ dump_diagnostics() {
   echo "  Memory:      $(free -h 2>/dev/null | awk '/^Mem:/ {print $3" / "$2}')"
   echo "──────────────────────────────────────"
   echo
+}
+
+# Dev-login seeding (docker:dev convenience): coarse gate deciding whether to
+# invoke the seed action and print the credentials banner. Dev image only +
+# the TALE_DEV_SEED_USER flag (default on in compose.dev.yml, opt out with
+# 0/false/no/off). The action itself (convex/provisioning/seed_dev_user.ts)
+# owns the real gating, including refusing non-loopback SITE_URLs.
+dev_seed_enabled() {
+  [ "${NODE_ENV:-}" = "development" ] || return 1
+  case "$(printf '%s' "${TALE_DEV_SEED_USER:-}" | tr '[:upper:]' '[:lower:]')" in
+    '' | 0 | false | no | off) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 # ============================================================================
@@ -447,6 +463,32 @@ deploy_convex_functions() {
       log_ok "Convex data migrations complete"
     else
       log_error "Convex data migrations failed (exit code: $migrations_exit) — platform will continue; legacy data may need manual backfill."
+    fi
+
+    # Dev-only: seed a ready-to-log-in account + organization so a fresh
+    # docker:dev stack is testable without a manual /setup pass. Idempotent
+    # (re-runs no-op) and non-fatal like provisioning: a failure logs, the
+    # next boot retries, and /setup keeps working as the fallback. The action
+    # may also refuse to seed (e.g. non-loopback SITE_URL) — track the real
+    # outcome so the credentials banner never advertises an account that was
+    # not created.
+    if dev_seed_enabled; then
+      log_info "Seeding dev login account (TALE_DEV_SEED_USER)..."
+      local seed_output seed_exit=0
+      seed_output=$(timeout 120 bunx convex run provisioning/seed_dev_user:seedDevUser \
+        --url "$CONVEX_URL" \
+        --admin-key "$ADMIN_KEY" 2>&1) || seed_exit=$?
+      printf '%s\n' "$seed_output"
+      if [ $seed_exit -eq 0 ] && printf '%s' "$seed_output" | grep -q '"status": "seeded"'; then
+        DEV_SEED_STATUS=seeded
+        log_ok "Dev login ready"
+      elif [ $seed_exit -eq 0 ]; then
+        DEV_SEED_STATUS=skipped
+        log_info "Dev login seeding skipped (see action output above)"
+      else
+        DEV_SEED_STATUS=failed
+        log_warn "Dev login seed failed (exit code: $seed_exit) — continuing; register via /setup or retry on next boot."
+      fi
     fi
 
     return 0
@@ -735,6 +777,16 @@ echo "   Application:       ${DISPLAY_BASE_URL}"
 echo "   Convex API (WS):   ${DISPLAY_BASE_URL}/ws_api"
 echo "   Convex Actions:    ${DISPLAY_BASE_URL}/http_api"
 echo "   Convex Dashboard:  ${DISPLAY_BASE_URL}/convex-dashboard"
+if [ "$DEV_SEED_STATUS" = "seeded" ]; then
+  # Defaults mirror convex/provisioning/seed_dev_user.ts (keep in lockstep).
+  # A custom password is intentionally never echoed.
+  echo "   Dev login:         ${TALE_DEV_SEED_USER_EMAIL:-dev@tale.test}"
+  if [ -z "${TALE_DEV_SEED_USER_PASSWORD:-}" ]; then
+    echo "   Dev password:      TaleDev!Passw0rd"
+  else
+    echo "   Dev password:      (from TALE_DEV_SEED_USER_PASSWORD)"
+  fi
+fi
 echo
 
 wait "$VITE_PID"
