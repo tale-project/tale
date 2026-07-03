@@ -1323,6 +1323,7 @@
       "viewProvider": "Voir les paramètres du fournisseur",
       "viewInfo": "Détails du modèle",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
+      "noProviderKey": "Aucun fournisseur d’IA n’est encore connecté — ajoute une clé API dans Paramètres → Fournisseurs d’IA pour commencer à discuter.",
       "info": {
         "provider": "Fournisseur",
         "type": "Type",

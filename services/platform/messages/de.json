@@ -1322,6 +1322,7 @@
       "viewProvider": "Anbietereinstellungen anzeigen",
       "viewInfo": "Modelldetails",
       "noApiKey": "Für den Anbieter dieses Modells ist kein API-Schlüssel konfiguriert — füge in Einstellungen → KI-Anbieter einen hinzu.",
+      "noProviderKey": "Noch kein KI-Anbieter verbunden — hinterlege in Einstellungen → KI-Anbieter einen API-Schlüssel, um loszulegen.",
       "info": {
         "provider": "Anbieter",
         "type": "Typ",

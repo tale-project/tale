@@ -1322,6 +1322,7 @@
       "viewProvider": "View provider settings",
       "viewInfo": "Model details",
       "noApiKey": "No API key configured for this model's provider — add one in Settings → AI providers.",
+      "noProviderKey": "No AI provider is connected yet — add an API key in Settings → AI providers to start chatting.",
       "info": {
         "provider": "Provider",
         "type": "Type",
