@@ -20,7 +20,7 @@ const FALSY_FLAG_VALUES = new Set(['0', 'false', 'no', 'off']);
 /** Same loopback list as the HTTPS guard at the top of convex/auth.ts. */
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
-export type DevSeedConfig =
+type DevSeedConfig =
   | {
       enabled: true;
       email: string;
