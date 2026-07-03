@@ -8,6 +8,7 @@ import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './ge
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
+import { listFilesByFolder } from './list_files_by_folder';
 import { listIndexedDocumentsForAgent as listIndexedDocumentsForAgentHelper } from './list_indexed_documents_for_agent';
 import { listOrphanedExternalDocs as listOrphanedExternalDocsHelper } from './list_orphaned_external_docs';
 import { sourceProviderValidator } from './validators';
@@ -198,5 +199,31 @@ export const getAgentScopedFileIds = internalQuery({
   },
   handler: async (ctx, args) => {
     return await getAgentScopedFileIdsHelper(ctx, args);
+  },
+});
+
+/**
+ * Files DIRECTLY inside one folder — see {@link listFilesByFolder}. Auth-free
+ * by design: the caller is the workflow sandbox-staging action, which acts
+ * with workflow authority (the org boundary is still enforced via
+ * `organizationId` on the index / path lookup).
+ */
+export const listFilesByFolderInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    folderId: v.optional(v.id('folders')),
+    folderPath: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.null(),
+    v.array(
+      v.object({
+        fileId: v.id('_storage'),
+        name: v.string(),
+      }),
+    ),
+  ),
+  handler: async (ctx, args) => {
+    return await listFilesByFolder(ctx, args);
   },
 });

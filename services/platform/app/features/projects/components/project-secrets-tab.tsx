@@ -15,6 +15,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { SECRET_NAME_MAX, SECRET_NAME_RE } from '@/lib/shared/schemas/secrets';
 
 import {
   useDeleteProjectSecret,
@@ -100,6 +101,15 @@ export function ProjectSecretsTab({
         : t('valueLabel');
 
   const isEditing = editingName !== null;
+
+  // Mirror the server's env-var-name rule (SECRET_NAME_RE) client-side so an
+  // invalid or whitespace-only name is caught inline — disabling Save and showing
+  // a message — instead of round-tripping to a generic SECRET_NAME_INVALID toast
+  // that leaves the dialog stuck. An existing secret's name is fixed and already
+  // valid, so only the create path is checked.
+  const nameValid = isEditing || SECRET_NAME_RE.test(name.trim());
+  const nameError =
+    !isEditing && name.length > 0 && !nameValid ? t('nameInvalid') : undefined;
 
   const isDirty = isEditing
     ? value.length > 0 || description.trim().length > 0
@@ -254,6 +264,7 @@ export function ProjectSecretsTab({
         title={isEditing ? t('editTitle') : t('addButton')}
         isSubmitting={setSecret.isPending}
         isDirty={isDirty}
+        isValid={nameValid}
         onSubmit={handleSave}
       >
         {!isEditing && (
@@ -278,8 +289,10 @@ export function ProjectSecretsTab({
           // The name is the env-var key agents resolve — editing it would orphan
           // references, so it's fixed once created.
           disabled={setSecret.isPending || isEditing}
-          maxLength={type === 'basic' ? 50 : 64}
+          // `basic` appends `_USERNAME` / `_PASSWORD`, so leave room under the cap.
+          maxLength={type === 'basic' ? 50 : SECRET_NAME_MAX}
           required
+          errorMessage={nameError}
         />
         {type === 'basic' && !isEditing && (
           <Text variant="caption" className="-mt-2">

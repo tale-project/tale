@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareVersions,
+  deriveNativeModelId,
   isFlagshipChatModel,
   type ModelFacts,
   parseModelId,
@@ -121,6 +122,76 @@ describe('syncProviderModels — cost (3-way, per sub-field)', () => {
   });
 });
 
+describe('deriveNativeModelId', () => {
+  it('derives the Anthropic-native id (vendor prefix off, dots to dashes)', () => {
+    expect(deriveNativeModelId('anthropic/claude-opus-4.8')).toBe(
+      'claude-opus-4-8',
+    );
+    expect(deriveNativeModelId('anthropic/claude-fable-5')).toBe(
+      'claude-fable-5',
+    );
+  });
+
+  it('leaves other vendors and rolling aliases to human curation', () => {
+    expect(deriveNativeModelId('openai/gpt-5.5')).toBeUndefined();
+    expect(
+      deriveNativeModelId('~anthropic/claude-fable-latest'),
+    ).toBeUndefined();
+  });
+});
+
+describe('syncProviderModels — rolling alias retrack (nativeModelId)', () => {
+  const alias = () =>
+    chat('~anthropic/claude-fable-latest', {
+      nativeModelId: 'claude-fable-5',
+    });
+
+  it('points the alias at a same-family flagship added in the same run', () => {
+    const current = [
+      chat('anthropic/claude-fable-5', { nativeModelId: 'claude-fable-5' }),
+      alias(),
+    ];
+    const facts = [
+      fact('anthropic/claude-fable-6', { displayName: 'Claude Fable 6' }),
+    ];
+    const { models, changes } = syncProviderModels({ current, facts });
+    const tracked = models.find(
+      (m) => m.id === '~anthropic/claude-fable-latest',
+    );
+    expect(tracked?.nativeModelId).toBe('claude-fable-6');
+    expect(changes).toContainEqual({
+      kind: 'updated',
+      modelId: '~anthropic/claude-fable-latest',
+      fields: ['nativeModelId'],
+    });
+  });
+
+  it('leaves an operator-edited nativeModelId untouched (3-way)', () => {
+    const base = [alias()];
+    const current = [
+      chat('anthropic/claude-fable-6', { nativeModelId: 'claude-fable-6' }),
+      chat('~anthropic/claude-fable-latest', {
+        nativeModelId: 'my-custom-deployment',
+      }),
+    ];
+    const { models } = syncProviderModels({ current, base, facts: [] });
+    const tracked = models.find(
+      (m) => m.id === '~anthropic/claude-fable-latest',
+    );
+    expect(tracked?.nativeModelId).toBe('my-custom-deployment');
+  });
+
+  it('is a no-op without a same-family concrete release', () => {
+    const current = [alias(), chat('anthropic/claude-opus-4.8')];
+    const { models, changes } = syncProviderModels({ current, facts: [] });
+    const tracked = models.find(
+      (m) => m.id === '~anthropic/claude-fable-latest',
+    );
+    expect(tracked?.nativeModelId).toBe('claude-fable-5');
+    expect(changes).toEqual([]);
+  });
+});
+
 describe('syncProviderModels — add + hide', () => {
   it('adds a new flagship and hides the superseded older version', () => {
     const current = [chat('anthropic/claude-opus-4.6')];
@@ -135,6 +206,9 @@ describe('syncProviderModels — add + hide', () => {
     const added = models.find((m) => m.id === 'anthropic/claude-opus-4.7');
     const old = models.find((m) => m.id === 'anthropic/claude-opus-4.6');
     expect(added?.tags).toEqual(['chat', 'vision']);
+    // Auto-added Anthropic models carry the vendor-native id, so BYO
+    // (direct-to-Anthropic) sessions can use them without a code change.
+    expect(added?.nativeModelId).toBe('claude-opus-4-7');
     expect(old?.hidden).toBe(true);
     expect(changes).toContainEqual({
       kind: 'added',

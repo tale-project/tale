@@ -154,6 +154,38 @@ describe('ProjectSecretsTab', () => {
     });
   });
 
+  // #1991: a whitespace-only name trims to empty and used to re-enable Save,
+  // which then threw the server's SECRET_NAME_INVALID as a generic toast with the
+  // dialog stuck open. The client now mirrors the server's SECRET_NAME_RE: an
+  // invalid name shows an inline message and keeps Save disabled (no mutation).
+  describe('name validation gating', () => {
+    it('blocks an invalid name inline and never calls setProjectSecret', async () => {
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: 'Add secret' }));
+      await screen.findByRole('dialog', { name: 'Add secret' });
+
+      const nameField = screen.getByLabelText('Name', { exact: false });
+      const save = screen.getByRole('button', { name: 'Save' });
+      const invalidMessage =
+        'Name must start with a letter and use only A–Z, 0–9 and underscores.';
+
+      // Whitespace-only trims to empty → invalid → inline message, Save DISABLED.
+      await user.type(nameField, '   ');
+      expect(await screen.findByText(invalidMessage)).toBeInTheDocument();
+      expect(save).toBeDisabled();
+
+      // A valid env-var name (upper-cased by the field) clears it and enables Save.
+      await user.clear(nameField);
+      await user.type(nameField, 'openai_api_key');
+      await waitFor(() => {
+        expect(screen.queryByText(invalidMessage)).not.toBeInTheDocument();
+        expect(save).toBeEnabled();
+      });
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
   // The Edit affordance reuses the same `setProjectSecret` upsert as Add, but
   // the name (the env-var key agents resolve) is fixed: the dialog only
   // re-collects the value (and description). There is no reveal — the stored

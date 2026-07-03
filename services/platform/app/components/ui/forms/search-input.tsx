@@ -107,6 +107,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             ref={ref}
             id={id}
             type="text"
+            variant="default"
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
@@ -116,7 +117,6 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             // The readOnly above is an anti-autofill trick, not a read-only
             // display state — pin the bordered variant so Input's native
             // readOnly → borderless auto-selection doesn't strip the chrome.
-            variant="default"
             className={cn(
               'pl-10 max-w-70 h-9',
               hasError && 'border-destructive focus-visible:ring-destructive',

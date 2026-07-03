@@ -83,7 +83,7 @@ tale rollback
 # Remove inactive (non-current) color containers
 tale cleanup
 
-# Remove ALL blue-green containers (requires confirmation)
+# Remove ALL blue-green containers (prompts unless --force)
 tale reset --force
 
 # Also remove stateful services
@@ -99,13 +99,17 @@ platform version always matches the running CLI. To move to a different version,
 use `tale update` first (updates the CLI + syncs project files), then `tale
 deploy` to roll the containers.
 
-| Option                  | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `--stop`                | Also update the stop-gated tier (db, proxy) — brief downtime  |
-| `-s, --services <list>` | Specific services to update (comma-separated)                 |
-| `--dry-run`             | Preview deployment without making changes                     |
-| `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly) |
-| `--host <hostname>`     | Host alias for proxy (default: `localhost` or `$HOST`)        |
+| Option                  | Description                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--stop`                | Also update the stop-gated tier (db, proxy) — brief downtime                                                  |
+| `-s, --services <list>` | Specific services to update (comma-separated)                                                                 |
+| `--override`            | Overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are preserved) |
+| `--override-all`        | Factory-reseed the builtin catalog into ALL orgs server-side; implies `--stop`                                |
+| `-q, --quiet`           | Suppress container logs during deployment                                                                     |
+| `-y, --yes`             | Non-interactive: auto-accept destructive confirmation prompts (e.g. `--override-all`)                         |
+| `--dry-run`             | Preview deployment without making changes                                                                     |
+| `--skip-backup`         | Skip the automatic pre-deploy volume snapshot (logged loudly)                                                 |
+| `--host <hostname>`     | Host alias for proxy (default: `localhost` or `$HOST`)                                                        |
 
 ### `tale update`
 
@@ -133,17 +137,18 @@ Show current deployment status including active color, running containers, and h
 
 View logs from a service.
 
-| Option                | Description                              |
-| --------------------- | ---------------------------------------- |
-| `-c, --color <color>` | Deployment color (blue or green)         |
-| `-f, --follow`        | Follow log output                        |
-| `--since <duration>`  | Show logs since duration (e.g., 1h, 30m) |
-| `-n, --tail <lines>`  | Number of lines to show from end         |
+| Option                | Description                                           |
+| --------------------- | ----------------------------------------------------- |
+| `-c, --color <color>` | Deployment color (blue or green)                      |
+| `-f, --follow`        | Follow log output                                     |
+| `--since <duration>`  | Show logs since duration (e.g., 1h, 30m)              |
+| `-n, --tail <lines>`  | Number of lines to show from end                      |
+| `--raw`               | Stream raw, unfiltered log output (no classification) |
 
 ### `tale backup`
 
-Snapshot all data volumes (db-data, convex-data, rag-data, crawler-data,
-caddy-data, caddy-config) into the project-scoped `backups` volume. The same
+Snapshot all data volumes (db-data, convex-data, caddy-data, caddy-config)
+into the project-scoped `backups` volume. The same
 snapshot is taken automatically before any deploy step that can migrate
 data. Containers using a volume are paused for the seconds the tar takes so
 the archive is crash-consistent.
@@ -175,11 +180,11 @@ Remove inactive (non-current) color containers.
 
 Remove ALL blue-green containers.
 
-| Option      | Description                            |
-| ----------- | -------------------------------------- |
-| `--force`   | Required to confirm reset              |
-| `-a, --all` | Also remove infrastructure (db, proxy) |
-| `--dry-run` | Preview reset without making changes   |
+| Option        | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
+| `-f, --force` | Skip the confirmation prompt                                    |
+| `-a, --all`   | Also remove stateful services (db, proxy, convex, sandbox tier) |
+| `--dry-run`   | Preview reset without making changes                            |
 
 ### `tale daemon`
 
@@ -208,7 +213,6 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 | `DRAIN_TIMEOUT`        | Connection drain timeout (seconds)                      | `30`                        |
 | `BACKUP_KEEP_COUNT`    | Snapshots kept regardless of age                        | `5`                         |
 | `BACKUP_KEEP_DAYS`     | Days a snapshot is kept regardless of count             | `14`                        |
-| `PROJECT_NAME`         | Docker project name                                     | `tale`                      |
 | `HOST`                 | Host alias for proxy                                    | `localhost`                 |
 | `TALE_DAEMON_API_KEY`  | `tale daemon` API key (keeps it out of the config file) | _(unset)_                   |
 | `TALE_DAEMON_HOME`     | Override the `tale daemon` config directory             | `~/.tale-daemon`            |
@@ -217,16 +221,20 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 
 ### Services
 
-**Stateful (single instance):**
+**Stop-gated (only updated with `tale deploy --stop`):**
 
 - `db` - TimescaleDB (PostgreSQL)
 - `proxy` - Caddy reverse proxy
 
+**Rolled in place on every deploy:**
+
+- `convex` - Convex backend (owns the single `convex-data` volume)
+- `sandbox` / `sandbox-egress` - sandbox tier (drained before rolling)
+- `sandbox-llm-gateway` - LLM gateway for sandbox agents
+
 **Rotatable (blue-green):**
 
-- `platform` - TanStack Start + Convex
-- `rag` - RAG service
-- `crawler` - Crawl4AI web crawler
+- `platform` - the Tale app (TanStack Start)
 
 ### Deployment Flow
 

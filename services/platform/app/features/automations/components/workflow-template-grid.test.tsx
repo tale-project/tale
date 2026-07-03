@@ -3,19 +3,9 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { WorkflowTemplateGrid } from './workflow-template-grid';
-
-const mockInstallWorkflow = vi.fn();
-const mockInvalidateWorkflows = vi.fn();
-
-vi.mock('../hooks/file-mutations', () => ({
-  useInstallWorkflow: () => ({
-    mutateAsync: mockInstallWorkflow,
-  }),
-  useInvalidateWorkflows: () => mockInvalidateWorkflows,
-}));
 
 vi.mock('../hooks/file-queries', () => ({
   useListWorkflows: () => ({
@@ -46,106 +36,51 @@ vi.mock('@/app/hooks/use-ability', () => ({
 describe('WorkflowTemplateGrid', () => {
   const defaultProps = {
     organizationId: 'org-123',
-    onTemplateInstalled: vi.fn(),
+    selectedSlug: null,
+    onSelectSlug: vi.fn(),
+    installingSlug: null,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockInstallWorkflow.mockResolvedValue(undefined);
-    mockInvalidateWorkflows.mockResolvedValue(undefined);
     mockCanWrite.mockReturnValue(true);
   });
 
-  it('renders template buttons', () => {
+  it('renders template cards', () => {
     render(<WorkflowTemplateGrid {...defaultProps} />);
 
     expect(screen.getByLabelText('Welcome Flow')).toBeInTheDocument();
     expect(screen.getByLabelText('Order Processing')).toBeInTheDocument();
   });
 
-  it('calls onTemplateInstalled on successful install', async () => {
-    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
-
-    await user.click(screen.getByLabelText('Welcome Flow'));
-
-    await waitFor(() => {
-      expect(mockInstallWorkflow).toHaveBeenCalledWith({
-        organizationId: 'org-123',
-        workflowSlug: 'general/welcome',
-      });
-    });
-
-    await waitFor(() => {
-      expect(defaultProps.onTemplateInstalled).toHaveBeenCalledWith(
-        'general/welcome',
-      );
-    });
-  });
-
-  it('shows error with technical detail from first line of message', async () => {
-    mockInstallWorkflow.mockRejectedValueOnce(
-      new Error(
-        "EACCES: permission denied, mkdir '/app/data/workflows/.history'\n    at Object.mkdirSync (node:fs:123)\n    at someFn",
-      ),
+  it('calls onSelectSlug when a card is clicked', async () => {
+    const onSelectSlug = vi.fn();
+    const { user } = render(
+      <WorkflowTemplateGrid {...defaultProps} onSelectSlug={onSelectSlug} />,
     );
 
-    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
-
     await user.click(screen.getByLabelText('Welcome Flow'));
 
-    await waitFor(() => {
-      const alert = screen.getByRole('alert');
-      expect(alert).toBeInTheDocument();
-      expect(alert).toHaveTextContent('EACCES: permission denied');
-      expect(alert).not.toHaveTextContent('at Object.mkdirSync');
-    });
-
-    expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
+    expect(onSelectSlug).toHaveBeenCalledWith('general/welcome');
   });
 
-  it('shows stringified detail for non-Error exceptions', async () => {
-    mockInstallWorkflow.mockRejectedValueOnce('raw string error');
+  it('disables all cards while a template is installing', () => {
+    render(
+      <WorkflowTemplateGrid
+        {...defaultProps}
+        installingSlug="general/welcome"
+      />,
+    );
 
-    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
-
-    await user.click(screen.getByLabelText('Welcome Flow'));
-
-    await waitFor(() => {
-      const alert = screen.getByRole('alert');
-      expect(alert).toBeInTheDocument();
-      expect(alert).toHaveTextContent('raw string error');
-    });
-
-    expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Order Processing')).toBeDisabled();
   });
 
-  it('clears error when retrying a template install', async () => {
-    mockInstallWorkflow.mockRejectedValueOnce(new Error('server error'));
-
-    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
-
-    await user.click(screen.getByLabelText('Welcome Flow'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-    });
-
-    mockInstallWorkflow.mockResolvedValueOnce(undefined);
-    await user.click(screen.getByLabelText('Welcome Flow'));
-
-    await waitFor(() => {
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    });
-  });
-
-  it('does not install for read-only roles that cannot write', async () => {
+  it('disables cards for read-only roles that cannot write', () => {
     mockCanWrite.mockReturnValue(false);
-    const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
+    render(<WorkflowTemplateGrid {...defaultProps} />);
 
-    await user.click(screen.getByLabelText('Welcome Flow'));
-
-    expect(mockInstallWorkflow).not.toHaveBeenCalled();
-    expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Welcome Flow')).toBeDisabled();
+    expect(screen.getByLabelText('Order Processing')).toBeDisabled();
   });
 
   describe('search filtering', () => {

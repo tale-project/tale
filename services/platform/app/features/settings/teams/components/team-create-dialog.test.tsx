@@ -103,5 +103,39 @@ describe('TeamCreateDialog', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+
+    // #1991: `createTeam` has no server cap, so an over-long name would persist
+    // unbounded. The name schema now carries `.max(80)`, surfaced inline via the
+    // shared `common.validation.maxLength` message, and submit is disabled while
+    // over the cap.
+    it('rejects a name over the 80-char cap and accepts one at the cap', async () => {
+      const { user } = render(
+        <TeamCreateDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+
+      const nameField = screen.getByRole('textbox', { name: /Team name/ });
+      const submit = screen.getByRole('button', { name: 'Create team' });
+
+      // 81 chars → over the cap → inline message, submit DISABLED.
+      await user.type(nameField, 'a'.repeat(81));
+      expect(
+        await screen.findByText('Team name must be 80 characters or fewer'),
+      ).toBeInTheDocument();
+      expect(submit).toBeDisabled();
+
+      // Exactly 80 → valid → message clears, submit ENABLED.
+      await user.clear(nameField);
+      await user.type(nameField, 'a'.repeat(80));
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Team name must be 80 characters or fewer'),
+        ).not.toBeInTheDocument();
+        expect(submit).toBeEnabled();
+      });
+    });
   });
 });

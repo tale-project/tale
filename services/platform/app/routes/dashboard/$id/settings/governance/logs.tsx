@@ -8,6 +8,9 @@ import { seo } from '@/lib/utils/seo';
 const searchSchema = z.object({
   category: z.string().optional(),
   tab: z.enum(['audit', 'blocks', 'activity', 'errors']).optional(),
+  // Deep-link target for a broken audit row (notification click, #1845). The
+  // page reveals its detail dialog on the default Audit tab.
+  logId: z.string().optional(),
 });
 
 type LogsTab = NonNullable<z.infer<typeof searchSchema>['tab']>;
@@ -34,7 +37,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/governance/logs')(
 
 function LogsRoute() {
   const { id: organizationId } = Route.useParams();
-  const { category, tab } = Route.useSearch();
+  const { category, tab, logId } = Route.useSearch();
   const navigate = useNavigate();
 
   // Both `category` and `tab` round-trip through the URL; each handler carries
@@ -73,6 +76,7 @@ function LogsRoute() {
       onCategoryChange={handleCategoryChange}
       tab={tab}
       onTabChange={handleTabChange}
+      revealLogId={logId}
     />
   );
 }

@@ -943,8 +943,8 @@
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
       "continue": "Continuer",
-      "installAll": "Tout installer",
-      "installingAll": "Installation en cours..."
+      "install": "Installer",
+      "installing": "Installation..."
     },
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
@@ -954,7 +954,6 @@
     },
     "templates": {
       "description": "Choisis un modèle pour démarrer avec des étapes préconfigurées.",
-      "installFailed": "Impossible de créer l'automatisation à partir du modèle",
       "fetching": "Chargement du modèle...",
       "noTemplates": "Aucun modèle disponible pour cette intégration."
     },
@@ -1056,10 +1055,7 @@
     },
     "toast": {
       "created": "Automatisation créée avec succès",
-      "createFailed": "Échec de la création de l'automatisation",
-      "installedAll": "{count} automatisations installées",
-      "installedAllNone": "Tous les modèles sont déjà installés",
-      "installAllPartial": "{count} modèles n'ont pas pu être installés"
+      "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
       "duplicateName": "Une automatisation avec ce nom existe déjà",
@@ -1323,6 +1319,7 @@
       "viewProvider": "Voir les paramètres du fournisseur",
       "viewInfo": "Détails du modèle",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
+      "noProviderKey": "Aucun fournisseur d’IA n’est encore connecté — ajoute une clé API dans Paramètres → Fournisseurs d’IA pour commencer à discuter.",
       "info": {
         "provider": "Fournisseur",
         "type": "Type",
@@ -1838,6 +1835,8 @@
     "modelFallbackNotice": "{from} était indisponible — passage à {to}.",
     "modelFallbackDefaultModel": "le modèle par défaut",
     "modelFallbackUnknown": "le modèle précédent",
+    "generationIncomplete": "La réponse n'a pas pu être terminée. Merci de réessayer.",
+    "generationIncompleteWithTools": "La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",
@@ -2030,6 +2029,7 @@
     "stepProgress": "Étape {current} sur {total} : {label}",
     "validation": {
       "required": "{field} est requis",
+      "maxLength": "{field} ne doit pas dépasser {max} caractères",
       "email": "Entre une adresse email valide",
       "invalidJson": "Format JSON invalide",
       "uploadFile": "Téléverse un fichier",
@@ -6308,6 +6308,32 @@
       "openDocs": "Documentation API"
     },
     "logs": {
+      "integrity": {
+        "title": "Intégrité de la chaîne",
+        "neverChecked": "Aucune vérification d'intégrité automatique n'a encore été exécutée.",
+        "lastCheck": "Dernière vérification automatique : {date}",
+        "alertedAt": "Alerte déclenchée le {date}",
+        "statusUnchecked": "Pas encore vérifié",
+        "statusOk": "Vérifié",
+        "statusAlert": "Alerte d'intégrité active",
+        "verifyNow": "Vérifier maintenant",
+        "verifyError": "La vérification n'a pas pu aboutir. Réessaie.",
+        "resultValidTitle": "Chaîne vérifiée",
+        "resultValidBody": "{count, plural, one {# entrée vérifiée} other {# entrées vérifiées}} — aucune altération détectée.",
+        "truncatedNote": "Seules les {count} premières entrées ont été vérifiées. Relance la vérification pour poursuivre le long de la chaîne.",
+        "unsignedScrubNote": "{count, plural, one {# entrée a été validée via un enregistrement d'effacement non signé} other {# entrées ont été validées via des enregistrements d'effacement non signés}}. Vérifie ta clé de signature d'audit.",
+        "brokenTitle": "Intégrité de la chaîne rompue",
+        "brokenBody": "La chaîne de hachage ne correspond pas à l'entrée ci-dessous. Conserve cette preuve avant toute modification.",
+        "brokenAt": "Survenue le",
+        "logId": "ID de l'entrée",
+        "expectedHash": "Hachage attendu",
+        "actualHash": "Hachage stocké",
+        "openRow": "Ouvrir cette entrée",
+        "checkpointTitle": "Échec de la vérification du point de contrôle",
+        "checkpointId": "ID du point de contrôle",
+        "reason": "Raison",
+        "rowMissing": "L'entrée d'audit {logId} n'est plus disponible."
+      },
       "heading": "Journaux",
       "subheading": "Consulte et gère les journaux système.",
       "auditLogs": "Journaux d'audit",
@@ -6838,6 +6864,7 @@
     "agentAccessTitle": "Accessible aux agents",
     "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
     "nameLabel": "Nom",
+    "nameInvalid": "Le nom doit commencer par une lettre et ne contenir que A–Z, 0–9 et des traits de soulignement.",
     "valueLabel": "Valeur",
     "descriptionLabel": "Description",
     "typeLabel": "Type",
