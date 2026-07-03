@@ -6,6 +6,7 @@
  * just assembles the `key → PromptEntry` map and derives the `PromptKey` union.
  */
 
+import { jobWorkerPreambleEntry } from './entries/jobs';
 import {
   delegationHeaderEntry,
   delegationIntroEntry,
@@ -60,6 +61,8 @@ const ENTRIES = [
   delegationOutroEntry,
   escalationSectionEntry,
   escalationSectionRootEntry,
+  // agent-on-demand jobs
+  jobWorkerPreambleEntry,
 ] as const;
 
 export type PromptKey = (typeof ENTRIES)[number]['key'];
