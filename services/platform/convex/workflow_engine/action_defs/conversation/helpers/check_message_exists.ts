@@ -1,6 +1,7 @@
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { normalizeExternalMessageId } from './normalize_external_message_id';
 
 export interface ExistingMessage {
   _id: Id<'conversationMessages'>;
@@ -25,11 +26,14 @@ export async function checkMessageExists(
   organizationId: string,
   externalMessageId: string,
 ): Promise<ExistingMessage | null> {
+  const normalized = normalizeExternalMessageId(externalMessageId);
+  if (!normalized) return null;
+
   return (await ctx.runQuery(
     internal.conversations.internal_queries.getMessageByExternalId,
     {
       organizationId,
-      externalMessageId,
+      externalMessageId: normalized,
     },
   )) as ExistingMessage | null;
 }

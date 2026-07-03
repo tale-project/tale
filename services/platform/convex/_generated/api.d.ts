@@ -887,6 +887,7 @@ import type * as login_attempts_internal_queries from "../login_attempts/interna
 import type * as login_attempts_queries from "../login_attempts/queries.js";
 import type * as mcp_servers_actions from "../mcp_servers/actions.js";
 import type * as mcp_servers_client_factory from "../mcp_servers/client_factory.js";
+import type * as mcp_servers_constants from "../mcp_servers/constants.js";
 import type * as mcp_servers_execute_approved from "../mcp_servers/execute_approved.js";
 import type * as mcp_servers_internal_queries from "../mcp_servers/internal_queries.js";
 import type * as mcp_servers_mutations from "../mcp_servers/mutations.js";
@@ -1087,6 +1088,7 @@ import type * as products_bulk_create_products from "../products/bulk_create_pro
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
 import type * as products_delete_product from "../products/delete_product.js";
+import type * as products_field_limits from "../products/field_limits.js";
 import type * as products_filter_products from "../products/filter_products.js";
 import type * as products_get_product from "../products/get_product.js";
 import type * as products_get_product_by_id from "../products/get_product_by_id.js";
@@ -1096,6 +1098,7 @@ import type * as products_internal_mutations from "../products/internal_mutation
 import type * as products_internal_queries from "../products/internal_queries.js";
 import type * as products_list_by_organization from "../products/list_by_organization.js";
 import type * as products_list_products_paginated from "../products/list_products_paginated.js";
+import type * as products_locale_validation from "../products/locale_validation.js";
 import type * as products_mutations from "../products/mutations.js";
 import type * as products_queries from "../products/queries.js";
 import type * as products_query_products from "../products/query_products.js";
@@ -1105,6 +1108,7 @@ import type * as products_types from "../products/types.js";
 import type * as products_update_product from "../products/update_product.js";
 import type * as products_update_products from "../products/update_products.js";
 import type * as products_upsert_product_translation from "../products/upsert_product_translation.js";
+import type * as products_validate_product_name from "../products/validate_product_name.js";
 import type * as products_validators from "../products/validators.js";
 import type * as projects_access from "../projects/access.js";
 import type * as projects_audit_actions from "../projects/audit_actions.js";
@@ -1381,8 +1385,12 @@ import type * as workflow_engine_action_defs_conversation_helpers_email_sync_cur
 import type * as workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email from "../workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_related_conversation from "../workflow_engine/action_defs/conversation/helpers/find_related_conversation.js";
 import type * as workflow_engine_action_defs_conversation_helpers_normalize_email from "../workflow_engine/action_defs/conversation/helpers/normalize_email.js";
+import type * as workflow_engine_action_defs_conversation_helpers_normalize_external_message_id from "../workflow_engine/action_defs/conversation/helpers/normalize_external_message_id.js";
+import type * as workflow_engine_action_defs_conversation_helpers_parse_thread_reference_ids from "../workflow_engine/action_defs/conversation/helpers/parse_thread_reference_ids.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_conversation_messages from "../workflow_engine/action_defs/conversation/helpers/query_conversation_messages.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state from "../workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state.js";
+import type * as workflow_engine_action_defs_conversation_helpers_resolve_customer_email from "../workflow_engine/action_defs/conversation/helpers/resolve_customer_email.js";
+import type * as workflow_engine_action_defs_conversation_helpers_resolve_email_conversation_target from "../workflow_engine/action_defs/conversation/helpers/resolve_email_conversation_target.js";
 import type * as workflow_engine_action_defs_conversation_helpers_types from "../workflow_engine/action_defs/conversation/helpers/types.js";
 import type * as workflow_engine_action_defs_conversation_helpers_update_conversations from "../workflow_engine/action_defs/conversation/helpers/update_conversations.js";
 import type * as workflow_engine_action_defs_conversation_helpers_update_message from "../workflow_engine/action_defs/conversation/helpers/update_message.js";
@@ -2522,6 +2530,7 @@ declare const fullApi: ApiFromModules<{
   "login_attempts/queries": typeof login_attempts_queries;
   "mcp_servers/actions": typeof mcp_servers_actions;
   "mcp_servers/client_factory": typeof mcp_servers_client_factory;
+  "mcp_servers/constants": typeof mcp_servers_constants;
   "mcp_servers/execute_approved": typeof mcp_servers_execute_approved;
   "mcp_servers/internal_queries": typeof mcp_servers_internal_queries;
   "mcp_servers/mutations": typeof mcp_servers_mutations;
@@ -2722,6 +2731,7 @@ declare const fullApi: ApiFromModules<{
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
   "products/delete_product": typeof products_delete_product;
+  "products/field_limits": typeof products_field_limits;
   "products/filter_products": typeof products_filter_products;
   "products/get_product": typeof products_get_product;
   "products/get_product_by_id": typeof products_get_product_by_id;
@@ -2731,6 +2741,7 @@ declare const fullApi: ApiFromModules<{
   "products/internal_queries": typeof products_internal_queries;
   "products/list_by_organization": typeof products_list_by_organization;
   "products/list_products_paginated": typeof products_list_products_paginated;
+  "products/locale_validation": typeof products_locale_validation;
   "products/mutations": typeof products_mutations;
   "products/queries": typeof products_queries;
   "products/query_products": typeof products_query_products;
@@ -2740,6 +2751,7 @@ declare const fullApi: ApiFromModules<{
   "products/update_product": typeof products_update_product;
   "products/update_products": typeof products_update_products;
   "products/upsert_product_translation": typeof products_upsert_product_translation;
+  "products/validate_product_name": typeof products_validate_product_name;
   "products/validators": typeof products_validators;
   "projects/access": typeof projects_access;
   "projects/audit_actions": typeof projects_audit_actions;
@@ -3016,8 +3028,12 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email": typeof workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email;
   "workflow_engine/action_defs/conversation/helpers/find_related_conversation": typeof workflow_engine_action_defs_conversation_helpers_find_related_conversation;
   "workflow_engine/action_defs/conversation/helpers/normalize_email": typeof workflow_engine_action_defs_conversation_helpers_normalize_email;
+  "workflow_engine/action_defs/conversation/helpers/normalize_external_message_id": typeof workflow_engine_action_defs_conversation_helpers_normalize_external_message_id;
+  "workflow_engine/action_defs/conversation/helpers/parse_thread_reference_ids": typeof workflow_engine_action_defs_conversation_helpers_parse_thread_reference_ids;
   "workflow_engine/action_defs/conversation/helpers/query_conversation_messages": typeof workflow_engine_action_defs_conversation_helpers_query_conversation_messages;
   "workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state": typeof workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state;
+  "workflow_engine/action_defs/conversation/helpers/resolve_customer_email": typeof workflow_engine_action_defs_conversation_helpers_resolve_customer_email;
+  "workflow_engine/action_defs/conversation/helpers/resolve_email_conversation_target": typeof workflow_engine_action_defs_conversation_helpers_resolve_email_conversation_target;
   "workflow_engine/action_defs/conversation/helpers/types": typeof workflow_engine_action_defs_conversation_helpers_types;
   "workflow_engine/action_defs/conversation/helpers/update_conversations": typeof workflow_engine_action_defs_conversation_helpers_update_conversations;
   "workflow_engine/action_defs/conversation/helpers/update_message": typeof workflow_engine_action_defs_conversation_helpers_update_message;
