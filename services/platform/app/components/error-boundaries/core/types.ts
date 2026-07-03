@@ -39,6 +39,13 @@ export interface ErrorBoundaryBaseProps {
   maxRetries?: number;
   /** Predicate to determine if an error is transient and should be retried */
   isRetryableError?: (error: Error) => boolean;
+  /**
+   * Rendered during an auto-retry's backoff window (while `isRetrying`) in
+   * place of the default `null`. Lets a boundary hold a skeleton/placeholder
+   * instead of collapsing to blank when it has no Suspense ancestor to drive
+   * the loading state. Omitting it preserves the original null behaviour.
+   */
+  retryingFallback?: ReactNode;
 }
 
 /**

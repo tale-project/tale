@@ -163,14 +163,16 @@ export class ErrorBoundaryBase extends Component<
 
   render() {
     const { hasError, error, isRetrying } = this.state;
-    const { children, fallback, organizationId } = this.props;
+    const { children, fallback, organizationId, retryingFallback } = this.props;
     const contextValue = this.getContextValue();
 
-    // Auto-retry in progress: render nothing so Suspense ancestor shows its fallback
+    // Auto-retry in progress: render `retryingFallback` if a boundary supplied
+    // one (e.g. a table skeleton), else render nothing so a Suspense ancestor
+    // shows its fallback.
     if (hasError && isRetrying) {
       return (
         <ErrorBoundaryContext.Provider value={contextValue}>
-          {null}
+          {retryingFallback ?? null}
         </ErrorBoundaryContext.Provider>
       );
     }
