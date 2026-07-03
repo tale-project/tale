@@ -2447,6 +2447,24 @@
     "allFilesFailed": "Alle {count} Dateien konnten nicht gespeichert werden",
     "errorSaveFailed": "Dokument konnte nicht gespeichert werden"
   },
+  "jobCard": {
+    "statusRunning": "Arbeitet",
+    "statusCompleted": "Fertig",
+    "statusFailed": "Fehlgeschlagen",
+    "statusTimedOut": "Zeit abgelaufen",
+    "statusCancelled": "Abgebrochen",
+    "duration": "{seconds} s",
+    "narrowedNotice": "Übersprungen (nicht in den Freigaben dieses Assistenten): {items}",
+    "failure": {
+      "generation_error": "Der Worker ist auf einen Fehler gestoßen und hat gestoppt.",
+      "deadline_exceeded": "Die Zeit in diesem Zug hat nicht gereicht.",
+      "budget_exhausted": "Gestoppt — das Monatsbudget ist aufgebraucht.",
+      "orphaned": "Der Lauf wurde unterbrochen."
+    },
+    "showTranscript": "Worker-Aktivität anzeigen",
+    "hideTranscript": "Worker-Aktivität ausblenden",
+    "transcriptEmpty": "Keine Aktivität aufgezeichnet."
+  },
   "planApproval": {
     "cardTitle": "Vorgeschlagener Plan",
     "approve": "Genehmigen & ausführen",

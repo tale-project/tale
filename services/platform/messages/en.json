@@ -2447,6 +2447,24 @@
     "allFilesFailed": "All {count} files failed to save",
     "errorSaveFailed": "Failed to save document"
   },
+  "jobCard": {
+    "statusRunning": "Working",
+    "statusCompleted": "Done",
+    "statusFailed": "Failed",
+    "statusTimedOut": "Timed out",
+    "statusCancelled": "Cancelled",
+    "duration": "{seconds}s",
+    "narrowedNotice": "Skipped (outside this assistant's grants): {items}",
+    "failure": {
+      "generation_error": "The worker hit an error and stopped.",
+      "deadline_exceeded": "The worker ran out of time in this turn.",
+      "budget_exhausted": "Stopped — the monthly budget is exhausted.",
+      "orphaned": "The run was interrupted."
+    },
+    "showTranscript": "Show worker activity",
+    "hideTranscript": "Hide worker activity",
+    "transcriptEmpty": "No activity recorded."
+  },
   "planApproval": {
     "cardTitle": "Proposed plan",
     "approve": "Approve & execute",

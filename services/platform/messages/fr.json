@@ -2448,6 +2448,24 @@
     "allFilesFailed": "Les {count} fichiers n'ont pas pu être enregistrés",
     "errorSaveFailed": "Échec de l'enregistrement du document"
   },
+  "jobCard": {
+    "statusRunning": "En cours",
+    "statusCompleted": "Terminé",
+    "statusFailed": "Échoué",
+    "statusTimedOut": "Temps écoulé",
+    "statusCancelled": "Annulé",
+    "duration": "{seconds} s",
+    "narrowedNotice": "Ignoré (hors des accès de cet assistant) : {items}",
+    "failure": {
+      "generation_error": "Le worker a rencontré une erreur et s'est arrêté.",
+      "deadline_exceeded": "Le temps de ce tour n'a pas suffi.",
+      "budget_exhausted": "Arrêté — le budget mensuel est épuisé.",
+      "orphaned": "L'exécution a été interrompue."
+    },
+    "showTranscript": "Afficher l'activité du worker",
+    "hideTranscript": "Masquer l'activité du worker",
+    "transcriptEmpty": "Aucune activité enregistrée."
+  },
   "planApproval": {
     "cardTitle": "Plan proposé",
     "approve": "Approuver et exécuter",

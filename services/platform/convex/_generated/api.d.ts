@@ -15,6 +15,7 @@ import type * as accounts_validators from "../accounts/validators.js";
 import type * as agent_jobs_delete_job_thread from "../agent_jobs/delete_job_thread.js";
 import type * as agent_jobs_internal_mutations from "../agent_jobs/internal_mutations.js";
 import type * as agent_jobs_progress_ops from "../agent_jobs/progress_ops.js";
+import type * as agent_jobs_queries from "../agent_jobs/queries.js";
 import type * as agent_runtimes_internal_mutations from "../agent_runtimes/internal_mutations.js";
 import type * as agent_runtimes_queries from "../agent_runtimes/queries.js";
 import type * as agent_runtimes_rest_api from "../agent_runtimes/rest_api.js";
@@ -1659,6 +1660,7 @@ declare const fullApi: ApiFromModules<{
   "agent_jobs/delete_job_thread": typeof agent_jobs_delete_job_thread;
   "agent_jobs/internal_mutations": typeof agent_jobs_internal_mutations;
   "agent_jobs/progress_ops": typeof agent_jobs_progress_ops;
+  "agent_jobs/queries": typeof agent_jobs_queries;
   "agent_runtimes/internal_mutations": typeof agent_runtimes_internal_mutations;
   "agent_runtimes/queries": typeof agent_runtimes_queries;
   "agent_runtimes/rest_api": typeof agent_runtimes_rest_api;

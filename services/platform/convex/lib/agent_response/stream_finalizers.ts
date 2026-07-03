@@ -5,12 +5,14 @@ import type { GenerateResponseArgs } from './types';
 
 /**
  * Find the first assistant message in the latest response order group and
- * link any pending approvals to it. Pending approvals are queried by
- * threadId but only rendered in the UI once their messageId field is set,
- * so this must complete BEFORE clearGenerationStatus or the user sees the
- * spinner stop, then a "approve this action" panel pop in a beat later.
+ * anchor this turn's card rows to it: pending approvals AND spawned job
+ * rows are queried by threadId but only rendered in the chat flow once
+ * their messageId field is set, so this must complete BEFORE
+ * clearGenerationStatus or the user sees the spinner stop, then the cards
+ * pop in a beat later. (Jobs cannot ride `linkApprovalsToMessage` — they
+ * live in their own table.)
  *
- * Wrapped in try/catch — approval linking is non-fatal.
+ * Wrapped in try/catch — card linking is non-fatal.
  */
 export async function linkApprovalsToLatestAssistantMessage(
   ctx: GenerateResponseArgs['ctx'],
@@ -55,9 +57,17 @@ export async function linkApprovalsToLatestAssistantMessage(
         `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
       );
     }
+
+    await ctx.runMutation(
+      internal.agent_jobs.internal_mutations.linkJobsToMessage,
+      {
+        threadId,
+        messageId: firstAssistantInOrder._id,
+      },
+    );
   } catch (error) {
     console.error(
-      '[generateAgentResponse] Failed to link approvals to message:',
+      '[generateAgentResponse] Failed to link cards to message:',
       error,
     );
   }

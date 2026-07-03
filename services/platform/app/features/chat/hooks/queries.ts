@@ -366,6 +366,27 @@ export function useActiveApprovals(organizationId: string) {
   };
 }
 
+/** One spawned agent-on-demand job, as rendered by the chat job card. */
+export type AgentJobCard = FunctionReturnType<
+  typeof api.agent_jobs.queries.listByThread
+>[number];
+
+/**
+ * The thread's spawned jobs (agent-on-demand). Live: progress and terminal
+ * state re-render as the backend patches the job row. `useMergedChatItems`
+ * splices them into the message flow anchored by `messageId`.
+ */
+export function useThreadJobs(
+  organizationId: string,
+  threadId: string | undefined,
+) {
+  const { data, isLoading } = useConvexQuery(
+    api.agent_jobs.queries.listByThread,
+    threadId ? { threadId, organizationId } : 'skip',
+  );
+  return { jobs: data ?? [], isLoading };
+}
+
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';

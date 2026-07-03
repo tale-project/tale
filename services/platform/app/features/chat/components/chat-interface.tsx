@@ -46,6 +46,7 @@ import {
   useChatAgents,
   useResolvedHumanInputRequests,
   useSessionProgress,
+  useThreadJobs,
 } from '../hooks/queries';
 import { useArenaThreadSetup } from '../hooks/use-arena-thread-setup';
 import { useChatScroll } from '../hooks/use-chat-scroll';
@@ -407,6 +408,9 @@ export function ChatInterface({
     humanControlRequests,
   } = useThreadApprovals(organizationId, dataThreadId);
 
+  // Spawned agent-on-demand jobs — live cards spliced into the flow.
+  const { jobs } = useThreadJobs(organizationId, dataThreadId);
+
   // Resolved human-input requests — rendered inline in the history with the
   // response + edit affordance (the active subscription above only carries
   // pending/executing rows).
@@ -478,6 +482,7 @@ export function ChatInterface({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
+    jobs,
   });
 
   // Block input when any pending or executing approval exists
