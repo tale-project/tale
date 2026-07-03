@@ -116,4 +116,66 @@ describe('ExportChatDialog', () => {
       mockMessages.length,
     );
   });
+
+  it('clears all checkboxes and disables downloads when Deselect all is clicked', async () => {
+    const { user } = render(
+      <ExportChatDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        threadId="thread-1"
+        organizationId="org-1"
+      />,
+    );
+
+    // Starts with everything selected.
+    expect(
+      screen.getByText(
+        `${mockMessages.length} of ${mockMessages.length} messages selected`,
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Deselect all' }));
+
+    // Selection genuinely reaches zero and stays there.
+    expect(
+      screen.getByText(`0 of ${mockMessages.length} messages selected`),
+    ).toBeInTheDocument();
+    // The toggle flips to "Select all"; no checkbox remains checked.
+    expect(
+      screen.getByRole('button', { name: 'Select all' }),
+    ).toBeInTheDocument();
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      expect(checkbox).not.toBeChecked();
+    }
+    // Both download buttons disable while nothing is selected.
+    expect(
+      screen.getByRole('button', { name: 'Download Markdown' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
+  });
+
+  it('reaches zero when messages are deselected one by one', async () => {
+    const { user } = render(
+      <ExportChatDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        threadId="thread-1"
+        organizationId="org-1"
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    for (const checkbox of checkboxes) {
+      await user.click(checkbox);
+    }
+
+    // Removing the final message empties the selection instead of re-selecting.
+    expect(
+      screen.getByText(`0 of ${mockMessages.length} messages selected`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Download Markdown' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
+  });
 });
