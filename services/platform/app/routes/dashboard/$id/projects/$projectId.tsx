@@ -99,11 +99,20 @@ function ProjectDetailLayout() {
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
         matchMode: 'exact',
       },
-      {
-        label: tSecrets('title'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/secrets`,
-        matchMode: 'exact',
-      },
+      // Secrets are administer-only data — even the secret *names* are
+      // sensitive (per the query doc comment). Hide the tab from non-admin
+      // readers so they never land on the misleading empty state with a dead
+      // Add-secret button; the backend still enforces access by throwing a
+      // structured `ConvexError({ code: 'PROJECT_FORBIDDEN' })`.
+      ...(project?.canAdminister
+        ? [
+            {
+              label: tSecrets('title'),
+              href: `/dashboard/${organizationId}/projects/${projectId}/secrets`,
+              matchMode: 'exact' as const,
+            },
+          ]
+        : []),
       // U8: Settings tab merged into Overview. Identity edit + Sharing live
       // in the Overview header now; Archive/Delete are in the 3-dot row menu
       // on the projects list page.
@@ -117,7 +126,16 @@ function ProjectDetailLayout() {
         }),
       ),
     ],
-    [t, tTasks, tSecrets, tDiscussions, organizationId, projectId, projectApps],
+    [
+      t,
+      tTasks,
+      tSecrets,
+      tDiscussions,
+      organizationId,
+      projectId,
+      projectApps,
+      project?.canAdminister,
+    ],
   );
 
   if (!isLoading && !project) {

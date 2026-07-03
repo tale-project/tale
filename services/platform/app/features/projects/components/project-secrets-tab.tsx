@@ -48,10 +48,24 @@ export function ProjectSecretsTab({
 }) {
   const { t } = useT('projectSecrets');
   const { t: tCommon } = useT('common');
-  const { secrets } = useProjectSecrets(projectId);
+  const {
+    secrets,
+    isError,
+    error: secretsError,
+  } = useProjectSecrets(projectId);
   const setSecret = useSetProjectSecret();
   const setSecretPair = useSetProjectSecretPair();
   const deleteSecret = useDeleteProjectSecret();
+
+  // The tab is gated on `project.canAdminister` in the project layout, but a
+  // non-admin can still reach this page via a direct URL. Surface the backend's
+  // structured access error as a translated message instead of the misleading
+  // "No secrets yet." empty state with a dead Add-secret button.
+  const accessErrorCode = isError ? convexErrorCode(secretsError) : undefined;
+  const isAccessDenied =
+    accessErrorCode === 'PROJECT_FORBIDDEN' ||
+    accessErrorCode === 'PROJECT_NOT_FOUND' ||
+    accessErrorCode === 'UNAUTHENTICATED';
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [type, setType] = useState<SecretType>('api_key');
@@ -162,15 +176,17 @@ export function ProjectSecretsTab({
   const saveErrorTitle = (error: unknown): string => {
     switch (convexErrorCode(error)) {
       case 'SECRET_NAME_INVALID':
-        return t('errors.nameInvalid');
+        return t('errors.SECRET_NAME_INVALID');
       case 'SECRET_VALUE_INVALID':
-        return t('errors.valueInvalid');
+        return t('errors.SECRET_VALUE_INVALID');
       case 'UNAUTHENTICATED':
         return t('errors.unauthenticated');
       case 'SECRET_FORBIDDEN':
         return t('errors.forbidden');
+      case 'PROJECT_FORBIDDEN':
+        return t('errors.PROJECT_FORBIDDEN');
       case 'PROJECT_NOT_FOUND':
-        return t('errors.projectNotFound');
+        return t('errors.PROJECT_NOT_FOUND');
       default: {
         const message = error instanceof Error ? error.message : String(error);
         // The encryption key is a server env var (`tale init` generates it);
@@ -247,6 +263,30 @@ export function ProjectSecretsTab({
       toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     }
   };
+
+  // Non-admin reaching this page directly: show a translated access-denied
+  // notice instead of the empty state, the agent-access warning, and an
+  // Add-secret button that would only fail on submit.
+  if (isAccessDenied) {
+    return (
+      <ContentArea variant="narrow" gap={6}>
+        <StickySectionHeader
+          title={t('title')}
+          description={t('description')}
+        />
+        <Alert
+          variant="destructive"
+          icon={ShieldAlert}
+          title={t('errors.accessDeniedTitle')}
+          description={
+            accessErrorCode === 'PROJECT_NOT_FOUND'
+              ? t('errors.PROJECT_NOT_FOUND')
+              : t('errors.PROJECT_FORBIDDEN')
+          }
+        />
+      </ContentArea>
+    );
+  }
 
   return (
     <ContentArea variant="narrow" gap={6}>

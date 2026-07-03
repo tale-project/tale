@@ -7167,11 +7167,16 @@
     "overwriteConfirmLabel": "Overwrite the existing secret",
     "overwriteButton": "Overwrite",
     "errors": {
+      "accessDeniedTitle": "Admin access required",
       "nameInvalid": "Use uppercase letters, numbers, and underscores only, starting with a letter (max 64 characters).",
       "valueInvalid": "Enter a value between 1 and 8192 characters.",
       "unauthenticated": "Your session has expired. Sign in again, then retry.",
       "forbidden": "You don't have permission to manage this project's secrets.",
-      "projectNotFound": "We couldn't find that project. It may have been deleted."
+      "projectNotFound": "We couldn't find that project. It may have been deleted.",
+      "PROJECT_FORBIDDEN": "You don't have access to this project's secrets. Only project administrators can view or manage them.",
+      "PROJECT_NOT_FOUND": "This project no longer exists.",
+      "SECRET_NAME_INVALID": "Secret names must start with a letter and contain only uppercase letters, numbers, and underscores (max 64 characters).",
+      "SECRET_VALUE_INVALID": "Enter a secret value between 1 and 8192 characters."
     }
   },
   "tasks": {
