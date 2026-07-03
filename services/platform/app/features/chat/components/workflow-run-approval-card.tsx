@@ -50,6 +50,8 @@ import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/string';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
+import { mapApprovalError } from '../lib/map-approval-error';
+import { mapHumanInputError } from '../lib/map-human-input-error';
 import { ApprovalCard } from './approval-card';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
@@ -97,6 +99,7 @@ function WorkflowRunApprovalCardComponent({
 }: WorkflowRunApprovalCardProps) {
   const { t } = useT('workflowRunApproval');
   const { t: tCommon } = useT('approvalCommon');
+  const { t: tHumanInput } = useT('humanInputRequest');
   const { t: tShared } = useT('common');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
@@ -171,7 +174,7 @@ function WorkflowRunApprovalCardComponent({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorRunFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorRunFailed')));
       console.error('Failed to approve workflow run:', err);
     } finally {
       setIsApproving(false);
@@ -191,9 +194,7 @@ function WorkflowRunApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
-      );
+      setError(mapApprovalError(err, tCommon, tCommon('errorRejectFailed')));
       console.error('Failed to reject workflow run:', err);
     } finally {
       setIsRejecting(false);
@@ -298,9 +299,12 @@ function WorkflowRunApprovalCardComponent({
                 },
                 onError: (err) => {
                   setError(
-                    err instanceof Error
-                      ? err.message
-                      : tCommon('errorSubmitFailed'),
+                    mapHumanInputError(
+                      err,
+                      tHumanInput,
+                      tCommon,
+                      tCommon('errorSubmitFailed'),
+                    ),
                   );
                 },
               },
