@@ -203,7 +203,10 @@ function MessageSegmentsImpl({
               <div key={segment.id} className="my-2">
                 <ToolStepRow step={segment} active={active} />
                 {jobId && (
-                  <div className={cn('mt-2', STEP_INDENT)}>
+                  // The worker row sits at the SAME level as the spawn row —
+                  // two peer events in the timeline (the act, then the actor),
+                  // not a nested child of the tool chip.
+                  <div className="mt-2">
                     <InlineJobCard jobId={jobId} />
                   </div>
                 )}
