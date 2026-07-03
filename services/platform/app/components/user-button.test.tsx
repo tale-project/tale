@@ -60,6 +60,7 @@ vi.mock('@/app/hooks/use-changelog-notification', () => ({
     stateLoaded: true,
     hasUnseenVersion: false,
     shouldShowToast: false,
+    needsBaseline: false,
     markSeen: vi.fn(),
     markToasted: vi.fn(),
   }),

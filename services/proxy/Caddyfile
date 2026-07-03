@@ -51,12 +51,15 @@
 
 	encode gzip zstd
 
+	# Passive health checking only (circuit breaker) — deliberately no active
+	# health checks here. The docs service is optional: the CLI-generated
+	# stacks and the bare compose.yml don't ship it (only the dev chain with
+	# compose.docs.yml does), and an active checker dials `docs` on every
+	# interval, filling the proxy log with "dial tcp: lookup docs ... no such
+	# host" errors forever on stacks without it. Passive checks only observe
+	# real requests, so an absent upstream stays silent; a present-but-down
+	# docs container still gets circuit-broken after max_fails.
 	reverse_proxy docs:3002 {
-		health_uri /api/health
-		health_interval 5s
-		health_timeout 3s
-		health_status 200
-
 		fail_duration 10s
 		max_fails 2
 		unhealthy_status 500 502 503 504
@@ -267,7 +270,9 @@
 		# start_period), and a 2s probe logged a failed health check every two
 		# seconds until it came up, which read as "repeated proxy failures"
 		# during normal startup (#1447). Caddy still routes correctly once the
-		# backend is up; 5s matches the docs upstream and cuts the boot noise.
+		# backend is up; 5s cuts the boot noise. Unlike the optional docs
+		# upstream above, the platform is always part of the stack, so active
+		# checks never probe a permanently absent host.
 		health_uri /api/health
 		health_interval 5s
 		health_timeout 2s
