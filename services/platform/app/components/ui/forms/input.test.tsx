@@ -1,10 +1,10 @@
-import { useForm } from 'react-hook-form';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { Input } from './input';
+import { useForm } from './use-form';
 
 describe('Input', () => {
   describe('rendering', () => {

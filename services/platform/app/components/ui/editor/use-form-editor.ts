@@ -3,7 +3,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  useForm,
   type DefaultValues,
   type FieldValues,
   type Path,
@@ -11,6 +10,7 @@ import {
   type UseFormReturn,
 } from 'react-hook-form';
 
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import type { EditorController } from './types';
@@ -81,7 +81,7 @@ export function useFormEditor<T extends FieldValues>({
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- zodResolver returns Resolver<unknown,…>; widen
         (zodResolver(schema) as unknown as Resolver<T>)
       : undefined,
-    mode: 'onChange',
+    // `mode` defaults to `'onTouched'` via the shared `useForm` wrapper (#1943).
   });
 
   const [hasRemoteUpdate, setHasRemoteUpdate] = useState(false);

@@ -230,11 +230,15 @@ describe('EnterpriseSsoForm validation + save', () => {
 
     const saveButton = await screen.findByRole('button', { name: /^save$/i });
 
+    // `isValid` gates the Save button regardless of validation timing, so it
+    // disables as soon as the field is empty.
     await waitFor(() => {
       expect(saveButton).toBeDisabled();
     });
 
-    // The inline required error surfaces on the display-name field.
+    // Blur the field so the inline error surfaces (shared `mode: 'onTouched'`
+    // default, #1943 — the error does not render on the first keystroke).
+    await user.tab();
     await waitFor(() => {
       const errors = screen.getAllByText(/this field is required/i);
       expect(errors.length).toBeGreaterThan(0);

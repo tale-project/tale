@@ -6,7 +6,6 @@ import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -18,6 +17,7 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
@@ -299,7 +299,6 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     watch,
   } = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
-    mode: 'onChange',
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -445,7 +444,6 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     watch,
   } = useForm<SetPasswordFormData>({
     resolver: zodResolver(setPasswordSchema),
-    mode: 'onChange',
     defaultValues: {
       newPassword: '',
       confirmPassword: '',

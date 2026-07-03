@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Row } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -13,6 +12,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -113,7 +113,6 @@ export function PlaceHoldDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       targetType: 'userMembership',
       targetId: '',

@@ -2,12 +2,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -50,7 +50,6 @@ export function RequestReleaseDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: { reason: '' },
   });
   const { register, handleSubmit, formState, reset } = form;

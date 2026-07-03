@@ -254,9 +254,9 @@ function ConfigurationPage() {
               </FormSection>
 
               {/* Controlled via RHF `Controller`: the field registers itself,
-                  so dirty tracking is automatic and validation runs on change
-                  (mode: 'onChange') — no `setValue(..., { shouldDirty,
-                  shouldValidate })` to forget. */}
+                  so dirty tracking is automatic and validation runs on the
+                  shared `mode: 'onTouched'` default — no `setValue(..., {
+                  shouldDirty, shouldValidate })` to forget. */}
               <Controller
                 control={control}
                 name="variables"
