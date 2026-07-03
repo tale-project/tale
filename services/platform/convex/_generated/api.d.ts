@@ -972,6 +972,7 @@ import type * as node_only_documents_internal_actions from "../node_only/documen
 import type * as node_only_imap_smtp_helpers_fetch_messages from "../node_only/imap_smtp/helpers/fetch_messages.js";
 import type * as node_only_imap_smtp_helpers_map_to_email_type from "../node_only/imap_smtp/helpers/map_to_email_type.js";
 import type * as node_only_imap_smtp_helpers_send_message from "../node_only/imap_smtp/helpers/send_message.js";
+import type * as node_only_imap_smtp_helpers_smtp_transport from "../node_only/imap_smtp/helpers/smtp_transport.js";
 import type * as node_only_imap_smtp_helpers_test_connection from "../node_only/imap_smtp/helpers/test_connection.js";
 import type * as node_only_imap_smtp_internal_actions from "../node_only/imap_smtp/internal_actions.js";
 import type * as node_only_imap_smtp_types from "../node_only/imap_smtp/types.js";
@@ -2606,6 +2607,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/imap_smtp/helpers/fetch_messages": typeof node_only_imap_smtp_helpers_fetch_messages;
   "node_only/imap_smtp/helpers/map_to_email_type": typeof node_only_imap_smtp_helpers_map_to_email_type;
   "node_only/imap_smtp/helpers/send_message": typeof node_only_imap_smtp_helpers_send_message;
+  "node_only/imap_smtp/helpers/smtp_transport": typeof node_only_imap_smtp_helpers_smtp_transport;
   "node_only/imap_smtp/helpers/test_connection": typeof node_only_imap_smtp_helpers_test_connection;
   "node_only/imap_smtp/internal_actions": typeof node_only_imap_smtp_internal_actions;
   "node_only/imap_smtp/types": typeof node_only_imap_smtp_types;

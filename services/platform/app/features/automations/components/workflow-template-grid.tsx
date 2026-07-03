@@ -7,7 +7,6 @@ import { useMemo } from 'react';
 
 import {
   CatalogCard,
-  CatalogCardIcon,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
 import { useAbility } from '@/app/hooks/use-ability';

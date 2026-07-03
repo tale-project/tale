@@ -953,7 +953,6 @@
     },
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",
-      "installFailed": "Unable to create automation from template",
       "fetching": "Loading template...",
       "noTemplates": "No templates available for this integration."
     },

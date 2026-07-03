@@ -954,7 +954,6 @@
     },
     "templates": {
       "description": "Choisis un modèle pour démarrer avec des étapes préconfigurées.",
-      "installFailed": "Impossible de créer l'automatisation à partir du modèle",
       "fetching": "Chargement du modèle...",
       "noTemplates": "Aucun modèle disponible pour cette intégration."
     },
