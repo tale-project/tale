@@ -83,6 +83,7 @@ function countOccurrences(haystack: string, needle: string): number {
 
 export const fileEditTool: ToolDefinition = {
   name: 'file_edit' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_edit** — apply a targeted search-replace edit to an existing workspace file.
 

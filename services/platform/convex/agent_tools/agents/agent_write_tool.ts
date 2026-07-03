@@ -81,6 +81,7 @@ const SET_DELEGATES_HINTS: Readonly<Record<string, string>> = {
 
 export const agentWriteTool: ToolDefinition = {
   name: 'agent_write',
+  availability: 'any',
   tool: createTool({
     description: `Manage the AI workforce.
 

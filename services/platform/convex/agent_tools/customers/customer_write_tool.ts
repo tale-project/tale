@@ -49,6 +49,7 @@ const customerWriteArgs = z.discriminatedUnion('operation', [
 
 export const customerWriteTool: ToolDefinition = {
   name: 'customer_write',
+  availability: 'any',
   tool: createTool({
     description: `Create and update customers in the INTERNAL CRM (not external systems).
 

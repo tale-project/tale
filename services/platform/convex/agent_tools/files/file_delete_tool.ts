@@ -25,6 +25,7 @@ type FileDeleteArgs = z.infer<typeof fileDeleteArgs>;
 
 export const fileDeleteTool: ToolDefinition = {
   name: 'file_delete' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_delete** — remove a file from the current thread's workspace.
 

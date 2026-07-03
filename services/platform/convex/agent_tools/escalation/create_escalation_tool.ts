@@ -86,6 +86,8 @@ export function createEscalationTool(meta: EscalationToolMeta): ToolDefinition {
     : 'the humans of this organization';
   return {
     name: 'escalate',
+    // primary-only: Manager escalation is a primary-turn org-chart concern.
+    availability: 'primary-only',
     tool: createTool({
       description: `Escalate to ${target} when you are blocked, lack a needed permission or capability, or face a decision above your authority. State the reason, what blocks you, and what you need. Do NOT escalate work you can do yourself.`,
       inputSchema: escalateArgs,

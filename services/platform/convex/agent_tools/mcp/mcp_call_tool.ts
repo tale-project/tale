@@ -34,5 +34,7 @@ const mcpCallTool = createTool({
 
 export const mcpTool: ToolDefinition = {
   name: 'mcp',
+  // primary-only: Bound MCP calls create primary-turn approval cards.
+  availability: 'primary-only',
   tool: mcpCallTool,
 };

@@ -188,6 +188,7 @@ function formatSandboxState(area: {
 
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3, Node.js, and bash are available (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash). Pick the language that fits the task (or whatever a relevant skill recommends).
 

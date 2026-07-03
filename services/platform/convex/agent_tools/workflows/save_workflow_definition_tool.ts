@@ -100,6 +100,7 @@ const stepConfigSchema = z.object({
 
 export const saveWorkflowDefinitionTool = {
   name: 'save_workflow_definition' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Save or update an entire workflow definition (metadata + all steps) in one atomic operation.
 Requires user approval — an approval card will be created for the user to review and confirm.

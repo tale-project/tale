@@ -23,6 +23,7 @@ type FileListArgs = z.infer<typeof fileListArgs>;
 
 export const fileListTool: ToolDefinition = {
   name: 'file_list' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_list** — list every file currently in the thread's workspace, sorted newest first.
 

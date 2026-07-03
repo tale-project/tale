@@ -82,6 +82,7 @@ const conversationReadArgs = z.discriminatedUnion('operation', [
 
 export const conversationReadTool: ToolDefinition = {
   name: 'conversation_read',
+  availability: 'any',
   tool: createTool({
     description: `Customer conversation read tool for accessing conversation data and message history.
 

@@ -33,6 +33,7 @@ type FileReadArgs = z.infer<typeof fileReadArgs>;
 
 export const fileReadTool: ToolDefinition = {
   name: 'file_read' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_read** — read a file from the current thread's workspace.
 

@@ -105,6 +105,8 @@ const updateTodosArgs = z.object({
 
 export const updateTodosTool = {
   name: 'update_todos' as const,
+  // primary-only: Writes the root thread's plan surface, which the primary agent owns.
+  availability: 'primary-only' as const,
   tool: createTool({
     description: `**update_todos** — maintain a live task list for multi-step work.
 

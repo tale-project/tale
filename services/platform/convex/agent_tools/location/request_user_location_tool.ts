@@ -25,6 +25,8 @@ const requestUserLocationArgs = z.object({
 
 export const requestUserLocationTool = {
   name: 'request_user_location' as const,
+  // primary-only: Same primary-turn card/resume model as request_human_input.
+  availability: 'primary-only' as const,
   tool: createTool({
     description: `**DIRECTLY call this tool** to request the user's geographic location.
 

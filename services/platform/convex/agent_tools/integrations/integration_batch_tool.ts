@@ -46,6 +46,7 @@ const integrationBatchArgs = z.object({
 
 export const integrationBatchTool: ToolDefinition = {
   name: 'integration_batch',
+  availability: 'any',
   tool: createTool({
     description: `Execute multiple read operations in parallel on the same integration.
 

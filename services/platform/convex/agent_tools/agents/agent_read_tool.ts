@@ -31,6 +31,7 @@ const agentReadArgs = z.discriminatedUnion('operation', [
 
 export const agentReadTool: ToolDefinition = {
   name: 'agent_read',
+  availability: 'any',
   tool: createTool({
     description: `Read the AI workforce: who's on the team and how work flows between them.
 

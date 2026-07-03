@@ -24,6 +24,7 @@ interface GenerateImageResult {
 
 export const generateImageTool = {
   name: 'generate_image' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Generate an image from a text description using the workspace's image model, shown inline in your reply.
 

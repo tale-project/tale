@@ -57,6 +57,7 @@ const taskReadArgs = z.discriminatedUnion('operation', [
 
 export const taskReadTool: ToolDefinition = {
   name: 'task_read',
+  availability: 'any',
   tool: createTool({
     description: `Read tasks from the project task board (the shared work board for humans and agents).
 

@@ -79,6 +79,7 @@ const productReadArgs = z.discriminatedUnion('operation', [
 
 export const productReadTool: ToolDefinition = {
   name: 'product_read',
+  availability: 'any',
   tool: createTool({
     description: `Product catalog read tool for retrieving product information from the INTERNAL product database.
 

@@ -63,6 +63,7 @@ type FileWriteArgs = z.infer<typeof fileWriteArgs>;
 
 export const fileWriteTool: ToolDefinition = {
   name: 'file_write' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_write** — create or replace a file in the current thread's workspace.
 

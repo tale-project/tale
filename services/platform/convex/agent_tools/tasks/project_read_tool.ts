@@ -27,6 +27,7 @@ const projectReadArgs = z.discriminatedUnion('operation', [
 
 export const projectReadTool: ToolDefinition = {
   name: 'project_read',
+  availability: 'any',
   tool: createTool({
     description: `Read projects (the containers that group tasks) in the organization.
 
