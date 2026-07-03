@@ -2058,6 +2058,7 @@
       "completed": "Terminé",
       "back": "Retour",
       "backTo": "Retour à {page}",
+      "breadcrumb": "Fil d'Ariane",
       "automationsNavigation": "Navigation des automatisations",
       "agentsNavigation": "Navigation des agents",
       "knowledgeNavigation": "Navigation de la base de connaissances",

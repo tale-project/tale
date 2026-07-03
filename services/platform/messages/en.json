@@ -2057,6 +2057,7 @@
       "completed": "Completed",
       "back": "Back",
       "backTo": "Back to {page}",
+      "breadcrumb": "Breadcrumb",
       "automationsNavigation": "Automations navigation",
       "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",

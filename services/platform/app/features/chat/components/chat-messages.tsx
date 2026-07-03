@@ -1032,9 +1032,13 @@ export const ChatMessages = memo(function ChatMessages({
       labelId={messageHistoryLabelId}
       header={
         <>
-          <h2 id={messageHistoryLabelId} className="sr-only">
+          {/* Accessible name for the `role="log"` region. A plain `<span>`
+              (not a heading) so it doesn't inject an out-of-order `h2` ahead of
+              the page `h1` (e.g. the empty-state welcome heading) — the log is
+              already named for AT via `aria-labelledby`. */}
+          <span id={messageHistoryLabelId} className="sr-only">
             {t('aria.messageHistory')}
-          </h2>
+          </span>
           {loadMoreHeader}
           <div className="h-6" aria-hidden="true" />
         </>
@@ -1070,9 +1074,12 @@ export const ChatMessages = memo(function ChatMessages({
       aria-live="polite"
       aria-labelledby={messageHistoryLabelId}
     >
-      <h2 id={messageHistoryLabelId} className="sr-only">
+      {/* Accessible name for the `role="log"` region — a plain `<span>`, not a
+          heading, so it stays out of the page heading outline (see the
+          virtualized branch above). */}
+      <span id={messageHistoryLabelId} className="sr-only">
         {t('aria.messageHistory')}
-      </h2>
+      </span>
       <Stack gap={3} className="pt-6">
         {loadMoreHeader}
 

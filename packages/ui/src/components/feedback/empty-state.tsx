@@ -13,6 +13,14 @@ interface EmptyStateProps {
   description?: ReactNode;
   action?: ReactNode;
   className?: string;
+  /**
+   * Heading level for the title (1-6). Defaults to `3` — most empty states sit
+   * inside a section (under an `h2`) or a dialog, where `h3` keeps the heading
+   * order non-skipping. Pass an explicit level for other contexts: an empty
+   * state rendered directly under a page `h1` (with no intervening section
+   * heading) should use `2` so the outline doesn't skip `h1`→`h3`.
+   */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 export function EmptyState({
@@ -21,6 +29,7 @@ export function EmptyState({
   description,
   action,
   className,
+  headingLevel = 3,
 }: EmptyStateProps) {
   return (
     <div
@@ -32,7 +41,7 @@ export function EmptyState({
       {Icon && (
         <Icon className="text-muted-foreground mb-4 size-5" aria-hidden />
       )}
-      <Heading level={3} size="sm">
+      <Heading level={headingLevel} size="sm">
         {title}
       </Heading>
       {description && (

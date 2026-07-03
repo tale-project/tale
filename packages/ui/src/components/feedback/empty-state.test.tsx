@@ -13,6 +13,20 @@ describe('EmptyState', () => {
       expect(screen.getByRole('heading')).toHaveTextContent('No results found');
     });
 
+    it('renders the title as an h3 by default (sits under a section h2)', () => {
+      render(<EmptyState title="No teams yet" />);
+      expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(
+        'No teams yet',
+      );
+    });
+
+    it('honors an explicit headingLevel (e.g. h2 directly under a page h1)', () => {
+      render(<EmptyState title="No documents yet" headingLevel={2} />);
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
+        'No documents yet',
+      );
+    });
+
     it('renders description when provided', () => {
       render(
         <EmptyState
