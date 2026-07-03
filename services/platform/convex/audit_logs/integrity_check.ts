@@ -1,11 +1,13 @@
 /**
  * Scheduled audit-log integrity check (#1505).
  *
- * The hash-chain + checkpoint verification already exists as the admin-only
- * `verifyIntegrity` query, but until now it only ran when an admin opened the
- * audit-log page. SOC 2 / ISO 27001 expect *continuous* monitoring with
- * alerting, not an on-demand check. This module runs that same verification
- * across every org with an audit chain on a daily cron and raises an alert —
+ * The hash-chain + checkpoint verification is also exposed as the admin-only
+ * `verifyIntegrity` query (audit_logs/verify_integrity.ts) — an on-demand check
+ * an admin can invoke for a single org. That alone is not a monitored control:
+ * SOC 2 / ISO 27001 expect *continuous* monitoring with alerting, not a check
+ * that only runs when someone thinks to ask. This module runs that same
+ * verification across every org with an audit chain on a daily cron and raises
+ * an alert —
  * a structured `console.error`, a `security`-category audit row, AND an
  * out-of-band notification (in-app bell for admins + Slack fan-out) — whenever
  * a chain fails to verify, is truncated past the per-run window, mismatches a
@@ -129,6 +131,10 @@ export const verifyAuditChainForOrg = internalQuery({
       previousExpectedHash: v.optional(v.string()),
       headReached: v.boolean(),
     }),
+    // Fingerprint of the incident this org was last ALERTED about, surfaced
+    // from the progress row so the action can dedup the out-of-band alert
+    // without a second read (#1845). Undefined when no alert is active.
+    lastAlertedFingerprint: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     const progress = await ctx.db
@@ -158,7 +164,11 @@ export const verifyAuditChainForOrg = internalQuery({
       headReached: result.valid && !result.truncated,
     };
 
-    return { ...result, nextCursor };
+    return {
+      ...result,
+      nextCursor,
+      lastAlertedFingerprint: progress?.lastAlertedFingerprint,
+    };
   },
 });
 
@@ -168,6 +178,13 @@ export const verifyAuditChainForOrg = internalQuery({
  * rotates this org to the back of the queue. Its own internal mutation so the
  * action can record progress right after each verification without coupling it
  * to the (isolated) alert writes.
+ *
+ * `alertUpdate` folds the alert-dedup bookkeeping (#1845) into this same write
+ * so a run does one upsert, not two: `set` records the fingerprint of the
+ * incident just alerted on; `clear` wipes it when the chain verifies cleanly so
+ * a later re-break re-alerts. Omitted leaves the stored fingerprint untouched —
+ * the "same break we already alerted on, don't re-alert" case. (Convex `patch`
+ * treats an `undefined` value as field removal, which is exactly the clear.)
  */
 export const recordIntegrityProgress = internalMutation({
   args: {
@@ -176,6 +193,16 @@ export const recordIntegrityProgress = internalMutation({
     lastVerifiedId: v.optional(v.string()),
     previousExpectedHash: v.optional(v.string()),
     headReached: v.boolean(),
+    alertUpdate: v.optional(
+      v.union(
+        v.object({
+          op: v.literal('set'),
+          fingerprint: v.string(),
+          at: v.number(),
+        }),
+        v.object({ op: v.literal('clear') }),
+      ),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -185,13 +212,28 @@ export const recordIntegrityProgress = internalMutation({
         q.eq('organizationId', args.organizationId),
       )
       .first();
-    const patch = {
+    const patch: {
+      lastVerifiedTimestamp?: number;
+      lastVerifiedId?: string;
+      previousExpectedHash?: string;
+      headReached: boolean;
+      updatedAt: number;
+      lastAlertedFingerprint?: string;
+      lastAlertedAt?: number;
+    } = {
       lastVerifiedTimestamp: args.lastVerifiedTimestamp,
       lastVerifiedId: args.lastVerifiedId,
       previousExpectedHash: args.previousExpectedHash,
       headReached: args.headReached,
       updatedAt: Date.now(),
     };
+    if (args.alertUpdate?.op === 'set') {
+      patch.lastAlertedFingerprint = args.alertUpdate.fingerprint;
+      patch.lastAlertedAt = args.alertUpdate.at;
+    } else if (args.alertUpdate?.op === 'clear') {
+      patch.lastAlertedFingerprint = undefined;
+      patch.lastAlertedAt = undefined;
+    }
     if (existing) {
       await ctx.db.patch(existing._id, patch);
     } else {
@@ -276,6 +318,27 @@ export function classifyIntegrityFinding(result: {
 }
 
 /**
+ * Stable fingerprint identifying a specific integrity incident (#1845). Two
+ * runs that detect the SAME break produce the same fingerprint, so the cron can
+ * suppress a duplicate out-of-band alert; a DIFFERENT break (a new broken row,
+ * a different failing checkpoint, or a kind change) produces a new fingerprint
+ * and re-alerts. Derived from the finding kind plus whichever locator the
+ * verifier reported — the broken row's `logId` for a hash break, or the
+ * checkpoint id for a checkpoint finding.
+ */
+export function computeIncidentFingerprint(input: {
+  findingKind: IntegrityFindingKind;
+  firstBrokenLogId?: string;
+  checkpointId?: string;
+}): string {
+  return [
+    input.findingKind,
+    input.firstBrokenLogId ?? '',
+    input.checkpointId ?? '',
+  ].join('|');
+}
+
+/**
  * Out-of-band alert for a failed integrity check: an in-app notification to
  * the org's admins (`security` category also fans out to Slack via
  * `writeNotificationForOrgs`). Kept as its own internal mutation so the
@@ -292,6 +355,11 @@ export const notifyIntegrityFailure = internalMutation({
     organizationId: v.string(),
     reason: v.string(),
     kind: v.union(v.literal('tampering'), v.literal('config')),
+    // The broken audit row to deep-link to (#1845). Present for a hash break
+    // (`firstBrokenAt.logId`); omitted for a config/checkpoint-only finding,
+    // which has no single row to point at — the link then falls back to the
+    // audit-log page.
+    logId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -309,7 +377,12 @@ export const notifyIntegrityFailure = internalMutation({
         ? 'auditIntegrityUnverifiableDetails'
         : 'auditIntegrityFailedDetails',
       params: { reason: args.reason },
-      link: { kind: 'audit-logs' },
+      // Deep-link straight to the offending row when we have one, so an admin
+      // lands on the break instead of the top of the log.
+      link:
+        args.logId !== undefined
+          ? { kind: 'audit-logs', logId: args.logId }
+          : { kind: 'audit-logs' },
     });
     return null;
   },
@@ -365,15 +438,52 @@ export const runAuditIntegrityCheck = internalAction({
         continue;
       }
 
+      // Classify the failure (if any) and decide the alert-dedup update BEFORE
+      // persisting progress, so the SAME upsert that advances the paging cursor
+      // also records — or clears — the alerted incident fingerprint (#1845):
+      // one write per org per run, not two. `verifyAuditChain` returns
+      // `valid: false` for both a hash break (`firstBrokenAt`) and a checkpoint
+      // mismatch, but only a genuine break is "tampering"; a signed checkpoint
+      // with no key configured is a `config` gap, alerted calmly so a clean
+      // stack never reads as a breach.
+      const finding = result.valid
+        ? undefined
+        : classifyIntegrityFinding(result);
+      const fingerprint =
+        finding === undefined
+          ? undefined
+          : computeIncidentFingerprint({
+              findingKind: finding.kind,
+              firstBrokenLogId: result.firstBrokenAt?.logId,
+              checkpointId: result.checkpointMismatch?.checkpointId,
+            });
+      // Clean run → clear any active fingerprint so a later re-break re-alerts.
+      // New or changed break → arm a fresh alert. Unchanged break → leave the
+      // stored fingerprint untouched: the alert already fired, and re-alerting
+      // the same break every day is exactly the noise #1845 removes.
+      let alertUpdate:
+        | { op: 'set'; fingerprint: string; at: number }
+        | { op: 'clear' }
+        | undefined;
+      if (result.valid) {
+        alertUpdate = { op: 'clear' };
+      } else if (
+        fingerprint !== undefined &&
+        fingerprint !== result.lastAlertedFingerprint
+      ) {
+        alertUpdate = { op: 'set', fingerprint, at: Date.now() };
+      }
+      const shouldAlert = alertUpdate?.op === 'set';
+
       // Persist the paging cursor so the next run resumes where this one left
-      // off (forward paging across runs, #1846 item 2) and this org rotates to
-      // the back of the round-robin queue. Isolated try/catch so a failed
-      // progress write never aborts the sweep — worst case the org re-walks
-      // the same window next run.
+      // off (forward paging across runs, #1846 item 2), fold in the alert
+      // bookkeeping (#1845), and rotate this org to the back of the round-robin
+      // queue. Isolated try/catch so a failed progress write never aborts the
+      // sweep — worst case the org re-walks the same window next run.
       try {
         await ctx.runMutation(
           internal.audit_logs.integrity_check.recordIntegrityProgress,
-          { organizationId, ...result.nextCursor },
+          { organizationId, ...result.nextCursor, alertUpdate },
         );
       } catch (err) {
         console.error(
@@ -394,14 +504,12 @@ export const runAuditIntegrityCheck = internalAction({
         );
       }
 
-      // The chain (or a checkpoint) failed to verify. `verifyAuditChain`
-      // returns `valid: false` for both a hash break (`firstBrokenAt`) and a
-      // checkpoint mismatch — but only a genuine break is "tampering". A signed
-      // checkpoint with no key configured is a config gap (`config`), alerted
-      // calmly so a clean stack never reads as a breach.
-      if (result.valid) continue;
+      // Clean chain: the cursor advanced and any stale alert fingerprint was
+      // cleared above, so nothing more to do. `finding` is defined exactly when
+      // verification failed, so this guard also narrows it for the rest of the
+      // loop body.
+      if (finding === undefined) continue;
 
-      const finding = classifyIntegrityFinding(result);
       const isTampering = finding.kind === 'tampering';
       if (isTampering) {
         failures++;
@@ -421,9 +529,11 @@ export const runAuditIntegrityCheck = internalAction({
         console.warn(logLine, logDetail);
       }
 
-      // In-band signal: a security-category audit row. It is itself a fresh,
-      // correctly-chained entry, so it does not interfere with detection of
-      // the existing break it reports.
+      // In-band signal: a security-category audit row, written on EVERY failing
+      // run (never deduped) so the durable record is always complete even when
+      // the out-of-band alert below is suppressed as a repeat. It is itself a
+      // fresh, correctly-chained entry, so it does not interfere with detection
+      // of the existing break it reports.
       const metadata: Record<string, unknown> = {
         verifiedCount: result.verifiedCount,
         checkpointsVerified: result.checkpointsVerified,
@@ -450,19 +560,29 @@ export const runAuditIntegrityCheck = internalAction({
         },
       );
 
-      // Out-of-band alert (admins' notification bell + Slack). Isolated so a
-      // notification write failing for one org never aborts the sweep — the
-      // in-band audit row above is already persisted as the durable record.
-      try {
-        await ctx.runMutation(
-          internal.audit_logs.integrity_check.notifyIntegrityFailure,
-          { organizationId, reason: finding.reason, kind: finding.kind },
-        );
-      } catch (err) {
-        console.error(
-          `[AuditIntegrity] could not raise out-of-band alert for org ${organizationId}:`,
-          err,
-        );
+      // Out-of-band alert (admins' notification bell + Slack) — fired ONLY for
+      // a NEW or CHANGED incident (#1845); a repeat of the same break is deduped
+      // to a single notification (the in-band audit row above is the per-run
+      // record). Isolated so a notification write failing for one org never
+      // aborts the sweep — the audit row is already persisted as the durable
+      // record. `logId` deep-links the bell/Slack alert to the broken row.
+      if (shouldAlert) {
+        try {
+          await ctx.runMutation(
+            internal.audit_logs.integrity_check.notifyIntegrityFailure,
+            {
+              organizationId,
+              reason: finding.reason,
+              kind: finding.kind,
+              logId: result.firstBrokenAt?.logId,
+            },
+          );
+        } catch (err) {
+          console.error(
+            `[AuditIntegrity] could not raise out-of-band alert for org ${organizationId}:`,
+            err,
+          );
+        }
       }
     }
 

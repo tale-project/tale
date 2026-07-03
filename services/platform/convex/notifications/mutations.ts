@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { internalMutation, mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { writeNotificationForOrgs } from './helpers';
+import { canSeeNotification, writeNotificationForOrgs } from './helpers';
 
 /**
  * Append the calling user to a notification's `readBy` set. Idempotent —
@@ -39,7 +39,11 @@ export const markAllRead = mutation({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
 
     const userId = authUser.userId;
     for await (const n of ctx.db
@@ -47,6 +51,10 @@ export const markAllRead = mutation({
       .withIndex('by_org_created', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      // Skip `security` rows a non-admin can't see (#1845) so "mark all read"
+      // never silently dismisses a notification they were never shown — and so
+      // an admin's later view of that security row is still unread.
+      if (!canSeeNotification(member.role, n.category)) continue;
       if (!n.readBy.includes(userId)) {
         await ctx.db.patch(n._id, { readBy: [...n.readBy, userId] });
       }

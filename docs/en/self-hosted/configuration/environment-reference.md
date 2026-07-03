@@ -116,12 +116,6 @@ Re-ranking ships disabled because it adds per-query latency and depends on an ex
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
 
-## Versioning
-
-| Name           | Default       | Description                                                                                     |
-| -------------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| `TALE_VERSION` | latest stable | The image tag pulled by `docker compose pull`. Pin to a specific tag for reproducible upgrades. |
-
 ## Where this fits
 
-The variables here are the operator's contact surface; the UI surface that consumes most of them lives under [Platform admin](/platform/admin/overview). Provider keys are the one half-and-half: the keys themselves live in `providers/*.secrets.json`, but the UI under **Settings > Providers** is how you add and rotate them in practice. The next read worth queuing is [Providers](/self-hosted/configuration/providers) — it covers the file form, the SOPS modes, and the resolve-and-failover behaviour.
+The variables here are the operator's contact surface; the UI surface that consumes most of them lives under [Platform admin](/platform/admin/overview). Provider keys are the one half-and-half: the keys themselves live in `providers/*.secrets.json`, but the UI under **Settings > AI providers** is how you add and rotate them in practice. The next read worth queuing is [Providers](/self-hosted/configuration/providers) — it covers the file form, the SOPS modes, and the resolve-and-failover behaviour.

@@ -4,7 +4,15 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
+import {
+  countAutoInstall,
+  countTopLevelEntries,
+} from '../project/catalog-counts';
 import { computeContentHash, writeChecksums } from '../project/checksums';
+import {
+  DEFAULT_README_CONTENT,
+  DEFAULT_README_RELPATH,
+} from '../project/default-readme';
 import {
   fetchReference,
   getEmbeddedExamples,
@@ -205,6 +213,12 @@ export async function init(options: InitOptions): Promise<InitResult> {
   const skillFiles = getEmbeddedExamples('skills');
   await writeEmbeddedFiles(skillFiles, join(defaultOrgDir, 'skills'));
 
+  // Explain the tree it sits in: most of `default/` is a passive catalog
+  // (only `metadata.autoInstall: true` entries are active on a new org),
+  // which nothing on disk would otherwise say.
+  logger.step('Writing default/README.md...');
+  await writeFile(join(target, DEFAULT_README_RELPATH), DEFAULT_README_CONTENT);
+
   // Write the agent instructions (AGENTS.md + CLAUDE.md). Kept ABOVE the
   // checksum step so their hashes land in `.tale/checksums.json`: without that,
   // `tale update`'s `!oldHash` "new" branch (update.ts:95-101) would
@@ -257,6 +271,10 @@ export async function init(options: InitOptions): Promise<InitResult> {
   allFiles.set(
     join('default', 'branding', 'branding.json'),
     computeContentHash(brandingJson),
+  );
+  allFiles.set(
+    DEFAULT_README_RELPATH,
+    computeContentHash(DEFAULT_README_CONTENT),
   );
 
   const checksums: Checksums = {
@@ -330,14 +348,22 @@ export async function init(options: InitOptions): Promise<InitResult> {
   logger.blank();
   logger.success('Tale project initialized!');
   logger.blank();
+  // Honest inventory: a file on disk is a catalog entry, not an active
+  // install (default/README.md explains the split). Agents split by
+  // `metadata.autoInstall`; integrations and skills are bundles of several
+  // files each, so count entries rather than files.
+  const agentCounts = countAutoInstall(agentFiles);
   logger.table([
     ['Project', target],
     ['CLI version', pkg.version],
-    ['Agents', `${agentFiles.size} files`],
-    ['Workflows', `${workflowFiles.size} files`],
-    ['Integrations', `${integrationFiles.size} files`],
-    ['Providers', `${providerConfigFiles.size} files`],
-    ['Skills', `${skillFiles.size} files`],
+    [
+      'Agents',
+      `${agentCounts.active} active, ${agentCounts.catalog} in catalog`,
+    ],
+    ['Workflows', `${workflowFiles.size} available`],
+    ['Integrations', `${countTopLevelEntries(integrationFiles)} available`],
+    ['Providers', `${providerConfigFiles.size} available`],
+    ['Skills', `${countTopLevelEntries(skillFiles)} available`],
     ['Branding', '1 file'],
   ]);
   logger.blank();

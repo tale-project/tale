@@ -30,7 +30,8 @@ Don't memorize values — **read the project's own sources**, which can't drift:
   beats rebuild.
 
 If the project documents where these live, go there. If it doesn't, the component library and the
-tokens file _are_ the spec — read them before you design.
+tokens file _are_ the spec — read them before you design. Locate all three the way `search-codebase`
+orients: read the repo's own map, don't guess paths.
 
 ## What to extract
 
@@ -53,7 +54,8 @@ tokens file _are_ the spec — read them before you design.
 - **Name the surface, then the tokens, then the components.** "This is the marketing site → its
   marketing-chrome components + the brand tokens" is a complete answer; "a blue button" is not.
 - **A second copy of a shipped primitive is the tell.** If the design system already has a card, a
-  list, a dialog, you're describing a variant of it — not a new thing.
+  list, a dialog, you're describing a variant of it — not a new thing (the doctrine:
+  `implement-feature`).
 
 ## Companion skills
 

@@ -58,14 +58,15 @@ export function needsToolResultRetry(
 
 /**
  * The interactive approval-gate tool. When the agent loop is halted because the
- * model called this (see the `stopWhen: hasToolCall('request_human_input')` in
- * generate_response.ts), the stop is INTENTIONAL — an approval card is now shown
- * and the turn must wait for the user's response in a future turn.
+ * model called this (see the `stopWhen: hasValidToolCall('request_human_input')`
+ * in generate_response.ts), the stop is INTENTIONAL — an approval card is now
+ * shown and the turn must wait for the user's response in a future turn.
  */
 const HUMAN_INPUT_GATE_TOOL = 'request_human_input';
 
 /**
- * True when the generation's LAST step ended by calling `request_human_input`.
+ * True when the generation's LAST step ended by VALIDLY calling
+ * `request_human_input`.
  *
  * That is the deliberate approval-gate halt and MUST be treated as terminal: the
  * AI SDK reports `finishReason: 'tool-calls'` for it (or `'stop'` with no
@@ -73,18 +74,25 @@ const HUMAN_INPUT_GATE_TOOL = 'request_human_input';
  * incomplete response and auto-continue — barrelling straight past the gate the
  * stop exists to enforce (researcher plan-confirmation, disambiguation cards…).
  *
+ * A call the SDK marked `invalid: true` (input failed schema validation) never
+ * executed and created NO card — treating it as the gate halt would suppress
+ * the retry and strand the turn on a question the user can never see. Invalid
+ * calls therefore stay retryable.
+ *
  * Scoped to the LAST step: when `stopWhen` fires, the gate call is always the
  * final step. A gate call in an earlier step (the model kept going on its own)
  * is not a gate halt and stays retryable.
  */
 export function endedOnHumanInputGate(steps: unknown[] | undefined): boolean {
   if (!steps || steps.length === 0) return false;
-  type StepLike = { toolCalls?: Array<{ toolName: string }> };
+  type StepLike = {
+    toolCalls?: Array<{ toolName: string; invalid?: boolean }>;
+  };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from AI SDK
   const typedSteps = steps as StepLike[];
   const lastStep = typedSteps[typedSteps.length - 1];
   return (lastStep?.toolCalls ?? []).some(
-    (call) => call.toolName === HUMAN_INPUT_GATE_TOOL,
+    (call) => call.toolName === HUMAN_INPUT_GATE_TOOL && call.invalid !== true,
   );
 }
 

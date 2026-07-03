@@ -189,7 +189,15 @@ describe.skipIf(!BIN)('tale binary smoke tests', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Tale project initialized!');
 
+      // The summary reports active vs catalog instead of raw file counts —
+      // only `metadata.autoInstall: true` agents are live on a new org.
+      expect(result.stdout).toContain('in catalog');
+      expect(result.stdout).toContain('available');
+
       const proj = join(dir, 'proj');
+
+      // default/ self-documents the active-vs-catalog rule.
+      expect(existsSync(join(proj, 'default', 'README.md'))).toBe(true);
 
       const taleJson = JSON.parse(
         await readFile(join(proj, 'tale.json'), 'utf-8'),

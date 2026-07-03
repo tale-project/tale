@@ -3,12 +3,15 @@
 import { Grid, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { UsePaginatedQueryResult } from 'convex/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -25,16 +28,85 @@ interface AuditLogTableProps {
   userEmailMap?: Map<string, string>;
   /** `errors` renders the error-message column set and errors copy. */
   variant?: AuditLogTableVariant;
+  /** Org id — required to resolve a `revealLogId` that isn't on the loaded page. */
+  organizationId?: string;
+  /**
+   * When set, reveal this row's detail dialog (notification deep link or the
+   * integrity panel's "open broken row"). Resolved from the loaded page when
+   * possible, else fetched by id; a stale/gone id degrades to a toast (#1845).
+   */
+  revealLogId?: string;
+  /**
+   * Bumps whenever a fresh reveal is requested, so the same `revealLogId`
+   * re-opens after the dialog was closed. Undefined disables the reveal.
+   */
+  revealNonce?: number;
 }
 
 export function AuditLogTable({
   paginatedResult,
   userEmailMap,
   variant = 'audit',
+  organizationId,
+  revealLogId,
+  revealNonce,
 }: AuditLogTableProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
+  const { toast } = useToast();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  // Deep-link reveal (#1845). Prefer a row already on the loaded page; only
+  // fetch by id when it isn't there (the broken row is rarely in the first
+  // page). `handledRevealRef` keys on the nonce so a reveal fires once — the
+  // dialog stays closable — yet a new request (new nonce) reopens it.
+  const revealFromResults = useMemo(
+    () =>
+      revealLogId !== undefined
+        ? paginatedResult.results.find((r) => r._id === revealLogId)
+        : undefined,
+    [revealLogId, paginatedResult.results],
+  );
+  const shouldFetchReveal =
+    revealLogId !== undefined &&
+    revealFromResults === undefined &&
+    organizationId !== undefined;
+  const revealFetch = useConvexQuery(
+    api.audit_logs.queries.getAuditLogById,
+    shouldFetchReveal ? { organizationId, logId: revealLogId } : 'skip',
+  );
+  const handledRevealRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (revealNonce === undefined || revealLogId === undefined) return;
+    if (handledRevealRef.current === revealNonce) return;
+    if (revealFromResults !== undefined) {
+      handledRevealRef.current = revealNonce;
+      setSelectedLog(revealFromResults);
+      return;
+    }
+    // Can't resolve off-page without an org id — give up quietly.
+    if (organizationId === undefined) return;
+    // Wait for the by-id read to settle before deciding found vs. missing.
+    if (revealFetch.isLoading) return;
+    handledRevealRef.current = revealNonce;
+    if (revealFetch.data) {
+      setSelectedLog(revealFetch.data);
+    } else {
+      toast({
+        title: t('logs.integrity.rowMissing', { logId: revealLogId }),
+        variant: 'destructive',
+      });
+    }
+  }, [
+    revealNonce,
+    revealLogId,
+    revealFromResults,
+    organizationId,
+    revealFetch.isLoading,
+    revealFetch.data,
+    toast,
+    t,
+  ]);
 
   const resolveEmail = useCallback(
     (log: AuditLog) =>

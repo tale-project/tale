@@ -16,6 +16,13 @@ export interface AgentRunSpec {
   prompt: string;
   /** Gateway model id (e.g. an org-allowlisted model). */
   model?: string;
+  /** Managed only: gateway model id of the model-level fallback (the catalog
+   * entry's `fallbackModelId`, e.g. Opus 4.8 behind the Fable default). The
+   * session VK is scoped to allow it alongside `model`. Adapters wire it as
+   * BOTH fallback flavours Claude Code knows: the availability chain
+   * (`--fallback-model`, overload/unavailable) and the content-based Fable
+   * classifier fallback (the `ANTHROPIC_DEFAULT_OPUS_MODEL` slot). */
+  fallbackModel?: string;
   /** Resume handle captured from a prior run's `run-started`/`result`
    * (Claude session_id / OpenCode sessionID). Continues the same agent
    * conversation in the same workspace. */

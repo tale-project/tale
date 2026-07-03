@@ -61,6 +61,25 @@ describe('validateSandboxStep', () => {
     expect(res.valid).toBe(true);
   });
 
+  it('accepts folder inputs by id and by path', () => {
+    const res = validateSandboxStep({
+      run: { script: 's', language: 'python' },
+      inputs: [
+        { as: 'input', from: { folderId: 'fold1' } },
+        { as: 'setup', from: { folderPath: 'Clients/Acme GmbH' } },
+      ],
+    });
+    expect(res.valid).toBe(true);
+  });
+
+  it('rejects an unknown input source key', () => {
+    const res = validateSandboxStep({
+      run: { script: 's', language: 'python' },
+      inputs: [{ as: 'input', from: { folder: 'x' } }],
+    });
+    expect(res.valid).toBe(false);
+  });
+
   it('errors when run is missing', () => {
     const res = validateSandboxStep({});
     expect(res.valid).toBe(false);

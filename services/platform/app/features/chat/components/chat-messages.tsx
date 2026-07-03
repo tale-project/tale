@@ -31,6 +31,7 @@ import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
+import { GenerationIncompleteNotice } from './generation-incomplete-notice';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
@@ -674,6 +675,17 @@ export const ChatMessages = memo(function ChatMessages({
         return (
           <div key={message.key} data-message-key={message.key}>
             <ModelFallbackNotice
+              body={message.systemMessageBody ?? message.content}
+            />
+          </div>
+        );
+      }
+
+      // Retry-exhausted turns: structured body, localized warning line.
+      if (message.systemMessageTag === SYSTEM_MSG_TAG.GENERATION_INCOMPLETE) {
+        return (
+          <div key={message.key} data-message-key={message.key}>
+            <GenerationIncompleteNotice
               body={message.systemMessageBody ?? message.content}
             />
           </div>
