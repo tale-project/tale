@@ -4220,7 +4220,8 @@
       "invalidUrl": "Gib eine gültige HTTP- oder HTTPS-URL ein",
       "validation": {
         "nameRequired": "Name ist erforderlich",
-        "nameFormat": "Muss aus Kleinbuchstaben, Ziffern und Bindestrichen bestehen",
+        "nameTooLong": "Darf höchstens {max} Zeichen lang sein",
+        "nameInvalid": "Nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt",
         "displayNameRequired": "Anzeigename ist erforderlich",
         "urlRequired": "URL ist erforderlich",
         "commandRequired": "Befehl ist erforderlich",
@@ -4598,7 +4599,9 @@
       "discard": "Verwerfen"
     },
     "errors": {
-      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen."
+      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+      "tooLong": "Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.",
+      "illegalChars": "Entferne spitze Klammern, Backticks und Steuerzeichen."
     },
     "toasts": {
       "saved": "Gespeichert.",
@@ -5272,6 +5275,7 @@
       "loadingMembers": "Lädt...",
       "unknownMember": "Unbekannt",
       "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
+      "lastMemberHint": "Ein Team muss mindestens ein Mitglied behalten. Lösche stattdessen das Team, um das letzte Mitglied zu entfernen.",
       "description": "Teams innerhalb deiner Organisation erstellen und verwalten für granulare Zugriffskontrolle"
     },
     "agents": {

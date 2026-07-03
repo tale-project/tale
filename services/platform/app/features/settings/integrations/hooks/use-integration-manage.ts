@@ -197,7 +197,7 @@ export function useIntegrationManage(
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
   const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
 
-  const isSubmitting = false;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const hasOAuth2Config = !!integration.oauth2Config;
 
@@ -724,6 +724,7 @@ export function useIntegrationManage(
   ]);
 
   const handleDisconnect = useCallback(async () => {
+    setIsSubmitting(true);
     try {
       await updateCredentials({
         credentialId: toId<'integrationCredentials'>(integration._id),
@@ -752,6 +753,8 @@ export function useIntegrationManage(
               }),
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }, [updateCredentials, integration, t]);
 
