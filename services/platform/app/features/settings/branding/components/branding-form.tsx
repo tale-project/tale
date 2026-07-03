@@ -264,7 +264,7 @@ export function BrandingForm({
       className="w-full max-w-sm shrink-0 space-y-0 self-start"
     >
       <Stack gap={0} justify="between" className="h-full">
-        <FormSection>
+        <FormSection className="gap-6">
           <SettingsRow
             label={t('branding.logo')}
             description={t('branding.logoDescription')}
