@@ -6894,6 +6894,7 @@
     "nameShapeHint": "Lettres majuscules, chiffres et traits de soulignement ; doit commencer par une lettre.",
     "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
     "saveSuccess": "Secret enregistré",
+<<<<<<< HEAD
     "editButton": "Modifier",
     "editTitle": "Modifier le secret",
     "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
@@ -6906,6 +6907,13 @@
       "forbidden": "Tu n'as pas l'autorisation de gérer les secrets de ce projet.",
       "projectNotFound": "Ce projet est introuvable. Il a peut-être été supprimé."
     }
+=======
+    "deleteSuccess": "Secret supprimé",
+    "overwriteWarningTitle": "Nom déjà utilisé",
+    "overwriteWarningBody": "Un secret nommé {names} existe déjà. L'enregistrement remplacera sa valeur stockée — cette action est irréversible.",
+    "overwriteConfirmLabel": "Écraser le secret existant",
+    "overwriteButton": "Écraser"
+>>>>>>> b60bb76a3 (fix: confirm before overwriting an existing project secret (#1983))
   },
   "tasks": {
     "attachments": {
