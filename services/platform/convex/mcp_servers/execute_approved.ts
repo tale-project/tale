@@ -10,7 +10,7 @@
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { toId } from '../lib/type_cast_helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
@@ -52,7 +52,7 @@ export const executeApprovedMcpToolCall = internalAction({
 
     try {
       const result: unknown = await ctx.runAction(
-        api.mcp_servers.actions.executeMcpTool,
+        internal.mcp_servers.actions.executeMcpTool,
         {
           serverId: toId<'mcpServers'>(serverId),
           toolName,

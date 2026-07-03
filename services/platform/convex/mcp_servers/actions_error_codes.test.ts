@@ -1,7 +1,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it, vi } from 'vitest';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import schema from '../schema';
 
 /**
@@ -129,10 +129,12 @@ describe('mcp_servers action error codes (#2015)', () => {
     const t = newConvexTest();
     const serverId = await danglingServerId(t);
     const code = await catchCode(() =>
-      t.withIdentity(IDENTITY).action(api.mcp_servers.actions.executeMcpTool, {
-        serverId,
-        toolName: 'doThing',
-      }),
+      t
+        .withIdentity(IDENTITY)
+        .action(internal.mcp_servers.actions.executeMcpTool, {
+          serverId,
+          toolName: 'doThing',
+        }),
     );
     expect(code).toBe('NOT_FOUND');
   });
@@ -150,10 +152,12 @@ describe('mcp_servers action error codes (#2015)', () => {
       }),
     );
     const code = await catchCode(() =>
-      t.withIdentity(IDENTITY).action(api.mcp_servers.actions.executeMcpTool, {
-        serverId,
-        toolName: 'doThing',
-      }),
+      t
+        .withIdentity(IDENTITY)
+        .action(internal.mcp_servers.actions.executeMcpTool, {
+          serverId,
+          toolName: 'doThing',
+        }),
     );
     expect(code).toBe('SERVER_NOT_ACTIVE');
   });
