@@ -9,6 +9,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertUniqueProductName } from './assert_unique_product_name';
 import type { UpdateProductsResult, ProductStatus } from './types';
+import { validateProductName } from './validate_product_name';
 
 export interface UpdateProductsArgs {
   // Option 1: Update by product ID (safest, most common)
@@ -165,12 +166,19 @@ export async function updateProducts(
     });
   }
 
+  // Validate the name once up front (the same value is applied to every
+  // matched product), so an invalid name throws before any DB write.
+  const validatedName =
+    args.updates.name !== undefined
+      ? validateProductName(args.updates.name)
+      : undefined;
+
   // Enforce name uniqueness on the non-UI rename path. REST PATCH
   // /api/v1/products/:id, the agent product_write tool, and the workflow
   // product action all reach here, so a rename must respect the same
   // duplicate-name invariant the interactive updateProduct mutation enforces.
-  if (args.updates.name !== undefined) {
-    const newName = args.updates.name;
+  if (validatedName !== undefined) {
+    const newName = validatedName;
     if (productsToUpdate.length > 1) {
       // A filter-based batch can't rename many rows to one name without
       // creating duplicates among themselves.
@@ -196,7 +204,7 @@ export async function updateProducts(
       const patch: Record<string, unknown> = {};
 
       // Copy direct field updates
-      if (args.updates.name !== undefined) patch.name = args.updates.name;
+      if (validatedName !== undefined) patch.name = validatedName;
       if (args.updates.description !== undefined)
         patch.description = args.updates.description;
       if (args.updates.imageUrl !== undefined)

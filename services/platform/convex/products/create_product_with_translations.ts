@@ -3,6 +3,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertSupportedProductLocale } from './locale_validation';
 import type { ProductStatus, ProductTranslation } from './types';
+import { validateProductName } from './validate_product_name';
 
 export interface CreateProductWithTranslationsArgs {
   organizationId: string;
@@ -28,10 +29,11 @@ export async function createProductWithTranslations(
   }
 
   const now = Date.now();
+  const name = validateProductName(args.name);
 
   return await ctx.db.insert('products', {
     organizationId: args.organizationId,
-    name: args.name,
+    name,
     description: args.description,
     imageUrl: args.imageUrl,
     stock: args.stock,
