@@ -328,14 +328,6 @@
       "description": "Un agent est la combinaison à quatre boutons d'instructions, de connaissances, d'outils et d'un modèle. Cette page te donne le modèle mental que le reste de la section agents présuppose."
     }
   },
-  "fr:platform/agents/organigram": {
-    "slug": "platform/agents/organigram",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Organigramme",
-      "description": "L'organigramme réservé aux agents — des liens hiérarchiques qui pilotent le découpage d'epics, l'escalade SLA et le transfert de budget sur le tableau des tâches, avec les humains toujours au sommet."
-    }
-  },
   "fr:platform/automations/execution-logs": {
     "slug": "platform/automations/execution-logs",
     "locale": "fr",
@@ -1472,14 +1464,6 @@
       "description": "An agent is the four-knob combination of instructions, knowledge, tools, and a model. This page hands you the mental model the rest of the agents section assumes."
     }
   },
-  "en:platform/agents/organigram": {
-    "slug": "platform/agents/organigram",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Organigram",
-      "description": "The agents-only org chart — reporting lines that drive epic decomposition, SLA escalation, and budget handoff on the task board, with humans always at the top."
-    }
-  },
   "en:platform/automations/execution-logs": {
     "slug": "platform/automations/execution-logs",
     "locale": "en",
@@ -2614,14 +2598,6 @@
     "frontmatter": {
       "title": "Agent-Konzepte",
       "description": "Ein Agent ist die Vier-Knöpfe-Kombination aus Instructions, Wissen, Tools und einem Modell. Diese Seite vermittelt dir das mentale Modell, das der Rest des Agents-Abschnitts voraussetzt."
-    }
-  },
-  "de:platform/agents/organigram": {
-    "slug": "platform/agents/organigram",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Organigramm",
-      "description": "Das Org-Chart nur für Agenten — Berichtslinien, die Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe auf dem Aufgaben-Board steuern, mit Menschen immer an der Spitze."
     }
   },
   "de:platform/automations/execution-logs": {

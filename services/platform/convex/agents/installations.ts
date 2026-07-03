@@ -19,7 +19,7 @@ import { hasAnyProvision } from './provision_defaults_mutations';
  *
  * INSTALLED = a row exists; ENABLED = `row.enabled !== false`. The roster gate
  * (`listInstalledAgentsForOrg`) reads `listInstallStatesInternal` and keeps an
- * agent only when it is installed && enabled (router/mention/organigram).
+ * agent only when it is installed && enabled (router/mention/org-chart reads).
  */
 
 const installStateValidator = v.object({

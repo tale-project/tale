@@ -269,6 +269,15 @@ apps.list.start
 apps.list.markDone
 apps.list.merge
 
+# Spawned-job card: the status line is `t(statusKey)` in job-card.tsx, where
+# `statusKey` comes from a job.status → key object map — a runtime lookup the
+# scanner can't tie back to the jobCard namespace.
+jobCard.statusRunning
+jobCard.statusCompleted
+jobCard.statusFailed
+jobCard.statusTimedOut
+jobCard.statusCancelled
+
 # Enterprise SSO sign-in failures: the authorize/callback Convex handlers set
 # the error message as a string param on the `/log-in?error=…` redirect
 # (`redirectWithError`), which the login page renders via `t(ssoError)` — a

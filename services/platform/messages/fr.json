@@ -5324,7 +5324,6 @@
     "agents": {
       "title": "Agents",
       "tabs": {
-        "overview": "Vue d'ensemble",
         "list": "Liste",
         "metrics": "Métriques"
       },
@@ -5370,7 +5369,6 @@
         "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Webhooks",
-        "delegation": "Délégation",
         "conversationStarters": "Amorces",
         "history": "Historique",
         "metrics": "Performance",
@@ -5546,10 +5544,6 @@
           "autoLabel": "Utiliser la valeur par défaut de l'org",
           "autoDescription": "Revenir au modèle de vision par défaut du fournisseur."
         }
-      },
-      "delegation": {
-        "title": "Délégation",
-        "description": "La délégation suit l'organigramme. Utilise le panneau latéral pour définir à qui cet agent rend compte et à qui il délègue — la délégation est plusieurs-à-plusieurs, mais pas à lui-même."
       },
       "knowledge": {
         "retrievalMode": "Mode de récupération",
@@ -8014,37 +8008,6 @@
       "title": "Aucun agent au catalogue",
       "description": "Aucun agent installable n'a été trouvé pour cette organisation."
     }
-  },
-  "organigram": {
-    "title": "Organigramme",
-    "subtitle": "Comment ta main-d'œuvre IA délègue le travail — délégation, décomposition d'epics, escalade SLA et transfert de budget suivent tous ces liens.",
-    "addAgent": "Ajouter un agent",
-    "node": {
-      "warning": "Un lien de délégation a été ignoré (il référençait un agent introuvable)."
-    },
-    "panel": {
-      "close": "Fermer",
-      "reportsTo": "Rend compte à",
-      "delegatesTo": "Délègue à",
-      "noAgents": "Aucun autre agent disponible.",
-      "delegationHint": "La délégation est plusieurs-à-plusieurs — un agent peut rendre compte à et déléguer à un nombre quelconque d'agents. Seule règle : pas à lui-même.",
-      "openAgent": "Ouvrir les réglages de l'agent"
-    },
-    "errors": {
-      "self": "Un agent ne peut pas rendre compte à ni déléguer à lui-même.",
-      "forbidden": "Ton rôle ne peut pas modifier l'organigramme.",
-      "generic": "Impossible de mettre à jour l'organigramme."
-    },
-    "empty": {
-      "title": "Aucun agent pour l'instant",
-      "description": "Ajoute des agents à ta main-d'œuvre, puis organise ici la façon dont ils délèguent le travail."
-    },
-    "humans": {
-      "title": "Humains",
-      "subtitle": "Agents de premier niveau : {count}"
-    },
-    "saved": "Délégation enregistrée",
-    "unsavedChanges": "Modifications non enregistrées"
   },
   "workforce": {
     "subtitle": "Les performances de ta workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",

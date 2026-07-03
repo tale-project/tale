@@ -194,9 +194,6 @@ export async function waitForSeededOrg(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  // Target the "All agents" tab (the table), not `/agents` — the latter is now
-  // the organigram Overview, whose React-Flow + ELK canvas is far slower and
-  // flakier to surface the seeded agent's name than a plain table row.
   await page.goto(`/dashboard/${organizationId}/agents/all`);
 
   // The agents list loads via a NON-reactive Convex action (`file_actions:

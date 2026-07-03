@@ -184,7 +184,6 @@ import type * as agents_internal_actions from "../agents/internal_actions.js";
 import type * as agents_internal_mutations from "../agents/internal_mutations.js";
 import type * as agents_internal_queries from "../agents/internal_queries.js";
 import type * as agents_mutations from "../agents/mutations.js";
-import type * as agents_org_chart_actions from "../agents/org_chart_actions.js";
 import type * as agents_org_chart_graph from "../agents/org_chart_graph.js";
 import type * as agents_provision_defaults from "../agents/provision_defaults.js";
 import type * as agents_provision_defaults_mutations from "../agents/provision_defaults_mutations.js";
@@ -1829,7 +1828,6 @@ declare const fullApi: ApiFromModules<{
   "agents/internal_mutations": typeof agents_internal_mutations;
   "agents/internal_queries": typeof agents_internal_queries;
   "agents/mutations": typeof agents_mutations;
-  "agents/org_chart_actions": typeof agents_org_chart_actions;
   "agents/org_chart_graph": typeof agents_org_chart_graph;
   "agents/provision_defaults": typeof agents_provision_defaults;
   "agents/provision_defaults_mutations": typeof agents_provision_defaults_mutations;

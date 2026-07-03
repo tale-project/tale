@@ -138,12 +138,12 @@ export interface AgentJsonConfig {
   conversationStarters?: string[];
   visibleInChat?: boolean;
   /**
-   * Organigram delegation edges: slugs of the agents THIS agent delegates to
-   * (its direct reports). Many-to-many; the only forbidden edge is a
-   * self-edge. Written ONLY by the organigram write path (`writeAgentDelegates`);
-   * `saveAgent` preserves the on-disk value so a stale settings form can never
-   * silently re-wire delegation. Mirrors
-   * `agentJsonSchema.delegates`.
+   * @deprecated Legacy org-chart delegation edges: slugs of the agents THIS
+   * agent delegates to (its direct reports). READ-ONLY since the organigram
+   * editor was removed (agent-on-demand `spawn_agent` replaced delegation);
+   * `saveAgent` preserves the on-disk value so nothing can re-wire the edges.
+   * They still drive manager escalation routing until the workforce rework
+   * (M4) retires them. Mirrors `agentJsonSchema.delegates`.
    */
   delegates?: string[];
   /**

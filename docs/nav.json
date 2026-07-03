@@ -140,7 +140,6 @@
             "platform/agents/knowledge",
             "platform/agents/conversation-starters",
             "platform/agents/delegation",
-            "platform/agents/organigram",
             "platform/agents/webhook-triggers",
             "platform/agents/versions",
             "platform/agents/image-generation",

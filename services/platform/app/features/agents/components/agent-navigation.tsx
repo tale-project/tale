@@ -86,7 +86,6 @@ const AGENT_TAB_DIRTY_KEYS = {
     'includeTeamKnowledge',
     'knowledgeTopK',
   ],
-  delegation: [],
   conversationStarters: ['conversationStarters'],
   webhook: [],
   // Env/secrets live in the `agentEnv` side-table, not the agent file — so this
@@ -214,12 +213,6 @@ export function AgentNavigation({
           },
         ]
       : []),
-    {
-      label: t('agents.navigation.delegation'),
-      href: `${basePath}/delegation`,
-      matchMode: 'exact',
-      dirtyKeys: AGENT_TAB_DIRTY_KEYS.delegation,
-    },
     {
       // Read-only performance scorecard — no editable config, so no dirtyKeys.
       // Mirrors the loading skeleton's nav (which already lists it) so the tab

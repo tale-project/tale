@@ -1,25 +1,23 @@
 /**
  * Convex Tool: Agent Write
  *
- * Manage the AI workforce: rewire the delegation chart and install / enable /
- * disable agents. ALL operations are gated TWICE (changing the workforce's
- * structure is admin-only, matching the human org-chart editor):
+ * Manage the AI workforce roster: install / enable / disable / uninstall
+ * agents. ALL operations are gated TWICE (changing the workforce's structure
+ * is admin-only):
  *  1. Config: only manager/admin agents carry `agent_write` in their toolNames.
  *  2. Server-side: the acting USER behind the run must be an org admin/developer
  *     (re-checked via the member role) — autonomous runs with no privileged
- *     human behind them are denied for every operation, including set_delegates.
+ *     human behind them are denied for every operation.
  *
- * `set_delegates` goes through the same validated single write path as the
- * canvas (`workforce_ops.writeAgentDelegates`, with a pre-write history
- * snapshot): reserved/unknown agents and self-edges are refused server-side
- * (cycles allowed). Roster ops refuse to flip integration-bundled agents
- * (cascade-owned, `bundledBy` set) without `force`. Editing an agent's
- * model/instructions/full config stays HUMAN-ONLY (never a tool).
+ * Roster ops refuse to flip integration-bundled agents (cascade-owned,
+ * `bundledBy` set) without `force`. Editing an agent's model/instructions/full
+ * config stays HUMAN-ONLY (never a tool). The `set_delegates` operation was
+ * removed with the organigram editor — agent-on-demand (`spawn_agent`)
+ * replaced delegation, and the legacy `delegates` edges are read-only.
  *
- * The privilege gate reuses the SAME `developerSettings` CASL capability the
- * human org-chart editor enforces (`lib/auth/require_org_admin_or_developer`),
- * rather than a parallel hardcoded role list — so the two can never drift if
- * the role matrix changes. owner/admin/developer hold it today.
+ * The privilege gate uses the `developerSettings` CASL capability
+ * (`lib/auth/require_org_admin_or_developer`) rather than a hardcoded role
+ * list — owner/admin/developer hold it today.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -35,15 +33,6 @@ import {
 import type { ToolDefinition } from '../types';
 
 const agentWriteArgs = z.discriminatedUnion('operation', [
-  z.object({
-    operation: z.literal('set_delegates'),
-    agentSlug: z.string().describe('Agent whose delegation list is being set'),
-    delegateSlugs: z
-      .array(z.string())
-      .describe(
-        'The COMPLETE list of agent slugs this agent delegates to (replaces the current list; [] clears it). An agent cannot delegate to itself.',
-      ),
-  }),
   z.object({
     operation: z.literal('install'),
     agentSlug: z.string().describe('Catalog agent slug to install for the org'),
@@ -70,23 +59,13 @@ const agentWriteArgs = z.discriminatedUnion('operation', [
   }),
 ]);
 
-// Actionable guidance for the failure codes `setDelegatesFromAgent` can return.
-// Codes without an entry (RESERVED_AGENT_SLUG / AGENT_NOT_FOUND / UNKNOWN) get
-// no hint, matching the prior behaviour.
-const SET_DELEGATES_HINTS: Readonly<Record<string, string>> = {
-  SELF_EDGE: 'An agent cannot delegate to itself — remove it from the list.',
-  INVALID_TARGET:
-    'One of the slugs is not a real agent — call agent_read get_chart for the valid slugs.',
-};
-
 export const agentWriteTool: ToolDefinition = {
   name: 'agent_write',
   availability: 'any',
   tool: createTool({
-    description: `Manage the AI workforce.
+    description: `Manage the AI workforce roster.
 
 OPERATIONS:
-• 'set_delegates': Replace one agent's full delegation list ([] clears it). Delegation is functional — propose structure that matches how work should flow, and confirm destructive restructurings with the user first. Call agent_read get_chart first.
 • 'install': Install a catalog agent so it can be mentioned/routed to (admin only).
 • 'enable' / 'disable': Toggle whether an installed agent is live (admin only).
 • 'uninstall': Remove an agent installation (admin only).
@@ -96,12 +75,11 @@ All operations require an organization admin behind the request (changing the wo
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);
 
-      // ALL agent_write operations — rewiring delegation AND the roster ops —
-      // change org structure, so every one requires a privileged human behind
-      // the request (the human org-chart editor enforces the same capability).
-      // Autonomous runs with no privileged human are denied. Re-check the
-      // member role server-side and gate on the SAME `developerSettings`
-      // capability `require_org_admin_or_developer` uses for the human editor.
+      // ALL agent_write operations change org structure, so every one requires
+      // a privileged human behind the request. Autonomous runs with no
+      // privileged human are denied. Re-check the member role server-side and
+      // gate on the SAME `developerSettings` capability
+      // `require_org_admin_or_developer` uses elsewhere.
       const userId = readToolCtxString(ctx, 'userId');
       if (!userId) return { ok: false, error: 'MISSING_USER_CONTEXT' };
       const role = await ctx.runQuery(
@@ -114,33 +92,6 @@ All operations require an organization admin behind the request (changing the wo
           error: 'FORBIDDEN',
           message:
             'Managing the AI workforce requires organization administrator permissions.',
-        };
-      }
-
-      if (args.operation === 'set_delegates') {
-        const result = await ctx.runAction(
-          internal.agents.workforce_ops.setDelegatesFromAgent,
-          {
-            organizationId,
-            actorUserId: userId,
-            agentSlug: args.agentSlug,
-            delegateSlugs: args.delegateSlugs,
-          },
-        );
-        if (!result.ok) {
-          return {
-            ok: false,
-            operation: 'set_delegates',
-            error: result.code,
-            hint: result.code ? SET_DELEGATES_HINTS[result.code] : undefined,
-          };
-        }
-        return {
-          ok: true,
-          operation: 'set_delegates',
-          agentSlug: args.agentSlug,
-          delegateSlugs: args.delegateSlugs,
-          previousDelegateSlugs: result.previous ?? [],
         };
       }
 

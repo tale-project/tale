@@ -40,8 +40,7 @@ function expectNoConnectableHandles(container: HTMLElement) {
     // truthy. `@xyflow/system` validates a connection endpoint with
     // `connectable && connectableend` (see XYHandle.isValid), so dropping the
     // `connectable` class makes the handle an invalid endpoint — no connection
-    // can complete on it. This is the same read-only treatment the organigram
-    // canvas applies to its handles.
+    // can complete on it.
     expect(handle).not.toHaveClass('connectable');
   }
 }

@@ -1,11 +1,11 @@
 /**
  * Convex Tool: Agent Read
  *
- * Read-only view of the AI workforce: the delegation chart, the installed
- * roster, and any agent's place in the org chart. The write half (rewire
- * delegation, install/enable/disable agents) lives in `agent_write` — mirrors
- * the `task_read` / `task_write` split so read-only agents can see the
- * structure without being able to change it.
+ * Read-only view of the AI workforce: the installed roster and any agent's
+ * escalation position (its manager chain). The write half (install / enable /
+ * disable agents) lives in `agent_write` — mirrors the `task_read` /
+ * `task_write` split so read-only agents can see the structure without being
+ * able to change it.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -18,14 +18,11 @@ import type { ToolDefinition } from '../types';
 
 const agentReadArgs = z.discriminatedUnion('operation', [
   z.object({
-    operation: z.literal('get_chart'),
-  }),
-  z.object({
     operation: z.literal('list_roster'),
   }),
   z.object({
     operation: z.literal('get_role'),
-    agentSlug: z.string().describe('Agent whose org-chart position to read'),
+    agentSlug: z.string().describe('Agent whose escalation position to read'),
   }),
 ]);
 
@@ -33,24 +30,16 @@ export const agentReadTool: ToolDefinition = {
   name: 'agent_read',
   availability: 'any',
   tool: createTool({
-    description: `Read the AI workforce: who's on the team and how work flows between them.
+    description: `Read the AI workforce: who's on the team.
 
 OPERATIONS:
-• 'get_chart': The full delegation chart — every agent with the agents it delegates to and who delegates to it. Delegation is functional: an agent can hand work to exactly the agents it delegates to, and those agents escalate back to it.
 • 'list_roster': The installed agents and whether each is enabled (live) — provenance included.
-• 'get_role': One agent's position — whether it's a manager, its direct reports, and its manager.
+• 'get_role': One agent's escalation position — whether it's a manager, its direct reports, and the manager its escalations route to.
 
-Call this before agent_write so edits start from the real current structure.`,
+Call this before agent_write so roster changes start from the real current state.`,
     inputSchema: agentReadArgs,
     execute: async (ctx: ToolCtx, args) => {
       const organizationId = requireOrganizationId(ctx);
-
-      if (args.operation === 'get_chart') {
-        return await ctx.runAction(
-          internal.agents.workforce_ops.getChartOverview,
-          { organizationId },
-        );
-      }
 
       if (args.operation === 'list_roster') {
         const { states } = await ctx.runQuery(

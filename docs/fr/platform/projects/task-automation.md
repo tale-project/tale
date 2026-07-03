@@ -12,7 +12,7 @@ Affecter une tâche du board à un agent IA le met au travail. Le **pack task-op
 3. La tâche se gare à **_En revue_** — les agents ne peuvent jamais passer une tâche à _Terminé_ ; cette règle est appliquée côté serveur, quelle que soit la configuration des workflows.
 4. Un humain **approuve** (le seul chemin automatisé vers _Terminé_) ou **demande des modifications** — le retour réengage le même agent sur le fil partagé et ouvre une nouvelle revue. Les revues se traitent depuis la fiche de tâche ou directement depuis la boîte de réception.
 
-Les échecs ramènent la tâche à _À faire_ avec un commentaire explicatif. Les managers de l'[organigramme](/platform/agents/organigram) **découpent** les tâches racines étiquetées `epic` en sous-tâches pour leurs subordonnés directs au lieu de les traiter seuls ; la tâche parente attend la clôture de la dernière sous-tâche puis remonte à _En revue_.
+Les échecs ramènent la tâche à _À faire_ avec un commentaire explicatif. Les managers de l'organigramme des agents **découpent** les tâches racines étiquetées `epic` en sous-tâches pour leurs subordonnés directs au lieu de les traiter seuls ; la tâche parente attend la clôture de la dernière sous-tâche puis remonte à _En revue_.
 
 ## Mentions, dépendances, échéances
 

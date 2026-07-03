@@ -44,7 +44,7 @@ export function ProjectDiscussionsTab({
 
   // ChatInput (reused in the thread view + create dialog) reads ChatLayout
   // context, so the whole tab is wrapped once — mirrors how the automation
-  // assistant reuses the composer (see organigram/automation editor panels).
+  // assistant reuses the composer (see the automation editor panel).
   if (selectedThreadId) {
     return (
       <ChatLayoutProvider organizationId={organizationId}>

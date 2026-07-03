@@ -172,7 +172,6 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/projects/{projectId}/discussions`   | Discussions tab, list or empty state (needs a project)   |
 | `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)                  |
 | `/dashboard/{org}/agents/catalog`                     | agent catalog grid or empty state                        |
-| `/dashboard/{org}/agents/overview`                    | org chart canvas (organigram)                            |
 | `/dashboard/{org}/agents/metrics`                     | workforce dashboard                                      |
 | `/dashboard/{org}/automations`                        | list or empty state                                      |
 | `/dashboard/{org}/automations/catalog`                | search field + template grid or empty state              |

@@ -218,11 +218,6 @@ function AgentDetailLayout() {
                     matchMode: 'exact',
                   },
                   {
-                    label: t('agents.navigation.delegation'),
-                    href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/delegation`,
-                    matchMode: 'exact',
-                  },
-                  {
                     label: t('agents.navigation.metrics'),
                     href: `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}/metrics`,
                     matchMode: 'exact',

@@ -581,9 +581,9 @@ export const saveAgent = action({
       ? await requireOrgAdminOrDeveloper(ctx, args.organizationId)
       : memberAuth;
 
-    // `delegates` (the organigram delegation edges) has exactly ONE write
-    // path: the organigram `setAgentDelegates` action. The settings form must
-    // never carry it — a stale form would silently re-wire delegation — so the
+    // `delegates` (the legacy org-chart delegation edges) is READ-ONLY — every
+    // editor was removed with the organigram. The settings form must never
+    // carry it — a stale form would silently re-wire delegation — so the
     // incoming value is dropped and the on-disk value re-applied here.
     config = {
       ...config,
