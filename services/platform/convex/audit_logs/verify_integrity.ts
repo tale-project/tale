@@ -25,9 +25,13 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
-import { computeAuditHash } from '../lib/helpers/audit_hash';
+import {
+  computeAuditHash,
+  computeAuditHashV1Legacy,
+} from '../lib/helpers/audit_hash';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { buildAuditRecordHashInputV1Legacy } from './helpers';
 
 const SIGNING_KEY_ENV = 'TALE_AUDIT_SIGNING_KEY';
 const SIGNING_KEY_PREVIOUS_ENV = 'TALE_AUDIT_SIGNING_KEY_PREVIOUS';
@@ -673,22 +677,37 @@ export async function verifyAuditChain(
     if (!isScrubbed) {
       const recomputed = await computeAuditHash(entryPreviousHash, record);
       if (recomputed !== integrityHash) {
-        return {
-          valid: false,
-          verifiedCount,
-          checkpointsVerified,
-          truncated,
-          unsignedScrubCount,
-          lastVerifiedTimestamp,
-          lastVerifiedId,
-          lastVerifiedHash,
-          firstBrokenAt: {
-            logId: _id,
-            timestamp: entry.timestamp,
-            expected: recomputed,
-            actual: integrityHash,
-          },
-        };
+        // Legacy (#1842) fallback: rows written between #1405 and #1676 were
+        // hashed by a canonicalizer that emitted `"field":undefined` for absent
+        // optionals (the modern one skips them). Their stored hash is
+        // unreproducible by the recompute above but IS reproducible by the
+        // frozen v1 algorithm. Retry there; a genuinely tampered v1 row fails
+        // BOTH recomputes, so accepting a v1 match preserves tamper-evidence
+        // (and un-masks any real tampering LATER in the chain, which the walk
+        // otherwise never reaches — it stops at the first v1 row). Only runs on
+        // a mismatch, so healthy modern chains pay nothing.
+        const legacyRecomputed = await computeAuditHashV1Legacy(
+          entryPreviousHash,
+          buildAuditRecordHashInputV1Legacy(entry),
+        );
+        if (legacyRecomputed !== integrityHash) {
+          return {
+            valid: false,
+            verifiedCount,
+            checkpointsVerified,
+            truncated,
+            unsignedScrubCount,
+            lastVerifiedTimestamp,
+            lastVerifiedId,
+            lastVerifiedHash,
+            firstBrokenAt: {
+              logId: _id,
+              timestamp: entry.timestamp,
+              expected: recomputed,
+              actual: integrityHash,
+            },
+          };
+        }
       }
     }
 

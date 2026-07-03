@@ -6910,10 +6910,8 @@
     "errors": {
       "accessDeniedTitle": "Accès administrateur requis",
       "nameInvalid": "Utilise uniquement des lettres majuscules, des chiffres et des traits de soulignement, en commençant par une lettre (max. 64 caractères).",
-      "valueInvalid": "Saisis une valeur de 1 à 8192 caractères.",
       "unauthenticated": "Ta session a expiré. Reconnecte-toi, puis réessaie.",
       "forbidden": "Tu n'as pas l'autorisation de gérer les secrets de ce projet.",
-      "projectNotFound": "Ce projet est introuvable. Il a peut-être été supprimé.",
       "PROJECT_FORBIDDEN": "Tu n'as pas accès aux secrets de ce projet. Seuls les administrateurs du projet peuvent les consulter ou les gérer.",
       "PROJECT_NOT_FOUND": "Ce projet n'existe plus.",
       "SECRET_NAME_INVALID": "Les noms de secret doivent commencer par une lettre et ne contenir que des lettres majuscules, des chiffres et des tirets bas (64 caractères max).",
