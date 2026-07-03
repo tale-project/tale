@@ -99,6 +99,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             ref={ref}
             id={id}
             type="text"
+            variant="default"
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"

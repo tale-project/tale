@@ -18,7 +18,6 @@ import { convexErrorCode } from '@/lib/utils/convex-error';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
-  useInstallAllWorkflows,
   useInstallWorkflow,
   useInvalidateWorkflows,
   useSaveWorkflow,
@@ -209,86 +208,24 @@ function BlankTabContent({
 function TemplateTabContent({
   organizationId,
   integrationName,
-  onOpenChange,
+  selectedSlug,
+  onSelectSlug,
+  installingSlug,
 }: {
   organizationId: string;
   integrationName?: string;
-  onOpenChange: (open: boolean) => void;
+  selectedSlug: string | null;
+  onSelectSlug: (slug: string) => void;
+  installingSlug: string | null;
 }) {
-  const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
-  const { mutateAsync: installAll, isPending: isInstallingAll } =
-    useInstallAllWorkflows();
-  const invalidateWorkflows = useInvalidateWorkflows();
-
-  const handleTemplateInstalled = useCallback(
-    (slug: string) => {
-      toast({
-        title: t('toast.created'),
-        variant: 'success',
-      });
-      const amId = slugToUrlParam(slug);
-      void navigate({
-        to: '/dashboard/$id/automations/$amId',
-        params: { id: organizationId, amId },
-      });
-    },
-    [organizationId, t, navigate],
-  );
-
-  const handleInstallAll = useCallback(async () => {
-    try {
-      const result = await installAll({ organizationId });
-      await invalidateWorkflows(organizationId);
-      window.dispatchEvent(new Event('workflow-updated'));
-      const count = result.installed.length;
-      toast({
-        title:
-          count > 0
-            ? t('toast.installedAll', { count })
-            : t('toast.installedAllNone'),
-        variant: 'success',
-      });
-      if (result.failed.length > 0) {
-        toast({
-          title: t('toast.installAllPartial', { count: result.failed.length }),
-          variant: 'destructive',
-        });
-      }
-      onOpenChange(false);
-    } catch {
-      toast({ title: t('toast.createFailed'), variant: 'destructive' });
-    }
-  }, [installAll, invalidateWorkflows, organizationId, t, onOpenChange]);
-
   return (
-    <Stack gap={4}>
-      <WorkflowTemplateGrid
-        organizationId={organizationId}
-        integrationName={integrationName}
-        onTemplateInstalled={handleTemplateInstalled}
-      />
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
-        <Button
-          type="button"
-          onClick={handleInstallAll}
-          disabled={isInstallingAll}
-        >
-          {isInstallingAll
-            ? t('createDialog.installingAll')
-            : t('createDialog.installAll')}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={isInstallingAll}
-        >
-          {tCommon('actions.cancel')}
-        </Button>
-      </div>
-    </Stack>
+    <WorkflowTemplateGrid
+      organizationId={organizationId}
+      integrationName={integrationName}
+      selectedSlug={selectedSlug}
+      onSelectSlug={onSelectSlug}
+      installingSlug={installingSlug}
+    />
   );
 }
 
@@ -300,13 +237,54 @@ function CreateAutomationDialogContent({
   defaultTab = 'blank',
 }: CreateAutomationDialogProps) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabValue>(defaultTab);
+  const [selectedTemplateSlug, setSelectedTemplateSlug] = useState<
+    string | null
+  >(null);
+  const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const { mutateAsync: installWorkflow } = useInstallWorkflow();
+  const invalidateWorkflows = useInvalidateWorkflows();
 
   const handleTabChange = useCallback((value: string) => {
     if (isTabValue(value)) {
       setActiveTab(value);
+      setSelectedTemplateSlug(null);
     }
   }, []);
+
+  const handleInstallSelected = useCallback(async () => {
+    if (!selectedTemplateSlug) return;
+    setInstallingSlug(selectedTemplateSlug);
+    try {
+      await installWorkflow({
+        organizationId,
+        workflowSlug: selectedTemplateSlug,
+      });
+      await invalidateWorkflows(organizationId);
+      window.dispatchEvent(new Event('workflow-updated'));
+      toast({ title: t('toast.created'), variant: 'success' });
+      void navigate({
+        to: '/dashboard/$id/automations/$amId',
+        params: {
+          id: organizationId,
+          amId: slugToUrlParam(selectedTemplateSlug),
+        },
+      });
+    } catch {
+      toast({ title: t('toast.createFailed'), variant: 'destructive' });
+    } finally {
+      setInstallingSlug(null);
+    }
+  }, [
+    selectedTemplateSlug,
+    installWorkflow,
+    invalidateWorkflows,
+    organizationId,
+    t,
+    navigate,
+  ]);
 
   const tabItems = useMemo(
     () => [
@@ -327,13 +305,45 @@ function CreateAutomationDialogContent({
           <TemplateTabContent
             organizationId={organizationId}
             integrationName={integrationName}
-            onOpenChange={onOpenChange}
+            selectedSlug={selectedTemplateSlug}
+            onSelectSlug={setSelectedTemplateSlug}
+            installingSlug={installingSlug}
           />
         ),
       },
     ],
-    [t, organizationId, onOpenChange, integrationName],
+    [
+      t,
+      organizationId,
+      onOpenChange,
+      integrationName,
+      selectedTemplateSlug,
+      installingSlug,
+    ],
   );
+
+  const footer =
+    activeTab === 'template' ? (
+      <>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => onOpenChange(false)}
+          disabled={!!installingSlug}
+        >
+          {tCommon('actions.cancel')}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => void handleInstallSelected()}
+          disabled={!selectedTemplateSlug || !!installingSlug}
+        >
+          {installingSlug
+            ? t('createDialog.installing')
+            : t('createDialog.install')}
+        </Button>
+      </>
+    ) : null;
 
   return (
     <Dialog
@@ -341,6 +351,7 @@ function CreateAutomationDialogContent({
       onOpenChange={onOpenChange}
       title={t('createDialog.title')}
       size="md"
+      footer={footer}
     >
       <Tabs
         items={tabItems}

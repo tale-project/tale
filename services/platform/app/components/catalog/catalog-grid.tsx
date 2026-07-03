@@ -108,7 +108,7 @@ export function CatalogCard({
         asChild
         interactive
         padding="md"
-        className={cn('h-full', active && 'border-border-strong', className)}
+        className={cn('h-full', active && 'ring-2 ring-primary', className)}
       >
         <button
           type="button"
@@ -128,7 +128,7 @@ export function CatalogCard({
       padding="md"
       className={cn(
         'flex h-full flex-col',
-        active && 'border-border-strong',
+        active && 'ring-2 ring-primary',
         className,
       )}
     >

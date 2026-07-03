@@ -873,8 +873,8 @@
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
       "continue": "Continuer",
-      "installAll": "Tout installer",
-      "installingAll": "Installation en cours..."
+      "install": "Installer",
+      "installing": "Installation..."
     },
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
@@ -990,10 +990,7 @@
     },
     "toast": {
       "created": "Automatisation créée avec succès",
-      "createFailed": "Échec de la création de l'automatisation",
-      "installedAll": "{count} automatisations installées",
-      "installedAllNone": "Tous les modèles sont déjà installés",
-      "installAllPartial": "{count} modèles n'ont pas pu être installés"
+      "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
       "duplicateName": "Une automatisation avec ce nom existe déjà",
