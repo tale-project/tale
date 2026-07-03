@@ -3,6 +3,7 @@
 
 import { v } from 'convex/values';
 
+import { SUPPORTED_LOCALES } from '../../lib/shared/constants/locales';
 import {
   jsonRecordValidator,
   jsonValueValidator,
@@ -15,8 +16,15 @@ export const productStatusValidator = v.union(
   v.literal('archived'),
 );
 
-export const productTranslationValidator = v.object({
-  language: v.string(),
+/**
+ * Whitelist validator for translation locales — rejects anything outside the
+ * platform's supported locale set at the Convex argument boundary.
+ */
+export const productLocaleValidator = v.union(
+  ...SUPPORTED_LOCALES.map((locale) => v.literal(locale)),
+);
+
+const translationSharedFields = {
   name: v.optional(v.string()),
   description: v.optional(v.string()),
   category: v.optional(v.string()),
@@ -24,6 +32,27 @@ export const productTranslationValidator = v.object({
   metadata: v.optional(jsonRecordValidator),
   createdAt: v.optional(v.number()),
   lastUpdated: v.number(),
+};
+
+/**
+ * Read/storage shape for a persisted translation. `language` stays `v.string()`
+ * so reads of pre-existing documents (which may hold legacy, pre-whitelist
+ * locale codes) never fail return validation. Writes go through
+ * {@link productTranslationInputValidator}, which enforces the whitelist.
+ */
+export const productTranslationValidator = v.object({
+  language: v.string(),
+  ...translationSharedFields,
+});
+
+/**
+ * Write shape for an incoming translation — identical to
+ * {@link productTranslationValidator} but with `language` constrained to the
+ * supported locale whitelist.
+ */
+export const productTranslationInputValidator = v.object({
+  language: productLocaleValidator,
+  ...translationSharedFields,
 });
 
 export const productItemValidator = v.object({
@@ -89,7 +118,7 @@ export const updateProductArgsValidator = v.object({
   category: v.optional(v.string()),
   tags: v.optional(v.array(v.string())),
   status: v.optional(productStatusValidator),
-  translations: v.optional(v.array(productTranslationValidator)),
+  translations: v.optional(v.array(productTranslationInputValidator)),
   metadata: v.optional(jsonRecordValidator),
 });
 

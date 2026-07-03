@@ -1,5 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { assertSupportedProductLocale } from './locale_validation';
 
 export interface UpsertProductTranslationArgs {
   productId: Id<'products'>;
@@ -15,6 +16,8 @@ export async function upsertProductTranslation(
   ctx: MutationCtx,
   args: UpsertProductTranslationArgs,
 ): Promise<Id<'products'>> {
+  assertSupportedProductLocale(args.language);
+
   const product = await ctx.db.get(args.productId);
   if (!product) {
     throw new Error('Product not found');

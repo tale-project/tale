@@ -2,6 +2,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { assertUniqueProductName } from './assert_unique_product_name';
+import { assertSupportedProductLocale } from './locale_validation';
 import type { ProductStatus, ProductTranslation } from './types';
 
 export interface UpdateProductArgs {
@@ -23,6 +24,10 @@ export async function updateProduct(
   ctx: MutationCtx,
   args: UpdateProductArgs,
 ): Promise<Id<'products'>> {
+  for (const translation of args.translations ?? []) {
+    assertSupportedProductLocale(translation.language);
+  }
+
   const product = await ctx.db.get(args.productId);
   if (!product) {
     throw new Error('Product not found');
