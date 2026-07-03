@@ -24,8 +24,8 @@ import { isLiveSessionStatus } from './sessions_schema';
  * rendering while an external-agent turn is in flight. Returns null when the
  * caller can't access the thread or no op exists yet — the UI then falls back
  * to its plain "Thinking…" placeholder. Projects ONLY the liveness fields the
- * UI reads (status + agentIdleAt); the live tool/reasoning timeline renders from
- * the persisted assistant message, not from this op.
+ * UI reads (status + agentIdleAt + assistantMessageId); the live tool/reasoning
+ * timeline renders from the persisted assistant message, not from this op.
  */
 export const getActiveSessionOp = query({
   args: { threadId: v.string() },
@@ -41,6 +41,11 @@ export const getActiveSessionOp = query({
       // on held-open stdin (so we can still inject queued/steer messages). Lets
       // the UI distinguish "lingering/ready" from "actively working".
       agentIdleAt: v.optional(v.number()),
+      // The turn's CURRENT live segment message — the single bubble the drain
+      // is streaming into. Anchors the chat's thinking indicator (the live
+      // region) instead of positional scans; changes only at segment seams,
+      // so it doesn't undo the flush-stability projection below.
+      assistantMessageId: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -72,6 +77,9 @@ export const getActiveSessionOp = query({
       status: latest.status,
       ...(latest.agentIdleAt !== undefined && {
         agentIdleAt: latest.agentIdleAt,
+      }),
+      ...(latest.assistantMessageId !== undefined && {
+        assistantMessageId: latest.assistantMessageId,
       }),
     };
   },

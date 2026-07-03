@@ -1272,6 +1272,11 @@ export function ChatInterface({
                       liveRoute={liveRoute}
                       generationStartMs={effectiveGenerationStartMs}
                       isQueued={threadMeta?.isQueued ?? false}
+                      liveAssistantMessageId={
+                        sessionProgress?.status === 'running'
+                          ? (sessionProgress.assistantMessageId ?? null)
+                          : null
+                      }
                       lastUserMessageRef={lastUserMessageRef}
                       containerRef={containerRef}
                       activeApproval={activeApproval}
