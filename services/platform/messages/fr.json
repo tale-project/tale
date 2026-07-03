@@ -1735,8 +1735,22 @@
       "verdictRecorded": "Verdict enregistré",
       "verdictError": "Échec de l'enregistrement du verdict"
     },
+    "humanControl": {
+      "cardTitle": "L'agent a besoin de ton aide dans le navigateur",
+      "takeControl": "Prendre le contrôle",
+      "takeControlHint": "Prends le contrôle pour terminer cette étape dans le navigateur en direct, puis rends-le.",
+      "controllingHint": "Tu pilotes le navigateur. Termine l'étape, puis rends le contrôle pour que l'agent reprenne.",
+      "returnControl": "Terminé — rendre le contrôle",
+      "errorAlreadyResolved": "Ce transfert a déjà été résolu.",
+      "errorTurnRunning": "L'agent a déjà repris.",
+      "errorReturnFailed": "Impossible de rendre le contrôle. Réessaie.",
+      "statusReturned": "Contrôle rendu — l'agent a repris.",
+      "statusSuperseded": "Remplacé par une demande plus récente.",
+      "statusTimedOut": "Personne n'a pris le contrôle — l'agent a continué."
+    },
     "canvas": {
       "title": "Canevas",
+      "error": "Impossible de charger ce fichier.",
       "noFile": "Aucun fichier sélectionné",
       "stripOpen": "Ouvrir le canevas",
       "download": "Télécharger",
