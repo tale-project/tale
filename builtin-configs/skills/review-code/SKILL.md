@@ -18,7 +18,7 @@ is itself the gate — there's no "before you start" here; the read _is_ the wor
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you review:
+**Invoke `write-notes`** and answer this form before you review:
 
 - **Scope:** Describe what this change is trying to do and which files and areas it touches.
 - **Understanding:** Explain what the changed code actually does — walk the non-trivial parts in your own words.
@@ -34,12 +34,15 @@ once you've actually looked along it:
       the case the happy path ignores.
 - [ ] **Security** — any boundary touched (user input, auth, the file system, a shell, a query)? Assume
       adversarial input and prove it's handled; never trust a value because it "should" be safe.
-- [ ] **Reuse & simplicity** — did this reinvent something the project already has? Is there a smaller,
-      clearer version? The most-missed defect is the **divergent second copy** of an existing concept.
+- [ ] **Reuse & simplicity** — did this reinvent something the project already has? Grep the
+      concept's vocabulary (`search-codebase`) before believing "new" is new. Is there a smaller,
+      clearer version? The most-missed defect is the **divergent second copy** of an existing concept
+      (the doctrine: `implement-feature`).
 - [ ] **Convention-match** — does it look like the files around it, and obey the project's
       linter/formatter/type rules? Check the configs; don't assume.
-- [ ] **Completeness / ripple** — for a change of this shape, are the cross-cutting parts done
-      (translations, docs, a migration, tests, accessibility)?
+- [ ] **Completeness / sweep** — was the blast radius swept (`search-codebase`) — every sibling site
+      of the concept changed or ruled out, and the cross-cutting items from `create-pr`'s definition
+      of done (translations, docs, a migration, tests, accessibility)?
 - [ ] **Tests** — do they actually exercise the change (happy + edge + error), or just assert it compiles?
 
 ## Run the automated reviewers — don't reimplement them

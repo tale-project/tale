@@ -77,6 +77,10 @@ const WORKFLOW_SKILLS: readonly string[] = [
   'review-pr',
   'test-code',
   'write-notes',
+  'search-codebase',
+  'deep-research',
+  'delegate-work',
+  'browse-web',
 ];
 
 /**

@@ -383,16 +383,21 @@ export const llmStepConfigValidator = v.union(
 // =============================================================================
 
 /**
- * A sandbox step stages inputs (by fileId / folderId / inline content) and runs
- * either a named agent (ephemeral Claude-Code sandbox) or a frozen script
- * (deterministic). Big data stays as file references; only a small structured
- * `result` crosses workflow context. See node_only/sandbox/workflow_sandbox_exec.
+ * A sandbox step stages inputs (by fileId / folderId / folderPath / inline
+ * content) and runs either a named agent (ephemeral Claude-Code sandbox) or a
+ * frozen script (deterministic). A folder source stages every document DIRECTLY
+ * in that folder (no recursion) under `<as>/<title>`; `folderPath` addresses
+ * the folder by its human-readable documents path (segments joined with `/`),
+ * so packs can bind config values instead of opaque ids. Big data stays as file
+ * references; only a small structured `result` crosses workflow context. See
+ * node_only/sandbox/workflow_sandbox_exec.
  */
 const sandboxInputValidator = v.object({
   as: v.string(),
   from: v.union(
     v.object({ fileId: v.string() }),
     v.object({ folderId: v.string() }),
+    v.object({ folderPath: v.string() }),
     v.object({ content: v.string() }),
   ),
 });

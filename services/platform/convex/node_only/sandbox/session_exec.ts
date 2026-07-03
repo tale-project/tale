@@ -248,6 +248,29 @@ export async function runAndHarvestInSession(
         source: 'run_output' as const,
       },
     );
+    // A fileMetadata row per harvested blob (was a documented follow-up): a
+    // follow-up consumer of the storage id — e.g. a workflow `document.create`
+    // filing a produced artifact — resolves name/type through fileMetadata and
+    // would otherwise fail on "metadata not found". source 'agent' with no
+    // documentId keeps unclaimed outputs eligible for the retention sweep;
+    // document.create back-fills the documentId link when a file is claimed.
+    // Best-effort: a metadata failure must not fail the whole harvest.
+    try {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        {
+          organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id branded at runtime
+          storageId: storageId as Id<'_storage'>,
+          fileName: e.name,
+          contentType,
+          size: buf.byteLength,
+          source: 'agent',
+        },
+      );
+    } catch (metaErr) {
+      console.warn('[session_exec] saveFileMetadata failed:', metaErr);
+    }
     files.push({
       path: absPath,
       storageId,

@@ -17,7 +17,7 @@ Quand tu dépasses le laptop et veux le même projet sur un vrai hôte, le proje
 
 Quand du vrai trafic atterrira sur l'instance, le parcours [Linux serveur](/fr/self-hosted/install/linux-server) est le chemin. Il couvre TLS, un pare-feu, un utilisateur non-root, le reverse proxy et les crochets opérationnels que tu veux avant de pointer un domaine dessus. La CLI fait toujours le gros du travail — `tale deploy` exécute un déploiement blue-green sans interruption avec health checks et rollback — mais ce parcours ajoute la configuration au niveau de l'hôte qu'un essai saute.
 
-Après le premier déploiement, [Premier admin](/fr/self-hosted/install/first-admin) explique la configuration unique du compte owner et comment fermer l'inscription une fois ton équipe entrée, et [Installation de la CLI](/fr/self-hosted/install/cli-install) configure la CLI sur une workstation pour déployer et mettre à jour une instance distante.
+Après le premier déploiement, [Premier admin](/fr/self-hosted/install/first-admin) explique l'assistant de configuration unique qui fait du premier compte l'**Owner** — tous les suivants arrivent par invitation, donc il n'y a pas d'inscription ouverte à fermer — et [Installation de la CLI](/fr/self-hosted/install/cli-install) configure la CLI sur une workstation pour déployer et mettre à jour une instance distante.
 
 ## Posséder la couche Compose
 

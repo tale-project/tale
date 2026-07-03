@@ -11,6 +11,10 @@ import {
   writeChecksums,
 } from '../project/checksums';
 import {
+  DEFAULT_README_CONTENT,
+  DEFAULT_README_RELPATH,
+} from '../project/default-readme';
+import {
   fetchReference,
   getEmbeddedExamples,
 } from '../project/fetch-reference';
@@ -122,6 +126,11 @@ export async function update(options: UpdateOptions): Promise<void> {
   for (const [relPath, content] of getEmbeddedExamples('skills')) {
     newExampleFiles.set(join(DEFAULT_ORG, 'skills', relPath), content);
   }
+  // The default/ README is CLI-generated (not in the embedded catalog) but
+  // sync-managed under the same policy as every other scaffold file:
+  // overwritten while unmodified, skipped once edited, never re-added after
+  // the user deletes it.
+  newExampleFiles.set(DEFAULT_README_RELPATH, DEFAULT_README_CONTENT);
 
   // Classify and apply changes
   const summary: UpdateSummary = {
@@ -178,8 +187,13 @@ export async function update(options: UpdateOptions): Promise<void> {
         // Modified — skip. The embedded reference tree is the generic
         // `builtin-configs/<domain>/...` catalog (no org level), so map the
         // project-layout relPath (`default/<domain>/...`) back onto it.
+        // The CLI-generated README has no reference copy to point at.
+        const referenceHint =
+          relPath === DEFAULT_README_RELPATH
+            ? ''
+            : ` New version at .tale/reference/${relPath.replace(/^default\//, 'builtin-configs/')}`;
         logger.warn(
-          `${prefix}Skipped ${relPath} (locally modified). New version at .tale/reference/${relPath.replace(/^default\//, 'builtin-configs/')}`,
+          `${prefix}Skipped ${relPath} (locally modified).${referenceHint}`,
         );
         newChecksumFiles[relPath] = oldHash;
         summary.skipped.push(relPath);

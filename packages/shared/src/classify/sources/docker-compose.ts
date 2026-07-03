@@ -16,6 +16,11 @@ import { noise } from '../kinds';
 
 const DOCKER_LAYER =
   /^[0-9a-f]{12,}:\s+(Pulling fs layer|Waiting|Downloading|Verifying Checksum|Download complete|Extracting|Pull complete|Already exists)/;
+// Per-image pull milestones ("db Pulling" / "db Pulled"). Unlike the layer
+// churn above these are few and meaningful — on a first run the pull is the
+// only thing happening for minutes, so they must surface, not collapse.
+const DOCKER_IMAGE_PULL =
+  /^\s*(?:[⠿⠏⠋⠙⠹⠸⠼⠴⠦⠧⠇✔✓]\s*)?(\S+)\s+(Pulling|Pulled)\s*$/;
 const DOCKER_LIFECYCLE =
   /^\s*(?:[⠿⠏⠋⠙⠹⠸⠼⠴⠦⠧⠇✔✓]\s*)?(Container|Network|Volume)\s+(\S+)\s+(Creating|Created|Starting|Started|Healthy|Running|Recreate|Recreated|Removing|Removed|Waiting|Stopping|Stopped)\b/;
 const DOCKER_ERROR =
@@ -28,6 +33,15 @@ export const classifyDockerCompose: Classifier = (line) => {
     return {
       kind: 'progress',
       status: { phase: 'pull' },
+      raw: line,
+      source: 'docker-compose',
+    };
+  }
+  const pull = body.match(DOCKER_IMAGE_PULL);
+  if (pull) {
+    return {
+      kind: 'info',
+      text: `${pull[1]} ${pull[2].toLowerCase()}`,
       raw: line,
       source: 'docker-compose',
     };
