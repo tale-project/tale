@@ -5398,6 +5398,8 @@
         "sectionWorkflowBindings": "Gebundene Workflows",
         "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
         "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
+        "bindIntegrationsPlaceholder": "Integrationen binden…",
+        "bindWorkflowsPlaceholder": "Workflows binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "skillBindingsCounter": "{count}/{max} gebunden",

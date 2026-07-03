@@ -5399,6 +5399,8 @@
         "sectionWorkflowBindings": "Flux de travail liés",
         "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
+        "bindIntegrationsPlaceholder": "Lier des intégrations…",
+        "bindWorkflowsPlaceholder": "Lier des flux de travail…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
         "skillBindingsCounter": "{count}/{max} liés",
