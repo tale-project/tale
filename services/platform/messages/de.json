@@ -7873,7 +7873,7 @@
       "workforce": "Belegschaft",
       "chat": "Chat",
       "github": "GitHub",
-      "other": "Sonstige"
+      "general": "Allgemein"
     },
     "loadError": {
       "title": "Katalog konnte nicht geladen werden",
@@ -7900,7 +7900,6 @@
     "installedByIntegration": "Installiert von {integration}",
     "requiresIntegration": "Erfordert {integration}",
     "status": {
-      "available": "Verfügbar",
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert"
     },

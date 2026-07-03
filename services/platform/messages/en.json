@@ -7873,7 +7873,7 @@
       "workforce": "Workforce",
       "chat": "Chat",
       "github": "GitHub",
-      "other": "Other"
+      "general": "General"
     },
     "loadError": {
       "title": "Couldn't load the catalog",
@@ -7900,7 +7900,6 @@
     "installedByIntegration": "Installed by {integration}",
     "requiresIntegration": "Requires {integration}",
     "status": {
-      "available": "Available",
       "enabled": "Enabled",
       "disabled": "Disabled"
     },

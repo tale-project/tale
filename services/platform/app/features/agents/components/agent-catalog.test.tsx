@@ -138,6 +138,14 @@ describe('AgentCatalog', () => {
     expect(screen.getByText('noResults.title')).toBeInTheDocument();
   });
 
+  it('shows no status badge for a not-yet-installed agent', () => {
+    render(<AgentCatalog organizationId="org-1" />);
+    expect(screen.queryByText('status.enabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('status.disabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('status.available')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'install' })).toBeInTheDocument();
+  });
+
   it('installs an available agent and toasts success', async () => {
     const { user } = render(<AgentCatalog organizationId="org-1" />);
     await user.click(screen.getByRole('button', { name: 'install' }));

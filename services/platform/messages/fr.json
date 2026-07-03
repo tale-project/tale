@@ -7874,7 +7874,7 @@
       "workforce": "Effectif",
       "chat": "Chat",
       "github": "GitHub",
-      "other": "Autre"
+      "general": "Général"
     },
     "loadError": {
       "title": "Impossible de charger le catalogue",
@@ -7901,7 +7901,6 @@
     "installedByIntegration": "Installé par {integration}",
     "requiresIntegration": "Nécessite {integration}",
     "status": {
-      "available": "Disponible",
       "enabled": "Activé",
       "disabled": "Désactivé"
     },

@@ -9,11 +9,11 @@ Die JSON-Konfiguration jedes Agenten ist die maßgebliche Quelle für Name, Besc
 
 ## Zustände und Aktionen
 
-Jede Karte zeigt einen von drei Zuständen und die passende Aktion:
+Jede Karte zeigt ihren Roster-Zustand und die passende Aktion:
 
-- **Verfügbar** — im Katalog, aber nicht installiert. **Installieren** fügt den Agenten der Organisation hinzu (aktiviert).
+- **Nicht installiert** — kein Status-Abzeichen; **Installieren** fügt den Agenten der Organisation hinzu (aktiviert).
 - **Aktiviert** — installiert und aktiv: kann erwähnt werden, erhält Routing und Aufgaben. **Deaktivieren** behält die Installation, nimmt den Agenten aber aus dem Betrieb; **Deinstallieren** entfernt ihn.
-- **Deaktiviert** — installiert, aber außer Betrieb. **Aktivieren** holt ihn zurück.
+- **Deaktiviert** — installiert, aber außer Betrieb (rotes Abzeichen). **Aktivieren** holt ihn zurück.
 
 Karten sind nach Abteilung gruppiert (ihrem primären Label — Engineering, Marketing, Vertrieb, Finanzen usw.), und ein Suchfeld filtert nach Name, Beschreibung oder Abteilung.
 

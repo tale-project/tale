@@ -87,7 +87,7 @@ const PLACEHOLDER_CARD_COUNT = 6;
 function folderLabel(t: TFunction, folder: string): string {
   const fallback = folder
     ? folder.charAt(0).toUpperCase() + folder.slice(1)
-    : t('folders.other', { defaultValue: 'Other' });
+    : t('folders.general', { defaultValue: 'General' });
   if (!folder) return fallback;
   return t(`folders.${folder}`, { defaultValue: fallback });
 }
@@ -328,7 +328,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   );
 }
 
-/** One catalog card: icon, status, labels, provenance badge, roster actions. */
+/** One catalog card: icon, status badge, description, footer tags + roster actions. */
 function AgentCatalogCard({
   entry,
   t,
@@ -363,6 +363,25 @@ function AgentCatalogCard({
 
   const hasMeta = entry.labels.length > 0 || provenanceBadge !== null;
 
+  const rosterActions = !entry.installed ? (
+    <Button isLoading={pending} onClick={onInstall}>
+      {t('install')}
+    </Button>
+  ) : (
+    <>
+      <Button
+        isLoading={pending}
+        variant={entry.enabled ? 'secondary' : 'primary'}
+        onClick={onToggleEnabled}
+      >
+        {entry.enabled ? t('disable') : t('enable')}
+      </Button>
+      <Button variant="ghost" disabled={pending} onClick={onUninstall}>
+        {t('uninstall')}
+      </Button>
+    </>
+  );
+
   return (
     <CatalogCard
       media={
@@ -373,43 +392,32 @@ function AgentCatalogCard({
       title={entry.displayName}
       description={entry.description}
       badge={<CatalogStatusBadge entry={entry} t={t} />}
-      meta={
-        hasMeta ? (
-          <>
-            <LabelBadges labels={entry.labels} />
-            {provenanceBadge}
-          </>
-        ) : undefined
-      }
       actions={
-        !entry.installed ? (
-          <Button isLoading={pending} onClick={onInstall}>
-            {t('install')}
-          </Button>
-        ) : (
-          <>
-            <Button
-              isLoading={pending}
-              variant={entry.enabled ? 'secondary' : 'primary'}
-              onClick={onToggleEnabled}
-            >
-              {entry.enabled ? t('disable') : t('enable')}
-            </Button>
-            <Button variant="ghost" disabled={pending} onClick={onUninstall}>
-              {t('uninstall')}
-            </Button>
-          </>
-        )
+        <Row justify="between" align="center" gap={3} className="w-full">
+          <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden">
+            {hasMeta ? (
+              <>
+                <LabelBadges labels={entry.labels} />
+                {provenanceBadge ? (
+                  <span className="shrink-0">{provenanceBadge}</span>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          <Row gap={2} className="shrink-0">
+            {rosterActions}
+          </Row>
+        </Row>
       }
     />
   );
 }
 
 /**
- * Placeholder card matching `CatalogCard`'s footprint (title + status badge,
- * two description lines, a label badge, an action button) so the loading grid
- * occupies the same height as the loaded grid. Decorative; the enclosing
- * `<Skeletonize>` owns the single status announcement.
+ * Placeholder card matching the catalog card footprint (icon tile, title,
+ * two-line description, footer tag + action row) so the loading grid occupies
+ * the same height as the loaded grid. Decorative; the enclosing `<Skeletonize>`
+ * owns the single status announcement.
  */
 function CatalogCardSkeleton() {
   return (
@@ -432,11 +440,18 @@ function CatalogCardSkeleton() {
           </div>
         </Stack>
       </Row>
-      <div className="mt-auto pt-4">
+      <Row
+        justify="between"
+        align="center"
+        className="mt-auto w-full gap-3 pt-4"
+      >
         <SkeletonBox>
+          <div className="h-5 w-20 rounded-full" />
+        </SkeletonBox>
+        <SkeletonBox className="shrink-0">
           <div className="h-8 w-20 rounded-md" />
         </SkeletonBox>
-      </div>
+      </Row>
     </Card>
   );
 }
@@ -448,8 +463,10 @@ function CatalogStatusBadge({
   entry: CatalogEntry;
   t: TFunction;
 }) {
+  // Not installed: no status badge — the Install action is the signal. Badging
+  // "Available" collided visually with department label chips in the meta row.
   if (!entry.installed) {
-    return <Badge variant="outline">{t('status.available')}</Badge>;
+    return null;
   }
   if (!entry.enabled) {
     return <Badge variant="destructive">{t('status.disabled')}</Badge>;

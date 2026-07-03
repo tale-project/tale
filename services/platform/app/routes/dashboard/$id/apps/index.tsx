@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { Row } from '@tale/ui/layout';
 import { createFileRoute } from '@tanstack/react-router';
 import { Upload } from 'lucide-react';
 import { useState } from 'react';
@@ -25,15 +24,17 @@ function AppsIndexPage() {
 
   return (
     <div className="p-4">
-      {canUpload ? (
-        <Row justify="end" className="mb-4">
-          <Button variant="secondary" onClick={() => setUploadOpen(true)}>
-            <Upload className="size-4" />
-            {t('upload.uploadApp', { defaultValue: 'Upload app' })}
-          </Button>
-        </Row>
-      ) : null}
-      <AppsGrid organizationId={organizationId} />
+      <AppsGrid
+        organizationId={organizationId}
+        action={
+          canUpload ? (
+            <Button variant="secondary" onClick={() => setUploadOpen(true)}>
+              <Upload className="size-4" />
+              {t('upload.uploadApp', { defaultValue: 'Upload app' })}
+            </Button>
+          ) : undefined
+        }
+      />
       {canUpload ? (
         <AppUploadDialog
           open={uploadOpen}
