@@ -1137,7 +1137,7 @@ function ChatRow({ chat }: { chat: ChatItem }) {
               (it sits left of the actions overlay) until the chat is opened. */}
           {hasNewResponse && (
             <span
-              className="bg-destructive text-destructive-foreground pointer-events-none relative z-10 flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold"
+              className="text-destructive-foreground pointer-events-none relative z-10 flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] leading-none font-semibold"
               aria-label={t('newResponse')}
             >
               1
