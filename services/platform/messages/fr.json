@@ -2849,6 +2849,7 @@
       "noApiKeysFound": "Aucune clé API trouvée",
       "selectApiKeyAriaLabel": "Sélectionner une clé API",
       "saved": "Les règles de budget ont été mises à jour",
+      "saveFailed": "Échec de l'enregistrement des règles de budget",
       "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
       "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
       "invalidTokenLimit": "La limite de jetons doit être supérieure à zéro.",
@@ -4039,6 +4040,9 @@
         "description": "Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne effet.",
         "cancel": "Annuler la modification en attente"
       }
+    },
+    "errors": {
+      "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
     }
   },
   "humanInputRequest": {

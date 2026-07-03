@@ -37,6 +37,7 @@ import {
 } from '@/lib/shared/schemas/governance';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { ROLE_OPTIONS } from './role-options';
@@ -578,11 +579,13 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           variant: 'success',
         });
       } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to save';
         toast({
           title: t('toastSaveFailedTitle'),
-          description: message,
+          description: mapGovernanceSaveError(
+            error,
+            t,
+            t('budgets.saveFailed'),
+          ),
           variant: 'destructive',
         });
       }

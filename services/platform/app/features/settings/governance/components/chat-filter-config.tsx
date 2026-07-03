@@ -33,6 +33,7 @@ import {
   type ChatFilterConfig,
 } from '@/lib/shared/schemas/governance';
 
+import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
@@ -203,11 +204,14 @@ export function ChatFilterConfigView({
         });
         toast({ title: t('contentSafety.saved'), variant: 'success' });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : t('contentSafety.saveFailed');
-        toast({ title: message, variant: 'destructive' });
+        toast({
+          title: mapGovernanceSaveError(
+            error,
+            t,
+            t('contentSafety.saveFailed'),
+          ),
+          variant: 'destructive',
+        });
       }
     },
     [upsertMutation, organizationId, toast, t],

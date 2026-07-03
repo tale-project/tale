@@ -2848,6 +2848,7 @@
       "noApiKeysFound": "No API keys found",
       "selectApiKeyAriaLabel": "Select API key",
       "saved": "Budget rules have been updated",
+      "saveFailed": "Failed to save budget rules",
       "targetRequired": "Select a target for this scope, or the rule will never apply.",
       "limitRequired": "Set at least one limit (tokens, cost, or requests) so the rule can enforce.",
       "invalidTokenLimit": "Token limit must be greater than zero.",
@@ -4038,6 +4039,9 @@
         "description": "Proposed by {name}. Any admin can cancel before this takes effect.",
         "cancel": "Cancel pending change"
       }
+    },
+    "errors": {
+      "saveForbidden": "You don't have permission to change this setting."
     }
   },
   "humanInputRequest": {

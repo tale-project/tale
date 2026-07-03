@@ -2848,6 +2848,7 @@
       "noApiKeysFound": "Keine API-Schlüssel gefunden",
       "selectApiKeyAriaLabel": "API-Schlüssel auswählen",
       "saved": "Budgetregeln wurden aktualisiert",
+      "saveFailed": "Budgetregeln konnten nicht gespeichert werden",
       "targetRequired": "Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.",
       "limitRequired": "Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen) fest, damit die Regel greifen kann.",
       "invalidTokenLimit": "Das Token-Limit muss größer als null sein.",
@@ -4038,6 +4039,9 @@
         "description": "Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden abbrechen.",
         "cancel": "Vorgemerkte Änderung abbrechen"
       }
+    },
+    "errors": {
+      "saveForbidden": "Sie haben keine Berechtigung, diese Einstellung zu ändern."
     }
   },
   "humanInputRequest": {
