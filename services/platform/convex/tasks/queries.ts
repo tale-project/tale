@@ -162,9 +162,14 @@ export const listTasksByProject = query({
   returns: v.object({
     tasks: v.array(taskRowValidator),
     truncated: v.boolean(),
+    // Whether the caller may write to this project. The board/list use it to
+    // hide or disable write controls (Create, the priority/assignee pickers,
+    // drag-reorder) for read-only viewers — the server still rejects any
+    // unauthorized write, so this is purely a UX/consistency affordance.
+    canEdit: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { project } = await loadAccessibleProject(
+    const { project, canEdit } = await loadAccessibleProject(
       ctx,
       args.projectId,
       args.organizationId,
@@ -193,7 +198,7 @@ export const listTasksByProject = query({
         : a.status.localeCompare(b.status),
     );
 
-    return { tasks: rows, truncated };
+    return { tasks: rows, truncated, canEdit };
   },
 });
 
