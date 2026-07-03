@@ -92,3 +92,43 @@ skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are pro
 
 Built-in harness skills cover the rest — `react-doctor` (React smells), `code-review` / `security-review`
 (automated diff review), `claude-api`, `update-config`. Use them; don't reimplement them.
+
+## Cursor Cloud specific instructions
+
+Environment-specific notes for cloud agents. Standard setup/commands live in
+[`docs/en/develop/contributor-setup.md`](docs/en/develop/contributor-setup.md) and root `package.json`
+scripts — read those first; this section only records the non-obvious caveats.
+
+- **Primary product = the platform** (`@tale/platform`): a Vite SPA on `http://localhost:3000` backed by a
+  local Convex backend on `:3210`. `bun install` (the update script) wires up every workspace; `bun run dev`
+  boots Convex + Vite and prints a `READY` banner after ~30–90s (cold start; a pre-banner
+  connection-refused on `:3000` is normal). `web`/`docs` are separate sites (`bun run --filter @tale/web dev`,
+  `@tale/docs`).
+
+- **Docker is NOT installed in this VM.** Run `TALE_DEV_SKIP_DOCKER=1 bun run dev` (plain `bun run dev` also
+  works — it warns and continues without Docker). Without Docker these features are unavailable and that is
+  expected, not a broken env: LLM chat/agents (no sandbox LLM gateway), the knowledge base / RAG (no
+  Postgres), and code-running sandboxes / external agents. Everything else (auth, onboarding, org/agent/project
+  CRUD, settings) works.
+
+- **Node must strip TypeScript types by default (Node ≥ 22.18).** `bun run dev` launches `vite` under Node
+  (not Bun, on purpose), and `vite.config.ts` imports workspace `.ts` plugins, so an older Node fails config
+  load with `ERR_UNKNOWN_FILE_EXTENSION ".ts"` and the orchestrator dies with `Vite dev server exited with
+code 1`. The VM's default `/exec-daemon/node` is v22.14 (no type-stripping); a newer nvm Node (v22.22.2) is
+  symlinked as `node` into `~/.bun/bin` (first on `PATH`) so `env node` resolves to it. If `bun run dev` ever
+  dies with that Vite error, check `node --version` is ≥ 22.18.
+
+- **Chat needs an AI provider key.** With no OpenRouter/other key configured, the Chat dashboard renders
+  "Something went wrong" / "No API key is configured" and Convex logs `NoProviderAvailableError`. Add a key in
+  onboarding or **Settings → AI providers** to enable chat; skip it for non-LLM work.
+
+- **First page load may be a blank white screen** while Vite optimizes deps on the very first request — a hard
+  refresh (Ctrl+Shift+R) loads the app. This is dev cold-start only.
+
+- **Reset local state** with `bun run setup:clean --force` (wipes `services/platform/.convex/local/`); the org
+  config lives on disk under `.tale-config/<org>/` (also safe to delete for a clean first-run). `bun run dev`
+  auto-generates dev secrets into a gitignored root `.env`.
+
+- **Pre-flight**: `bun run setup:check` (Bun ≥1.3, ports 3000/3210 free, Convex CLI). **Gate**: `bun run check`
+  (format + lint + typecheck + tests) is the full merge gate; scope to a workspace while iterating with
+  `bun run --filter @tale/<name> <lint|test|typecheck>`.
