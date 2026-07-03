@@ -248,18 +248,27 @@ function Install-Binary {
     }
 }
 
-# Smoke-test the freshly installed binary by running --version. The version
-# string is folded into the success message when available.
+# Smoke-test the freshly installed binary by running --version. A binary that
+# cannot execute (corrupt download, blocked by policy) must fail the install
+# here — reporting success for a dead binary strands the user at the very
+# next command with no explanation.
 function Verify-Installation {
     if (-not (Test-Path $script:DestPath)) {
         Write-Err "Installation failed. tale not found at $script:DestPath"
     }
     try {
         $version = & $script:DestPath --version 2>&1
-        Write-Ok "Successfully installed tale ($version)"
+        if ($LASTEXITCODE -eq 0 -and $version) {
+            Write-Ok "Successfully installed tale ($version)"
+            return
+        }
     } catch {
-        Write-Ok "Successfully installed tale"
+        # fall through to the failure report below
     }
+    Write-Info "The installed binary did not run. Common causes:"
+    Write-Info "  - A corrupt download: re-run this installer to fetch it again."
+    Write-Info "  - Antivirus or an execution policy blocking $script:DestPath."
+    Write-Err "Installation failed. 'tale --version' did not succeed."
 }
 
 function Main {
@@ -273,9 +282,9 @@ function Main {
     if (-not $script:ExistingTale) {
         Write-Info "Restart your terminal for PATH changes to take effect."
     }
-    # Hand off to the guided, TypeScript-driven setup: it installs Docker if
-    # needed and scaffolds a project — zero prerequisites from here.
-    Write-Ok "Next: run 'tale setup' to install Docker (if needed) and create your project."
+    # Hand off to the CLI: `tale init` scaffolds a project (no prerequisites);
+    # `tale dev` then installs/starts Docker on demand and launches locally.
+    Write-Ok "Next: run 'tale init' to create your project, then 'tale dev' to launch it."
 }
 
 Main
