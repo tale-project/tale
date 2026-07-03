@@ -36,6 +36,13 @@ interface ChangelogNotification {
   stateLoaded: boolean;
   hasUnseenVersion: boolean;
   shouldShowToast: boolean;
+  /**
+   * True when the state has loaded and no notification row exists at all —
+   * a fresh install / brand-new account, not an update. The current version
+   * should be recorded silently (via `markSeen`) instead of notifying;
+   * `ChangelogToastTrigger` owns that seeding.
+   */
+  needsBaseline: boolean;
   markSeen: () => void;
   markToasted: () => void;
 }
@@ -58,14 +65,26 @@ export function useChangelogNotification(): ChangelogNotification {
   // to avoid a spurious flash.
   const stateLoaded = state !== undefined;
 
+  // `state === null` means no row exists for this user at all: nothing was
+  // ever recorded, so there is no previous version to have "updated" from.
+  // That is a fresh install (or brand-new account), not an update — showing
+  // "update available" / "updated to vX" there is noise. The trigger seeds
+  // the baseline instead (see `needsBaseline`), so the NEXT release still
+  // notifies. Rows that exist but miss one field keep the old "treat as
+  // newer" behaviour: e.g. a user who was toasted but never opened the
+  // release notes must keep the unseen dot.
+  const isFreshInstall = stateLoaded && state === null;
+
   const hasUnseenVersion =
     !!currentVersion &&
     stateLoaded &&
+    !isFreshInstall &&
     isNewer(currentVersion, state?.lastSeenChangelogVersion ?? null);
 
   const shouldShowToast =
     !!currentVersion &&
     stateLoaded &&
+    !isFreshInstall &&
     isNewer(currentVersion, state?.lastToastedVersion ?? null);
 
   return {
@@ -74,6 +93,7 @@ export function useChangelogNotification(): ChangelogNotification {
     stateLoaded,
     hasUnseenVersion,
     shouldShowToast,
+    needsBaseline: !!currentVersion && isFreshInstall,
     markSeen: () => {
       if (!currentVersion) return;
       markSeenMutation({ version: currentVersion }).catch((err) => {
