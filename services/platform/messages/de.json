@@ -589,6 +589,7 @@
     "validation": {
       "emailRequired": "E-Mail ist erforderlich",
       "passwordRequiredForNewUser": "Passwort ist erforderlich, um einen neuen Benutzer zu erstellen",
+      "emailAlreadyMember": "Dieser Benutzer ist bereits Mitglied dieser Organisation",
       "passwordMinLength": "Passwort muss mindestens {n} Zeichen lang sein",
       "passwordLowercase": "Passwort muss einen Kleinbuchstaben enthalten",
       "passwordUppercase": "Passwort muss einen Großbuchstaben enthalten",

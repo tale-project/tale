@@ -589,6 +589,7 @@
     "validation": {
       "emailRequired": "Email is required",
       "passwordRequiredForNewUser": "Password is required to create a new user",
+      "emailAlreadyMember": "This user is already a member of this organization",
       "passwordMinLength": "Password must be at least {n} characters",
       "passwordLowercase": "Password must contain a lowercase letter",
       "passwordUppercase": "Password must contain an uppercase letter",

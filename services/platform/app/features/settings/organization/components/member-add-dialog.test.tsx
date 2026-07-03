@@ -107,6 +107,47 @@ describe('AddMemberDialog', () => {
     });
   });
 
+  // Regression test for #2018: adding an email that already belongs to a member
+  // of the org surfaced as an opaque generic toast. The backend now returns a
+  // DUPLICATE_MEMBER code and the dialog shows a field-level error on the email
+  // input.
+  describe('duplicate member (#2018)', () => {
+    it('shows an email field error when the user is already a member', async () => {
+      createMemberMock.mockClear();
+      createMemberMock.mockRejectedValueOnce(
+        new ConvexError({
+          code: 'DUPLICATE_MEMBER',
+          message: 'User is already a member of this organization',
+        }),
+      );
+
+      const { user } = render(
+        <AddMemberDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+
+      const email = document.querySelector(
+        'input[name="email"]',
+      ) as HTMLInputElement;
+      await user.type(email, 'existing.member@example.com');
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      // The specific error is surfaced on the field, not as a generic toast.
+      await screen.findByText(
+        'This user is already a member of this organization',
+      );
+      expect(createMemberMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('existing user', () => {
     it('hides the password field and shows the existing-user hint', async () => {
       // The email already belongs to a user → the backend reuses their

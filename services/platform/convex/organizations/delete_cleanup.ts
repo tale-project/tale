@@ -6,7 +6,7 @@
  * without racing.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -27,19 +27,25 @@ export const prepareOrganizationDeletion = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
     // Only owners can delete. getOrganizationMember throws if the user
     // isn't a member of the org at all.
     const member = await getOrganizationMember(ctx, args.organizationId);
     if (member.role !== 'owner') {
-      throw new Error('Only owners can delete organizations');
+      throw new ConvexError({
+        code: 'FORBIDDEN',
+        message: 'Only owners can delete organizations',
+      });
     }
 
     const slug = await resolveOrgSlug(ctx, args.organizationId);
     if (slug === 'default') {
-      throw new Error('The default organization cannot be deleted');
+      throw new ConvexError({
+        code: 'DEFAULT_ORG_PROTECTED',
+        message: 'The default organization cannot be deleted',
+      });
     }
 
     // Round-2 V4 P0-10: cascadeOnOrgDeleted hard-deletes userMemories +
