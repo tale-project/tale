@@ -44,13 +44,15 @@ type StepStatus = 'active' | 'error' | 'done';
 
 /**
  * The one row primitive every icon+title step renders through (tools, routing,
- * delegation), so they all share the exact same left edge, leading-icon column,
- * and spacing. A SINGLE leading glyph conveys state — a spinner while live, a
- * warning on error, otherwise the family icon — instead of the old two-glyph
- * (status dot + family icon) layout. The title text already names the work, so
- * one glyph is enough and the rows stay flat.
+ * spawned-job headers), so they all share the exact same left edge,
+ * leading-icon column, and spacing. A SINGLE leading glyph conveys state — a
+ * spinner while live, a warning on error, otherwise the family icon — instead
+ * of the old two-glyph (status dot + family icon) layout. The title text
+ * already names the work, so one glyph is enough and the rows stay flat.
+ * Exported for the inline job row (`job-card.tsx`), which must be
+ * indistinguishable from a tool row.
  */
-function StepRow({
+export function StepRow({
   icon: Icon,
   status,
   title,

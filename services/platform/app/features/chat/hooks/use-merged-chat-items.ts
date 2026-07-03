@@ -3,7 +3,6 @@ import { useMemo, useRef } from 'react';
 import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
 
 import type {
-  AgentJobCard,
   DocumentWriteApproval,
   HumanInputRequest,
   IntegrationApproval,
@@ -26,8 +25,7 @@ export type ChatItem =
   | { type: 'document_write_approval'; data: DocumentWriteApproval }
   | { type: 'knowledge_write_approval'; data: KnowledgeWriteApproval }
   | { type: 'location_request'; data: LocationRequest }
-  | { type: 'plan_approval'; data: PlanApproval }
-  | { type: 'job'; data: AgentJobCard };
+  | { type: 'plan_approval'; data: PlanApproval };
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
 
@@ -51,9 +49,6 @@ interface UseMergedChatItemsParams {
    *  message and deliberately EXCLUDED from `activeApproval`: a pending plan
    *  must never disable the composer (typing below = refining the plan). */
   planApprovals?: PlanApproval[];
-  /** Spawned agent-on-demand jobs — rendered INLINE anchored to the turn that
-   *  spawned them, never in `activeApproval` (a job needs no user action). */
-  jobs?: AgentJobCard[];
 }
 
 export interface MergedChatItemsResult {
@@ -169,45 +164,6 @@ export function mergePlanApprovalItems(
 }
 
 /**
- * Splice job cards into the sorted message items, each immediately AFTER the
- * assistant message of the turn that spawned it. Jobs whose anchor message
- * isn't loaded (pagination, or the turn is still streaming and hasn't linked
- * yet) are skipped — they appear when the link lands or load-more brings the
- * message in. Pure + exported for unit testing.
- */
-export function mergeJobItems(
-  messageItems: ChatItem[],
-  jobs: AgentJobCard[],
-): ChatItem[] {
-  if (jobs.length === 0) return messageItems;
-
-  const byMessageId = new Map<string, AgentJobCard[]>();
-  for (const job of jobs) {
-    if (!job.messageId) continue;
-    const bucket = byMessageId.get(job.messageId);
-    if (bucket) bucket.push(job);
-    else byMessageId.set(job.messageId, [job]);
-  }
-  for (const bucket of byMessageId.values()) {
-    bucket.sort((a, b) => a.startedAt - b.startedAt);
-  }
-
-  const merged: ChatItem[] = [];
-  let insertedAny = false;
-  for (const item of messageItems) {
-    merged.push(item);
-    if (item.type !== 'message') continue;
-    const bucket = byMessageId.get(item.data.id);
-    if (!bucket) continue;
-    for (const job of bucket) {
-      merged.push({ type: 'job', data: job });
-      insertedAny = true;
-    }
-  }
-  return insertedAny ? merged : messageItems;
-}
-
-/**
  * Hook to merge messages with approvals.
  * Messages are returned chronologically.
  * The latest active (pending/executing) approval is returned separately;
@@ -262,7 +218,6 @@ export function useMergedChatItems({
   documentWriteApprovals,
   knowledgeWriteApprovals,
   planApprovals,
-  jobs,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   // Holds the previous output so an unchanged (or tail-only-changed) tick can
   // return a referentially-stable result — see reconcileItems above.
@@ -314,10 +269,6 @@ export function useMergedChatItems({
       itemsWithHumanInput,
       planApprovals ?? [],
     );
-
-    // Job cards: inline after the turn that spawned them; never
-    // `activeApproval` (nothing to approve — the card is a live status view).
-    const itemsWithJobs = mergeJobItems(itemsWithPlans, jobs ?? []);
 
     // Collect active approvals (pending/executing only, linked to loaded messages)
     const activeApprovals: ApprovalChatItem[] = [];
@@ -417,7 +368,7 @@ export function useMergedChatItems({
     // idle/typing tick keeps ChatMessages' memo intact and a streamed token
     // churns only the tail item.
     const prev = heldRef.current;
-    const heldMessages = reconcileItems(itemsWithJobs, prev?.messages);
+    const heldMessages = reconcileItems(itemsWithPlans, prev?.messages);
     const heldApproval =
       prev && sameApproval(prev.activeApproval, activeApproval)
         ? prev.activeApproval
@@ -449,6 +400,5 @@ export function useMergedChatItems({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    jobs,
   ]);
 }

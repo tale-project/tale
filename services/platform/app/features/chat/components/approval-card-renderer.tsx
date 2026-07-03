@@ -7,7 +7,6 @@ import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { DocumentWriteApprovalCard } from './document-write-approval-card';
 import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
-import { JobCard } from './job-card';
 import { KnowledgeWriteApprovalCard } from './knowledge-write-approval-card';
 import { LocationRequestCard } from './location-request-card';
 import { PlanApprovalCard } from './plan-approval-card';
@@ -150,9 +149,6 @@ export function ApprovalCardRenderer({
             metadata={item.data.metadata}
           />
         ) : null;
-      break;
-    case 'job':
-      card = <JobCard job={item.data} />;
       break;
     default:
       // Any other non-message ChatItem kind renders no card.

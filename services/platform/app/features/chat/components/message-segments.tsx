@@ -13,6 +13,7 @@ import {
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { type RouteReason } from '../utils/route-reason';
 import { AssistantMessageContent } from './assistant-message-content';
+import { InlineJobCard } from './job-card';
 import {
   InlineReasoning,
   RoutingStepRow,
@@ -20,7 +21,8 @@ import {
   ToolStepRow,
 } from './thought-timeline';
 
-/** Read the streamed delegate's sub-thread id off a `delegate_*` tool result. */
+/** Read the streamed delegate's sub-thread id off a `delegate_*` tool result
+ *  (legacy threads only — delegation was replaced by spawn_agent). */
 function delegateSubThreadId(segment: MessageSegment): string | undefined {
   if (segment.kind !== 'tool' || !segment.toolName.startsWith('delegate_')) {
     return undefined;
@@ -30,6 +32,18 @@ function delegateSubThreadId(segment: MessageSegment): string | undefined {
     typeof segment.output.subThreadId === 'string'
   ) {
     return segment.output.subThreadId;
+  }
+  return undefined;
+}
+
+/** Read the spawned job's id off a `spawn_agent` tool result — the anchor for
+ *  the inline job card (name, live progress, status, transcript). */
+function spawnedJobId(segment: MessageSegment): string | undefined {
+  if (segment.kind !== 'tool' || segment.toolName !== 'spawn_agent') {
+    return undefined;
+  }
+  if (isRecord(segment.output) && typeof segment.output.jobId === 'string') {
+    return segment.output.jobId;
   }
   return undefined;
 }
@@ -179,12 +193,20 @@ function MessageSegmentsImpl({
               />
             );
           case 'tool': {
-            // A streamed `delegate_*` call also renders a live, nested timeline
-            // of the sub-agent's reasoning/tools beneath its row.
+            // A `spawn_agent` call renders its live job card right beneath
+            // the row — where the spawn happened, not at the end of the turn.
+            const jobId = spawnedJobId(segment);
+            // A streamed `delegate_*` call (legacy threads) also renders a
+            // live, nested timeline of the sub-agent's work beneath its row.
             const subThreadId = delegateSubThreadId(segment);
             return (
               <div key={segment.id} className="my-2">
                 <ToolStepRow step={segment} active={active} />
+                {jobId && (
+                  <div className={cn('mt-2', STEP_INDENT)}>
+                    <InlineJobCard jobId={jobId} />
+                  </div>
+                )}
                 {subThreadId && (
                   <NestedDelegationTimeline
                     subThreadId={subThreadId}

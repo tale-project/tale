@@ -400,31 +400,6 @@ export const finalizeJob = internalMutation({
 });
 
 /**
- * Anchor this turn's unlinked job cards to the assistant message so the chat
- * splicer can position them (approvals-link sibling; jobs cannot reuse
- * `linkApprovalsToMessage` — different table).
- */
-export const linkJobsToMessage = internalMutation({
-  args: {
-    threadId: v.string(),
-    messageId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const jobs = await ctx.db
-      .query('agentJobs')
-      .withIndex('by_thread', (q) => q.eq('threadId', args.threadId))
-      .collect();
-    for (const job of jobs) {
-      if (job.messageId === undefined) {
-        await ctx.db.patch(job._id, { messageId: args.messageId });
-      }
-    }
-    return null;
-  },
-});
-
-/**
  * Opportunistic TTL sweep: delete terminal jobs past the policy TTL together
  * with their transcript threads, and heal orphaned `running` rows. Gated by
  * the `cleanup:agentJobs` token bucket (per org); scheduled from

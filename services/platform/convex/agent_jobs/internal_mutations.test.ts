@@ -247,35 +247,6 @@ describe('applyProgressOperations', () => {
   });
 });
 
-describe('linkJobsToMessage', () => {
-  it('anchors only unlinked jobs on the thread', async () => {
-    const t = convexTest(schema, modules);
-    const a = await t.mutation(
-      internal.agent_jobs.internal_mutations.startJob,
-      startArgs('a'),
-    );
-    if (!a.started) throw new Error('expected start');
-    await t.mutation(internal.agent_jobs.internal_mutations.linkJobsToMessage, {
-      threadId: PARENT_THREAD,
-      messageId: 'msg-1',
-    });
-    const b = await t.mutation(
-      internal.agent_jobs.internal_mutations.startJob,
-      startArgs('b'),
-    );
-    if (!b.started) throw new Error('expected start');
-    await t.mutation(internal.agent_jobs.internal_mutations.linkJobsToMessage, {
-      threadId: PARENT_THREAD,
-      messageId: 'msg-2',
-    });
-
-    const rows = await t.run((ctx) => ctx.db.query('agentJobs').collect());
-    const byName = new Map(rows.map((r) => [r.name, r.messageId]));
-    expect(byName.get('a')).toBe('msg-1');
-    expect(byName.get('b')).toBe('msg-2');
-  });
-});
-
 describe('maybeCleanupJobs', () => {
   it('deletes only terminal rows past the TTL', async () => {
     const t = convexTest(schema, modules);

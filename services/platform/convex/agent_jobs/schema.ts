@@ -73,11 +73,16 @@ export const agentJobSpecValidator = v.object({
 
 export const agentJobsTable = defineTable({
   organizationId: v.string(),
-  /** The PARENT chat thread the job card renders on. */
+  /** The PARENT chat thread (authorization scope for the job card). */
   threadId: v.string(),
   /** The job's own fresh Agent-SDK thread (transcript; never reused). */
   jobThreadId: v.string(),
-  /** Assistant-message anchor for card splicing; linked at turn finalize. */
+  /**
+   * @deprecated Never read. Early builds anchored job cards to an assistant
+   * message; cards now render inline under their `spawn_agent` tool row
+   * (which carries the jobId), so nothing writes or reads this. Kept so
+   * rows written by those builds still validate.
+   */
   messageId: v.optional(v.string()),
   userId: v.optional(v.string()),
   parentAgentSlug: v.string(),
@@ -100,8 +105,6 @@ export const agentJobsTable = defineTable({
   completedAt: v.optional(v.number()),
   durationMs: v.optional(v.number()),
 })
-  // Job cards for one chat thread.
-  .index('by_thread', ['threadId'])
   // `update_progress` resolves its row from the job's own thread id.
   .index('by_job_thread', ['jobThreadId'])
   // Admission stuck-sweep (prefix eq status='running', range on startedAt is

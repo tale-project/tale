@@ -1,34 +1,85 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import {
   AlertTriangle,
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
-  Loader2,
+  Circle,
+  CircleDot,
+  MinusCircle,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { AgentJobCard } from '../hooks/queries';
-import { useThreadMessages } from '../hooks/queries';
+import { useAgentJob, useThreadMessages } from '../hooks/queries';
 import { buildMessageSegments } from '../utils/build-message-segments';
-import { ApprovalCard } from './approval-card';
-import { ToolStepRow } from './thought-timeline/step-rows';
-import { TodoRow } from './todo-list-card';
+import { StepRow, ToolStepRow } from './thought-timeline/step-rows';
 
 /**
- * Live status card for one spawned agent-on-demand job: worker name +
- * status, the job's own progress checklist (update_progress), the
- * capability-narrowing report, and an expandable post-hoc transcript read
- * from the job's transcript thread.
+ * Live status of one spawned agent-on-demand job, rendered INLINE under its
+ * `spawn_agent` tool row (the row's persisted result carries the jobId).
+ * Renders through the SAME `StepRow` primitive as the tool rows — leading
+ * glyph (spinner while running, warning on failure, the worker icon
+ * otherwise), the worker's name as the title, and the details (description,
+ * live progress checklist, narrowing report, transcript) behind the row's own
+ * expander — so it is visually indistinguishable from its tool siblings.
  */
+export function InlineJobCard({ jobId }: { jobId: string }) {
+  const organizationId = useOrganizationId();
+  const { job } = useAgentJob(
+    organizationId ?? '',
+    organizationId ? jobId : null,
+  );
+  if (!job) return null;
+  return <JobCard job={job} />;
+}
+
 function JobCardComponent({ job }: { job: AgentJobCard }) {
+  const { t } = useT('jobCard');
+
+  const statusKey = {
+    running: 'statusRunning',
+    completed: 'statusCompleted',
+    failed: 'statusFailed',
+    timed_out: 'statusTimedOut',
+    cancelled: 'statusCancelled',
+  }[job.status];
+  const failed = job.status !== 'running' && job.status !== 'completed';
+
+  // 100% the tool-row contract: state is the leading glyph alone (spinner /
+  // warning / worker icon), the collapsed row carries NO extra text, and —
+  // exactly like a tool's errorText — a detail line appears only on failure.
+  return (
+    <StepRow
+      icon={Bot}
+      status={job.status === 'running' ? 'active' : failed ? 'error' : 'done'}
+      title={job.name}
+      detail={
+        failed && job.failureReason
+          ? t(`failure.${job.failureReason}`)
+          : undefined
+      }
+      expandedContent={<JobDetails job={job} statusKey={statusKey} />}
+    />
+  );
+}
+
+/** The row's drill-down: status, description, progress, narrowing, transcript. */
+function JobDetails({
+  job,
+  statusKey,
+}: {
+  job: AgentJobCard;
+  statusKey: string;
+}) {
   const { t } = useT('jobCard');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
@@ -39,108 +90,105 @@ function JobCardComponent({ job }: { job: AgentJobCard }) {
     ...(job.narrowed.methodology ? [job.narrowed.methodology] : []),
   ];
 
-  const statusKey = {
-    running: 'statusRunning',
-    completed: 'statusCompleted',
-    failed: 'statusFailed',
-    timed_out: 'statusTimedOut',
-    cancelled: 'statusCancelled',
-  }[job.status];
+  const statusLine = [
+    t(statusKey),
+    ...(job.durationMs !== undefined
+      ? [t('duration', { seconds: Math.round(job.durationMs / 1000) })]
+      : []),
+  ].join(' · ');
 
   return (
-    <ApprovalCard maxWidth="md" className="my-2">
-      <Stack gap={3}>
-        <HStack align="center" justify="between" className="gap-2">
-          <HStack align="center" className="min-w-0 gap-2">
-            {job.status === 'running' ? (
-              <Loader2 className="text-primary size-4 shrink-0 animate-spin motion-reduce:animate-none" />
-            ) : (
-              <Bot className="text-muted-foreground size-4 shrink-0" />
-            )}
-            <Text as="div" className="truncate font-medium">
-              {job.name}
-            </Text>
-            <Badge
-              variant={
-                job.status === 'completed'
-                  ? 'green'
-                  : job.status === 'running'
-                    ? 'blue'
-                    : 'destructive'
-              }
-              className="shrink-0"
-            >
-              {t(statusKey)}
-            </Badge>
-          </HStack>
-          {job.durationMs !== undefined && (
-            <Text as="span" variant="muted" className="shrink-0 text-xs">
-              {t('duration', { seconds: Math.round(job.durationMs / 1000) })}
-            </Text>
-          )}
+    <Stack gap={2} className="mt-1.5 ml-4">
+      <Text as="div" variant="muted" className="text-xs leading-snug">
+        {statusLine} — {job.description}
+      </Text>
+
+      {job.progress.length > 0 && (
+        <Stack as="ol" gap={2} className="m-0 list-none p-0">
+          {job.progress.map((item) => (
+            <JobProgressRow key={item.id} item={item} />
+          ))}
+        </Stack>
+      )}
+
+      {narrowedItems.length > 0 && (
+        <HStack align="center" className="gap-1.5">
+          <AlertTriangle className="text-warning size-3 shrink-0" />
+          <Text as="div" variant="muted" className="text-xs leading-snug">
+            {t('narrowedNotice', { items: narrowedItems.join(', ') })}
+          </Text>
         </HStack>
+      )}
 
-        <Text as="div" variant="muted" className="text-sm leading-snug">
-          {job.description}
-        </Text>
-
-        {job.progress.length > 0 && (
-          <Stack
-            as="ol"
-            gap={0}
-            className="m-0 list-none rounded-lg border p-0"
-          >
-            {job.progress.map((item) => (
-              <TodoRow
-                key={item.id}
-                todo={{
-                  id: item.id,
-                  content: item.content,
-                  status: item.status,
-                  findingsSummary:
-                    item.status === 'done' ? item.note : undefined,
-                  failureReason:
-                    item.status === 'failed' ? item.note : undefined,
-                }}
-              />
-            ))}
-          </Stack>
+      <button
+        type="button"
+        onClick={() => setTranscriptOpen((v) => !v)}
+        aria-expanded={transcriptOpen}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-xs transition-colors"
+      >
+        {transcriptOpen ? (
+          <ChevronDown className="size-3" />
+        ) : (
+          <ChevronRight className="size-3" />
         )}
+        {transcriptOpen ? t('hideTranscript') : t('showTranscript')}
+      </button>
+      {transcriptOpen && <JobTranscript jobThreadId={job.jobThreadId} />}
+    </Stack>
+  );
+}
 
-        {job.status !== 'running' && job.failureReason && (
-          <HStack align="center" className="gap-1.5">
-            <AlertTriangle className="text-destructive size-3.5 shrink-0" />
-            <Text as="div" className="text-destructive text-sm leading-snug">
-              {t(`failure.${job.failureReason}`)}
-            </Text>
-          </HStack>
-        )}
+/** One checklist item, in the timeline's slim-row idiom (small glyph + text). */
+function JobProgressRow({ item }: { item: AgentJobCard['progress'][number] }) {
+  const iconClass = 'mt-0.5 size-3.5 shrink-0';
+  const icon =
+    item.status === 'done' ? (
+      <Check className={cn(iconClass, 'text-emerald-500')} aria-hidden />
+    ) : item.status === 'in_progress' ? (
+      <CircleDot className={cn(iconClass, 'text-primary')} aria-hidden />
+    ) : item.status === 'failed' ? (
+      <AlertTriangle
+        className={cn(iconClass, 'text-destructive')}
+        aria-hidden
+      />
+    ) : item.status === 'cancelled' ? (
+      <MinusCircle
+        className={cn(iconClass, 'text-muted-foreground')}
+        aria-hidden
+      />
+    ) : (
+      <Circle className={cn(iconClass, 'text-muted-foreground')} aria-hidden />
+    );
 
-        {narrowedItems.length > 0 && (
-          <HStack align="center" className="gap-1.5">
-            <AlertTriangle className="text-warning size-3.5 shrink-0" />
-            <Text as="div" variant="muted" className="text-sm leading-snug">
-              {t('narrowedNotice', { items: narrowedItems.join(', ') })}
-            </Text>
-          </HStack>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setTranscriptOpen((v) => !v)}
-          aria-expanded={transcriptOpen}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-xs transition-colors"
-        >
-          {transcriptOpen ? (
-            <ChevronDown className="size-3" />
-          ) : (
-            <ChevronRight className="size-3" />
+  return (
+    <li className="flex gap-2">
+      {icon}
+      <Stack className="min-w-0 flex-1 gap-0.5">
+        <Text
+          as="div"
+          className={cn(
+            'text-sm leading-snug',
+            item.status === 'done' &&
+              'text-muted-foreground line-through decoration-muted-foreground/60',
+            item.status === 'cancelled' && 'text-muted-foreground line-through',
           )}
-          {transcriptOpen ? t('hideTranscript') : t('showTranscript')}
-        </button>
-        {transcriptOpen && <JobTranscript jobThreadId={job.jobThreadId} />}
+        >
+          {item.content}
+        </Text>
+        {item.note && (
+          <Text
+            as="div"
+            variant="muted"
+            className={cn(
+              'text-xs leading-snug',
+              item.status === 'failed' && 'text-destructive/80',
+            )}
+          >
+            {item.note}
+          </Text>
+        )}
       </Stack>
-    </ApprovalCard>
+    </li>
   );
 }
 
@@ -166,14 +214,14 @@ function JobTranscript({ jobThreadId }: { jobThreadId: string }) {
 
   if (segments.length === 0) {
     return (
-      <Text as="div" variant="muted" className="text-sm">
+      <Text as="div" variant="muted" className="text-xs">
         {t('transcriptEmpty')}
       </Text>
     );
   }
 
   return (
-    <div className="border-border/60 ml-2 border-l pl-3">
+    <div className="border-border/60 ml-1 border-l pl-3">
       {segments.map((segment) =>
         segment.kind === 'tool' ? (
           <div key={segment.id} className="my-2">
