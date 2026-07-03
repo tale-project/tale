@@ -210,6 +210,7 @@
       "error": "Impossible de charger le workflow : {error}"
     },
     "runs": {
+      "backToApp": "Retour à l'application",
       "none": "Aucune exécution pour le moment.",
       "colRun": "Exécution",
       "colStatus": "Statut",
@@ -590,6 +591,7 @@
     "validation": {
       "emailRequired": "L'email est requis",
       "passwordRequiredForNewUser": "Un mot de passe est requis pour créer un nouvel utilisateur",
+      "emailAlreadyMember": "Cet utilisateur est déjà membre de cette organisation",
       "passwordMinLength": "Le mot de passe doit contenir au moins {n} caractères",
       "passwordLowercase": "Le mot de passe doit contenir une lettre minuscule",
       "passwordUppercase": "Le mot de passe doit contenir une lettre majuscule",
@@ -943,8 +945,8 @@
       "descriptionPlaceholder": "Décris ce que fait cette automatisation...",
       "creating": "Création...",
       "continue": "Continuer",
-      "installAll": "Tout installer",
-      "installingAll": "Installation en cours..."
+      "install": "Installer",
+      "installing": "Installation..."
     },
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
@@ -954,7 +956,6 @@
     },
     "templates": {
       "description": "Choisis un modèle pour démarrer avec des étapes préconfigurées.",
-      "installFailed": "Impossible de créer l'automatisation à partir du modèle",
       "fetching": "Chargement du modèle...",
       "noTemplates": "Aucun modèle disponible pour cette intégration."
     },
@@ -1056,10 +1057,7 @@
     },
     "toast": {
       "created": "Automatisation créée avec succès",
-      "createFailed": "Échec de la création de l'automatisation",
-      "installedAll": "{count} automatisations installées",
-      "installedAllNone": "Tous les modèles sont déjà installés",
-      "installAllPartial": "{count} modèles n'ont pas pu être installés"
+      "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
       "duplicateName": "Une automatisation avec ce nom existe déjà",
@@ -1323,6 +1321,7 @@
       "viewProvider": "Voir les paramètres du fournisseur",
       "viewInfo": "Détails du modèle",
       "noApiKey": "Aucune clé API configurée pour le fournisseur de ce modèle — ajoutes-en une dans Paramètres → Fournisseurs d’IA.",
+      "noProviderKey": "Aucun fournisseur d’IA n’est encore connecté — ajoute une clé API dans Paramètres → Fournisseurs d’IA pour commencer à discuter.",
       "info": {
         "provider": "Fournisseur",
         "type": "Type",
@@ -1838,6 +1837,8 @@
     "modelFallbackNotice": "{from} était indisponible — passage à {to}.",
     "modelFallbackDefaultModel": "le modèle par défaut",
     "modelFallbackUnknown": "le modèle précédent",
+    "generationIncomplete": "La réponse n'a pas pu être terminée. Merci de réessayer.",
+    "generationIncompleteWithTools": "La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.",
     "workspaceFiles": {
       "title": "Fichiers de l'espace de travail",
       "toggleLabel": "Fichiers de l'espace de travail",
@@ -2030,6 +2031,7 @@
     "stepProgress": "Étape {current} sur {total} : {label}",
     "validation": {
       "required": "{field} est requis",
+      "maxLength": "{field} ne doit pas dépasser {max} caractères",
       "email": "Entre une adresse email valide",
       "invalidJson": "Format JSON invalide",
       "uploadFile": "Téléverse un fichier",
@@ -2056,6 +2058,7 @@
       "completed": "Terminé",
       "back": "Retour",
       "backTo": "Retour à {page}",
+      "breadcrumb": "Fil d'Ariane",
       "automationsNavigation": "Navigation des automatisations",
       "agentsNavigation": "Navigation des agents",
       "knowledgeNavigation": "Navigation de la base de connaissances",
@@ -2846,6 +2849,7 @@
       "noApiKeysFound": "Aucune clé API trouvée",
       "selectApiKeyAriaLabel": "Sélectionner une clé API",
       "saved": "Les règles de budget ont été mises à jour",
+      "saveFailed": "Échec de l'enregistrement des règles de budget",
       "targetRequired": "Sélectionnez une cible pour cette portée, sinon la règle ne s'appliquera jamais.",
       "limitRequired": "Définissez au moins une limite (jetons, coût ou requêtes) pour que la règle puisse s'appliquer.",
       "invalidTokenLimit": "La limite de jetons doit être supérieure à zéro.",
@@ -4036,6 +4040,9 @@
         "description": "Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne effet.",
         "cancel": "Annuler la modification en attente"
       }
+    },
+    "errors": {
+      "saveForbidden": "Vous n'avez pas l'autorisation de modifier ce paramètre."
     }
   },
   "humanInputRequest": {
@@ -4211,9 +4218,11 @@
       "cancel": "Annuler",
       "connectionSection": "Connexion",
       "authSection": "Authentification",
+      "invalidUrl": "Saisis une URL HTTP ou HTTPS valide",
       "validation": {
         "nameRequired": "Le nom est requis",
-        "nameFormat": "Doit être en minuscules alphanumériques avec des traits d'union",
+        "nameTooLong": "Doit comporter au maximum {max} caractères",
+        "nameInvalid": "Uniquement des minuscules, des chiffres et des traits d'union",
         "displayNameRequired": "Le nom d'affichage est requis",
         "urlRequired": "L'URL est requise",
         "commandRequired": "La commande est requise",
@@ -4591,7 +4600,9 @@
       "discard": "Ignorer"
     },
     "errors": {
-      "saveFailed": "Échec de l'enregistrement. Réessaie."
+      "saveFailed": "Échec de l'enregistrement. Réessaie.",
+      "tooLong": "Les instructions personnalisées dépassent {max} caractères.",
+      "illegalChars": "Supprime les chevrons, les accents graves et les caractères de contrôle."
     },
     "toasts": {
       "saved": "Enregistré.",
@@ -5154,10 +5165,10 @@
     "account": {
       "profile": {
         "title": "Profil",
-        "description": "Ton nom d'affichage et ton courriel — visibles par tes coéquipiers.",
+        "description": "Ton nom et ton courriel — visibles par tes coéquipiers.",
         "nameDescription": "Le nom affiché à tes coéquipiers.",
         "emailDescription": "Utilisé pour te connecter et recevoir des notifications.",
-        "name": "Nom d'affichage",
+        "name": "Nom",
         "namePlaceholder": "Entre ton nom",
         "email": "Courriel",
         "nameRequired": "Le nom est requis"
@@ -5182,10 +5193,11 @@
       }
     },
     "organization": {
-      "title": "Organisation (facultatif)",
+      "title": "Nom de l'organisation",
       "detailsTitle": "Détails de l'organisation",
       "detailsDescription": "Informations de base sur ton organisation.",
       "nameDescription": "Le nom d'affichage de ton organisation.",
+      "nameRequired": "Le nom de l'organisation est requis",
       "localeDescription": "La langue principale de ton organisation.",
       "organizationId": "ID de l'organisation",
       "membersSectionTitle": "Membres",
@@ -5264,6 +5276,7 @@
       "loadingMembers": "Chargement...",
       "unknownMember": "Inconnu",
       "memberChecklistHint": "Un membre peut appartenir à plusieurs équipes. Si personne n'est sélectionné, tu seras ajouté automatiquement.",
+      "lastMemberHint": "Une équipe doit conserver au moins un membre. Supprime plutôt l'équipe pour retirer le dernier membre.",
       "description": "Crée et gère des équipes au sein de ton organisation pour un contrôle d'accès granulaire"
     },
     "agents": {
@@ -6308,11 +6321,42 @@
       "openDocs": "Documentation API"
     },
     "logs": {
+      "integrity": {
+        "title": "Intégrité de la chaîne",
+        "neverChecked": "Aucune vérification d'intégrité automatique n'a encore été exécutée.",
+        "lastCheck": "Dernière vérification automatique : {date}",
+        "alertedAt": "Alerte déclenchée le {date}",
+        "statusUnchecked": "Pas encore vérifié",
+        "statusOk": "Vérifié",
+        "statusAlert": "Alerte d'intégrité active",
+        "verifyNow": "Vérifier maintenant",
+        "verifyError": "La vérification n'a pas pu aboutir. Réessaie.",
+        "resultValidTitle": "Chaîne vérifiée",
+        "resultValidBody": "{count, plural, one {# entrée vérifiée} other {# entrées vérifiées}} — aucune altération détectée.",
+        "truncatedNote": "Seules les {count} premières entrées ont été vérifiées. Relance la vérification pour poursuivre le long de la chaîne.",
+        "unsignedScrubNote": "{count, plural, one {# entrée a été validée via un enregistrement d'effacement non signé} other {# entrées ont été validées via des enregistrements d'effacement non signés}}. Vérifie ta clé de signature d'audit.",
+        "brokenTitle": "Intégrité de la chaîne rompue",
+        "brokenBody": "La chaîne de hachage ne correspond pas à l'entrée ci-dessous. Conserve cette preuve avant toute modification.",
+        "brokenAt": "Survenue le",
+        "logId": "ID de l'entrée",
+        "expectedHash": "Hachage attendu",
+        "actualHash": "Hachage stocké",
+        "openRow": "Ouvrir cette entrée",
+        "checkpointTitle": "Échec de la vérification du point de contrôle",
+        "checkpointId": "ID du point de contrôle",
+        "reason": "Raison",
+        "rowMissing": "L'entrée d'audit {logId} n'est plus disponible."
+      },
       "heading": "Journaux",
       "subheading": "Consulte et gère les journaux système.",
       "auditLogs": "Journaux d'audit",
       "activityLogs": "Journaux d'activité",
       "errorLogs": "Journaux d'erreurs",
+      "loadError": {
+        "title": "Impossible de charger les journaux",
+        "description": "Le chargement des journaux a pris trop de temps. C'est généralement temporaire.",
+        "retry": "Réessayer"
+      },
       "activity": {
         "period": {
           "label": "Période",
@@ -6838,6 +6882,7 @@
     "agentAccessTitle": "Accessible aux agents",
     "agentAccessBody": "Les runtimes d'agents (par ex. Hermes, OpenClaw) peuvent utiliser ces secrets lorsqu'ils exécutent des tâches pour ce projet — par exemple pour se connecter à des services externes en ton nom. Les valeurs sont injectées à l'exécution et ne sont jamais montrées au modèle de chat ni affichées dans l'interface.",
     "nameLabel": "Nom",
+    "nameInvalid": "Le nom doit commencer par une lettre et ne contenir que A–Z, 0–9 et des traits de soulignement.",
     "valueLabel": "Valeur",
     "descriptionLabel": "Description",
     "typeLabel": "Type",
@@ -6850,13 +6895,30 @@
     "usernameLabel": "Nom d'utilisateur",
     "passwordLabel": "Mot de passe",
     "basicNameHint": "Enregistré sous forme de deux secrets — ton nom plus les suffixes _USERNAME et _PASSWORD.",
+    "nameShapeHint": "Lettres majuscules, chiffres et traits de soulignement ; doit commencer par une lettre.",
     "encryptionNotConfigured": "Le chiffrement des secrets n'est pas configuré sur ce serveur (ENCRYPTION_SECRET_HEX manquant). Exécute `tale init`, puis réessaie.",
     "saveSuccess": "Secret enregistré",
     "editButton": "Modifier",
     "editTitle": "Modifier le secret",
     "editValueHint": "Saisis une nouvelle valeur pour remplacer le secret enregistré. La valeur actuelle n'est jamais affichée.",
     "updateSuccess": "Secret mis à jour",
-    "deleteSuccess": "Secret supprimé"
+    "deleteSuccess": "Secret supprimé",
+    "overwriteWarningTitle": "Nom déjà utilisé",
+    "overwriteWarningBody": "Un secret nommé {names} existe déjà. L'enregistrement remplacera sa valeur stockée — cette action est irréversible.",
+    "overwriteConfirmLabel": "Écraser le secret existant",
+    "overwriteButton": "Écraser",
+    "errors": {
+      "accessDeniedTitle": "Accès administrateur requis",
+      "nameInvalid": "Utilise uniquement des lettres majuscules, des chiffres et des traits de soulignement, en commençant par une lettre (max. 64 caractères).",
+      "valueInvalid": "Saisis une valeur de 1 à 8192 caractères.",
+      "unauthenticated": "Ta session a expiré. Reconnecte-toi, puis réessaie.",
+      "forbidden": "Tu n'as pas l'autorisation de gérer les secrets de ce projet.",
+      "projectNotFound": "Ce projet est introuvable. Il a peut-être été supprimé.",
+      "PROJECT_FORBIDDEN": "Tu n'as pas accès aux secrets de ce projet. Seuls les administrateurs du projet peuvent les consulter ou les gérer.",
+      "PROJECT_NOT_FOUND": "Ce projet n'existe plus.",
+      "SECRET_NAME_INVALID": "Les noms de secret doivent commencer par une lettre et ne contenir que des lettres majuscules, des chiffres et des tirets bas (64 caractères max).",
+      "SECRET_VALUE_INVALID": "Saisis une valeur de secret comprise entre 1 et 8192 caractères."
+    }
   },
   "tasks": {
     "attachments": {
@@ -7106,6 +7168,10 @@
       "passwordChangeFailed": "Échec du changement de mot de passe. Merci de vérifier ton mot de passe actuel et réessayer.",
       "organizationUpdateFailed": "Échec de la mise à jour de l'organisation",
       "brandingUpdateFailed": "Échec de la mise à jour de l'image de marque",
+      "imageUploadFailed": "Échec du téléversement de l'image",
+      "imageTooLarge": "L'image est trop volumineuse. La taille maximale est de 2 Mo.",
+      "imageMimeUnsupported": "Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.",
+      "imageTypeInvalid": "Type d'image invalide",
       "addMemberFailed": "Échec de l'ajout du membre",
       "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
       "automationDeleteFailed": "Échec de la suppression de l'automatisation",
@@ -7172,7 +7238,7 @@
     "setup": {
       "title": "Configurer l'authentification à double facteur",
       "qrInstructions": "Scanne le code QR avec une application d'authentification (Google Authenticator, 1Password, Authy), puis saisis le code à 6 chiffres ci-dessous.",
-      "manualEntry": "Ou saisir manuellement :",
+      "manualEntry": "Ou saisis-le manuellement :",
       "verifyCodeLabel": "Code de vérification",
       "verifyButton": "Vérifier et activer"
     },
@@ -7921,7 +7987,7 @@
       "agent": "Agent",
       "completed": "Terminées",
       "runs": "Exécutions (échecs)",
-      "bounceRate": "Modifications demandées",
+      "bounceRate": "Taux de modifications",
       "cost": "Dépenses"
     },
     "attention": {
@@ -7933,7 +7999,7 @@
     },
     "scorecard": {
       "title": "Métriques de l'agent",
-      "subtitle": "Les 30 derniers jours — résultats, qualité des revues et coûts de cet agent.",
+      "subtitle": "Les {days} derniers jours — résultats, qualité des revues et coûts de cet agent.",
       "tasksCompleted": "Tâches terminées",
       "reviewOutcome": "Approbation du premier coup",
       "reviewDetail": "{passed} approuvées · {changes} modifications demandées · {escalations} escalades",

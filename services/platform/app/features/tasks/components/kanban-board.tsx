@@ -17,10 +17,13 @@ export function KanbanBoard({
   tasks,
   onOpenTask,
   projectKey,
+  canEdit = false,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
+  /** Caller may write to the project — gates drag-reorder and inline pickers. */
+  canEdit?: boolean;
 }) {
   const dnd = useTaskBoardDnd(tasks);
   // The board keeps every task as a card (grouped by status); this map only
@@ -55,6 +58,7 @@ export function KanbanBoard({
             childrenByParent={childrenByParent}
             onOpenTask={onOpenTask}
             projectKey={projectKey}
+            canEdit={canEdit}
           />
         ))}
       </Row>
@@ -65,6 +69,7 @@ export function KanbanBoard({
             subtasks={childrenByParent.get(dnd.activeTask._id)}
             dragging
             projectKey={projectKey}
+            canEdit={canEdit}
           />
         ) : null}
       </DragOverlay>

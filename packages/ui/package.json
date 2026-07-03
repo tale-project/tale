@@ -59,6 +59,7 @@
     "./use-breakpoint": "./src/hooks/use-breakpoint.ts",
     "./use-is-mobile": "./src/hooks/use-is-mobile.ts",
     "./use-safe-area-insets": "./src/hooks/use-safe-area-insets.ts",
+    "./use-restore-focus": "./src/hooks/use-restore-focus.ts",
     "./responsive-dialog": "./src/components/overlays/responsive-dialog.tsx",
     "./bottom-tab-bar": "./src/components/navigation/bottom-tab-bar.tsx",
     "./mobile-app-header": "./src/components/layout/mobile-app-header.tsx",

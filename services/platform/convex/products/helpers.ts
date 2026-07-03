@@ -1,8 +1,10 @@
 export * from './validators';
 export * from './types';
+export * from './field_limits';
 
 export * from './assert_unique_product_name';
 export * from './create_product';
+export * from './validate_product_name';
 export * from './get_product_by_id';
 export * from './query_products';
 export * from './update_products';

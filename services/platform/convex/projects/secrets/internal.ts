@@ -5,10 +5,14 @@
  * through here.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
-import type { Doc } from '../../_generated/dataModel';
-import { internalMutation, internalQuery } from '../../_generated/server';
+import type { Doc, Id } from '../../_generated/dataModel';
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from '../../_generated/server';
 import { getUserTeamIds } from '../../lib/get_user_teams';
 import { getOrganizationMember } from '../../lib/rls';
 import { checkProjectAccess } from '../access';
@@ -25,7 +29,7 @@ export const requireProjectAdminInternal = internalQuery({
   handler: async (ctx, args): Promise<{ projectName: string }> => {
     const project = await ctx.db.get(args.projectId);
     if (!project || project.organizationId !== args.organizationId) {
-      throw new Error('PROJECT_NOT_FOUND');
+      throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
     }
     const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: args.userId,
@@ -34,11 +38,72 @@ export const requireProjectAdminInternal = internalQuery({
     });
     const teamIds = await getUserTeamIds(ctx, member.userId);
     if (!checkProjectAccess(project, teamIds, member.role).canAdminister) {
-      throw new Error('SECRET_FORBIDDEN');
+      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
     }
     return { projectName: project.name };
   },
 });
+
+/** A single encrypted secret row's writable fields (sans org/project scope). */
+type SecretRowFields = {
+  name: string;
+  description?: string;
+  ciphertext: string;
+  nonce: string;
+  authTag: string;
+  keyFingerprint: string;
+  updatedBy: string;
+};
+
+/**
+ * Upsert one encrypted secret row within an existing mutation transaction.
+ * Shared by the single-secret and atomic-pair entry points so both write
+ * exactly the same row shape; when called from the pair mutation every
+ * `upsertSecretRow` runs inside the same transaction, so a later failure rolls
+ * the earlier write back.
+ */
+async function upsertSecretRow(
+  ctx: MutationCtx,
+  scope: { organizationId: string; projectId: Id<'projects'> },
+  fields: SecretRowFields,
+): Promise<void> {
+  const existing = await ctx.db
+    .query('projectSecrets')
+    .withIndex('by_project_name', (q) =>
+      q
+        .eq('organizationId', scope.organizationId)
+        .eq('projectId', scope.projectId)
+        .eq('name', fields.name),
+    )
+    .first();
+  const now = Date.now();
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      description: fields.description,
+      ciphertext: fields.ciphertext,
+      nonce: fields.nonce,
+      authTag: fields.authTag,
+      keyFingerprint: fields.keyFingerprint,
+      updatedBy: fields.updatedBy,
+      updatedAt: now,
+    });
+  } else {
+    await ctx.db.insert('projectSecrets', {
+      organizationId: scope.organizationId,
+      projectId: scope.projectId,
+      name: fields.name,
+      description: fields.description,
+      ciphertext: fields.ciphertext,
+      nonce: fields.nonce,
+      authTag: fields.authTag,
+      keyFingerprint: fields.keyFingerprint,
+      createdBy: fields.updatedBy,
+      updatedBy: fields.updatedBy,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
 
 export const upsertProjectSecretInternal = internalMutation({
   args: {
@@ -53,40 +118,61 @@ export const upsertProjectSecretInternal = internalMutation({
     updatedBy: v.string(),
   },
   handler: async (ctx, args): Promise<null> => {
-    const existing = await ctx.db
-      .query('projectSecrets')
-      .withIndex('by_project_name', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('projectId', args.projectId)
-          .eq('name', args.name),
-      )
-      .first();
-    const now = Date.now();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        description: args.description,
-        ciphertext: args.ciphertext,
-        nonce: args.nonce,
-        authTag: args.authTag,
-        keyFingerprint: args.keyFingerprint,
-        updatedBy: args.updatedBy,
-        updatedAt: now,
-      });
-    } else {
-      await ctx.db.insert('projectSecrets', {
-        organizationId: args.organizationId,
-        projectId: args.projectId,
+    await upsertSecretRow(
+      ctx,
+      { organizationId: args.organizationId, projectId: args.projectId },
+      {
         name: args.name,
         description: args.description,
         ciphertext: args.ciphertext,
         nonce: args.nonce,
         authTag: args.authTag,
         keyFingerprint: args.keyFingerprint,
-        createdBy: args.updatedBy,
         updatedBy: args.updatedBy,
-        createdAt: now,
-        updatedAt: now,
+      },
+    );
+    return null;
+  },
+});
+
+/** One encrypted secret's name + ciphertext bundle, used by the pair upsert. */
+const encryptedSecretValidator = v.object({
+  name: v.string(),
+  ciphertext: v.string(),
+  nonce: v.string(),
+  authTag: v.string(),
+  keyFingerprint: v.string(),
+});
+
+/**
+ * Atomically upsert the two secrets of a `basic` credential
+ * (`_USERNAME`/`_PASSWORD`). Both writes share one mutation transaction, so a
+ * failure on the second never leaves the first orphaned — the whole mutation
+ * rolls back.
+ */
+export const upsertProjectSecretPairInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    projectId: v.id('projects'),
+    description: v.optional(v.string()),
+    updatedBy: v.string(),
+    username: encryptedSecretValidator,
+    password: encryptedSecretValidator,
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const scope = {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+    };
+    for (const part of [args.username, args.password]) {
+      await upsertSecretRow(ctx, scope, {
+        name: part.name,
+        description: args.description,
+        ciphertext: part.ciphertext,
+        nonce: part.nonce,
+        authTag: part.authTag,
+        keyFingerprint: part.keyFingerprint,
+        updatedBy: args.updatedBy,
       });
     }
     return null;

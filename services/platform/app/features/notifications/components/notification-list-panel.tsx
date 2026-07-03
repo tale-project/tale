@@ -210,7 +210,7 @@ export function NotificationListPanel({
           {unreadCount > 0 && (
             <Button
               variant="ghost"
-              disabled={markAllRead.isPending}
+              disabled={markAllRead.isPending || markAllMyRead.isPending}
               onClick={handleMarkAllRead}
             >
               {t('markAllAsRead')}

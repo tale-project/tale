@@ -45,10 +45,13 @@ export function TasksList({
   tasks,
   onOpenTask,
   projectKey,
+  canEdit = false,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
+  /** Caller may write to the project — gates drag-reorder and inline pickers. */
+  canEdit?: boolean;
 }) {
   const { topLevel, childrenByParent } = useMemo(
     () => partitionSubtasks(tasks),
@@ -112,6 +115,7 @@ export function TasksList({
               onToggleCollapsed={toggleCollapsed}
               onOpenTask={onOpenTask}
               projectKey={projectKey}
+              canEdit={canEdit}
             />
           );
         })}
@@ -123,6 +127,7 @@ export function TasksList({
             subtasks={childrenByParent.get(dnd.activeTask._id)}
             projectKey={projectKey}
             dragging
+            canEdit={canEdit}
           />
         ) : null}
       </DragOverlay>
@@ -140,6 +145,7 @@ function ListSwimlane({
   onToggleCollapsed,
   onOpenTask,
   projectKey,
+  canEdit,
 }: {
   status: TaskStatus;
   rows: TaskRow[];
@@ -150,6 +156,7 @@ function ListSwimlane({
   onToggleCollapsed: (status: TaskStatus) => void;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
+  canEdit: boolean;
 }) {
   const { t } = useT('tasks');
   const { setNodeRef, isOver } = useDroppable({
@@ -199,6 +206,7 @@ function ListSwimlane({
                     onToggleExpanded={onToggleExpanded}
                     onOpen={onOpenTask}
                     projectKey={projectKey}
+                    canEdit={canEdit}
                   />
                   {isExpanded &&
                     children?.map((child) => (
@@ -208,6 +216,7 @@ function ListSwimlane({
                         nested
                         onOpen={onOpenTask}
                         projectKey={projectKey}
+                        canEdit={canEdit}
                       />
                     ))}
                 </div>
@@ -234,6 +243,7 @@ function TaskListRow({
   dragging,
   nested,
   projectKey,
+  canEdit = false,
 }: {
   task: TaskRow;
   subtasks?: TaskRow[];
@@ -244,6 +254,8 @@ function TaskListRow({
   /** Rendered as a nested subtask row (indented, non-draggable). */
   nested?: boolean;
   projectKey?: string | null;
+  /** Caller may write to the project — gates drag-reorder and inline pickers. */
+  canEdit?: boolean;
 }) {
   const { t } = useT('tasks');
   const identifier = formatTaskIdentifier(projectKey, task.number);
@@ -256,7 +268,14 @@ function TaskListRow({
   // Subtask rows are not draggable; only top-level rows participate in the DnD
   // sortable context. `useSortable` is still called unconditionally to respect
   // the rules of hooks, but its wiring is ignored for nested rows.
-  const sortable = useSortable({ id: task._id, data: { status: task.status } });
+  // Nested rows never drag; top-level rows drag only when the caller can write
+  // (disabling the sortable drops its drag listeners — the server rejects the
+  // move anyway).
+  const sortable = useSortable({
+    id: task._id,
+    data: { status: task.status },
+    disabled: nested || !canEdit,
+  });
   const style = nested
     ? undefined
     : {
@@ -281,10 +300,16 @@ function TaskListRow({
       tabIndex={nested ? 0 : undefined}
       onClick={() => onOpen?.(task)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        // Enter always opens the task. Space starts a keyboard drag via
+        // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`) for
+        // draggable rows; nested and read-only rows have no drag, so Space opens.
+        const draggable = !nested && canEdit;
+        if (e.key === 'Enter' || (e.key === ' ' && !draggable)) {
           e.preventDefault();
           onOpen?.(task);
+          return;
         }
+        sortable.listeners?.onKeyDown?.(e);
       }}
       className={cn(
         'group focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
@@ -325,6 +350,7 @@ function TaskListRow({
       <PriorityPicker
         priority={task.priority ?? null}
         align="start"
+        disabled={!canEdit}
         onChange={(priority) =>
           updateTask.mutate({ taskId: task._id, priority })
         }
@@ -377,6 +403,7 @@ function TaskListRow({
         assigneeType={task.assigneeType}
         assigneeId={task.assigneeId}
         align="end"
+        disabled={!canEdit}
         onAssign={(assigneeType, assigneeId) =>
           assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
         }

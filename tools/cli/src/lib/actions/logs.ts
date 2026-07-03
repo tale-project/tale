@@ -50,24 +50,27 @@ export async function logs(options: LogsOptions): Promise<void> {
   let containerName: string;
 
   if (isRotatableService(service)) {
-    // Rotatable services need a color
-    let targetColor: DeploymentColor;
-
+    // Rotatable services carry a color once deployed; `tale dev` runs them
+    // colour-less. Resolve in that order so the quickstart's
+    // `tale logs platform` works before any deployment exists.
     if (color) {
-      targetColor = color;
+      containerName = `${getProjectId()}-${service}-${color}`;
     } else {
-      // Auto-detect from current deployment state
       const currentColor = await getCurrentColor(deployDir);
-      if (!currentColor) {
-        logger.error('No active deployment found');
-        logger.info('Use --color to specify blue or green explicitly');
-        throw new Error('No active deployment');
+      if (currentColor) {
+        logger.info(`Auto-detected active color: ${currentColor}`);
+        containerName = `${getProjectId()}-${service}-${currentColor}`;
+      } else {
+        const devContainer = `${getProjectId()}-${service}`;
+        if (await containerExists(devContainer)) {
+          containerName = devContainer;
+        } else {
+          logger.error('No active deployment found');
+          logger.info('Use --color to specify blue or green explicitly');
+          throw new Error('No active deployment');
+        }
       }
-      targetColor = currentColor;
-      logger.info(`Auto-detected active color: ${targetColor}`);
     }
-
-    containerName = `${getProjectId()}-${service}-${targetColor}`;
   } else {
     // Stateful services don't have colors
     if (color) {

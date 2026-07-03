@@ -28,6 +28,8 @@ OpenRouter est une passerelle multi-modèles. La configuration livrée choisit `
 | AI21              | Jamba Large 1.7                      | chat                         | 256K     | 2.00         | 8.00         |
 | Amazon            | Nova Premier                         | chat, vision                 | 1M       | 2.50         | 12.50        |
 | Amazon            | Nova 2 Lite                          | chat, vision                 | 1M       | 0.30         | 2.50         |
+| Anthropic         | Claude Fable (latest)                | chat, vision                 | 1M       | 10.00        | 50.00        |
+| Anthropic         | Claude Fable 5                       | chat, vision                 | 1M       | 10.00        | 50.00        |
 | Anthropic         | Claude Sonnet 4.6                    | chat, vision                 | 1M       | 3.00         | 15.00        |
 | Anthropic         | Claude Haiku 4.5                     | chat                         | 200K     | 1.00         | 5.00         |
 | Anthropic         | Claude Opus 4.8                      | chat, vision                 | 1M       | 5.00         | 25.00        |

@@ -27,6 +27,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
+import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
 
 interface DocumentWriteApprovalCardProps {
@@ -82,7 +83,7 @@ function DocumentWriteApprovalCardComponent({
       });
       await executeDocumentWrite({ approvalId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorSaveFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorSaveFailed')));
       console.error('Failed to approve document write:', err);
     } finally {
       setIsApproving(false);
@@ -102,9 +103,7 @@ function DocumentWriteApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
-      );
+      setError(mapApprovalError(err, tCommon, tCommon('errorRejectFailed')));
       console.error('Failed to reject document write:', err);
     } finally {
       setIsRejecting(false);

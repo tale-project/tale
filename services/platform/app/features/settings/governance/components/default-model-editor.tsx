@@ -673,7 +673,7 @@ export function DefaultModelEditor({
                   </TableRow>
                 ))
               ) : (
-                <TableRow className="hover:bg-transparent">
+                <TableRow data-no-hover>
                   <TableCell colSpan={5} className="p-0">
                     <RulesTableEmptyState
                       icon={Database}

@@ -312,6 +312,7 @@ function DashboardLayout() {
                 <Stack
                   id="main-content"
                   as="main"
+                  tabIndex={-1}
                   gap={0}
                   className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
                 >

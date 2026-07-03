@@ -8,7 +8,12 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  MCP_SERVER_NAME_MAX_LENGTH,
+  MCP_SERVER_NAME_RE,
+} from '@/convex/mcp_servers/constants';
 import { useT } from '@/lib/i18n/client';
+import { isHttpUrl } from '@/lib/utils/url';
 
 import type { McpServerListItem } from './types';
 
@@ -132,18 +137,27 @@ export function McpServerForm({
   const validate = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       newErrors.name = t('form.validation.nameRequired');
-    } else if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && name.length > 1) {
-      newErrors.name = t('form.validation.nameFormat');
+    } else if (trimmedName.length > MCP_SERVER_NAME_MAX_LENGTH) {
+      newErrors.name = t('form.validation.nameTooLong', {
+        max: MCP_SERVER_NAME_MAX_LENGTH,
+      });
+    } else if (!MCP_SERVER_NAME_RE.test(trimmedName)) {
+      newErrors.name = t('form.validation.nameInvalid');
     }
 
     if (!displayName.trim()) {
       newErrors.displayName = t('form.validation.displayNameRequired');
     }
 
-    if (isHttpTransport && !url.trim()) {
-      newErrors.url = t('form.validation.urlRequired');
+    if (isHttpTransport) {
+      if (!url.trim()) {
+        newErrors.url = t('form.validation.urlRequired');
+      } else if (!isHttpUrl(url.trim())) {
+        newErrors.url = t('form.invalidUrl');
+      }
     }
 
     if (transportType === 'stdio' && !command.trim()) {
@@ -157,6 +171,8 @@ export function McpServerForm({
     if (authType === 'oauth2') {
       if (!tokenUrl.trim()) {
         newErrors.tokenUrl = t('form.validation.tokenUrlRequired');
+      } else if (!isHttpUrl(tokenUrl.trim())) {
+        newErrors.tokenUrl = t('form.invalidUrl');
       }
       if (!clientId.trim()) {
         newErrors.clientId = t('form.validation.clientIdRequired');
@@ -164,10 +180,14 @@ export function McpServerForm({
       if (!clientSecret.trim() && !server) {
         newErrors.clientSecret = t('form.validation.clientSecretRequired');
       }
-      if (grantType === 'authorization_code' && !authorizationUrl.trim()) {
-        newErrors.authorizationUrl = t(
-          'form.validation.authorizationUrlRequired',
-        );
+      if (grantType === 'authorization_code') {
+        if (!authorizationUrl.trim()) {
+          newErrors.authorizationUrl = t(
+            'form.validation.authorizationUrlRequired',
+          );
+        } else if (!isHttpUrl(authorizationUrl.trim())) {
+          newErrors.authorizationUrl = t('form.invalidUrl');
+        }
       }
     }
 

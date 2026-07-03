@@ -90,6 +90,8 @@ const GENERATED_COMMENT = `<!-- Auto-generated from builtin-configs/providers/${
 /** Pretty vendor labels for the `vendor/` id prefix; falls back to the prefix. */
 const VENDOR_LABELS: Record<string, string> = {
   anthropic: 'Anthropic',
+  // OpenRouter's rolling `~vendor/…-latest` aliases carry a `~` on the vendor.
+  '~anthropic': 'Anthropic',
   openai: 'OpenAI',
   google: 'Google',
   deepseek: 'DeepSeek',

@@ -155,7 +155,7 @@ function ForcedChangePasswordPage() {
       <div className="px-4 pt-8 pb-16 sm:px-8">
         <LogoLink href="/" />
       </div>
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1" tabIndex={-1}>
         <div className="mx-auto w-full max-w-md px-4">
           <Stack gap={6}>
             <Stack gap={2} className="text-center">

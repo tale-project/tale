@@ -281,8 +281,12 @@ export function IntegrationPanel({
         confirmText={t('integrations.disconnect')}
         isLoading={manage.isSubmitting}
         onConfirm={() => {
-          void manage.handleDisconnect();
-          setConfirmDisconnect(false);
+          // Keep the dialog open (and showing its loading state) until the
+          // disconnect resolves; `handleDisconnect` swallows its own errors
+          // and surfaces a toast, so closing afterwards is always safe.
+          void manage.handleDisconnect().finally(() => {
+            setConfirmDisconnect(false);
+          });
         }}
       />
 

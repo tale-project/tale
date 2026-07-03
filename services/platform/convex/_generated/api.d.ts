@@ -320,7 +320,6 @@ import type * as crawler_websites from "../crawler/websites.js";
 import type * as crons from "../crons.js";
 import type * as customers_bulk_create_customers from "../customers/bulk_create_customers.js";
 import type * as customers_create_customer from "../customers/create_customer.js";
-import type * as customers_create_customer_public from "../customers/create_customer_public.js";
 import type * as customers_delete_customer from "../customers/delete_customer.js";
 import type * as customers_filter_customers from "../customers/filter_customers.js";
 import type * as customers_find_or_create_customer from "../customers/find_or_create_customer.js";
@@ -386,6 +385,7 @@ import type * as documents_internal_mutations from "../documents/internal_mutati
 import type * as documents_internal_queries from "../documents/internal_queries.js";
 import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
+import type * as documents_list_files_by_folder from "../documents/list_files_by_folder.js";
 import type * as documents_list_indexed_documents_for_agent from "../documents/list_indexed_documents_for_agent.js";
 import type * as documents_list_orphaned_external_docs from "../documents/list_orphaned_external_docs.js";
 import type * as documents_mutations from "../documents/mutations.js";
@@ -711,6 +711,7 @@ import type * as lib_agent_response_reasoning_types from "../lib/agent_response/
 import type * as lib_agent_response_resolve_template_variables from "../lib/agent_response/resolve_template_variables.js";
 import type * as lib_agent_response_retry_policy from "../lib/agent_response/retry_policy.js";
 import type * as lib_agent_response_sanitize_prompt from "../lib/agent_response/sanitize_prompt.js";
+import type * as lib_agent_response_stop_conditions from "../lib/agent_response/stop_conditions.js";
 import type * as lib_agent_response_stream_finalizers from "../lib/agent_response/stream_finalizers.js";
 import type * as lib_agent_response_structured_response_instructions from "../lib/agent_response/structured_response_instructions.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
@@ -857,6 +858,7 @@ import type * as lib_search_strategies_documents from "../lib/search/strategies/
 import type * as lib_search_types from "../lib/search/types.js";
 import type * as lib_secret_box from "../lib/secret_box.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
+import type * as lib_skills_guidance from "../lib/skills/guidance.js";
 import type * as lib_skills_precedence from "../lib/skills/precedence.js";
 import type * as lib_sops from "../lib/sops.js";
 import type * as lib_strip_nulls from "../lib/strip_nulls.js";
@@ -960,6 +962,8 @@ import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope
 import type * as migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta from "../migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta.js";
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_index from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/index.js";
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
+import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_index from "../migrations/versions/v0_2_89/03_claude_code_fable_default/index.js";
+import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_meta from "../migrations/versions/v0_2_89/03_claude_code_fable_default/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -967,6 +971,7 @@ import type * as node_only_documents_internal_actions from "../node_only/documen
 import type * as node_only_imap_smtp_helpers_fetch_messages from "../node_only/imap_smtp/helpers/fetch_messages.js";
 import type * as node_only_imap_smtp_helpers_map_to_email_type from "../node_only/imap_smtp/helpers/map_to_email_type.js";
 import type * as node_only_imap_smtp_helpers_send_message from "../node_only/imap_smtp/helpers/send_message.js";
+import type * as node_only_imap_smtp_helpers_smtp_transport from "../node_only/imap_smtp/helpers/smtp_transport.js";
 import type * as node_only_imap_smtp_helpers_test_connection from "../node_only/imap_smtp/helpers/test_connection.js";
 import type * as node_only_imap_smtp_internal_actions from "../node_only/imap_smtp/internal_actions.js";
 import type * as node_only_imap_smtp_types from "../node_only/imap_smtp/types.js";
@@ -1009,6 +1014,7 @@ import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thr
 import type * as node_only_sandbox_token_pool_select from "../node_only/sandbox/token_pool_select.js";
 import type * as node_only_sandbox_token_source_pool from "../node_only/sandbox/token_source_pool.js";
 import type * as node_only_sandbox_workflow_sandbox_exec from "../node_only/sandbox/workflow_sandbox_exec.js";
+import type * as node_only_sandbox_workflow_skills from "../node_only/sandbox/workflow_skills.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
@@ -1139,6 +1145,7 @@ import type * as provisioning from "../provisioning.js";
 import type * as provisioning_provision_default_agents from "../provisioning/provision_default_agents.js";
 import type * as provisioning_provision_default_prompts from "../provisioning/provision_default_prompts.js";
 import type * as provisioning_provision_task_ops_pack from "../provisioning/provision_task_ops_pack.js";
+import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.js";
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as rag_documents from "../rag/documents.js";
 import type * as rag_lib_config from "../rag/lib/config.js";
@@ -1948,7 +1955,6 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "customers/bulk_create_customers": typeof customers_bulk_create_customers;
   "customers/create_customer": typeof customers_create_customer;
-  "customers/create_customer_public": typeof customers_create_customer_public;
   "customers/delete_customer": typeof customers_delete_customer;
   "customers/filter_customers": typeof customers_filter_customers;
   "customers/find_or_create_customer": typeof customers_find_or_create_customer;
@@ -2014,6 +2020,7 @@ declare const fullApi: ApiFromModules<{
   "documents/internal_queries": typeof documents_internal_queries;
   "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
+  "documents/list_files_by_folder": typeof documents_list_files_by_folder;
   "documents/list_indexed_documents_for_agent": typeof documents_list_indexed_documents_for_agent;
   "documents/list_orphaned_external_docs": typeof documents_list_orphaned_external_docs;
   "documents/mutations": typeof documents_mutations;
@@ -2339,6 +2346,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/resolve_template_variables": typeof lib_agent_response_resolve_template_variables;
   "lib/agent_response/retry_policy": typeof lib_agent_response_retry_policy;
   "lib/agent_response/sanitize_prompt": typeof lib_agent_response_sanitize_prompt;
+  "lib/agent_response/stop_conditions": typeof lib_agent_response_stop_conditions;
   "lib/agent_response/stream_finalizers": typeof lib_agent_response_stream_finalizers;
   "lib/agent_response/structured_response_instructions": typeof lib_agent_response_structured_response_instructions;
   "lib/agent_response/types": typeof lib_agent_response_types;
@@ -2485,6 +2493,7 @@ declare const fullApi: ApiFromModules<{
   "lib/search/types": typeof lib_search_types;
   "lib/secret_box": typeof lib_secret_box;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
+  "lib/skills/guidance": typeof lib_skills_guidance;
   "lib/skills/precedence": typeof lib_skills_precedence;
   "lib/sops": typeof lib_sops;
   "lib/strip_nulls": typeof lib_strip_nulls;
@@ -2588,6 +2597,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_89/01_usage_ledger_apikey_budget_scope/meta": typeof migrations_versions_v0_2_89_01_usage_ledger_apikey_budget_scope_meta;
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/index": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_index;
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
+  "migrations/versions/v0_2_89/03_claude_code_fable_default/index": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_index;
+  "migrations/versions/v0_2_89/03_claude_code_fable_default/meta": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
@@ -2595,6 +2606,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/imap_smtp/helpers/fetch_messages": typeof node_only_imap_smtp_helpers_fetch_messages;
   "node_only/imap_smtp/helpers/map_to_email_type": typeof node_only_imap_smtp_helpers_map_to_email_type;
   "node_only/imap_smtp/helpers/send_message": typeof node_only_imap_smtp_helpers_send_message;
+  "node_only/imap_smtp/helpers/smtp_transport": typeof node_only_imap_smtp_helpers_smtp_transport;
   "node_only/imap_smtp/helpers/test_connection": typeof node_only_imap_smtp_helpers_test_connection;
   "node_only/imap_smtp/internal_actions": typeof node_only_imap_smtp_internal_actions;
   "node_only/imap_smtp/types": typeof node_only_imap_smtp_types;
@@ -2637,6 +2649,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/token_pool_select": typeof node_only_sandbox_token_pool_select;
   "node_only/sandbox/token_source_pool": typeof node_only_sandbox_token_source_pool;
   "node_only/sandbox/workflow_sandbox_exec": typeof node_only_sandbox_workflow_sandbox_exec;
+  "node_only/sandbox/workflow_skills": typeof node_only_sandbox_workflow_skills;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
@@ -2767,6 +2780,7 @@ declare const fullApi: ApiFromModules<{
   "provisioning/provision_default_agents": typeof provisioning_provision_default_agents;
   "provisioning/provision_default_prompts": typeof provisioning_provision_default_prompts;
   "provisioning/provision_task_ops_pack": typeof provisioning_provision_task_ops_pack;
+  "provisioning/seed_dev_user": typeof provisioning_seed_dev_user;
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "rag/documents": typeof rag_documents;
   "rag/lib/config": typeof rag_lib_config;

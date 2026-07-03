@@ -52,7 +52,7 @@ export function TasksWorkspace({
 }) {
   const { t } = useT('tasks');
   const typedProjectId = asProjectId(projectId);
-  const { tasks, isLoading } = useTasksByProject(typedProjectId);
+  const { tasks, canEdit, isLoading } = useTasksByProject(typedProjectId);
   const { edges } = useProjectDependencies(typedProjectId);
   const { runningTaskIds, reviewTaskIds } =
     useTaskOpsIndicators(typedProjectId);
@@ -105,9 +105,13 @@ export function TasksWorkspace({
           >
             {t('metrics.link')}
           </LinkButton>
-          <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
-            {t('actions.create')}
-          </Button>
+          {/* Read-only viewers can't create tasks (the server rejects the
+              write); hide the action rather than surface a doomed button. */}
+          {canEdit && (
+            <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
+              {t('actions.create')}
+            </Button>
+          )}
         </Row>
       </Row>
 
@@ -128,6 +132,7 @@ export function TasksWorkspace({
                 tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
+                canEdit={canEdit}
               />
             </div>
           ) : (
@@ -136,6 +141,7 @@ export function TasksWorkspace({
                 tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
+                canEdit={canEdit}
               />
             </div>
           )}

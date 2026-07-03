@@ -34,6 +34,7 @@ export function TaskCard({
   onOpen,
   dragging,
   projectKey,
+  canEdit = false,
 }: {
   task: TaskRow;
   /** This task's subtasks, when known — drives the progress ring. */
@@ -42,6 +43,8 @@ export function TaskCard({
   /** True when rendered inside the DragOverlay (floating clone). */
   dragging?: boolean;
   projectKey?: string | null;
+  /** Caller may write to the project — gates drag and the inline pickers. */
+  canEdit?: boolean;
 }) {
   const { t } = useT('tasks');
   const identifier = formatTaskIdentifier(projectKey, task.number);
@@ -63,7 +66,13 @@ export function TaskCard({
     : parent
       ? t('detail.partOf', { task: parent.title })
       : t('detail.subtask');
-  const sortable = useSortable({ id: task._id, data: { status: task.status } });
+  // Read-only viewers can't reorder: disabling the sortable drops the drag
+  // listeners (the server rejects the move anyway).
+  const sortable = useSortable({
+    id: task._id,
+    data: { status: task.status },
+    disabled: !canEdit,
+  });
   const style = {
     transform: CSS.Translate.toString(sortable.transform),
     transition: sortable.transition,
@@ -92,10 +101,16 @@ export function TaskCard({
         {...sortable.listeners}
         onClick={() => onOpen?.(task)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+          // Enter always opens the task. Space starts a keyboard drag via
+          // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`),
+          // so we must forward to it rather than shadow it — but only when the
+          // card is draggable. For read-only cards Space opens instead.
+          if (e.key === 'Enter' || (e.key === ' ' && !canEdit)) {
             e.preventDefault();
             onOpen?.(task);
+            return;
           }
+          sortable.listeners?.onKeyDown?.(e);
         }}
       >
         {identifier && (
@@ -129,6 +144,7 @@ export function TaskCard({
           <div className="flex items-center gap-1.5">
             <PriorityPicker
               priority={task.priority ?? null}
+              disabled={!canEdit}
               onChange={(priority) =>
                 updateTask.mutate({ taskId: task._id, priority })
               }
@@ -155,6 +171,7 @@ export function TaskCard({
             projectId={task.projectId}
             assigneeType={task.assigneeType}
             assigneeId={task.assigneeId}
+            disabled={!canEdit}
             onAssign={(assigneeType, assigneeId) =>
               assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
             }

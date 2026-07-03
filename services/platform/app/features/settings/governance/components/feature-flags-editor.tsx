@@ -586,7 +586,7 @@ export function FeatureFlagsEditor({
                   </TableRow>
                 ))
               ) : (
-                <TableRow className="hover:bg-transparent">
+                <TableRow data-no-hover>
                   <TableCell colSpan={COLUMN_COUNT} className="p-0">
                     <RulesTableEmptyState
                       icon={SlidersHorizontal}

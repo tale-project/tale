@@ -25,6 +25,7 @@ import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context'
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
@@ -297,6 +298,10 @@ function CreateTaskBody({
             disabled={submitting}
             autoFocus
             required
+            // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
+            // so an over-long title can't reach the mutation and strand the dialog
+            // behind a generic error toast.
+            maxLength={TASK_TITLE_MAX}
             onKeyDown={(e) => {
               // Cmd/Ctrl+Enter submits from the title (fast path).
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {

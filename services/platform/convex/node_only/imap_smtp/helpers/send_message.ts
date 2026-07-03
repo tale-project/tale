@@ -7,16 +7,14 @@
 import nodemailer from 'nodemailer';
 
 import type { SendMessageParams, SendMessageResult } from '../types';
+import { buildSmtpTransportOptions } from './smtp_transport';
 
 export async function sendMessage(
   params: SendMessageParams,
 ): Promise<SendMessageResult> {
-  const transport = nodemailer.createTransport({
-    host: params.smtp.host,
-    port: params.smtp.port,
-    secure: params.smtp.secure,
-    auth: { user: params.smtp.user, pass: params.smtp.password },
-  });
+  const transport = nodemailer.createTransport(
+    buildSmtpTransportOptions(params.smtp),
+  );
 
   try {
     const info = await transport.sendMail({

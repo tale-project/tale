@@ -13,7 +13,6 @@ Il te faut :
 
 - Une station de travail sous macOS, Linux ou Windows 10+.
 - Un accès SSH à l'hôte où tourne ton instance Tale, avec l'utilisateur opérateur capable de lancer `docker compose`.
-- La clé admin de [Premier admin](/fr/self-hosted/install/first-admin) à portée de main.
 
 L'installeur télécharge un binaire de release depuis GitHub. Les réseaux d'entreprise qui bloquent les téléchargements de contenu brut doivent autoriser `raw.githubusercontent.com` et `github.com`.
 
@@ -28,10 +27,10 @@ curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/inst
 Sur Windows PowerShell :
 
 ```powershell
-iwr https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-Les deux installeurs détectent l'OS, récupèrent le binaire de release correspondant depuis la dernière release GitHub, et le déposent sur le `PATH` (`/usr/local/bin/tale` ou `%LOCALAPPDATA%\Programs\tale\tale.exe`). Pour fixer une version, règle la variable d'environnement `VERSION` avant de piper dans l'installeur.
+Les deux installeurs détectent l'OS et l'architecture CPU, récupèrent le binaire de release correspondant depuis la dernière release GitHub, et le déposent sur le `PATH` (`/usr/local/bin/tale` ou `%LOCALAPPDATA%\Programs\tale\tale.exe`) — quand le répertoire d'installation n'est pas accessible en écriture, l'installeur demande `sudo`. Les binaires de release existent pour macOS sur Apple Silicon et Intel, et pour Linux sur x86_64 et arm64 ; les machines Windows-on-ARM exécutent le binaire x64 via l'émulation intégrée. Sur une architecture sans binaire de release, l'installeur s'arrête avec un message clair et renvoie vers la compilation depuis les sources. Pour fixer une version, règle la variable d'environnement `VERSION` avant de piper dans l'installeur ; pour choisir toi-même le répertoire d'installation, règle `INSTALL_DIR`.
 
 | OS      | Script d'installeur       |
 | ------- | ------------------------- |
@@ -57,7 +56,7 @@ tale config show
 
 L'hôte sur lequel le proxy répond, les réglages TLS et tous les secrets vivent dans le `.env` du projet. Pour changer l'hôte, modifie `HOST` là-bas ou passe `--host` à `tale dev` / `tale deploy`. Pour piloter un hôte distant, pointe le contexte Docker de ton shell (ou `DOCKER_HOST`) dessus — la CLI parle au même endpoint Docker que n'importe quelle commande `docker`.
 
-La clé admin à usage unique qui revendique le premier compte **Owner** à l'inscription est séparée de la configuration de la CLI — génère-la avec `tale convex admin` au besoin (voir [Premier admin](/fr/self-hosted/install/first-admin)).
+La clé admin du tableau de bord Convex est séparée de la configuration de la CLI — elle ne conditionne jamais l'inscription et elle est déterministe (dérivée de `INSTANCE_NAME` et `INSTANCE_SECRET`, donc identique d'un redémarrage à l'autre). Génère-la avec `tale convex admin` quand tu veux inspecter le backend (voir [Premier admin](/fr/self-hosted/install/first-admin)).
 
 ## Étape 4 — Lancer tale deploy
 
@@ -65,7 +64,7 @@ La clé admin à usage unique qui revendique le premier compte **Owner** à l'in
 tale deploy
 ```
 
-`tale deploy` récupère les dernières images pour la `TALE_VERSION` configurée, redémarre les conteneurs affectés dans le bon ordre, et lance les migrations de schéma. C'est le remplacement pris en charge pour la danse plus longue `docker compose pull && docker compose up -d`. Si tu préfères compose directement, le même effet vit dans [Mises à jour](/fr/self-hosted/operate/upgrades).
+`tale deploy` livre toujours la version de la CLI elle-même : il récupère les images de cette version, redémarre les conteneurs affectés dans le bon ordre, et lance les migrations de schéma — pour passer à une autre version, commence par `tale update`. C'est le remplacement pris en charge pour la danse plus longue `docker compose pull && docker compose up -d`. Si tu préfères compose directement, le même effet vit dans [Mises à jour](/fr/self-hosted/operate/upgrades).
 
 ## Référence des commandes
 
@@ -80,7 +79,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 
 **Les options globales** fonctionnent sur chaque commande :
 
-- `-v, --verbose` — sortie détaillée : logs de débogage et flux brut du sous-processus.
+- `--verbose` — sortie détaillée : logs de débogage et flux brut du sous-processus (forme longue uniquement ; il n'y a pas de `-v`).
 - `-q, --quiet` — uniquement les avertissements et les erreurs.
 - `-y, --yes` — répondre « oui » à toutes les questions (non interactif).
 - `--no-color` — désactiver les couleurs ANSI (respecte aussi `NO_COLOR` / `FORCE_COLOR`).
@@ -91,7 +90,7 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 
 ### Installation
 
-`tale init [directory]` — créer un projet : échafaude les configs d'exemple, `AGENTS.md` + `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucune question et aucun Docker — le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. `directory` est optionnel (par défaut : le répertoire courant).
+`tale init [directory]` — créer un projet : échafaude les configs d'exemple, `AGENTS.md` + un pointeur `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucun Docker requis ; le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. Dans un terminal, il demande un nom de projet quand `directory` est omis, confirme avant d'écraser un projet existant, et demande une fois si les agents peuvent lancer `docker` dans les sandboxes (par défaut : non — l'activer fait tourner un Docker interne privilégié) ; les exécutions non interactives sautent toutes les questions. `directory` est optionnel (par défaut : le répertoire courant).
 
 - `-f, --force` — écraser un `tale.json` existant au lieu d'abandonner.
 - `--no-env` — échafauder le projet mais ignorer la génération du `.env`.
@@ -103,13 +102,13 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `--host <hostname>` — alias d'hôte pour le proxy (par défaut `localhost`).
 - `-y, --yes` — non-interactif : accepter automatiquement les invites (p. ex. installer ou démarrer Docker).
 
-`tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI. Au premier déploiement, il demande votre domaine de production et l'e-mail Let's Encrypt (ou passez `--host`).
+`tale deploy` — déploiement blue-green sans interruption de la version actuelle du CLI. Au premier déploiement, il demande ton domaine de production et l'e-mail Let's Encrypt (ou passe `--host`).
 
-- `-a, --all` — mettre aussi à jour les services d'infrastructure avec état, pas seulement ceux qui tournent par roulement.
+- `--stop` — mettre aussi à jour le palier arrêté-puis-recréé (`db`, `proxy`) — ces conteneurs sont recréés, donc accepte une brève interruption ; sans l'option, les `db`/`proxy` en marche restent intouchés.
 - `-s, --services <list>` — ne mettre à jour que ces services séparés par des virgules (par défaut : tous les services rotatifs).
 - `--host <hostname>` — alias d'hôte pour le proxy (par défaut : la valeur `HOST` de `.env`).
 - `--override` — écraser la config du conteneur depuis le workspace local (les `*.secrets.json` chiffrés et `.history/` sont toujours préservés).
-- `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--all`.
+- `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--stop`.
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
 - `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
@@ -119,12 +118,13 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 
 `tale status` — afficher l'état actuel du déploiement. Aucun argument.
 
-`tale logs <service>` — diffuser les logs d'un service (`service` est l'un des services en cours d'exécution).
+`tale logs <service>` — diffuser les logs d'un service (`service` est l'un des services en cours d'exécution ; sur une stack de dev sans déploiement, la commande retombe sur le conteneur de dev).
 
 - `-f, --follow` — suivre la sortie des logs au fil de l'écriture.
 - `-n, --tail <lines>` — n'afficher que les N dernières lignes.
 - `--since <duration>` — afficher les logs depuis une durée relative (p. ex. `1h`, `30m`).
 - `-c, --color <color>` — cibler une couleur de déploiement précise (`blue` ou `green`).
+- `--raw` — diffuser la sortie brute, non filtrée (aucune classification).
 
 `tale backup` — snapshot de tous les volumes de données vers le volume de sauvegardes du projet. Aucun argument.
 
@@ -144,6 +144,8 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-v, --version <version>` — mettre à jour vers exactement cette version (p. ex. `0.9.0`) au lieu de la dernière ; autorise les rétrogradations.
 - `-f, --force` — forcer la re-synchronisation et écraser les fichiers projet modifiés localement.
 - `--dry-run` — montrer ce qui changerait sans rien modifier.
+
+`tale migrate` — reprovisionner les valeurs par défaut intégrées et appliquer les migrations de données sûres en attente sur le déploiement en cours — les mêmes étapes idempotentes que chaque déploiement exécute, à la demande. Les sous-commandes donnent un contrôle fin et réversible : `migrate status` montre les migrations appliquées et en attente, `migrate up [--to <version>]` applique celles en attente (les étapes destructives demandent `-y, --yes` ou `--step`), `migrate down --to <version>` revient en arrière.
 
 `tale cleanup` — supprimer les conteneurs inactifs (couleur non courante). Aucun argument.
 
@@ -174,8 +176,8 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 
 - **`tale deploy` vise la mauvaise machine.** La CLI utilise le contexte Docker / `DOCKER_HOST` de ton shell. Bascule avec `docker context use …` (ou définis `DOCKER_HOST`) pour qu'il pointe sur l'hôte voulu, puis relance.
 - **`tale deploy` utilise le mauvais alias d'hôte.** L'hôte sur lequel le proxy répond vient de `HOST` dans le `.env` du projet, pas d'un stockage CLI séparé. Modifie `.env` ou passe `--host` pour le remplacer le temps d'un lancement.
-- **L'écran d'inscription rejette la clé admin.** La clé d'amorçage tourne à chaque redémarrage du conteneur platform. Génère-en une fraîche avec `tale convex admin` et utilise-la tout de suite.
-- **L'installeur échoue sur macOS avec un avertissement Gatekeeper.** Le binaire est signé mais pas encore notarié sur Apple Silicon ; l'installeur imprime la commande `xattr` pour effacer le drapeau de quarantaine.
+- **Le tableau de bord Convex rejette la clé admin.** L'inscription ne demande jamais la clé — seul le tableau de bord le fait. La clé est déterministe (dérivée de `INSTANCE_NAME` et `INSTANCE_SECRET`), donc un rejet signifie généralement que ces valeurs diffèrent entre les services platform et Convex, ou que l'URL de déploiement est fausse — utilise `SITE_URL`. Régénère avec `tale convex admin` pour être sûr d'avoir copié la valeur actuelle.
+- **L'installeur échoue sur macOS parce que le binaire ne peut pas s'exécuter.** Quand le binaire fraîchement installé refuse de démarrer (p. ex. Gatekeeper le tue), l'installeur échoue avec des pistes de récupération au lieu d'annoncer un succès — suis-les, puis relance l'installeur.
 - **`tale` introuvable après installation sous Linux.** L'installeur dépose le binaire dans `/usr/local/bin` ; vérifie que le répertoire est dans le `PATH` de l'utilisateur (`echo $PATH`).
 
 ## Où ça s'utilise

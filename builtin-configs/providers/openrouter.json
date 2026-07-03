@@ -15,6 +15,7 @@
   "models": [
     {
       "id": "anthropic/claude-sonnet-4.6",
+      "nativeModelId": "claude-sonnet-4-6",
       "displayName": "Claude Sonnet 4.6",
       "description": "Balanced Anthropic model for everyday tasks",
       "tags": ["chat", "vision"],
@@ -36,6 +37,7 @@
     },
     {
       "id": "anthropic/claude-haiku-4.5",
+      "nativeModelId": "claude-haiku-4-5",
       "displayName": "Claude Haiku 4.5",
       "description": "Fast, lightweight Anthropic model",
       "tags": ["chat"],
@@ -555,6 +557,7 @@
     },
     {
       "id": "anthropic/claude-opus-4.8",
+      "nativeModelId": "claude-opus-4-8",
       "displayName": "Claude Opus 4.8",
       "description": "Anthropic's flagship — best for complex reasoning and coding",
       "tags": ["chat", "vision"],
@@ -571,6 +574,52 @@
       "cost": {
         "inputCentsPerMillion": 500.00000000000006,
         "outputCentsPerMillion": 2500
+      }
+    },
+    {
+      "id": "anthropic/claude-fable-5",
+      "nativeModelId": "claude-fable-5",
+      "displayName": "Claude Fable 5",
+      "description": "Anthropic's most capable — Mythos-class reasoning and coding",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "qualityScore": 0.98,
+      "fallbackModelId": "anthropic/claude-opus-4.8",
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 1000,
+        "outputCentsPerMillion": 5000
+      }
+    },
+    {
+      "id": "~anthropic/claude-fable-latest",
+      "nativeModelId": "claude-fable-5",
+      "displayName": "Claude Fable (latest)",
+      "description": "Rolling alias — always Anthropic's newest Fable-class model",
+      "tags": ["chat", "vision"],
+      "reasoning": {
+        "knob": "budgetTokens",
+        "minBudgetTokens": 1024
+      },
+      "promptCaching": {
+        "mode": "explicit-breakpoints",
+        "maxBreakpoints": 4
+      },
+      "qualityScore": 0.98,
+      "fallbackModelId": "anthropic/claude-opus-4.8",
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "cost": {
+        "inputCentsPerMillion": 1000,
+        "outputCentsPerMillion": 5000
       }
     },
     {
@@ -930,6 +979,12 @@
         "anthropic/claude-opus-4.8": {
           "description": "Anthropics Flaggschiff — am besten für komplexes Reasoning und Programmierung"
         },
+        "anthropic/claude-fable-5": {
+          "description": "Anthropics leistungsstärkstes Modell — Mythos-Klasse für Reasoning und Programmierung"
+        },
+        "~anthropic/claude-fable-latest": {
+          "description": "Rollierender Alias — immer Anthropics neuestes Fable-Modell"
+        },
         "mistralai/mistral-medium-3-5": {
           "description": "Ausgewogenes multimodales Mittelklasse-Modell von Mistral"
         },
@@ -1081,6 +1136,12 @@
         },
         "anthropic/claude-opus-4.8": {
           "description": "Le modèle phare d'Anthropic — idéal pour le raisonnement complexe et le code"
+        },
+        "anthropic/claude-fable-5": {
+          "description": "Le modèle le plus capable d'Anthropic — classe Mythos pour le raisonnement et le code"
+        },
+        "~anthropic/claude-fable-latest": {
+          "description": "Alias glissant — toujours le dernier modèle Fable d'Anthropic"
         },
         "mistralai/mistral-medium-3-5": {
           "description": "Modèle Mistral milieu de gamme, multimodal et équilibré"

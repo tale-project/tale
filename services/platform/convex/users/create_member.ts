@@ -46,7 +46,7 @@ export async function createMember(
   // Verify the current user is authenticated and is an admin
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new Error('Unauthenticated');
+    throw new ConvexError({ code: 'UNAUTHENTICATED' });
   }
 
   // Check if the current user is an admin/owner of the organization (Better Auth)
@@ -69,7 +69,10 @@ export async function createMember(
     currentMemberRec ? (getString(currentMemberRec, 'role') ?? '') : ''
   ).toLowerCase();
   if (!isAdmin(callerRole)) {
-    throw new Error('Only admins can create members');
+    throw new ConvexError({
+      code: 'FORBIDDEN',
+      message: 'Only admins can create members',
+    });
   }
 
   // The owner role can only be assigned through the owner-gated
@@ -128,7 +131,12 @@ export async function createMember(
     );
 
     if (existingMemberResult && existingMemberResult.page.length > 0) {
-      throw new Error('User is already a member of this organization');
+      // Surface a structured code so the add-member dialog can show a
+      // field-level error on the email input instead of a generic toast.
+      throw new ConvexError({
+        code: 'DUPLICATE_MEMBER',
+        message: 'User is already a member of this organization',
+      });
     }
 
     // Re-add the existing user to the organization
@@ -190,7 +198,10 @@ export async function createMember(
   });
 
   if (!signupResult) {
-    throw new Error('Failed to create user account');
+    throw new ConvexError({
+      code: 'USER_CREATION_FAILED',
+      message: 'Failed to create user account',
+    });
   }
 
   const userResult = await ctx.runQuery(
@@ -212,12 +223,14 @@ export async function createMember(
   );
 
   if (!userResult || userResult.page.length === 0) {
-    throw new Error(
-      'Failed to retrieve user after signup. ' +
+    throw new ConvexError({
+      code: 'USER_CREATION_FAILED',
+      message:
+        'Failed to retrieve user after signup. ' +
         'The user was created in Better Auth but could not be found. ' +
         'Email: ' +
         email,
-    );
+    });
   }
 
   const betterAuthUserId = userResult.page[0]._id;

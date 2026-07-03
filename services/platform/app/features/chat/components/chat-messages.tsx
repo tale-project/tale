@@ -31,6 +31,7 @@ import { hasThoughtSteps } from '../utils/thought-predicates';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
+import { GenerationIncompleteNotice } from './generation-incomplete-notice';
 import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
@@ -680,6 +681,17 @@ export const ChatMessages = memo(function ChatMessages({
         );
       }
 
+      // Retry-exhausted turns: structured body, localized warning line.
+      if (message.systemMessageTag === SYSTEM_MSG_TAG.GENERATION_INCOMPLETE) {
+        return (
+          <div key={message.key} data-message-key={message.key}>
+            <GenerationIncompleteNotice
+              body={message.systemMessageBody ?? message.content}
+            />
+          </div>
+        );
+      }
+
       if (message.systemMessageDisplay === 'pill') {
         return (
           <Row key={message.key} gap={0} align="stretch" justify="end">
@@ -1020,9 +1032,13 @@ export const ChatMessages = memo(function ChatMessages({
       labelId={messageHistoryLabelId}
       header={
         <>
-          <h2 id={messageHistoryLabelId} className="sr-only">
+          {/* Accessible name for the `role="log"` region. A plain `<span>`
+              (not a heading) so it doesn't inject an out-of-order `h2` ahead of
+              the page `h1` (e.g. the empty-state welcome heading) — the log is
+              already named for AT via `aria-labelledby`. */}
+          <span id={messageHistoryLabelId} className="sr-only">
             {t('aria.messageHistory')}
-          </h2>
+          </span>
           {loadMoreHeader}
           <div className="h-6" aria-hidden="true" />
         </>
@@ -1058,9 +1074,12 @@ export const ChatMessages = memo(function ChatMessages({
       aria-live="polite"
       aria-labelledby={messageHistoryLabelId}
     >
-      <h2 id={messageHistoryLabelId} className="sr-only">
+      {/* Accessible name for the `role="log"` region — a plain `<span>`, not a
+          heading, so it stays out of the page heading outline (see the
+          virtualized branch above). */}
+      <span id={messageHistoryLabelId} className="sr-only">
         {t('aria.messageHistory')}
-      </h2>
+      </span>
       <Stack gap={3} className="pt-6">
         {loadMoreHeader}
 

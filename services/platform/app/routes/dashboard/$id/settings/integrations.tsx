@@ -25,7 +25,9 @@ import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
-  section: z.enum(['apps', 'mcp-servers']).optional(),
+  // Only `mcp-servers` is handled (redirected to the MCP page in
+  // `beforeLoad`). `apps` was never read, so it isn't accepted.
+  section: z.literal('mcp-servers').optional(),
   tab: z.string().optional(),
   slug: z.string().optional(),
   integration_oauth2: z.string().optional(),

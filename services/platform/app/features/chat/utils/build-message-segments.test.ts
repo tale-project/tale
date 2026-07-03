@@ -96,6 +96,46 @@ describe('buildMessageSegments', () => {
     expect((segments[0] as { output: unknown }).output).toEqual(folded);
   });
 
+  it('surfaces a laundered SDK tool failure as output-error', () => {
+    // A tool call whose input failed schema validation never executed; the
+    // SDK's error round-trips as a plain string output with state
+    // 'output-available' (the `error-json` marker is unwrapped away by the
+    // agent component). The builder must re-derive the error state so the
+    // chip doesn't render like a successful call.
+    const errorText =
+      'Invalid input for tool request_human_input: Type validation failed: ' +
+      'Value: {"fields":["{\\"label\\":\\"继续按计划调研\\"}"]}';
+    const { segments } = buildMessageSegments([
+      {
+        type: 'tool-request_human_input',
+        toolCallId: 'h1',
+        state: 'output-available',
+        output: errorText,
+      },
+    ]);
+    expect(segments[0]).toMatchObject({
+      kind: 'tool',
+      state: 'output-error',
+      errorText,
+    });
+  });
+
+  it('does not flag ordinary string outputs as errors', () => {
+    const { segments } = buildMessageSegments([
+      {
+        type: 'tool-web',
+        toolCallId: 'w1',
+        state: 'output-available',
+        output: 'Fetched 3 pages about invalid input handling.',
+      },
+    ]);
+    expect(segments[0]).toMatchObject({
+      kind: 'tool',
+      state: 'output-available',
+      errorText: undefined,
+    });
+  });
+
   it('detects redacted reasoning (done + empty)', () => {
     const { segments, hasReasoning } = buildMessageSegments([
       { type: 'reasoning', text: '', state: 'done' },

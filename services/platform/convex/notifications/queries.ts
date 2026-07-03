@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { canSeeNotification } from './helpers';
 import { notificationLinkValidator } from './schema';
 
 const notificationDocValidator = v.object({
@@ -44,7 +45,11 @@ export const list = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     // Membership check throws if the caller isn't part of the org.
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     const userId = authUser.userId;
 
     const result = await ctx.db
@@ -55,23 +60,29 @@ export const list = query({
       .order('desc')
       .paginate(args.paginationOpts);
 
-    // The full page is returned with a per-row `read` flag; the Unread/All
-    // filter is applied client-side so toggling it never changes the query
-    // arguments (which would reset pagination and re-flash the skeleton).
-    const page = result.page.map((n) => ({
-      _id: n._id,
-      _creationTime: n._creationTime,
-      organizationId: n.organizationId,
-      category: n.category,
-      severity: n.severity,
-      titleKey: n.titleKey,
-      bodyKey: n.bodyKey,
-      params: n.params,
-      link: n.link,
-      createdAt: n.createdAt,
-      readBy: n.readBy,
-      read: n.readBy.includes(userId),
-    }));
+    // `security` notifications are admin-only, so drop them from a non-admin's
+    // page (#1845). Filtering post-pagination can shorten a page but never
+    // breaks paging — `isDone`/`continueCursor` come from the underlying query
+    // over all rows, and the client already filters Unread/All client-side.
+    // The full page is otherwise returned with a per-row `read` flag so the
+    // Unread/All toggle never changes the query args (which would reset
+    // pagination and re-flash the skeleton).
+    const page = result.page
+      .filter((n) => canSeeNotification(member.role, n.category))
+      .map((n) => ({
+        _id: n._id,
+        _creationTime: n._creationTime,
+        organizationId: n.organizationId,
+        category: n.category,
+        severity: n.severity,
+        titleKey: n.titleKey,
+        bodyKey: n.bodyKey,
+        params: n.params,
+        link: n.link,
+        createdAt: n.createdAt,
+        readBy: n.readBy,
+        read: n.readBy.includes(userId),
+      }));
 
     return {
       isDone: result.isDone,
@@ -95,7 +106,11 @@ export const unreadCount = query({
     // Membership check throws if the caller isn't part of the org — mirrors
     // `list`/`markAllRead`. Without it any authenticated user could read an
     // arbitrary org's unread count by passing its id.
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
     const userId = authUser.userId;
     let count = 0;
     for await (const n of ctx.db
@@ -103,6 +118,9 @@ export const unreadCount = query({
       .withIndex('by_org_created', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
+      // Don't count `security` rows a non-admin can't see (#1845), or the bell
+      // badge would show an unread count for notifications they can't open.
+      if (!canSeeNotification(member.role, n.category)) continue;
       if (!n.readBy.includes(userId)) count++;
     }
     return count;

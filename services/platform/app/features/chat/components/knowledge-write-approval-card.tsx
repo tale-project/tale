@@ -24,6 +24,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { KnowledgeWriteMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 
+import { mapApprovalError } from '../lib/map-approval-error';
 import { ApprovalCard } from './approval-card';
 
 interface KnowledgeWriteApprovalCardProps {
@@ -73,7 +74,7 @@ function KnowledgeWriteApprovalCardComponent({
       });
       await executeKnowledgeWrite({ approvalId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorSaveFailed'));
+      setError(mapApprovalError(err, tCommon, t('errorSaveFailed')));
       console.error('Failed to approve knowledge write:', err);
     } finally {
       setIsApproving(false);
@@ -93,9 +94,7 @@ function KnowledgeWriteApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
-      );
+      setError(mapApprovalError(err, tCommon, tCommon('errorRejectFailed')));
       console.error('Failed to reject knowledge write:', err);
     } finally {
       setIsRejecting(false);

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SYSTEM_MSG_TAG,
+  formatGenerationIncompleteBody,
   getSystemMessageDisplay,
+  parseGenerationIncompleteBody,
   parseSystemMessageTag,
 } from './system-message-tags';
 
@@ -110,5 +112,29 @@ describe('getSystemMessageDisplay', () => {
 
   it('returns info for null tag', () => {
     expect(getSystemMessageDisplay(null)).toBe('info');
+  });
+
+  it('returns warning for GENERATION_INCOMPLETE', () => {
+    expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.GENERATION_INCOMPLETE)).toBe(
+      'warning',
+    );
+  });
+});
+
+describe('generation-incomplete body round-trip', () => {
+  it('round-trips tool names, including ones needing encoding', () => {
+    const body = formatGenerationIncompleteBody({
+      tools: ['delegate_researcher', 'request_human_input', 'a,b'],
+    });
+    expect(parseGenerationIncompleteBody(body).tools).toEqual([
+      'delegate_researcher',
+      'request_human_input',
+      'a,b',
+    ]);
+  });
+
+  it('formats an empty tool list to an empty body and parses it back', () => {
+    expect(formatGenerationIncompleteBody({})).toBe('');
+    expect(parseGenerationIncompleteBody('').tools).toBeUndefined();
   });
 });

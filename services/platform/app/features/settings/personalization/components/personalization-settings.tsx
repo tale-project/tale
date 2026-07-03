@@ -32,6 +32,10 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
+import {
+  CUSTOM_INSTRUCTIONS_ILLEGAL_RE,
+  CUSTOM_INSTRUCTIONS_MAX_CHARS,
+} from '@/convex/user_memories/constants';
 import { useT } from '@/lib/i18n/client';
 import { convexErrorMessage } from '@/lib/utils/convex-error';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -46,7 +50,11 @@ import {
   useUpsertMyPreferences,
 } from '../hooks/mutations';
 
-const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;
+// Canonicalize line endings to LF, matching the backend before it length- /
+// illegal-char-checks `customInstructions` (convex/user_preferences/mutations).
+function normalizeInstructions(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
 
 /**
  * Module-level capability-probe cache keyed by `organizationId`.
@@ -383,9 +391,35 @@ function CustomInstructionsSection({
   const schema = useMemo(
     () =>
       z.object({
-        customInstructions: z.string().max(CUSTOM_INSTRUCTIONS_MAX_CHARS),
+        // Mirror the backend rule (user_preferences/mutations.ts): canonicalize
+        // CRLF / lone CR → LF the same way before checking length and the
+        // illegal-character set, so the client can't submit a value the server
+        // will bounce with no inline feedback. Normalization happens inside the
+        // checks (not via `.transform`) to leave the form's stored value — and
+        // its dirty/baseline tracking — untouched.
+        customInstructions: z
+          .string()
+          .refine(
+            (s) =>
+              normalizeInstructions(s).length <= CUSTOM_INSTRUCTIONS_MAX_CHARS,
+            {
+              message: t('errors.tooLong', {
+                max: CUSTOM_INSTRUCTIONS_MAX_CHARS,
+              }),
+            },
+          )
+          .refine(
+            (s) => {
+              const normalized = normalizeInstructions(s);
+              return (
+                normalized.length === 0 ||
+                !CUSTOM_INSTRUCTIONS_ILLEGAL_RE.test(normalized)
+              );
+            },
+            { message: t('errors.illegalChars') },
+          ),
       }),
-    [],
+    [t],
   );
 
   const data = useMemo<CustomInstructionsForm | undefined>(
@@ -424,7 +458,11 @@ function CustomInstructionsSection({
   useRegisterActiveEditor(editor);
 
   const {
-    form: { register, watch },
+    form: {
+      register,
+      watch,
+      formState: { errors },
+    },
   } = editor;
   const value = watch('customInstructions') ?? '';
 
@@ -437,6 +475,7 @@ function CustomInstructionsSection({
       <Textarea
         placeholder={t('page.customInstructions.placeholder')}
         rows={5}
+        errorMessage={errors.customInstructions?.message}
         {...register('customInstructions')}
       />
       <Text className="text-muted-foreground text-xs">

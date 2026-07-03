@@ -5,6 +5,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
+import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -101,9 +102,10 @@ export function OrganizationSettingsView({
 }) {
   const { t: tSettings } = useT('settings');
   const { t: tGlobal } = useT('global');
+  const { t: tCommon } = useT('common');
 
   const { form, isLoading, isSaving } = controller;
-  const { register, control } = form;
+  const { register, control, formState } = form;
 
   const localeOptions = useMemo(
     () =>
@@ -129,7 +131,17 @@ export function OrganizationSettingsView({
           <fieldset disabled={isLoading} className="divide-border divide-y">
             <SettingsRow
               className="py-5"
-              label={tSettings('organization.title')}
+              label={
+                <>
+                  {tSettings('organization.title')}
+                  <span
+                    className="ml-1 text-red-600"
+                    aria-label={tCommon('aria.required')}
+                  >
+                    *
+                  </span>
+                </>
+              }
               description={tSettings('organization.nameDescription')}
             >
               {/* Fixed-width control column, full-width on mobile where the row
@@ -139,6 +151,8 @@ export function OrganizationSettingsView({
                 <Input
                   id="org-name"
                   aria-label={tSettings('organization.title')}
+                  required
+                  errorMessage={formState.errors.name?.message}
                   {...register('name')}
                   wrapperClassName="w-full"
                 />
@@ -290,6 +304,7 @@ export function OrganizationSettings({
 }) {
   const { t: tAccessDenied } = useT('accessDenied');
   const { t: tToast } = useT('toast');
+  const { t: tSettings } = useT('settings');
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -352,8 +367,20 @@ export function OrganizationSettings({
     [existingMetadata, organization, queryClient, toast, tToast],
   );
 
+  // Organization name is required: an empty value blocks Save (`isValid`)
+  // and surfaces a field error, mirroring the account profile-name rule.
+  const orgSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().trim().min(1, tSettings('organization.nameRequired')),
+        defaultLocale: z.string(),
+      }),
+    [tSettings],
+  );
+
   const editor = useFormEditor<OrganizationFormData>({
     data: initialData,
+    schema: orgSchema,
     save,
   });
 

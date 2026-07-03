@@ -12,7 +12,6 @@ import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi } from 'vitest';
 
 import type { MutationCtx } from '../_generated/server';
-import { createCustomerPublic } from './create_customer_public';
 import { deleteCustomer } from './delete_customer';
 import { updateCustomer } from './update_customer';
 import { updateCustomerMetadata } from './update_customer_metadata';
@@ -178,42 +177,6 @@ describe('customers mutations error codes (issue #2003)', () => {
 
       expect(err).toBeInstanceOf(ConvexError);
       expect(errorCode(err)).toBe('CUSTOMER_NOT_FOUND');
-    });
-  });
-
-  describe('createCustomerPublic', () => {
-    it('throws EMAIL_REQUIRED when the email is blank', async () => {
-      const ctx = asCtx({ db: {} });
-      const err = await captureError(() =>
-        createCustomerPublic(ctx, {
-          organizationId: 'org1',
-          email: '   ',
-          status: 'active',
-          source: 'manual_import',
-        }),
-      );
-
-      expect(err).toBeInstanceOf(ConvexError);
-      expect(errorCode(err)).toBe('EMAIL_REQUIRED');
-    });
-
-    it('throws DUPLICATE_EMAIL when a customer with the email exists', async () => {
-      const ctx = asCtx({
-        db: {
-          query: vi.fn().mockReturnValue(makeQueryBuilder({ _id: 'c1' })),
-        },
-      });
-      const err = await captureError(() =>
-        createCustomerPublic(ctx, {
-          organizationId: 'org1',
-          email: 'dup@example.com',
-          status: 'active',
-          source: 'manual_import',
-        }),
-      );
-
-      expect(err).toBeInstanceOf(ConvexError);
-      expect(errorCode(err)).toBe('DUPLICATE_EMAIL');
     });
   });
 });

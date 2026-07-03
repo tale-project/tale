@@ -96,8 +96,13 @@ export function RunList({ title, workflowSlug }: RunListProps) {
             {runs.slice(0, 25).map((run, i) => {
               const id = str(run, '_id');
               const status = str(run, 'status');
+              // Key by the stable execution `_id`, not the array index — the
+              // query is reactive and newest-first, so a new run unshifts every
+              // row's index and index keys would remount the whole list (losing
+              // focus/scroll and misattributing row state). Fall back to the
+              // index only for a row missing an id.
               return (
-                <TableRow key={i}>
+                <TableRow key={id || i}>
                   <TableCell>{id ? `${id.slice(0, 8)}…` : '—'}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[status] ?? 'slate'}>

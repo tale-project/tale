@@ -266,9 +266,21 @@ export function useDocumentsTableConfig({
               </Text>
             );
           }
+          const uploadedBy = row.original.createdByName ?? '—';
           return (
-            <Text as="span" variant="muted" truncate className="max-w-[10rem]">
-              {row.original.createdByName ?? '—'}
+            // `as="div"` (block) is required so `truncate` + `max-w` engage:
+            // on an inline `span` neither `max-width` nor `overflow` apply, so a
+            // long unbroken name (e.g. an email) ignores the cap and overflows
+            // the fixed-width cell into the Modified column. `title` keeps the
+            // full value discoverable once it is clipped.
+            <Text
+              as="div"
+              variant="muted"
+              truncate
+              title={row.original.createdByName ?? undefined}
+              className="max-w-[10rem]"
+            >
+              {uploadedBy}
             </Text>
           );
         },

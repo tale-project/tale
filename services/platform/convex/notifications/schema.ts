@@ -22,7 +22,11 @@ const severityValidator = v.union(
  */
 export const notificationLinkValidator = v.union(
   v.object({ kind: v.literal('agent'), agentSlug: v.string() }),
-  v.object({ kind: v.literal('audit-logs') }),
+  // Optional `logId` deep-links to the specific broken audit row (#1845). Kept
+  // optional so it's data-safe (widened member, no migration) and so findings
+  // without a concrete row — e.g. a config/checkpoint gap — still link to the
+  // audit-log page.
+  v.object({ kind: v.literal('audit-logs'), logId: v.optional(v.string()) }),
   v.object({ kind: v.literal('dsar') }),
   v.object({ kind: v.literal('security-monitoring') }),
 );

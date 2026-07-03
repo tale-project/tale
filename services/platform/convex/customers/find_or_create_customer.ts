@@ -30,11 +30,17 @@ export async function findOrCreateCustomer(
   ctx: MutationCtx,
   args: FindOrCreateCustomerArgs,
 ): Promise<FindOrCreateCustomerResult> {
+  // Normalize to match how createCustomer stores/indexes email, so the
+  // pre-check below sees the same row createCustomer would collide on and this
+  // stays idempotent (returns the existing customer instead of throwing
+  // CUSTOMER_DUPLICATE_EMAIL).
+  const email = args.email.toLowerCase().trim();
+
   // Try to find existing customer
   const existingCustomer = await getCustomerByEmail(
     ctx,
     args.organizationId,
-    args.email,
+    email,
   );
 
   if (existingCustomer) {
@@ -47,8 +53,8 @@ export async function findOrCreateCustomer(
   // Create new customer
   const createArgs: CreateCustomerArgs = {
     organizationId: args.organizationId,
-    email: args.email,
-    name: args.name || args.email,
+    email,
+    name: args.name || email,
     source: args.source,
     status: args.status || 'potential',
     metadata: args.metadata,

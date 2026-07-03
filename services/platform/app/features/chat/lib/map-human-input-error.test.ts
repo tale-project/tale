@@ -1,8 +1,7 @@
-// @vitest-environment jsdom
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { mapHumanInputError } from './human-input-request-card';
+import { mapHumanInputError } from './map-human-input-error';
 
 // Identity translators tag the namespace: `t:` = humanInputRequest (t),
 // `c:` = approvalCommon (tCommon), bare fallback = the caller's default.

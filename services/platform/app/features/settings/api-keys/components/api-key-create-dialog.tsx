@@ -17,6 +17,11 @@ import { useT } from '@/lib/i18n/client';
 
 import { useCreateApiKey } from '../hooks/use-api-keys';
 
+/** Better Auth's apiKey plugin caps the key name at its `maximumNameLength`
+ *  default (32) — `convex/auth.ts` sets no override. Mirror it client-side so a
+ *  too-long name is rejected inline instead of returning a generic 400 toast. */
+const API_KEY_NAME_MAX = 32;
+
 interface ApiKeyCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,13 +73,21 @@ export function ApiKeyCreateDialog({
   );
 
   const nameRequiredError = tSettings('apiKeys.form.nameRequired');
+  const nameTooLongError = tCommon('validation.maxLength', {
+    field: tSettings('apiKeys.form.name'),
+    max: API_KEY_NAME_MAX,
+  });
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, nameRequiredError),
+        name: z
+          .string()
+          .trim()
+          .min(1, nameRequiredError)
+          .max(API_KEY_NAME_MAX, nameTooLongError),
         expiresIn: z.string(),
       }),
-    [nameRequiredError],
+    [nameRequiredError, nameTooLongError],
   );
 
   const form = useForm<ApiKeyFormData>({

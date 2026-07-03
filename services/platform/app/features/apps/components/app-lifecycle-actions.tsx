@@ -110,7 +110,7 @@ export function AppLifecycleActions({
     setBusy(true);
     try {
       await uninstall(appSlug);
-      toast({ title: t('install.uninstalled') });
+      toast({ title: t('install.uninstalled'), variant: 'success' });
       dialogs.setOpen.uninstall(false);
       onChanged?.();
     } catch (error) {
