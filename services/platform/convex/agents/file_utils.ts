@@ -140,9 +140,9 @@ export interface AgentJsonConfig {
   /**
    * Organigram delegation edges: slugs of the agents THIS agent delegates to
    * (its direct reports). Many-to-many; the only forbidden edge is a
-   * self-edge. Written ONLY by the organigram write paths (`writeAgentDelegates`
-   * / `writeAgentParents`); `saveAgent` preserves the on-disk value so a stale
-   * settings form can never silently re-wire delegation. Mirrors
+   * self-edge. Written ONLY by the organigram write path (`writeAgentDelegates`);
+   * `saveAgent` preserves the on-disk value so a stale settings form can never
+   * silently re-wire delegation. Mirrors
    * `agentJsonSchema.delegates`.
    */
   delegates?: string[];

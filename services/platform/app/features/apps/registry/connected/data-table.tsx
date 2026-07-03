@@ -71,6 +71,15 @@ function cell(col: string, value: unknown): React.ReactNode {
   return JSON.stringify(value).slice(0, 60);
 }
 
+/** Stable row key: the row's `_id`/`id` when present, else the array index.
+ *  These lists are reactive and often newest-first, so a plain index key
+ *  remounts every row when the head changes — keying by identity keeps row
+ *  state (expansion, focus) attached to its record. */
+function rowKey(row: Record<string, unknown>, index: number): string | number {
+  const id = row._id ?? row.id;
+  return typeof id === 'string' || typeof id === 'number' ? id : index;
+}
+
 /** Columns to show: explicit, else inferred from the first row (minus id-like keys). */
 function inferColumns(
   rows: Record<string, unknown>[],
@@ -169,7 +178,7 @@ export function DataTable({
             typeof rawRowActionId === 'string' ? rawRowActionId : undefined;
           const isExpanded = expandable && expandedId === subjectId;
           return (
-            <Fragment key={i}>
+            <Fragment key={rowKey(row, i)}>
               <TableRow
                 className={cn(expandable && 'cursor-pointer')}
                 onClick={

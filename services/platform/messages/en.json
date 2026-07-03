@@ -7949,7 +7949,7 @@
       "agent": "Agent",
       "completed": "Completed",
       "runs": "Runs (failed)",
-      "bounceRate": "Changes requested",
+      "bounceRate": "Change rate",
       "cost": "Spend"
     },
     "attention": {
@@ -7961,7 +7961,7 @@
     },
     "scorecard": {
       "title": "Agent Metrics",
-      "subtitle": "Last 30 days — outcomes, review quality, and cost for this agent.",
+      "subtitle": "Last {days} days — outcomes, review quality, and cost for this agent.",
       "tasksCompleted": "Tasks completed",
       "reviewOutcome": "First-pass approval",
       "reviewDetail": "{passed} approved · {changes} changes requested · {escalations} escalations",

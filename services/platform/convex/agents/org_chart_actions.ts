@@ -9,10 +9,12 @@
  *    deterministic primary manager, and per-node guardrail snapshots (month
  *    spend vs budget, running count, paused badge). Dangling/self edges are
  *    dropped; cycles are allowed.
- *  - `setAgentDelegates` / `setAgentParents` (developer-capability-gated):
- *    edit one agent's outgoing / incoming edges — validated (no self-edge,
- *    real targets), written atomically to the JSON file(s), audited, and
- *    write-through cache-dropped so the next read sees it immediately.
+ *  - `setAgentDelegates` (developer-capability-gated): edit one agent's
+ *    outgoing delegation edges — validated (no self-edge, real targets),
+ *    written atomically to the JSON file, audited, and write-through
+ *    cache-dropped so the next read sees it immediately. Incoming ("reports
+ *    to") edits are staged client-side in the organigram draft as delegate
+ *    changes on the other agents and persisted through this same path.
  *
  * `saveAgent` (file_actions) deliberately strips incoming `delegates` and
  * re-applies the on-disk value, so the organigram remains the only editor of
@@ -29,7 +31,6 @@ import {
   buildChartFromRoster,
   readWorkforceRoster,
   writeAgentDelegates,
-  writeAgentParents,
 } from './workforce_ops';
 
 export interface OrgChartNode {
@@ -147,41 +148,6 @@ export const setAgentDelegates = action({
       resourceId: args.agentSlug,
       previousState: { delegates: previous },
       newState: { delegates: args.delegateSlugs },
-    });
-    return { ok: true };
-  },
-});
-
-/**
- * Set the agents that delegate to `agentSlug` (its incoming edges / "reports
- * to" list) by adjusting each parent's `delegates`. Validation + the file
- * writes live in `writeAgentParents`.
- */
-export const setAgentParents = action({
-  args: {
-    organizationId: v.string(),
-    agentSlug: v.string(),
-    parentSlugs: v.array(v.string()),
-  },
-  returns: v.object({ ok: v.boolean() }),
-  handler: async (ctx, args): Promise<{ ok: boolean }> => {
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-
-    const { previous } = await writeAgentParents({
-      orgSlug: auth.orgSlug,
-      agentSlug: args.agentSlug,
-      parentSlugs: args.parentSlugs,
-    });
-
-    await ctx.runMutation(internal.agents.audit_mutations.logAgentAuditEvent, {
-      organizationId: auth.orgId,
-      actorId: auth.userId,
-      ...(auth.email ? { actorEmail: auth.email } : {}),
-      actorRole: auth.member.role,
-      action: 'set_agent_parents',
-      resourceId: args.agentSlug,
-      previousState: { parents: previous },
-      newState: { parents: args.parentSlugs },
     });
     return { ok: true };
   },

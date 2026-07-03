@@ -7949,7 +7949,7 @@
       "agent": "Agent",
       "completed": "Abgeschlossen",
       "runs": "Läufe (fehlgeschl.)",
-      "bounceRate": "Änderungswünsche",
+      "bounceRate": "Änderungsrate",
       "cost": "Ausgaben"
     },
     "attention": {
@@ -7961,7 +7961,7 @@
     },
     "scorecard": {
       "title": "Agent-Metriken",
-      "subtitle": "Letzte 30 Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
+      "subtitle": "Letzte {days} Tage — Ergebnisse, Review-Qualität und Kosten dieses Agenten.",
       "tasksCompleted": "Abgeschlossene Aufgaben",
       "reviewOutcome": "Direkt-Freigabequote",
       "reviewDetail": "{passed} freigegeben · {changes} Änderungswünsche · {escalations} Eskalationen",

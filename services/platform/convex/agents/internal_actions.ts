@@ -53,9 +53,9 @@ interface AgentIndex {
 const agentListCache = new Map<string, AgentIndex>();
 
 /**
- * Write-through cache drop for org-chart writes (`writeAgentDelegates` /
- * `writeAgentParents`): a delegation edit must be visible to the next chart
- * read in THIS isolate without waiting out the TTL. Other isolates converge
+ * Write-through cache drop for org-chart writes (`writeAgentDelegates`): a
+ * delegation edit must be visible to the next chart read in THIS isolate
+ * without waiting out the TTL. Other isolates converge
  * within the 60s TTL, same as every other agent-file edit.
  */
 export function invalidateAgentListCache(orgSlug: string): void {

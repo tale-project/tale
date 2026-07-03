@@ -18,14 +18,19 @@ import { render, screen } from '@/tests/utils/render';
 // copy the E2E asserted is exactly the "no run data" branch.
 
 // The route file calls createFileRoute(...) at module scope and the component
-// reads Route.useParams() for the org/agent ids. Partial-mock the router so the
-// real exports stay intact while Route.useParams() returns deterministic ids.
+// reads Route.useParams() for the org/agent ids and Route.useSearch() for the
+// period window. Partial-mock the router so the real exports stay intact while
+// those hooks return deterministic values (and useNavigate is a no-op — the
+// period selector's navigate never fires in a render-only test).
 const mockUseParams = vi.fn(() => ({ id: 'org-1', agentId: 'e2e-agent' }));
+const mockUseSearch = vi.fn(() => ({ period: undefined }));
 vi.mock('@tanstack/react-router', async (orig) => ({
   ...(await orig<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => vi.fn(),
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,
     useParams: () => mockUseParams(),
+    useSearch: () => mockUseSearch(),
   }),
 }));
 
