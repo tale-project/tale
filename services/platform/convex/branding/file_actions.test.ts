@@ -98,10 +98,11 @@ describe('branding requireBrandingAdmin authorization (#2044)', () => {
         (e: unknown) => e,
       );
       // Owner/admin clear the capability gate; the invalid image type then
-      // throws a plain Error — proving the role was not rejected.
-      expect(err).toBeInstanceOf(Error);
-      expect(err).not.toBeInstanceOf(ConvexError);
-      expect((err as Error).message).toContain('Invalid image type');
+      // fails with IMAGE_TYPE_INVALID (not ORG_FORBIDDEN) — proving the role
+      // was not rejected at the gate.
+      expect(err).toBeInstanceOf(ConvexError);
+      expect(errorCode(err)).toBe('IMAGE_TYPE_INVALID');
+      expect(errorCode(err)).not.toBe('ORG_FORBIDDEN');
     },
   );
 });
