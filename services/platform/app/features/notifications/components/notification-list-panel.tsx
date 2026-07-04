@@ -27,6 +27,7 @@ import {
   useNotificationsUnreadCount,
   type NotificationsFilter,
 } from '../hooks/queries';
+import { mergeNotificationsByRecency } from '../lib/merge-notifications';
 import {
   orgNotificationTarget,
   personalNotificationTarget,
@@ -179,6 +180,13 @@ export function NotificationListPanel({
       ),
     [myNotifications, hiddenIds, filter],
   );
+  // One chronologically sorted stream across BOTH sources (#2377): an old
+  // personal item must never outrank a newer org alert. The per-source visual
+  // distinction stays an icon/namespace concern, not a positional one.
+  const mergedItems = useMemo(
+    () => mergeNotificationsByRecency(myItems, items),
+    [myItems, items],
+  );
   const unreadCount = (unread ?? 0) + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
@@ -277,54 +285,60 @@ export function NotificationListPanel({
           )
         ) : (
           <ul role="list" className="divide-border divide-y">
-            {myItems.map((n) => {
+            {mergedItems.map((entry) => {
+              if (entry.kind === 'personal') {
+                const n = entry.item;
+                const params = isRecord(n.params) ? n.params : undefined;
+                const approvalId =
+                  n.type === 'task_review_requested' &&
+                  typeof params?.approvalId === 'string'
+                    ? params.approvalId
+                    : undefined;
+                const target = personalNotificationTarget({
+                  organizationId,
+                  taskId: n.taskId,
+                  params: n.params,
+                });
+                return (
+                  <NotificationRow
+                    key={`personal:${n._id}`}
+                    title={tInbox(n.titleKey)}
+                    body={tInbox(
+                      n.bodyKey,
+                      // `params` is the i18n interpolation map (stored as
+                      // v.any()); narrow to what t() accepts.
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                      params as Record<string, string | number>,
+                    )}
+                    createdAt={n.createdAt}
+                    read={n.read}
+                    target={target}
+                    onActivate={() => {
+                      if (!n.read) handleMarkMyRead(n._id);
+                      onNavigate?.();
+                    }}
+                    onMarkRead={() => handleMarkMyRead(n._id)}
+                    markReadPending={markMyRead.isPending}
+                  >
+                    {approvalId && (
+                      <ReviewActions
+                        notificationId={n._id}
+                        approvalId={approvalId}
+                      />
+                    )}
+                  </NotificationRow>
+                );
+              }
+              const n = entry.item;
               const params = isRecord(n.params) ? n.params : undefined;
-              const approvalId =
-                n.type === 'task_review_requested' &&
-                typeof params?.approvalId === 'string'
-                  ? params.approvalId
-                  : undefined;
-              const target = personalNotificationTarget({
+              const target = orgNotificationTarget(
                 organizationId,
-                taskId: n.taskId,
-                params: n.params,
-              });
-              return (
-                <NotificationRow
-                  key={n._id}
-                  title={tInbox(n.titleKey)}
-                  body={tInbox(
-                    n.bodyKey,
-                    // `params` is the i18n interpolation map (stored as
-                    // v.any()); narrow to what t() accepts.
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                    params as Record<string, string | number>,
-                  )}
-                  createdAt={n.createdAt}
-                  read={n.read}
-                  target={target}
-                  onActivate={() => {
-                    if (!n.read) handleMarkMyRead(n._id);
-                    if (target) onNavigate?.();
-                  }}
-                  onMarkRead={() => handleMarkMyRead(n._id)}
-                  markReadPending={markMyRead.isPending}
-                >
-                  {approvalId && (
-                    <ReviewActions
-                      notificationId={n._id}
-                      approvalId={approvalId}
-                    />
-                  )}
-                </NotificationRow>
+                n.link,
+                n.category,
               );
-            })}
-            {items.map((n) => {
-              const params = isRecord(n.params) ? n.params : undefined;
-              const target = orgNotificationTarget(organizationId, n.link);
               return (
                 <NotificationRow
-                  key={n._id}
+                  key={`org:${n._id}`}
                   title={t(stripNsPrefix(n.titleKey), params)}
                   body={t(stripNsPrefix(n.bodyKey), params)}
                   createdAt={n.createdAt}
@@ -332,7 +346,7 @@ export function NotificationListPanel({
                   target={target}
                   onActivate={() => {
                     if (!n.read) handleMarkRead(n._id);
-                    if (target) onNavigate?.();
+                    onNavigate?.();
                   }}
                   onMarkRead={() => handleMarkRead(n._id)}
                   markReadPending={markRead.isPending}
