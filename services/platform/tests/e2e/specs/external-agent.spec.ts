@@ -235,13 +235,16 @@ test.describe('external agent (Cursor)', () => {
   }) => {
     await openAgentTab(page, org.organizationId, '');
 
-    const visibilitySwitch = page.getByRole('switch', {
-      name: t('settings.agents.general.visibleInChat'),
-    });
-    if ((await visibilitySwitch.getAttribute('aria-checked')) !== 'true') {
-      await visibilitySwitch.click();
-    }
-    await saveAndExpectToast(page);
+    // The agent is created visible in chat (the create dialog sets
+    // `visibleInChat`), so the switch settles checked once the loaded config
+    // hydrates. Assert that state — it waits out hydration and confirms the
+    // chat-picker precondition — rather than toggling and clicking Save on a
+    // pristine form, where Save stays disabled and the click times out.
+    await expect(
+      page.getByRole('switch', {
+        name: t('settings.agents.general.visibleInChat'),
+      }),
+    ).toBeChecked({ timeout: TIMEOUT.VISIBLE });
 
     await page.goto(`/dashboard/${org.organizationId}/chat`);
     const agentTrigger = page
