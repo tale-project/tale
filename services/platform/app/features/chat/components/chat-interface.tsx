@@ -30,7 +30,10 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 import { stripModelRefQualifier } from '../../../../lib/shared/utils/model-ref';
 import { useDeletePrompt } from '../../prompts/hooks/mutations';
 import { useSavedSourceMessageIds } from '../../prompts/hooks/queries';
-import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
+import {
+  useMyBudgetStatus,
+  useMyFeatureFlags,
+} from '../../settings/governance/hooks/queries';
 import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
@@ -718,6 +721,19 @@ export function ChatInterface({
 
   const userContext = useUserContext();
   const teamFilter = useOptionalTeamFilter();
+
+  // Client-side budget gate. The server enforces the budget authoritatively
+  // (a refused turn), but without this the composer left Send enabled and the
+  // user only learned they were over budget after the message landed as an
+  // inline turn error (#2345). Reuse the same query the BudgetBanner and the
+  // server use; `exceeded` is team-independent (checkBudget always spans all
+  // teams for hard blocks), so send is blocked whatever team is selected.
+  // Loading returns `undefined` → the gate stays false, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    teamFilter?.selectedTeamId,
+  );
+  const budgetExceeded = budgetStatus?.exceeded === true;
 
   // Projects feature: when the chat was opened from a project's "New
   // chat in this project" CTA, the projectId is passed as a URL search
@@ -1444,6 +1460,7 @@ export function ChatInterface({
                   cancelVideoJob={cancelVideoJob}
                   retryVideoJob={retryVideoJob}
                   sendBlocked={
+                    budgetExceeded ||
                     (isImageGenAgent &&
                       !!activeEditingImage &&
                       !currentModelSupportsEdit) ||
@@ -1451,15 +1468,17 @@ export function ChatInterface({
                     noProviderHasApiKey
                   }
                   sendBlockedReason={
-                    isImageGenAgent &&
-                    !!activeEditingImage &&
-                    !currentModelSupportsEdit
-                      ? t('imageEdit.modelCannotEdit')
-                      : activeModelMissingApiKey
-                        ? t('modelSelector.noApiKey')
-                        : noProviderHasApiKey
-                          ? t('modelSelector.noProviderKey')
-                          : undefined
+                    budgetExceeded
+                      ? t('budgetExceededDefault')
+                      : isImageGenAgent &&
+                          !!activeEditingImage &&
+                          !currentModelSupportsEdit
+                        ? t('imageEdit.modelCannotEdit')
+                        : activeModelMissingApiKey
+                          ? t('modelSelector.noApiKey')
+                          : noProviderHasApiKey
+                            ? t('modelSelector.noProviderKey')
+                            : undefined
                   }
                   onSavePrompt={(content) =>
                     setSavePromptData({ messageId: '', content })
