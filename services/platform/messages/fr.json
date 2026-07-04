@@ -109,7 +109,9 @@
       "connect": "Connectez {integration} pour utiliser cette application.",
       "connectButton": "Connecter",
       "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
-      "setupButton": "Configurer"
+      "agentNeedsKeys": "{agent} a besoin de {keys} dans Environment.",
+      "setupButton": "Configurer",
+      "openAgentFallback": "Ouvrir l'agent"
     },
     "config": {
       "title": "Configuration",

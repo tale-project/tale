@@ -30,6 +30,16 @@ import { LayoutGrid, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
+import { formatEnvKeyList } from '@/lib/shared/agents/readiness';
+import {
+  isAppConfigComplete,
+  mergeAppConfigFields,
+} from '@/lib/shared/platform/app_config';
+import {
+  resolvePackReadinessHint,
+  resolvePackReadinessOpenAgentLabel,
+} from '@/lib/shared/platform/pack_readiness_hint';
 import { startCase } from '@/lib/utils/string';
 
 import { notifyOnInstallFailure } from '../hooks/install-failure-toast';
@@ -63,6 +73,8 @@ function ReadinessChecklist({
   status,
   blockedIntegrations,
   blockedAgents,
+  messageNamespace,
+  labels,
   onConnect,
   onSetupAgents,
 }: {
@@ -71,13 +83,24 @@ function ReadinessChecklist({
   status: 'active' | 'broken';
   blockedIntegrations: string[];
   /** Bundled agents not yet ready (no provider key / missing secrets). */
-  blockedAgents: { agentSlug: string; displayName: string }[];
+  blockedAgents: {
+    agentSlug: string;
+    displayName: string;
+    credentialMismatch?: CredentialRuntimeMismatchDetail;
+    missingEnvKeys: string[];
+  }[];
+  /** App pack namespace for mismatch hints (`<ns>.readiness.mismatch.*`). */
+  messageNamespace?: string;
+  labels: Record<string, string>;
   /** Open the inline connect wizard for one required integration. */
   onConnect: (slug: string) => void;
   /** Open the inline wizard to finish the bundled agents' setup. */
   onSetupAgents: () => void;
 }) {
   const { t } = useT('apps');
+  const openAgentLabel =
+    resolvePackReadinessOpenAgentLabel(messageNamespace, labels) ??
+    t('readiness.openAgentFallback');
   const { reinstall, isPending } = useAppInstallActions(organizationId);
   // Resolve each blocked slug to its integration display title, the same lookup
   // the install wizard's `labelFor` uses — so the checklist reads "Connect
@@ -133,20 +156,57 @@ function ReadinessChecklist({
             </Button>
           </HStack>
         ))}
-        {blockedAgents.map((agent) => (
-          <HStack
-            key={agent.agentSlug}
-            gap={3}
-            className="items-center justify-between"
-          >
-            <Text variant="muted" className="text-sm">
-              {t('readiness.agentNeedsSetup', { agent: agent.displayName })}
-            </Text>
-            <Button size="sm" variant="secondary" onClick={onSetupAgents}>
-              {t('readiness.setupButton')}
-            </Button>
-          </HStack>
-        ))}
+        {blockedAgents.map((agent) => {
+          const mismatchHint = agent.credentialMismatch
+            ? resolvePackReadinessHint(
+                messageNamespace,
+                labels,
+                agent.credentialMismatch,
+                agent.displayName,
+              )
+            : undefined;
+          const missingKeysHint =
+            !mismatchHint && agent.missingEnvKeys.length > 0
+              ? t('readiness.agentNeedsKeys', {
+                  agent: agent.displayName,
+                  keys: formatEnvKeyList(agent.missingEnvKeys),
+                })
+              : undefined;
+          const hint =
+            mismatchHint ??
+            missingKeysHint ??
+            t('readiness.agentNeedsSetup', { agent: agent.displayName });
+          return (
+            <HStack
+              key={agent.agentSlug}
+              gap={3}
+              className="items-center justify-between"
+            >
+              <VStack gap={0.5} className="min-w-0">
+                <Text variant="muted" className="text-sm">
+                  {hint}
+                </Text>
+              </VStack>
+              {agent.credentialMismatch ? (
+                <Button size="sm" variant="secondary" asChild>
+                  <Link
+                    to="/dashboard/$id/agents/$agentId"
+                    params={{
+                      id: organizationId,
+                      agentId: agent.agentSlug,
+                    }}
+                  >
+                    {openAgentLabel}
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={onSetupAgents}>
+                  {t('readiness.setupButton')}
+                </Button>
+              )}
+            </HStack>
+          );
+        })}
       </VStack>
     </Alert>
   );
@@ -164,6 +224,7 @@ function ReadinessSection({
   status,
   blockedIntegrations,
   projectId,
+  labels,
 }: {
   organizationId: string;
   appSlug: string;
@@ -171,6 +232,7 @@ function ReadinessSection({
   status: 'active' | 'broken';
   blockedIntegrations: string[];
   projectId?: string;
+  labels: Record<string, string>;
 }) {
   const { verify } = useAppInstallActions(organizationId);
   const [connectSlug, setConnectSlug] = useState<string | null>(null);
@@ -181,7 +243,14 @@ function ReadinessSection({
     () =>
       agentReadiness
         .filter((a) => !a.ready)
-        .map((a) => ({ agentSlug: a.agentSlug, displayName: a.displayName })),
+        .map((a) => ({
+          agentSlug: a.agentSlug,
+          displayName: a.displayName,
+          missingEnvKeys: a.requiredEnv.filter((e) => !e.set).map((e) => e.key),
+          ...(a.credentialMismatch !== undefined && {
+            credentialMismatch: a.credentialMismatch,
+          }),
+        })),
     [agentReadiness],
   );
 
@@ -204,6 +273,8 @@ function ReadinessSection({
         status={status}
         blockedIntegrations={blockedIntegrations}
         blockedAgents={blockedAgents}
+        messageNamespace={app.messageNamespace}
+        labels={labels}
         onConnect={setConnectSlug}
         onSetupAgents={() => setAgentSetupOpen(true)}
       />
@@ -301,6 +372,7 @@ function InstalledAppBody({
   blockedIntegrations,
   labels,
   lifecycleContext,
+  catalogConfigFields,
 }: {
   organizationId: string;
   appSlug: string;
@@ -310,20 +382,22 @@ function InstalledAppBody({
   blockedIntegrations: string[];
   labels: Record<string, string>;
   lifecycleContext: 'org' | 'project';
+  /** Built-in catalog config fields — overlay `optional` without reinstall. */
+  catalogConfigFields?: AppSummary['requiredConfig'];
 }) {
   const { t } = useT('apps');
   // Project-scoped apps read/write config PER PROJECT, keyed by the route's
   // project; org-scoped apps (projectId undefined) stay at org level.
   const { config } = useAppConfig(organizationId, appSlug, projectId);
   const [configOpen, setConfigOpen] = useState(false);
-  const hasConfig = app.requiredConfig.length > 0;
-  // "Configured" = every declared field has a stored value. While false, a
+  const configFields = useMemo(
+    () => mergeAppConfigFields(app.requiredConfig, catalogConfigFields),
+    [app.requiredConfig, catalogConfigFields],
+  );
+  const hasConfig = configFields.length > 0;
+  // "Configured" = every required field has a stored value. While false, a
   // prompt nudges setup; while true, config lives only in the ⋯ menu → panel.
-  const isConfigured = app.requiredConfig.every((f) => {
-    if (f.type === 'boolean') return true;
-    const v = config[f.key];
-    return (typeof v === 'string' || typeof v === 'number') && String(v) !== '';
-  });
+  const isConfigured = isAppConfigComplete(configFields, config);
   const lifecycle = (
     <AppLifecycleActions
       appSlug={appSlug}
@@ -354,6 +428,7 @@ function InstalledAppBody({
             status={status}
             blockedIntegrations={blockedIntegrations}
             projectId={projectId}
+            labels={labels}
           />
           {hasConfig && !isConfigured && (
             <Card>
@@ -377,7 +452,7 @@ function InstalledAppBody({
               organizationId={organizationId}
               appSlug={appSlug}
               projectId={projectId}
-              fields={app.requiredConfig}
+              fields={configFields}
               config={config}
               resolveLabel={(labelKey) => labels[labelKey] ?? labelKey}
             />
@@ -435,12 +510,14 @@ function MembershipHub({
   app,
   status,
   blockedIntegrations,
+  labels,
 }: {
   organizationId: string;
   appSlug: string;
   app: AppSummary;
   status: 'active' | 'broken';
   blockedIntegrations: string[];
+  labels: Record<string, string>;
 }) {
   const { t } = useT('apps');
   const { bindings } = useAppBindings(organizationId, appSlug);
@@ -470,6 +547,7 @@ function MembershipHub({
         app={app}
         status={status}
         blockedIntegrations={blockedIntegrations}
+        labels={labels}
       />
 
       <VStack gap={3}>
@@ -769,6 +847,7 @@ export function AppPage({
   const app =
     apps.find((a) => a.slug === appSlug) ??
     catalog.find((a) => a.slug === appSlug);
+  const catalogApp = catalog.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
   // Private (uploaded) apps live in the org dir but not the built-in catalog —
   // the deletable, badge-worthy kind (mirrors the union in apps-grid.tsx).
@@ -817,6 +896,7 @@ export function AppPage({
           blockedIntegrations={state.blockedIntegrations}
           labels={labels}
           lifecycleContext="project"
+          catalogConfigFields={catalogApp?.requiredConfig}
         />
       );
     }
@@ -858,6 +938,7 @@ export function AppPage({
         app={app}
         status={state.status}
         blockedIntegrations={state.blockedIntegrations}
+        labels={labels}
       />
     );
   }
@@ -872,6 +953,7 @@ export function AppPage({
       blockedIntegrations={state.blockedIntegrations}
       labels={labels}
       lifecycleContext="org"
+      catalogConfigFields={catalogApp?.requiredConfig}
     />
   );
 }

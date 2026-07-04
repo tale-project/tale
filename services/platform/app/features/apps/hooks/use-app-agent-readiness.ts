@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
+import type { CredentialRuntimeMismatchDetail } from '@/lib/shared/agents/readiness';
 
 export type AgentReadinessMode =
   | 'internal'
@@ -38,6 +39,8 @@ export interface AgentReadiness {
   displayName: string;
   mode: AgentReadinessMode;
   agentKind?: 'claude-code' | 'cursor';
+  /** Saved runtime vs Environment credentials disagree — see pack `readiness.mismatch.*`. */
+  credentialMismatch?: CredentialRuntimeMismatchDetail;
   /** Ready under the agent's CURRENT effective mode. */
   ready: boolean;
   /** ≥1 supported model resolves with current provider keys. */

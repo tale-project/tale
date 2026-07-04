@@ -5,6 +5,8 @@ import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
 import {
   type ClassifiableAgent,
   classifyAgentReadiness,
+  detectCredentialRuntimeMismatch,
+  resolveEffectiveRequiredEnv,
 } from '../../lib/shared/agents/readiness';
 import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
@@ -132,24 +134,36 @@ export const getAppAgentReadiness = action({
         };
       });
 
-      // Declared env + set-status (only read the table when something's declared).
-      let requiredEnv = needs.requiredEnv.map((e) => ({ ...e, set: false }));
-      if (needs.requiredEnv.length > 0) {
+      // Declared env + set-status (only read the table when something's required).
+      let setKeys = new Set<string>();
+      if (needs.needsEnv) {
         const envRows = (await ctx.runQuery(
           internal.agents.agent_env.listAgentEnvForInjection,
           { organizationId: args.organizationId, agentSlug: row.name },
         )) as Array<{ key: string }>;
-        const setKeys = new Set(envRows.map((r) => r.key));
-        requiredEnv = needs.requiredEnv.map((e) => ({
-          ...e,
-          set: setKeys.has(e.key),
-        }));
+        setKeys = new Set(envRows.map((r) => r.key));
       }
+      const effectiveRequiredEnv = resolveEffectiveRequiredEnv({
+        ...(row.agentKind !== undefined && { agentKind: row.agentKind }),
+        needs,
+      });
+      const requiredEnv = effectiveRequiredEnv.map((e) => ({
+        ...e,
+        set: setKeys.has(e.key),
+      }));
+      const credentialMismatch = detectCredentialRuntimeMismatch({
+        ...(row.agentKind !== undefined && { agentKind: row.agentKind }),
+        setKeys,
+        needsEnv: needs.needsEnv,
+        expectedKeys: effectiveRequiredEnv.map((e) => e.key),
+      });
 
       // Ready under the agent's CURRENT effective mode (drives the checklist).
-      const ready = needs.needsEnv
-        ? requiredEnv.every((e) => e.set)
-        : supportedModelsResolvable;
+      const ready = credentialMismatch
+        ? false
+        : needs.needsEnv
+          ? requiredEnv.every((e) => e.set)
+          : supportedModelsResolvable;
 
       out.push({
         agentSlug: row.name,
@@ -157,6 +171,7 @@ export const getAppAgentReadiness = action({
         displayName: row.displayName ?? row.shortName ?? row.name,
         mode: needs.mode,
         ...(row.agentKind !== undefined && { agentKind: row.agentKind }),
+        ...(credentialMismatch !== undefined && { credentialMismatch }),
         ready,
         supportedModelsResolvable,
         requiredProviders,
