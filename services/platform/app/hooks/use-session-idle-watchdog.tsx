@@ -7,6 +7,7 @@ import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
+import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
@@ -175,6 +176,9 @@ export function useSessionIdleWatchdog(): void {
       } catch (err) {
         console.error('[session-idle] sign-out failed', err);
       }
+      // Forget the cached org name so the login page renders "Tale", not the
+      // previous org's title suffix.
+      clearTitleSuffix();
       // Intentional hard navigation (not the router): a full reload tears
       // down the Convex client, React Query cache, and any in-memory auth
       // state on sign-out. Same precedent as user-button and dashboard.tsx.

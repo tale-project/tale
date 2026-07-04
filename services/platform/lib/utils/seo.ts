@@ -1,3 +1,4 @@
+import { getTitleSuffix } from '@/app/lib/title-suffix';
 import { i18n } from '@/lib/i18n/i18n';
 import type { Messages } from '@/lib/i18n/types';
 
@@ -23,7 +24,12 @@ type MetadataPage = {
  * within the platform (e.g. Slack unfurls in internal channels).
  */
 export function seo(key: MetadataPage) {
-  const suffix = i18n.t('suffix', { ns: 'metadata' });
+  // The title suffix is the active org's name once known (cached across
+  // reloads by `title-suffix`), falling back to the static "Tale" when logged
+  // out or before any org branding has loaded. Composing it here — rather than
+  // patching `document.title` after the fact — means the correct suffix
+  // renders at head time on first paint.
+  const suffix = getTitleSuffix() ?? i18n.t('suffix', { ns: 'metadata' });
   const title = i18n.t(`${key}.title`, { ns: 'metadata' });
   const description = i18n.t(`${key}.description`, { ns: 'metadata' });
   const fullTitle = `${title} - ${suffix}`;
