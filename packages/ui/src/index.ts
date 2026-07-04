@@ -21,7 +21,7 @@ export {
 export { Input, type InputProps } from './components/forms/input';
 export { Textarea, type TextareaProps } from './components/forms/textarea';
 export { Label } from './components/forms/label';
-export { Checkbox } from './components/forms/checkbox';
+export { Checkbox, type CheckboxProps } from './components/forms/checkbox';
 export { Slider, type SliderProps } from './components/forms/slider';
 export { Field, type FieldProps } from './components/forms/field';
 

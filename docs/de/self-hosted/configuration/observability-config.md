@@ -19,14 +19,15 @@ Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Inte
 
 ## Metriken
 
-Der Caddy-Proxy exponiert zwei Metric-Pfade, gegated von einem einzigen Bearer-Token:
+Der Caddy-Proxy exponiert drei Metric-Pfade, gegated von einem einzigen Bearer-Token:
 
-| Pfad                | Quelle          | Was drinsteckt                                                  |
-| ------------------- | --------------- | --------------------------------------------------------------- |
-| `/metrics/platform` | `tale-platform` | HTTP-Latenz, Route-Counter, Node-Prozessmetriken                |
-| `/metrics/convex`   | `tale-convex`   | 261 eingebaute Convex-Metriken, plus die RAG- und Crawl-Timings |
+| Pfad                 | Quelle          | Was drinsteckt                                                                |
+| -------------------- | --------------- | ----------------------------------------------------------------------------- |
+| `/metrics/platform`  | `tale-platform` | HTTP-Latenz, Route-Counter, Node-Prozessmetriken, Antwortzeit-SLA-Ziel-Gauges |
+| `/metrics/convex`    | `tale-convex`   | 261 eingebaute Convex-Metriken, plus die RAG- und Crawl-Timings               |
+| `/metrics/sla-rules` | `tale-platform` | Generierte Prometheus-Recording- + Alerting-Rules für die Antwortzeit-SLAs    |
 
-Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Convex-Backend, also reiten ihre Timings auf der `/metrics/convex`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um die zwei Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Alles ausser den zwei gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
+Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Convex-Backend, also reiten ihre Timings auf der `/metrics/convex`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um diese Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Der `/metrics/sla-rules`-Pfad ist eine schreibgeschützte YAML-Rules-Datei, die du in Prometheus lädst, kein Scrape-Target — die Schwellen darin sind in [Operations](/de/self-hosted/operate/observability/operations) dokumentiert. Alles ausser den gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
 
 Eine funktionierende Prometheus-Scrape-Stanza:
 

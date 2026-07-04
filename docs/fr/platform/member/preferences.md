@@ -1,9 +1,9 @@
 ---
 title: Préférences
-description: Les réglages au niveau membre qui te suivent entre orgs et chats — nom d'affichage et mot de passe sous Compte, thème et langue dans le menu de profil, instructions personnalisées et mémoires sous Personnalisation, et déconnexion.
+description: Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, instructions personnalisées et mémoires sous Personnalisation, et déconnexion.
 ---
 
-Les préférences sont les molettes qui t'appartiennent plutôt qu'à l'org. Ton nom d'affichage est le nom que voient agents et coéquipiers dans les chats et les approbations. Ta langue et ton thème te suivent entre les appareils. Tes instructions personnalisées et tes mémoires façonnent la manière dont les agents te répondent spécifiquement — séparément de tout ce que l'Administrateur ou l'Éditeur a posé au niveau de l'org. Cette page cartographie où vit chaque levier et ce qu'il change.
+Les préférences sont les molettes qui t'appartiennent plutôt qu'à l'org. Ton nom est ce que voient agents et coéquipiers dans les chats et les approbations. Ta langue et ton thème te suivent entre les appareils. Tes instructions personnalisées et tes mémoires façonnent la manière dont les agents te répondent spécifiquement — séparément de tout ce que l'Administrateur ou l'Éditeur a posé au niveau de l'org. Cette page cartographie où vit chaque levier et ce qu'il change.
 
 La forme est volontairement à deux couches : le menu de profil (partout, à un clic de l'avatar) porte les bascules rapides ; **Paramètres > Compte** et **Paramètres > Personnalisation** portent les champs de compte plus profonds. Tout ici t'appartient — rien ne fuite vers d'autres membres ou d'autres orgs.
 
@@ -17,9 +17,9 @@ Le menu porte aussi un sélecteur d'organisation quand tu appartiens à plus d'u
 
 Ouvre **Paramètres > Compte**. Trois sections siègent sur la page : **Profil**, **Sécurité** et **Authentification à deux facteurs**.
 
-La section Profil tient ton **nom d'affichage** et ton **e-mail**. Le nom d'affichage s'édite en ligne ; la modification s'enregistre à la sortie du champ et se propage dans chaque chat et chaque approbation au prochain rendu. L'e-mail est en lecture seule — c'est avec lui que tu t'es connecté, et un changement passe par le support. Il n'y a pas de champ avatar sur la page ; Tale dérive un avatar à partir des initiales de ton nom d'affichage.
+La section Profil affiche d'abord ton **e-mail**, puis ton **nom** — l'e-mail suggère le nom que Tale propose, que tu peux modifier librement. Le nom s'édite en ligne ; la modification s'enregistre et se propage dans chaque chat et chaque approbation au prochain rendu. L'e-mail est en lecture seule — c'est avec lui que tu t'es connecté, et un changement passe par le support. Il n'y a pas de champ avatar sur la page ; Tale dérive un avatar à partir des initiales de ton nom.
 
-La section Sécurité tient un seul bouton : **Changer le mot de passe** si tu t'es inscrit avec e-mail et mot de passe, **Définir le mot de passe** si ton compte est fédéré via SSO et que tu veux ajouter un mot de passe comme repli. Les deux flux imposent la politique de mot de passe de l'org et affichent les règles en direct pendant que tu tapes. La section Deux-facteurs apparie le compte à une app TOTP ou à une clé matérielle et affiche les codes de secours une fois à l'enrôlement.
+La section Sécurité tient un seul bouton : **Changer le mot de passe** si tu t'es inscrit avec e-mail et mot de passe, **Définir le mot de passe** si ton compte est fédéré via SSO et que tu veux ajouter un mot de passe comme repli. Les deux flux imposent la politique de mot de passe de l'org et affichent les règles en direct pendant que tu tapes, et un mot de passe actuel erroné est signalé directement sur le champ plutôt que comme une erreur passagère. Changer ton mot de passe te déconnecte de tous les appareils — le dialogue t'avertit avant que tu confirmes, et tu te reconnectes ensuite avec le nouveau mot de passe. La section Deux-facteurs apparie le compte à une app TOTP ou à une clé matérielle et affiche les codes de secours une fois à l'enrôlement.
 
 ## Personnalisation — instructions, mémoires, sortie vocale
 

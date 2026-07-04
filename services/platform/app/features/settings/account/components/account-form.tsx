@@ -1,12 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
+import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -18,6 +19,7 @@ import { ValidationCheckList } from '@/app/components/ui/feedback/validation-che
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
@@ -30,6 +32,8 @@ import { useToast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
+import { convexErrorCode } from '@/lib/utils/convex-error';
+import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
 import { ChatsSection } from './chats-section';
@@ -105,10 +109,17 @@ function ProfileSection() {
     [tSettings],
   );
 
-  const data = useMemo<ProfileFormData | undefined>(
-    () => (user ? { name: user.name ?? '' } : undefined),
-    [user],
-  );
+  const data = useMemo<ProfileFormData | undefined>(() => {
+    if (!user) return undefined;
+    const email = user.email ?? '';
+    const savedName = user.name?.trim() ?? '';
+    // Legacy owner accounts were created with `name === email` (see the
+    // onboarding account step); treat that — and an empty name — as "no real
+    // name yet" and offer an editable suggestion derived from the email.
+    const name =
+      savedName && savedName !== email ? savedName : deriveNameFromEmail(email);
+    return { name };
+  }, [user]);
 
   const save = useCallback(
     async (values: ProfileFormData) => {
@@ -116,12 +127,14 @@ function ProfileSection() {
       try {
         await updateUserName({ name });
         toast({
-          title: tToast('success.profileUpdated'),
+          title: tToast('success.profileUpdated.title'),
+          description: tToast('success.profileUpdated.description'),
           variant: 'success',
         });
       } catch (err) {
         toast({
-          title: tToast('error.profileUpdateFailed'),
+          title: tToast('error.profileUpdateFailed.title'),
+          description: tToast('error.profileUpdateFailed.description'),
           variant: 'destructive',
         });
         throw err;
@@ -162,6 +175,18 @@ function ProfileSection() {
           disabled={editor.isLoading}
           className="divide-border divide-y"
         >
+          {/* Email first, then Name — the email implies the suggested name
+              (#1941), so it reads top-to-bottom as cause then effect. */}
+          <SettingsRow
+            className="py-5"
+            label={tSettings('account.profile.email')}
+            description={tSettings('account.profile.emailDescription')}
+          >
+            <div className="w-full sm:w-80">
+              <EmailField email={user?.email ?? ''} />
+            </div>
+          </SettingsRow>
+
           <SettingsRow
             className="py-5"
             label={tSettings('account.profile.name')}
@@ -180,16 +205,6 @@ function ProfileSection() {
                 wrapperClassName="w-full"
                 {...register('name')}
               />
-            </div>
-          </SettingsRow>
-
-          <SettingsRow
-            className="py-5"
-            label={tSettings('account.profile.email')}
-            description={tSettings('account.profile.emailDescription')}
-          >
-            <div className="w-full sm:w-80">
-              <EmailField email={user?.email ?? ''} />
             </div>
           </SettingsRow>
         </fieldset>
@@ -296,10 +311,10 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     handleSubmit,
     formState: { errors, isSubmitting, isDirty, isValid },
     reset,
+    setError,
     watch,
   } = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
-    mode: 'onChange',
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -316,9 +331,21 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
-    } catch {
+    } catch (error) {
+      // A wrong current password is an expected, recoverable failure — surface
+      // it as an inline field error on the current-password input (mirroring
+      // the 2FA / add-member flows) rather than a generic destructive toast
+      // (#1945). The backend raises a structured ConvexError for this case.
+      if (convexErrorCode(error) === 'INVALID_CURRENT_PASSWORD') {
+        setError('currentPassword', {
+          type: 'manual',
+          message: tAuth('changePassword.validation.currentIncorrect'),
+        });
+        return;
+      }
       toast({
-        title: tToast('error.passwordChangeFailed'),
+        title: tToast('error.passwordChangeFailed.title'),
+        description: tToast('error.passwordChangeFailed.description'),
         variant: 'destructive',
       });
       return;
@@ -358,6 +385,13 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
+      <Alert
+        variant="warning"
+        icon={AlertTriangle}
+        title={tAuth('changePassword.warning.title')}
+        description={tAuth('changePassword.warning.description')}
+      />
+
       <Input
         id="current-password"
         type="password"
@@ -445,7 +479,6 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     watch,
   } = useForm<SetPasswordFormData>({
     resolver: zodResolver(setPasswordSchema),
-    mode: 'onChange',
     defaultValues: {
       newPassword: '',
       confirmPassword: '',
@@ -462,7 +495,8 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       });
 
       toast({
-        title: tToast('success.passwordSet'),
+        title: tToast('success.passwordSet.title'),
+        description: tToast('success.passwordSet.description'),
         variant: 'success',
       });
 
@@ -470,7 +504,8 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       onOpenChange(false);
     } catch {
       toast({
-        title: tToast('error.passwordChangeFailed'),
+        title: tToast('error.passwordChangeFailed.title'),
+        description: tToast('error.passwordChangeFailed.description'),
         variant: 'destructive',
       });
     }

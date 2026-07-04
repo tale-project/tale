@@ -5,13 +5,13 @@ import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
 import { Copy, Check } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -92,7 +92,6 @@ export function ApiKeyCreateDialog({
 
   const form = useForm<ApiKeyFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       name: '',
       expiresIn: '2592000',

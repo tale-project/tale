@@ -7,13 +7,13 @@ import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { ModelInfoPopover } from '@/app/features/chat/components/model-info-popover';
 import {
   useListProviders,
@@ -237,7 +237,6 @@ export function CreateAgentDialog({
     resolver: zodResolver(formSchema),
     // Validate on change so the Continue button can gate on validity
     // (required fields filled) instead of only after a submit attempt.
-    mode: 'onChange',
     defaultValues: {
       name: '',
       displayName: '',

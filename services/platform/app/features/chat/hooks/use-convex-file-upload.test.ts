@@ -297,7 +297,13 @@ describe('useConvexFileUpload — concurrent-batch cap & dedup', () => {
   });
 
   it('counts a just-committed file against the cap during the commit→render gap', async () => {
-    const { result } = renderHook(() => useConvexFileUpload(config));
+    // Indexing is disabled so the `fileUploaded` success toast still fires
+    // synchronously on commit (for RAG-indexable files it is deferred until
+    // indexing finishes, #1457) — the test uses that toast as its timing hook
+    // into the commit→render gap below.
+    const { result } = renderHook(() =>
+      useConvexFileUpload({ ...config, disableIndexing: true }),
+    );
 
     const CAP = CHAT_MAX_FILE_COUNT;
 

@@ -2,6 +2,7 @@ import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import { buildEmailMetadata } from './build_email_metadata';
+import { normalizeExternalMessageId } from './normalize_external_message_id';
 import type { EmailType } from './types';
 
 /**
@@ -27,7 +28,7 @@ export async function addMessageToConversation(
       content: email.html || email.text || '',
       isCustomer,
       status,
-      externalMessageId: email.messageId,
+      externalMessageId: normalizeExternalMessageId(email.messageId),
       metadata: buildEmailMetadata(email),
       sentAt: emailTimestamp,
       deliveredAt: status === 'delivered' ? emailTimestamp : undefined,

@@ -15,6 +15,7 @@ import {
 
 import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
+import { organizationNameSchema } from '../lib/shared/schemas/organizations';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
 import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-utils';
@@ -708,6 +709,22 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             // through a `Record<string, unknown>` view so the field
             // shape matches Better Auth's loose update payload type.
             const orgPatch = data.organization as Record<string, unknown>;
+            // Org name is required: reject a rename that clears it (empty or
+            // whitespace-only). Mirrors the client-side `.min(1)` validation so
+            // an empty name can't slip past the auth boundary via a direct API
+            // call. Only enforced when `name` is part of the patch — a name-less
+            // update (e.g. locale-only) leaves the stored name untouched.
+            if (orgPatch.name !== undefined) {
+              const parsedName = organizationNameSchema().safeParse(
+                orgPatch.name,
+              );
+              if (!parsedName.success) {
+                throw new APIError('BAD_REQUEST', {
+                  message: 'Organization name is required.',
+                });
+              }
+              orgPatch.name = parsedName.data;
+            }
             const rawSlug = orgPatch.slug;
             if (typeof rawSlug !== 'string') return;
             const normalizedSlug = rawSlug.toLowerCase();

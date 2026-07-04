@@ -111,6 +111,7 @@ WORKDIR /app
 COPY services/platform/server.ts \
      services/platform/telemetry.ts \
      services/platform/convex-metrics.ts \
+     services/platform/sla-targets.ts \
      ./services/platform/
 
 # ============================================================================
@@ -328,6 +329,7 @@ COPY --from=pruner --chown=app:app \
      /app/services/platform/server.ts \
      /app/services/platform/telemetry.ts \
      /app/services/platform/convex-metrics.ts \
+     /app/services/platform/sla-targets.ts \
      /app/services/platform/status-probe.ts \
      ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex

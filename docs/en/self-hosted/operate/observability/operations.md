@@ -49,6 +49,53 @@ When a page lands, the first five minutes follow the same shape every time.
 
 A `tale-knowledge-db` outage is a warn, not a page. The web-crawl schedule absorbs hours of downtime without user impact, and document ingestion retries rather than dropping work — uploads sit in "indexing" until the corpus database is back. Knowledge search returns empty in the meantime, but chats that do not retrieve knowledge keep working. Catch this in the warn band and fix it in business hours.
 
+## Response-time SLAs
+
+Two response-time budgets are tracked as first-class signals: interactive dialog input and long-running operations such as evaluations. Both are verified as a **mean** over a rolling window — the contractual figure is an average, not a per-request ceiling — and both are wired so Prometheus alerts the moment the average drifts past budget.
+
+| Budget         | Statistic | Target | Window | Underlying series             |
+| -------------- | --------- | ------ | ------ | ----------------------------- |
+| Dialog input   | mean      | ~1 s   | 30 m   | `tale_dialog_ttft_seconds`    |
+| Long operation | mean      | ~40 s  | 6 h    | `tale_long_operation_seconds` |
+
+Each target also rides the platform metrics endpoint as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The underlying latency series are the Convex function-execution histograms on `/metrics/convex`; relabel or record them to the names above so the rules resolve. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
+
+```yaml
+groups:
+  - name: tale-sla-recording
+    rules:
+      - record: tale_sla_dialog_ttft:mean30m
+        expr: rate(tale_dialog_ttft_seconds_sum[30m]) / rate(tale_dialog_ttft_seconds_count[30m])
+        labels:
+          sla: dialog_ttft
+      - record: tale_sla_long_operation:mean6h
+        expr: rate(tale_long_operation_seconds_sum[6h]) / rate(tale_long_operation_seconds_count[6h])
+        labels:
+          sla: long_operation
+  - name: tale-sla-alerts
+    rules:
+      - alert: TaleSlaDialogTtftBreached
+        expr: tale_sla_dialog_ttft:mean30m > 1
+        for: 15m
+        labels:
+          severity: warn
+          sla: dialog_ttft
+        annotations:
+          summary: 'Dialog input response time: mean response time over 30m exceeds the 1s SLA'
+          description: Mean time-to-first-token for an interactive chat / dialog turn.
+      - alert: TaleSlaLongOperationBreached
+        expr: tale_sla_long_operation:mean6h > 40
+        for: 30m
+        labels:
+          severity: warn
+          sla: long_operation
+        annotations:
+          summary: 'Long operation response time: mean response time over 6h exceeds the 40s SLA'
+          description: Mean end-to-end time for long-running operations such as evaluations.
+```
+
+A breach here is a **warn**, not a page: a drifting average is a degradation to chase in business hours, and the `for:` windows deliberately wait out a short spike before firing. The ~1 s dialog budget reconciles with the looser ~3 s warm time-to-first-token in the manual performance plan — that ~3 s is a per-request ceiling for a single cold, Auto-routed first token including model and network time, whereas the ~1 s here is the steady-state mean across dialog turns, so occasional first tokens reaching the ceiling are consistent with a sub-second mean. Holding the 1 s mean on live providers may still need the backend-overhead optimization tracked on the feature issue; this alert is what confirms whether the target is met.
+
 ## Where this fits
 
 The signals above are the proactive side of operating a Tale instance; the reactive side is [Troubleshooting](/self-hosted/operate/observability/troubleshooting), and the configuration that gets the metrics into Prometheus is [Observability config](/self-hosted/configuration/observability-config). If you have not yet set `METRICS_BEARER_TOKEN`, every threshold above is unmonitored — start there.

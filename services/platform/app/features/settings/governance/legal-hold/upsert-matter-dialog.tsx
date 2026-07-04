@@ -2,13 +2,13 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -60,7 +60,6 @@ export function UpsertMatterDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       name: matter?.name ?? '',
       caseNumber: matter?.caseNumber ?? '',

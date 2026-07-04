@@ -42,6 +42,9 @@
     "changePassword": {
       "requirements": {
         "uppercase": "Ein Grossbuchstabe"
+      },
+      "warning": {
+        "description": "Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet. Du musst dich anschliessend mit deinem neuen Passwort erneut anmelden."
       }
     },
     "forcedChange": {
@@ -65,7 +68,8 @@
   },
   "common": {
     "actions": {
-      "close": "Schliessen"
+      "close": "Schliessen",
+      "completeStepToContinue": "Schliesse diesen Schritt ab, um fortzufahren"
     },
     "aria": {
       "close": "Schliessen",

@@ -5,12 +5,12 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Separator } from '@tale/ui/separator';
 import { useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Input } from '@/app/components/ui/forms/input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
@@ -63,7 +63,6 @@ export function AccountStep() {
 
   const form = useForm<AccountFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: { email: '', password: '' },
   });
 

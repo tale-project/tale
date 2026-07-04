@@ -1,13 +1,13 @@
 'use client';
 
-import { Grid, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { toolDisplayName } from '@/app/features/chat/utils/format-tool-detail';
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
@@ -137,6 +137,7 @@ export function ToolSelector({
   showWorkflows = true,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   // Tool labels live in the shared `chat.tools.*` namespace (one vocabulary for
   // the chat timeline and this picker); category labels stay in `settings`.
   const { t: tTools } = useT('chat');
@@ -147,14 +148,6 @@ export function ToolSelector({
     useAvailableWorkflows(organizationId);
 
   const selectedSet = useMemo(() => new Set(value), [value]);
-  const selectedIntegrationBindingsSet = useMemo(
-    () => new Set(integrationBindings),
-    [integrationBindings],
-  );
-  const selectedWorkflowBindingsSet = useMemo(
-    () => new Set(workflowBindings),
-    [workflowBindings],
-  );
 
   const handleCategoryChange = useCallback(
     (categoryTools: string[], newValues: string[]) => {
@@ -163,36 +156,6 @@ export function ToolSelector({
       onChange([...otherValues, ...newValues]);
     },
     [value, onChange],
-  );
-
-  const toggleIntegrationBinding = useCallback(
-    (integrationName: string) => {
-      if (selectedIntegrationBindingsSet.has(integrationName)) {
-        onIntegrationBindingsChange(
-          integrationBindings.filter((b) => b !== integrationName),
-        );
-      } else {
-        onIntegrationBindingsChange([...integrationBindings, integrationName]);
-      }
-    },
-    [
-      integrationBindings,
-      onIntegrationBindingsChange,
-      selectedIntegrationBindingsSet,
-    ],
-  );
-
-  const toggleWorkflowBinding = useCallback(
-    (workflowId: string) => {
-      if (selectedWorkflowBindingsSet.has(workflowId)) {
-        onWorkflowBindingsChange(
-          workflowBindings.filter((b) => b !== workflowId),
-        );
-      } else {
-        onWorkflowBindingsChange([...workflowBindings, workflowId]);
-      }
-    },
-    [workflowBindings, onWorkflowBindingsChange, selectedWorkflowBindingsSet],
   );
 
   const availableToolNames = useMemo(
@@ -214,16 +177,20 @@ export function ToolSelector({
       <IntegrationBindingsSection
         integrations={integrations}
         isLoading={integrationsLoading}
-        selectedBindingsSet={selectedIntegrationBindingsSet}
-        onToggle={toggleIntegrationBinding}
+        value={integrationBindings}
+        onChange={onIntegrationBindingsChange}
+        searchPlaceholder={tCommon('search.placeholder')}
+        emptyText={tCommon('search.noResults')}
         t={t}
       />
       {showWorkflows && (
         <WorkflowBindingsSection
           workflows={workflows}
           isLoading={workflowsLoading}
-          selectedBindingsSet={selectedWorkflowBindingsSet}
-          onToggle={toggleWorkflowBinding}
+          value={workflowBindings}
+          onChange={onWorkflowBindingsChange}
+          searchPlaceholder={tCommon('search.placeholder')}
+          emptyText={tCommon('search.noResults')}
           t={t}
         />
       )}
@@ -285,20 +252,31 @@ export function ToolSelector({
 function IntegrationBindingsSection({
   integrations,
   isLoading,
-  selectedBindingsSet,
-  onToggle,
+  value,
+  onChange,
+  searchPlaceholder,
+  emptyText,
   t,
 }: {
   integrations:
     | Array<{ name: string; title: string; type: string }>
     | undefined;
   isLoading: boolean;
-  selectedBindingsSet: Set<string>;
-  onToggle: (name: string) => void;
+  value: string[];
+  onChange: (next: string[]) => void;
+  searchPlaceholder: string;
+  emptyText: string;
   t: (key: string) => string;
 }) {
-  const placeholders = ['__p_int_0', '__p_int_1'];
   const isEmpty = !isLoading && (!integrations || integrations.length === 0);
+  const options = useMemo(
+    () =>
+      (integrations ?? []).map((integration) => ({
+        value: integration.name,
+        label: integration.title,
+      })),
+    [integrations],
+  );
 
   return (
     <Skeletonize
@@ -314,21 +292,15 @@ function IntegrationBindingsSection({
             {t('agents.form.noIntegrationsAvailable')}
           </Text>
         ) : (
-          <Grid cols={2} className="gap-x-4 gap-y-1.5">
-            {(isLoading
-              ? placeholders.map((name) => ({ name, title: 'Integration' }))
-              : (integrations ?? [])
-            ).map((integration) => (
-              <Checkbox
-                key={integration.name}
-                label={integration.title}
-                checked={
-                  !isLoading && selectedBindingsSet.has(integration.name)
-                }
-                onCheckedChange={() => onToggle(integration.name)}
-              />
-            ))}
-          </Grid>
+          <MultiSelect
+            value={value}
+            onValueChange={onChange}
+            options={options}
+            placeholder={t('agents.form.bindIntegrationsPlaceholder')}
+            searchPlaceholder={searchPlaceholder}
+            emptyText={emptyText}
+            aria-label={t('agents.form.sectionIntegrationBindings')}
+          />
         )}
       </FormSection>
     </Skeletonize>
@@ -338,20 +310,32 @@ function IntegrationBindingsSection({
 function WorkflowBindingsSection({
   workflows,
   isLoading,
-  selectedBindingsSet,
-  onToggle,
+  value,
+  onChange,
+  searchPlaceholder,
+  emptyText,
   t,
 }: {
   workflows:
     | Array<{ id: string; name: string; description?: string }>
     | undefined;
   isLoading: boolean;
-  selectedBindingsSet: Set<string>;
-  onToggle: (id: string) => void;
+  value: string[];
+  onChange: (next: string[]) => void;
+  searchPlaceholder: string;
+  emptyText: string;
   t: (key: string) => string;
 }) {
-  const placeholders = ['__p_wf_0', '__p_wf_1'];
   const isEmpty = !isLoading && (!workflows || workflows.length === 0);
+  const options = useMemo(
+    () =>
+      (workflows ?? []).map((workflow) => ({
+        value: workflow.id,
+        label: workflow.name,
+        description: workflow.description,
+      })),
+    [workflows],
+  );
 
   return (
     <Skeletonize
@@ -367,19 +351,15 @@ function WorkflowBindingsSection({
             {t('agents.form.noWorkflowsAvailable')}
           </Text>
         ) : (
-          <Grid cols={2} className="gap-x-4 gap-y-1.5">
-            {(isLoading
-              ? placeholders.map((id) => ({ id, name: 'Workflow' }))
-              : (workflows ?? [])
-            ).map((workflow) => (
-              <Checkbox
-                key={workflow.id}
-                label={workflow.name}
-                checked={!isLoading && selectedBindingsSet.has(workflow.id)}
-                onCheckedChange={() => onToggle(workflow.id)}
-              />
-            ))}
-          </Grid>
+          <MultiSelect
+            value={value}
+            onValueChange={onChange}
+            options={options}
+            placeholder={t('agents.form.bindWorkflowsPlaceholder')}
+            searchPlaceholder={searchPlaceholder}
+            emptyText={emptyText}
+            aria-label={t('agents.form.sectionWorkflowBindings')}
+          />
         )}
       </FormSection>
     </Skeletonize>

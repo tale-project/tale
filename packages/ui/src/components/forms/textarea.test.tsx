@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
+import { render, screen } from '@/tests/utils/render';
 
 import { Textarea } from './textarea';
 
@@ -9,6 +9,58 @@ describe('Textarea', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<Textarea aria-label="Bio" />);
+      await checkAccessibility(container);
+    });
+  });
+
+  describe('disabledReason', () => {
+    it('keeps native disabled when no reason is given', () => {
+      render(<Textarea aria-label="Bio" disabled />);
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).toBeDisabled();
+      // Native `disabled` already conveys the state; no redundant aria-disabled.
+      expect(textarea).not.toHaveAttribute('aria-disabled');
+    });
+
+    it('soft-disables (aria-disabled, focusable, readOnly) with a reason', () => {
+      render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
+      const textarea = screen.getByRole('textbox');
+      expect(textarea).not.toBeDisabled();
+      expect(textarea).toHaveAttribute('aria-disabled', 'true');
+      expect(textarea).toHaveAttribute('readonly');
+      expectFocusable(textarea);
+    });
+
+    it('surfaces the reason as a tooltip on focus', async () => {
+      const { user } = render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Unlock first');
+    });
+
+    it('ignores the reason while enabled', () => {
+      render(<Textarea aria-label="Bio" disabledReason="Unlock first" />);
+      expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-disabled');
+    });
+
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(<Textarea aria-label="Bio" disabled disabledReason="   " />);
+      const textarea = screen.getByRole('textbox');
+      // A blank reason explains nothing, so the control must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(textarea).toBeDisabled();
+      expect(textarea).not.toHaveAttribute('aria-disabled');
+      expect(textarea).not.toHaveAttribute('readonly');
+    });
+
+    it('passes axe audit for a soft-disabled textarea', async () => {
+      const { container } = render(
+        <Textarea aria-label="Bio" disabled disabledReason="Unlock first" />,
+      );
       await checkAccessibility(container);
     });
   });

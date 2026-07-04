@@ -11,6 +11,9 @@ import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH } from './constants';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
 import { normalizeEmails } from './normalize_email';
+import { normalizeExternalMessageId } from './normalize_external_message_id';
+import { customerEmailFromConversationMetadata } from './resolve_customer_email';
+import { resolveEmailConversationTarget } from './resolve_email_conversation_target';
 import type {
   EmailType,
   ConversationStatus,
@@ -19,22 +22,6 @@ import type {
 import { updateMessage } from './update_message';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
-
-// Helper to extract the first (root) message ID from References header
-function extractRootMessageId(email: EmailType): string | null {
-  if (!email.headers) return null;
-
-  const references = email.headers['references'];
-  if (!references) return null;
-
-  // Split by comma and/or whitespace, get the first message ID
-  const refIds = references
-    .split(/,\s*|\s+/)
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0 && id !== ',');
-
-  return refIds.length > 0 ? refIds[0] : null;
-}
 
 /**
  * Determine email direction using the best available signal:
@@ -55,6 +42,40 @@ function resolveDirection(
   return null;
 }
 
+function customerEmailFromMetadata(metadata: unknown): string | undefined {
+  if (!isRecord(metadata)) return undefined;
+  const convRootFromRaw = metadata.from;
+  const convRootFrom = Array.isArray(convRootFromRaw)
+    ? convRootFromRaw
+    : undefined;
+  const firstFrom = convRootFrom?.[0];
+  return isRecord(firstFrom)
+    ? getString(firstFrom, 'address')?.toLowerCase()
+    : undefined;
+}
+
+function resolveIsCustomer(
+  email: EmailType,
+  accountEmailLower: string | undefined,
+  customerEmail: string | undefined,
+): boolean {
+  const direction = resolveDirection(email, accountEmailLower);
+  if (direction) return direction === 'inbound';
+  if (customerEmail) {
+    return email.from[0]?.address?.toLowerCase() === customerEmail;
+  }
+  return true;
+}
+
+function registerInBatch(
+  inBatchMap: Map<string, Id<'conversations'>>,
+  messageId: string | undefined,
+  conversationId: Id<'conversations'>,
+) {
+  const normalized = normalizeExternalMessageId(messageId);
+  if (normalized) inBatchMap.set(normalized, conversationId);
+}
+
 export async function createConversationFromEmail(
   ctx: ActionCtx,
   params: {
@@ -67,21 +88,16 @@ export async function createConversationFromEmail(
     integrationName?: string;
   },
 ) {
-  // Handle single email, array of emails, and raw provider API objects
-  // normalizeEmails detects raw Gmail API responses and maps them to EmailType
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
 
   if (emailsArray.length === 0) {
     return { conversationId: null, created: false, reason: 'no_emails' };
   }
 
-  // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
-  // Cap email count to stay within Convex action argument size limits.
-  // Keeping oldest-first preserves the root email needed for threading.
   if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
     debugLog(
       'create_from_email Truncating emails from',
@@ -95,219 +111,175 @@ export async function createConversationFromEmail(
   debugLog('create_from_email Processing', emailsArray.length, 'emails');
 
   const accountEmailLower = params.accountEmail?.toLowerCase();
+  const inBatchMap = new Map<string, Id<'conversations'>>();
+  const customerEmailByConversation = new Map<string, string>();
+  const conversationIds = new Set<Id<'conversations'>>();
 
-  // Determine the root message ID for the conversation
-  // Priority:
-  // 1. First message ID in References header (if available)
-  // 2. The oldest email's message ID
-  let rootMessageId: string;
-  let rootEmail: EmailType;
+  let lastConversationId: Id<'conversations'> | null = null;
+  let anyCreated = false;
+  let processedCount = 0;
+  let skippedCount = 0;
 
-  // Try to find the root message ID from References header
-  const firstEmailWithReferences = emailsArray.find(
-    (email) => email.headers && email.headers['references'],
-  );
-
-  if (firstEmailWithReferences) {
-    const referencesRootId = extractRootMessageId(firstEmailWithReferences);
-    if (referencesRootId) {
-      debugLog(
-        'create_from_email Found root message ID from References:',
-        referencesRootId,
-      );
-
-      // Try to find this message in our fetched emails
-      const rootEmailFromReferences = emailsArray.find(
-        (email) => email.messageId === referencesRootId,
-      );
-
-      if (rootEmailFromReferences) {
-        debugLog('create_from_email Root message found in fetched emails');
-        rootEmail = rootEmailFromReferences;
-        rootMessageId = referencesRootId;
-      } else {
-        debugLog(
-          'create_from_email Root message not in fetched emails, checking if conversation exists...',
-        );
-        // Check if a conversation already exists for this root message ID
-        const existingConvForRoot = await checkConversationExists(
-          ctx,
-          params.organizationId,
-          referencesRootId,
-        );
-
-        if (existingConvForRoot) {
-          debugLog(
-            'create_from_email Found existing conversation for root message:',
-            existingConvForRoot._id,
-          );
-          // Add all emails as messages to this existing conversation
-          for (const email of emailsArray) {
-            // Check if message already exists
-            const existingMessage = await checkMessageExists(
-              ctx,
-              params.organizationId,
-              email.messageId,
-            );
-
-            if (existingMessage) {
-              debugLog(
-                'create_from_email Message already exists, updating:',
-                email.messageId,
-              );
-              // Update existing message with delivered state and metadata
-              await updateMessage(ctx, existingMessage._id, email);
-              continue;
-            }
-
-            const direction = resolveDirection(email, accountEmailLower);
-            let isCustomer: boolean;
-
-            if (direction) {
-              isCustomer = direction === 'inbound';
-            } else {
-              // Fallback: use the conversation's stored root sender as customer
-              const convMetadata = isRecord(existingConvForRoot.metadata)
-                ? existingConvForRoot.metadata
-                : undefined;
-              const convRootFromRaw = convMetadata
-                ? convMetadata.from
-                : undefined;
-              const convRootFrom = Array.isArray(convRootFromRaw)
-                ? convRootFromRaw
-                : undefined;
-              const firstFrom = convRootFrom?.[0];
-              const convCustomerAddress = isRecord(firstFrom)
-                ? getString(firstFrom, 'address')?.toLowerCase()
-                : undefined;
-              isCustomer =
-                email.from[0]?.address?.toLowerCase() === convCustomerAddress;
-            }
-
-            await addMessageToConversation(
-              ctx,
-              existingConvForRoot._id,
-              params.organizationId,
-              email,
-              isCustomer,
-              'delivered',
-              params.integrationName,
-            );
-          }
-
-          // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-          return {
-            conversationId: existingConvForRoot._id,
-            created: false,
-            isThreaded: emailsArray.length > 1,
-            messageCount: emailsArray.length,
-          };
-        }
-
-        // Root message not found, use oldest email as root
-        debugLog(
-          'create_from_email Root message not found, using oldest email as root',
-        );
-        rootEmail = emailsArray[0];
-        rootMessageId = rootEmail.messageId;
-      }
-    } else {
-      // No valid root ID in References, use oldest email
-      rootEmail = emailsArray[0];
-      rootMessageId = rootEmail.messageId;
+  for (const email of emailsArray) {
+    if (!email.messageId) {
+      skippedCount++;
+      continue;
     }
-  } else {
-    // No References header, use oldest email
-    rootEmail = emailsArray[0];
-    rootMessageId = rootEmail.messageId;
-  }
 
-  debugLog('create_from_email Using root message ID:', rootMessageId);
-
-  if (!rootMessageId) {
-    return {
-      conversationId: null,
-      created: false,
-      reason: 'no_message_id',
-    };
-  }
-
-  // Check if conversation already exists for the root email
-  const existingConversation = await checkConversationExists(
-    ctx,
-    params.organizationId,
-    rootMessageId,
-  );
-
-  let conversationId: Id<'conversations'>;
-  let conversationCreated: boolean;
-  let customerEmail: string | undefined;
-
-  // Determine root direction
-  const rootDirection =
-    resolveDirection(rootEmail, accountEmailLower) ?? 'inbound';
-
-  // If conversation exists, use it
-  if (existingConversation) {
-    debugLog(
-      'create_from_email Conversation already exists:',
-      existingConversation._id,
+    const existingMessage = await checkMessageExists(
+      ctx,
+      params.organizationId,
+      email.messageId,
     );
-    conversationId = existingConversation._id;
-    conversationCreated = false;
 
-    // Identify customer email from root direction
-    if (rootDirection === 'outbound') {
-      customerEmail = rootEmail.to?.[0]?.address?.toLowerCase();
-    } else {
-      customerEmail = rootEmail.from?.[0]?.address?.toLowerCase();
+    if (existingMessage) {
+      debugLog(
+        'create_from_email Message already exists, updating:',
+        email.messageId,
+      );
+      await updateMessage(ctx, existingMessage._id, email);
+      lastConversationId = existingMessage.conversationId;
+      conversationIds.add(existingMessage.conversationId);
+      processedCount++;
+      registerInBatch(
+        inBatchMap,
+        email.messageId,
+        existingMessage.conversationId,
+      );
+      continue;
     }
-  } else {
-    // Find or create customer
+
+    const existingRootConversation = await checkConversationExists(
+      ctx,
+      params.organizationId,
+      email.messageId,
+    );
+
+    if (existingRootConversation) {
+      debugLog(
+        'create_from_email Conversation already exists for message:',
+        email.messageId,
+      );
+      lastConversationId = existingRootConversation._id;
+      conversationIds.add(existingRootConversation._id);
+      processedCount++;
+      registerInBatch(
+        inBatchMap,
+        email.messageId,
+        existingRootConversation._id,
+      );
+      const customerEmail =
+        customerEmailFromConversationMetadata(
+          existingRootConversation.metadata,
+        ) ?? customerEmailFromMetadata(existingRootConversation.metadata);
+      if (customerEmail) {
+        customerEmailByConversation.set(
+          existingRootConversation._id,
+          customerEmail,
+        );
+      }
+      continue;
+    }
+
+    const targetConversationId = await resolveEmailConversationTarget(
+      ctx,
+      params.organizationId,
+      email,
+      inBatchMap,
+    );
+
+    if (targetConversationId) {
+      debugLog(
+        'create_from_email Adding threaded message to conversation:',
+        targetConversationId,
+      );
+
+      let customerEmail = customerEmailByConversation.get(targetConversationId);
+      if (!customerEmail) {
+        const conversation = await ctx.runQuery(
+          internal.conversations.internal_queries.getConversationById,
+          { conversationId: targetConversationId },
+        );
+        customerEmail =
+          customerEmailFromConversationMetadata(
+            conversation?.metadata,
+            conversation?.direction,
+          ) ?? customerEmailFromMetadata(conversation?.metadata);
+        if (customerEmail) {
+          customerEmailByConversation.set(targetConversationId, customerEmail);
+        }
+      }
+
+      const isCustomer = resolveIsCustomer(
+        email,
+        accountEmailLower,
+        customerEmail,
+      );
+
+      await addMessageToConversation(
+        ctx,
+        targetConversationId,
+        params.organizationId,
+        email,
+        isCustomer,
+        'delivered',
+        params.integrationName,
+      );
+
+      lastConversationId = targetConversationId;
+      conversationIds.add(targetConversationId);
+      processedCount++;
+      registerInBatch(inBatchMap, email.messageId, targetConversationId);
+      continue;
+    }
+
+    const direction = resolveDirection(email, accountEmailLower) ?? 'inbound';
     const customerResult = await findOrCreateCustomerFromEmail(
       ctx,
       params.organizationId,
-      rootEmail,
-      rootDirection,
+      email,
+      direction,
     );
 
     if (!customerResult) {
-      // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-      return {
-        conversationId: null,
-        created: false,
-        reason: 'no_sender',
-      };
+      debugLog(
+        'create_from_email Skipping email with no sender/recipient:',
+        email.messageId,
+      );
+      skippedCount++;
+      continue;
     }
 
-    customerEmail = customerResult.email?.toLowerCase();
-    const rootIsFromCustomer =
-      rootEmail.from?.[0]?.address?.toLowerCase() === customerEmail;
+    const customerEmail = customerResult.email.toLowerCase();
+    const isFromCustomer =
+      email.from?.[0]?.address?.toLowerCase() === customerEmail;
 
-    // Create new conversation with initial message
-    debugLog('create_from_email Creating conversation from root email');
+    debugLog(
+      'create_from_email Creating conversation from email:',
+      email.messageId,
+    );
     const result = await ctx.runMutation(
       internal.conversations.internal_mutations.createConversationWithMessage,
       {
         organizationId: params.organizationId,
         customerId: customerResult.customerId,
-        externalMessageId: rootEmail.messageId,
-        subject: rootEmail.subject || '(no subject)',
+        externalMessageId: normalizeExternalMessageId(email.messageId),
+        subject: email.subject || '(no subject)',
         status: params.status ?? 'open',
         priority: params.priority,
         type: params.type || 'general',
         channel: 'email',
-        direction: rootDirection,
-        metadata: buildConversationMetadata(rootEmail, {
-          isThreaded: emailsArray.length > 1,
-          threadMessageCount: emailsArray.length,
+        direction,
+        metadata: buildConversationMetadata(email, {
+          isThreaded: false,
+          threadMessageCount: 1,
           ...(params.integrationName
             ? { integrationName: params.integrationName }
             : {}),
         }),
         initialMessage: buildInitialMessage(
-          rootEmail,
-          rootIsFromCustomer,
+          email,
+          isFromCustomer,
           'delivered',
           params.integrationName,
         ),
@@ -317,67 +289,34 @@ export async function createConversationFromEmail(
       },
     );
 
-    conversationId = result.conversationId;
-    conversationCreated = true;
-    debugLog('create_from_email Created conversation:', conversationId);
+    lastConversationId = result.conversationId;
+    conversationIds.add(result.conversationId);
+    anyCreated = true;
+    processedCount++;
+    registerInBatch(inBatchMap, email.messageId, result.conversationId);
+    customerEmailByConversation.set(result.conversationId, customerEmail);
   }
 
-  // Create conversationMessages for remaining emails in the thread
-  // Add all emails except the root email (which was used to create the conversation)
-  const emailsToAdd = emailsArray.filter(
-    (email) => email.messageId !== rootMessageId,
-  );
-
-  if (emailsToAdd.length > 0) {
-    debugLog(
-      'create_from_email Creating',
-      emailsToAdd.length,
-      'additional messages',
-    );
-
-    for (const email of emailsToAdd) {
-      // Check if this message already exists
-      const existingMsg = await checkMessageExists(
-        ctx,
-        params.organizationId,
-        email.messageId,
-      );
-
-      if (existingMsg) {
-        debugLog(
-          'create_from_email Message already exists, updating:',
-          email.messageId,
-        );
-        // Update existing message with delivered state and metadata
-        await updateMessage(ctx, existingMsg._id, email);
-        continue;
-      }
-
-      // Determine if this is from customer or agent
-      const direction = resolveDirection(email, accountEmailLower);
-      const isCustomer = direction
-        ? direction === 'inbound'
-        : email.from[0]?.address?.toLowerCase() === customerEmail;
-
-      await addMessageToConversation(
-        ctx,
-        conversationId,
-        params.organizationId,
-        email,
-        isCustomer,
-        'delivered',
-        params.integrationName,
-      );
-
-      debugLog('create_from_email Created message:', email.messageId);
-    }
+  if (processedCount === 0 && skippedCount > 0) {
+    return {
+      conversationId: null,
+      created: false,
+      reason: 'no_message_id',
+      processedCount,
+      skippedCount,
+      conversationIds: [],
+    };
   }
 
-  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  const uniqueConversationIds = [...conversationIds];
+
   return {
-    conversationId,
-    created: conversationCreated,
-    isThreaded: emailsArray.length > 1,
-    messageCount: emailsArray.length,
+    conversationId: lastConversationId,
+    conversationIds: uniqueConversationIds,
+    created: anyCreated,
+    isThreaded: uniqueConversationIds.length === 1 && processedCount > 1,
+    messageCount: processedCount,
+    processedCount,
+    skippedCount,
   };
 }

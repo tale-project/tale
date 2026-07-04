@@ -70,7 +70,7 @@ test.describe('settings depth — organization', () => {
     // still show the original name; the toast is the commit signal. We assert
     // persistence off the reloaded FIELD, not the toast.
     await expect(
-      page.getByText(t('toast.success.organizationUpdated')).first(),
+      page.getByText(t('toast.success.organizationUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(newName, { timeout: TIMEOUT.PERSIST });
@@ -81,7 +81,7 @@ test.describe('settings depth — organization', () => {
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
     await expect(
-      page.getByText(t('toast.success.organizationUpdated')).first(),
+      page.getByText(t('toast.success.organizationUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {
@@ -207,7 +207,7 @@ test.describe('settings depth — branding', () => {
     // mid-save aborts the in-flight mutation; the toast is the commit signal.
     // Persistence is asserted off the reloaded FIELD below, not the toast.
     await expect(
-      page.getByText(t('toast.success.brandingUpdated')).first(),
+      page.getByText(t('toast.success.brandingUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, brandColorField);
     await expect(brandColorField).toHaveValue(/123456/i, {
@@ -221,7 +221,7 @@ test.describe('settings depth — branding', () => {
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
     await expect(
-      page.getByText(t('toast.success.brandingUpdated')).first(),
+      page.getByText(t('toast.success.brandingUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, brandColorField);
     await expect(brandColorField).toHaveValue(originalBrandColor, {

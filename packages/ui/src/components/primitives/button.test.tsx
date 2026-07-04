@@ -309,6 +309,154 @@ describe('Button', () => {
       expect(button.className).toContain('disabled:active:scale-100');
     });
   });
+
+  describe('disabledReason', () => {
+    it('keeps native disabled when no reason is given', () => {
+      render(<Button disabled>Disabled</Button>);
+      const button = screen.getByRole('button');
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('keeps native disabled when the reason is empty/whitespace', () => {
+      render(
+        <Button disabled disabledReason="   ">
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      // A blank reason explains nothing, so the button must fall back to a
+      // native disable rather than become inert-but-focusable with no tooltip.
+      expect(button).toBeDisabled();
+    });
+
+    it('soft-disables (aria-disabled, focusable) when a reason is given', () => {
+      render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      // Not natively disabled, so it stays in the tab order and emits events…
+      expect(button).not.toBeDisabled();
+      // …but is still announced as disabled to assistive tech.
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expectFocusable(button);
+    });
+
+    it('surfaces the reason as a tooltip on focus', async () => {
+      const { user } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await user.tab();
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Pick an agent first');
+    });
+
+    it('does not activate a soft-disabled button on click or Enter', async () => {
+      const handleClick = vi.fn();
+      const { user } = render(
+        <Button
+          onClick={handleClick}
+          disabled
+          disabledReason="Pick an agent first"
+        >
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      await user.click(button);
+      button.focus();
+      await user.keyboard('{Enter}');
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+
+    it('does not activate a soft-disabled button on Space', async () => {
+      const handleClick = vi.fn();
+      const { user } = render(
+        <Button
+          onClick={handleClick}
+          disabled
+          disabledReason="Pick an agent first"
+        >
+          Send
+        </Button>,
+      );
+      const button = screen.getByRole('button');
+      button.focus();
+      await user.keyboard(' ');
+      expect(handleClick).not.toHaveBeenCalled();
+    });
+
+    it('defaults a soft-disabled button to type="button" so it cannot implicitly submit', () => {
+      render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      // A soft-disabled button keeps emitting events, so without an explicit
+      // type it would act as an implicit submit button inside a <form>.
+      expect(screen.getByRole('button')).toHaveAttribute('type', 'button');
+    });
+
+    it('lets an explicit type win over the soft-disabled default', () => {
+      render(
+        <Button type="submit" disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      expect(screen.getByRole('button')).toHaveAttribute('type', 'submit');
+    });
+
+    it('describes the focused soft-disabled button via aria-describedby', async () => {
+      const { user } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await user.tab();
+      const button = screen.getByRole('button');
+      // Radix wires the open tooltip to the trigger via aria-describedby so the
+      // reason reaches screen-reader users on focus, not just on hover.
+      const describedBy = button.getAttribute('aria-describedby');
+      expect(describedBy).toBeTruthy();
+      const description = describedBy
+        ? document.getElementById(describedBy)
+        : null;
+      expect(description).toHaveTextContent('Pick an agent first');
+    });
+
+    it('suppresses the reason tooltip under asChild (Slot)', () => {
+      // asChild renders a Radix Slot (typically another overlay's trigger);
+      // soft-disable can't work through it, so no tooltip trigger is added.
+      render(
+        <Button asChild disabled disabledReason="Pick an agent first">
+          <a href="/test">Link</a>
+        </Button>,
+      );
+      const link = screen.getByRole('link', { name: 'Link' });
+      expect(link).toBeInTheDocument();
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('ignores the reason while the button is enabled', () => {
+      render(<Button disabledReason="Pick an agent first">Send</Button>);
+      const button = screen.getByRole('button');
+      expect(button).not.toBeDisabled();
+      expect(button).not.toHaveAttribute('aria-disabled');
+    });
+
+    it('passes axe audit for a soft-disabled button', async () => {
+      const { container } = render(
+        <Button disabled disabledReason="Pick an agent first">
+          Send
+        </Button>,
+      );
+      await checkAccessibility(container);
+    });
+  });
 });
 
 describe('LinkButton', () => {
