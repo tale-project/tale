@@ -182,7 +182,7 @@ function ReadinessChecklist({
               gap={3}
               className="items-center justify-between"
             >
-              <VStack gap={0.5} className="min-w-0">
+              <VStack gap={1} className="min-w-0">
                 <Text variant="muted" className="text-sm">
                   {hint}
                 </Text>
@@ -243,14 +243,21 @@ function ReadinessSection({
     () =>
       agentReadiness
         .filter((a) => !a.ready)
-        .map((a) => ({
-          agentSlug: a.agentSlug,
-          displayName: a.displayName,
-          missingEnvKeys: a.requiredEnv.filter((e) => !e.set).map((e) => e.key),
-          ...(a.credentialMismatch !== undefined && {
-            credentialMismatch: a.credentialMismatch,
-          }),
-        })),
+        .map((a) => {
+          const blocked = {
+            agentSlug: a.agentSlug,
+            displayName: a.displayName,
+            missingEnvKeys: a.requiredEnv
+              .filter((e) => !e.set)
+              .map((e) => e.key),
+          };
+          if (a.credentialMismatch !== undefined) {
+            Object.assign(blocked, {
+              credentialMismatch: a.credentialMismatch,
+            });
+          }
+          return blocked;
+        }),
     [agentReadiness],
   );
 

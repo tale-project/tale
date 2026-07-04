@@ -6,3 +6,13 @@ declare module '*.woff2?url' {
   const src: string;
   export default src;
 }
+
+declare module '@fontsource/inter/files/inter-latin-400-normal.woff2?url' {
+  const src: string;
+  export default src;
+}
+
+declare module '@fontsource/inter/files/inter-latin-500-normal.woff2?url' {
+  const src: string;
+  export default src;
+}

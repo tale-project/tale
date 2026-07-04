@@ -3,7 +3,7 @@
  * required `requires.config` values so the "Configuration needed" prompt can hide.
  */
 
-export interface AppConfigFieldShape {
+interface AppConfigFieldShape {
   key: string;
   type: 'string' | 'number' | 'boolean';
   /** When true, an empty stored value still counts as configured. */

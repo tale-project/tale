@@ -29,7 +29,7 @@ type AgentReadinessMode =
   | 'external-env-managed'
   | 'external-byo';
 
-export interface RequiredEnvKey {
+interface RequiredEnvKey {
   key: string;
   secret: boolean;
   description?: string;
@@ -134,9 +134,6 @@ export interface CredentialRuntimeMismatchDetail {
   /** Env var names currently set that belong to the other runtime. */
   configuredKeys: readonly string[];
 }
-
-/** @deprecated Use CredentialRuntimeMismatchCode */
-export type CredentialRuntimeMismatch = CredentialRuntimeMismatchCode;
 
 export function formatEnvKeyList(keys: readonly string[]): string {
   return keys.join(', ');

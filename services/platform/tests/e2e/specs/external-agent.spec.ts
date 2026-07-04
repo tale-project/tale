@@ -159,7 +159,12 @@ test.describe('external agent (Cursor)', () => {
       .click();
 
     await saveAndExpectToast(page);
-    await reloadAndSettle(page);
+    await reloadAndSettle(
+      page,
+      page.getByRole('navigation', {
+        name: t('common.aria.agentsNavigation'),
+      }),
+    );
 
     await expect(
       page.getByRole('radio', {
@@ -211,7 +216,12 @@ test.describe('external agent (Cursor)', () => {
     await expect(page.getByText(FALLBACK_RUNTIME_MODEL)).toBeVisible();
 
     await saveAndExpectToast(page);
-    await reloadAndSettle(page);
+    await reloadAndSettle(
+      page,
+      page.getByLabel(t('settings.agents.form.byo.modelLabel'), {
+        exact: true,
+      }),
+    );
 
     await expect(page.getByText(PRIMARY_RUNTIME_MODEL)).toBeVisible({
       timeout: TIMEOUT.VISIBLE,
