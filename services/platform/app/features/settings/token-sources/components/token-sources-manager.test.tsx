@@ -4,6 +4,7 @@ import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { toast } from '@/app/hooks/use-toast';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
@@ -24,6 +25,8 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
+
+const { saveMock } = vi.hoisted(() => ({ saveMock: vi.fn() }));
 
 vi.mock('@/app/hooks/use-action-query', () => ({
   // The list query is enabled; the form-sheet detail query is disabled in
@@ -50,7 +53,7 @@ vi.mock('@/app/hooks/use-action-query', () => ({
 }));
 
 vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useConvexAction: () => ({ mutateAsync: saveMock, isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-list-page', () => ({
@@ -87,5 +90,40 @@ describe('TokenSourcesManager', () => {
     ).toBeInTheDocument();
 
     await checkAccessibility(baseElement);
+  });
+
+  it('maps server field errors inline and never leaks the raw ConvexError (#2350)', async () => {
+    saveMock.mockRejectedValueOnce({
+      data: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid token source configuration',
+        fieldErrors: { slug: ['Required'], endpoint: ['Invalid URL'] },
+      },
+    });
+
+    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /tokenSources\.save$/i }),
+    );
+
+    // Per-field messages surface inline on the offending inputs…
+    expect(await screen.findByText('Required')).toBeInTheDocument();
+    expect(screen.getByText('Invalid URL')).toBeInTheDocument();
+
+    // …the toast carries a clean localized description, never the raw JSON.
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'common.editor.fixHighlightedFields',
+      }),
+    );
+    const rawLeaked = vi
+      .mocked(toast)
+      .mock.calls.some((c) =>
+        JSON.stringify(c).includes('Invalid token source configuration'),
+      );
+    expect(rawLeaked).toBe(false);
   });
 });
