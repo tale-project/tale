@@ -3413,6 +3413,7 @@
       "presetApplied": "Preset applied",
       "presetAppliedMappings": "Added {count} default category mappings (all in flag mode — tune them below).",
       "customJsonPathHint": "Open Endpoint below, fill in your HTTPS URL, request body template, and the JSONPath for categories. The switch won't persist until those fields are set.",
+      "enableNeedsEndpoint": "Set an endpoint first. Open Endpoint below and add the moderation API URL — enabling won't persist until it's configured.",
       "apiKey": "API key",
       "apiKeyDescription": "Pasted here, encrypted with AES-256-GCM on the server, and stored in governanceSecrets. The plaintext value replaces `{secretPlaceholder}` in your endpoint headers at request time. Use the full header value for Authorization-style headers (e.g. 'Bearer sk-…'); raw key for Azure's Ocp-Apim-Subscription-Key.",
       "apiKeyPlaceholder": "Bearer sk-... or raw API key",

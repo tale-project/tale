@@ -3411,6 +3411,7 @@
       "presetApplied": "Preset appliqué",
       "presetAppliedMappings": "{count} correspondances de catégories par défaut ajoutées (toutes en mode flag — à ajuster ci-dessous).",
       "customJsonPathHint": "Ouvre « Endpoint » ci-dessous, renseigne ton URL HTTPS, le template de corps de requête et le JSONPath des catégories. Le commutateur ne persistera pas tant que ces champs ne sont pas définis.",
+      "enableNeedsEndpoint": "Définis d'abord un endpoint. Ouvre « Endpoint » ci-dessous et ajoute l'URL de l'API de modération — l'activation ne persistera pas tant qu'il n'est pas configuré.",
       "apiKey": "Clé API",
       "apiKeyDescription": "Collée ici, chiffrée avec AES-256-GCM côté serveur et stockée dans `governanceSecrets`. La valeur en clair remplace `{secretPlaceholder}` dans les headers de ton endpoint au moment de la requête. Utilise la valeur complète pour les headers de type Authorization (p. ex. 'Bearer sk-…') ; la clé brute pour `Ocp-Apim-Subscription-Key` d'Azure.",
       "apiKeyPlaceholder": "Bearer sk-... ou clé API brute",

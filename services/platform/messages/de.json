@@ -3410,6 +3410,7 @@
       "presetApplied": "Preset angewendet",
       "presetAppliedMappings": "{count} Standard-Kategorie-Zuordnungen hinzugefügt (alle im flag-Modus — unten feinjustieren).",
       "customJsonPathHint": "Öffne unten „Endpoint“, trage deine HTTPS-URL, das Request-Body-Template und den JSONPath für Kategorien ein. Der Schalter bleibt nicht gespeichert, bis diese Felder gesetzt sind.",
+      "enableNeedsEndpoint": "Lege zuerst einen Endpoint fest. Öffne unten „Endpoint“ und trage die URL der Moderations-API ein — das Aktivieren bleibt nicht gespeichert, bis er konfiguriert ist.",
       "apiKey": "API-Schlüssel",
       "apiKeyDescription": "Hier eingefügt, serverseitig mit AES-256-GCM verschlüsselt und in `governanceSecrets` gespeichert. Der Klartextwert ersetzt `{secretPlaceholder}` in deinen Endpoint-Headern zur Request-Zeit. Verwende den vollständigen Header-Wert für Authorization-Header (z. B. 'Bearer sk-…'); den reinen Schlüssel für Azures `Ocp-Apim-Subscription-Key`.",
       "apiKeyPlaceholder": "Bearer sk-... oder reiner API-Schlüssel",
