@@ -333,7 +333,7 @@ export const listTasksByOrg = query({
   },
 });
 
-/** Fetch a single task with the caller's edit/claim affordances. */
+/** Fetch a single task with the caller's edit/claim/comment affordances. */
 export const getTask = query({
   args: { taskId: v.id('tasks'), organizationId: v.string() },
   returns: v.union(
@@ -342,6 +342,12 @@ export const getTask = query({
       task: taskRowValidator,
       canEdit: v.boolean(),
       canClaim: v.boolean(),
+      // Whether the caller may post/comment on the task's discussion. Commenting
+      // is a READ-level action (any org member who can read the task, mirroring
+      // a project discussion reply — see `addTaskComment`), so it's true for
+      // read-only members who cannot otherwise edit the task (#2339). The modal
+      // gates the comment composer off this rather than `canEdit`.
+      canComment: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -352,7 +358,14 @@ export const getTask = query({
       task.projectId,
       args.organizationId,
     );
-    return { task, canEdit, canClaim: canEdit && canClaimTask(task) };
+    // Reaching here means the caller passed the read gate in
+    // `loadAccessibleProject`, which is exactly the requirement to comment.
+    return {
+      task,
+      canEdit,
+      canClaim: canEdit && canClaimTask(task),
+      canComment: true,
+    };
   },
 });
 
