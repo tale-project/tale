@@ -335,16 +335,23 @@ export const FilePartDisplay = memo(function FilePartDisplay({
   filePart,
   onImageClick,
   onEditImage,
+  isAssistantImage,
   organizationId,
 }: {
   filePart: FilePart;
   onImageClick?: () => void;
   /**
-   * Shortcut for image-generation agents: when set, renders an ↻ Edit button
-   * overlay on image thumbnails. Clicking it promotes this image to the
-   * composer's editing reference (pre-attached on next send).
+   * Shortcut for image-generation agents: when set, renders an Edit button
+   * overlay on the image. Clicking it promotes this image to the composer's
+   * editing reference (pre-attached on next send).
    */
   onEditImage?: () => void;
+  /**
+   * True when this file part is an assistant-generated image. Generated images
+   * are the focal output of a turn, so they render at a readable display size
+   * rather than the small 36px thumbnail used for incidental images.
+   */
+  isAssistantImage?: boolean;
   organizationId?: string;
 }) {
   const { t } = useT('chat');
@@ -365,23 +372,24 @@ export const FilePartDisplay = memo(function FilePartDisplay({
   if (fileId !== undefined && liveUrl === null) return null;
 
   if (isImage) {
-    // When onEditImage is provided, this is an assistant-generated image for
-    // an image-generation agent — render it full-size so the output is the
-    // focal point of the message. Otherwise keep the small 36px thumbnail
-    // used for incidental images on chat messages.
-    const isLarge = Boolean(onEditImage);
+    // Assistant-generated images (and any image carrying an edit shortcut) are
+    // the focal output of a turn — render them at a readable display size so
+    // the result is legible and its Edit affordance is reachable. Incidental
+    // images (e.g. on a user turn) keep the small 36px thumbnail.
+    const isLarge = Boolean(isAssistantImage) || Boolean(onEditImage);
     const containerClasses = isLarge
       ? 'relative inline-block max-w-md overflow-hidden rounded-xl ring-1 ring-border'
       : 'group relative inline-block';
     const buttonClasses = isLarge
-      ? 'block w-full cursor-pointer border-none bg-transparent p-0 transition-opacity hover:opacity-95 focus:outline-none'
+      ? 'block w-full cursor-pointer border-none bg-transparent p-0 transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset'
       : 'ring-border focus:ring-ring size-9 cursor-pointer overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-80 focus:ring-2 focus:ring-offset-2 focus:outline-none';
     const imgClasses = isLarge
       ? 'block h-auto w-full object-contain'
       : 'size-full object-cover';
-    const editButtonClasses = isLarge
-      ? 'bg-background/90 ring-border text-foreground hover:bg-background absolute top-2 right-2 flex size-8 items-center justify-center rounded-full shadow-sm ring-1 transition-opacity focus:outline-none'
-      : 'bg-background/95 ring-border text-foreground hover:bg-background absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full opacity-0 shadow-sm ring-1 transition-opacity group-hover:opacity-100 focus:opacity-100 focus:outline-none';
+    // The Edit affordance is always visible and keyboard-focusable — never
+    // hover-only — so it stays reachable on touch/coarse pointers.
+    const editButtonClasses =
+      'bg-background/90 ring-border text-foreground hover:bg-background focus-visible:ring-ring absolute top-2 right-2 flex size-8 items-center justify-center rounded-full shadow-sm ring-1 transition-colors focus:outline-none focus-visible:ring-2';
 
     return (
       <div className={containerClasses}>
@@ -408,10 +416,7 @@ export const FilePartDisplay = memo(function FilePartDisplay({
             aria-label={t('imageEdit.editThis')}
             title={t('imageEdit.editThis')}
           >
-            <Pencil
-              className={isLarge ? 'size-4' : 'size-3'}
-              strokeWidth={1.75}
-            />
+            <Pencil className="size-4" strokeWidth={1.75} />
           </button>
         )}
       </div>
