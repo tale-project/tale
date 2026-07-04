@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -10,6 +11,29 @@ import { ExecutionsTable } from './executions-table';
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'test-org-id' }),
+  // Render a real anchor so the row action stays a keyboard-reachable link and
+  // its `to`/`params`/`search` are assertable (the canvas deep link, #2347).
+  Link: ({
+    to,
+    params,
+    search,
+    children,
+    ...props
+  }: {
+    to: string;
+    params?: unknown;
+    search?: unknown;
+    children?: ReactNode;
+  }) => (
+    <a
+      href={to}
+      data-params={JSON.stringify(params)}
+      data-search={JSON.stringify(search)}
+      {...props}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock('@tale/ui/i18n/locale-provider', async (importOriginal) => ({
@@ -99,6 +123,36 @@ describe('ExecutionsTable', () => {
       expect(
         within(table).queryByText('status.mysteryState'),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // Regression for #2347: the Executions tab only expanded inline JSON, with no
+  // path to the canvas run view. Each row now exposes a labelled "View on
+  // canvas" link that deep-links to `/automations/$amId?execution={runId}`,
+  // reusing the same `execution` param the tester panel writes.
+  describe('canvas run link', () => {
+    it('links each row to the canvas with its execution id', () => {
+      mockTableData = [
+        executionRow('exec-a', 'completed'),
+        executionRow('exec-b', 'failed'),
+      ];
+
+      render(<ExecutionsTable amId="am-1" organizationId="test-org-id" />);
+
+      const links = screen.getAllByRole('link', { name: 'View on canvas' });
+      expect(links).toHaveLength(2);
+      expect(links[0]).toHaveAttribute(
+        'href',
+        '/dashboard/$id/automations/$amId',
+      );
+      expect(links[0]).toHaveAttribute(
+        'data-search',
+        JSON.stringify({ execution: 'exec-a' }),
+      );
+      expect(links[0]).toHaveAttribute(
+        'data-params',
+        JSON.stringify({ id: 'test-org-id', amId: 'am-1' }),
+      );
     });
   });
 });

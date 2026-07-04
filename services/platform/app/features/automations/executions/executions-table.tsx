@@ -5,19 +5,21 @@ import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, startOfDay, endOfDay } from 'date-fns';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Workflow } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
+import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
   useApproxExecutionCount,
@@ -301,6 +303,35 @@ export function ExecutionsTable({
           </Text>
         ),
       },
+      {
+        id: 'actions',
+        size: ACTIONS_COLUMN_SIZE,
+        meta: { isAction: true },
+        // The row's inline JSON detail is the only affordance the list used to
+        // offer; the per-node canvas run view was reachable only by
+        // hand-editing `?execution=` (#2347). Link each row to the canvas with
+        // that param set, reusing the same mechanism the tester panel writes.
+        // `stopPropagation` keeps the click from also toggling the JSON row.
+        cell: ({ row }) => (
+          <HStack justify="end">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              title={tAutomations('executions.viewOnCanvas')}
+            >
+              <Link
+                to="/dashboard/$id/automations/$amId"
+                params={{ id: organizationId, amId: slugToUrlParam(amId) }}
+                search={{ execution: row.original._id }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Workflow className="size-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          </HStack>
+        ),
+      },
     ],
     [
       copiedId,
@@ -310,6 +341,9 @@ export function ExecutionsTable({
       calculateDuration,
       tTables,
       tCommon,
+      tAutomations,
+      organizationId,
+      amId,
     ],
   );
 

@@ -51,6 +51,10 @@ const AutomationSteps = lazy(() =>
 
 const searchSchema = z.object({
   panel: z.string().optional(),
+  // Viewed-run id for the canvas run view (per-node badges + "Viewing run …"
+  // banner). Written by the tester panel and by the Executions tab's "View on
+  // canvas" row action, and read via `ExecutionStatusProvider` (#2347).
+  execution: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
