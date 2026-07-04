@@ -1143,6 +1143,7 @@ export function ChatInput({
                     <ModelSelector
                       organizationId={organizationId}
                       projectId={projectId}
+                      threadId={threadId}
                     />
                     <ExternalAgentModeToggle
                       threadId={threadId}
