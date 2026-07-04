@@ -27,7 +27,7 @@ function mockCtx({
 }: {
   messageConversationId?: Id<'conversations'>;
   rootConversationId?: Id<'conversations'>;
-}): ActionCtx {
+}) {
   return {
     runQuery: vi.fn(async (_ref, args: { externalMessageId?: string }) => {
       if (
@@ -45,14 +45,14 @@ function mockCtx({
       return null;
     }),
     runMutation: vi.fn(),
-  } as unknown as ActionCtx;
+  };
 }
 
 describe('resolveEmailConversationTarget', () => {
   it('resolves via in-reply-to against stored messages', async () => {
     const ctx = mockCtx({ messageConversationId: CONV_ID });
     const target = await resolveEmailConversationTarget(
-      ctx,
+      ctx as unknown as ActionCtx,
       ORG,
       email({
         headers: {
@@ -69,7 +69,7 @@ describe('resolveEmailConversationTarget', () => {
   it('returns null for references-only email (no in-reply-to)', async () => {
     const ctx = mockCtx({ rootConversationId: CONV_ID });
     const target = await resolveEmailConversationTarget(
-      ctx,
+      ctx as unknown as ActionCtx,
       ORG,
       email({
         headers: {
@@ -90,7 +90,7 @@ describe('resolveEmailConversationTarget', () => {
     ]);
 
     const target = await resolveEmailConversationTarget(
-      ctx,
+      ctx as unknown as ActionCtx,
       ORG,
       email({
         headers: {
@@ -109,7 +109,7 @@ describe('resolveEmailConversationTarget', () => {
   it('returns null for unrelated email', async () => {
     const ctx = mockCtx({});
     const target = await resolveEmailConversationTarget(
-      ctx,
+      ctx as unknown as ActionCtx,
       ORG,
       email({ headers: { 'message-id': '<news@paystack.com>' } }),
     );

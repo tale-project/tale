@@ -10,7 +10,11 @@ export async function checkConversationExists(
   ctx: ActionCtx,
   organizationId: string,
   externalMessageId: string,
-): Promise<{ _id: Id<'conversations'>; metadata?: unknown } | null> {
+): Promise<{
+  _id: Id<'conversations'>;
+  metadata?: unknown;
+  direction?: 'inbound' | 'outbound';
+} | null> {
   const normalized = normalizeExternalMessageId(externalMessageId);
   if (!normalized) return null;
 
@@ -20,5 +24,9 @@ export async function checkConversationExists(
       organizationId,
       externalMessageId: normalized,
     },
-  )) as { _id: Id<'conversations'>; metadata?: unknown } | null;
+  )) as {
+    _id: Id<'conversations'>;
+    metadata?: unknown;
+    direction?: 'inbound' | 'outbound';
+  } | null;
 }
