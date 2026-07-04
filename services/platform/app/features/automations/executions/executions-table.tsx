@@ -2,7 +2,6 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -18,7 +17,6 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/debug_gate';
 import { useT } from '@/lib/i18n/client';
-import { formatDuration } from '@/lib/utils/format/number';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import {
@@ -27,6 +25,7 @@ import {
   useListExecutions,
   useSearchExecution,
 } from '../hooks/queries';
+import { formatDurationSeconds } from '../metrics/format-duration';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
@@ -132,7 +131,6 @@ export function ExecutionsTable({
 }: ExecutionsTableProps) {
   const navigate = useNavigate();
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
   const { t: tAutomations } = useT('automations');
@@ -215,12 +213,14 @@ export function ExecutionsTable({
         return tCommon('actions.loading');
       }
       if (execution.completedAt && execution.startedAt) {
-        const duration = execution.completedAt - execution.startedAt;
-        return formatDuration(duration, locale);
+        const durationMs = execution.completedAt - execution.startedAt;
+        // Humanize to match the metrics tables (e.g. "2m", "1h 5m") instead of
+        // rendering raw milliseconds. formatDurationSeconds takes whole seconds.
+        return formatDurationSeconds(Math.round(durationMs / 1000));
       }
       return tTables('cells.empty');
     },
-    [tCommon, tTables, locale],
+    [tCommon, tTables],
   );
 
   const columns = useMemo<ColumnDef<Execution>[]>(

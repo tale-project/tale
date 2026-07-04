@@ -14,6 +14,31 @@ export const websiteStatusValidator = v.union(
   v.literal('deleting'),
 );
 
+/**
+ * The allowed scan-interval cadences. This is the single source of truth for
+ * every write path (REST, the agent write tool, and the Convex actions) —
+ * `scanIntervalToSeconds` maps exactly these values, so an unrecognized value
+ * would silently fall back to the 6h default and get crawled at the wrong rate.
+ */
+export const SCAN_INTERVAL_VALUES = [
+  '60m',
+  '6h',
+  '12h',
+  '1d',
+  '5d',
+  '7d',
+  '30d',
+] as const;
+
+export type ScanInterval = (typeof SCAN_INTERVAL_VALUES)[number];
+
+export function isValidScanInterval(value: unknown): value is ScanInterval {
+  return (
+    typeof value === 'string' &&
+    (SCAN_INTERVAL_VALUES as readonly string[]).includes(value)
+  );
+}
+
 export const websiteValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

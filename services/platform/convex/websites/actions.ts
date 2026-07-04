@@ -64,6 +64,8 @@ export const createWebsite = action({
     domain: v.string(),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
+    // Runtime validation happens at the internal mutation chokepoint
+    // (`provisionWebsite`), which every write path funnels through.
     scanInterval: v.string(),
   },
   returns: v.id('websites'),
@@ -168,6 +170,8 @@ export const updateWebsite = action({
     domain: v.optional(v.string()),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
+    // Runtime validation happens at the internal mutation chokepoint
+    // (`patchWebsite`), which every write path funnels through.
     scanInterval: v.optional(v.string()),
   },
   returns: v.null(),

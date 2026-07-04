@@ -201,6 +201,12 @@ export interface DataTableProps<TData, TValue = unknown> {
   rowClassName?: string | ((row: Row<TData>) => string);
   /** Callback when a row is clicked */
   onRowClick?: (row: Row<TData>) => void;
+  /**
+   * Per-row guard for `onRowClick`. When provided, only rows for which it
+   * returns `true` are clickable (cursor + click handler); the rest render as
+   * plain rows. Defaults to every row being clickable when `onRowClick` is set.
+   */
+  isRowClickable?: (row: Row<TData>) => boolean;
   /** Whether rows are clickable (adds cursor pointer) */
   clickableRows?: boolean;
   /** Called when the pointer enters a row; use with usePreloadRoute for programmatic preloading */
@@ -283,6 +289,7 @@ export function DataTable<TData, TValue = unknown>({
   className,
   rowClassName,
   onRowClick,
+  isRowClickable,
   onRowMouseEnter,
   clickableRows = false,
   // Header configuration props
@@ -951,6 +958,11 @@ export function DataTable<TData, TValue = unknown>({
                   ? rowClassName(row)
                   : rowClassName;
               const isNewRow = animatingRows.has(row.id);
+              // A row is click-navigable only when `onRowClick` is set and the
+              // optional `isRowClickable` guard admits it — so tables can leave
+              // dead rows (e.g. a metrics row with no destination) inert.
+              const rowClickable =
+                !!onRowClick && (isRowClickable?.(row) ?? true);
 
               return (
                 <Fragment key={row.id}>
@@ -963,7 +975,7 @@ export function DataTable<TData, TValue = unknown>({
                       // rows, so multi-line cells still grow past it.
                       'h-12',
                       index === rows.length - 1 ? 'border-b-0' : '',
-                      clickableRows || onRowClick ? 'cursor-pointer' : '',
+                      clickableRows || rowClickable ? 'cursor-pointer' : '',
                       isNewRow && 'animate-row-enter',
                       rowClassNameValue,
                     )}
@@ -974,7 +986,9 @@ export function DataTable<TData, TValue = unknown>({
                       if (enableExpanding) {
                         row.toggleExpanded();
                       }
-                      onRowClick?.(row);
+                      if (rowClickable) {
+                        onRowClick?.(row);
+                      }
                     }}
                   >
                     {enableExpanding && (
