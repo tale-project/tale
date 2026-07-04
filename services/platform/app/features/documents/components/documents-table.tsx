@@ -376,6 +376,7 @@ export function DocumentsTable({
 
       <DataTable
         columns={columns}
+        caption={tDocuments('tableCaption')}
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
         rowClassName={getRowClassName}

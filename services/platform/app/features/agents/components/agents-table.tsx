@@ -291,6 +291,7 @@ export function AgentsTable({
       className="p-4"
       {...list.tableProps}
       columns={columns}
+      caption={tSettings('agents.tableCaption')}
       stickyLayout={stickyLayout}
       // Folders aren't selectable; built-in agents and app-owned agents are not
       // deletable — so the header checkbox + bulk bar only ever target
