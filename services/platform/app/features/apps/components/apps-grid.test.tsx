@@ -92,6 +92,11 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  // The card title is the union's identity: CatalogCard renders the app name
+  // as the card's title text, in DOM order = the sorted union. Assert against
+  // those titles rather than card-level links — the refactor moved navigation
+  // into the footer action (Open/Install), so install-state-empty cards no
+  // longer carry a link, but the union/precedence/sort invariant is unchanged.
   it('renders the union of installed and catalog apps, keyed by slug', () => {
     useAppsMock.mockReturnValue({
       apps: [app({ slug: 'installed-only', name: 'Installed Only' })],
@@ -106,12 +111,11 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
 
     render(<AppsGrid organizationId="org_1" />);
 
-    const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(2);
-    expect(links.map((l) => l.getAttribute('aria-label'))).toStrictEqual([
-      'Catalog Only',
-      'Installed Only',
-    ]);
+    expect(
+      screen
+        .getAllByText(/Catalog Only|Installed Only/)
+        .map((el) => el.textContent),
+    ).toStrictEqual(['Catalog Only', 'Installed Only']);
   });
 
   it('lets an installed entry win a same-slug catalog collision', () => {
@@ -141,7 +145,7 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
     render(<AppsGrid organizationId="org_1" />);
 
     // One card for the slug, carrying the installed entry's data.
-    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getAllByText(/Shared/)).toHaveLength(1);
     expect(screen.getByText('Installed Shared')).toBeInTheDocument();
     expect(screen.getByText('From the org install.')).toBeInTheDocument();
     expect(screen.queryByText('Catalog Shared')).not.toBeInTheDocument();
@@ -165,7 +169,7 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
     render(<AppsGrid organizationId="org_1" />);
 
     expect(
-      screen.getAllByRole('link').map((l) => l.getAttribute('aria-label')),
+      screen.getAllByText(/Apple|Mango|Zebra/).map((el) => el.textContent),
     ).toStrictEqual(['Apple', 'Mango', 'Zebra']);
   });
 });
