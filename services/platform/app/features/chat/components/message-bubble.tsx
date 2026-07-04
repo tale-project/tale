@@ -895,6 +895,7 @@ function MessageBubbleComponent({
                   key={part.url}
                   filePart={part}
                   organizationId={organizationId}
+                  isAssistantImage={isAssistantImage}
                   onImageClick={
                     galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
                   }
