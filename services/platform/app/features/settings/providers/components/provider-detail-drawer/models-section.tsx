@@ -122,6 +122,18 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   promptCachingMaxBreakpoints: '',
 };
 
+/**
+ * Convert a USD cost-input value into cents for storage. Catalog prices carry
+ * sub-cent precision (e.g. GPT-OSS 120B at $0.039/1M → 3.9 cents), so a plain
+ * `Math.round(... * 100)` would silently snap 3.9 → 4 on save. Rounding to
+ * three decimals of a cent instead preserves every real catalog value while
+ * stripping the IEEE-754 noise a bare `× 100` leaves behind (0.039 * 100 =
+ * 3.9000000000000004).
+ */
+function usdInputToCents(usd: string): number {
+  return Math.round(Number(usd) * 1e5) / 1e3;
+}
+
 export function ModelsSection({
   organizationId,
   providerName,
@@ -452,18 +464,16 @@ export function ModelsSection({
               ...(hasTokenCost
                 ? {
                     inputCentsPerMillion: form.inputCostPerMillion
-                      ? Math.round(Number(form.inputCostPerMillion) * 100)
+                      ? usdInputToCents(form.inputCostPerMillion)
                       : 0,
                     outputCentsPerMillion: form.outputCostPerMillion
-                      ? Math.round(Number(form.outputCostPerMillion) * 100)
+                      ? usdInputToCents(form.outputCostPerMillion)
                       : 0,
                   }
                 : {}),
               ...(hasImageCost
                 ? {
-                    imageCentsPerImage: Math.round(
-                      Number(form.imageCostPerImage) * 100,
-                    ),
+                    imageCentsPerImage: usdInputToCents(form.imageCostPerImage),
                   }
                 : {}),
             }
@@ -1143,7 +1153,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.inputCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
                 <Input
                   label={t('providers.outputCostLabel')}
@@ -1157,7 +1167,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.outputCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
               </HStack>
               {form.tags.includes('image-generation') && (
@@ -1173,7 +1183,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.imageCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
               )}
               <Text className="text-muted-foreground text-xs">
