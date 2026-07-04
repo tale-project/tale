@@ -42,6 +42,7 @@ import {
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import type {
   BetterAuthFindManyResult,
   BetterAuthMember,
@@ -132,6 +133,8 @@ export const revokeIdleSessions = internalMutation({
     revoked: v.number(),
   }),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed())
+      return { orgsWithWindow: 0, usersChecked: 0, revoked: 0 };
     const now = Date.now();
     const envMinutes = parseSessionIdleTimeoutMinutes();
 

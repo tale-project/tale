@@ -21,6 +21,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import { isE2ECronSuppressed } from '../../lib/e2e_cron_guard';
 import {
   type ExecLiveness,
   sessionCancelExec,
@@ -47,6 +48,7 @@ export const recoverStuckExternalAgentTurns = internalAction({
   args: {},
   returns: v.object({ resumed: v.number(), finalized: v.number() }),
   handler: async (ctx: ActionCtx) => {
+    if (isE2ECronSuppressed()) return { resumed: 0, finalized: 0 };
     const staleBeforeMs = Date.now() - RECOVERY_STALE_MS;
     const abandoned = await ctx.runQuery(
       internal.sandbox.session_queries.listAbandonedAgentOps,

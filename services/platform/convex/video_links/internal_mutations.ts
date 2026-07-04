@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 
 const STATUS_VALIDATOR = v.union(
   v.literal('queued'),
@@ -432,6 +433,7 @@ const STUCK_RECOVERY_BATCH = 200;
 export const recoverStuckVideoLinkJobs = internalMutation({
   args: {},
   async handler(ctx) {
+    if (isE2ECronSuppressed()) return { recoveredCount: 0, gcCount: 0 };
     const now = Date.now();
     let recoveredCount = 0;
     let gcCount = 0;

@@ -19,6 +19,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   readSandboxQuotaPolicy,
   type SessionBudget,
@@ -452,6 +453,7 @@ export const recoverStuckAdmissionTickets = internalMutation({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.id('sandboxAdmissionTickets')),
   handler: async (ctx, args) => {
+    if (isE2ECronSuppressed()) return [];
     const now = Date.now();
     const limit = args.limit ?? 100;
     const cutoff = now - SANDBOX_ADMISSION_TICKET_STALE_MS;

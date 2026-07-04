@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 
 const PLAN_REVIEW_TTL_MS = 30 * 60 * 1000;
 const MAX_BATCH = 50;
@@ -17,6 +18,7 @@ export const expirePlanReviews = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return null;
     const cutoff = Date.now() - PLAN_REVIEW_TTL_MS;
     const query = ctx.db.query('approvals').withIndex('by_org_resourceType');
 

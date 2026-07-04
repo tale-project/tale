@@ -11,6 +11,7 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { indexPages } from './lib/indexing_service';
 import {
   countUncrawledUrls,
@@ -213,6 +214,7 @@ export const scanDueWebsites = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
+    if (isE2ECronSuppressed()) return null;
     const due = await getDueWebsites();
     for (const w of due) {
       await updateScanStatus(w.domain, 'scanning');

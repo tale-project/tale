@@ -1146,45 +1146,6 @@ export async function runDevFleet() {
       );
     }
 
-    // E2E only: re-push so convex/crons.ts re-evaluates with TALE_E2E now in the
-    // deployment env. The sub-hourly cron suppression in crons.ts reads
-    // process.env.TALE_E2E at cron-REGISTRATION (analyze/push) time, but the
-    // pre-warm `convex dev --once` and the persistent `convex dev`'s initial
-    // push both ran BEFORE the env sync above — so they registered the
-    // every-1-min workflow scan + every-2/5-min recovery sweeps + every-5-min
-    // crawl scheduler with E2E=false, and `convex env set` doesn't trigger a
-    // code push, so the cron table is never re-evaluated. Those background UDF
-    // bursts then starve the shared single-node backend past its ~1s function
-    // timeout mid-test — the dominant source of suite flake (see convex/crons.ts
-    // header). One final `convex dev --once` re-push, now that TALE_E2E is in
-    // the deployment env, drops the sub-hourly crons. Gated to E2E so a normal
-    // dev boot pays no extra push; the persistent watcher is idle (no file
-    // changes) and Convex serializes pushes server-side, so a one-shot push
-    // alongside it is safe. Warn-only on failure so a push hiccup can't block
-    // the boot — the suite still runs, just with the flake.
-    if (process.env.TALE_E2E === '1') {
-      try {
-        await runStep(
-          {
-            active: 'Re-pushing Convex functions for E2E cron suppression',
-            done: 'Convex functions re-pushed (sub-hourly crons dropped)',
-          },
-          () =>
-            runCommand(
-              'npx',
-              ['convex', 'dev', '--once'],
-              {},
-              platformRoot,
-              { label: 'convex', classifier: convexClassifier },
-            ),
-        );
-      } catch (err) {
-        warnLine(
-          `E2E re-push failed (sub-hourly crons may still fire): ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-
     // The pre-warm (`convex dev --once`) and the persistent `convex dev` both
     // write convex/_generated/, so a separate `convex codegen` is normally
     // redundant (and env vars don't affect generated types). Only run it as a
