@@ -272,7 +272,7 @@ function CreateTaskBody({
         assigneeId: assignee?.id,
         dueDate,
       });
-      toast({ title: t('actions.create'), variant: 'success' });
+      toast({ title: t('actions.created'), variant: 'success' });
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
