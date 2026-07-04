@@ -8102,7 +8102,16 @@
       "cliHint": "Installiere zuerst die Tale-CLI, falls noch nicht geschehen:",
       "description": "Einmal pro Maschine installieren: setup fragt nach dieser Workspace-URL, einem API-Schlüssel und dem Git-Workspace, in dem Agenten arbeiten dürfen. Binde dann einen Agenten in seiner Konfiguration an eine Runtime — seine Board-Aufgaben laufen auf deiner Maschine und melden sich zum Review zurück.",
       "privacy": "Lokale Workspace-Pfade verlassen deine Maschine nie — nur die von dir gewählten Workspace-Schlüssel werden hier angezeigt. Die full_auto-Berechtigung erfordert Opt-in auf Server UND Daemon.",
-      "createKey": "API-Schlüssel erstellen"
+      "createKey": "API-Schlüssel erstellen",
+      "generate": "Schlüssel erzeugen & Befehl kopieren",
+      "generateHint": "Erzeugt einen neuen API-Schlüssel und kopiert einen fertigen Setup-Befehl, in dem die URL dieses Workspaces und der Schlüssel bereits eingetragen sind.",
+      "generated": "Setup-Befehl erzeugt",
+      "generateError": "Schlüssel konnte nicht erzeugt werden. Versuche es erneut.",
+      "copied": "Setup-Befehl in die Zwischenablage kopiert",
+      "commandLabel": "Auf der Daemon-Maschine ausführen",
+      "copyCommand": "Setup-Befehl kopieren",
+      "keyCaveat": "Dieser Befehl enthält einen neuen API-Schlüssel, der nur einmal angezeigt wird. Wer ihn hat, kann als dieser Daemon agieren — halte ihn geheim und widerrufe ihn unter Einstellungen → API → REST, falls er nach außen gelangt.",
+      "keyName": "Daemon-Setup"
     },
     "list": {
       "title": "Verbundene Daemons",

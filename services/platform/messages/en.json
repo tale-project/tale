@@ -8102,7 +8102,16 @@
       "cliHint": "First, install the Tale CLI if you haven't already:",
       "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
       "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
-      "createKey": "Create API key"
+      "createKey": "Create API key",
+      "generate": "Generate key & copy command",
+      "generateHint": "Mints a fresh API key and copies a ready-to-run setup command with this workspace's URL and the key already filled in.",
+      "generated": "Setup command generated",
+      "generateError": "Couldn't generate a key. Try again.",
+      "copied": "Setup command copied to clipboard",
+      "commandLabel": "Run this on the daemon machine",
+      "copyCommand": "Copy setup command",
+      "keyCaveat": "This command carries a new API key, shown only once. Anyone who has it can act as this daemon — keep it secret, and revoke it under Settings → API → REST if it leaks.",
+      "keyName": "Daemon setup"
     },
     "list": {
       "title": "Connected daemons",
