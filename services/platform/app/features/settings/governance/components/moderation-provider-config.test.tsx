@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -10,11 +10,20 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+// Hoisted so the save spy is inspectable across renders (each render must see
+// the SAME `mutateAsync`, not a fresh `vi.fn()`).
+const { saveMutateAsync } = vi.hoisted(() => ({
+  saveMutateAsync: vi.fn().mockResolvedValue(null),
+}));
+
 // `ApiKeyPanel` / `TestConnectionPanel` only mount once enabled, so their
 // secret/test hooks are never called in these fixtures — stubbed so the module
 // mock stays complete.
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: saveMutateAsync,
+    isPending: false,
+  }),
   useSaveModerationSecret: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTestModerationProvider: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -53,6 +62,34 @@ function setLoading() {
 }
 
 describe('ModerationProviderConfig', () => {
+  beforeEach(() => {
+    saveMutateAsync.mockClear();
+  });
+
+  // #2344: enabling the provider before an endpoint URL is configured used to
+  // autosave, fail the server-side Zod gate (`endpoint.url` must be a valid
+  // URL), and silently revert with a raw ConvexError toast. The toggle must now
+  // defer the save and surface an inline hint instead.
+  describe('enable without a configured endpoint (#2344)', () => {
+    it('does not autosave the enable when the endpoint URL is missing', async () => {
+      setLoaded();
+      const { user } = render(
+        <ModerationProviderConfigView organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('switch'));
+      expect(saveMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('expands the config with an inline endpoint hint', async () => {
+      setLoaded();
+      const { user } = render(
+        <ModerationProviderConfigView organizationId="org-1" />,
+      );
+      await user.click(screen.getByRole('switch'));
+      expect(screen.getByText(/set an endpoint first/i)).toBeInTheDocument();
+    });
+  });
+
   describe('loaded state', () => {
     it('renders the real enable switch (in the a11y tree)', () => {
       setLoaded();

@@ -306,9 +306,18 @@ export function ModerationProviderConfigView({
   const handleToggleEnabled = useCallback(
     (checked: boolean) => {
       setEnabled(checked);
+      // Enabling with an unconfigured endpoint fails the server's Zod gate
+      // (`endpoint.url` must be a valid URL) and the enable silently never
+      // persists. Flip the toggle locally so the config — including the
+      // Endpoint editor — expands, but defer the save until a URL exists; the
+      // inline hint tells the admin what's missing. Mirrors the
+      // custom_jsonpath deferral below. Disabling always persists.
+      if (checked && !url.trim()) {
+        return;
+      }
       void saveWith(buildConfig({ enabled: checked }));
     },
-    [buildConfig, saveWith],
+    [buildConfig, saveWith, url],
   );
 
   const handleAppliesToInput = useCallback(
@@ -491,6 +500,13 @@ export function ModerationProviderConfigView({
 
         {enabled && (
           <>
+            {!url.trim() && (
+              <Alert
+                variant="warning"
+                description={t('moderationProvider.enableNeedsEndpoint')}
+              />
+            )}
+
             <FormSection label={t('moderationProvider.applyTo')}>
               <Stack gap={2}>
                 <label className="flex items-center gap-2">
