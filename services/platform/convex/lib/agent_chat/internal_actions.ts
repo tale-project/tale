@@ -947,22 +947,13 @@ export async function runGenerationCore(
           reason: reasonCode,
         });
 
-        // Save a structured system message so the user sees the fallback.
-        try {
-          await saveMessage(ctx, components.agent, {
-            threadId,
-            message: { role: 'system', content: fallbackBody },
-          });
-        } catch (msgError) {
-          console.error(
-            '[runAgentGeneration] Failed to save fallback message:',
-            msgError,
-          );
-        }
-
-        // Convert any stale failed/pending assistant message from this attempt
-        // (suppressErrorCleanup left it untouched) into the same structured
-        // fallback note so the thread doesn't show an orphaned error bubble.
+        // Reuse any stale failed/pending assistant message from this attempt
+        // (suppressErrorCleanup left it untouched) AS the fallback note: the
+        // thread then shows the switch exactly once instead of an orphaned
+        // error bubble. Saving a NEW system message unconditionally on top of
+        // this conversion rendered the same "{from} unavailable — switched to
+        // {to}" notice twice per retry (#2354).
+        let reusedStaleBubble = false;
         try {
           const msgs = await listMessages(ctx, components.agent, {
             threadId,
@@ -982,9 +973,26 @@ export async function runGenerationCore(
                 message: { role: 'system', content: fallbackBody },
               },
             });
+            reusedStaleBubble = true;
           }
         } catch (cleanupError) {
           debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
+        }
+
+        // Only persist a fresh system message when there was no stale bubble to
+        // repurpose — otherwise the notice would appear twice for one retry.
+        if (!reusedStaleBubble) {
+          try {
+            await saveMessage(ctx, components.agent, {
+              threadId,
+              message: { role: 'system', content: fallbackBody },
+            });
+          } catch (msgError) {
+            console.error(
+              '[runAgentGeneration] Failed to save fallback message:',
+              msgError,
+            );
+          }
         }
 
         // Advance to the next model; the dead-provider guard at the top of the
