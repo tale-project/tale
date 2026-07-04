@@ -384,6 +384,24 @@ export function useAgentJob(organizationId: string, jobId: string | null) {
   return { job: data ?? null, isLoading };
 }
 
+/**
+ * The jobs spawned FROM a chat thread, for anchoring a LIVE job card while
+ * its `spawn_agent` call is still executing: the tool result (which carries
+ * the jobId) doesn't exist yet, but the job row's `toolCallId` matches the
+ * streamed tool part's id. Pass a null threadId to skip — subscribe only
+ * while an active turn has an unresolved spawn row.
+ */
+export function useThreadAgentJobs(
+  organizationId: string,
+  threadId: string | null,
+) {
+  const { data } = useConvexQuery(
+    api.agent_jobs.queries.listForThread,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+  );
+  return data ?? null;
+}
+
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';

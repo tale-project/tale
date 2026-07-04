@@ -241,7 +241,7 @@ export function createSpawnAgentTool(deps: SpawnAgentDeps) {
 **Grantable methodologies:**
 ${grantableMethodologyLines(deps)}`,
       inputSchema: spawnAgentArgs,
-      execute: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      execute: async (ctx: ToolCtx, args, options): Promise<ToolResponse> => {
         const validation = validateToolContext(ctx, 'spawn_agent');
         if (!validation.valid) return validation.error;
         const { organizationId, threadId, userId } = validation.context;
@@ -280,6 +280,9 @@ ${grantableMethodologyLines(deps)}`,
             parentAgentSlug: deps.parentAgentSlug,
             name: args.name,
             description: args.description,
+            // The streamed tool part carries this SAME id, so the client can
+            // anchor the live job card to its spawn row before the result lands.
+            toolCallId: options.toolCallId,
             spec: {
               instructions: args.instructions,
               input: args.input,

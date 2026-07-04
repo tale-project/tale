@@ -160,6 +160,8 @@ export const startJob = internalMutation({
     parentAgentSlug: v.string(),
     name: v.string(),
     description: v.string(),
+    /** AI-SDK id of the spawning tool call — the live job-card anchor. */
+    toolCallId: v.optional(v.string()),
     spec: agentJobSpecValidator,
   },
   returns: v.union(
@@ -229,6 +231,7 @@ export const startJob = internalMutation({
       organizationId: args.organizationId,
       threadId: args.threadId,
       jobThreadId,
+      toolCallId: args.toolCallId,
       userId: args.userId,
       parentAgentSlug: args.parentAgentSlug,
       name: args.name,

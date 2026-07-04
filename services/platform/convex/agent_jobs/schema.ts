@@ -78,6 +78,13 @@ export const agentJobsTable = defineTable({
   /** The job's own fresh Agent-SDK thread (transcript; never reused). */
   jobThreadId: v.string(),
   /**
+   * The AI-SDK tool-call id of the `spawn_agent` call that started this job.
+   * The SAME id arrives on the client as the streamed tool part's id, so the
+   * chat can anchor a LIVE job card to its spawn row while the tool is still
+   * executing — before the tool result (which carries the jobId) exists.
+   */
+  toolCallId: v.optional(v.string()),
+  /**
    * @deprecated Never read. Early builds anchored job cards to an assistant
    * message; cards now render inline under their `spawn_agent` tool row
    * (which carries the jobId), so nothing writes or reads this. Kept so
@@ -107,6 +114,8 @@ export const agentJobsTable = defineTable({
 })
   // `update_progress` resolves its row from the job's own thread id.
   .index('by_job_thread', ['jobThreadId'])
+  // Live job cards subscribe to a PARENT thread's jobs while a turn streams.
+  .index('by_thread', ['threadId'])
   // Admission stuck-sweep (prefix eq status='running', range on startedAt is
   // client-side) and GC range scan (terminal status + completedAt cutoff).
   .index('by_org_status_completed', [
