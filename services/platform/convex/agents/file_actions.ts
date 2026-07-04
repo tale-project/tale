@@ -23,7 +23,7 @@ import { isValidAppSlug } from '../../lib/shared/schemas/apps';
 import { parseModelRef } from '../../lib/shared/utils/model-ref';
 import { normalizeAgentConfig } from '../../lib/shared/utils/normalize-agent-config';
 import { resolveAgentLocale } from '../../lib/shared/utils/resolve-agent-locale';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { listInstalledAppSlugsFromDisk } from '../apps/file_utils';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
@@ -426,10 +426,18 @@ export const listAppAgents = action({
 
 /**
  * Flip an external agent's `authMode` (managed ⇄ byo) on the org's copied agent
- * config — the install wizard's per-agent mode choice. Read-modify-write through
- * `saveAgent` so validation, history, and the capability gate all apply; the
- * runtime reads `authMode` straight off this config, so the choice takes effect
- * on the next run.
+ * config — the install wizard's per-agent mode choice. Persists the single
+ * field change with a direct read-modify-write; the runtime reads `authMode`
+ * straight off this config, so the choice takes effect on the next run.
+ *
+ * Deliberately NOT routed through `saveAgent`: that path re-validates
+ * `supportedModels` against the org's provider catalog and throws
+ * (`UNKNOWN_MODEL`) for any declared model the org hasn't configured — a state
+ * that's orthogonal to the credential mode and legitimate for a copied app
+ * agent (BYO treats supportedModels as hints, not a requirement). Coupling the
+ * flip to that check made the wizard's "Managed" choice silently fail to
+ * persist for exactly those agents (#2342). The `authMode` flip is not a
+ * capability change, so no elevated-auth gate applies.
  */
 export const setAgentAuthMode = action({
   args: {
@@ -439,10 +447,8 @@ export const setAgentAuthMode = action({
   },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args): Promise<{ ok: boolean }> => {
-    const { orgSlug } = await requireOrgMembershipById(
-      ctx,
-      args.organizationId,
-    );
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    const { orgSlug } = auth;
     const read = await readAgentFile(orgSlug, args.agentName);
     if (!read.ok) {
       throw new Error(`Cannot set auth mode: ${read.message}`);
@@ -453,11 +459,27 @@ export const setAgentAuthMode = action({
     if (read.config.authMode === args.authMode) {
       return { ok: true };
     }
-    await ctx.runAction(api.agents.file_actions.saveAgent, {
-      organizationId: args.organizationId,
-      agentName: args.agentName,
-      config: { ...read.config, authMode: args.authMode },
+
+    // Normalize + serialize exactly as `saveAgent` does on write, so the file
+    // stays canonical — minus the model cross-validation the flip must not run.
+    const orgLocale = await ctx.runQuery(
+      internal.organizations.internal_queries.getOrganizationDefaultLocale,
+      { organizationId: args.organizationId },
+    );
+    const normalized = normalizeAgentConfig(
+      { ...read.config, authMode: args.authMode },
+      orgLocale,
+    );
+    const filePath = await resolveAgentPath(orgSlug, args.agentName);
+    await atomicWrite(filePath, serializeAgentJson(normalized));
+    invalidateAgentListCache(orgSlug);
+
+    await logAgentAudit(ctx, auth, 'update_agent', args.agentName, {
+      resourceName: args.agentName,
+      previousState: captureCapability(read.config),
+      newState: captureCapability(normalized),
     });
+
     return { ok: true };
   },
 });
