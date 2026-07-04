@@ -448,9 +448,11 @@ function CatalogCardSkeleton() {
         <SkeletonBox>
           <div className="h-5 w-20 rounded-full" />
         </SkeletonBox>
-        <SkeletonBox className="shrink-0">
-          <div className="h-8 w-20 rounded-md" />
-        </SkeletonBox>
+        <span className="shrink-0">
+          <SkeletonBox>
+            <div className="h-8 w-20 rounded-md" />
+          </SkeletonBox>
+        </span>
       </Row>
     </Card>
   );
