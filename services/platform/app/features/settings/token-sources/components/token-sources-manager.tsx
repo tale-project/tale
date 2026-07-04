@@ -121,6 +121,7 @@ function readTokenSourceFieldErrors(
   const raw = data.fieldErrors;
   if (raw == null || typeof raw !== 'object') return undefined;
   const out: Record<string, string> = {};
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `raw` is runtime-checked to be a non-null object above; entries are narrowed per-field below
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!Array.isArray(value)) continue;
     const msg = value
