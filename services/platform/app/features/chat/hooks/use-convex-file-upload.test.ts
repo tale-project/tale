@@ -75,9 +75,16 @@ function installFetch() {
   vi.stubGlobal(
     'fetch',
     vi.fn(
-      () =>
-        new Promise((resolve) => {
+      (_url: string, init?: RequestInit) =>
+        new Promise((resolve, reject) => {
           const storageId = `storage-${storageCounter++}`;
+          // Mirror the real `fetch`: an aborted signal rejects the request with
+          // an AbortError. Lets the cancel test exercise the hook's abort path
+          // (swallow the error, drop the reservation) rather than the mock
+          // resolving a cancelled upload as a success.
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
           pendingFetches.push((outcome) =>
             resolve({
               ok: outcome?.ok ?? true,
@@ -404,5 +411,58 @@ describe('useConvexFileUpload — concurrent-batch cap & dedup', () => {
     expect(
       toastMock.mock.calls.some(([arg]) => arg?.title === 'tooManyFiles'),
     ).toBe(false);
+  });
+
+  it('cancels an in-flight upload without committing it or toasting a failure', async () => {
+    const { result } = renderHook(() => useConvexFileUpload(config));
+
+    // One file parked in-flight — a single upload spinner, nothing committed.
+    const file = makeFile('cancel-me.txt', 10, 'text/plain');
+    let promise!: Promise<void>;
+    act(() => {
+      promise = result.current.uploadFiles([file]);
+    });
+    await flush();
+
+    expect(result.current.uploadingFiles).toHaveLength(1);
+    const uploadId = result.current.uploadingFiles[0];
+
+    // Cancel it: the spinner clears immediately, before the aborted fetch
+    // rejects. The user-initiated abort must not surface an "upload failed"
+    // toast, and the file must never commit to `attachments`.
+    act(() => {
+      result.current.cancelUpload(uploadId);
+    });
+    await flush();
+    expect(result.current.uploadingFiles).toHaveLength(0);
+
+    resolveAllFetches();
+    await act(async () => {
+      await promise;
+    });
+
+    expect(result.current.uploadingFiles).toHaveLength(0);
+    expect(result.current.attachments).toHaveLength(0);
+    expect(saveFileMetadata).not.toHaveBeenCalled();
+    expect(
+      toastMock.mock.calls.some(([arg]) => arg?.title === 'uploadFailed'),
+    ).toBe(false);
+
+    // The cancelled slot is reclaimed: a fresh batch can still fill the cap.
+    const batch = Array.from({ length: CHAT_MAX_FILE_COUNT }, (_, i) =>
+      makeFile(`ok-${i}.txt`, 10, 'text/plain'),
+    );
+    let promiseOk!: Promise<void>;
+    act(() => {
+      promiseOk = result.current.uploadFiles(batch);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await promiseOk;
+    });
+    await waitFor(() =>
+      expect(result.current.attachments).toHaveLength(CHAT_MAX_FILE_COUNT),
+    );
   });
 });

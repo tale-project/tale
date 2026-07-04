@@ -13,6 +13,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useShareThread, useUnshareThread } from '../hooks/mutations';
 
@@ -45,6 +46,11 @@ function ShareChatDialogContent({
 
   const isShared = shareStatus?.isShared ?? false;
   const shareToken = shareStatus?.shareToken ?? null;
+  // Default to shareable while the status query is still loading so the toggle
+  // isn't briefly disabled on a normal thread. Arena/branch/archived threads
+  // resolve to `false` and disable sharing (#2086).
+  const isShareable = shareStatus?.isShareable ?? true;
+  const blockSharing = !isShareable && !isShared;
 
   useEffect(() => {
     return () => {
@@ -64,9 +70,19 @@ function ShareChatDialogContent({
         shareThread(
           { threadId, organizationId },
           {
-            onError: () => {
+            onError: (error) => {
+              // The backend raises a structured ConvexError for the reasons a
+              // share is refused; map each to an actionable message instead of
+              // the generic "Failed to share chat" (#2086). Unknown codes and
+              // raw errors fall back to the generic copy.
+              const byCode: Record<string, string> = {
+                CANNOT_SHARE_ARENA_THREAD: t('share.cannotShareArena'),
+                CANNOT_SHARE_BRANCH_THREAD: t('share.cannotShareBranch'),
+                THREAD_ARCHIVED: t('share.cannotShareArchived'),
+              };
+              const code = convexErrorCode(error);
               toast({
-                title: t('share.shareFailed'),
+                title: (code && byCode[code]) || t('share.shareFailed'),
                 variant: 'destructive',
               });
             },
@@ -120,8 +136,14 @@ function ShareChatDialogContent({
           description={t('share.enableSharingDescription')}
           checked={isShared}
           onCheckedChange={handleToggleShare}
-          disabled={isSharing || isUnsharing}
+          disabled={isSharing || isUnsharing || blockSharing}
         />
+
+        {blockSharing && (
+          <Text variant="muted" className="text-xs">
+            {t('share.notShareable')}
+          </Text>
+        )}
 
         {isShared && shareToken && (
           <Stack gap={2} className="min-w-0">

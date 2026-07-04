@@ -108,6 +108,7 @@ interface ChatInputProps extends Omit<
   attachments: FileAttachment[];
   uploadingFiles: string[];
   uploadFiles: (files: File[]) => Promise<void>;
+  cancelUpload?: (fileId: string) => void;
   removeAttachment: (fileId: Id<'_storage'>) => void;
   clearAttachments: () => FileAttachment[];
   fileUploadDisabled?: boolean;
@@ -243,6 +244,7 @@ export function ChatInput({
   attachments,
   uploadingFiles,
   uploadFiles,
+  cancelUpload,
   removeAttachment,
   clearAttachments,
   fileUploadDisabled = false,
@@ -986,6 +988,7 @@ export function ChatInput({
               transcriptionStatuses={transcriptionStatuses}
               indexingStatuses={indexingStatuses}
               retryAudioTranscription={retryAudioTranscription}
+              cancelUpload={cancelUpload}
               removeAttachment={handleRemoveAttachment}
               onPreviewImage={setPreviewImage}
               onPreviewTranscript={setPreviewTranscript}

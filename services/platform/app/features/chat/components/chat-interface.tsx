@@ -243,6 +243,7 @@ export function ChatInterface({
     setAttachments,
     uploadingFiles,
     uploadFiles,
+    cancelUpload,
     removeAttachment,
     retryAttachmentTranscription,
     clearAttachments,
@@ -1426,6 +1427,7 @@ export function ChatInterface({
                   attachments={attachments}
                   uploadingFiles={uploadingFiles}
                   uploadFiles={uploadFiles}
+                  cancelUpload={cancelUpload}
                   removeAttachment={removeAttachment}
                   clearAttachments={clearAttachments}
                   fileUploadDisabled={fileUploadDisabled}
