@@ -84,6 +84,31 @@ describe('0.2.90/01 agent_kind_opencode_to_claude_code', () => {
     expect(cursor.agentKind).toBe('cursor');
   });
 
+  it('down restores opencode after up', async () => {
+    const agentsDir = path.join(dir, ORG.slug, 'agents', 'chat');
+    await mkdir(agentsDir, { recursive: true });
+    await writeFile(
+      path.join(agentsDir, 'legacy.json'),
+      JSON.stringify({
+        primaryBehavior: 'external-agent',
+        agentKind: 'opencode',
+        supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
+        i18n: { en: { displayName: 'Legacy' } },
+      }),
+      'utf8',
+    );
+
+    await migration.up(ctx, ORG, helpers);
+    await migration.down(ctx, ORG, helpers);
+
+    const legacyRaw = await readFileSafe(path.join(agentsDir, 'legacy.json'));
+    if (legacyRaw === null) {
+      throw new Error('expected legacy agent file after down');
+    }
+    const legacy = JSON.parse(legacyRaw) as { agentKind?: string };
+    expect(legacy.agentKind).toBe('opencode');
+  });
+
   it('is idempotent on a second up', async () => {
     const agentsDir = path.join(dir, ORG.slug, 'agents', 'chat');
     await mkdir(agentsDir, { recursive: true });

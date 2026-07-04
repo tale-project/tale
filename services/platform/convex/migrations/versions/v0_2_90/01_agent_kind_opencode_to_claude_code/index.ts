@@ -9,6 +9,7 @@ import {
   type AgentJsonConfig,
   parseAgentJson,
   resolveAgentFilePathFromRelative,
+  resolveAgentsDir,
   serializeAgentJson,
   walkAgentRelativePaths,
 } from '../../../../agents/file_utils';
@@ -18,6 +19,9 @@ import { meta } from './meta';
 export const migration: NodeMigration = {
   meta,
   async up(_ctx, org, helpers) {
+    const dir = resolveAgentsDir(org.slug);
+    await helpers.snapshotFsTree(meta.id, org.slug, dir);
+
     const relPaths = await walkAgentRelativePaths(org.slug);
     for (const rel of relPaths) {
       const filePath = resolveAgentFilePathFromRelative(org.slug, rel);
@@ -50,7 +54,8 @@ export const migration: NodeMigration = {
     }
   },
 
-  async down() {
-    // No-op — cannot distinguish migrated opencode files from native claude-code.
+  async down(_ctx, org, helpers) {
+    const dir = resolveAgentsDir(org.slug);
+    await helpers.restoreFsTree(meta.id, org.slug, dir);
   },
 };

@@ -33,6 +33,8 @@ import { readFile } from 'node:fs/promises';
 
 import { type Infer, v } from 'convex/values';
 
+import { usesGateway } from '../../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import {
   formatModelRef,
   parseModelRef,
@@ -41,6 +43,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { type ActionCtx, internalAction } from '../../_generated/server';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
+import { resolveExternalAgentExecModel } from '../../agents/external_agent/exec_model';
 import { resolveAppAssetPathChecked } from '../../apps/file_utils';
 import { estimateCostCents } from '../../governance/cost_estimation';
 import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
@@ -809,7 +812,10 @@ export const runSandboxAgent = internalAction({
     }
     const agentConfig = delegate.agentConfig;
     const agentKind = agentConfig.agentKind ?? 'claude-code';
+    const productKind: ProductAgentSlug =
+      agentKind === 'cursor' ? 'cursor' : 'claude-code';
     const byo = agentConfig.authMode === 'byo';
+    const gatewayRun = usesGateway(productKind, agentConfig.authMode);
     // Native web tools: the raw per-agent opt-in (managed agents deny WebSearch/
     // WebFetch by default; this lifts it). Passed to the adapter as-is; the skill
     // guidance uses `byo || === true` (the agent's ACTUAL native-tool state).
@@ -1347,16 +1353,15 @@ export const runSandboxAgent = internalAction({
       ]
         .filter((s): s is string => Boolean(s))
         .join('\n\n');
-      // MANAGED: the gateway-format ref resolves to the gateway's model id.
-      // BYO: Claude Code talks to Anthropic directly (no gateway), so a
-      // gateway-format ref like `openrouter:anthropic/...` is meaningless — it
-      // rejects it ("model may not exist"). Let it use the subscription's
-      // default model. (A bare, Claude-native ref could be threaded through here
-      // later if BYO model pinning is wanted.)
-      const useModel =
-        !byo && modelRef && modelRef !== 'default'
-          ? resolveGatewayRoutingFromRef(modelRef).gatewayModel
-          : undefined;
+      // MANAGED (gateway): the gateway-format ref resolves to the gateway's model
+      // id. BYO / env-backed (e.g. Cursor): the vendor-native id passes through
+      // raw — gateway routing would mint nonsense ids the CLI rejects.
+      const useModel = resolveExternalAgentExecModel({
+        byo,
+        gatewayRun,
+        modelRef: modelRef ?? 'default',
+        toGatewayModel: (ref) => resolveGatewayRoutingFromRef(ref).gatewayModel,
+      });
       // Seed the resumed segment with the op's accumulated transcript so it
       // doesn't blank at the seam: the per-segment timeline resets on resume, so
       // without this an idle/empty segment (e.g. the agent waiting on CI) would

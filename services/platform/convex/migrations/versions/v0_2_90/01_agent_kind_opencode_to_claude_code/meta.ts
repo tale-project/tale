@@ -6,8 +6,8 @@ import type { MigrationMeta } from '../../../framework/types';
  * OpenCode is no longer a product runtime (`cursor` replaced it in the registry).
  * Any org agent file still carrying `agentKind: 'opencode'` is rewritten to
  * `claude-code` (the gateway-managed default). Idempotent: files already on
- * `claude-code` or `cursor` are untouched. `down` is a no-op — the prior slug
- * cannot be recovered without an audit trail.
+ * `claude-code` or `cursor` are untouched. A per-org fs-tree snapshot of the
+ * agents directory is taken first so `down` can restore the prior files.
  */
 export const meta: MigrationMeta = {
   id: '0.2.90/01_agent_kind_opencode_to_claude_code',
@@ -18,9 +18,10 @@ export const meta: MigrationMeta = {
   description:
     'Retires the archived opencode product slug: every external-agent config ' +
     'with agentKind opencode becomes claude-code. Idempotent; cursor and ' +
-    'claude-code files are left unchanged. down is a no-op.',
+    'claude-code files are left unchanged. A per-org fs-tree snapshot of the ' +
+    'agents directory is taken first so down can restore the prior files.',
   kind: 'node',
-  reversible: false,
+  reversible: true,
   destructive: false,
-  snapshot: 'none',
+  snapshot: 'fs-tree',
 };

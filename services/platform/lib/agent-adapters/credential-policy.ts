@@ -4,8 +4,6 @@ import type { ProductAgentSlug } from './events';
 import { getAgentAdapter } from './registry';
 import type { AgentCapabilities, CredentialPolicy } from './types';
 
-export type { AgentCapabilities, CredentialPolicy };
-
 export function getCredentialPolicy(slug: ProductAgentSlug): CredentialPolicy {
   return getAgentAdapter(slug).credentialPolicy;
 }

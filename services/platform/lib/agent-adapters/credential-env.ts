@@ -5,7 +5,7 @@ import type { ProductAgentSlug } from './events';
 import { PRODUCT_AGENT_SLUGS } from './events';
 
 /** Platform-managed Anthropic gateway keys that may linger in session env. */
-export const ANTHROPIC_GATEWAY_SESSION_KEYS = [
+const ANTHROPIC_GATEWAY_SESSION_KEYS = [
   'ANTHROPIC_BASE_URL',
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_API_KEY',
