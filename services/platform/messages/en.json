@@ -6727,10 +6727,10 @@
           "agent": "Agent"
         },
         "export": {
-          "csv": "Export CSV",
-          "json": "Export JSON",
-          "csvLabel": "Export audit logs as CSV",
-          "jsonLabel": "Export audit logs as JSON",
+          "label": "Export",
+          "triggerLabel": "Export audit logs",
+          "csv": "CSV",
+          "json": "JSON",
           "inProgress": "Exporting...",
           "complete": "Export complete",
           "error": "Export failed"

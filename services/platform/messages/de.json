@@ -6463,10 +6463,10 @@
           "agent": "Agent"
         },
         "export": {
-          "csv": "CSV exportieren",
-          "json": "JSON exportieren",
-          "csvLabel": "Audit-Protokolle als CSV exportieren",
-          "jsonLabel": "Audit-Protokolle als JSON exportieren",
+          "label": "Exportieren",
+          "triggerLabel": "Audit-Protokolle exportieren",
+          "csv": "CSV",
+          "json": "JSON",
           "inProgress": "Exportieren...",
           "complete": "Export abgeschlossen",
           "error": "Export fehlgeschlagen"

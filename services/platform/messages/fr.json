@@ -6464,10 +6464,10 @@
           "agent": "Agent"
         },
         "export": {
-          "csv": "Exporter en CSV",
-          "json": "Exporter en JSON",
-          "csvLabel": "Exporter les journaux d'audit au format CSV",
-          "jsonLabel": "Exporter les journaux d'audit au format JSON",
+          "label": "Exporter",
+          "triggerLabel": "Exporter les journaux d'audit",
+          "csv": "CSV",
+          "json": "JSON",
           "inProgress": "Exportation...",
           "complete": "Exportation terminée",
           "error": "Échec de l'exportation"
