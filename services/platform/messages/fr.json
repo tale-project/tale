@@ -6214,7 +6214,6 @@
         "save": "Enregistrer les options",
         "saveSuccess": "Options du fournisseur enregistrées",
         "saveError": "Échec de l'enregistrement des options du fournisseur",
-        "invalidJson": "Les options du fournisseur ne sont pas un JSON valide",
         "exampleLabel": "Exemple",
         "discardConfirmTitle": "Abandonner les modifications non enregistrées ?",
         "discardConfirmDescription": "Vos modifications des options du fournisseur seront perdues.",
@@ -6226,8 +6225,7 @@
         "modelLevelTitle": "Avancé — Mappage du corps de requête",
         "modelLevelDescription": "Renomme ou supprime des champs de la requête finale envoyée à ce modèle — pour les points de terminaison dont le format diffère. Contrairement aux options du fournisseur, ceci n'atteint jamais le fournisseur en tant que données ; cela réécrit le corps sur place.",
         "guideLabel": "Comment fonctionne le mappage du corps de requête",
-        "modelLevelHelp": "Deux clés optionnelles :\n\n- **rename** — renomme un champ en un autre (appliqué en premier). Le cas classique est un déploiement de raisonnement OpenAI/Azure qui attend `max_completion_tokens` au lieu de `max_tokens` :\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — supprime les champs que le point de terminaison rejette :\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nLes modèles dotés d'une capacité de raisonnement reçoivent déjà automatiquement le renommage `max_tokens` → `max_completion_tokens`. Une entrée vide efface le réglage.",
-        "invalidJson": "Le mappage du corps de requête n'est pas un JSON valide"
+        "modelLevelHelp": "Deux clés optionnelles :\n\n- **rename** — renomme un champ en un autre (appliqué en premier). Le cas classique est un déploiement de raisonnement OpenAI/Azure qui attend `max_completion_tokens` au lieu de `max_tokens` :\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — supprime les champs que le point de terminaison rejette :\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nLes modèles dotés d'une capacité de raisonnement reçoivent déjà automatiquement le renommage `max_tokens` → `max_completion_tokens`. Une entrée vide efface le réglage."
       },
       "versionConflictTitle": "Le fournisseur a été modifié",
       "versionConflictDescription": "Recharge la page pour voir la dernière version, puis réapplique tes modifications.",
@@ -7904,7 +7902,6 @@
       "submit": "Générer",
       "error": "Impossible de créer le mot de passe applicatif",
       "errorLimit": "Tu as atteint le nombre maximum de mots de passe applicatifs. Révoque-en un inutilisé d’abord.",
-      "errorInvalidLabel": "Saisis un libellé de 1 à 64 caractères.",
       "errorRateLimited": "Trop de mots de passe applicatifs créés récemment. Réessaie plus tard.",
       "savedTitle": "Sauvegarde ce mot de passe — il ne sera plus affiché.",
       "copy": "Copier",
