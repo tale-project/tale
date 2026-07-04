@@ -1425,6 +1425,8 @@
     "errorGenerating": "Something went wrong",
     "errorDetailsSummary": "Technical details",
     "retryGeneration": "Try again",
+    "openProviderSettings": "Open provider settings",
+    "askAdminProviderKey": "Ask an admin to add an API key in Settings → AI providers.",
     "showMore": "Show more",
     "showLess": "Show less",
     "editMessage": "Edit message",

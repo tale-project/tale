@@ -1423,6 +1423,8 @@
     "errorGenerating": "Une erreur s'est produite",
     "errorDetailsSummary": "Détails techniques",
     "retryGeneration": "Réessayer",
+    "openProviderSettings": "Ouvrir les paramètres du fournisseur",
+    "askAdminProviderKey": "Demande à un administrateur d’ajouter une clé API dans Paramètres → Fournisseurs d’IA.",
     "showMore": "Voir plus",
     "showLess": "Voir moins",
     "editMessage": "Modifier le message",

@@ -90,6 +90,10 @@ import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
 import { HumanControlCard } from './human-control-card';
 import {
+  ProviderSettingsToastAction,
+  useCanManageProviders,
+} from './provider-settings-action';
+import {
   QueuedMessageTray,
   type PendingTrayEntry,
 } from './queued-message-tray';
@@ -411,6 +415,25 @@ export function ChatInterface({
     !activeModelInfo?.hasApiKeyOverride;
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
+
+  // Send-block breakdown: the missing-API-key subcase is the only one with an
+  // actionable fix, so it — and only it — carries the "Open provider settings"
+  // deep link (or an "ask an admin" hint for members who can't manage
+  // providers). The image-edit block takes priority in the reason string, so
+  // exclude it here to keep the two blocked reasons in lockstep.
+  const imageEditBlocked =
+    isImageGenAgent && !!activeEditingImage && !currentModelSupportsEdit;
+  const missingKeyBlocked =
+    !imageEditBlocked && (activeModelMissingApiKey || noProviderHasApiKey);
+  const canManageProviders = useCanManageProviders();
+  const sendBlockedAction =
+    missingKeyBlocked && canManageProviders ? (
+      <ProviderSettingsToastAction organizationId={organizationId} />
+    ) : undefined;
+  const sendBlockedDescription =
+    missingKeyBlocked && !canManageProviders
+      ? t('askAdminProviderKey')
+      : undefined;
 
   // Thread status — disable input for archived threads. Status is derived from
   // the URL threadId (root thread), not dataThreadId (which may be a branch
@@ -1461,18 +1484,14 @@ export function ChatInterface({
                   retryVideoJob={retryVideoJob}
                   sendBlocked={
                     budgetExceeded ||
-                    (isImageGenAgent &&
-                      !!activeEditingImage &&
-                      !currentModelSupportsEdit) ||
+                    imageEditBlocked ||
                     activeModelMissingApiKey ||
                     noProviderHasApiKey
                   }
                   sendBlockedReason={
                     budgetExceeded
                       ? t('budgetExceededDefault')
-                      : isImageGenAgent &&
-                          !!activeEditingImage &&
-                          !currentModelSupportsEdit
+                      : imageEditBlocked
                         ? t('imageEdit.modelCannotEdit')
                         : activeModelMissingApiKey
                           ? t('modelSelector.noApiKey')
@@ -1480,6 +1499,8 @@ export function ChatInterface({
                             ? t('modelSelector.noProviderKey')
                             : undefined
                   }
+                  sendBlockedAction={sendBlockedAction}
+                  sendBlockedDescription={sendBlockedDescription}
                   onSavePrompt={(content) =>
                     setSavePromptData({ messageId: '', content })
                   }
