@@ -1313,7 +1313,9 @@
       "defaultAgent": "Assistant",
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
-      "addAgent": "Catalog"
+      "addAgent": "Catalog",
+      "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
+      "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1412,6 +1414,11 @@
         "delivered": "Delivered — waiting for the agent to respond",
         "deliversNow": "Delivering now",
         "consumed": "Picked up"
+      },
+      "tray": {
+        "label": "Queued messages",
+        "remove": "Remove queued message",
+        "removeFailed": "Couldn't remove the queued message"
       }
     },
     "errorGenerating": "Something went wrong",

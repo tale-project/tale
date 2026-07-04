@@ -143,6 +143,12 @@ test('creates a share link, opens the shared read-only view, then revokes it', a
   // unambiguous.
   const message = `E2E share probe ${Date.now().toString(36)}`;
   const threadId = await sendNewThreadMessage(page, message);
+  // sharedAt is a transcript snapshot boundary — wait for the turn (and the
+  // user message's server persist) to finish before enabling share, or a slow
+  // `runChatTurnGeneration` start can land the message with a _creationTime
+  // after sharedAt and the preview omits it.
+  await expectCannedReply(page);
+  await waitForReplyComplete(page);
 
   // The header Share action opens the share dialog.
   await page

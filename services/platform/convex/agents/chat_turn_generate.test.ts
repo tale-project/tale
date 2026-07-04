@@ -12,19 +12,24 @@ vi.mock('../_generated/server', () => ({
 const STARTCHAT = 'mock-startChat';
 const GOVERNANCE = 'mock-resolveGenerationGovernance';
 const CLEARGEN = 'mock-clearGenerationStatus';
+const SET_THREAD_AGENT_SLUG = 'mock-setThreadAgentSlug';
+const AUTO_ROUTE = 'mock-resolveAutoRoute';
 
 vi.mock('../_generated/api', () => ({
   components: { agent: {} },
   internal: {
     agents: {
       start_chat: { startChat: STARTCHAT },
-      auto_route: { resolveAutoRoute: 'mock-resolveAutoRoute' },
+      auto_route: { resolveAutoRoute: AUTO_ROUTE },
     },
     governance: {
       internal_queries: { resolveGenerationGovernance: GOVERNANCE },
     },
     threads: {
-      internal_mutations: { clearGenerationStatus: CLEARGEN },
+      internal_mutations: {
+        clearGenerationStatus: CLEARGEN,
+        setThreadAgentSlug: SET_THREAD_AGENT_SLUG,
+      },
       mutations: { createArenaBranchLink: 'mock-createArenaBranchLink' },
     },
     projects: {
@@ -178,5 +183,146 @@ describe('runChatTurnGeneration', () => {
 
     releaseGuardrails({ chatFilter: null });
     await pending;
+  });
+
+  // External-thread agent lock (step 0): a thread whose stored agent is an
+  // external one must never be re-routed by a differing client selection or
+  // an Auto route — the sandbox session and --resume transcript are bound to
+  // the stored agent.
+  describe('external-thread agent lock', () => {
+    const externalConfig = {
+      config: {
+        model: 'openrouter:gpt-4o',
+        primaryBehavior: 'external-agent',
+      },
+      supportedModels: ['openrouter:gpt-4o'],
+      orgLocale: 'en',
+    };
+
+    it('keeps the stored external agent over a differing client selection', async () => {
+      mockResolveAgentConfigInline.mockImplementation(
+        (_ctx: unknown, opts: { agentSlug: string }) =>
+          Promise.resolve(
+            opts.agentSlug === 'claude-code'
+              ? externalConfig
+              : {
+                  config: { model: 'openrouter:gpt-4o' },
+                  supportedModels: ['openrouter:gpt-4o'],
+                  orgLocale: 'en',
+                },
+          ),
+      );
+      const ctx = createCtx({
+        messageAlreadyExists: false,
+        streamId: 'stream_1',
+        generationArgs: undefined,
+      });
+
+      await generationHandler(
+        ctx as never,
+        {
+          ...BASE_ARGS,
+          agentSlug: 'writer', // stale per-user picker state from another thread
+          priorAgentSlug: 'claude-code',
+        } as never,
+      );
+
+      // The turn runs on the thread's bound agent, not the client selection…
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        STARTCHAT,
+        expect.objectContaining({ agentSlug: 'claude-code' }),
+      );
+      // …and the optimistic metadata patch is corrected back.
+      expect(ctx.runMutation).toHaveBeenCalledWith(SET_THREAD_AGENT_SLUG, {
+        threadId: 'thread_1',
+        agentSlug: 'claude-code',
+      });
+    });
+
+    it('preempts Auto routing on a locked thread', async () => {
+      mockResolveAgentConfigInline.mockResolvedValue(externalConfig);
+      const ctx = createCtx({
+        messageAlreadyExists: false,
+        streamId: 'stream_1',
+        generationArgs: undefined,
+      });
+
+      await generationHandler(
+        ctx as never,
+        {
+          ...BASE_ARGS,
+          agentSlug: 'auto',
+          priorAgentSlug: 'claude-code',
+        } as never,
+      );
+
+      expect(ctx.runAction).not.toHaveBeenCalledWith(
+        AUTO_ROUTE,
+        expect.anything(),
+      );
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        STARTCHAT,
+        expect.objectContaining({ agentSlug: 'claude-code' }),
+      );
+    });
+
+    it('does not lock when the stored agent is a normal one', async () => {
+      const ctx = createCtx({
+        messageAlreadyExists: false,
+        streamId: 'stream_1',
+        generationArgs: undefined,
+      });
+
+      await generationHandler(
+        ctx as never,
+        {
+          ...BASE_ARGS,
+          agentSlug: 'writer',
+          priorAgentSlug: 'researcher', // resolves to a plain chat config
+        } as never,
+      );
+
+      // Client selection wins; no metadata correction.
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        STARTCHAT,
+        expect.objectContaining({ agentSlug: 'writer' }),
+      );
+      expect(ctx.runMutation).not.toHaveBeenCalledWith(
+        SET_THREAD_AGENT_SLUG,
+        expect.anything(),
+      );
+    });
+
+    it('falls through to the client selection when the stored agent no longer resolves', async () => {
+      mockResolveAgentConfigInline.mockImplementation(
+        (_ctx: unknown, opts: { agentSlug: string }) =>
+          opts.agentSlug === 'gone'
+            ? Promise.reject(new Error('agent not found'))
+            : Promise.resolve({
+                config: { model: 'openrouter:gpt-4o' },
+                supportedModels: ['openrouter:gpt-4o'],
+                orgLocale: 'en',
+              }),
+      );
+      const ctx = createCtx({
+        messageAlreadyExists: false,
+        streamId: 'stream_1',
+        generationArgs: undefined,
+      });
+
+      await generationHandler(
+        ctx as never,
+        {
+          ...BASE_ARGS,
+          agentSlug: 'writer',
+          priorAgentSlug: 'gone',
+        } as never,
+      );
+
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        STARTCHAT,
+        expect.objectContaining({ agentSlug: 'writer' }),
+      );
+    });
   });
 });

@@ -46,6 +46,7 @@ import {
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 import { ModelInfoPopover } from './model-info-popover';
 
 const AUTO_MODEL = 'auto';
@@ -55,6 +56,10 @@ interface ModelSelectorProps {
   /** When the chat belongs to a project, restrict the list to the project's
    *  `allowedModels` and float its `recommendedModels` to the top. */
   projectId?: string;
+  /** Current thread. External-agent threads are bound to their agent, so the
+   *  model list and overrides must follow the thread's agent — not the global
+   *  per-user picker state another thread may have changed. */
+  threadId?: string;
 }
 
 function getModelShortName(modelId: string): string {
@@ -65,9 +70,11 @@ function getModelShortName(modelId: string): string {
 export const ModelSelector = memo(function ModelSelector({
   organizationId,
   projectId,
+  threadId,
 }: ModelSelectorProps) {
   const { t } = useT('chat');
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
+  const { lockedAgent } = useThreadAgentLock(organizationId, threadId);
   const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
   const { providers, isLoading: providersLoading } =
     useListProviders(organizationId);
@@ -95,10 +102,13 @@ export const ModelSelector = memo(function ModelSelector({
   // so the "Add model" footer is only offered to users who can act on it.
   const canManageAgents = ability.can('write', 'agents');
 
+  // The thread's bound agent wins over the global per-user selection — a
+  // switch made in ANOTHER thread must not surface that agent's model list here.
   const activeAgent = useMemo(
-    () => agents?.find((a) => a.name === effectiveAgent?.name),
-    [agents, effectiveAgent?.name],
+    () => lockedAgent ?? agents?.find((a) => a.name === effectiveAgent?.name),
+    [lockedAgent, agents, effectiveAgent?.name],
   );
+  const modelAgentKey = activeAgent?.name;
 
   // A BYO external agent authenticates with the user's own credentials and uses
   // a raw model id — there is no platform catalog to pick from, so the picker
@@ -213,8 +223,8 @@ export const ModelSelector = memo(function ModelSelector({
   const chatModels = useMemo(() => {
     // Keep a model the user has already selected even if it's now hidden, so a
     // deprecation doesn't silently reset their explicit choice mid-session.
-    const activeOverride = effectiveAgent?.name
-      ? selectedModelOverrides[effectiveAgent.name]
+    const activeOverride = modelAgentKey
+      ? selectedModelOverrides[modelAgentKey]
       : undefined;
     const filteredByTag = supportedModels.filter((ref) => {
       const info = modelInfoMap.get(stripModelRefQualifier(ref));
@@ -242,7 +252,7 @@ export const ModelSelector = memo(function ModelSelector({
     supportedModels,
     modelInfoMap,
     requiredTag,
-    effectiveAgent?.name,
+    modelAgentKey,
     selectedModelOverrides,
     activeAgent?.primaryBehavior,
   ]);
@@ -297,8 +307,8 @@ export const ModelSelector = memo(function ModelSelector({
 
   const currentModelId = useMemo(() => {
     // User's explicit override (localStorage) takes highest priority
-    if (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) {
-      return selectedModelOverrides[effectiveAgent.name];
+    if (modelAgentKey && selectedModelOverrides[modelAgentKey]) {
+      return selectedModelOverrides[modelAgentKey];
     }
     // No override: chat agents show Auto; image-gen agents show the first
     // supported model (which matches what the backend resolves when no
@@ -307,12 +317,7 @@ export const ModelSelector = memo(function ModelSelector({
       return filteredModels[0] ?? AUTO_MODEL;
     }
     return AUTO_MODEL;
-  }, [
-    effectiveAgent?.name,
-    selectedModelOverrides,
-    isImageGenAgent,
-    filteredModels,
-  ]);
+  }, [modelAgentKey, selectedModelOverrides, isImageGenAgent, filteredModels]);
 
   // Keep override in sync with filteredModels:
   // - Clear an override that's no longer permitted (e.g. agent changed or
@@ -321,17 +326,17 @@ export const ModelSelector = memo(function ModelSelector({
   //   model the UI displays — otherwise the backend would fall back to
   //   `supportedModels[0]`, which may bypass the model_access allowlist.
   useEffect(() => {
-    if (!effectiveAgent?.name) return;
-    const override = selectedModelOverrides[effectiveAgent.name];
+    if (!modelAgentKey) return;
+    const override = selectedModelOverrides[modelAgentKey];
     if (override && !filteredModels.includes(override)) {
-      setSelectedModelOverride(effectiveAgent.name, null);
+      setSelectedModelOverride(modelAgentKey, null);
       return;
     }
     if (!override && !isImageGenAgent && filteredModels.length === 1) {
-      setSelectedModelOverride(effectiveAgent.name, filteredModels[0]);
+      setSelectedModelOverride(modelAgentKey, filteredModels[0]);
     }
   }, [
-    effectiveAgent?.name,
+    modelAgentKey,
     filteredModels,
     selectedModelOverrides,
     setSelectedModelOverride,
@@ -340,35 +345,35 @@ export const ModelSelector = memo(function ModelSelector({
 
   const handleSelect = useCallback(
     (modelId: string) => {
-      if (!effectiveAgent?.name) return;
+      if (!modelAgentKey) return;
       if (modelId === AUTO_MODEL) {
-        setSelectedModelOverride(effectiveAgent.name, null);
+        setSelectedModelOverride(modelAgentKey, null);
       } else {
-        setSelectedModelOverride(effectiveAgent.name, modelId);
+        setSelectedModelOverride(modelAgentKey, modelId);
       }
     },
-    [effectiveAgent?.name, setSelectedModelOverride],
+    [modelAgentKey, setSelectedModelOverride],
   );
 
   // "Add model" jumps to the active agent's Instructions & models page, scrolled
   // to the Models section (its `#models` anchor) — that's where an editor adds a
   // model to the agent's list. Mirrors the agent selector's "Add agent" footer.
   const handleAddModelClick = useCallback(() => {
-    if (!effectiveAgent?.name) return;
+    if (!modelAgentKey) return;
     setOpen(false);
     void navigate({
       to: '/dashboard/$id/agents/$agentId/instructions',
-      params: { id: organizationId, agentId: effectiveAgent.name },
+      params: { id: organizationId, agentId: modelAgentKey },
       hash: 'models',
     });
-  }, [navigate, organizationId, effectiveAgent?.name]);
+  }, [navigate, organizationId, modelAgentKey]);
 
   // Compact "Add model" affordance for the states that don't render the picker
   // dropdown (single model, or models configured but none reaching this agent).
   // Same `agents` write gate as the dropdown footer; as a ghost icon button it
   // keeps the composer row's height and sits beside the static label/warning.
   const addModelButton =
-    canManageAgents && effectiveAgent?.name ? (
+    canManageAgents && modelAgentKey ? (
       <Button
         type="button"
         variant="ghost"
@@ -597,7 +602,7 @@ export const ModelSelector = memo(function ModelSelector({
       optionAction={renderOptionAction}
       showRadio
       footer={
-        canManageAgents && effectiveAgent?.name ? (
+        canManageAgents && modelAgentKey ? (
           <Button
             variant="ghost"
             className="w-full"

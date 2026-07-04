@@ -340,6 +340,11 @@ export const getThreadMeta = query({
       // External-agent plan/act posture (composer toggle + plan-card flow).
       // `null` when the row has no explicit mode — callers treat it as 'act'.
       externalAgentMode: v.union(v.literal('plan'), v.literal('act'), v.null()),
+      // The agent this thread last ran on (stamped every pinned turn). The
+      // composer uses it to pin external-agent threads to their agent — the
+      // sandbox session and --resume transcript are bound to it, so the
+      // global (per-user) picker state must not re-route such a thread.
+      agentSlug: v.union(v.string(), v.null()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -409,6 +414,7 @@ export const getThreadMeta = query({
           ? metadata.generationStartTime
           : null,
       externalAgentMode: metadata.externalAgentMode ?? null,
+      agentSlug: metadata.agentSlug ?? null,
     };
   },
 });

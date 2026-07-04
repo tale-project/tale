@@ -300,6 +300,27 @@ export const setLiveRoute = internalMutation({
   },
 });
 
+/**
+ * Correct `threadMetadata.agentSlug` after the external-thread agent lock
+ * fires: `chatWithAgentTurn` patches the slug optimistically from the client
+ * selection before the generation action can resolve agent configs, so when
+ * the lock overrides a stale selection (chat_turn_generate step 0) the stored
+ * slug must be flipped back to the thread's bound agent.
+ */
+export const setThreadAgentSlug = internalMutation({
+  args: {
+    threadId: v.string(),
+    agentSlug: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await getThreadMetadataRow(ctx, args.threadId);
+    if (!row) return null;
+    await ctx.db.patch(row._id, { agentSlug: args.agentSlug });
+    return null;
+  },
+});
+
 export const setLastOrchestration = internalMutation({
   args: {
     threadId: v.string(),

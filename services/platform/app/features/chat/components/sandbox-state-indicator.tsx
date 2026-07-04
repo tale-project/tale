@@ -16,6 +16,7 @@ import {
   useSessionProgress,
   useThreadSandboxState,
 } from '../hooks/queries';
+import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 
 interface SandboxStateIndicatorProps {
   threadId: string | undefined;
@@ -59,9 +60,14 @@ export function SandboxStateIndicator({
   const { selectedAgent } = useChatLayout();
   const { agents } = useChatAgents(organizationId);
 
-  const active = selectedAgent
-    ? agents?.find((a) => a.name === selectedAgent.name)
-    : undefined;
+  // The thread's bound agent wins over the global per-user selection — a
+  // switch made in ANOTHER thread must not hide this thread's sandbox pill.
+  const { lockedAgent } = useThreadAgentLock(organizationId, threadId);
+  const active =
+    lockedAgent ??
+    (selectedAgent
+      ? agents?.find((a) => a.name === selectedAgent.name)
+      : undefined);
   const isExternal = active?.primaryBehavior === 'external-agent';
 
   // Only subscribe on external-agent threads — a normal chat thread passes

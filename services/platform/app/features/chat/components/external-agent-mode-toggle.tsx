@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 
 interface ExternalAgentModeToggleProps {
   threadId: string | undefined;
@@ -42,6 +43,7 @@ export function ExternalAgentModeToggle({
   const { toast } = useToast();
   const { selectedAgent } = useChatLayout();
   const { agents } = useChatAgents(organizationId);
+  const { lockedAgent } = useThreadAgentLock(organizationId, threadId);
   const { data: meta } = useConvexQuery(
     api.threads.queries.getThreadMeta,
     threadId && organizationId ? { threadId, organizationId } : 'skip',
@@ -65,9 +67,13 @@ export function ExternalAgentModeToggle({
   );
 
   if (!threadId) return null;
-  const active = selectedAgent
-    ? agents?.find((a) => a.name === selectedAgent.name)
-    : undefined;
+  // The thread's bound agent wins over the global per-user selection — a
+  // switch made in ANOTHER thread must not hide this thread's Plan/Act state.
+  const active = lockedAgent
+    ? lockedAgent
+    : selectedAgent
+      ? agents?.find((a) => a.name === selectedAgent.name)
+      : undefined;
   if (
     active?.primaryBehavior !== 'external-agent' ||
     active.agentKind !== 'claude-code'

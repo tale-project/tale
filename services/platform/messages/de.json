@@ -1310,7 +1310,9 @@
       "defaultAgent": "Assistent",
       "searchPlaceholder": "Agents suchen",
       "noResults": "Keine Agents gefunden",
-      "addAgent": "Katalog"
+      "addAgent": "Katalog",
+      "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
+      "lockedExternalLabel": "Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -1409,6 +1411,11 @@
         "delivered": "Übermittelt — warte auf die Antwort des Agenten",
         "deliversNow": "Wird gerade zugestellt",
         "consumed": "Übernommen"
+      },
+      "tray": {
+        "label": "Wartende Nachrichten",
+        "remove": "Wartende Nachricht entfernen",
+        "removeFailed": "Wartende Nachricht konnte nicht entfernt werden"
       }
     },
     "errorGenerating": "Etwas ist schiefgelaufen",

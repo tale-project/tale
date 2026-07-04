@@ -199,6 +199,13 @@ interface ChatMessagesProps {
   /** Park-on-capacity: the in-flight turn is waiting for a free sandbox slot, so
    *  the gap-shell shows "Queued for capacity" instead of "Thinking". */
   isQueued?: boolean;
+  /** External-agent turns only: the CURRENT live segment message id from the
+   *  session op (`sandboxSessionOps.assistantMessageId`). When set, the
+   *  thinking-indicator handoff is ANCHORED to that bubble — the footer shows
+   *  exactly while the live bubble has nothing to paint — instead of the
+   *  positional streaming-above/renderable-below scans, which reshuffle as
+   *  segment seams and steer picks move rows around. */
+  liveAssistantMessageId?: string | null;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
@@ -257,6 +264,7 @@ export const ChatMessages = memo(function ChatMessages({
   liveRoute,
   generationStartMs,
   isQueued,
+  liveAssistantMessageId,
   lastUserMessageRef,
   containerRef,
   activeApproval,
@@ -975,17 +983,42 @@ export const ChatMessages = memo(function ChatMessages({
   // pending one, `isLoading` is already true, so the indicator never flickers.
   const lastUserIsPendingOptimistic =
     lastUserMessageKey?.startsWith('pending-') ?? false;
+  // External-agent turns: the session op names the CURRENT live segment
+  // bubble, so the indicator handoff is anchored to it — the footer shows
+  // exactly while that bubble has nothing to paint (or hasn't arrived in the
+  // subscription yet), and hands off the same commit it first paints. This
+  // replaces the positional scans for these turns: segment seams and steer
+  // picks move rows around, which made the positional gates flip the
+  // indicator between above/below the last user message (and go blank when
+  // an empty streaming shell suppressed both).
+  const liveAnchorRenderable = useMemo(() => {
+    if (liveAssistantMessageId == null) return false;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.type !== 'message' || it.data.id !== liveAssistantMessageId) {
+        continue;
+      }
+      const d = it.data;
+      return (
+        !!d.content || hasThoughtSteps(d.parts) || !!d.isAborted || !!d.isFailed
+      );
+    }
+    return false;
+  }, [items, liveAssistantMessageId]);
+  const footerGateOpen =
+    liveAssistantMessageId != null
+      ? !liveAnchorRenderable
+      : !hasRenderableAssistantResponse &&
+        // A still-streaming assistant ABOVE the last user message means that
+        // user message is a mid-turn steer that the running turn already
+        // absorbed (a just-revealed `consumed` queue message), and the live
+        // activity is shown in that bubble above. Rendering a gap-shell below
+        // it would flash a misleading "Thinking · Ns" anchored to the FULL
+        // turn's start until the seam's reply bubble paints — so suppress it;
+        // the bubble above owns the indicator.
+        !streamingAssistantAboveLastUser;
   const responseFooterLive =
-    (isLoading || lastUserIsPendingOptimistic) &&
-    !hasRenderableAssistantResponse &&
-    // A still-streaming assistant ABOVE the last user message means that user
-    // message is a mid-turn steer that the running turn already absorbed (a
-    // just-revealed `consumed` queue message), and the live activity is shown
-    // in that bubble above. Rendering a gap-shell below it would flash a
-    // misleading "Thinking · Ns" anchored to the FULL turn's start until the
-    // seam's reply bubble paints — so suppress it; the bubble above owns the
-    // indicator.
-    !streamingAssistantAboveLastUser ? (
+    (isLoading || lastUserIsPendingOptimistic) && footerGateOpen ? (
       // Pre-first-token / gap placeholder for BOTH normal chat and external-agent
       // (Claude Code / OpenCode) turns. The streaming assistant bubble is the
       // single source of truth for tool/reasoning rows once it has any part

@@ -292,6 +292,99 @@ describe('ChatMessages', () => {
       expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
     });
 
+    // Anchored mode (external-agent turns): `liveAssistantMessageId` names the
+    // op's CURRENT live segment bubble; the footer shows exactly while that
+    // bubble has nothing to paint, regardless of where rows sit — no
+    // positional flips, no blank-gap window.
+    describe('anchored live region (liveAssistantMessageId)', () => {
+      it('shows the footer while the anchored bubble is an empty shell — even above the last user message (the old blank gap)', () => {
+        const emptyShell = createMessage({
+          id: 'a-live',
+          role: 'assistant',
+          content: '',
+          isStreaming: true,
+        });
+
+        render(
+          <ChatMessages
+            {...defaultProps}
+            isLoading
+            liveAssistantMessageId="a-live"
+            items={[toItem(user1()), toItem(emptyShell), toItem(user2())]}
+          />,
+        );
+
+        expect(screen.getByTestId('thinking')).toBeInTheDocument();
+      });
+
+      it('hands off to the anchored bubble the moment it has content', () => {
+        const liveBubble = createMessage({
+          id: 'a-live',
+          role: 'assistant',
+          content: 'first tokens',
+          isStreaming: true,
+        });
+
+        render(
+          <ChatMessages
+            {...defaultProps}
+            isLoading
+            liveAssistantMessageId="a-live"
+            items={[toItem(user1()), toItem(liveBubble)]}
+          />,
+        );
+
+        expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+      });
+
+      it('shows the footer when the anchored bubble has not arrived in the subscription yet', () => {
+        const sealed = createMessage({
+          id: 'a-old',
+          role: 'assistant',
+          content: 'sealed segment',
+        });
+
+        render(
+          <ChatMessages
+            {...defaultProps}
+            isLoading
+            liveAssistantMessageId="a-live-not-yet-here"
+            items={[toItem(user1()), toItem(sealed)]}
+          />,
+        );
+
+        expect(screen.getByTestId('thinking')).toBeInTheDocument();
+      });
+
+      it('ignores other renderable assistants — only the anchored bubble gates', () => {
+        // A sealed segment with content would satisfy the positional
+        // `hasRenderableAssistantResponse` scan; anchored mode must keep the
+        // footer up until the LIVE bubble itself paints.
+        const sealed = createMessage({
+          id: 'a-old',
+          role: 'assistant',
+          content: 'sealed segment',
+        });
+        const emptyLive = createMessage({
+          id: 'a-live',
+          role: 'assistant',
+          content: '',
+          isStreaming: true,
+        });
+
+        render(
+          <ChatMessages
+            {...defaultProps}
+            isLoading
+            liveAssistantMessageId="a-live"
+            items={[toItem(user1()), toItem(sealed), toItem(emptyLive)]}
+          />,
+        );
+
+        expect(screen.getByTestId('thinking')).toBeInTheDocument();
+      });
+    });
+
     it('unmounts the footer once the fresh post-seam bubble paints below the steer', () => {
       const sealedA = createMessage({
         id: 'a1',

@@ -13,7 +13,29 @@ type ProviderModel = {
   tags: string[];
 };
 
+type MockChatAgent = {
+  name: string;
+  displayName: string;
+  supportedModels: string[] | (() => string[]);
+  primaryBehavior?: 'external-agent';
+};
+
 let mockAgentSupportedModels: string[] = ['model-a', 'model-b'];
+let mockLockedAgent: {
+  name: string;
+  displayName: string;
+  supportedModels: string[];
+  primaryBehavior: 'external-agent';
+} | null = null;
+let mockAgents: MockChatAgent[] = [
+  {
+    name: 'assistant',
+    displayName: 'Chat Agent',
+    get supportedModels() {
+      return mockAgentSupportedModels;
+    },
+  },
+];
 let mockProviderModels: ProviderModel[] = [
   {
     id: 'model-a',
@@ -61,15 +83,15 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useChatAgents: () => ({
-    agents: [
-      {
-        name: 'assistant',
-        displayName: 'Chat Agent',
-        get supportedModels() {
-          return mockAgentSupportedModels;
-        },
-      },
-    ],
+    agents: mockAgents,
+    isLoading: false,
+  }),
+}));
+
+vi.mock('../hooks/use-thread-agent-lock', () => ({
+  useThreadAgentLock: () => ({
+    lockedAgent: mockLockedAgent,
+    isLoading: false,
   }),
 }));
 
@@ -136,7 +158,23 @@ describe('ModelSelector', () => {
   beforeEach(() => {
     mockCanWriteAgents = false;
     mockNavigate.mockClear();
+    mockLockedAgent = null;
     mockAgentSupportedModels = ['model-a', 'model-b'];
+    mockAgents = [
+      {
+        name: 'assistant',
+        displayName: 'Chat Agent',
+        get supportedModels() {
+          return mockAgentSupportedModels;
+        },
+      },
+      {
+        name: 'claude-code',
+        displayName: 'Claude Code',
+        primaryBehavior: 'external-agent' as const,
+        supportedModels: ['fable-model', 'opus-model'],
+      },
+    ];
     mockProviderModels = [
       {
         id: 'model-a',
@@ -193,6 +231,53 @@ describe('ModelSelector', () => {
 
       expect(screen.getByText('No models available')).toBeInTheDocument();
       expect(screen.queryByText('Auto')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('external-thread lock', () => {
+    it('lists the locked agent models when global selection points elsewhere', async () => {
+      mockLockedAgent = {
+        name: 'claude-code',
+        displayName: 'Claude Code',
+        primaryBehavior: 'external-agent',
+        supportedModels: ['fable-model', 'opus-model'],
+      };
+      mockProviderModels = [
+        {
+          id: 'model-a',
+          displayName: 'Model A',
+          description: 'Assistant model A',
+          tags: ['chat'],
+        },
+        {
+          id: 'model-b',
+          displayName: 'Model B',
+          description: 'Assistant model B',
+          tags: ['chat'],
+        },
+        {
+          id: 'fable-model',
+          displayName: 'Claude Fable 5',
+          description: 'External default',
+          tags: ['chat'],
+        },
+        {
+          id: 'opus-model',
+          displayName: 'Claude Opus 4.8',
+          description: 'External fallback',
+          tags: ['chat'],
+        },
+      ];
+
+      const { user } = render(
+        <ModelSelector organizationId="org-1" threadId="thread-1" />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Select model' }));
+
+      expect(screen.getByText('Claude Fable 5')).toBeInTheDocument();
+      expect(screen.getByText('Claude Opus 4.8')).toBeInTheDocument();
+      expect(screen.queryByText('Model A')).not.toBeInTheDocument();
+      expect(screen.queryByText('Model B')).not.toBeInTheDocument();
     });
   });
 
