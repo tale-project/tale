@@ -8,7 +8,8 @@ import { api } from '@/convex/_generated/api';
 export type AgentReadinessMode =
   | 'internal'
   | 'image'
-  | 'external-managed'
+  | 'external-gateway-managed'
+  | 'external-env-managed'
   | 'external-byo';
 
 export type AgentAuthMode = 'managed' | 'byo';
@@ -36,7 +37,7 @@ export interface AgentReadiness {
   shortName: string;
   displayName: string;
   mode: AgentReadinessMode;
-  agentKind?: 'claude-code' | 'opencode';
+  agentKind?: 'claude-code' | 'cursor';
   /** Ready under the agent's CURRENT effective mode. */
   ready: boolean;
   /** ≥1 supported model resolves with current provider keys. */
@@ -55,7 +56,11 @@ export function readAgentsResult(data: unknown): AgentReadiness[] {
 
 /** Is `agent` an external agent (the only kind whose auth mode is user-choosable)? */
 export function isExternalAgent(agent: AgentReadiness): boolean {
-  return agent.mode === 'external-managed' || agent.mode === 'external-byo';
+  return (
+    agent.mode === 'external-gateway-managed' ||
+    agent.mode === 'external-env-managed' ||
+    agent.mode === 'external-byo'
+  );
 }
 
 /** The agent's auth mode as a managed/byo toggle value (external agents only). */

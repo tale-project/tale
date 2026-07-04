@@ -5,7 +5,7 @@
 // {env:…} so it never appears in the config JSON itself, which may get logged).
 
 import type { AgentEventParser } from '../events';
-import type { AgentAdapter, AgentRunSpec, SessionExecSpec } from '../types';
+import type { AgentRunSpec, SessionExecSpec } from '../types';
 import { OpenCodeParser } from './parse';
 
 interface OpenCodeConfig {
@@ -20,7 +20,7 @@ interface OpenCodeConfig {
 
 const TALE_PROVIDER = 'tale';
 
-export class OpenCodeAdapter implements AgentAdapter {
+export class OpenCodeAdapter {
   readonly slug = 'opencode' as const;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {

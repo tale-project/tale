@@ -56,12 +56,12 @@ describe('nextConfigForBehavior', () => {
   });
 
   it('keeps an existing agentKind when re-entering external-agent', () => {
-    const opencode: AgentJsonConfig = {
+    const cursor: AgentJsonConfig = {
       ...chatWithLoopConfig,
-      agentKind: 'opencode',
+      agentKind: 'cursor',
     };
-    const patch = nextConfigForBehavior(opencode, 'external-agent');
-    expect(applyPatch(opencode, patch).agentKind).toBe('opencode');
+    const patch = nextConfigForBehavior(cursor, 'external-agent');
+    expect(applyPatch(cursor, patch).agentKind).toBe('cursor');
   });
 
   it('external-agent → chat clears agentKind/authMode/nativeWebTools and stays valid', () => {

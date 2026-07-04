@@ -28,6 +28,7 @@ import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { listProductAgentSlugs } from '@/lib/agent-adapters/registry';
 import { useT } from '@/lib/i18n/client';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { seo } from '@/lib/utils/seo';
@@ -296,7 +297,7 @@ function GeneralTab() {
   }, [timeoutDraft, commitTimeout]);
 
   // Agent type (primaryBehavior) — Internal (chat, runs the platform tool loop)
-  // vs External agent (Claude Code / OpenCode in a sandbox) vs Image generation.
+  // vs External agent (Claude Code / Cursor in a sandbox) vs Image generation.
   // Switching rewires which config applies, so it goes through a confirm dialog
   // and a Zod-safe field cleanup (see nextConfigForBehavior).
   const primaryBehavior: AgentPrimaryBehavior =
@@ -328,10 +329,14 @@ function GeneralTab() {
   );
 
   const agentKindOptions = useMemo(
-    () => [
-      { value: 'claude-code', label: t('agents.form.agentKind.claudeCode') },
-      { value: 'opencode', label: t('agents.form.agentKind.openCode') },
-    ],
+    () =>
+      listProductAgentSlugs().map((slug) => ({
+        value: slug,
+        label:
+          slug === 'cursor'
+            ? t('agents.form.agentKind.cursor')
+            : t('agents.form.agentKind.claudeCode'),
+      })),
     [t],
   );
 
@@ -360,7 +365,7 @@ function GeneralTab() {
 
   const handleAgentKindChange = useCallback(
     (value: string) => {
-      if (value !== 'claude-code' && value !== 'opencode') return;
+      if (value !== 'claude-code' && value !== 'cursor') return;
       updateConfig({ agentKind: value });
     },
     [updateConfig],

@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import { getCredentialPolicy } from '../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
 import {
   type ClassifiableAgent,
   classifyAgentReadiness,
@@ -34,7 +36,7 @@ interface AppAgentRow {
   displayName?: string;
   status?: string;
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
-  agentKind?: 'claude-code' | 'opencode';
+  agentKind?: 'claude-code' | 'cursor';
   authMode?: 'managed' | 'byo';
   supportedModels?: string[];
   metadata?: {
@@ -60,15 +62,26 @@ export const getAppAgentReadiness = action({
       (a) => typeof a.name === 'string' && a.status === undefined,
     );
 
-    const classified = agents.map((row) => ({
-      row,
-      needs: classifyAgentReadiness({
-        primaryBehavior: row.primaryBehavior,
-        authMode: row.authMode,
-        supportedModels: row.supportedModels,
-        requiredEnv: row.metadata?.requires?.env,
-      } satisfies ClassifiableAgent),
-    }));
+    const classified = agents.map((row) => {
+      const productKind: ProductAgentSlug =
+        row.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+      const credentialManagedSource =
+        row.primaryBehavior === 'external-agent' && row.authMode !== 'byo'
+          ? getCredentialPolicy(productKind).managedSource
+          : undefined;
+      return {
+        row,
+        needs: classifyAgentReadiness({
+          primaryBehavior: row.primaryBehavior,
+          authMode: row.authMode,
+          supportedModels: row.supportedModels,
+          requiredEnv: row.metadata?.requires?.env,
+          ...(credentialManagedSource !== undefined && {
+            credentialManagedSource,
+          }),
+        } satisfies ClassifiableAgent),
+      };
+    });
 
     // Provider read is needed whenever any agent references models — we compute
     // provider facts for external agents too (in case the user switches one to

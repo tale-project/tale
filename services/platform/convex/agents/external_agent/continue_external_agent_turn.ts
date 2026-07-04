@@ -40,7 +40,7 @@ export const continueExternalAgentTurn = internalAction({
     sessionId: v.string(),
     execId: v.string(),
     threadId: v.string(),
-    agentKind: v.union(v.literal('claude-code'), v.literal('opencode')),
+    agentKind: v.union(v.literal('claude-code'), v.literal('cursor')),
     agentSlug: v.optional(v.string()),
     modelRef: v.string(),
     userId: v.optional(v.string()),

@@ -6,8 +6,10 @@
  * decision tree is unit-testable in isolation.
  *
  * The buckets (the user-facing taxonomy):
- *  - internal (chat) / image-generation / external-MANAGED → the provider+model
+ *  - internal (chat) / image-generation / external-GATEWAY-managed → the provider+model
  *    the agent uses must be configured (provider has a key, model resolves).
+ *  - external-ENV-managed → managed external agent whose runtime reads credentials
+ *    from the session env (not the platform gateway); declared env/secrets must be set.
  *  - external-BYO → the agent's declared secrets/env must be set (it brings its
  *    own credential; supportedModels are hints, not a provider-key requirement).
  */
@@ -18,7 +20,8 @@ type ParsedModelRef = ReturnType<typeof parseModelRef>;
 type AgentReadinessMode =
   | 'internal'
   | 'image'
-  | 'external-managed'
+  | 'external-gateway-managed'
+  | 'external-env-managed'
   | 'external-byo';
 
 interface RequiredEnvKey {
@@ -52,6 +55,12 @@ export interface ClassifiableAgent {
     secret?: boolean;
     description?: string;
   }>;
+  /**
+   * Managed external agents only: where credentials come from. Defaults to
+   * `'gateway'` (Claude Code). `'agent-env'` means the runtime uses session
+   * env keys (e.g. Cursor CURSOR_API_KEY) even in managed mode.
+   */
+  credentialManagedSource?: 'gateway' | 'agent-env';
 }
 
 export function classifyAgentReadiness(
@@ -60,6 +69,7 @@ export function classifyAgentReadiness(
   const primaryBehavior = agent.primaryBehavior ?? 'chat';
   const isExternal = primaryBehavior === 'external-agent';
   const isByo = isExternal && agent.authMode === 'byo';
+  const managedSource = agent.credentialManagedSource ?? 'gateway';
 
   const models = (agent.supportedModels ?? []).map((ref) => parseModelRef(ref));
   const providers = Array.from(
@@ -78,15 +88,20 @@ export function classifyAgentReadiness(
   const mode: AgentReadinessMode = isByo
     ? 'external-byo'
     : isExternal
-      ? 'external-managed'
+      ? managedSource === 'agent-env'
+        ? 'external-env-managed'
+        : 'external-gateway-managed'
       : primaryBehavior === 'image-generation'
         ? 'image'
         : 'internal';
 
   return {
     mode,
-    needsProviderModel: mode !== 'external-byo',
-    needsEnv: mode === 'external-byo',
+    needsProviderModel:
+      mode === 'internal' ||
+      mode === 'image' ||
+      mode === 'external-gateway-managed',
+    needsEnv: mode === 'external-byo' || mode === 'external-env-managed',
     providers,
     models,
     requiredEnv,

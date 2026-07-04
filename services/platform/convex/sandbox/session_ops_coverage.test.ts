@@ -208,7 +208,7 @@ describe('listAbandonedAgentOps', () => {
         ownerType: 'thread',
         ownerId: 'th',
         createdBy: 'u',
-        agentKind: 'opencode',
+        agentKind: 'cursor',
         createdAt: 1,
         expiresAt: 999_999,
       }),
@@ -237,7 +237,7 @@ describe('listAbandonedAgentOps', () => {
       { staleBeforeMs: 5_000, limit: 50 },
     );
     expect(out.map((o) => o.execId)).toEqual(['stale']);
-    expect(out[0]?.agentKind).toBe('opencode');
+    expect(out[0]?.agentKind).toBe('cursor');
   });
 });
 

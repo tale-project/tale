@@ -17,6 +17,7 @@
 import { v } from 'convex/values';
 
 import { buildSteerStdinPayload } from '../../../lib/agent-adapters/claude-code/stdin';
+import { getAgentCapabilities } from '../../../lib/agent-adapters/credential-policy';
 import type {
   AgentEvent,
   AgentResultStatus,
@@ -152,13 +153,13 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'opencode';
+  agentSlug: 'claude-code' | 'cursor';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
    * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
   fallbackModel?: string;
-  /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
+  /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
@@ -509,7 +510,8 @@ export async function runAgentInSessionImpl(
   // messages (idle-state stdin lines are processed within seconds — verified
   // 2.1.173). EOF is sent only when the bg ledger is balanced AND no steer
   // rows are queued/in flight — EOF ABANDONS still-running background tasks.
-  const stdinHold = args.agentSlug === 'claude-code';
+  const stdinHold =
+    getAgentCapabilities(args.agentSlug).processLifecycle === 'stdin-hold';
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
   let agentResultStatus: AgentResultStatus | undefined;
@@ -1595,10 +1597,10 @@ export const runAgentInSession = internalAction({
     organizationId: v.string(),
     sessionId: v.string(),
     execId: v.string(),
-    agentSlug: v.union(v.literal('claude-code'), v.literal('opencode')),
+    agentSlug: v.union(v.literal('claude-code'), v.literal('cursor')),
     prompt: v.string(),
     model: v.optional(v.string()),
-    /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
+    /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
     agentSessionId: v.optional(v.string()),
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),

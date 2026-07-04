@@ -23,23 +23,36 @@ describe('classifyAgentReadiness', () => {
     expect(r.needsEnv).toBe(false);
   });
 
-  it('classifies a managed external agent as external-managed needing provider+model', () => {
+  it('classifies a gateway-managed external agent as external-gateway-managed', () => {
     const r = classifyAgentReadiness({
       primaryBehavior: 'external-agent',
       authMode: 'managed',
       supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
     });
-    expect(r.mode).toBe('external-managed');
+    expect(r.mode).toBe('external-gateway-managed');
     expect(r.needsProviderModel).toBe(true);
     expect(r.needsEnv).toBe(false);
   });
 
-  it('defaults an external agent with no authMode to managed', () => {
+  it('defaults an external agent with no authMode to gateway-managed', () => {
     const r = classifyAgentReadiness({
       primaryBehavior: 'external-agent',
       supportedModels: ['openrouter:anthropic/claude-sonnet-4.6'],
     });
-    expect(r.mode).toBe('external-managed');
+    expect(r.mode).toBe('external-gateway-managed');
+  });
+
+  it('classifies an env-managed external agent as external-env-managed', () => {
+    const r = classifyAgentReadiness({
+      primaryBehavior: 'external-agent',
+      authMode: 'managed',
+      credentialManagedSource: 'agent-env',
+      supportedModels: ['gpt-4'],
+      requiredEnv: [{ key: 'CURSOR_API_KEY', secret: true }],
+    });
+    expect(r.mode).toBe('external-env-managed');
+    expect(r.needsProviderModel).toBe(false);
+    expect(r.needsEnv).toBe(true);
   });
 
   it('classifies a BYO external agent as external-byo needing env, not provider+model', () => {

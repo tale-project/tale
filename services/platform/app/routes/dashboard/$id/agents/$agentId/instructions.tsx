@@ -31,6 +31,8 @@ import {
 import { useToast } from '@/app/hooks/use-toast';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
+import { getCredentialPolicy } from '@/lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '@/lib/agent-adapters/events';
 import { useT } from '@/lib/i18n/client';
 import { getVariantBadgeLabel } from '@/lib/shared/utils/expand-model-variants';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
@@ -442,6 +444,13 @@ function InstructionsTab() {
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
   const authMode = config.authMode ?? 'managed';
   const isByo = isExternalAgent && authMode === 'byo';
+  const productAgentKind: ProductAgentSlug =
+    config.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+  const credentialPolicy = getCredentialPolicy(productAgentKind);
+  const usesRuntimeModelEditor =
+    isByo || credentialPolicy.managedSource === 'agent-env';
+  const usesGatewayManaged =
+    isExternalAgent && !isByo && credentialPolicy.managedSource === 'gateway';
 
   const handleAuthModeChange = useCallback(
     (next: string) => {
@@ -557,7 +566,7 @@ function InstructionsTab() {
         </PageSection>
       )}
 
-      {isExternalAgent && !isByo && (
+      {usesGatewayManaged && (
         <PageSection
           title={t('agents.form.webTools.sectionTitle')}
           description={t('agents.form.webTools.sectionDescription')}
@@ -573,7 +582,7 @@ function InstructionsTab() {
         </PageSection>
       )}
 
-      {isExternalAgent && !isByo && (
+      {usesGatewayManaged && (
         <PageSection
           title={t('agents.form.vision.sectionTitle')}
           description={t('agents.form.vision.sectionDescription')}
@@ -598,12 +607,12 @@ function InstructionsTab() {
         id="models"
         title={t('agents.form.sectionModel')}
         description={
-          isByo
+          usesRuntimeModelEditor
             ? t('agents.form.byo.modelSectionDescription')
             : t('agents.form.sectionModelDescription')
         }
       >
-        {isByo ? (
+        {usesRuntimeModelEditor ? (
           <>
             <ByoModelEditor
               models={selectedModels}

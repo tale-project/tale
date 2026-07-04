@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","session_id":"cur_ses_abc"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Implementing the fix."}]}}
+{"type":"tool_call","subtype":"started","call_id":"call_1","tool_call":{"tool":"shellToolCall","input":{"command":"git checkout -b fix/issue-1"}}}
+{"type":"tool_call","subtype":"completed","call_id":"call_1","tool_call":{"tool":"shellToolCall","result":{"output":"Switched to a new branch"}}}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Opening the PR."}]}}
+{"type":"result","session_id":"cur_ses_abc","is_error":false,"result":"Opening the PR."}

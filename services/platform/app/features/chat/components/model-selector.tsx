@@ -29,6 +29,7 @@ import {
   useModelCapabilities,
 } from '@/app/features/settings/providers/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { getCredentialPolicy } from '@/lib/agent-adapters/credential-policy';
 import { useT } from '@/lib/i18n/client';
 import {
   expandModelVariants,
@@ -110,12 +111,15 @@ export const ModelSelector = memo(function ModelSelector({
   );
   const modelAgentKey = activeAgent?.name;
 
-  // A BYO external agent authenticates with the user's own credentials and uses
-  // a raw model id — there is no platform catalog to pick from, so the picker
-  // shows a calm indicator instead of the catalog dropdown / "no models" warning.
-  const isByoExternal =
-    activeAgent?.primaryBehavior === 'external-agent' &&
-    activeAgent?.authMode === 'byo';
+  // Env-backed externals (BYO or managed agent-env) use runtime model ids, not
+  // the platform catalog — show a calm indicator instead of the catalog dropdown.
+  const usesRuntimeModelIndicator = useMemo(() => {
+    if (activeAgent?.primaryBehavior !== 'external-agent') return false;
+    if (activeAgent.authMode === 'byo') return true;
+    const kind = activeAgent.agentKind ?? 'claude-code';
+    if (kind !== 'claude-code' && kind !== 'cursor') return false;
+    return getCredentialPolicy(kind).managedSource === 'agent-env';
+  }, [activeAgent]);
 
   const supportedModels = useMemo(() => {
     return activeAgent?.supportedModels ?? [];
@@ -412,10 +416,8 @@ export const ModelSelector = memo(function ModelSelector({
     );
   }
 
-  if (isByoExternal) {
-    // BYO: the model is the agent's raw provider id (or the credential's own
-    // default) — not a catalog choice. Show a calm, non-interactive indicator
-    // rather than the catalog dropdown or the red "no models" warning.
+  if (usesRuntimeModelIndicator) {
+    // Runtime model id (BYO or env-managed) — not a catalog choice.
     const rawModel = supportedModels[0];
     return (
       <span

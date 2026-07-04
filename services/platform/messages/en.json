@@ -5819,7 +5819,7 @@
           "internalLabel": "Internal agent",
           "internalDescription": "Runs on the platform with chat tools, knowledge, and workflows.",
           "externalLabel": "External agent",
-          "externalDescription": "Runs Claude Code or OpenCode in an isolated sandbox, using bound integrations.",
+          "externalDescription": "Runs Claude Code or Cursor in an isolated sandbox, using bound integrations.",
           "imageLabel": "Image generation",
           "imageDescription": "Routes the message straight to an image model.",
           "switchTitle": "Change agent type?",
@@ -5833,7 +5833,7 @@
           "label": "External runtime",
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
-          "openCode": "OpenCode"
+          "cursor": "Cursor"
         },
         "webTools": {
           "sectionTitle": "Web tools",
@@ -8138,7 +8138,7 @@
     }
   },
   "runtimes": {
-    "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, OpenCode).",
+    "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, Cursor).",
     "install": {
       "title": "Connect a daemon",
       "cliHint": "First, install the Tale CLI if you haven't already:",

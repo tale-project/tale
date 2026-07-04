@@ -29,7 +29,7 @@ const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 // Which external agent runtime handles an `external-agent` turn. The turn runs
 // in a sandbox session driven by @/lib/agent-adapters; the platform never runs
 // its own tool loop for these.
-const agentKindLiterals = ['claude-code', 'opencode'] as const;
+const agentKindLiterals = ['claude-code', 'cursor'] as const;
 const agentKindSchema = z.enum(agentKindLiterals);
 
 const composerModeSchema = z.object({
@@ -176,7 +176,7 @@ export const agentJsonSchema = z
      * Root behavior this agent runs. Omitted = 'chat' (default tool-calling chat
      * loop). 'image-generation' routes the user message straight to an image
      * model. 'external-agent' routes the whole turn to a coding agent (Claude
-     * Code / OpenCode) running in a sandbox session — the thread IS that
+     * Code / Cursor) running in a sandbox session — the thread IS that
      * session. In the non-chat cases toolNames/integrationBindings/workflows
      * are ignored (the agent's tools are its own).
      */
@@ -501,12 +501,12 @@ export const agentJsonSchema = z
       });
     }
 
-    // Every agent needs at least one model — EXCEPT a BYO external agent, whose
-    // model is an optional raw passthrough (empty = use the credential's own
-    // default), so it may be saved with no model.
-    const isByoExternal =
-      data.primaryBehavior === 'external-agent' && data.authMode === 'byo';
-    if (!isByoExternal && data.supportedModels.length < 1) {
+    // Every agent needs at least one model — EXCEPT a BYO external agent (optional
+    // raw passthrough) or Cursor (env-managed runtime; models are optional hints).
+    const isOptionalModelExternal =
+      data.primaryBehavior === 'external-agent' &&
+      (data.authMode === 'byo' || data.agentKind === 'cursor');
+    if (!isOptionalModelExternal && data.supportedModels.length < 1) {
       ctx.addIssue({
         code: 'custom',
         path: ['supportedModels'],

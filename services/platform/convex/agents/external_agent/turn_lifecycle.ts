@@ -53,7 +53,7 @@ export interface TurnContext {
   sessionId: string;
   execId: string;
   threadId: string;
-  agentKind: 'claude-code' | 'opencode';
+  agentKind: 'claude-code' | 'cursor';
   agentSlug?: string;
   modelRef: string;
   userId?: string;

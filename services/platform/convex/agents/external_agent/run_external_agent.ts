@@ -1,7 +1,7 @@
 'use node';
 
 /**
- * External-agent runtime — runs a coding agent (Claude Code / OpenCode) inside
+ * External-agent runtime — runs a coding agent (Claude Code / Cursor) inside
  * a sandbox session for one chat turn.
  *
  * Called for agents with `primaryBehavior === 'external-agent'`. Bypasses the
@@ -21,6 +21,16 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import {
+  collectScrubCredentialEnvKeys,
+  filterUserEnvForManagedAgentEnv,
+} from '../../../lib/agent-adapters/credential-env';
+import {
+  getAgentCapabilities,
+  getCredentialEnvKeys,
+  usesGateway,
+} from '../../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import {
   formatModelRef,
   parseModelRef,
@@ -341,7 +351,7 @@ export const runExternalAgentTurn = internalAction({
     modelRef: v.string(),
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
-    agentKind: v.union(v.literal('claude-code'), v.literal('opencode')),
+    agentKind: v.union(v.literal('claude-code'), v.literal('cursor')),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
      * uses the user-injected sandbox credentials. The per-agent authMode is the
      * sole control; there is no separate org-level gate. */
@@ -422,6 +432,9 @@ export const runExternalAgentTurn = internalAction({
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
+      const productKind: ProductAgentSlug = args.agentKind ?? 'claude-code';
+      const gatewayRun = usesGateway(productKind, args.authMode);
+      const capabilities = getAgentCapabilities(productKind);
 
       // Vision polyfill (managed only): when the agent's own model lacks the
       // `vision` tag, arm the image-read hook (tale-vision-read-hook) backed by a
@@ -467,7 +480,7 @@ export const runExternalAgentTurn = internalAction({
             byoNativeModel = agentEntry?.nativeModelId;
           }
           if (
-            !byo &&
+            gatewayRun &&
             agentEntry?.fallbackModelId !== undefined &&
             agentEntry.fallbackModelId !== parsed.modelId
           ) {
@@ -478,7 +491,7 @@ export const runExternalAgentTurn = internalAction({
             fallbackModel =
               resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
           }
-          if (!byo && !(agentEntry?.tags.includes('vision') ?? false)) {
+          if (gatewayRun && !(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
               organizationId: args.organizationId,
               ...(args.visionModel !== undefined && {
@@ -662,9 +675,10 @@ export const runExternalAgentTurn = internalAction({
       // Its failure is best-effort HERE because it surfaces downstream as the
       // mint's fail-closed error (no key to bind to) rather than a silently
       // over-permissive key.
-      // Provider provisioning + gateway auth-hardening are MANAGED-only — a byo
-      // turn never touches the gateway (no VK to mint, no provider key to bind).
-      if (!byo) {
+      // Provider provisioning + gateway auth-hardening apply only when the
+      // runtime routes through the platform gateway (gateway-managed, not BYO
+      // or env-managed managed runs like Cursor).
+      if (gatewayRun) {
         try {
           const gatewayProviders = await loadOrgGatewayProviders(
             ctx,
@@ -727,73 +741,54 @@ export const runExternalAgentTurn = internalAction({
         );
       }
 
-      // 2a-pre. BYO: clear any platform-managed LLM env that a PRIOR managed
-      // turn left in this reused sandbox's SESSION env. A stale (now-revoked)
-      // ANTHROPIC_AUTH_TOKEN outranks CLAUDE_CODE_OAUTH_TOKEN in Claude Code's
-      // credential precedence, so without this the agent authenticates with the
-      // dead virtual key → 401. Managed turns carry these in the per-exec env
-      // (not the session env), so unsetting here never affects a managed run.
-      if (byo) {
-        try {
-          await sessionEnvPatch(sessionId, {
-            unset: [
-              'ANTHROPIC_BASE_URL',
-              'ANTHROPIC_AUTH_TOKEN',
-              'ANTHROPIC_API_KEY',
-              'ANTHROPIC_MODEL',
-              'ANTHROPIC_DEFAULT_OPUS_MODEL',
-              'ANTHROPIC_DEFAULT_SONNET_MODEL',
-              'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-              'ANTHROPIC_DEFAULT_FABLE_MODEL',
-              'CLAUDE_CODE_SUBAGENT_MODEL',
-            ],
-          });
-        } catch (unsetErr) {
-          console.warn(
-            '[runExternalAgentTurn] BYO platform-env unset failed (continuing):',
-            unsetErr,
-          );
+      // 2a-pre. Scrub stale credential keys from reused sessions so a prior
+      // runtime's env does not override this turn's injection order.
+      try {
+        const scrubKeys = collectScrubCredentialEnvKeys(
+          productKind,
+          gatewayRun,
+          byo,
+        );
+        if (scrubKeys.length > 0) {
+          await sessionEnvPatch(sessionId, { unset: scrubKeys });
         }
+      } catch (scrubErr) {
+        console.warn(
+          '[runExternalAgentTurn] credential-env scrub failed (continuing):',
+          scrubErr,
+        );
       }
 
-      // 2a-mid. Inject the AGENT's own env/secrets (the per-agent Environment-tab
-      // store), so a chat run gets them too — mirroring the workflow/task path.
-      // Injected BEFORE the user's box env (2a-bis) so a user's own same-named
-      // var wins on collision (user > agent). Token-source BINDING rows are
-      // carried out separately (resolved as a rotating pool in 2a-ter).
+      const envManagedRun = !gatewayRun && !byo;
+      const protectedEnvKeys = getCredentialEnvKeys(productKind);
+
+      // 2a-mid / 2a-bis. Resolve agent + user env patches, then inject in an
+      // order that matches the credential backend:
+      //   env-managed managed → user first (filtered), agent wins on protected keys
+      //   BYO / gateway-managed → agent first, user second (user wins on collision)
       let agentTokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+      let agentEnvPatch: Record<string, string> = {};
       if (args.agentSlug !== undefined) {
         try {
           const agentEnv = await ctx.runAction(
             internal.agents.agent_env_actions.resolveAgentEnv,
-            { organizationId: args.organizationId, agentSlug: args.agentSlug },
+            {
+              organizationId: args.organizationId,
+              agentSlug: args.agentSlug,
+              sessionId,
+            },
           );
           agentTokenBindings = agentEnv.tokenBindings;
-          if (Object.keys(agentEnv.env).length > 0) {
-            const denied = await sessionEnvPatch(sessionId, {
-              set: agentEnv.env,
-            });
-            if (denied.length > 0) {
-              console.warn(
-                '[runExternalAgentTurn] agent env names denied by runnerd:',
-                denied,
-              );
-            }
-          }
+          agentEnvPatch = agentEnv.env;
         } catch (agentEnvErr) {
           console.warn(
-            '[runExternalAgentTurn] agent env injection failed (continuing):',
+            '[runExternalAgentTurn] agent env resolve failed (continuing):',
             agentEnvErr,
           );
         }
       }
 
-      // 2a-bis. Inject the user's own env vars + secrets (MANAGED and BYO). This
-      // is the user's box environment, auto-attached to all their sandboxes; for
-      // a byo agent it carries the credential the agent authenticates with. In
-      // managed mode the platform VK still wins for LLM auth (the adapter sets it
-      // at exec scope, above Claude Code's credential precedence). After agent
-      // env so a user's same-named var wins (user > agent).
+      let userEnvPatch: Record<string, string> = {};
       if (args.userId) {
         try {
           const userEnv = await ctx.runAction(
@@ -804,26 +799,45 @@ export const runExternalAgentTurn = internalAction({
               sessionId,
             },
           );
-          if (Object.keys(userEnv.env).length > 0) {
-            const denied = await sessionEnvPatch(sessionId, {
-              set: userEnv.env,
-            });
-            if (denied.length > 0) {
-              console.warn(
-                '[runExternalAgentTurn] user env names denied by runnerd:',
-                denied,
-              );
-            }
-          }
+          userEnvPatch = userEnv.env;
         } catch (userEnvErr) {
           console.warn(
-            '[runExternalAgentTurn] user env injection failed (continuing):',
+            '[runExternalAgentTurn] user env resolve failed (continuing):',
             userEnvErr,
           );
         }
       }
 
-      // 2a-ter. Token-source rotation (BYO + an Environment-tab row binds a
+      if (envManagedRun) {
+        userEnvPatch = filterUserEnvForManagedAgentEnv(
+          userEnvPatch,
+          protectedEnvKeys,
+        );
+      }
+
+      const envPatches = envManagedRun
+        ? [userEnvPatch, agentEnvPatch]
+        : [agentEnvPatch, userEnvPatch];
+
+      for (const patch of envPatches) {
+        if (Object.keys(patch).length === 0) continue;
+        try {
+          const denied = await sessionEnvPatch(sessionId, { set: patch });
+          if (denied.length > 0) {
+            console.warn(
+              '[runExternalAgentTurn] session env names denied by runnerd:',
+              denied,
+            );
+          }
+        } catch (patchErr) {
+          console.warn(
+            '[runExternalAgentTurn] session env patch failed (continuing):',
+            patchErr,
+          );
+        }
+      }
+
+      // 2a-ter. Token-source rotation (env-backed runs with a binding): fetch the
       // token source): fetch the broker pool, pick one at random, and inject it
       // under the BINDING's env var — AFTER user env so the rotated credential
       // wins for LLM auth. The run loop below fails over to a different token on
@@ -836,7 +850,7 @@ export const runExternalAgentTurn = internalAction({
         selection: TokenSelection;
       } | null = null;
       const triedTokens = new Set<string>();
-      if (byo && agentTokenBindings.length > 0) {
+      if (!gatewayRun && agentTokenBindings.length > 0) {
         if (agentTokenBindings.length > 1) {
           console.warn(
             `[runExternalAgentTurn] ${agentTokenBindings.length} token-source bindings — v1 honors only the first (${agentTokenBindings[0].key}).`,
@@ -923,7 +937,7 @@ export const runExternalAgentTurn = internalAction({
       // credentials, so no VK is minted (mintedKeyId stays null and the finalize
       // path skips the spend-poll + revoke).
       let gatewayToken: string | null = null;
-      if (!byo) {
+      if (gatewayRun) {
         // Size its hard budget to the org's rolling-remaining cost (when a cost
         // cap applies) so the gateway's own ceiling can't exceed the rolling cap
         // even between the seam-level budget checks; fall back to the flat
@@ -1060,13 +1074,13 @@ export const runExternalAgentTurn = internalAction({
       // Deliver this turn's chat attachments into the sandbox: stage each file
       // under /user/uploads/<promptMessageId>/ and reference the absolute paths
       // in the prompt so the agent reads the real files (images load as vision).
-      // claude-code only for now — opencode's out-of-cwd file access is a
-      // follow-up. The in-process agent path instead inlines images as
-      // multimodal parts; the external agent has no such channel.
+      // Adapters without out-of-cwd attachment dirs skip staging. The in-process
+      // agent path instead inlines images as multimodal parts; the external agent
+      // has no such channel.
       let promptForRun = args.rawPrompt;
       let attachmentDirs: string[] = [];
       if (
-        args.agentKind === 'claude-code' &&
+        capabilities.supportsAttachmentDirs &&
         args.attachments &&
         args.attachments.length > 0
       ) {
@@ -1091,7 +1105,7 @@ export const runExternalAgentTurn = internalAction({
         // skill dir. Skipped on the Tale monorepo workspace — its AGENTS.md
         // already carries the workflow and the house rules point at it.
         skillsGuidance:
-          args.agentKind === 'claude-code' && !workspaceIsTale
+          productKind === 'claude-code' && !workspaceIsTale
             ? buildSkillsGuidance(availableWorkflowSkills)
             : undefined,
       });
@@ -1176,6 +1190,7 @@ export const runExternalAgentTurn = internalAction({
           // carries no gateway/bridge — the agent uses the user-injected session
           // credentials directly.
           ...(!byo &&
+            gatewayRun &&
             gatewayToken !== null && {
               gatewayBaseUrl: EXTERNAL_AGENT_GATEWAY_URL,
               gatewayToken,
