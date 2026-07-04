@@ -113,3 +113,20 @@ export async function resolveTurnStartMs(
     return fallbackMs;
   }
 }
+
+/**
+ * The pre-answer "thinking" wall-clock the chat "Thought for Ns" summary shows,
+ * measured from the turn start (`resolveTurnStartMs`) to the moment the thinking
+ * window closes. It closes at the FIRST answer token; a reasoning/tool-only or
+ * aborted turn never produces one, so it closes at the turn's end (`nowMs`)
+ * instead. Persisting this for those turns keeps the duration on the message
+ * after a reload rather than dropping it (`undefined`), which previously left
+ * only the "N tools" / "Showed its reasoning" fallback.
+ */
+export function computeThinkingDurationMs(
+  firstTokenTime: number | null,
+  turnStartMs: number,
+  nowMs: number,
+): number {
+  return (firstTokenTime ?? nowMs) - turnStartMs;
+}

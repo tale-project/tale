@@ -561,9 +561,10 @@ function MessageBubbleComponent({
         <MessageThoughtHeader
           isStreaming={!!isAssistantStreaming}
           hasAnswerStarted={hasAnswerStarted}
-          // markGenerating → first answer token, routing INCLUDED; falls back to
-          // the legacy timeToFirstTokenMs for old messages. When NEITHER exists
-          // (a reasoning/tool-only or aborted turn) the header shows the honest
+          // markGenerating → thinking-window close (first answer token, or the
+          // turn's end for a reasoning/tool-only or aborted turn), routing
+          // INCLUDED; falls back to the legacy timeToFirstTokenMs for old
+          // messages. Only legacy rows with NEITHER field fall through to the
           // duration-less "Showed its reasoning" summary.
           durationMs={thinkingDurationMs ?? timeToFirstTokenMs}
           tokenCount={outputTokens}
