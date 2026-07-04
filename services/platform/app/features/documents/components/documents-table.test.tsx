@@ -134,5 +134,14 @@ describe('DocumentsTable', () => {
         rules: { 'aria-allowed-attr': { enabled: false } },
       });
     });
+
+    it('gives the table an sr-only caption (#1980)', () => {
+      const { container } = render(
+        <DocumentsTable organizationId="test-org-id" />,
+      );
+      const caption = container.querySelector('caption');
+      expect(caption).not.toBeNull();
+      expect(caption).toHaveTextContent('documents.tableCaption');
+    });
   });
 });

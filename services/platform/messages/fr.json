@@ -2503,6 +2503,7 @@
   },
   "documents": {
     "entityLabel": "documents",
+    "tableCaption": "Documents et dossiers",
     "searchPlaceholder": "Rechercher des documents",
     "deleteFolder": {
       "title": "Supprimer le dossier",
@@ -4579,6 +4580,7 @@
     "filterAll": "Tous",
     "loadMore": "Charger plus",
     "loading": "Chargement…",
+    "newNotifications": "Nouvelles notifications",
     "accountLocked": "Compte temporairement verrouillé : {email}",
     "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
     "auditIntegrityFailed": "Échec du contrôle d'intégrité du journal d'audit",
@@ -5347,6 +5349,7 @@
         "metrics": "Métriques"
       },
       "entityLabel": "agents",
+      "tableCaption": "Agents installés",
       "createAgent": "Créer un agent",
       "createMenu": {
         "blank": "Vierge",

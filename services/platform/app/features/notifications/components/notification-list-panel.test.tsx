@@ -36,6 +36,16 @@ const markMyRead = { mutateAsync: vi.fn(), isPending: false };
 const orgLoadMore = vi.fn();
 const myLoadMore = vi.fn();
 
+interface MockNotification {
+  _id: string;
+  createdAt: number;
+  read: boolean;
+  titleKey: string;
+  bodyKey: string;
+  params?: Record<string, unknown>;
+  link?: undefined;
+}
+
 const streamState = {
   org: 'Exhausted' as
     | 'LoadingFirstPage'
@@ -52,6 +62,9 @@ const streamState = {
   // so the button renders.
   orgUnread: 0,
   myUnread: 0,
+  // Row payloads for the arrival-announcement suite. Empty by default so the
+  // other suites stay focused on the button controls.
+  orgResults: [] as MockNotification[],
 };
 
 // --- Org stream hooks (`../hooks/*`) --------------------------------------
@@ -68,7 +81,7 @@ vi.mock('../hooks/queries', async () => {
   return {
     ...actual,
     useNotificationsList: () => ({
-      results: [],
+      results: streamState.orgResults,
       status: streamState.org,
       loadMore: orgLoadMore,
     }),
@@ -91,6 +104,13 @@ vi.mock('@/app/features/inbox/hooks/queries', () => ({
   useUnreadNotificationCount: () => streamState.myUnread,
 }));
 
+// Stub the row so the arrival suite can add unread items without wiring up the
+// row's router/date-format dependencies — the announcer reads the raw streams,
+// not the rendered rows.
+vi.mock('./notification-row', () => ({
+  NotificationRow: () => <li data-testid="notification-row" />,
+}));
+
 function renderPanel() {
   return render(<NotificationListPanel organizationId="org-1" />);
 }
@@ -105,6 +125,7 @@ beforeEach(() => {
   streamState.my = 'Exhausted';
   streamState.orgUnread = 0;
   streamState.myUnread = 0;
+  streamState.orgResults = [];
 });
 
 describe('NotificationListPanel', () => {
@@ -152,6 +173,39 @@ describe('NotificationListPanel', () => {
       expect(
         screen.getByRole('button', { name: 'Mark all as read' }),
       ).toBeEnabled();
+    });
+  });
+
+  // A polite, sr-only live region announces notifications that arrive while the
+  // panel is open, so screen-reader users hear them (#1980). The list already
+  // present on first render is never announced.
+  describe('new-arrival announcements (#1980)', () => {
+    function makeNotification(createdAt: number): MockNotification {
+      return {
+        _id: `n-${createdAt}`,
+        createdAt,
+        read: false,
+        titleKey: 'title',
+        bodyKey: 'body',
+        params: {},
+      };
+    }
+
+    it('does not announce the list already present on first render', () => {
+      streamState.orgResults = [makeNotification(1000)];
+      renderPanel();
+      expect(screen.getByRole('status').textContent).toBe('');
+    });
+
+    it('announces a notification that arrives while the panel is open', () => {
+      const { rerender } = renderPanel();
+      // Region starts empty; then a newer notification arrives.
+      expect(screen.getByRole('status').textContent).toBe('');
+
+      streamState.orgResults = [makeNotification(Date.now())];
+      rerender(<NotificationListPanel organizationId="org-1" />);
+
+      expect(screen.getByRole('status')).toHaveTextContent('New notifications');
     });
   });
 

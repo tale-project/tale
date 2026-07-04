@@ -2502,6 +2502,7 @@
   },
   "documents": {
     "entityLabel": "Dokumente",
+    "tableCaption": "Dokumente und Ordner",
     "searchPlaceholder": "Dokumente suchen",
     "deleteFolder": {
       "title": "Ordner löschen",
@@ -4578,6 +4579,7 @@
     "filterAll": "Alle",
     "loadMore": "Mehr laden",
     "loading": "Lädt…",
+    "newNotifications": "Neue Benachrichtigungen",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
     "lockoutDetails": "{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.",
     "auditIntegrityFailed": "Integritätsprüfung des Audit-Logs fehlgeschlagen",
@@ -5346,6 +5348,7 @@
         "metrics": "Metriken"
       },
       "entityLabel": "Agenten",
+      "tableCaption": "Installierte Agents",
       "createAgent": "Agent erstellen",
       "createMenu": {
         "blank": "Leer",

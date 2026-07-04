@@ -38,6 +38,18 @@ beforeEach(() => {
   toastMock.mockReset();
 });
 
+describe('EditorActions — mobile touch targets (#1980)', () => {
+  it('grows the Save and Discard buttons to 44px on mobile', () => {
+    render(<EditorActions controller={makeController()} />);
+    for (const name of ['actions.discard', 'actions.save']) {
+      expect(screen.getByRole('button', { name })).toHaveClass(
+        'max-sm:min-h-11',
+        'max-sm:min-w-11',
+      );
+    }
+  });
+});
+
 describe('EditorActions — suppressServerErrorToast', () => {
   it('toasts a server error by default', async () => {
     const controller = makeController({

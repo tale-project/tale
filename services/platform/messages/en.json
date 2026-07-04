@@ -2505,6 +2505,7 @@
   },
   "documents": {
     "entityLabel": "documents",
+    "tableCaption": "Documents and folders",
     "searchPlaceholder": "Search documents",
     "deleteFolder": {
       "title": "Delete folder",
@@ -4581,6 +4582,7 @@
     "filterAll": "All",
     "loadMore": "Load more",
     "loading": "Loading…",
+    "newNotifications": "New notifications",
     "accountLocked": "Account temporarily locked: {email}",
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}.",
     "auditIntegrityFailed": "Audit log integrity check failed",
@@ -5613,6 +5615,7 @@
         "metrics": "Metrics"
       },
       "entityLabel": "agents",
+      "tableCaption": "Installed agents",
       "createAgent": "Create agent",
       "createMenu": {
         "blank": "Blank",

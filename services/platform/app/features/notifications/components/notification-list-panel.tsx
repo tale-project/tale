@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { Tabs } from '@tale/ui/tabs';
 import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
@@ -49,6 +49,11 @@ interface NotificationListPanelProps {
 }
 
 const LOAD_MORE_NUM_ITEMS = 25;
+
+// How long the arrival announcement stays in the live region before it is
+// cleared, so a subsequent arrival re-announces even when the text is
+// identical (screen readers skip a live region whose text did not change).
+const ARRIVAL_ANNOUNCE_HOLD_MS = 1000;
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
 // stored in earlier rows — we already bind the namespace with
@@ -162,6 +167,44 @@ export function NotificationListPanel({
     }
   }, [results, myNotifications, hiddenIds]);
 
+  // Announce newly-arrived notifications to screen readers. A polite, sr-only
+  // live region (below) speaks a short message whenever a notification with a
+  // timestamp newer than any seen so far appears — so SR users hear arrivals
+  // that land while the panel is open. The first render only sets the baseline,
+  // so the list already present when the panel opened is never announced.
+  const [arrivalAnnouncement, setArrivalAnnouncement] = useState('');
+  const latestSeenAtRef = useRef<number | null>(null);
+  const clearAnnounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let newest = 0;
+    for (const n of results) if (n.createdAt > newest) newest = n.createdAt;
+    for (const n of myNotifications)
+      if (n.createdAt > newest) newest = n.createdAt;
+
+    const seenAt = latestSeenAtRef.current;
+    if (seenAt === null) {
+      latestSeenAtRef.current = newest;
+      return;
+    }
+    if (newest > seenAt) {
+      latestSeenAtRef.current = newest;
+      setArrivalAnnouncement(t('newNotifications'));
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+      clearAnnounceRef.current = setTimeout(
+        () => setArrivalAnnouncement(''),
+        ARRIVAL_ANNOUNCE_HOLD_MS,
+      );
+    }
+  }, [results, myNotifications, t]);
+
+  useEffect(
+    () => () => {
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+    },
+    [],
+  );
+
   // Filter client-side so toggling Unread/All never changes the query key (a
   // query reset would re-flash the skeleton). `hiddenIds` covers the optimistic
   // "just marked read" gap before the server-side `read` flag catches up.
@@ -192,6 +235,14 @@ export function NotificationListPanel({
 
   return (
     <div className={cn('flex h-[24rem] flex-col', className)}>
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {arrivalAnnouncement}
+      </div>
       <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
