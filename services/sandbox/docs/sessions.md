@@ -6,7 +6,7 @@ image; the only thing that varies is _when the session is destroyed_:
 
 - **thread run_code** — a per-thread session, idle-stopped (workspace preserved)
   and destroyed on thread delete.
-- **external agents** (Claude Code, OpenCode) — a per-(org,user) session.
+- **external agents** (Claude Code, Cursor) — a per-(org,user) session.
 - **workflow steps** (agent AND script) — an ephemeral per-(run,step) session,
   torn down at step end.
 - **crawler renders** — an ephemeral render session, destroyed right after the
@@ -90,7 +90,7 @@ since the user is non-root): 2 CPU, 4 GiB, 512 pids, no cumulative-CPU ulimit
 `no-new-privileges`, apparmor/seccomp RuntimeDefault.
 
 `HOME=/user/.runtime/home` lives on the persistent workspace, so agent state
-(`~/.claude`, `~/.config/opencode`, `~/.gitconfig`) survives every exec and an
+(`~/.claude`, `~/.cursor`, `~/.gitconfig`) survives every exec and an
 in-place container restart — this _is_ the session-persistence mechanism.
 
 `TMPDIR=/user/.runtime/tmp` also lives on the workspace (disk-backed), not the
@@ -149,4 +149,4 @@ The session backend needs, in the sandbox namespace, on `pods` and `secrets`:
   deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the
   built agent image.)
 - Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
-  one real `claude -p` + `opencode run` turn end-to-end. (Pending.)
+  one real `claude -p` + `agent -p` turn end-to-end. (Pending.)

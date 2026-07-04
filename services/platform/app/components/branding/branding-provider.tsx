@@ -13,7 +13,6 @@ import {
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useActiveOrganizationId } from '@/app/lib/active-organization';
 import { setTitleSuffix } from '@/app/lib/title-suffix';
-import { router } from '@/app/router';
 import { adjustColorForTheme, hexToHsl, isLightColor } from '@/lib/utils/color';
 
 interface BrandingState {
@@ -98,7 +97,11 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
       // The head for the current match already ran with the previous suffix
       // (e.g. the "Tale" fallback on a first-ever login). Re-run heads so the
       // live document title picks up the org name now that it is known.
-      void router.invalidate();
+      // Dynamic import keeps `@/app/router` (and its env + routeTree deps) off
+      // the module graph for unit tests that only pull in branding consumers.
+      void import('@/app/router').then(({ router }) => {
+        void router.invalidate();
+      });
     }
   }, [branding?.appName]);
 

@@ -1,9 +1,9 @@
 // Adapter input/output contract shared by every agent.
 
-import type { AgentEventParser, AgentSlug } from './events';
+import type { AgentEventParser, ProductAgentSlug } from './events';
 
 /** The platform LLM gateway endpoint + the session-scoped key. The
- * adapter appends its own protocol route (Claude → /anthropic, OpenCode →
+ * adapter appends its own protocol route (Claude → /anthropic, Cursor uses
  * /openai/v1) so callers pass one base. */
 export interface GatewayTarget {
   /** Gateway root, no trailing slash, e.g. http://sandbox-llm-gateway:8080 */
@@ -24,7 +24,7 @@ export interface AgentRunSpec {
    * classifier fallback (the `ANTHROPIC_DEFAULT_OPUS_MODEL` slot). */
   fallbackModel?: string;
   /** Resume handle captured from a prior run's `run-started`/`result`
-   * (Claude session_id / OpenCode sessionID). Continues the same agent
+   * (Claude session_id / Cursor chat id). Continues the same agent
    * conversation in the same workspace. */
   agentSessionId?: string;
   /** Agent loop cap; defaults to 40 (matches the platform agent maxSteps). */
@@ -114,8 +114,35 @@ export interface SessionExecSpec {
   stdinMode?: 'close' | 'hold';
 }
 
+export interface CredentialPolicy {
+  /** Managed-mode credential source. BYO always injects env credentials.
+   * Only meaningful when `supportsManaged` is true. */
+  managedSource: 'gateway' | 'agent-env';
+  supportsByo: boolean;
+  /** Whether the runtime can run in managed mode at all. False for runtimes
+   * whose CLI cannot route through the platform LLM gateway — e.g. Cursor, whose
+   * CLI authenticates with only `--api-key`/`CURSOR_API_KEY` and exposes no
+   * OpenAI-compatible base-URL override — which are therefore BYO only. */
+  supportsManaged: boolean;
+}
+
+export interface AgentCapabilities {
+  processLifecycle: 'stdin-hold' | 'one-shot';
+  promptTransport: 'stdin-ndjson' | 'argv-positional';
+  mcpDelivery: 'inline-argv' | 'inline-env' | 'staged-file';
+  supportsPlanMode: boolean;
+  supportsMidTurnSteering: boolean;
+  supportsAttachmentDirs: boolean;
+  supportsIntegrationsBridge: boolean;
+  supportsVisionPolyfill: boolean;
+}
+
 export interface AgentAdapter {
-  readonly slug: AgentSlug;
+  readonly slug: ProductAgentSlug;
+  readonly credentialPolicy: CredentialPolicy;
+  readonly capabilities: AgentCapabilities;
+  /** Env vars this runtime uses for credentials (scrubbed on agent switch). */
+  readonly credentialEnvKeys: readonly string[];
   buildExec(spec: AgentRunSpec): SessionExecSpec;
   createParser(): AgentEventParser;
 }

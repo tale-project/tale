@@ -109,7 +109,9 @@
       "connect": "Verbinde {integration}, um diese App zu nutzen.",
       "connectButton": "Verbinden",
       "agentNeedsSetup": "{agent} muss noch eingerichtet werden.",
-      "setupButton": "Einrichten"
+      "agentNeedsKeys": "{agent} braucht {keys} in Environment.",
+      "setupButton": "Einrichten",
+      "openAgentFallback": "Agent öffnen"
     },
     "config": {
       "title": "Konfiguration",
@@ -5552,7 +5554,7 @@
           "internalLabel": "Interner Agent",
           "internalDescription": "Läuft auf der Plattform mit Chat-Tools, Wissen und Workflows.",
           "externalLabel": "Externer Agent",
-          "externalDescription": "Führt Claude Code oder OpenCode in einer isolierten Sandbox aus und nutzt gebundene Integrationen.",
+          "externalDescription": "Führt Claude Code oder Cursor in einer isolierten Sandbox aus und nutzt gebundene Integrationen.",
           "imageLabel": "Bildgenerierung",
           "imageDescription": "Leitet die Nachricht direkt an ein Bildmodell weiter.",
           "switchTitle": "Agententyp ändern?",
@@ -5566,7 +5568,7 @@
           "label": "Externe Laufzeit",
           "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
           "claudeCode": "Claude Code",
-          "openCode": "OpenCode"
+          "cursor": "Cursor"
         },
         "webTools": {
           "sectionTitle": "Web-Tools",
@@ -8135,7 +8137,7 @@
     }
   },
   "runtimes": {
-    "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, OpenCode).",
+    "description": "Führe Aufgaben-Arbeit auf deinen eigenen Maschinen aus — mit den Coding-Agent-CLIs, die du bereits nutzt (Claude Code, Codex, Cursor).",
     "install": {
       "title": "Daemon verbinden",
       "cliHint": "Installiere zuerst die Tale-CLI, falls noch nicht geschehen:",

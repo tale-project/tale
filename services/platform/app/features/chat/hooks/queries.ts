@@ -179,13 +179,13 @@ export interface ChatAgent {
    * Root behavior. Omitted = 'chat'. 'image-generation' flips the composer
    * into direct image-gen mode (model picker filters on image tag, EditingBanner
    * activates when the thread has images). 'external-agent' (Claude Code /
-   * OpenCode in a sandbox session) enables queue mode: the composer stays
+   * Cursor in a sandbox session) enables queue mode: the composer stays
    * usable while a turn runs and messages queue for the running agent.
    */
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   /** Which external agent CLI backs an 'external-agent' behavior. Gates
    * CLI-specific UI like the plan/act composer toggle (claude-code only). */
-  agentKind?: 'claude-code' | 'opencode';
+  agentKind?: 'claude-code' | 'cursor';
   /** Credential mode for an 'external-agent'. 'byo' bypasses the platform
    * gateway/catalog (raw model, user-supplied credentials) — the model picker
    * shows a calm BYO indicator instead of the catalog/no-models warning. */
@@ -260,7 +260,7 @@ export function useChatAgents(organizationId: string) {
               : undefined,
           agentKind:
             'agentKind' in a &&
-            (a.agentKind === 'claude-code' || a.agentKind === 'opencode')
+            (a.agentKind === 'claude-code' || a.agentKind === 'cursor')
               ? a.agentKind
               : undefined,
           authMode:
@@ -327,7 +327,7 @@ export function useThreadMessages(threadId: string | null) {
 }
 
 /**
- * Live external-agent (Claude Code / OpenCode) progress for a thread. Returns
+ * Live external-agent (Claude Code / Cursor) progress for a thread. Returns
  * the latest in-session `agent-run` op (status + recentEvents) so the chat can
  * render a real-time tool-use timeline mid-turn. Null for normal chat threads
  * (no sandbox session ops) — the caller falls back to the plain placeholder.

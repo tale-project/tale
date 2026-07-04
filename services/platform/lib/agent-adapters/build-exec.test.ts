@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
-import { OpenCodeAdapter } from './opencode/adapter';
+import { CursorAdapter } from './cursor/adapter';
 import type { AgentRunSpec } from './types';
 
 const base = {
@@ -391,61 +391,60 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8');
     expect(argv).toContain('--disallowedTools');
   });
-
-  it('OpenCode rejects BYO (managed-only — needs the gateway)', () => {
-    expect(() => new OpenCodeAdapter().buildExec(byoBase)).toThrow(/byo/i);
-  });
 });
 
-describe('OpenCodeAdapter.buildExec', () => {
-  it('builds run --format json with injected gateway provider config', () => {
-    const { argv, env, cwd } = new OpenCodeAdapter().buildExec(base);
-    expect(argv.slice(0, 6)).toEqual([
-      'opencode',
-      'run',
-      '--format',
-      'json',
-      '--dir',
+describe('CursorAdapter.buildExec', () => {
+  const cursorBase = {
+    prompt: 'Fix issue #1 and open a PR',
+    model: 'composer-2.5',
+    workdir: '/user/workspace',
+  } satisfies AgentRunSpec;
+
+  it('builds headless stream-json invocation without gateway env', () => {
+    const { argv, env, cwd, stdin, stdinMode } = new CursorAdapter().buildExec(
+      cursorBase,
+    );
+    expect(argv.slice(0, 10)).toEqual([
+      'agent',
+      '-p',
+      '--force',
+      '--trust',
+      '--sandbox',
+      'disabled',
+      '--output-format',
+      'stream-json',
+      '--workspace',
       '/user/workspace',
     ]);
-    expect(argv).toContain('-m');
-    expect(argv).toContain('tale/claude-sonnet-4-6');
-    // prompt is the trailing positional.
-    expect(argv[argv.length - 1]).toBe(base.prompt);
-
-    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
-    expect(config.model).toBe('tale/claude-sonnet-4-6');
-    expect(config.permission).toBe('allow');
-    expect(config.provider.tale.options.baseURL).toBe(
-      'http://sandbox-llm-gateway:8080/openai/v1',
-    );
-    // token referenced via {env:…}, not inlined into the (loggable) config.
-    expect(config.provider.tale.options.apiKey).toBe(
-      '{env:TALE_GATEWAY_TOKEN}',
-    );
-    expect(JSON.stringify(config)).not.toContain('sk-bf-test');
-    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
-    expect(config.mcp.playwright.command).toEqual([
-      'tale-playwright-mcp',
-      '--headless',
-      '--browser',
-      'chromium',
-      '--isolated',
-      '--no-sandbox',
-      '--ignore-https-errors',
-    ]);
+    expect(argv[argv.length - 1]).toBe(cursorBase.prompt);
+    expect(stdin).toBeUndefined();
+    expect(stdinMode).toBe('close');
+    expect(env).toEqual({});
+    expect(argv).toContain('--model');
+    expect(argv).toContain('composer-2.5');
     expect(cwd).toBe('/user/workspace');
   });
 
-  it('continues a session with -s and drops MCP when browserMcp is false', () => {
-    const { argv, env } = new OpenCodeAdapter().buildExec({
-      ...base,
-      agentSessionId: 'ses_xyz',
-      browserMcp: false,
+  it('REGRESSION GUARD: never passes --max-turns (unknown flag = silent exit 1)', () => {
+    // The pinned Cursor CLI (2026.03.20) has no --max-turns option, and an
+    // unknown flag makes `agent -p` exit 1 with NO output — the turn dies
+    // before the first stream-json byte. Verified in-sandbox 2026-07-04.
+    const { argv } = new CursorAdapter().buildExec({
+      ...cursorBase,
+      maxTurns: 40,
     });
-    expect(argv).toContain('-s');
-    expect(argv).toContain('ses_xyz');
-    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
-    expect(config.mcp).toBeUndefined();
+    expect(argv).not.toContain('--max-turns');
+    expect(argv).not.toContain('40');
+  });
+
+  it('continues a session with --resume and omits --model when unset', () => {
+    const { argv } = new CursorAdapter().buildExec({
+      ...cursorBase,
+      agentSessionId: 'cur_ses_abc',
+      model: undefined,
+    });
+    expect(argv).toContain('--resume');
+    expect(argv).toContain('cur_ses_abc');
+    expect(argv).not.toContain('--model');
   });
 });

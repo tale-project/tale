@@ -6,7 +6,14 @@
 // each agent's native shape lives in that agent's parse.ts; the mapping table
 // is documented in the implementation plan.
 
-export type AgentSlug = 'claude-code' | 'opencode';
+/** Product external runtimes exposed in schema, UI, and registry. */
+export const PRODUCT_AGENT_SLUGS = ['claude-code', 'cursor'] as const;
+export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
+
+/** Archived runtime — parser fixtures only; not in product registry. */
+export type LegacyAgentSlug = 'opencode';
+
+export type AgentSlug = ProductAgentSlug | LegacyAgentSlug;
 
 export type AgentResultStatus =
   | 'completed'

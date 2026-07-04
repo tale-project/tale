@@ -3,7 +3,13 @@
 // bypassPermissions (permitted because the agent-profile user is non-root).
 
 import type { AgentEventParser } from '../events';
-import type { AgentAdapter, AgentRunSpec, SessionExecSpec } from '../types';
+import type {
+  AgentAdapter,
+  AgentCapabilities,
+  AgentRunSpec,
+  CredentialPolicy,
+  SessionExecSpec,
+} from '../types';
 import { DEFAULT_MAX_TURNS } from '../types';
 import { ClaudeCodeParser } from './parse';
 import { buildStdinUserMessage } from './stdin';
@@ -137,8 +143,35 @@ function withHouseRules(systemPromptAppend: string | undefined): string {
     : CLAUDE_CODE_HOUSE_RULES;
 }
 
+const CREDENTIAL_POLICY: CredentialPolicy = {
+  managedSource: 'gateway',
+  supportsByo: true,
+  supportsManaged: true,
+};
+
+const CAPABILITIES: AgentCapabilities = {
+  processLifecycle: 'stdin-hold',
+  promptTransport: 'stdin-ndjson',
+  mcpDelivery: 'inline-argv',
+  supportsPlanMode: true,
+  supportsMidTurnSteering: true,
+  supportsAttachmentDirs: true,
+  supportsIntegrationsBridge: true,
+  supportsVisionPolyfill: true,
+};
+
+const CREDENTIAL_ENV_KEYS = [
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
+  'TALE_GATEWAY_TOKEN',
+] as const;
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
+  readonly credentialPolicy = CREDENTIAL_POLICY;
+  readonly capabilities = CAPABILITIES;
+  readonly credentialEnvKeys = CREDENTIAL_ENV_KEYS;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {
     // BYO ("bring your own credentials") opts out of the platform gateway: no

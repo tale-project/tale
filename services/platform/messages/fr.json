@@ -109,7 +109,9 @@
       "connect": "Connectez {integration} pour utiliser cette application.",
       "connectButton": "Connecter",
       "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
-      "setupButton": "Configurer"
+      "agentNeedsKeys": "{agent} a besoin de {keys} dans Environment.",
+      "setupButton": "Configurer",
+      "openAgentFallback": "Ouvrir l'agent"
     },
     "config": {
       "title": "Configuration",
@@ -5553,7 +5555,7 @@
           "internalLabel": "Agent interne",
           "internalDescription": "S'exécute sur la plateforme avec les outils de chat, les connaissances et les workflows.",
           "externalLabel": "Agent externe",
-          "externalDescription": "Exécute Claude Code ou OpenCode dans un bac à sable isolé, en utilisant les intégrations liées.",
+          "externalDescription": "Exécute Claude Code ou Cursor dans un bac à sable isolé, en utilisant les intégrations liées.",
           "imageLabel": "Génération d'images",
           "imageDescription": "Achemine le message directement vers un modèle d'image.",
           "switchTitle": "Changer le type d'agent ?",
@@ -5567,7 +5569,7 @@
           "label": "Exécution externe",
           "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
           "claudeCode": "Claude Code",
-          "openCode": "OpenCode"
+          "cursor": "Cursor"
         },
         "webTools": {
           "sectionTitle": "Outils web",
@@ -8136,7 +8138,7 @@
     }
   },
   "runtimes": {
-    "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, OpenCode).",
+    "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, Cursor).",
     "install": {
       "title": "Connecter un daemon",
       "cliHint": "Installez d'abord la CLI Tale si ce n'est pas déjà fait :",

@@ -168,6 +168,7 @@ import type * as agents_chat_turn_generate from "../agents/chat_turn_generate.js
 import type * as agents_config from "../agents/config.js";
 import type * as agents_external_agent_attachment_files from "../agents/external_agent/attachment_files.js";
 import type * as agents_external_agent_continue_external_agent_turn from "../agents/external_agent/continue_external_agent_turn.js";
+import type * as agents_external_agent_exec_model from "../agents/external_agent/exec_model.js";
 import type * as agents_external_agent_recover_external_agent_turns from "../agents/external_agent/recover_external_agent_turns.js";
 import type * as agents_external_agent_run_external_agent from "../agents/external_agent/run_external_agent.js";
 import type * as agents_external_agent_system_prompt from "../agents/external_agent/system_prompt.js";
@@ -968,6 +969,8 @@ import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_inde
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
 import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_index from "../migrations/versions/v0_2_89/03_claude_code_fable_default/index.js";
 import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_meta from "../migrations/versions/v0_2_89/03_claude_code_fable_default/meta.js";
+import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index.js";
+import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -1815,6 +1818,7 @@ declare const fullApi: ApiFromModules<{
   "agents/config": typeof agents_config;
   "agents/external_agent/attachment_files": typeof agents_external_agent_attachment_files;
   "agents/external_agent/continue_external_agent_turn": typeof agents_external_agent_continue_external_agent_turn;
+  "agents/external_agent/exec_model": typeof agents_external_agent_exec_model;
   "agents/external_agent/recover_external_agent_turns": typeof agents_external_agent_recover_external_agent_turns;
   "agents/external_agent/run_external_agent": typeof agents_external_agent_run_external_agent;
   "agents/external_agent/system_prompt": typeof agents_external_agent_system_prompt;
@@ -2615,6 +2619,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
   "migrations/versions/v0_2_89/03_claude_code_fable_default/index": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_index;
   "migrations/versions/v0_2_89/03_claude_code_fable_default/meta": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_meta;
+  "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index;
+  "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

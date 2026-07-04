@@ -277,7 +277,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents externes",
-      "description": "L'agent intégré Claude Code, qui s'exécute dans un bac à sable isolé ; tu discutes directement avec lui pendant qu'il modifie des fichiers, lance des commandes et poursuit le travail sur plusieurs tours."
+      "description": "Agents de code intégrés (Claude Code, Cursor) qui s'exécutent dans un bac à sable isolé ; tu discutes directement avec eux pendant qu'ils modifient des fichiers, lancent des commandes et poursuivent le travail sur plusieurs tours."
     }
   },
   "fr:platform/agents/delegation": {
@@ -1413,7 +1413,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "External agents",
-      "description": "The built-in Claude Code agent that runs inside an isolated sandbox; you chat with it directly as it edits files, runs commands, and continues the work across turns."
+      "description": "Built-in coding agents (Claude Code, Cursor) that run inside an isolated sandbox; you chat with them directly as they edit files, run commands, and continue the work across turns."
     }
   },
   "en:platform/agents/delegation": {
@@ -2549,7 +2549,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Externe Agenten",
-      "description": "Der integrierte Agent Claude Code, der in einer isolierten Sandbox läuft; du chattest direkt mit ihm, während er Dateien bearbeitet, Befehle ausführt und die Arbeit über mehrere Runden fortsetzt."
+      "description": "Integrierte Coding-Agenten (Claude Code, Cursor), die in einer isolierten Sandbox laufen; du chattest direkt mit ihnen, während sie Dateien bearbeiten, Befehle ausführen und die Arbeit über mehrere Runden fortsetzen."
     }
   },
   "de:platform/agents/delegation": {
