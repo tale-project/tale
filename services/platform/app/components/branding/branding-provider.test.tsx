@@ -9,9 +9,9 @@ import { BrandingProvider } from './branding-provider';
 // The provider reads the active org, its branding, and the resolved theme, then
 // injects CSS variables on <html>. Mock the data sources so the test drives the
 // branding values directly and pins the theme for deterministic colour math.
-const brandingData = vi.hoisted(
-  () => ({ current: undefined as Record<string, unknown> | undefined }),
-);
+const brandingData = vi.hoisted(() => ({
+  current: undefined as Record<string, unknown> | undefined,
+}));
 
 vi.mock('@/app/features/settings/branding/hooks/queries', () => ({
   useBranding: () => ({ data: brandingData.current, refetch: vi.fn() }),
