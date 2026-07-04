@@ -21,45 +21,62 @@ describe('personalNotificationTarget', () => {
     });
   });
 
-  it('returns null when projectId is missing (legacy rows)', () => {
-    expect(
-      personalNotificationTarget({
-        organizationId: ORG,
-        taskId: 'task_abc',
-        params: { title: 'No project here' },
-      }),
-    ).toBeNull();
-  });
-
-  it('returns null when taskId is missing', () => {
+  it('falls back to the project when taskId is missing but projectId is present', () => {
     expect(
       personalNotificationTarget({
         organizationId: ORG,
         taskId: undefined,
         params: { projectId: 'proj_xyz' },
       }),
-    ).toBeNull();
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId',
+      params: { id: ORG, projectId: 'proj_xyz' },
+    });
   });
 
-  it('tolerates non-record params', () => {
+  it('falls back to the org home when there is no project context (legacy/digest)', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: 'task_abc',
+        params: { title: 'No project here' },
+      }),
+    ).toEqual({ to: '/dashboard/$id', params: { id: ORG } });
+  });
+
+  it('falls back to the org home for non-record params (never a dead row)', () => {
     expect(
       personalNotificationTarget({
         organizationId: ORG,
         taskId: 'task_abc',
         params: undefined,
       }),
-    ).toBeNull();
+    ).toEqual({ to: '/dashboard/$id', params: { id: ORG } });
   });
 });
 
 describe('orgNotificationTarget', () => {
-  it('returns null when there is no link', () => {
-    expect(orgNotificationTarget(ORG, undefined)).toBeNull();
+  it('falls back to governance for a linkless security alert', () => {
+    expect(orgNotificationTarget(ORG, undefined, 'security')).toEqual({
+      to: '/dashboard/$id/settings/governance',
+      params: { id: ORG },
+    });
+  });
+
+  it('falls back to the automations hub for a linkless system/workflow alert', () => {
+    expect(orgNotificationTarget(ORG, undefined, 'system')).toEqual({
+      to: '/dashboard/$id/automations',
+      params: { id: ORG },
+    });
   });
 
   it('maps an agent link to the agent detail route', () => {
     expect(
-      orgNotificationTarget(ORG, { kind: 'agent', agentSlug: 'researcher' }),
+      orgNotificationTarget(
+        ORG,
+        { kind: 'agent', agentSlug: 'researcher' },
+        'system',
+      ),
     ).toEqual({
       to: '/dashboard/$id/agents/$agentId',
       params: { id: ORG, agentId: 'researcher' },
@@ -67,7 +84,9 @@ describe('orgNotificationTarget', () => {
   });
 
   it('maps audit-logs to the governance logs route', () => {
-    expect(orgNotificationTarget(ORG, { kind: 'audit-logs' })).toEqual({
+    expect(
+      orgNotificationTarget(ORG, { kind: 'audit-logs' }, 'security'),
+    ).toEqual({
       to: '/dashboard/$id/settings/governance/logs',
       params: { id: ORG },
     });
@@ -75,7 +94,11 @@ describe('orgNotificationTarget', () => {
 
   it('carries the broken-row logId into the logs route search (#1845)', () => {
     expect(
-      orgNotificationTarget(ORG, { kind: 'audit-logs', logId: 'log_bad' }),
+      orgNotificationTarget(
+        ORG,
+        { kind: 'audit-logs', logId: 'log_bad' },
+        'security',
+      ),
     ).toEqual({
       to: '/dashboard/$id/settings/governance/logs',
       params: { id: ORG },
@@ -84,18 +107,18 @@ describe('orgNotificationTarget', () => {
   });
 
   it('maps dsar to the data-subject-requests route', () => {
-    expect(orgNotificationTarget(ORG, { kind: 'dsar' })).toEqual({
+    expect(orgNotificationTarget(ORG, { kind: 'dsar' }, 'security')).toEqual({
       to: '/dashboard/$id/settings/governance/data-subject-requests',
       params: { id: ORG },
     });
   });
 
   it('maps security-monitoring to the governance security route', () => {
-    expect(orgNotificationTarget(ORG, { kind: 'security-monitoring' })).toEqual(
-      {
-        to: '/dashboard/$id/settings/governance/security-monitoring',
-        params: { id: ORG },
-      },
-    );
+    expect(
+      orgNotificationTarget(ORG, { kind: 'security-monitoring' }, 'security'),
+    ).toEqual({
+      to: '/dashboard/$id/settings/governance/security-monitoring',
+      params: { id: ORG },
+    });
   });
 });
