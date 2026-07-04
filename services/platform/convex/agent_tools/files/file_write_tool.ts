@@ -20,6 +20,7 @@ import { internal } from '../../_generated/api';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError, inferContentType } from './_shared';
+import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
 const RENDER_HINTS = [
@@ -82,6 +83,8 @@ QUOTAS:
 - ≤ 100 files per workspace
 - ≤ 100 MB per workspace (aggregate)
 
+Every result (success or failure) includes \`sandboxState\` — the current workspace manifest. Trust it over memory: a file listed there already exists, don't recreate it.
+
 The canvas (right pane) renders workspace files by extension automatically — \`.html\` opens in a sandboxed iframe, \`.svg\` renders inline, \`.md\` as markdown, \`.py\`/\`.ts\`/\`.json\` as syntax-highlighted code, image extensions inline, others as a download chip.`,
     inputSchema: fileWriteArgs,
     execute: async (ctx: ToolCtx, args: FileWriteArgs) => {
@@ -98,141 +101,155 @@ The canvas (right pane) renders workspace files by extension automatically — \
       // (job sub-thread) writes into the SAME workspace the parent agent and
       // the user's canvas read, so its files are visible after the job ends.
       const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
-      let parsed;
-      try {
-        parsed = parseWorkspacePath(args.path);
-      } catch (err) {
-        if (err instanceof InvalidFilePathError) {
+      const outcome = await (async () => {
+        let parsed;
+        try {
+          parsed = parseWorkspacePath(args.path);
+        } catch (err) {
+          if (err instanceof InvalidFilePathError) {
+            return {
+              ok: false as const,
+              code: 'INVALID_PATH' as const,
+              reason: err.code,
+              message: err.message,
+            };
+          }
+          throw err;
+        }
+        // file_write authors workspace files → `/user/code` (agent_write). It
+        // does not write user uploads or run_code outputs.
+        if (parsed === null || parsed.source !== 'agent_write') {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
-            reason: err.code,
-            message: err.message,
+            reason: 'path_wrong_root' as const,
+            message: `file_write writes under /user/code/ only (e.g. /user/code/gen.py). /user/output/ is produced by run_code; /user/uploads/ holds user files.`,
           };
         }
-        throw err;
-      }
-      // file_write authors workspace files → `/user/code` (agent_write). It
-      // does not write user uploads or run_code outputs.
-      if (parsed === null || parsed.source !== 'agent_write') {
-        return {
-          ok: false as const,
-          code: 'INVALID_PATH' as const,
-          reason: 'path_wrong_root' as const,
-          message: `file_write writes under /user/code/ only (e.g. /user/code/gen.py). /user/output/ is produced by run_code; /user/uploads/ holds user files.`,
-        };
-      }
-      const normalizedPath = parsed.path;
-      const encoding = args.encoding ?? 'utf8';
-      let bytes: Uint8Array;
-      try {
-        if (encoding === 'base64') {
-          bytes = Uint8Array.from(Buffer.from(args.content, 'base64'));
-        } else {
-          bytes = new TextEncoder().encode(args.content);
+        const normalizedPath = parsed.path;
+        const encoding = args.encoding ?? 'utf8';
+        let bytes: Uint8Array;
+        try {
+          if (encoding === 'base64') {
+            bytes = Uint8Array.from(Buffer.from(args.content, 'base64'));
+          } else {
+            bytes = new TextEncoder().encode(args.content);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            ok: false as const,
+            code: 'DECODE_ERROR' as const,
+            message: `Failed to decode content as ${encoding}: ${msg}`,
+          };
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return {
-          ok: false as const,
-          code: 'DECODE_ERROR' as const,
-          message: `Failed to decode content as ${encoding}: ${msg}`,
-        };
-      }
-      const contentType = inferContentType(normalizedPath);
-      // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
-      // BlobPart constraint accepts it (Uint8Array<ArrayBufferLike> includes
-      // SharedArrayBuffer in TS's strict lib and is rejected).
-      const ab = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(ab).set(bytes);
-      const blob = new Blob([ab], { type: contentType });
+        const contentType = inferContentType(normalizedPath);
+        // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
+        // BlobPart constraint accepts it (Uint8Array<ArrayBufferLike> includes
+        // SharedArrayBuffer in TS's strict lib and is rejected).
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
+        const blob = new Blob([ab], { type: contentType });
 
-      let storageId: string;
-      try {
-        storageId = await ctx.storage.store(blob);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return {
-          ok: false as const,
-          code: 'STORAGE_ERROR' as const,
-          message: `Failed to store file bytes: ${msg}`,
-        };
-      }
+        let storageId: string;
+        try {
+          storageId = await ctx.storage.store(blob);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            ok: false as const,
+            code: 'STORAGE_ERROR' as const,
+            message: `Failed to store file bytes: ${msg}`,
+          };
+        }
 
-      try {
-        const result = await ctx.runMutation(
-          internal.thread_files.internal_mutations.upsertThreadFile,
-          {
-            organizationId,
-            threadId: workspaceThreadId,
+        try {
+          const result = await ctx.runMutation(
+            internal.thread_files.internal_mutations.upsertThreadFile,
+            {
+              organizationId,
+              threadId: workspaceThreadId,
+              path: normalizedPath,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
+              storageId: storageId as never,
+              size: blob.size,
+              contentType,
+              source: 'agent_write' as const,
+              ...(args.renderHint !== undefined && {
+                renderHint: args.renderHint,
+              }),
+            },
+          );
+          return {
+            ok: true as const,
             path: normalizedPath,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
-            storageId: storageId as never,
             size: blob.size,
             contentType,
-            source: 'agent_write' as const,
-            ...(args.renderHint !== undefined && {
-              renderHint: args.renderHint,
-            }),
-          },
-        );
-        return {
-          ok: true as const,
-          path: normalizedPath,
-          size: blob.size,
-          contentType,
-          replaced: result.replaced,
-        };
-      } catch (err) {
-        // ConvexError from the mutation carries .data { code, ... } for
-        // quota failures — surface that to the LLM so it can decide
-        // whether to delete + retry, shrink, or stop.
-        const data =
-          err instanceof Error && 'data' in err
-            ? (err as { data?: unknown }).data
-            : undefined;
-        if (
-          data &&
-          typeof data === 'object' &&
-          'code' in data &&
-          (data as { code: unknown }).code === 'WORKSPACE_QUOTA'
-        ) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-narrowed by the conditional above
-          const quota = data as {
-            code: 'WORKSPACE_QUOTA';
-            scope: 'file' | 'workspace_bytes' | 'workspace_files';
-            limit: number;
-            size?: number;
-            current?: number;
-            message: string;
+            replaced: result.replaced,
           };
-          // Free the orphan storage blob we just created — the mutation
-          // rejected before it got upserted, so the storage row would
-          // leak otherwise.
+        } catch (err) {
+          // ConvexError from the mutation carries .data { code, ... } for
+          // quota failures — surface that to the LLM so it can decide
+          // whether to delete + retry, shrink, or stop.
+          const data =
+            err instanceof Error && 'data' in err
+              ? (err as { data?: unknown }).data
+              : undefined;
+          if (
+            data &&
+            typeof data === 'object' &&
+            'code' in data &&
+            (data as { code: unknown }).code === 'WORKSPACE_QUOTA'
+          ) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-narrowed by the conditional above
+            const quota = data as {
+              code: 'WORKSPACE_QUOTA';
+              scope: 'file' | 'workspace_bytes' | 'workspace_files';
+              limit: number;
+              size?: number;
+              current?: number;
+              message: string;
+            };
+            // Free the orphan storage blob we just created — the mutation
+            // rejected before it got upserted, so the storage row would
+            // leak otherwise.
+            try {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
+              await ctx.storage.delete(storageId as never);
+            } catch (delErr) {
+              console.warn(
+                '[file_write] orphan storage cleanup failed:',
+                delErr,
+              );
+            }
+            return {
+              ok: false as const,
+              code: quota.code,
+              scope: quota.scope,
+              limit: quota.limit,
+              ...(quota.size !== undefined && { size: quota.size }),
+              ...(quota.current !== undefined && { current: quota.current }),
+              message: quota.message,
+            };
+          }
           try {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
             await ctx.storage.delete(storageId as never);
           } catch (delErr) {
             console.warn('[file_write] orphan storage cleanup failed:', delErr);
           }
-          return {
-            ok: false as const,
-            code: quota.code,
-            scope: quota.scope,
-            limit: quota.limit,
-            ...(quota.size !== undefined && { size: quota.size }),
-            ...(quota.current !== undefined && { current: quota.current }),
-            message: quota.message,
-          };
+          throw err;
         }
-        try {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-          await ctx.storage.delete(storageId as never);
-        } catch (delErr) {
-          console.warn('[file_write] orphan storage cleanup failed:', delErr);
-        }
-        throw err;
-      }
+      })();
+      // Attach the workspace ground truth to every outcome (success or
+      // failure) so the model never acts on a stale view of the sandbox.
+      return {
+        ...outcome,
+        sandboxState: await buildSandboxState(ctx, {
+          organizationId,
+          workspaceThreadId,
+        }),
+      };
     },
   }),
 };

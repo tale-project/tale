@@ -26,6 +26,10 @@ import { getWorkspaceThreadId } from '../threads/get_parent_thread_id';
 import { refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
+import {
+  buildSandboxState,
+  formatSandboxState,
+} from './files/helpers/sandbox_state';
 import { parseWorkspacePath, relOf } from './files/sandbox_paths';
 import type { ToolDefinition } from './types';
 
@@ -142,49 +146,6 @@ function checkPackagesAgainstPolicy(
       ok: true,
     }
   );
-}
-
-interface SandboxStateEntry {
-  path: string;
-  fileId: string;
-  size: number;
-  contentType: string;
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
- * Compact human-readable rendering of the sandbox-state manifest, appended to
- * the tool-result message. The structured `sandboxState` field carries the
- * full data (incl. every `fileId`); this is the at-a-glance summary.
- */
-function formatSandboxState(area: {
-  uploads: SandboxStateEntry[];
-  code: SandboxStateEntry[];
-  outputs: SandboxStateEntry[];
-}): string {
-  const lines: string[] = [];
-  const render = (root: string, entries: SandboxStateEntry[]) => {
-    if (entries.length === 0) return;
-    const shown = entries.slice(0, 12);
-    const names = shown
-      .map((e) => `${e.path.slice(root.length + 1)} (${formatBytes(e.size)})`)
-      .join(', ');
-    const more =
-      entries.length > shown.length
-        ? ` … +${entries.length - shown.length} more`
-        : '';
-    lines.push(`  ${root}: ${names}${more}`);
-  };
-  render('/user/uploads', area.uploads);
-  render('/user/code', area.code);
-  render('/user/output', area.outputs);
-  if (lines.length === 0) return '';
-  return `Sandbox state (reference files by path; pass a file's fileId to the image / document_write tools):\n${lines.join('\n')}`;
 }
 
 export const runCodeTool: ToolDefinition = {
@@ -467,41 +428,10 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
       // OR failure) so the model always has ground truth — what it already
       // produced (don't regenerate), what the user uploaded (edit it), and the
       // id to hand to the image / document_write tools.
-      const sandboxState: {
-        uploads: SandboxStateEntry[];
-        code: SandboxStateEntry[];
-        outputs: SandboxStateEntry[];
-      } = { uploads: [], code: [], outputs: [] };
-      const stateRows = await ctx.runQuery(
-        internal.thread_files.internal_queries.listThreadFiles,
-        { threadId: workspaceThreadId },
-      );
-      for (const e of stateRows
-        .filter(
-          (r: { organizationId: string }) =>
-            r.organizationId === organizationId,
-        )
-        .map(
-          (r: {
-            path: string;
-            storageId: string;
-            size: number;
-            contentType: string;
-            source: 'user_upload' | 'agent_write' | 'run_output';
-          }) => ({
-            entry: {
-              path: r.path,
-              fileId: r.storageId,
-              size: r.size,
-              contentType: r.contentType,
-            },
-            source: r.source,
-          }),
-        )) {
-        if (e.source === 'user_upload') sandboxState.uploads.push(e.entry);
-        else if (e.source === 'run_output') sandboxState.outputs.push(e.entry);
-        else sandboxState.code.push(e.entry);
-      }
+      const sandboxState = await buildSandboxState(ctx, {
+        organizationId,
+        workspaceThreadId,
+      });
       const stateSummary = formatSandboxState(sandboxState);
       const messageWithState =
         stateSummary.length > 0 ? `${message}\n\n${stateSummary}` : message;

@@ -30,6 +30,7 @@ import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { buildModelCandidates } from '../../lib/agent_response/model_routing/route_model';
 import { selectModelTier } from '../../lib/agent_response/model_routing/select_model';
 import { renderPrompt } from '../../lib/prompts/registry';
+import { buildSandboxState } from '../files/helpers/sandbox_state';
 import { checkTimeBudget } from '../sub_agents/helpers/check_budget';
 import {
   errorResponse,
@@ -162,6 +163,20 @@ export interface SpawnAgentDeps {
 /** Tier hint → difficulty class consumed by the shared tier selector. */
 const TIER_TO_DIFFICULTY = { fast: 'easy', capable: 'hard' } as const;
 
+/**
+ * Tools that touch the shared thread workspace. When a job is granted any of
+ * these, the spawn result carries the post-job `sandboxState` so the parent
+ * sees the files the worker produced instead of recreating them.
+ */
+const WORKSPACE_TOOLS: ReadonlySet<string> = new Set([
+  'file_write',
+  'file_edit',
+  'file_delete',
+  'file_read',
+  'file_list',
+  'run_code',
+]);
+
 async function resolveJobModel(
   ctx: ActionCtx,
   deps: SpawnAgentDeps,
@@ -236,6 +251,7 @@ export function createSpawnAgentTool(deps: SpawnAgentDeps) {
 • The worker cannot talk to the user. If its result says it needs user input, ask the user yourself (request_human_input) — ask each question at most ONCE; never re-ask something the user already answered.
 • Out-of-grant requests are silently dropped — the result includes what was narrowed so you can adapt (e.g. a missing integration → tell the user to connect it, or do that part yourself).
 • If the job fails or is cut off, its partial progress is visible to the user; summarize honestly and continue yourself if you can.
+• The worker shares YOUR thread workspace. When you grant workspace tools (file_write, run_code, …) the result carries \`sandboxState\` — the workspace after the job. Files listed there ALREADY EXIST (the user sees them on the canvas): reference them by path, NEVER rewrite them from the worker's text reply.
 
 **Grantable tools:** ${grantableToolLines(deps)}
 **Grantable methodologies:**
@@ -429,6 +445,26 @@ ${grantableMethodologyLines(deps)}`,
             console.error(
               '[spawn_agent] finalizeJob failed (orphan sweep will heal):',
               finalizeError,
+            );
+          }
+        }
+        // Workspace ground truth for the parent: when the worker could touch
+        // the shared workspace, report its state after the job (success OR
+        // failure — a failed job may still have written partial files).
+        // spawn_agent is primary-only, so ctx.threadId IS the workspace owner.
+        if (resolved.effectiveTools.some((t) => WORKSPACE_TOOLS.has(t))) {
+          try {
+            outcome = {
+              ...outcome,
+              sandboxState: await buildSandboxState(ctx, {
+                organizationId,
+                workspaceThreadId: threadId,
+              }),
+            };
+          } catch (stateError) {
+            console.warn(
+              '[spawn_agent] sandboxState snapshot failed (result returned without it):',
+              stateError,
             );
           }
         }

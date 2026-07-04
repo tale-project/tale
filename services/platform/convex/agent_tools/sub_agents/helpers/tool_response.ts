@@ -2,6 +2,8 @@
  * Shared response types and builders for sub-agent tools.
  */
 
+import type { SandboxState } from '../../files/helpers/sandbox_state';
+
 export interface ToolUsage {
   inputTokens?: number;
   outputTokens?: number;
@@ -31,6 +33,12 @@ export interface ToolResponse {
   jobId?: string;
   /** Human-readable note of capabilities narrowed away at spawn time. */
   narrowed?: string;
+  /**
+   * The shared thread workspace after a job that was granted workspace
+   * tools ran (success OR failure) — the parent sees exactly which files
+   * the worker produced instead of recreating them from its text reply.
+   */
+  sandboxState?: SandboxState;
 }
 
 export interface ToolResponseWithApproval extends ToolResponse {

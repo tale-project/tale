@@ -145,6 +145,20 @@ describe('workspace tools inside a job sub-thread', () => {
     expect(result.ok).toBe(true);
     const upsert = calls.find((c) => c.ref === 'mock-upsert-thread-file');
     expect(upsert?.args.threadId).toBe(PARENT_THREAD_ID);
+    // Every outcome carries the workspace ground truth, keyed on the parent.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test reads the manifest shape
+    const state = result.sandboxState as { code: Array<{ path: string }> };
+    expect(state.code.map((e) => e.path)).toEqual(['/user/code/report.md']);
+  });
+
+  it('file_write reports sandboxState on failure too', async () => {
+    const { ctx } = createMockCtx({ summary: JOB_SUMMARY });
+    const result = await handlerOf(fileWriteTool)(ctx, {
+      path: '/user/output/wrong-root.md',
+      content: 'hello',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.sandboxState).toBeDefined();
   });
 
   it('file_list reads the parent workspace', async () => {

@@ -10,6 +10,7 @@ import { internal } from '../../_generated/api';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError } from './_shared';
+import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
 const MAX_INLINE_BYTES = 1024 * 1024; // 1 MB inline reply cap
@@ -38,7 +39,9 @@ export const fileReadTool: ToolDefinition = {
   tool: createTool({
     description: `**file_read** — read a file from the current thread's workspace.
 
-Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for binary). For files larger than 1 MB the tool returns metadata only — use the canvas (right pane) to inspect large files instead.`,
+Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for binary). For files larger than 1 MB the tool returns metadata only — use the canvas (right pane) to inspect large files instead.
+
+Every result (success or failure) includes \`sandboxState\` — the current workspace manifest. On NOT_FOUND, check it for the actual path instead of guessing.`,
     inputSchema: fileReadArgs,
     execute: async (ctx: ToolCtx, args: FileReadArgs) => {
       const { organizationId, threadId } = ctx;
@@ -53,81 +56,92 @@ Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for bi
       // Sub-thread runs (spawned jobs, delegates) share the parent chat
       // thread's workspace — resolve it before any lookup.
       const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
-      let parsed;
-      try {
-        parsed = parseWorkspacePath(args.path);
-      } catch (err) {
-        if (err instanceof InvalidFilePathError) {
+      const outcome = await (async () => {
+        let parsed;
+        try {
+          parsed = parseWorkspacePath(args.path);
+        } catch (err) {
+          if (err instanceof InvalidFilePathError) {
+            return {
+              ok: false as const,
+              code: 'INVALID_PATH' as const,
+              reason: err.code,
+              message: err.message,
+            };
+          }
+          throw err;
+        }
+        if (parsed === null) {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
-            reason: err.code,
-            message: err.message,
+            reason: 'path_invalid_root' as const,
+            message: `Path "${args.path}" must be an absolute workspace path under /user/uploads, /user/code, or /user/output.`,
           };
         }
-        throw err;
-      }
-      if (parsed === null) {
-        return {
-          ok: false as const,
-          code: 'INVALID_PATH' as const,
-          reason: 'path_invalid_root' as const,
-          message: `Path "${args.path}" must be an absolute workspace path under /user/uploads, /user/code, or /user/output.`,
-        };
-      }
 
-      const row = await ctx.runQuery(
-        internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId: workspaceThreadId, path: parsed.path },
-      );
-      if (row === null) {
-        return {
-          ok: false as const,
-          code: 'NOT_FOUND' as const,
-          message: `No workspace file at "${args.path}".`,
-        };
-      }
-      if (row.organizationId !== organizationId) {
-        return {
-          ok: false as const,
-          code: 'CROSS_ORG_ACCESS' as const,
-          message: 'File does not belong to this organization.',
-        };
-      }
+        const row = await ctx.runQuery(
+          internal.thread_files.internal_queries.getThreadFileByPath,
+          { threadId: workspaceThreadId, path: parsed.path },
+        );
+        if (row === null) {
+          return {
+            ok: false as const,
+            code: 'NOT_FOUND' as const,
+            message: `No workspace file at "${args.path}".`,
+          };
+        }
+        if (row.organizationId !== organizationId) {
+          return {
+            ok: false as const,
+            code: 'CROSS_ORG_ACCESS' as const,
+            message: 'File does not belong to this organization.',
+          };
+        }
 
-      if (row.size > MAX_INLINE_BYTES) {
+        if (row.size > MAX_INLINE_BYTES) {
+          return {
+            ok: true as const,
+            path: row.path,
+            size: row.size,
+            contentType: row.contentType,
+            content: '',
+            encoding: 'utf8' as const,
+            truncated: true,
+            message: `File is ${row.size} bytes — too large to inline (limit ${MAX_INLINE_BYTES}). The canvas can display it.`,
+          };
+        }
+
+        const blob = await ctx.storage.get(row.storageId);
+        if (blob === null) {
+          return {
+            ok: false as const,
+            code: 'STORAGE_MISSING' as const,
+            message: `Workspace file row exists but its storage blob is missing (storageId=${row.storageId}).`,
+          };
+        }
+        const buf = Buffer.from(await blob.arrayBuffer());
+        const encoding = args.encoding ?? 'utf8';
+        const content =
+          encoding === 'base64' ? buf.toString('base64') : buf.toString('utf8');
         return {
           ok: true as const,
           path: row.path,
           size: row.size,
           contentType: row.contentType,
-          content: '',
-          encoding: 'utf8' as const,
-          truncated: true,
-          message: `File is ${row.size} bytes — too large to inline (limit ${MAX_INLINE_BYTES}). The canvas can display it.`,
+          content,
+          encoding,
+          truncated: false,
         };
-      }
-
-      const blob = await ctx.storage.get(row.storageId);
-      if (blob === null) {
-        return {
-          ok: false as const,
-          code: 'STORAGE_MISSING' as const,
-          message: `Workspace file row exists but its storage blob is missing (storageId=${row.storageId}).`,
-        };
-      }
-      const buf = Buffer.from(await blob.arrayBuffer());
-      const encoding = args.encoding ?? 'utf8';
-      const content =
-        encoding === 'base64' ? buf.toString('base64') : buf.toString('utf8');
+      })();
+      // Attach the workspace ground truth to every outcome (success or
+      // failure) so the model never acts on a stale view of the sandbox.
       return {
-        ok: true as const,
-        path: row.path,
-        size: row.size,
-        contentType: row.contentType,
-        content,
-        encoding,
-        truncated: false,
+        ...outcome,
+        sandboxState: await buildSandboxState(ctx, {
+          organizationId,
+          workspaceThreadId,
+        }),
       };
     },
   }),
