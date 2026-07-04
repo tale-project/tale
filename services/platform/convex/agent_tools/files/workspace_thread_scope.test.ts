@@ -154,11 +154,25 @@ describe('workspace tools inside a job sub-thread', () => {
   it('file_write reports sandboxState on failure too', async () => {
     const { ctx } = createMockCtx({ summary: JOB_SUMMARY });
     const result = await handlerOf(fileWriteTool)(ctx, {
-      path: '/user/output/wrong-root.md',
+      path: '/user/uploads/not-yours.md',
       content: 'hello',
     });
     expect(result.ok).toBe(false);
     expect(result.sandboxState).toBeDefined();
+  });
+
+  it('file_write saves deliverables directly under /user/output', async () => {
+    const { ctx, calls } = createMockCtx({ summary: JOB_SUMMARY });
+    const result = await handlerOf(fileWriteTool)(ctx, {
+      path: '/user/output/report.md',
+      content: '# report',
+    });
+    expect(result.ok).toBe(true);
+    const upsert = calls.find((c) => c.ref === 'mock-upsert-thread-file');
+    expect(upsert?.args.path).toBe('/user/output/report.md');
+    // Provenance stays with the writer even under the output root.
+    expect(upsert?.args.source).toBe('agent_write');
+    expect(upsert?.args.sha256).toEqual(expect.any(String));
   });
 
   it('file_list reads the parent workspace', async () => {

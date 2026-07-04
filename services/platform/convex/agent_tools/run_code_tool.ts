@@ -173,7 +173,7 @@ TIMEOUTS / LIMITS:
 
 The sandbox sees three directories pre-populated from the thread workspace:
 - \`/user/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
-- \`/user/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
+- \`/user/output/\`  — deliverables: files from previous \`run_code\` calls and files you saved there with \`file_write\`; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
 - \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
 Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
@@ -259,15 +259,15 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
         }
         stepPaths = rels;
       }
-      // Only `agent_write` files land in /user/code/ — they are the
-      // executable surface. `user_upload` lives in /user/uploads/ and
-      // `run_output` lives in /user/output/; neither is executable
-      // via entryPath/steps. If the user wants to run a user-uploaded
-      // script, they can copy it into /user/code/ with file_write.
+      // /user/code/ is the executable surface — keyed on LOCATION, not the
+      // `source` provenance (file_write also authors /user/output
+      // deliverables now, which must never become executable). If the user
+      // wants to run a user-uploaded script, they can copy it into
+      // /user/code/ with file_write.
       const seen = new Set<string>();
       const knownPaths = new Set(
         workspaceFiles
-          .filter((f: { source: string }) => f.source === 'agent_write')
+          .filter((f: { path: string }) => f.path.startsWith('/user/code/'))
           .map((f: { path: string }) => relOf(f.path)),
       );
       for (const p of stepPaths) {

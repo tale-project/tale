@@ -5,11 +5,19 @@
  * by every file tool, by `run_code` scripts, and by staging/harvest. No
  * per-tool conversion: the model sees the same path everywhere.
  *
- * The three roots carry provenance (also denormalized onto `threadFiles.source`
- * for the Canvas + queries):
- *   /user/uploads → user_upload   (user-supplied inputs)
- *   /user/code    → agent_write   (files the model authors; executable)
- *   /user/output  → run_output    (files run_code produces)
+ * The roots describe LOCATION; `threadFiles.source` describes PROVENANCE
+ * (who wrote the row: `user_upload` / `agent_write` / `run_output`):
+ *   /user/uploads → user files (read-only for the model)
+ *   /user/code    → scripts the model authors (the run_code cwd; executable)
+ *   /user/output  → deliverables — written directly by the model
+ *                   (`agent_write`) or harvested from run_code (`run_output`)
+ *
+ * The two axes usually coincide (`parseWorkspacePath` returns the root's
+ * DEFAULT source) but /user/output legitimately holds both provenances: a
+ * report the model saves with file_write and an .xlsx a script produced.
+ * Location-gated logic (executable surface, staging, grouping) keys on the
+ * path root; provenance-gated logic (Canvas tabs, staging freshness) keys on
+ * `source`.
  *
  * Resolving a path to a threadFile is pure — no running container needed — so a
  * thread that never starts a sandbox still uses the same scheme.
@@ -36,6 +44,8 @@ const ROOT_RE = /^\/user\/(uploads|code|output)\/(.+)$/;
 export interface ParsedWorkspacePath {
   /** Canonical absolute path, e.g. `/user/code/gen.py`. */
   path: string;
+  /** The root's DEFAULT provenance — the writer may store a different
+   *  `source` (e.g. file_write saving `agent_write` under /user/output). */
   source: WorkspaceSource;
   /** Path relative to the sandbox root, e.g. `gen.py` — for spawner staging. */
   rel: string;

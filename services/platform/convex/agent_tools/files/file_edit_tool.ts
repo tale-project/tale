@@ -20,7 +20,7 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
-import { InvalidFilePathError, inferContentType } from './_shared';
+import { InvalidFilePathError, inferContentType, sha256Hex } from './_shared';
 import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
@@ -30,7 +30,7 @@ const fileEditArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'Absolute path under `/user/code/` of the file to edit — e.g. `/user/code/gen.py`. Must already exist.',
+      'Absolute path of the file to edit, under `/user/code/` (e.g. `/user/code/gen.py`) or `/user/output/` (e.g. `/user/output/report.md`). Must already exist.',
     ),
   old_string: z
     .string()
@@ -137,12 +137,14 @@ Every result (success or failure) includes \`sandboxState\` — the current work
           }
           throw err;
         }
-        if (parsed === null || parsed.source !== 'agent_write') {
+        // Same writable surface as file_write: scripts (/user/code) and
+        // deliverables (/user/output). /user/uploads is read-only.
+        if (parsed === null || parsed.source === 'user_upload') {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
             reason: 'path_wrong_root' as const,
-            message: `file_edit edits files under /user/code/ only (e.g. /user/code/gen.py).`,
+            message: `file_edit edits files under /user/code/ or /user/output/. /user/uploads/ holds the user's files and is read-only.`,
           };
         }
         const normalizedPath = parsed.path;
@@ -270,6 +272,9 @@ Every result (success or failure) includes \`sandboxState\` — the current work
               storageId: storageId as never,
               size: newBlob.size,
               contentType,
+              sha256: await sha256Hex(bytes),
+              // Provenance is the WRITER (the model), whichever root the
+              // file lands in.
               source: 'agent_write' as const,
             },
           );

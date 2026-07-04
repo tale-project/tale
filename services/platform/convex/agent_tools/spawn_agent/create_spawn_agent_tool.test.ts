@@ -56,7 +56,7 @@ function makeCtx() {
     }
     throw new Error(`unexpected runMutation: ${name} ${JSON.stringify(args)}`);
   });
-  const runQuery = vi.fn((ref: unknown) => {
+  const runQuery = vi.fn((ref: unknown, _args: Record<string, unknown>) => {
     const name = getFunctionName(ref as never);
     if (name === 'thread_files/internal_queries:listThreadFiles') {
       return Promise.resolve([

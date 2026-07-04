@@ -64,6 +64,19 @@ describe('buildSandboxState', () => {
     });
   });
 
+  it('groups by path root: a model-written /user/output file is an output', async () => {
+    const ctx = ctxWithRows([row('/user/output/report.md', 'agent_write')]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mock ctx shaped for the helper
+    const state = await buildSandboxState(ctx as never, {
+      organizationId: ORG_ID,
+      workspaceThreadId: 'thread-1',
+    });
+    expect(state.outputs.map((e) => e.path)).toEqual([
+      '/user/output/report.md',
+    ]);
+    expect(state.code).toEqual([]);
+  });
+
   it('filters out rows from another organization', async () => {
     const ctx = ctxWithRows([
       row('/user/code/other.py', 'agent_write', 'org-2'),

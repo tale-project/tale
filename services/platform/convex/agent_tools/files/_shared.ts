@@ -71,6 +71,23 @@ export function validatePath(raw: string): string {
 }
 
 /**
+ * SHA-256 hex digest of file bytes (Web Crypto — available in the Convex
+ * default runtime). Stored on `threadFiles.sha256` so the run_code harvest
+ * recognizes a model-written /user/output file as unchanged instead of
+ * re-storing the same bytes under a flipped `run_output` provenance.
+ */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  // Copy into a fresh ArrayBuffer — digest() rejects SharedArrayBuffer-backed
+  // views under TS's strict lib types.
+  const ab = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(ab).set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', ab);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
  * MIME inference from path extension. Falls back to `application/octet-stream`
  * for unknown extensions.
  */

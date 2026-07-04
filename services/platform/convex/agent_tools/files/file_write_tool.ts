@@ -19,7 +19,7 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
-import { InvalidFilePathError, inferContentType } from './_shared';
+import { InvalidFilePathError, inferContentType, sha256Hex } from './_shared';
 import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
@@ -39,7 +39,7 @@ const fileWriteArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'Absolute path under `/user/code/`, e.g. `/user/code/gen.py` — the workspace code dir (also the `run_code` cwd). Deliverables are produced by `run_code` into `/user/output/`, not here.',
+      "Absolute path under `/user/code/` (scripts + working files, e.g. `/user/code/gen.py` — the `run_code` cwd) or `/user/output/` (final deliverables, e.g. `/user/output/report.md`). `/user/uploads/` is the user's — read-only.",
     ),
   content: z
     .string()
@@ -72,11 +72,14 @@ export const fileWriteTool: ToolDefinition = {
 Writes one file at a time. If a file already exists at \`path\` it is replaced atomically; otherwise a new entry is created.
 
 USE THIS TO:
-- Stage code you're about to execute (\`file_write({path: "gen.py", ...})\` then \`run_code({entryPath: "gen.py"})\`)
-- Save generated content the user should be able to download (\`landing.html\`, \`report.md\`, etc.)
+- Save a final deliverable the user should see or download (\`/user/output/report.md\`, \`/user/output/landing.html\`, …)
+- Stage code you're about to execute (\`file_write({path: "/user/code/gen.py", ...})\` then \`run_code({entryPath: "/user/code/gen.py"})\`)
 - Materialize intermediate data the next \`run_code\` call should read
 
-SANDBOX OUTPUT: a file you write here is staged at \`/user/code/<path>\` — the \`run_code\` cwd. Any **deliverable** your script then produces (an \`.xlsx\`, \`.pdf\`, chart image, …) must be written to \`/user/output/\` — the ONLY directory \`run_code\` harvests back into the thread. Files left in the cwd, \`/user/code/\`, or \`/tmp\` are discarded when the container exits. If a skill's example saves to a bare relative path like \`output.xlsx\`, rewrite it as \`/user/output/output.xlsx\`.
+WHERE TO WRITE:
+- \`/user/output/\` — deliverables (reports, exports, rendered pages). Write them here directly; no script detour needed.
+- \`/user/code/\` — scripts + working files; this is the \`run_code\` cwd and the only executable location.
+- Inside a \`run_code\` script, the same rule applies: a deliverable the script produces must be saved to \`/user/output/\` — files left in the cwd or \`/tmp\` are discarded when the container exits. If a skill's example saves to a bare relative path like \`output.xlsx\`, rewrite it as \`/user/output/output.xlsx\`.
 
 QUOTAS:
 - ≤ 10 MB per file
@@ -116,14 +119,14 @@ The canvas (right pane) renders workspace files by extension automatically — \
           }
           throw err;
         }
-        // file_write authors workspace files → `/user/code` (agent_write). It
-        // does not write user uploads or run_code outputs.
-        if (parsed === null || parsed.source !== 'agent_write') {
+        // file_write authors scripts (/user/code) and deliverables
+        // (/user/output). /user/uploads is the user's — read-only.
+        if (parsed === null || parsed.source === 'user_upload') {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
             reason: 'path_wrong_root' as const,
-            message: `file_write writes under /user/code/ only (e.g. /user/code/gen.py). /user/output/ is produced by run_code; /user/uploads/ holds user files.`,
+            message: `file_write writes under /user/code/ (scripts) or /user/output/ (deliverables). /user/uploads/ holds the user's files and is read-only.`,
           };
         }
         const normalizedPath = parsed.path;
@@ -174,6 +177,10 @@ The canvas (right pane) renders workspace files by extension automatically — \
               storageId: storageId as never,
               size: blob.size,
               contentType,
+              sha256: await sha256Hex(bytes),
+              // Provenance is the WRITER (the model), whichever root the
+              // file lands in — /user/output holds agent_write deliverables
+              // alongside run_output harvests.
               source: 'agent_write' as const,
               ...(args.renderHint !== undefined && {
                 renderHint: args.renderHint,

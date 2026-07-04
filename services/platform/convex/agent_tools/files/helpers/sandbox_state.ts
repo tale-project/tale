@@ -32,7 +32,10 @@ export interface SandboxState {
 /**
  * Build the manifest of the workspace-owning thread's files, grouped by
  * sandbox area. `workspaceThreadId` is the resolved owner (the parent chat
- * thread for sub-thread runs — see `getWorkspaceThreadId`).
+ * thread for sub-thread runs — see `getWorkspaceThreadId`). Grouping keys on
+ * the path root (LOCATION): /user/output holds both model-written
+ * deliverables (`agent_write`) and run_code harvests (`run_output`), and the
+ * model should see them all under `outputs`.
  */
 export async function buildSandboxState(
   ctx: ToolCtx,
@@ -43,7 +46,7 @@ export async function buildSandboxState(
     internal.thread_files.internal_queries.listThreadFiles,
     { threadId: scope.workspaceThreadId },
   );
-  for (const e of rows
+  for (const entry of rows
     .filter(
       (r: { organizationId: string }) =>
         r.organizationId === scope.organizationId,
@@ -54,20 +57,16 @@ export async function buildSandboxState(
         storageId: string;
         size: number;
         contentType: string;
-        source: 'user_upload' | 'agent_write' | 'run_output';
       }) => ({
-        entry: {
-          path: r.path,
-          fileId: r.storageId,
-          size: r.size,
-          contentType: r.contentType,
-        },
-        source: r.source,
+        path: r.path,
+        fileId: r.storageId,
+        size: r.size,
+        contentType: r.contentType,
       }),
     )) {
-    if (e.source === 'user_upload') state.uploads.push(e.entry);
-    else if (e.source === 'run_output') state.outputs.push(e.entry);
-    else state.code.push(e.entry);
+    if (entry.path.startsWith('/user/uploads/')) state.uploads.push(entry);
+    else if (entry.path.startsWith('/user/output/')) state.outputs.push(entry);
+    else state.code.push(entry);
   }
   return state;
 }

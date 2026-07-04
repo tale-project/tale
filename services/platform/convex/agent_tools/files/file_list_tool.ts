@@ -28,7 +28,7 @@ export const fileListTool: ToolDefinition = {
   tool: createTool({
     description: `**file_list** — list every file currently in the thread's workspace, sorted newest first.
 
-Use this to discover what files exist (user uploads, prior \`run_code\` outputs, your own writes) before reading or executing. Returns lightweight metadata (path, fileId, size, contentType, source, updatedAt). Use \`path\` with \`file_read\` / \`run_code\`; pass \`fileId\` to the \`image\` tool (analyze) or \`document_write\`. \`source\` (\`user_upload\` / \`agent_write\` / \`run_output\`) tells you which sandbox dir a file maps to.`,
+Use this to discover what files exist (user uploads, prior \`run_code\` outputs, your own writes) before reading or executing. Returns lightweight metadata (path, fileId, size, contentType, source, updatedAt). Use \`path\` with \`file_read\` / \`run_code\`; pass \`fileId\` to the \`image\` tool (analyze) or \`document_write\`. \`source\` is provenance — who produced the file: \`user_upload\` (the user), \`agent_write\` (you, via file_write/file_edit), \`run_output\` (a run_code script).`,
     inputSchema: fileListArgs,
     execute: async (ctx: ToolCtx, args: FileListArgs) => {
       const { organizationId, threadId } = ctx;
