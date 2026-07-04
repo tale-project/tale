@@ -31,9 +31,11 @@ import {
 } from 'react';
 import type { Components, Options as MarkdownOptions } from 'react-markdown';
 import Markdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
 import { baseComponents, makePreComponent } from '../markdown';
 import { remarkCjkAttention } from '../plugins/micromark-cjk-attention';
@@ -97,22 +99,33 @@ const REMARK_PLUGINS: PluginList = [
   remarkDisableIndentedCode,
   remarkCjkAttention,
   remarkGfm,
+  // Parse `$…$`/`$$…$$` into `language-math` nodes for rehypeKatex below.
+  remarkMath,
 ] as PluginList;
-const REHYPE_PLUGINS: PluginList = [
+// Shared prefix for both chains. `rehypeKatex` is appended per-chain (never
+// here) because it MUST run last: after `rehypeSanitize` — KaTeX's rich
+// output is trusted (the TeX source is escaped by KaTeX) and must not be
+// stripped, while the `language-math` class it keys off survives the default
+// schema's `code: language-*` rule — and, in the streaming chain, after
+// `rehypeRevealSegments`, whose segment walker descends into every non-
+// pre/code element and would otherwise wrap KaTeX's internal spans/MathML.
+const REHYPE_BASE: PluginList = [
   rehypeRaw,
   // Tag numeric columns BEFORE sanitize so the appended `text-right`
   // class flows through (className survives the default sanitize schema).
   rehypeNumericColumns,
   [rehypeSanitize, chatSanitizeSchema],
 ];
+const REHYPE_PLUGINS: PluginList = [...REHYPE_BASE, rehypeKatex];
 // Streaming-only chain: additionally wraps prose in clause-sized
 // `.stream-seg` spans (AFTER sanitize, so the spans survive) so newly
 // revealed chunks fade in via the `.stream-reveal` mount animation. The
 // stable half renders without segment spans — completed content carries no
 // animation markup.
 const REHYPE_PLUGINS_STREAMING: PluginList = [
-  ...REHYPE_PLUGINS,
+  ...REHYPE_BASE,
   rehypeRevealSegments,
+  rehypeKatex,
 ];
 
 // ============================================================================
