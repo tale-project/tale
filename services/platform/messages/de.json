@@ -1422,6 +1422,8 @@
     "errorGenerating": "Etwas ist schiefgelaufen",
     "errorDetailsSummary": "Technische Details",
     "retryGeneration": "Erneut versuchen",
+    "openProviderSettings": "Anbietereinstellungen öffnen",
+    "askAdminProviderKey": "Bitte einen Admin, in Einstellungen → KI-Anbieter einen API-Schlüssel hinzuzufügen.",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "editMessage": "Nachricht bearbeiten",

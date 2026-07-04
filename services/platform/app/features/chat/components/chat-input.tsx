@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { type SearchSource } from '@tale/ui/search';
 import { Text } from '@tale/ui/text';
+import type { ToastActionElement } from '@tale/ui/toast';
 import { ArrowUp, CircleStop } from 'lucide-react';
 import type { ComponentPropsWithoutRef } from 'react';
 import { useCallback, useId, useRef, useMemo, useState } from 'react';
@@ -178,6 +179,14 @@ interface ChatInputProps extends Omit<
   /** Tooltip shown on the send button when `sendBlocked` is true. */
   sendBlockedReason?: string;
   /**
+   * Optional action for the send-blocked toast — only set for the actionable
+   * missing-API-key subcase (a deep link to provider settings). The generic
+   * blocked-reason toast carries none.
+   */
+  sendBlockedAction?: ToastActionElement;
+  /** Optional secondary line for the send-blocked toast (e.g. an admin hint). */
+  sendBlockedDescription?: string;
+  /**
    * Fired when the composer becomes active (focus). Used to pre-warm the prompt
    * cache so the next message is served warm. Best-effort and debounced by the
    * caller; safe to omit.
@@ -265,6 +274,8 @@ export function ChatInput({
   projectId,
   sendBlocked = false,
   sendBlockedReason,
+  sendBlockedAction,
+  sendBlockedDescription,
   onComposerActivate,
   kbMentions,
   addKbMention,
@@ -506,7 +517,12 @@ export function ChatInput({
     // model's provider has no API key).
     const hasInput = !!value.trim() || attachments.length > 0;
     if (hasInput && !isLoading && sendBlocked && sendBlockedReason) {
-      toast({ title: sendBlockedReason, variant: 'destructive' });
+      toast({
+        title: sendBlockedReason,
+        description: sendBlockedDescription,
+        action: sendBlockedAction,
+        variant: 'destructive',
+      });
       return;
     }
 

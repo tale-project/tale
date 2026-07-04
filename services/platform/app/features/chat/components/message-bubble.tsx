@@ -869,13 +869,21 @@ function MessageBubbleComponent({
               </Row>
             )}
             {message.isFailed && (
-              <ChatErrorDisplay error={message.error} onRetry={onRetry} />
+              <ChatErrorDisplay
+                error={message.error}
+                onRetry={onRetry}
+                organizationId={organizationId}
+              />
             )}
           </div>
         ) : (
           message.isAborted &&
           (message.error ? (
-            <ChatErrorDisplay error={message.error} onRetry={onRetry} />
+            <ChatErrorDisplay
+              error={message.error}
+              onRetry={onRetry}
+              organizationId={organizationId}
+            />
           ) : (
             <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
               <Square className="size-3" />
