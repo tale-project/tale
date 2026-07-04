@@ -45,6 +45,7 @@ export const knowledgeWriteArgs = z.object({
 
 export const knowledgeWriteTool = {
   name: 'knowledge_write' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Save a user-confirmed fact to the organization's knowledge base as a knowledge entry. Requires user approval — an approval card will be created. When telling the user the card is ready, do not reference its position (no "above" / "below") — just say the approval card has been created.
 

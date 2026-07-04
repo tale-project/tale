@@ -32,6 +32,7 @@ import {
 } from '../../lib/shared/chat-errors';
 import { components } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { GENERATION_STALE_THRESHOLD_MS } from '../threads/generation_liveness';
 
 /**
@@ -53,6 +54,7 @@ export const recoverStuckChatTurns = internalMutation({
   args: {},
   returns: v.object({ finalized: v.number() }),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return { finalized: 0 };
     const staleBefore = Date.now() - GENERATION_STALE_THRESHOLD_MS;
     let finalized = 0;
 

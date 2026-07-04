@@ -7,8 +7,10 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError } from './_shared';
+import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
 const fileDeleteArgs = z.object({
@@ -25,10 +27,13 @@ type FileDeleteArgs = z.infer<typeof fileDeleteArgs>;
 
 export const fileDeleteTool: ToolDefinition = {
   name: 'file_delete' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_delete** — remove a file from the current thread's workspace.
 
-Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`deleted: false\`. Use to free workspace quota or clean up intermediate files before the user sees the canvas.`,
+Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`deleted: false\`. Use to free workspace quota or clean up intermediate files before the user sees the canvas.
+
+Every result includes \`sandboxState\` — the workspace manifest after the delete.`,
     inputSchema: fileDeleteArgs,
     execute: async (ctx: ToolCtx, args: FileDeleteArgs) => {
       const { organizationId, threadId } = ctx;
@@ -40,41 +45,55 @@ Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`delet
             'file_delete requires a thread context (organizationId + threadId).',
         };
       }
-      let parsed;
-      try {
-        parsed = parseWorkspacePath(args.path);
-      } catch (err) {
-        if (err instanceof InvalidFilePathError) {
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — resolve it before any lookup.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
+      const outcome = await (async () => {
+        let parsed;
+        try {
+          parsed = parseWorkspacePath(args.path);
+        } catch (err) {
+          if (err instanceof InvalidFilePathError) {
+            return {
+              ok: false as const,
+              code: 'INVALID_PATH' as const,
+              reason: err.code,
+              message: err.message,
+            };
+          }
+          throw err;
+        }
+        if (parsed === null) {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
-            reason: err.code,
-            message: err.message,
+            reason: 'path_invalid_root' as const,
+            message: `Path "${args.path}" must be an absolute workspace path under /user/{uploads,code,output}/.`,
           };
         }
-        throw err;
-      }
-      if (parsed === null) {
+        const normalizedPath = parsed.path;
+        const deletion = await ctx.runMutation(
+          internal.thread_files.internal_mutations.deleteThreadFile,
+          {
+            organizationId,
+            threadId: workspaceThreadId,
+            path: normalizedPath,
+          },
+        );
         return {
-          ok: false as const,
-          code: 'INVALID_PATH' as const,
-          reason: 'path_invalid_root' as const,
-          message: `Path "${args.path}" must be an absolute workspace path under /user/{uploads,code,output}/.`,
-        };
-      }
-      const normalizedPath = parsed.path;
-      const result = await ctx.runMutation(
-        internal.thread_files.internal_mutations.deleteThreadFile,
-        {
-          organizationId,
-          threadId,
+          ok: true as const,
           path: normalizedPath,
-        },
-      );
+          deleted: deletion.deleted,
+        };
+      })();
+      // Attach the workspace ground truth to every outcome (success or
+      // failure) so the model never acts on a stale view of the sandbox.
       return {
-        ok: true as const,
-        path: normalizedPath,
-        deleted: result.deleted,
+        ...outcome,
+        sandboxState: await buildSandboxState(ctx, {
+          organizationId,
+          workspaceThreadId,
+        }),
       };
     },
   }),

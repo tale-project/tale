@@ -56,10 +56,15 @@ export function createStreamClassifier(base: Classifier): Classifier {
       return result;
     }
     if (inBlock) {
-      // Only a genuine new milestone (a push retry's progress, "N functions
-      // ready", a schema/index line) ends the block; everything else is the
-      // error body and must stay visible.
-      if (result.kind === 'info' || result.kind === 'progress') {
+      // A genuine new milestone (a push retry's progress, "N functions
+      // ready", a schema/index line) or an explicit block-breaker (a runtime
+      // function log with its own severity tag) ends the block; everything
+      // else is the error body and must stay visible.
+      if (
+        result.kind === 'info' ||
+        result.kind === 'progress' ||
+        result.blockEnd
+      ) {
         inError = false;
         inBlock = false;
         return result;

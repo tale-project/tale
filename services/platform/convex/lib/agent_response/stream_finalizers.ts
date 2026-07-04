@@ -9,6 +9,8 @@ import type { GenerateResponseArgs } from './types';
  * threadId but only rendered in the UI once their messageId field is set,
  * so this must complete BEFORE clearGenerationStatus or the user sees the
  * spinner stop, then a "approve this action" panel pop in a beat later.
+ * (Spawned job cards need no linking — they render inline under their
+ * `spawn_agent` tool row, which carries the jobId in its persisted result.)
  *
  * Wrapped in try/catch — approval linking is non-fatal.
  */

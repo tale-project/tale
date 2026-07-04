@@ -13,6 +13,10 @@ Die Liste zeigt jeden Workflow in der Organisation. Die Toolbar trägt eine Such
 
 Die Liste lädt beim Scrollen lazy nach. Die Suche matched gegen Name und Beschreibung. Ein Klick auf eine Zeile öffnet den Workflow.
 
+## Der Katalog
+
+Der **Katalog**-Tab neben der Liste hält die mitgelieferten, fertigen Automatisierungen; ein Klick installiert eine davon in die Organisation. Die mitgelieferten Definitionen entwickeln sich mit der Plattform weiter, deshalb trägt das Menü **Automatisierung erstellen** des Tabs die Aktion **Mitgelieferte Automatisierungen aktualisieren**: Sie ersetzt jede mitgelieferte Automatisierung, deren Definition vom aktuellen Katalog abweicht — auch solche, die du bearbeitet hast. Die vorherige Version jeder ersetzten Automatisierung landet in ihrem Verlauf, sodass du sie wiederherstellen kannst; selbst gebaute Automatisierungen bleiben unberührt. Das Aktualisieren ist eine Administrator-Aktion (Admin, Entwickler oder Inhaber).
+
 ## Einen Workflow starten
 
 Drei Pfade feuern einen Workflow.

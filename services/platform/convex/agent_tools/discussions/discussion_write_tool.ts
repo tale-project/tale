@@ -66,6 +66,7 @@ const discussionWriteArgs = z.discriminatedUnion('operation', [
 
 export const discussionWriteTool: ToolDefinition = {
   name: 'discussion_write',
+  availability: 'any',
   tool: createTool({
     description: `Participate in project discussions (threaded, multi-participant conversations under a project).
 

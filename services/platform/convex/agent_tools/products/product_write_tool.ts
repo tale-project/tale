@@ -45,6 +45,7 @@ const productWriteArgs = z.discriminatedUnion('operation', [
 
 export const productWriteTool: ToolDefinition = {
   name: 'product_write',
+  availability: 'any',
   tool: createTool({
     description: `Create and update products in the internal catalog.
 

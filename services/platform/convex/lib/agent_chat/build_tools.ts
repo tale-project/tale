@@ -5,11 +5,6 @@ import { snakeCase } from 'lodash';
 import { isRecord, narrowStringUnion } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import {
-  createDelegationTool,
-  buildDelegationInstructionsSection,
-} from '../../agent_tools/delegation/create_delegation_tool';
-import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { createEscalationTool } from '../../agent_tools/escalation/create_escalation_tool';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_operations_summary';
@@ -75,26 +70,19 @@ export async function buildIntegrationTools(
 }
 
 /**
- * Build the agent's WORKFORCE tools: delegation + escalation, both derived
- * from the org chart.
- *
- * Effective delegates = the agent's org-chart DIRECT REPORTS — the
- * organigram is the single source of delegation; there is no per-agent
- * delegate list. Chart members (a manager above them and/or
- * reports below them) additionally get the `escalate` tool and a
- * chain-of-command instructions section; `delegationDisabled` (the
- * orchestrator's double-delegation strip) turns ALL of it off.
+ * Build the agent's org-chart `escalate` tool (chart members only: a manager
+ * above them and/or reports below them). The `delegate_*` tools that used to
+ * be built alongside were replaced by `spawn_agent` (agent-on-demand jobs) —
+ * a stale `delegates` list in an agent config still forms chart edges here
+ * but no longer yields delegation tools. `delegationDisabled` (set on
+ * spawned job runs) turns this off entirely.
  *
  * `orgSlug` and `orgLocale` are resolved once by the caller (hoisted into
- * the outer Promise.all) so they can be shared with sibling builders —
- * notably workflows, which also need the real orgSlug for multi-tenant
- * filesystem lookups. Delegate systemInstructions and the appended scaffold
- * text both resolve against `orgLocale` so parent + delegates speak the
- * same language. The chart read shares the 60s agent-list cache, so warm
- * turns stay off the disk.
+ * the outer Promise.all) so they can be shared with sibling builders. The
+ * chart read shares the 60s agent-list cache, so warm turns stay off the
+ * disk.
  */
-export async function buildDelegationTools(
-  ctx: ActionCtx,
+export async function buildEscalationTools(
   agentConfig: AgentConfigForTools,
   organizationId: string,
   orgSlug: string,
@@ -109,93 +97,47 @@ export async function buildDelegationTools(
   if (agentConfig.delegationDisabled) return undefined;
 
   const agentSlug = agentConfig.name;
+  if (!agentSlug) return undefined;
+
   let directReports: string[] = [];
   let managerSlug: string | undefined;
   let chartHasEdges = false;
   try {
-    if (agentSlug) {
-      const roster = await readWorkforceRoster(orgSlug);
-      const chart = buildChartFromRoster(roster);
-      chartHasEdges = chart.parents.size > 0;
-      directReports = chart.reports.get(agentSlug) ?? [];
-      managerSlug = chart.parents.get(agentSlug);
-    }
+    const roster = await readWorkforceRoster(orgSlug);
+    const chart = buildChartFromRoster(roster);
+    chartHasEdges = chart.parents.size > 0;
+    directReports = chart.reports.get(agentSlug) ?? [];
+    managerSlug = chart.parents.get(agentSlug);
   } catch (error) {
     console.warn(
-      '[Workforce] org-chart read failed; delegation unavailable this turn',
+      '[Workforce] org-chart read failed; escalation unavailable this turn',
       error,
     );
   }
-
-  const effectiveSlugs = directReports.filter((slug) => slug !== agentSlug);
 
   // Chart membership: has a manager, or has reports. Roots with reports
   // escalate to humans; agents outside the chart get no escalate tool.
   const isChartMember =
     chartHasEdges && (managerSlug !== undefined || directReports.length > 0);
+  if (!isChartMember) return undefined;
 
-  if (effectiveSlugs.length === 0 && !isChartMember) return undefined;
-
-  const tools: Record<string, unknown> = {};
-  const instructionParts: string[] = [];
-
-  if (effectiveSlugs.length > 0) {
-    const delegates = await loadDelegateAgents(
-      ctx,
-      effectiveSlugs,
-      organizationId,
-      orgSlug,
-      orgLocale,
-    );
-    for (const delegate of delegates) {
-      const delegationTool = createDelegationTool(delegate);
-      tools[delegationTool.name] = delegationTool.tool;
-    }
-    if (delegates.length > 0) {
-      instructionParts.push(
-        buildDelegationInstructionsSection(delegates, orgLocale),
-      );
-    }
-  }
-
-  if (isChartMember && agentSlug) {
-    // Pre-load the manager's config here in the Node context (file I/O lives in
-    // `'use node'` modules) and pass it in, mirroring how the delegation tools
-    // above receive their pre-loaded delegates. This keeps the escalation tool
-    // builder in Convex's V8 runtime.
-    const [manager] = managerSlug
-      ? await loadDelegateAgents(
-          ctx,
-          [managerSlug],
-          organizationId,
-          orgSlug,
-          orgLocale,
-        )
-      : [];
-    const escalationTool = createEscalationTool({
-      agentSlug,
-      managerSlug,
-      manager,
-      organizationId,
-    });
-    tools[escalationTool.name] = escalationTool.tool;
-    instructionParts.push(
-      '\n\n' +
-        (managerSlug
-          ? renderPrompt(
-              'escalation.section',
-              { manager: managerSlug },
-              { locale: orgLocale },
-            )
-          : renderPrompt('escalation.sectionRoot', {}, { locale: orgLocale })),
-    );
-  }
-
-  if (Object.keys(tools).length === 0) return undefined;
+  const escalationTool = createEscalationTool({
+    agentSlug,
+    managerSlug,
+    organizationId,
+  });
 
   return {
-    tools,
-    instructionsAppend: instructionParts.join(''),
+    tools: { [escalationTool.name]: escalationTool.tool },
+    instructionsAppend:
+      '\n\n' +
+      (managerSlug
+        ? renderPrompt(
+            'escalation.section',
+            { manager: managerSlug },
+            { locale: orgLocale },
+          )
+        : renderPrompt('escalation.sectionRoot', {}, { locale: orgLocale })),
   };
 }
 

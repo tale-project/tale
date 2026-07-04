@@ -22,8 +22,7 @@ test('lists the seeded agent and opens its editor tab navigation', async ({
   org,
 }) => {
   const { organizationId } = org;
-  // The agents table lives on the "All agents" tab; `/agents` is the organigram
-  // Overview landing.
+  // The agents table lives on the "All agents" tab (`/agents` redirects there).
   await page.goto(`/dashboard/${organizationId}/agents/all`);
 
   // The list loads via a filesystem-backed action behind a textless skeleton,
@@ -47,7 +46,6 @@ test('lists the seeded agent and opens its editor tab navigation', async ({
     'settings.agents.navigation.tools',
     'settings.agents.navigation.skills',
     'settings.agents.navigation.knowledge',
-    'settings.agents.navigation.delegation',
     'settings.agents.navigation.conversationStarters',
     'settings.agents.navigation.webhook',
   ]) {
@@ -123,37 +121,4 @@ test('creates a custom agent then deletes it', async ({ page, org }) => {
   await expect(agentRow(page, agentDisplayName)).toHaveCount(0, {
     timeout: TIMEOUT.PERSIST,
   });
-});
-
-test('renders the organigram delegation graph', async ({ page, org }) => {
-  const { organizationId } = org;
-  // The organigram is the Overview tab (`/agents/overview`); `/agents` itself
-  // now lands on the List tab (`/agents/all`), so deep-link to Overview.
-  await page.goto(`/dashboard/${organizationId}/agents/overview`);
-
-  // The agents layout owns the level-1 heading ("Agents"); the organigram's own
-  // title is the level-2 section heading beneath it, so pin to level 2 (`exact`
-  // keeps the match off the layout's "Agents" h1).
-  await expect(
-    page.getByRole('heading', {
-      name: t('organigram.title'),
-      level: 2,
-      exact: true,
-    }),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-  // The React Flow canvas chrome always renders inside FlowCanvas — the zoom
-  // controls are a stable, non-empty-state signal that the graph (not the
-  // "no agents" empty state) mounted.
-  await expect(
-    page.getByRole('button', { name: t('common.flow.resetView') }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-  // The seeded agent shows up as a node card (AgentOrgNode renders its display
-  // name as an <h3>), proving the agents/delegation graph populated.
-  await expect(
-    page
-      .getByRole('heading', { name: SEEDED_AGENT_DISPLAY_NAME, level: 3 })
-      .first(),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 });

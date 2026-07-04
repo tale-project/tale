@@ -61,7 +61,7 @@ function AgentsLayout() {
     });
 
   // List is the default landing (see agents/index.tsx redirect → /all); the
-  // rest are sibling tabs in the order List → Overview → Catalog → Metrics.
+  // rest are sibling tabs in the order List → Catalog → Metrics.
   // Memoized so TabNavigation's ResizeObserver chain doesn't re-attach each
   // render (see projects/$projectId.tsx).
   const tabs = useMemo<TabNavigationItem[]>(
@@ -69,11 +69,6 @@ function AgentsLayout() {
       {
         label: t('agents.tabs.list'),
         href: `/dashboard/${organizationId}/agents/all`,
-        matchMode: 'exact',
-      },
-      {
-        label: t('agents.tabs.overview'),
-        href: `/dashboard/${organizationId}/agents/overview`,
         matchMode: 'exact',
       },
       {

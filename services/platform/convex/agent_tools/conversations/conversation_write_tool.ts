@@ -41,6 +41,7 @@ const conversationWriteArgs = z.discriminatedUnion('operation', [
 
 export const conversationWriteTool: ToolDefinition = {
   name: 'conversation_write',
+  availability: 'any',
   tool: createTool({
     description: `Reply into a customer conversation and update its status/priority.
 

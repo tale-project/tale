@@ -22,9 +22,6 @@ const ALLOWED_ACTIONS = [
   'duplicate_agent',
   'delete_agent',
   'restore_agent',
-  // Organigram delegation edits (the chart's single write paths).
-  'set_agent_manager',
-  'set_agent_delegates',
 ] as const;
 type AllowedAction = (typeof ALLOWED_ACTIONS)[number];
 

@@ -34,6 +34,7 @@ const integrationIntrospectArgs = z.object({
 
 export const integrationIntrospectTool: ToolDefinition = {
   name: 'integration_introspect',
+  availability: 'any',
   tool: createTool({
     description: `Get available operations for an integration.
 Returns operation names and types. Use 'operation' param to get parameter details for a specific operation.`,

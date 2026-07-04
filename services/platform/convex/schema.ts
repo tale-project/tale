@@ -1,5 +1,6 @@
 import { defineSchema } from 'convex/server';
 
+import { agentJobsTable } from './agent_jobs/schema';
 import { agentRuntimesTable } from './agent_runtimes/schema';
 import {
   agentGuardrailNoticesTable,
@@ -226,6 +227,7 @@ export default defineSchema({
   agentInstallations: agentInstallationsTable,
   agentDefaultProvisions: agentDefaultProvisionsTable,
   agentEnv: agentEnvTable,
+  agentJobs: agentJobsTable,
   autoRouteCache: autoRouteCacheTable,
   agentWebhooks: agentWebhooksTable,
   agentWebhookUserThreads: agentWebhookUserThreadsTable,

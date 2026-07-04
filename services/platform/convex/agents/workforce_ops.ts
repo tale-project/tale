@@ -16,12 +16,14 @@
  *
  * Chart reads go through `listAgentsForOrg`, which carries a module-scope 60s
  * cache — one dir scan per org per minute across ALL chart consumers.
+ *
+ * The `delegates` edges are LEGACY READ-ONLY data: every editor (organigram
+ * UI, `agent_write set_delegates`) was removed with the `delegate_*` tools —
+ * agent-on-demand replaced delegation. Existing edges still drive manager
+ * escalation routing until the workforce rework (M4) retires them.
  */
 
-import { mkdir } from 'node:fs/promises';
-import path from 'node:path';
-
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { RESERVED_AGENT_SLUGS } from '../../lib/shared/constants/agents';
 import { agentWorkforceConfigSchema } from '../../lib/shared/schemas/governance';
@@ -29,28 +31,9 @@ import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { type ActionCtx, internalAction } from '../_generated/server';
 import { loadDelegateAgents } from '../agent_tools/delegation/load_delegation_agents';
-import {
-  atomicWrite,
-  generateHistoryTimestamp,
-  pruneHistory,
-  readFileSafe,
-  readJsonFile,
-} from '../lib/file_io';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
-import {
-  MAX_FILE_SIZE_BYTES,
-  MAX_HISTORY_ENTRIES,
-  parseAgentJson,
-  resolveHistoryDir,
-  serializeAgentJson,
-  type AgentJsonConfig,
-} from './file_utils';
 import { DEFAULT_AGENT_WORKFORCE } from './guardrails/budget_guard';
-import {
-  invalidateAgentListCache,
-  listAgentsForOrg,
-  resolveAgentPath,
-} from './internal_actions';
+import { listAgentsForOrg } from './internal_actions';
 import {
   buildOrgChart,
   chainOfCommand,
@@ -123,33 +106,6 @@ export async function readWorkforceRoster(
     });
   }
   return roster;
-}
-
-/**
- * Direct reports of one agent off the cached roster — the runtime source
- * of an agent's delegates (the org chart is the single delegation
- * authority). Returns [] for unknown slugs and chartless orgs.
- */
-export async function listDirectReports(
-  orgSlug: string,
-  agentSlug: string | undefined,
-): Promise<string[]> {
-  if (!agentSlug) return [];
-  const roster = await readWorkforceRoster(orgSlug);
-  return buildChartFromRoster(roster).reports.get(agentSlug) ?? [];
-}
-
-/**
- * The agent's manager (off the post-build forest, so dangling edges and
- * cycles are already resolved), or undefined for roots / unknown slugs.
- */
-export async function lookupManagerSlug(
-  orgSlug: string,
-  agentSlug: string | undefined,
-): Promise<string | undefined> {
-  if (!agentSlug) return undefined;
-  const roster = await readWorkforceRoster(orgSlug);
-  return buildChartFromRoster(roster).parents.get(agentSlug);
 }
 
 export function buildChartFromRoster(roster: WorkforceRosterEntry[]): OrgChart {
@@ -406,195 +362,5 @@ export const reassignOrUnassign = internalAction({
       assigneeId: role.managerSlug,
     });
     return { action: 'reassigned', managerSlug: role.managerSlug };
-  },
-});
-
-// ---------------------------------------------------------------------------
-// Delegation-edge writers (shared by the organigram UI actions and the
-// agent_write agent tool — validation lives HERE so every writer gets it).
-//
-// The graph is a many-to-many DELEGATION graph stored as each agent's
-// `delegates` array (the agents it delegates to). There is no limitation
-// beyond a forbidden self-edge; cycles are allowed.
-// ---------------------------------------------------------------------------
-
-/**
- * Snapshot an agent file's CURRENT content into its version-history dir
- * before a delegation write mutates it — the same snapshot-then-write
- * contract `saveAgent`/`snapshotToHistory` (file_actions) give every other
- * agent edit, so organigram changes show up in (and restore from) the agent
- * History dropdown like any config edit. No-op when the file doesn't exist.
- */
-async function snapshotAgentHistory(
-  orgSlug: string,
-  agentSlug: string,
-): Promise<void> {
-  const filePath = await resolveAgentPath(orgSlug, agentSlug);
-  const currentContent = await readFileSafe(filePath);
-  if (!currentContent) return;
-  const historyDir = resolveHistoryDir(orgSlug, agentSlug);
-  await mkdir(historyDir, { recursive: true });
-  const timestamp = generateHistoryTimestamp();
-  await atomicWrite(path.join(historyDir, `${timestamp}.json`), currentContent);
-  await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-}
-
-async function readAgentConfig(filePath: string): Promise<AgentJsonConfig> {
-  const file = await readJsonFile<AgentJsonConfig>(
-    filePath,
-    MAX_FILE_SIZE_BYTES,
-    parseAgentJson,
-  );
-  if (!file.ok) {
-    throw new ConvexError({ code: 'AGENT_NOT_FOUND' });
-  }
-  return file.data;
-}
-
-/**
- * Validate a target list: no self-edge (SELF_EDGE), every slug a real,
- * non-reserved agent (INVALID_TARGET). Deduped, original order preserved.
- */
-function sanitizeTargets(
-  targets: string[],
-  selfSlug: string,
-  slugs: Set<string>,
-): string[] {
-  const cleaned: string[] = [];
-  const seen = new Set<string>();
-  for (const target of targets) {
-    if (target === selfSlug) throw new ConvexError({ code: 'SELF_EDGE' });
-    if (!slugs.has(target) || RESERVED.has(target)) {
-      throw new ConvexError({ code: 'INVALID_TARGET' });
-    }
-    if (seen.has(target)) continue;
-    seen.add(target);
-    cleaned.push(target);
-  }
-  return cleaned;
-}
-
-/**
- * Set the agents that `agentSlug` delegates to (its outgoing edges / direct
- * reports). Throws RESERVED_AGENT_SLUG, AGENT_NOT_FOUND, SELF_EDGE,
- * INVALID_TARGET. Returns the previous delegate list.
- */
-export async function writeAgentDelegates(args: {
-  orgSlug: string;
-  agentSlug: string;
-  delegateSlugs: string[];
-}): Promise<{ previous: string[] }> {
-  const { orgSlug, agentSlug } = args;
-  if (RESERVED.has(agentSlug)) {
-    throw new ConvexError({ code: 'RESERVED_AGENT_SLUG' });
-  }
-  const roster = await readWorkforceRoster(orgSlug);
-  const slugs = new Set(roster.map((entry) => entry.slug));
-  if (!slugs.has(agentSlug)) {
-    throw new ConvexError({ code: 'AGENT_NOT_FOUND' });
-  }
-  const next = sanitizeTargets(args.delegateSlugs, agentSlug, slugs);
-
-  const filePath = await resolveAgentPath(orgSlug, agentSlug);
-  const config = await readAgentConfig(filePath);
-  const previous = config.delegates ?? [];
-  if (next.length > 0) config.delegates = next;
-  else delete config.delegates;
-  await snapshotAgentHistory(orgSlug, agentSlug);
-  await atomicWrite(filePath, serializeAgentJson(config));
-
-  invalidateAgentListCache(orgSlug);
-  return { previous };
-}
-
-// ---------------------------------------------------------------------------
-// Agent-tool surface (consumed by the `agent_read` / `agent_write`
-// agent tools)
-// ---------------------------------------------------------------------------
-
-/** Compact chart snapshot for an agent's context window. */
-export const getChartOverview = internalAction({
-  args: { organizationId: v.string() },
-  returns: v.any(),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    nodes: Array<{
-      slug: string;
-      description?: string;
-      delegates: string[];
-      reportsTo: string[];
-    }>;
-  }> => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    const roster = await readWorkforceRoster(orgSlug);
-    const chart = buildChartFromRoster(roster);
-    return {
-      nodes: roster
-        .map((entry) => ({
-          slug: entry.slug,
-          description: entry.description?.slice(0, 160),
-          delegates: chart.reports.get(entry.slug) ?? [],
-          reportsTo: chart.parentsAll.get(entry.slug) ?? [],
-        }))
-        .sort((a, b) => a.slug.localeCompare(b.slug)),
-    };
-  },
-});
-
-/**
- * Set the agents one agent delegates to, on behalf of an agent tool call.
- * Same validation + single write path as the canvas
- * (`writeAgentDelegates`, including the pre-write history snapshot),
- * audited with the CHAT USER as the actor.
- */
-export const setDelegatesFromAgent = internalAction({
-  args: {
-    organizationId: v.string(),
-    actorUserId: v.string(),
-    agentSlug: v.string(),
-    delegateSlugs: v.array(v.string()),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    code: v.optional(v.string()),
-    previous: v.optional(v.array(v.string())),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ ok: boolean; code?: string; previous?: string[] }> => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-    try {
-      const { previous } = await writeAgentDelegates({
-        orgSlug,
-        agentSlug: args.agentSlug,
-        delegateSlugs: args.delegateSlugs,
-      });
-      await ctx.runMutation(
-        internal.agents.audit_mutations.logAgentAuditEvent,
-        {
-          organizationId: args.organizationId,
-          actorId: args.actorUserId,
-          actorRole: 'assistant',
-          action: 'set_agent_delegates',
-          resourceId: args.agentSlug,
-          previousState: { delegates: previous },
-          newState: { delegates: args.delegateSlugs },
-        },
-      );
-      return { ok: true, previous };
-    } catch (error) {
-      if (error instanceof ConvexError) {
-        const data: unknown = error.data;
-        const code =
-          isRecord(data) && typeof data.code === 'string'
-            ? data.code
-            : 'UNKNOWN';
-        return { ok: false, code };
-      }
-      throw error;
-    }
   },
 });

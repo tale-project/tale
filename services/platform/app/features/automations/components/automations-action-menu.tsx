@@ -24,11 +24,14 @@ export interface AutomationsActionMenuProps {
   organizationId: string;
   /** Whether to show the AI variant (for empty state) or the simple create variant */
   variant?: 'create' | 'ai';
+  /** Page-specific items appended after the create items (e.g. catalog sync). */
+  extraMenuItems?: DataTableActionMenuItem[];
 }
 
 export function AutomationsActionMenu({
   organizationId,
   variant = 'create',
+  extraMenuItems,
 }: AutomationsActionMenuProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createTab, setCreateTab] = useState<'blank' | 'template'>('blank');
@@ -68,8 +71,9 @@ export function AutomationsActionMenu({
         icon: Upload,
         onClick: () => setUploadOpen(true),
       },
+      ...(extraMenuItems ?? []),
     ],
-    [tAutomations],
+    [tAutomations, extraMenuItems],
   );
 
   // Write-gated: read-only roles (member/editor) can view the automations list

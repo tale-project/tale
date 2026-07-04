@@ -1,9 +1,10 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
+import { useCatalogSync } from '@/app/components/catalog/use-catalog-sync';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -12,6 +13,7 @@ import {
   useInstallWorkflow,
   useInvalidateWorkflows,
 } from '../hooks/file-mutations';
+import { AutomationsActionMenu } from './automations-action-menu';
 import { WorkflowTemplateGrid } from './workflow-template-grid';
 
 interface AutomationsCatalogProps {
@@ -34,6 +36,13 @@ export function AutomationsCatalog({
   const invalidateWorkflows = useInvalidateWorkflows();
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // "Update from catalog" lives inside the create-automation dropdown (same
+  // pattern as the agents catalog), not as a standalone header button.
+  const { menuItem: syncItem, dialog: syncDialog } = useCatalogSync({
+    organizationId,
+    domain: 'workflows',
+    onSynced: () => invalidateWorkflows(organizationId),
+  });
 
   // The catalog is a full-page browse surface — single-click installs
   // immediately (no selection step needed outside a confined dialog).
@@ -60,12 +69,18 @@ export function AutomationsCatalog({
 
   return (
     <Stack gap={6} className="p-6">
-      <SearchInput
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder={t('search.placeholder')}
-        className="w-64 shrink-0"
-      />
+      <Row gap={3} justify="between">
+        <SearchInput
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('search.placeholder')}
+          className="w-64 shrink-0"
+        />
+        <AutomationsActionMenu
+          organizationId={organizationId}
+          extraMenuItems={syncItem ? [syncItem] : undefined}
+        />
+      </Row>
       <WorkflowTemplateGrid
         organizationId={organizationId}
         searchQuery={searchQuery}
@@ -74,6 +89,7 @@ export function AutomationsCatalog({
         onSelectSlug={(slug) => void handleSelectSlug(slug)}
         installingSlug={installingSlug}
       />
+      {syncDialog}
     </Stack>
   );
 }

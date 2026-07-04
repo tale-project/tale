@@ -2,6 +2,7 @@ import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
 import { internalAction } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -103,6 +104,7 @@ export const scanAndTrigger = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return null;
     await SchedulerHelpers.scanAndTrigger(ctx);
     return null;
   },

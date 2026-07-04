@@ -61,6 +61,7 @@ import {
 } from '../_generated/server';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
 import { rateLimiter } from '../lib/rate_limiter';
@@ -2331,6 +2332,7 @@ export const recoverStuckErasureRequests = internalMutation({
   args: {},
   returns: v.object({ recovered: v.number() }),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return { recovered: 0 };
     const cutoff = Date.now() - ERASURE_WATCHDOG_TIMEOUT_MS;
     let recovered = 0;
     for await (const row of ctx.db

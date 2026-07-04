@@ -46,6 +46,7 @@ export { runWorkflowArgs };
 
 export const runWorkflowTool = {
   name: 'run_workflow' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Trigger execution of an existing file-based workflow definition.
 

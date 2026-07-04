@@ -217,6 +217,27 @@ export const beginUninstall = internalMutation({
   },
 });
 
+/**
+ * Slugs of every app installed in the org — drives the builtin-sync
+ * re-install pass (`organizations/builtin_sync.ts`), which re-runs the
+ * reinstall pipeline for installed apps whose builtin bundle changed.
+ */
+export const listAppInstallationsInternal = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.array(v.string()),
+  handler: async (ctx, args): Promise<string[]> => {
+    const out: string[] = [];
+    for await (const row of ctx.db
+      .query('appInstallations')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      out.push(row.appSlug);
+    }
+    return out;
+  },
+});
+
 export const getAppInstallationInternal = internalQuery({
   args: { organizationId: v.string(), appSlug: v.string() },
   returns: v.union(v.any(), v.null()),

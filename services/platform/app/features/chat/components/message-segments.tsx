@@ -2,10 +2,11 @@
 
 import { memo, useMemo } from 'react';
 
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
-import { useThreadMessages } from '../hooks/queries';
+import { useThreadAgentJobs, useThreadMessages } from '../hooks/queries';
 import {
   buildMessageSegments,
   type MessageSegment,
@@ -13,6 +14,7 @@ import {
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { type RouteReason } from '../utils/route-reason';
 import { AssistantMessageContent } from './assistant-message-content';
+import { InlineJobCard } from './job-card';
 import {
   InlineReasoning,
   RoutingStepRow,
@@ -20,7 +22,8 @@ import {
   ToolStepRow,
 } from './thought-timeline';
 
-/** Read the streamed delegate's sub-thread id off a `delegate_*` tool result. */
+/** Read the streamed delegate's sub-thread id off a `delegate_*` tool result
+ *  (legacy threads only — delegation was replaced by spawn_agent). */
 function delegateSubThreadId(segment: MessageSegment): string | undefined {
   if (segment.kind !== 'tool' || !segment.toolName.startsWith('delegate_')) {
     return undefined;
@@ -32,6 +35,57 @@ function delegateSubThreadId(segment: MessageSegment): string | undefined {
     return segment.output.subThreadId;
   }
   return undefined;
+}
+
+/** Read the spawned job's id off a `spawn_agent` tool result — the anchor for
+ *  the inline job card (name, live progress, status, transcript). */
+function spawnedJobId(segment: MessageSegment): string | undefined {
+  if (segment.kind !== 'tool' || segment.toolName !== 'spawn_agent') {
+    return undefined;
+  }
+  if (isRecord(segment.output) && typeof segment.output.jobId === 'string') {
+    return segment.output.jobId;
+  }
+  return undefined;
+}
+
+/** A `spawn_agent` row whose result hasn't landed yet (the call is still
+ *  executing) — the case that needs the LIVE job-row anchor. */
+function isUnresolvedSpawn(segment: MessageSegment): boolean {
+  return (
+    segment.kind === 'tool' &&
+    segment.toolName === 'spawn_agent' &&
+    spawnedJobId(segment) === undefined
+  );
+}
+
+/**
+ * Resolves jobIds for spawn rows whose tool result doesn't exist yet: while
+ * the call executes, the job row (created up-front by `startJob`) carries the
+ * SAME AI-SDK tool-call id as the streamed part, so matching `toolCallId` →
+ * segment id anchors the card the moment the job starts — this is what makes
+ * the card (progress, transcript) live DURING the run instead of appearing
+ * only with the result. Subscribes only while an active turn actually has an
+ * unresolved spawn row; settled rows read the jobId off their result.
+ */
+function useLiveJobIdsByToolCall(
+  segments: MessageSegment[],
+  active: boolean,
+  threadId: string | undefined,
+): ReadonlyMap<string, string> {
+  const organizationId = useOrganizationId();
+  const needsLiveAnchor = active && segments.some(isUnresolvedSpawn);
+  const jobs = useThreadAgentJobs(
+    organizationId ?? '',
+    needsLiveAnchor && organizationId && threadId ? threadId : null,
+  );
+  return useMemo(() => {
+    const byToolCall = new Map<string, string>();
+    for (const job of jobs ?? []) {
+      if (job.toolCallId) byToolCall.set(job.toolCallId, job._id);
+    }
+    return byToolCall;
+  }, [jobs]);
 }
 
 /**
@@ -139,6 +193,11 @@ function MessageSegmentsImpl({
   onRevealComplete,
 }: MessageSegmentsProps) {
   const showRouting = !!routedAgentName && !!routeReason;
+  const liveJobIdByToolCall = useLiveJobIdsByToolCall(
+    segments,
+    active,
+    threadId,
+  );
 
   return (
     <>
@@ -179,12 +238,26 @@ function MessageSegmentsImpl({
               />
             );
           case 'tool': {
-            // A streamed `delegate_*` call also renders a live, nested timeline
-            // of the sub-agent's reasoning/tools beneath its row.
+            // A `spawn_agent` call renders its live job card right beneath
+            // the row — where the spawn happened, not at the end of the turn.
+            // While the call is still executing (no result yet) the id comes
+            // from the live job rows, matched on the shared tool-call id.
+            const jobId =
+              spawnedJobId(segment) ?? liveJobIdByToolCall.get(segment.id);
+            // A streamed `delegate_*` call (legacy threads) also renders a
+            // live, nested timeline of the sub-agent's work beneath its row.
             const subThreadId = delegateSubThreadId(segment);
             return (
               <div key={segment.id} className="my-2">
                 <ToolStepRow step={segment} active={active} />
+                {jobId && (
+                  // The worker row sits at the SAME level as the spawn row —
+                  // two peer events in the timeline (the act, then the actor),
+                  // not a nested child of the tool chip.
+                  <div className="mt-2">
+                    <InlineJobCard jobId={jobId} />
+                  </div>
+                )}
                 {subThreadId && (
                   <NestedDelegationTimeline
                     subThreadId={subThreadId}

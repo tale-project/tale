@@ -73,6 +73,7 @@ const taskWriteArgs = z.discriminatedUnion('operation', [
 
 export const taskWriteTool: ToolDefinition = {
   name: 'task_write',
+  availability: 'any',
   tool: createTool({
     description: `Create and update tasks on the project task board.
 

@@ -12,7 +12,7 @@ Assigning a board task to an AI agent puts it to work. The **task-ops pack** —
 3. The task parks at **_In review_** — agents can never set _Done_; that rule is enforced server-side regardless of any workflow configuration.
 4. A human **approves** (the only automated path to _Done_) or **requests changes** with feedback, which re-engages the same agent on the shared thread and opens a fresh review gate. Reviews are answerable from the task sheet or directly from the Inbox.
 
-Failures roll the task back to _To do_ with an explanatory comment. Managers on the [organigram](/platform/agents/organigram) **decompose** root tasks labeled `epic` into subtasks for their direct reports instead of working them solo; the parent waits until the last subtask closes, then rolls up to _In review_.
+Failures roll the task back to _To do_ with an explanatory comment. Managers on the agent org chart **decompose** root tasks labeled `epic` into subtasks for their direct reports instead of working them solo; the parent waits until the last subtask closes, then rolls up to _In review_.
 
 ## Mentions, dependencies, deadlines
 

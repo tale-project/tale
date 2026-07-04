@@ -56,6 +56,7 @@ export const documentRetrieveArgs = z
 
 export const documentRetrieveTool = {
   name: 'document_retrieve' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Retrieve document content by file ID. Works for both knowledge-base documents (found via document_find) and files the user uploaded directly in this chat — both are indexed and readable through this tool.
 

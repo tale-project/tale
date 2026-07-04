@@ -1,47 +1,42 @@
 ---
-title: Agent delegation
-description: One agent can call another through the sub-agents tool. This page hands you the mental model for when to delegate, how timeouts propagate, and what stops a chain from looping.
+title: Agent workers
+description: An agent can spawn a focused worker for one task through the spawn_agent tool. This page hands you the mental model for when to spawn, how capabilities stay bounded, and what the job card shows.
 ---
 
-Delegation is the move you make when one agent is the wrong shape for the whole job, but the right shape for one stage of it. The router agent reads the request, decides which specialist to hand off to, calls them through the sub-agents tool, and consolidates the reply. The pattern works for triage, routing, and any case where the right voice depends on the question.
+Spawning is the move you make when one task deserves its own focused context: open-ended research, bulk extraction, drafting a long document. The agent you chat with composes a **worker** on demand — a name, task instructions, an optional operating method, and a tool grant — runs it, and folds the result back into its reply. Workers are ephemeral: they exist for one job, and their run is recorded as a **job card** in the chat.
 
-This page hands you the mental model for when to delegate and how to keep the chain bounded. Read it before you wire your first multi-agent workflow; come back when a delegation chain stops returning and you need to know what cap fired.
+This page hands you the mental model for when a worker is the right shape and how the platform keeps it bounded. The end-to-end walk lives in [Hand work to a worker](/tutorials/editor/delegate-between-agents).
 
-## How delegation runs
+## How a job runs
 
-A router agent's tool list includes the **sub-agents** tool. When the router calls it with the specialist's ID and a prompt, Tale starts a child conversation: the specialist sees only the prompt the router sent (not the router's whole history), runs to completion, and returns its final reply. The router reads the reply back as a tool result and continues — typically consolidating into one outbound reply.
+When the agent calls **spawn_agent**, Tale resolves the worker's capabilities, starts a fresh child conversation, and runs the worker non-interactively: it sees only the task input the agent sent (not the whole chat history), tracks its progress on a live checklist, and its final message comes back to the agent as the result. The chat shows a job card with the worker's name, live progress, terminal status, and an expandable transcript of everything it did.
 
-The child conversation runs against the specialist's own four knobs: its instructions, its knowledge, its tools, its model. The router does not inherit any of them; the specialist does not see the router's. They share an org and a budget, nothing else.
+Workers cannot talk to the user. If a worker needs input only a human can give, it says so in its result and the agent asks you — questions always come from the agent you actually talk to.
 
-## Timeouts and budget propagation
+## Capabilities are a subset, always
 
-Two caps stop a chain from running forever:
+A worker can hold at most what its spawning agent holds. Three layers decide the effective grant:
 
-- **Execution timeout** — set per agent in minutes. When the timeout fires, the in-flight tool call returns an error and the agent unwinds. Sub-agent calls run inside the parent's remaining timeout; a sub-agent cannot extend its parent's budget.
-- **Token budget** — applied at the org or team level by governance policy. Token spend rolls up: a sub-agent's tokens count against the parent agent's run, which counts against the org's budget rule.
+- **Org configuration** — the agent's own tools, skills, and integrations, as configured by your admins. Nothing new to manage per worker.
+- **The per-job grant** — the agent picks the smallest set from its own capabilities for this task (fewer tools = a more focused worker).
+- **Platform exceptions** — a few tools never transfer, most importantly the ask-the-user tool: a worker's questions must flow through the agent, so answering never dead-ends. Workers also cannot spawn workers.
 
-If a delegation chain hits a budget rule mid-call, the in-flight sub-agent's reply still comes back; the parent's next tool call is blocked. The execution log records the budget hit.
+Anything requested outside those bounds is silently skipped and reported — the job card shows what was narrowed away, and the agent adapts (for example, telling you an integration needs connecting).
 
-## Worked example — a router → specialist chain
+## Operating methods
 
-A customer-support router agent has a short instruction and three tools: sub-agent for a billing specialist, sub-agent for a technical specialist, RAG over the support FAQ. On an inbound message:
+For open-ended work, the agent can grant a **methodology skill** as the worker's operating method — `web-research` ships built-in: live planning on the checklist, per-question search budgets, and a cited deliverable. Methodologies are skills, so admins govern them the same way as every other skill.
 
-1. The router decides between billing, technical, or "answer myself from the FAQ".
-2. If billing: it calls the billing specialist with the customer's question and the customer ID. The specialist has tools to query the billing system; it returns a draft answer.
-3. The router reads the draft, adds a one-paragraph framing, and replies.
-4. The execution log shows the parent agent, the specialist call, and the FAQ retrieval (or absence thereof) for the audit trail.
+## Timeouts and budget
+
+A worker runs inside its agent's remaining turn budget and cannot extend it; if time runs out, the job ends `timed out` with its partial progress visible on the card. Token spend rolls up to the spawning agent, so monthly agent budgets and org budget rules see job spend as the agent's own. Admins cap concurrent jobs per organization under **Governance → agent_jobs** (default 10).
 
 ## When to reach for it
 
-| Use … when                                              | Delegation | Single agent | Workflow |
-| ------------------------------------------------------- | ---------- | ------------ | -------- |
-| The voice or knowledge depends on the question's domain | ✓          |              |          |
-| One agent can cover the whole job                       |            | ✓            |          |
-| Work has explicit stages with approvals between them    |            |              | ✓        |
-| The chain has more than three hops                      |            |              | ✓        |
+| Use … when                                              | Worker | Single agent | Workflow |
+| ------------------------------------------------------- | ------ | ------------ | -------- |
+| One sub-task benefits from an isolated, focused context | ✓      |              |          |
+| The agent can answer well inline                        |        | ✓            |          |
+| Work has explicit stages with approvals between them    |        |              | ✓        |
 
-Delegation is the right shape when the routing decision is itself a job for an agent. A workflow is the right shape when the stages are fixed and you want approvals or scheduling between them.
-
-## Build one
-
-The cost of delegation is one extra call per hand-off; the benefit is the right knowledge and voice at each stage without one agent that knows everything. Keep chains short (two or three agents); for anything longer, an automation gives you the audit trail and the approval seams that delegation does not. The natural next walk is [Delegate between agents](/tutorials/editor/delegate-between-agents) — it builds a router → specialist chain end to end.
+The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, an automation is the right shape instead.

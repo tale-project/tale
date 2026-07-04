@@ -35,7 +35,7 @@ Playwright MCP — proving behaviour by observing the real outcome, per the
 | [auth.md](auth.md)                   | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
 | [chat.md](chat.md)                   | messages, attachments, tools + approvals, arena, share, reasoning                    |
 | [workspace.md](workspace.md)         | chat side panel: canvas viewers, workspace files, live browser + takeover, plan pane |
-| [agents.md](agents.md)               | agent list + editor tabs, organigram/delegation, metrics                             |
+| [agents.md](agents.md)               | agent list + editor tabs, catalog, metrics                                           |
 | [apps.md](apps.md)                   | app marketplace: catalog/empty, upload, install, run, per-project config             |
 | [projects.md](projects.md)           | projects, tasks (attachments, comments), files, secrets, instructions, threads       |
 | [discussions.md](discussions.md)     | project discussions: multi-party thread, author attribution, @-mentions              |

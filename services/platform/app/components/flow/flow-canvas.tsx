@@ -19,7 +19,7 @@ import { useT } from '@/lib/i18n/client';
 
 /**
  * The ONE base React Flow canvas every graph editor in the app builds on
- * (the automations step editor and the agent organigram today). Owns the
+ * (the automations step editor today). Owns the
  * shared chrome and house defaults — theme-reactive `colorMode`, hidden
  * attribution, initial fit, the corner zoom cluster (zoom in / out / reset)
  * and the bottom-center action toolbar (editor actions + the AI-editor

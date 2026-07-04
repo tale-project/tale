@@ -36,6 +36,7 @@ const projectWriteArgs = z.discriminatedUnion('operation', [
 
 export const projectWriteTool: ToolDefinition = {
   name: 'project_write',
+  availability: 'any',
   tool: createTool({
     description: `Create and update projects (the containers that group tasks).
 

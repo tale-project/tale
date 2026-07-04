@@ -4,15 +4,15 @@ import type { ELK, ElkNode } from 'elkjs/lib/elk-api';
 
 /**
  * The ONE graph-layout engine shared by every React Flow editor in the app
- * (the automations step editor and the agent organigram today). It wraps
+ * (the automations step editor today). It wraps
  * ELK's `layered` algorithm, which — unlike Dagre — natively understands:
  *
  *  - **Compound / nested nodes**: a loop container is laid out as a sub-graph
  *    and auto-sized to fit its children plus padding. ELK reports child
  *    coordinates relative to their parent, which is exactly React Flow's model
  *    for `parentId` nodes, so they map across 1:1 with no manual centering.
- *  - **Cycles**: the many-to-many delegation organigram (cycles allowed) is
- *    laid out cleanly via a cycle-breaking pass.
+ *  - **Cycles**: graphs with cycles are laid out cleanly via a cycle-breaking
+ *    pass.
  *  - **Crossing minimisation**: layered sweep keeps complex branches readable.
  *
  * Callers build the React Flow node/edge model (handles, colours, parentId,

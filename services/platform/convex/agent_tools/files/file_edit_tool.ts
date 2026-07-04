@@ -18,8 +18,10 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
-import { InvalidFilePathError, inferContentType } from './_shared';
+import { InvalidFilePathError, inferContentType, sha256Hex } from './_shared';
+import { buildSandboxState } from './helpers/sandbox_state';
 import { parseWorkspacePath } from './sandbox_paths';
 
 const fileEditArgs = z.object({
@@ -28,7 +30,7 @@ const fileEditArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'Absolute path under `/user/code/` of the file to edit — e.g. `/user/code/gen.py`. Must already exist.',
+      'Absolute path of the file to edit, under `/user/code/` (e.g. `/user/code/gen.py`) or `/user/output/` (e.g. `/user/output/report.md`). Must already exist.',
     ),
   old_string: z
     .string()
@@ -83,6 +85,7 @@ function countOccurrences(haystack: string, needle: string): number {
 
 export const fileEditTool: ToolDefinition = {
   name: 'file_edit' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**file_edit** — apply a targeted search-replace edit to an existing workspace file.
 
@@ -102,7 +105,9 @@ HOW IT WORKS:
 - \`new_string\` can be empty to delete \`old_string\`.
 - The edit is atomic: the file's row keeps its identity, the old storage blob is dropped, the new one takes its place.
 
-QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.`,
+QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
+
+Every result (success or failure) includes \`sandboxState\` — the current workspace manifest. Trust it over memory.`,
     inputSchema: fileEditArgs,
     execute: async (ctx: ToolCtx, args: FileEditArgs) => {
       const { organizationId, threadId } = ctx;
@@ -114,208 +119,229 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
             'file_edit requires a thread context (organizationId + threadId).',
         };
       }
-
-      let parsed;
-      try {
-        parsed = parseWorkspacePath(args.path);
-      } catch (err) {
-        if (err instanceof InvalidFilePathError) {
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — resolve it before any lookup.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
+      const outcome = await (async () => {
+        let parsed;
+        try {
+          parsed = parseWorkspacePath(args.path);
+        } catch (err) {
+          if (err instanceof InvalidFilePathError) {
+            return {
+              ok: false as const,
+              code: 'INVALID_PATH' as const,
+              reason: err.code,
+              message: err.message,
+            };
+          }
+          throw err;
+        }
+        // Same writable surface as file_write: scripts (/user/code) and
+        // deliverables (/user/output). /user/uploads is read-only.
+        if (parsed === null || parsed.source === 'user_upload') {
           return {
             ok: false as const,
             code: 'INVALID_PATH' as const,
-            reason: err.code,
-            message: err.message,
+            reason: 'path_wrong_root' as const,
+            message: `file_edit edits files under /user/code/ or /user/output/. /user/uploads/ holds the user's files and is read-only.`,
           };
         }
-        throw err;
-      }
-      if (parsed === null || parsed.source !== 'agent_write') {
-        return {
-          ok: false as const,
-          code: 'INVALID_PATH' as const,
-          reason: 'path_wrong_root' as const,
-          message: `file_edit edits files under /user/code/ only (e.g. /user/code/gen.py).`,
-        };
-      }
-      const normalizedPath = parsed.path;
+        const normalizedPath = parsed.path;
 
-      const row = await ctx.runQuery(
-        internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId, path: normalizedPath },
-      );
-      if (row === null) {
-        return {
-          ok: false as const,
-          code: 'NOT_FOUND' as const,
-          message: `No workspace file at path "${normalizedPath}". Use file_write to create it first.`,
-        };
-      }
-      if (row.organizationId !== organizationId) {
-        return {
-          ok: false as const,
-          code: 'CROSS_ORG_ACCESS' as const,
-          message: 'File does not belong to this organization.',
-        };
-      }
+        const row = await ctx.runQuery(
+          internal.thread_files.internal_queries.getThreadFileByPath,
+          { threadId: workspaceThreadId, path: normalizedPath },
+        );
+        if (row === null) {
+          return {
+            ok: false as const,
+            code: 'NOT_FOUND' as const,
+            message: `No workspace file at path "${normalizedPath}". Use file_write to create it first.`,
+          };
+        }
+        if (row.organizationId !== organizationId) {
+          return {
+            ok: false as const,
+            code: 'CROSS_ORG_ACCESS' as const,
+            message: 'File does not belong to this organization.',
+          };
+        }
 
-      if (!isEditableContentType(row.contentType)) {
-        return {
-          ok: false as const,
-          code: 'BINARY_FILE' as const,
-          contentType: row.contentType,
-          message: `file_edit only supports text files (contentType=${row.contentType}). Use file_write to replace binary files.`,
-        };
-      }
+        if (!isEditableContentType(row.contentType)) {
+          return {
+            ok: false as const,
+            code: 'BINARY_FILE' as const,
+            contentType: row.contentType,
+            message: `file_edit only supports text files (contentType=${row.contentType}). Use file_write to replace binary files.`,
+          };
+        }
 
-      if (args.old_string === args.new_string) {
-        return {
-          ok: false as const,
-          code: 'NO_CHANGE' as const,
-          message: 'old_string and new_string are identical — nothing to do.',
-        };
-      }
+        if (args.old_string === args.new_string) {
+          return {
+            ok: false as const,
+            code: 'NO_CHANGE' as const,
+            message: 'old_string and new_string are identical — nothing to do.',
+          };
+        }
 
-      const blob = await ctx.storage.get(row.storageId);
-      if (blob === null) {
-        return {
-          ok: false as const,
-          code: 'STORAGE_MISSING' as const,
-          message: `Workspace file row exists but its storage blob is missing (storageId=${row.storageId}).`,
-        };
-      }
+        const blob = await ctx.storage.get(row.storageId);
+        if (blob === null) {
+          return {
+            ok: false as const,
+            code: 'STORAGE_MISSING' as const,
+            message: `Workspace file row exists but its storage blob is missing (storageId=${row.storageId}).`,
+          };
+        }
 
-      let originalContent: string;
-      try {
-        const buf = Buffer.from(await blob.arrayBuffer());
-        originalContent = buf.toString('utf8');
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return {
-          ok: false as const,
-          code: 'DECODE_ERROR' as const,
-          message: `Failed to decode file as UTF-8: ${msg}`,
-        };
-      }
+        let originalContent: string;
+        try {
+          const buf = Buffer.from(await blob.arrayBuffer());
+          originalContent = buf.toString('utf8');
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            ok: false as const,
+            code: 'DECODE_ERROR' as const,
+            message: `Failed to decode file as UTF-8: ${msg}`,
+          };
+        }
 
-      const count = countOccurrences(originalContent, args.old_string);
-      if (count === 0) {
-        return {
-          ok: false as const,
-          code: 'OLD_STRING_NOT_FOUND' as const,
-          message:
-            'old_string was not found in the file. Check whitespace and indentation — the match is literal.',
-        };
-      }
-      if (count > 1 && args.replace_all !== true) {
-        return {
-          ok: false as const,
-          code: 'OLD_STRING_NOT_UNIQUE' as const,
-          count,
-          message: `old_string occurs ${count} times. Include more surrounding context to make it unique, or pass replace_all: true.`,
-        };
-      }
+        const count = countOccurrences(originalContent, args.old_string);
+        if (count === 0) {
+          return {
+            ok: false as const,
+            code: 'OLD_STRING_NOT_FOUND' as const,
+            message:
+              'old_string was not found in the file. Check whitespace and indentation — the match is literal.',
+          };
+        }
+        if (count > 1 && args.replace_all !== true) {
+          return {
+            ok: false as const,
+            code: 'OLD_STRING_NOT_UNIQUE' as const,
+            count,
+            message: `old_string occurs ${count} times. Include more surrounding context to make it unique, or pass replace_all: true.`,
+          };
+        }
 
-      let newContent: string;
-      let replacements: number;
-      if (args.replace_all === true) {
-        newContent = originalContent
-          .split(args.old_string)
-          .join(args.new_string);
-        replacements = count;
-      } else {
-        const idx = originalContent.indexOf(args.old_string);
-        newContent =
-          originalContent.slice(0, idx) +
-          args.new_string +
-          originalContent.slice(idx + args.old_string.length);
-        replacements = 1;
-      }
+        let newContent: string;
+        let replacements: number;
+        if (args.replace_all === true) {
+          newContent = originalContent
+            .split(args.old_string)
+            .join(args.new_string);
+          replacements = count;
+        } else {
+          const idx = originalContent.indexOf(args.old_string);
+          newContent =
+            originalContent.slice(0, idx) +
+            args.new_string +
+            originalContent.slice(idx + args.old_string.length);
+          replacements = 1;
+        }
 
-      const bytes = new TextEncoder().encode(newContent);
-      const contentType = inferContentType(normalizedPath);
-      // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
-      // BlobPart constraint accepts it.
-      const ab = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(ab).set(bytes);
-      const newBlob = new Blob([ab], { type: contentType });
+        const bytes = new TextEncoder().encode(newContent);
+        const contentType = inferContentType(normalizedPath);
+        // Copy bytes into a fresh ArrayBuffer so the Blob constructor's
+        // BlobPart constraint accepts it.
+        const ab = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(ab).set(bytes);
+        const newBlob = new Blob([ab], { type: contentType });
 
-      let storageId: string;
-      try {
-        storageId = await ctx.storage.store(newBlob);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return {
-          ok: false as const,
-          code: 'STORAGE_ERROR' as const,
-          message: `Failed to store edited file bytes: ${msg}`,
-        };
-      }
+        let storageId: string;
+        try {
+          storageId = await ctx.storage.store(newBlob);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            ok: false as const,
+            code: 'STORAGE_ERROR' as const,
+            message: `Failed to store edited file bytes: ${msg}`,
+          };
+        }
 
-      try {
-        await ctx.runMutation(
-          internal.thread_files.internal_mutations.upsertThreadFile,
-          {
-            organizationId,
-            threadId,
+        try {
+          await ctx.runMutation(
+            internal.thread_files.internal_mutations.upsertThreadFile,
+            {
+              organizationId,
+              threadId: workspaceThreadId,
+              path: normalizedPath,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
+              storageId: storageId as never,
+              size: newBlob.size,
+              contentType,
+              sha256: await sha256Hex(bytes),
+              // Provenance is the WRITER (the model), whichever root the
+              // file lands in.
+              source: 'agent_write' as const,
+            },
+          );
+          return {
+            ok: true as const,
             path: normalizedPath,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
-            storageId: storageId as never,
             size: newBlob.size,
             contentType,
-            source: 'agent_write' as const,
-          },
-        );
-        return {
-          ok: true as const,
-          path: normalizedPath,
-          size: newBlob.size,
-          contentType,
-          replacements,
-        };
-      } catch (err) {
-        const data =
-          err instanceof Error && 'data' in err
-            ? (err as { data?: unknown }).data
-            : undefined;
-        if (
-          data &&
-          typeof data === 'object' &&
-          'code' in data &&
-          (data as { code: unknown }).code === 'WORKSPACE_QUOTA'
-        ) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-narrowed by the conditional above
-          const quota = data as {
-            code: 'WORKSPACE_QUOTA';
-            scope: 'file' | 'workspace_bytes' | 'workspace_files';
-            limit: number;
-            size?: number;
-            current?: number;
-            message: string;
+            replacements,
           };
+        } catch (err) {
+          const data =
+            err instanceof Error && 'data' in err
+              ? (err as { data?: unknown }).data
+              : undefined;
+          if (
+            data &&
+            typeof data === 'object' &&
+            'code' in data &&
+            (data as { code: unknown }).code === 'WORKSPACE_QUOTA'
+          ) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-narrowed by the conditional above
+            const quota = data as {
+              code: 'WORKSPACE_QUOTA';
+              scope: 'file' | 'workspace_bytes' | 'workspace_files';
+              limit: number;
+              size?: number;
+              current?: number;
+              message: string;
+            };
+            try {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
+              await ctx.storage.delete(storageId as never);
+            } catch (delErr) {
+              console.warn(
+                '[file_edit] orphan storage cleanup failed:',
+                delErr,
+              );
+            }
+            return {
+              ok: false as const,
+              code: quota.code,
+              scope: quota.scope,
+              limit: quota.limit,
+              ...(quota.size !== undefined && { size: quota.size }),
+              ...(quota.current !== undefined && { current: quota.current }),
+              message: quota.message,
+            };
+          }
           try {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
             await ctx.storage.delete(storageId as never);
           } catch (delErr) {
             console.warn('[file_edit] orphan storage cleanup failed:', delErr);
           }
-          return {
-            ok: false as const,
-            code: quota.code,
-            scope: quota.scope,
-            limit: quota.limit,
-            ...(quota.size !== undefined && { size: quota.size }),
-            ...(quota.current !== undefined && { current: quota.current }),
-            message: quota.message,
-          };
+          throw err;
         }
-        try {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returned this id moments ago
-          await ctx.storage.delete(storageId as never);
-        } catch (delErr) {
-          console.warn('[file_edit] orphan storage cleanup failed:', delErr);
-        }
-        throw err;
-      }
+      })();
+      // Attach the workspace ground truth to every outcome (success or
+      // failure) so the model never acts on a stale view of the sandbox.
+      return {
+        ...outcome,
+        sandboxState: await buildSandboxState(ctx, {
+          organizationId,
+          workspaceThreadId,
+        }),
+      };
     },
   }),
 };

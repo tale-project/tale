@@ -2,6 +2,8 @@
  * Shared response types and builders for sub-agent tools.
  */
 
+import type { SandboxState } from '../../files/helpers/sandbox_state';
+
 export interface ToolUsage {
   inputTokens?: number;
   outputTokens?: number;
@@ -20,13 +22,23 @@ export interface ToolResponse {
   input?: string;
   output?: string;
   /**
-   * For a streamed delegation: the sub-thread the delegate ran on and the
-   * stream its reasoning/tool deltas were written to. Surfaced in the parent's
-   * `delegate_*` tool-result part so the UI can mount a nested, collapsible
-   * timeline of the sub-agent's work. Absent for non-streamed delegations.
+   * The sub-agent's own thread (a spawned job's transcript thread; formerly a
+   * delegate's sub-thread) and, when live-streamed, the stream its deltas were
+   * written to. Surfaced in the parent's tool-result part so the UI can mount
+   * a nested, collapsible timeline of the sub-agent's work.
    */
   subThreadId?: string;
   subStreamId?: string;
+  /** The `agentJobs` row backing a `spawn_agent` run (job card anchor). */
+  jobId?: string;
+  /** Human-readable note of capabilities narrowed away at spawn time. */
+  narrowed?: string;
+  /**
+   * The shared thread workspace after a job that was granted workspace
+   * tools ran (success OR failure) — the parent sees exactly which files
+   * the worker produced instead of recreating them from its text reply.
+   */
+  sandboxState?: SandboxState;
 }
 
 export interface ToolResponseWithApproval extends ToolResponse {

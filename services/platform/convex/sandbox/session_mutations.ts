@@ -14,6 +14,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   type AdmissionTicketArgs,
   assertFifoEligible,
@@ -262,6 +263,7 @@ export const recoverStuckSessions = internalMutation({
   args: { limit: v.optional(v.number()) },
   returns: v.array(v.id('sandboxSessions')),
   handler: async (ctx, args) => {
+    if (isE2ECronSuppressed()) return [];
     const now = Date.now();
     const expired: Id<'sandboxSessions'>[] = [];
     // Distinct orgs that had a session slot freed by this sweep — wake each once

@@ -25,6 +25,7 @@ type ImageResult = AnalyzeImageResult;
 
 export const imageTool = {
   name: 'image' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Tool for analyzing uploaded images using a vision model.
 

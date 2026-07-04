@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { isRagIndexableFile } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
@@ -506,6 +507,7 @@ export const recoverStuckTranscriptions = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return null;
     const cutoff = Date.now() - 35 * 60 * 1000;
     // Index-range chain on transcriptionStatus so the cron pays only for
     // rows currently `'running'` instead of scanning the whole table

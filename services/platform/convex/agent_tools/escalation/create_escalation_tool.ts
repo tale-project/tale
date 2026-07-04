@@ -1,6 +1,6 @@
 /**
  * The `escalate` tool — the upward edge of the agent org chart, auto-injected
- * for chart members at tool-build time (see `buildDelegationTools`). What it
+ * for chart members at tool-build time (see `buildEscalationTools`). What it
  * does depends on where the agent is running and where it sits in the chart:
  *
  *  TASK context (a `taskId` rides the ToolCtx — task-ops runs):
@@ -11,12 +11,10 @@
  *     comment is posted without a triggering mention and org admins get an
  *     `agent_escalation` inbox notification — the chain terminates at humans.
  *
- *  CHAT context:
- *   - with a manager: runs the manager synchronously as a sub-agent
- *     (`runDelegateStep`, same budget/deadline guards as delegation) and
- *     returns its direction.
- *   - root agent: instructs the model to raise the matter with the human in
- *     the conversation — the human IS present in chat.
+ *  CHAT context: the human is present in the conversation — every chat
+ *  escalation resolves to "state the blocker to the user directly" (the
+ *  delegate-era synchronous manager consult was removed with the `delegate_*`
+ *  path; the workforce follow-up redesigns chart escalation end-to-end).
  *
  * Every path records the `agent.escalated` activity (task context) so the
  * metrics layer can count intervention rates.
@@ -28,10 +26,6 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
-import type { DelegateAgentMeta } from '../delegation/create_delegation_tool';
-import { runDelegateStep } from '../delegation/run_delegate_step';
-import { checkTimeBudget } from '../sub_agents/helpers/check_budget';
-import { validateToolContext } from '../sub_agents/helpers/validate_context';
 import type { ToolDefinition } from '../types';
 
 const escalateArgs = z.object({
@@ -55,14 +49,6 @@ export interface EscalationToolMeta {
   agentSlug: string;
   /** Resolved from the org chart at tool-build time; undefined for roots. */
   managerSlug?: string;
-  /**
-   * The manager's config, pre-loaded by `buildDelegationTools` in its Node
-   * context and passed in — mirrors how `createDelegationTool` receives its
-   * delegate. Undefined for roots or when the manager file failed to load.
-   * Keeping the load upstream is what lets this builder stay in Convex's V8
-   * runtime; a `node:fs` import here would drag Node into the V8 bundle.
-   */
-  manager?: DelegateAgentMeta;
   organizationId: string;
 }
 
@@ -86,6 +72,8 @@ export function createEscalationTool(meta: EscalationToolMeta): ToolDefinition {
     : 'the humans of this organization';
   return {
     name: 'escalate',
+    // primary-only: Manager escalation is a primary-turn org-chart concern.
+    availability: 'primary-only',
     tool: createTool({
       description: `Escalate to ${target} when you are blocked, lack a needed permission or capability, or face a decision above your authority. State the reason, what blocks you, and what you need. Do NOT escalate work you can do yourself.`,
       inputSchema: escalateArgs,
@@ -139,41 +127,15 @@ export function createEscalationTool(meta: EscalationToolMeta): ToolDefinition {
           };
         }
 
-        // --- Chat context: synchronous manager consult ------------------
-        if (meta.managerSlug) {
-          const validation = validateToolContext(ctx, 'escalate');
-          if (!validation.valid) return validation.error;
-          const budget = checkTimeBudget(ctx);
-          if (!budget.ok) return budget.error;
-          const { organizationId, threadId, userId } = validation.context;
-
-          const manager = meta.manager;
-          if (!manager) {
-            return {
-              escalated: false,
-              note: `Your manager (${meta.managerSlug}) could not be loaded. Raise the matter directly with the user.`,
-            };
-          }
-          return runDelegateStep(
-            ctx,
-            {
-              parentThreadId: threadId,
-              organizationId,
-              userId,
-              delegate: manager,
-              prompt: `Your direct report ${meta.agentSlug} escalated to you mid-conversation:\n\n${reason}\n\nDecide as their manager: give concrete direction, take the decision yourself, or say precisely what is needed before work can continue.`,
-              deadlineMs: budget.deadlineMs,
-              streamSubAgent: true,
-            },
-            '[escalate]',
-          );
-        }
-
-        // Chat context, root agent: the human is right there.
+        // Chat context: the human is right there — surface the blocker to
+        // them (the delegate-era synchronous manager consult was removed
+        // with the delegate_* path).
         return {
           escalated: false,
           to: 'user',
-          note: 'You report to the humans of this organization and the user is present in this conversation — state the blocker and what you need directly in your reply.',
+          note: meta.managerSlug
+            ? `The user is present in this conversation — state the blocker and what you need directly in your reply (mention that ${meta.managerSlug} would normally own this decision).`
+            : 'You report to the humans of this organization and the user is present in this conversation — state the blocker and what you need directly in your reply.',
         };
       },
     }),

@@ -121,7 +121,7 @@ export const autoRouteCacheTable = defineTable({
  * parity with `wfInstallations`. The agent JSON file stays the source-of-truth
  * config; this row gates whether the agent is LIVE for an org. The roster read
  * (`listAgentsForOrg`) joins this table and filters to installed && enabled, so
- * the router, @mention resolution, and the organigram all gate for free.
+ * the router, @mention resolution, and the org-chart reads all gate for free.
  *
  *  - INSTALLED      = a row exists (provisioned by autoInstall, an integration
  *                     bundle, or an explicit user/manager-agent install).

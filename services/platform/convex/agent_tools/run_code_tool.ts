@@ -22,9 +22,14 @@ import {
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import { getWorkspaceThreadId } from '../threads/get_parent_thread_id';
 import { refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
+import {
+  buildSandboxState,
+  formatSandboxState,
+} from './files/helpers/sandbox_state';
 import { parseWorkspacePath, relOf } from './files/sandbox_paths';
 import type { ToolDefinition } from './types';
 
@@ -143,51 +148,9 @@ function checkPackagesAgainstPolicy(
   );
 }
 
-interface SandboxStateEntry {
-  path: string;
-  fileId: string;
-  size: number;
-  contentType: string;
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
- * Compact human-readable rendering of the sandbox-state manifest, appended to
- * the tool-result message. The structured `sandboxState` field carries the
- * full data (incl. every `fileId`); this is the at-a-glance summary.
- */
-function formatSandboxState(area: {
-  uploads: SandboxStateEntry[];
-  code: SandboxStateEntry[];
-  outputs: SandboxStateEntry[];
-}): string {
-  const lines: string[] = [];
-  const render = (root: string, entries: SandboxStateEntry[]) => {
-    if (entries.length === 0) return;
-    const shown = entries.slice(0, 12);
-    const names = shown
-      .map((e) => `${e.path.slice(root.length + 1)} (${formatBytes(e.size)})`)
-      .join(', ');
-    const more =
-      entries.length > shown.length
-        ? ` … +${entries.length - shown.length} more`
-        : '';
-    lines.push(`  ${root}: ${names}${more}`);
-  };
-  render('/user/uploads', area.uploads);
-  render('/user/code', area.code);
-  render('/user/output', area.outputs);
-  if (lines.length === 0) return '';
-  return `Sandbox state (reference files by path; pass a file's fileId to the image / document_write tools):\n${lines.join('\n')}`;
-}
-
 export const runCodeTool: ToolDefinition = {
   name: 'run_code' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `**run_code** — execute code in the thread's sandbox using the current workspace as the source tree. Python 3, Node.js, and bash are available (extension-routed: \`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node, \`.sh\` → bash). Pick the language that fits the task (or whatever a relevant skill recommends).
 
@@ -210,7 +173,7 @@ TIMEOUTS / LIMITS:
 
 The sandbox sees three directories pre-populated from the thread workspace:
 - \`/user/code/\`    — scripts you authored via \`file_write\` (this is where \`entryPath\` / \`steps\` resolve);
-- \`/user/output/\`  — files produced by **previous** \`run_code\` calls; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
+- \`/user/output/\`  — deliverables: files from previous \`run_code\` calls and files you saved there with \`file_write\`; this is also where the current run writes its outputs (any file written here is harvested back into the thread);
 - \`/user/uploads/\` — files the user uploaded into the thread (kept separate from code-output artifacts).
 
 Reading a previous run's output → \`/user/output/<name>\`. Reading a user-uploaded asset → \`/user/uploads/<name>\`. Only scripts you wrote with \`file_write\` are executable as \`entryPath\` / \`steps\`.
@@ -235,11 +198,15 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
           message: 'run_code requires userId in the tool context.',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace and sandbox session — a worker's harvested
+      // outputs land where the parent agent and the canvas read them.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
 
       // Load every workspace file. The path the LLM passed must exist.
       const rows = await ctx.runQuery(
         internal.thread_files.internal_queries.listThreadFiles,
-        { threadId },
+        { threadId: workspaceThreadId },
       );
       const workspaceFiles = rows.filter(
         (r: { organizationId: string }) => r.organizationId === organizationId,
@@ -292,15 +259,15 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
         }
         stepPaths = rels;
       }
-      // Only `agent_write` files land in /user/code/ — they are the
-      // executable surface. `user_upload` lives in /user/uploads/ and
-      // `run_output` lives in /user/output/; neither is executable
-      // via entryPath/steps. If the user wants to run a user-uploaded
-      // script, they can copy it into /user/code/ with file_write.
+      // /user/code/ is the executable surface — keyed on LOCATION, not the
+      // `source` provenance (file_write also authors /user/output
+      // deliverables now, which must never become executable). If the user
+      // wants to run a user-uploaded script, they can copy it into
+      // /user/code/ with file_write.
       const seen = new Set<string>();
       const knownPaths = new Set(
         workspaceFiles
-          .filter((f: { source: string }) => f.source === 'agent_write')
+          .filter((f: { path: string }) => f.path.startsWith('/user/code/'))
           .map((f: { path: string }) => relOf(f.path)),
       );
       for (const p of stepPaths) {
@@ -370,7 +337,7 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
           internal.node_only.sandbox.session_exec.executeCodeInSession,
           {
             organizationId,
-            threadId,
+            threadId: workspaceThreadId,
             uploadedBy: userId,
             stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
             ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
@@ -461,41 +428,10 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
       // OR failure) so the model always has ground truth — what it already
       // produced (don't regenerate), what the user uploaded (edit it), and the
       // id to hand to the image / document_write tools.
-      const sandboxState: {
-        uploads: SandboxStateEntry[];
-        code: SandboxStateEntry[];
-        outputs: SandboxStateEntry[];
-      } = { uploads: [], code: [], outputs: [] };
-      const stateRows = await ctx.runQuery(
-        internal.thread_files.internal_queries.listThreadFiles,
-        { threadId },
-      );
-      for (const e of stateRows
-        .filter(
-          (r: { organizationId: string }) =>
-            r.organizationId === organizationId,
-        )
-        .map(
-          (r: {
-            path: string;
-            storageId: string;
-            size: number;
-            contentType: string;
-            source: 'user_upload' | 'agent_write' | 'run_output';
-          }) => ({
-            entry: {
-              path: r.path,
-              fileId: r.storageId,
-              size: r.size,
-              contentType: r.contentType,
-            },
-            source: r.source,
-          }),
-        )) {
-        if (e.source === 'user_upload') sandboxState.uploads.push(e.entry);
-        else if (e.source === 'run_output') sandboxState.outputs.push(e.entry);
-        else sandboxState.code.push(e.entry);
-      }
+      const sandboxState = await buildSandboxState(ctx, {
+        organizationId,
+        workspaceThreadId,
+      });
       const stateSummary = formatSandboxState(sandboxState);
       const messageWithState =
         stateSummary.length > 0 ? `${message}\n\n${stateSummary}` : message;

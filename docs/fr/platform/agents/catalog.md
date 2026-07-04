@@ -21,6 +21,10 @@ Les cartes sont regroupées par service (leur libellé principal — Ingénierie
 
 Certains agents sont installés pour toi lorsque tu connectes une intégration — connecter GitHub, par exemple, installe le relecteur de pull requests et le trieur d'issues. Ceux-là portent un badge **Installé par &lt;intégration&gt;**, et le catalogue ne te laisse pas les désactiver ni les désinstaller à la main (déconnecte plutôt l'intégration). Un agent qui requiert encore une intégration affiche un badge **Requiert &lt;intégration&gt;** jusqu'à ce que tu la connectes.
 
+## Mettre à jour depuis le catalogue intégré
+
+Ton organisation possède sa propre copie de la configuration de chaque agent livré — une mise à jour de la plateforme ne la réécrit jamais dans ton dos. Pour récupérer les dernières versions livrées, ouvre le menu **Créer un agent** et choisis **Mettre à jour les agents livrés** : chaque agent intégré dont la configuration diffère du catalogue est remplacé, y compris ceux que tu as modifiés, et la version précédente de chaque agent remplacé atterrit dans son [historique](/fr/platform/agents/versions) pour que tu puisses la restaurer. Les agents créés par ton organisation restent intacts. La même action, avec la même sémantique, se trouve dans le menu correspondant du catalogue des automatisations, de la liste des intégrations et de la page Applications.
+
 ## Permissions
 
-Installer, activer, désactiver et désinstaller sont des actions d'administrateur (admin, développeur ou propriétaire). Modifier le modèle, les instructions ou la configuration complète d'un agent se fait dans l'éditeur d'agent (Agents → Tous les agents → un agent), pas dans le catalogue.
+Installer, activer, désactiver, désinstaller et mettre à jour depuis le catalogue sont des actions d'administrateur (admin, développeur ou propriétaire). Modifier le modèle, les instructions ou la configuration complète d'un agent se fait dans l'éditeur d'agent (Agents → Tous les agents → un agent), pas dans le catalogue.

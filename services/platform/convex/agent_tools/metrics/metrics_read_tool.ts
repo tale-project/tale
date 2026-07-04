@@ -30,6 +30,7 @@ const metricsReadArgs = z.discriminatedUnion('operation', [
 
 export const metricsReadTool: ToolDefinition = {
   name: 'metrics_read',
+  availability: 'any',
   tool: createTool({
     description: `Read workforce metrics for the organization to analyze performance and decide what to do next.
 

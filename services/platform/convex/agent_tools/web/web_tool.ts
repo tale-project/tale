@@ -64,6 +64,7 @@ const webToolArgs = z.discriminatedUnion('mode', [
 
 export const webTool: ToolDefinition = {
   name: 'web',
+  availability: 'any',
   tool: createTool({
     description: `Access web content in two modes:
 

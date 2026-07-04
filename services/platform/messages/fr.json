@@ -3,6 +3,9 @@
     "title": "Applications",
     "searchPlaceholder": "Rechercher des applications…",
     "searchNoResults": "Aucune application ne correspond à votre recherche.",
+    "addMenu": {
+      "label": "Ajouter une application"
+    },
     "upload": {
       "uploadApp": "Téléverser une application",
       "dialogTitle": "Téléverser une application privée",
@@ -61,6 +64,8 @@
       "install": "Installer",
       "installed": "Installé",
       "installFailed": "Impossible d'installer l'application",
+      "available": "Disponible",
+      "open": "Ouvrir",
       "reinstall": "Réinstaller",
       "setup": "Terminer la configuration",
       "uninstall": "Désinstaller",
@@ -2447,6 +2452,24 @@
     "statusRejected": "L'enregistrement de ce document a été rejeté.",
     "allFilesFailed": "Les {count} fichiers n'ont pas pu être enregistrés",
     "errorSaveFailed": "Échec de l'enregistrement du document"
+  },
+  "jobCard": {
+    "statusRunning": "En cours",
+    "statusCompleted": "Terminé",
+    "statusFailed": "Échoué",
+    "statusTimedOut": "Temps écoulé",
+    "statusCancelled": "Annulé",
+    "duration": "{seconds} s",
+    "narrowedNotice": "Ignoré (hors des accès de cet assistant) : {items}",
+    "failure": {
+      "generation_error": "Le worker a rencontré une erreur et s'est arrêté.",
+      "deadline_exceeded": "Le temps de ce tour n'a pas suffi.",
+      "budget_exhausted": "Arrêté — le budget mensuel est épuisé.",
+      "orphaned": "L'exécution a été interrompue."
+    },
+    "showTranscript": "Afficher l'activité du worker",
+    "hideTranscript": "Masquer l'activité du worker",
+    "transcriptEmpty": "Aucune activité enregistrée."
   },
   "planApproval": {
     "cardTitle": "Plan proposé",
@@ -5306,7 +5329,6 @@
     "agents": {
       "title": "Agents",
       "tabs": {
-        "overview": "Vue d'ensemble",
         "list": "Liste",
         "metrics": "Métriques"
       },
@@ -5352,7 +5374,6 @@
         "skills": "Skills",
         "knowledge": "Base de connaissances",
         "webhook": "Webhooks",
-        "delegation": "Délégation",
         "conversationStarters": "Amorces",
         "history": "Historique",
         "metrics": "Performance",
@@ -5528,10 +5549,6 @@
           "autoLabel": "Utiliser la valeur par défaut de l'org",
           "autoDescription": "Revenir au modèle de vision par défaut du fournisseur."
         }
-      },
-      "delegation": {
-        "title": "Délégation",
-        "description": "La délégation suit l'organigramme. Utilise le panneau latéral pour définir à qui cet agent rend compte et à qui il délègue — la délégation est plusieurs-à-plusieurs, mais pas à lui-même."
       },
       "knowledge": {
         "retrievalMode": "Mode de récupération",
@@ -5737,6 +5754,9 @@
       "title": "Intégrations",
       "pageSubtitle": "Connecte des services tiers à ton espace de travail.",
       "addCustomIntegration": "Ajouter une intégration",
+      "addMenu": {
+        "custom": "Intégration personnalisée"
+      },
       "slackNotify": {
         "title": "Bot Slack et notifications",
         "agentLabel": "Agent qui répond sur Slack",
@@ -7957,6 +7977,25 @@
       "transcript": "Messages de la discussion"
     }
   },
+  "catalogSync": {
+    "button": {
+      "agents": "Mettre à jour les agents livrés",
+      "workflows": "Mettre à jour les automatisations livrées",
+      "integrations": "Mettre à jour les intégrations livrées",
+      "apps": "Mettre à jour les applications livrées"
+    },
+    "confirm": {
+      "title": "Mettre à jour depuis le catalogue intégré",
+      "description": "Remplace les entrées intégrées de cette page par les dernières versions du catalogue — y compris celles que tu as modifiées. La version précédente de chaque entrée modifiée est conservée dans l'historique ; les entrées que tu as créées restent intactes.",
+      "action": "Mettre à jour",
+      "loading": "Mise à jour…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {1 entrée mise à jour depuis le catalogue} other {{count} entrées mises à jour depuis le catalogue}}",
+      "upToDate": "Déjà à jour",
+      "failed": "Échec de la mise à jour depuis le catalogue"
+    }
+  },
   "agentCatalog": {
     "folders": {
       "workforce": "Effectif",
@@ -7996,37 +8035,6 @@
       "title": "Aucun agent au catalogue",
       "description": "Aucun agent installable n'a été trouvé pour cette organisation."
     }
-  },
-  "organigram": {
-    "title": "Organigramme",
-    "subtitle": "Comment ta main-d'œuvre IA délègue le travail — délégation, décomposition d'epics, escalade SLA et transfert de budget suivent tous ces liens.",
-    "addAgent": "Ajouter un agent",
-    "node": {
-      "warning": "Un lien de délégation a été ignoré (il référençait un agent introuvable)."
-    },
-    "panel": {
-      "close": "Fermer",
-      "reportsTo": "Rend compte à",
-      "delegatesTo": "Délègue à",
-      "noAgents": "Aucun autre agent disponible.",
-      "delegationHint": "La délégation est plusieurs-à-plusieurs — un agent peut rendre compte à et déléguer à un nombre quelconque d'agents. Seule règle : pas à lui-même.",
-      "openAgent": "Ouvrir les réglages de l'agent"
-    },
-    "errors": {
-      "self": "Un agent ne peut pas rendre compte à ni déléguer à lui-même.",
-      "forbidden": "Ton rôle ne peut pas modifier l'organigramme.",
-      "generic": "Impossible de mettre à jour l'organigramme."
-    },
-    "empty": {
-      "title": "Aucun agent pour l'instant",
-      "description": "Ajoute des agents à ta main-d'œuvre, puis organise ici la façon dont ils délèguent le travail."
-    },
-    "humans": {
-      "title": "Humains",
-      "subtitle": "Agents de premier niveau : {count}"
-    },
-    "saved": "Délégation enregistrée",
-    "unsavedChanges": "Modifications non enregistrées"
   },
   "workforce": {
     "subtitle": "Les performances de ta workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",

@@ -35,6 +35,7 @@ const workflowReadArgs = z.discriminatedUnion('operation', [
 
 export const workflowReadTool: ToolDefinition = {
   name: 'workflow_read',
+  availability: 'any',
   tool: createTool({
     description: `Workflow read tool for retrieving workflow information from file-based workflow definitions.
 

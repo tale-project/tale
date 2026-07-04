@@ -3,6 +3,9 @@
     "title": "Apps",
     "searchPlaceholder": "Apps durchsuchen…",
     "searchNoResults": "Keine Apps entsprechen Ihrer Suche.",
+    "addMenu": {
+      "label": "App hinzufügen"
+    },
     "upload": {
       "uploadApp": "App hochladen",
       "dialogTitle": "Private App hochladen",
@@ -61,6 +64,8 @@
       "install": "Installieren",
       "installed": "Installiert",
       "installFailed": "App konnte nicht installiert werden",
+      "available": "Verfügbar",
+      "open": "Öffnen",
       "reinstall": "Neu installieren",
       "setup": "Einrichtung abschließen",
       "uninstall": "Deinstallieren",
@@ -2446,6 +2451,24 @@
     "statusRejected": "Diese Dokumentspeicherung wurde abgelehnt.",
     "allFilesFailed": "Alle {count} Dateien konnten nicht gespeichert werden",
     "errorSaveFailed": "Dokument konnte nicht gespeichert werden"
+  },
+  "jobCard": {
+    "statusRunning": "Arbeitet",
+    "statusCompleted": "Fertig",
+    "statusFailed": "Fehlgeschlagen",
+    "statusTimedOut": "Zeit abgelaufen",
+    "statusCancelled": "Abgebrochen",
+    "duration": "{seconds} s",
+    "narrowedNotice": "Übersprungen (nicht in den Freigaben dieses Assistenten): {items}",
+    "failure": {
+      "generation_error": "Der Worker ist auf einen Fehler gestoßen und hat gestoppt.",
+      "deadline_exceeded": "Die Zeit in diesem Zug hat nicht gereicht.",
+      "budget_exhausted": "Gestoppt — das Monatsbudget ist aufgebraucht.",
+      "orphaned": "Der Lauf wurde unterbrochen."
+    },
+    "showTranscript": "Worker-Aktivität anzeigen",
+    "hideTranscript": "Worker-Aktivität ausblenden",
+    "transcriptEmpty": "Keine Aktivität aufgezeichnet."
   },
   "planApproval": {
     "cardTitle": "Vorgeschlagener Plan",
@@ -5305,7 +5328,6 @@
     "agents": {
       "title": "Agenten",
       "tabs": {
-        "overview": "Übersicht",
         "list": "Liste",
         "metrics": "Metriken"
       },
@@ -5351,7 +5373,6 @@
         "skills": "Skills",
         "knowledge": "Wissen",
         "webhook": "Webhook",
-        "delegation": "Delegation",
         "conversationStarters": "Gesprächseinstiege",
         "history": "Verlauf",
         "metrics": "Leistung",
@@ -5527,10 +5548,6 @@
           "autoLabel": "Org-Standard verwenden",
           "autoDescription": "Auf das Standard-Vision-Modell des Anbieters zurückfallen."
         }
-      },
-      "delegation": {
-        "title": "Delegation",
-        "description": "Die Delegation folgt dem Org-Chart. Lege im Seitenpanel fest, an wen dieser Agent berichtet und an wen er delegiert — Delegation ist many-to-many, nur nicht an sich selbst."
       },
       "knowledge": {
         "retrievalMode": "Abrufmodus",
@@ -5736,6 +5753,9 @@
       "title": "Integrationen",
       "pageSubtitle": "Drittanbieter-Dienste mit deinem Workspace verbinden.",
       "addCustomIntegration": "Integration hinzufügen",
+      "addMenu": {
+        "custom": "Eigene Integration"
+      },
       "slackNotify": {
         "title": "Slack-Bot & Benachrichtigungen",
         "agentLabel": "Agent, der auf Slack antwortet",
@@ -7956,6 +7976,25 @@
       "transcript": "Diskussionsnachrichten"
     }
   },
+  "catalogSync": {
+    "button": {
+      "agents": "Mitgelieferte Agenten aktualisieren",
+      "workflows": "Mitgelieferte Automatisierungen aktualisieren",
+      "integrations": "Mitgelieferte Integrationen aktualisieren",
+      "apps": "Mitgelieferte Apps aktualisieren"
+    },
+    "confirm": {
+      "title": "Aus dem integrierten Katalog aktualisieren",
+      "description": "Ersetzt die integrierten Einträge dieser Seite durch die neuesten Katalog-Versionen — auch dort, wo du sie geändert hast. Die vorherige Version jedes geänderten Eintrags landet im Verlauf; eigene Einträge bleiben unberührt.",
+      "action": "Aktualisieren",
+      "loading": "Aktualisiert…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {1 Eintrag aus dem Katalog aktualisiert} other {{count} Einträge aus dem Katalog aktualisiert}}",
+      "upToDate": "Bereits aktuell",
+      "failed": "Aktualisierung aus dem Katalog fehlgeschlagen"
+    }
+  },
   "agentCatalog": {
     "folders": {
       "workforce": "Belegschaft",
@@ -7995,37 +8034,6 @@
       "title": "Keine Katalog-Agenten",
       "description": "Für diese Organisation wurden keine installierbaren Agenten gefunden."
     }
-  },
-  "organigram": {
-    "title": "Organigramm",
-    "subtitle": "Wie deine KI-Belegschaft Arbeit delegiert — Delegation, Epic-Zerlegung, SLA-Eskalation und Budget-Übergabe folgen alle diesen Kanten.",
-    "addAgent": "Agent hinzufügen",
-    "node": {
-      "warning": "Eine Delegationskante wurde verworfen (sie verwies auf einen fehlenden Agenten)."
-    },
-    "panel": {
-      "close": "Schließen",
-      "reportsTo": "Berichtet an",
-      "delegatesTo": "Delegiert an",
-      "noAgents": "Keine weiteren Agenten verfügbar.",
-      "delegationHint": "Delegation ist many-to-many — ein Agent kann an beliebig viele Agenten berichten und delegieren. Einzige Regel: nicht an sich selbst.",
-      "openAgent": "Agenten-Einstellungen öffnen"
-    },
-    "errors": {
-      "self": "Ein Agent kann nicht an sich selbst berichten oder delegieren.",
-      "forbidden": "Deine Rolle kann das Organigramm nicht bearbeiten.",
-      "generic": "Organigramm konnte nicht aktualisiert werden."
-    },
-    "empty": {
-      "title": "Noch keine Agenten",
-      "description": "Füge Agenten zu deiner Belegschaft hinzu und lege hier fest, wie sie Arbeit delegieren."
-    },
-    "humans": {
-      "title": "Menschen",
-      "subtitle": "Agenten der obersten Ebene: {count}"
-    },
-    "saved": "Delegation gespeichert",
-    "unsavedChanges": "Nicht gespeicherte Änderungen"
   },
   "workforce": {
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",

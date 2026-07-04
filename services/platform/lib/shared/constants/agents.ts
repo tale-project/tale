@@ -33,9 +33,9 @@ export const AUTO_AGENT_SLUG = 'auto';
  * Agent slugs that may never be created through the UI/API because they
  * would shadow reserved surfaces:
  *  - 'auto' is the composer's routing sentinel (`AUTO_AGENT_SLUG`);
- *  - 'organigram' is a static route segment under /dashboard/$id/agents/
- *    (TanStack ranks static segments above `$agentId`, so an agent literally
- *    named "organigram" would become unreachable).
+ *  - 'organigram' was the org-chart route segment under /dashboard/$id/agents/
+ *    and stays reserved so an old link or config never collides with a real
+ *    agent.
  * Enforced server-side in `saveAgent` and client-side in the create dialog.
  */
 export const RESERVED_AGENT_SLUGS = ['auto', 'organigram'] as const;

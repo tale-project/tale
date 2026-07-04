@@ -202,7 +202,7 @@ interface ChatInputProps extends Omit<
   actorMentionSource?: SearchSource<ActorMentionData>;
   /**
    * Which composer controls to render. `'full'` (default) is the main chat.
-   * `'assistant'` is the editor AI panels (automations / organigram), where
+   * `'assistant'` is the editor AI panels (the automations editor), where
    * the agent is pinned server-side — the agent/model pickers, capability
    * pills (image generation etc.) and the voice-mode toggle would be
    * decorative at best and misleading at worst, so they're hidden.

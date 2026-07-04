@@ -19,6 +19,10 @@ Pick an integration from the catalogue and click **Connect**. The integration de
 
 Some integrations carry sub-options on install. Microsoft 365 lets you pick whether to enable OneDrive sync, SharePoint sync, both, or only single sign-on; GitHub lets you pick the repositories the org grants access to; Slack asks which channels the bot may post in. The sub-options can be changed later from the integration's row without re-installing.
 
+## Updating definitions from the shipped catalogue
+
+Each integration's definition — its configuration schema, connector, and icon — is copied into the organisation when the org is created and stays untouched afterwards, so a platform upgrade never changes it behind your back. **Update built-in integrations** in the **Add integration** menu replaces every shipped definition that differs from the current catalogue with the latest version. Credentials, secrets, and custom integrations you added yourself are never touched; the previous version of each replaced definition is preserved on the server so an operator can recover it.
+
 ## Rotating credentials
 
 To rotate, open the integration's row and click **Rotate credentials**. OAuth integrations walk the dance again with the same scopes; API-key integrations show a field for the new key. The old credential stops working as soon as the new one is verified — there is no overlap window for credentials at the integration level. Reach for rotation on the cadence your security policy mandates, or whenever the upstream system reports the credential is compromised.

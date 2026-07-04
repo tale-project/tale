@@ -243,8 +243,11 @@ interface InstallContext {
  * Shared install/reinstall preamble: membership + slug validation, the
  * global-workflow shadowing guard, and the manifest read. Throws on any failure
  * so a bad install fails fast before any file is copied.
+ *
+ * Exported (with `ensureOrgResources`) for the builtin-sync action, which
+ * re-runs the reinstall pipeline for installed apps whose bundle changed.
  */
-async function prepareInstall(
+export async function prepareInstall(
   ctx: ActionCtx,
   organizationId: string,
   appSlug: string,
@@ -287,7 +290,7 @@ async function prepareInstall(
  * re-run on reinstall and on every add-to-project; it deliberately never touches
  * `agentEnv` (env/secrets) or project bindings.
  */
-async function ensureOrgResources(
+export async function ensureOrgResources(
   ctx: ActionCtx,
   organizationId: string,
   appSlug: string,

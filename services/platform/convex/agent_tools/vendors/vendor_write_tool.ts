@@ -50,6 +50,7 @@ const vendorWriteArgs = z.discriminatedUnion('operation', [
 
 export const vendorWriteTool: ToolDefinition = {
   name: 'vendor_write',
+  availability: 'any',
   tool: createTool({
     description: `Create and update vendors/suppliers in the internal directory.
 

@@ -37,6 +37,14 @@ export interface ClassifiedLine {
    * silently swallowed.
    */
   errorBlock?: boolean;
+  /**
+   * Set on a line that is definitively NOT part of a pending error block —
+   * e.g. a Convex runtime function log with its own severity tag. Ends an
+   * armed `errorBlock` in the stream classifier even though the line is not
+   * an `info`/`progress` milestone, so a failed push can't paint later
+   * runtime logs as errors until the next successful push.
+   */
+  blockEnd?: boolean;
   /** Cleaned display text; omit to hide the line entirely. */
   text?: string;
   status?: ProgressStatus;

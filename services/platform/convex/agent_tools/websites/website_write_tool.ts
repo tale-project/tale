@@ -44,6 +44,7 @@ const websiteWriteArgs = z.discriminatedUnion('operation', [
 
 export const websiteWriteTool: ToolDefinition = {
   name: 'website_write',
+  availability: 'any',
   tool: createTool({
     description: `Register and update monitored website records.
 

@@ -14,7 +14,7 @@ La section est organisée par domaine, puis par fonctionnalité au sein d'un dom
 
 **[Projets](/fr/platform/projects/overview)** — espaces partagés qui regroupent fichiers, instructions, conversations et agents liés au projet.
 
-**[Agents](/fr/platform/agents/concepts)** — instructions, connaissances, outils, modèle, compétences, délégation, versionnage, déclencheurs webhook.
+**[Agents](/fr/platform/agents/concepts)** — instructions, connaissances, outils, modèle, compétences, workers, versionnage, déclencheurs webhook.
 
 **[Automatisations](/fr/platform/automations/concepts)** — workflows, déclencheurs, exécutions, métriques, points d'approbation.
 

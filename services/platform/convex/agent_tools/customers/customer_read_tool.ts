@@ -73,6 +73,7 @@ const customerReadArgs = z.discriminatedUnion('operation', [
 
 export const customerReadTool: ToolDefinition = {
   name: 'customer_read',
+  availability: 'any',
   tool: createTool({
     description: `Customer data read tool for retrieving customer information from the INTERNAL CRM database.
 

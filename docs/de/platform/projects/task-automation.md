@@ -12,7 +12,7 @@ Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task
 3. Die Aufgabe parkt bei **_In Review_** — Agenten können niemals _Erledigt_ setzen; diese Regel wird serverseitig erzwungen, unabhängig von jeder Workflow-Konfiguration.
 4. Ein Mensch **gibt frei** (der einzige automatisierte Weg zu _Erledigt_) oder **fordert Änderungen an** — das Feedback reaktiviert denselben Agenten im gemeinsamen Thread und öffnet ein frisches Review-Gate. Reviews lassen sich aus dem Aufgaben-Detail oder direkt aus dem Posteingang beantworten.
 
-Fehlschläge rollen die Aufgabe mit erklärendem Kommentar nach _Zu erledigen_ zurück. Manager im [Organigramm](/platform/agents/organigram) **zerlegen** Wurzel-Aufgaben mit dem Label `epic` in Unteraufgaben für ihre direkten Reports, statt sie allein zu bearbeiten; die übergeordnete Aufgabe wartet, bis die letzte Unteraufgabe schließt, und rollt dann nach _In Review_.
+Fehlschläge rollen die Aufgabe mit erklärendem Kommentar nach _Zu erledigen_ zurück. Manager im Agenten-Org-Chart **zerlegen** Wurzel-Aufgaben mit dem Label `epic` in Unteraufgaben für ihre direkten Reports, statt sie allein zu bearbeiten; die übergeordnete Aufgabe wartet, bis die letzte Unteraufgabe schließt, und rollt dann nach _In Review_.
 
 ## Mentions, Abhängigkeiten, Fristen
 

@@ -40,6 +40,6 @@ Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du sp
 
 ## Wo das eingesetzt wird
 
-Vier Knöpfe, ein veröffentlichter Agent, eine verifizierte Antwort: dieselbe Form, der jeder später gebaute Agent folgt. Die nächsten Spaziergänge spezialisieren sich auf je einen Knopf — [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) auf den zweiten, [Zwischen Agenten delegieren](/de/tutorials/editor/delegate-between-agents) auf den dritten.
+Vier Knöpfe, ein veröffentlichter Agent, eine verifizierte Antwort: dieselbe Form, der jeder später gebaute Agent folgt. Die nächsten Spaziergänge spezialisieren sich auf je einen Knopf — [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) auf den zweiten, [Arbeit an einen Worker geben](/de/tutorials/editor/delegate-between-agents) auf den dritten.
 
 Für die Konzept-Seite, die die vier Knöpfe und ihre Trade-offs benennt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für Versionierung und Rollback, sobald der Agent reift, siehe [Agent-Versionen](/de/platform/agents/versions).

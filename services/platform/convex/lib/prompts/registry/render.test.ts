@@ -78,20 +78,20 @@ describe('placeholder validation', () => {
 
 describe('locale fallback', () => {
   it('resolves a region-qualified locale to its base (de-CH → de)', () => {
-    expect(renderPrompt('delegation.header', {}, { locale: 'de-CH' })).toBe(
-      'DELEGATIONS-AGENTEN',
-    );
+    expect(
+      renderPrompt('escalation.sectionRoot', {}, { locale: 'de-CH' }),
+    ).toContain('BEFEHLSKETTE');
   });
 
   it('falls back to en for an unsupported locale', () => {
-    expect(renderPrompt('delegation.header', {}, { locale: 'es' })).toBe(
-      'DELEGATION AGENTS',
-    );
+    expect(
+      renderPrompt('escalation.sectionRoot', {}, { locale: 'es' }),
+    ).toContain('CHAIN OF COMMAND');
   });
 
   it('falls back to en when no locale given', () => {
-    expect(renderPrompt('delegation.intro')).toBe(
-      'You can delegate tasks to these specialized agents:',
+    expect(renderPrompt('jobs.workerPreamble', { name: 'worker' })).toContain(
+      'NON-INTERACTIVELY',
     );
   });
 });

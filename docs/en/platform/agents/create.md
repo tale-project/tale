@@ -46,7 +46,7 @@ Switch to the **Tools** tab. Tools are what the agent can do beyond generating t
 The toggles that need particular thought:
 
 - **Run code** is gated by the org's [run-code policy](/platform/admin/governance/run-code-policy). If your org policy disallows it, the toggle reads as disabled.
-- **Sub-agents** lets this agent delegate to others; [Agent delegation](/platform/agents/delegation) covers when that is the right move.
+- Chat agents can spawn focused **workers** for one-off sub-tasks on their own; [Agent workers](/platform/agents/delegation) covers when that is the right move.
 
 ## Step 5 — Publish and try it
 
@@ -61,4 +61,4 @@ Back on **Instructions & model**, flip **Visible in chat** on and click **Save**
 
 ## Where this gets used
 
-Creating one agent is the moment the rest of the platform starts to feel like Tale rather than a generic chat. The natural next walk is [Agent with knowledge](/tutorials/editor/agent-with-knowledge) — same shape, but binds a folder of PDFs and exercises the citation pipeline end to end. If the agent you just built needs to hand off to a specialist, [Delegate between agents](/tutorials/editor/delegate-between-agents) is the chain pattern.
+Creating one agent is the moment the rest of the platform starts to feel like Tale rather than a generic chat. The natural next walk is [Agent with knowledge](/tutorials/editor/agent-with-knowledge) — same shape, but binds a folder of PDFs and exercises the citation pipeline end to end. To see an agent hand a sub-task to a spawned worker, [Hand work to a worker](/tutorials/editor/delegate-between-agents) is the walk.

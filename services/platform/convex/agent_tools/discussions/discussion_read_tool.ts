@@ -48,6 +48,7 @@ const discussionReadArgs = z.discriminatedUnion('operation', [
 
 export const discussionReadTool: ToolDefinition = {
   name: 'discussion_read',
+  availability: 'any',
   tool: createTool({
     description: `Read project discussions — threaded, multi-participant conversations that live under a project (separate from the task board and private chat).
 

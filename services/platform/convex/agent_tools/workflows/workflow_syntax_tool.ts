@@ -59,6 +59,7 @@ async function fetchIntegrationsContext(ctx: ToolCtx): Promise<string> {
 
 export const workflowSyntaxTool: ToolDefinition = {
   name: 'workflow_syntax',
+  availability: 'any',
   tool: createTool({
     description: `Access workflow syntax reference. Omit category to get all syntax at once.
 

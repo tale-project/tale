@@ -40,6 +40,6 @@ Ouvre un chat avec `Triage assistant` et colle un vrai message client. La répon
 
 ## Où ça s'utilise
 
-Quatre boutons, un agent publié, une réponse vérifiée : la même forme que suit chaque agent que tu construiras plus tard. Les parcours suivants se spécialisent sur un bouton chacun — [Agent avec savoir](/fr/tutorials/editor/agent-with-knowledge) sur le deuxième, [Déléguer entre agents](/fr/tutorials/editor/delegate-between-agents) sur le troisième.
+Quatre boutons, un agent publié, une réponse vérifiée : la même forme que suit chaque agent que tu construiras plus tard. Les parcours suivants se spécialisent sur un bouton chacun — [Agent avec savoir](/fr/tutorials/editor/agent-with-knowledge) sur le deuxième, [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents) sur le troisième.
 
 Pour la page de concept qui nomme les quatre boutons et les arbitrages entre eux, voir [Concepts des agents](/fr/platform/agents/concepts). Pour la version et le rollback une fois que l'agent mûrit, voir [Versions d'agent](/fr/platform/agents/versions).

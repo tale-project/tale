@@ -151,7 +151,8 @@ interface TodoRowProps {
   };
 }
 
-function TodoRow({ todo }: TodoRowProps) {
+/** Exported for reuse by the job card's per-job progress checklist. */
+export function TodoRow({ todo }: TodoRowProps) {
   const { t } = useT('todoList');
   return (
     <li

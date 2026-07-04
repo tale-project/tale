@@ -1,11 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Button } from '@tale/ui/button';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
+import { useCatalogSync } from '@/app/components/catalog/use-catalog-sync';
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -75,9 +76,19 @@ function IntegrationsPage() {
 
   const { isLoading: isOrgLoading } = useOrganization(organizationId);
 
-  const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
-    useIntegrations(organizationId);
+  const {
+    integrations: fileIntegrations,
+    isLoading: isIntegrationsLoading,
+    refetch: refetchIntegrations,
+  } = useIntegrations(organizationId);
   const { data: credentials } = useIntegrationCredentials(organizationId);
+  // "Update from catalog" lives inside the Add-integration dropdown (same
+  // pattern as the agents catalog), not as a standalone header button.
+  const { menuItem: syncItem, dialog: syncDialog } = useCatalogSync({
+    organizationId,
+    domain: 'integrations',
+    onSynced: () => refetchIntegrations(),
+  });
 
   useEffect(() => {
     if (search.integration_oauth2 === 'success') {
@@ -160,9 +171,18 @@ function IntegrationsPage() {
         title={tNav('integrations')}
         description={tSettings('integrations.pageSubtitle')}
         action={
-          <Button icon={Plus} onClick={() => setAddDialogOpen(true)}>
-            {tSettings('integrations.addCustomIntegration')}
-          </Button>
+          <DataTableActionMenu
+            label={tSettings('integrations.addCustomIntegration')}
+            icon={Plus}
+            menuItems={[
+              {
+                label: tSettings('integrations.addMenu.custom'),
+                icon: Plus,
+                onClick: () => setAddDialogOpen(true),
+              },
+              ...(syncItem ? [syncItem] : []),
+            ]}
+          />
         }
       >
         <Integrations
@@ -176,6 +196,7 @@ function IntegrationsPage() {
           addDialogOpen={addDialogOpen}
           onAddDialogOpenChange={setAddDialogOpen}
         />
+        {syncDialog}
       </SettingsSection>
     </SettingsPage>
   );

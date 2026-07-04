@@ -11,9 +11,9 @@ import { t } from '../helpers/i18n';
  * "E2E Assistant" the chat specs depend on is never touched); edits accumulate
  * on it and each test asserts only its own field, so the serial order is safe.
  *
- * The webhook/delegation/metrics tabs aren't hermetically mutable (real HTTP
- * delivery, a React Flow graph editor, and no seeded run data respectively), so
- * their render-only coverage lives in component tests rather than here.
+ * The webhook/metrics tabs aren't hermetically mutable (real HTTP delivery and
+ * no seeded run data respectively), so their render-only coverage lives in
+ * component tests rather than here.
  */
 
 const NEW_AGENT_SUFFIX = Date.now().toString(36);
@@ -272,7 +272,6 @@ test.describe('agent editor depth', () => {
     ).toBeChecked({ timeout: TIMEOUT.PERSIST });
   });
 
-  // The webhook-tab, metrics-tab, and delegation-tab render-only smokes moved to
-  // component tests (agent-webhook-section.test.tsx,
-  // agent-metrics-scorecard.test.tsx, and the organigram editor's own test).
+  // The webhook-tab and metrics-tab render-only smokes moved to component
+  // tests (agent-webhook-section.test.tsx, agent-metrics-scorecard.test.tsx).
 });

@@ -28,6 +28,7 @@ const vendorReadArgs = z.discriminatedUnion('operation', [
 
 export const vendorReadTool: ToolDefinition = {
   name: 'vendor_read',
+  availability: 'any',
   tool: createTool({
     description: `Read vendors/suppliers from the internal directory.
 

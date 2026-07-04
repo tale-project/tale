@@ -191,6 +191,7 @@ function validateStepUpdates(updates: {
 
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Update one or more workflow steps. Requires user approval — an approval card will be created.
 

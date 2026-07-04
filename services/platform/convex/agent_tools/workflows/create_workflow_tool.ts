@@ -85,6 +85,7 @@ const stepConfigSchema = z.object({
 
 export const createWorkflowTool = {
   name: 'create_workflow' as const,
+  availability: 'any' as const,
   tool: createTool({
     description: `Create a new workflow definition with all steps.
 Requires user approval — an approval card rendered separately by the UI will be created. When telling the user the card is ready, only say it has been created — never describe where it appears, how to find it, or its direction relative to the chat (no "above"/"below"/"上方"/"下方"/"oben"/"unten"/equivalents).

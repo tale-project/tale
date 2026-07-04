@@ -1,0 +1,413 @@
+import { existsSync } from 'node:fs';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock the codegen surface so `action(config)` returns the config itself —
+// that exposes `.handler` for direct invocation (same pattern as
+// scaffold.test.ts / agents/file_actions.test.ts).
+vi.mock('../_generated/server', () => ({
+  action: vi.fn((config) => config),
+  internalAction: vi.fn((config) => config),
+}));
+
+vi.mock('../_generated/api', () => ({
+  internal: {
+    agents: {
+      provision_defaults: {
+        syncDefaultAgentInstallations: 'syncDefaultAgentInstallations',
+      },
+    },
+    workflows: {
+      provision_defaults: {
+        syncDefaultWorkflowInstallations: 'syncDefaultWorkflowInstallations',
+      },
+    },
+    apps: {
+      install_mutations: {
+        listAppInstallationsInternal: 'listAppInstallationsInternal',
+      },
+    },
+  },
+}));
+
+// The auth gate and the two heavy dependency graphs (agents/internal_actions,
+// apps/install_actions) are unit-mocked — the sync's own fs logic is what
+// these tests exercise against real temp dirs.
+const mockRequireDeveloperSettingsAccessById = vi.fn();
+vi.mock('../providers/auth', () => ({
+  requireDeveloperSettingsAccessById: (...args: unknown[]) =>
+    mockRequireDeveloperSettingsAccessById(...args),
+}));
+
+const mockInvalidateAgentListCache = vi.fn();
+vi.mock('../agents/internal_actions', () => ({
+  invalidateAgentListCache: (...args: unknown[]) =>
+    mockInvalidateAgentListCache(...args),
+}));
+
+const mockPrepareInstall = vi.fn();
+const mockEnsureOrgResources = vi.fn();
+vi.mock('../apps/install_actions', () => ({
+  prepareInstall: (...args: unknown[]) => mockPrepareInstall(...args),
+  ensureOrgResources: (...args: unknown[]) => mockEnsureOrgResources(...args),
+}));
+
+const { syncDomainFromBuiltin } = await import('./builtin_sync');
+
+type ActionConfig = {
+  handler: (
+    ctx: never,
+    args: {
+      organizationId: string;
+      domain: 'agents' | 'workflows' | 'integrations' | 'apps';
+    },
+  ) => Promise<{ updated: number; backedUp: number }>;
+};
+const syncHandler = (syncDomainFromBuiltin as unknown as ActionConfig).handler;
+
+const ENV_KEYS = ['TALE_CONFIG_DIR', 'TALE_CONFIG_BUILTIN_DIR'] as const;
+
+let configRoot: string;
+let catalogRoot: string;
+const savedEnv: Record<string, string | undefined> = {};
+
+function createMockCtx() {
+  return {
+    scheduler: { runAfter: vi.fn() },
+    runQuery: vi.fn().mockResolvedValue([]),
+  };
+}
+
+beforeEach(async () => {
+  vi.clearAllMocks();
+  for (const k of ENV_KEYS) {
+    savedEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+  configRoot = await mkdtemp(path.join(tmpdir(), 'builtin-sync-cfg-'));
+  catalogRoot = await mkdtemp(path.join(tmpdir(), 'builtin-sync-cat-'));
+  process.env.TALE_CONFIG_DIR = configRoot;
+  process.env.TALE_CONFIG_BUILTIN_DIR = catalogRoot;
+  mockRequireDeveloperSettingsAccessById.mockResolvedValue({
+    orgSlug: 'acme',
+  });
+});
+
+afterEach(async () => {
+  for (const k of ENV_KEYS) {
+    if (savedEnv[k] === undefined) {
+      delete process.env[k];
+    } else {
+      process.env[k] = savedEnv[k];
+    }
+  }
+  await rm(configRoot, { recursive: true, force: true });
+  await rm(catalogRoot, { recursive: true, force: true });
+});
+
+async function writeText(filePath: string, content: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, content, 'utf-8');
+}
+
+function catSrc(...parts: string[]): string {
+  return path.join(catalogRoot, ...parts);
+}
+
+function orgDst(...parts: string[]): string {
+  return path.join(configRoot, 'acme', ...parts);
+}
+
+describe('syncDomainFromBuiltin — tree domains (agents/workflows)', () => {
+  it('overwrites changed builtin agents, backs the previous version into the entry history, and counts', async () => {
+    await writeText(
+      catSrc('agents', 'chat', 'assistant.json'),
+      '{"slug":"assistant","v":"new"}',
+    );
+    await writeText(catSrc('agents', 'coder.json'), '{"slug":"coder"}');
+    // Org state: user-edited builtin, an untouched builtin, a user-added agent.
+    await writeText(
+      orgDst('agents', 'chat', 'assistant.json'),
+      '{"slug":"assistant","v":"user-edited"}',
+    );
+    await writeText(orgDst('agents', 'coder.json'), '{"slug":"coder"}');
+    await writeText(orgDst('agents', 'my-own.json'), '{"slug":"my-own"}');
+
+    const ctx = createMockCtx();
+    const result = await syncHandler(ctx as never, {
+      organizationId: 'org1',
+      domain: 'agents',
+    });
+
+    // One changed entry; `coder` was identical, `my-own` is org-authored.
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    expect(
+      await readFile(orgDst('agents', 'chat', 'assistant.json'), 'utf-8'),
+    ).toBe('{"slug":"assistant","v":"new"}');
+    expect(existsSync(orgDst('agents', 'my-own.json'))).toBe(true);
+
+    // The previous version landed in the SLUG-keyed history trail the
+    // existing restore UI reads.
+    const historyDir = orgDst('agents', '.history', 'assistant');
+    const entries = await readdir(historyDir);
+    expect(entries).toHaveLength(1);
+    expect(
+      await readFile(path.join(historyDir, entries[0] ?? ''), 'utf-8'),
+    ).toBe('{"slug":"assistant","v":"user-edited"}');
+
+    // Post-sync hooks: cache drop + default-agent provisioner scheduled.
+    expect(mockInvalidateAgentListCache).toHaveBeenCalledWith('acme');
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultAgentInstallations',
+      { organizationId: 'org1', orgSlug: 'acme' },
+    );
+  });
+
+  it('adds new builtin entries without a backup and reports zero when nothing changed', async () => {
+    await writeText(catSrc('agents', 'newcomer.json'), '{"slug":"newcomer"}');
+
+    const ctx = createMockCtx();
+    const first = await syncHandler(ctx as never, {
+      organizationId: 'org1',
+      domain: 'agents',
+    });
+    expect(first).toEqual({ updated: 1, backedUp: 0 });
+    expect(existsSync(orgDst('agents', 'newcomer.json'))).toBe(true);
+    expect(existsSync(orgDst('agents', '.history'))).toBe(false);
+
+    // Second run: already in sync — no writes, no hooks.
+    const ctx2 = createMockCtx();
+    const second = await syncHandler(ctx2 as never, {
+      organizationId: 'org1',
+      domain: 'agents',
+    });
+    expect(second).toEqual({ updated: 0, backedUp: 0 });
+    expect(ctx2.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('preserves org-side secrets and existing history trails through an agents sync', async () => {
+    await writeText(
+      catSrc('agents', 'shipped.json'),
+      '{"slug":"shipped","v":2}',
+    );
+    await writeText(
+      orgDst('agents', 'shipped.json'),
+      '{"slug":"shipped","v":1}',
+    );
+    await writeText(orgDst('agents', 'x.secrets.json'), '{"key":"keep"}');
+    await writeText(
+      orgDst('agents', '.history', 'other', '1.json'),
+      '{"old":1}',
+    );
+
+    await syncHandler(createMockCtx() as never, {
+      organizationId: 'org1',
+      domain: 'agents',
+    });
+
+    expect(await readFile(orgDst('agents', 'x.secrets.json'), 'utf-8')).toBe(
+      '{"key":"keep"}',
+    );
+    expect(existsSync(orgDst('agents', '.history', 'other', '1.json'))).toBe(
+      true,
+    );
+  });
+
+  it('backs a changed workflow into the flattened-slug history and schedules the workflow provisioner', async () => {
+    await writeText(
+      catSrc('workflows', 'github', 'sync.json'),
+      '{"name":"new"}',
+    );
+    await writeText(
+      orgDst('workflows', 'github', 'sync.json'),
+      '{"name":"old"}',
+    );
+
+    const ctx = createMockCtx();
+    const result = await syncHandler(ctx as never, {
+      organizationId: 'org1',
+      domain: 'workflows',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    expect(
+      await readFile(orgDst('workflows', 'github', 'sync.json'), 'utf-8'),
+    ).toBe('{"name":"new"}');
+    const historyDir = orgDst('workflows', '.history', 'github__sync');
+    const entries = await readdir(historyDir);
+    expect(entries).toHaveLength(1);
+    expect(
+      await readFile(path.join(historyDir, entries[0] ?? ''), 'utf-8'),
+    ).toBe('{"name":"old"}');
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      'syncDefaultWorkflowInstallations',
+      { organizationId: 'org1', orgSlug: 'acme' },
+    );
+  });
+});
+
+describe('syncDomainFromBuiltin — bundle domains (integrations/apps)', () => {
+  it('replaces only changed bundles, backing the whole previous bundle into the domain history', async () => {
+    await writeText(
+      catSrc('integrations', 'github', 'config.json'),
+      '{"v":"new"}',
+    );
+    await writeText(
+      catSrc('integrations', 'slack', 'config.json'),
+      '{"v":"same"}',
+    );
+    // Org state: changed github bundle (edit + a user-added extra file),
+    // unchanged slack bundle with an internal history trail.
+    await writeText(
+      orgDst('integrations', 'github', 'config.json'),
+      '{"v":"old"}',
+    );
+    await writeText(orgDst('integrations', 'github', 'extra.txt'), 'user file');
+    await writeText(
+      orgDst('integrations', 'slack', 'config.json'),
+      '{"v":"same"}',
+    );
+    await writeText(
+      orgDst('integrations', 'slack', '.history', 'trail.json'),
+      '{"trail":1}',
+    );
+
+    const result = await syncHandler(createMockCtx() as never, {
+      organizationId: 'org1',
+      domain: 'integrations',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    // github: replaced whole — new config, user extra gone.
+    expect(
+      await readFile(orgDst('integrations', 'github', 'config.json'), 'utf-8'),
+    ).toBe('{"v":"new"}');
+    expect(existsSync(orgDst('integrations', 'github', 'extra.txt'))).toBe(
+      false,
+    );
+    // slack: untouched, internal history survives.
+    expect(
+      existsSync(orgDst('integrations', 'slack', '.history', 'trail.json')),
+    ).toBe(true);
+
+    // The previous github bundle (including the extra file) is preserved
+    // under the domain-root history.
+    const backupRoot = orgDst('integrations', '.history', 'github');
+    const stamps = await readdir(backupRoot);
+    expect(stamps).toHaveLength(1);
+    const backupDir = path.join(backupRoot, stamps[0] ?? '');
+    expect(await readFile(path.join(backupDir, 'config.json'), 'utf-8')).toBe(
+      '{"v":"old"}',
+    );
+    expect(await readFile(path.join(backupDir, 'extra.txt'), 'utf-8')).toBe(
+      'user file',
+    );
+  });
+
+  it('installs a brand-new builtin bundle without a backup', async () => {
+    await writeText(catSrc('integrations', 'linear', 'config.json'), '{"v":1}');
+
+    const result = await syncHandler(createMockCtx() as never, {
+      organizationId: 'org1',
+      domain: 'integrations',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 0 });
+    expect(existsSync(orgDst('integrations', 'linear', 'config.json'))).toBe(
+      true,
+    );
+    expect(existsSync(orgDst('integrations', '.history'))).toBe(false);
+  });
+
+  it('re-runs the app install pipeline only for installed apps whose bundle changed', async () => {
+    await writeText(catSrc('apps', 'issue-desk', 'app.json'), '{"v":"new"}');
+    await writeText(catSrc('apps', 'crm', 'app.json'), '{"v":"same"}');
+    await writeText(orgDst('apps', 'issue-desk', 'app.json'), '{"v":"old"}');
+    await writeText(orgDst('apps', 'crm', 'app.json'), '{"v":"same"}');
+    // A privately-uploaded app with no builtin counterpart stays untouched.
+    await writeText(orgDst('apps', 'private-app', 'app.json'), '{"mine":1}');
+
+    const ctx = createMockCtx();
+    // Both catalog apps are installed; `private-app` too.
+    ctx.runQuery.mockResolvedValue(['issue-desk', 'crm', 'private-app']);
+    mockPrepareInstall.mockResolvedValue({ manifest: {} });
+
+    const result = await syncHandler(ctx as never, {
+      organizationId: 'org1',
+      domain: 'apps',
+    });
+
+    expect(result).toEqual({ updated: 1, backedUp: 1 });
+    expect(
+      await readFile(orgDst('apps', 'issue-desk', 'app.json'), 'utf-8'),
+    ).toBe('{"v":"new"}');
+    expect(existsSync(orgDst('apps', 'private-app', 'app.json'))).toBe(true);
+
+    // Reinstall pipeline ran once, for the changed installed app only.
+    expect(mockPrepareInstall).toHaveBeenCalledTimes(1);
+    expect(mockPrepareInstall).toHaveBeenCalledWith(ctx, 'org1', 'issue-desk');
+    expect(mockEnsureOrgResources).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failing app reinstall does not fail the sync of the files', async () => {
+    await writeText(catSrc('apps', 'issue-desk', 'app.json'), '{"v":"new"}');
+    await writeText(orgDst('apps', 'issue-desk', 'app.json'), '{"v":"old"}');
+
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValue(['issue-desk']);
+    mockPrepareInstall.mockRejectedValue(new Error('manifest read failed'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const result = await syncHandler(ctx as never, {
+        organizationId: 'org1',
+        domain: 'apps',
+      });
+      expect(result).toEqual({ updated: 1, backedUp: 1 });
+      expect(
+        await readFile(orgDst('apps', 'issue-desk', 'app.json'), 'utf-8'),
+      ).toBe('{"v":"new"}');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe('syncDomainFromBuiltin — guards', () => {
+  it('throws when the builtin catalog dir is not configured', async () => {
+    delete process.env.TALE_CONFIG_BUILTIN_DIR;
+    await expect(
+      syncHandler(createMockCtx() as never, {
+        organizationId: 'org1',
+        domain: 'agents',
+      }),
+    ).rejects.toThrow(/TALE_CONFIG_BUILTIN_DIR/);
+  });
+
+  it('requires developer-settings access before touching any file', async () => {
+    mockRequireDeveloperSettingsAccessById.mockRejectedValue(
+      new Error('FORBIDDEN_DEVELOPER_SETTINGS'),
+    );
+    await writeText(catSrc('agents', 'shipped.json'), '{"slug":"shipped"}');
+
+    await expect(
+      syncHandler(createMockCtx() as never, {
+        organizationId: 'org1',
+        domain: 'agents',
+      }),
+    ).rejects.toThrow('FORBIDDEN_DEVELOPER_SETTINGS');
+    expect(existsSync(orgDst('agents', 'shipped.json'))).toBe(false);
+  });
+});

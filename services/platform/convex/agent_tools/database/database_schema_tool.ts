@@ -37,6 +37,7 @@ const databaseSchemaArgs = z.discriminatedUnion('operation', [
 
 export const databaseSchemaTool: ToolDefinition = {
   name: 'database_schema',
+  availability: 'any',
   tool: createTool({
     description: `Database schema introspection tool for writing filterExpressions.
 

@@ -1,16 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
-
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-function useInvalidateApps() {
-  const queryClient = useQueryClient();
-  return (organizationId: string) =>
-    queryClient.invalidateQueries({
-      queryKey: ['apps', 'list', organizationId],
-    });
-}
+import { useInvalidateApps } from './use-apps';
 
 /**
  * App-specific presign mutation for the private-app upload path. Distinct from

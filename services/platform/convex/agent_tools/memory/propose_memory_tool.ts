@@ -62,6 +62,7 @@ function readStringContextField(ctx: ToolCtx, key: string): string | undefined {
 
 export const proposeMemoryTool: ToolDefinition = {
   name: 'propose_memory',
+  availability: 'any',
   tool: createTool({
     description:
       'Propose a fact about the user that should be remembered across ' +

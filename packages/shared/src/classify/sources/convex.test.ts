@@ -61,3 +61,25 @@ describe('classifyConvex', () => {
     expect(c('anything').source).toBe('convex');
   });
 });
+
+describe('runtime function-log lines', () => {
+  it('maps the [ERROR]/Uncaught, [WARN], and [LOG] tags to error/warn/noise', () => {
+    const error = c(
+      '7/3/2026, 5:44:56 PM [CONVEX A(crawler/web:fetchAndExtract)] Uncaught TypeError: fetch failed',
+    );
+    expect(error.kind).toBe('error');
+    expect(error.blockEnd).toBe(true);
+
+    const warn = c(
+      "7/3/2026, 5:44:45 PM [CONVEX A(crawler/web:fetchAndExtract)] [WARN] '[knowledge] HTTP error: 403'",
+    );
+    expect(warn.kind).toBe('warn');
+    expect(warn.blockEnd).toBe(true);
+
+    const log = c(
+      "7/3/2026, 5:44:46 PM [CONVEX A(agents/chat_turn_generate:run)] [LOG] 'tool success' {",
+    );
+    expect(log.kind).toBe('noise');
+    expect(log.blockEnd).toBe(true);
+  });
+});

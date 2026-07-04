@@ -29,6 +29,7 @@ const secretReadArgs = z.object({
 
 export const secretReadTool: ToolDefinition = {
   name: 'secret_read',
+  availability: 'any',
   tool: createTool({
     description: `List the NAMES of secrets configured on a project (metadata only — names, descriptions, last-updated).
 

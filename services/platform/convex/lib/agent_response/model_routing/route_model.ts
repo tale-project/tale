@@ -31,6 +31,49 @@ interface CatalogEntry {
 }
 
 /**
+ * Build `ModelCandidate`s for a set of model refs from the org's lightweight
+ * catalog (operator metadata layered over the built-in registry). Returns an
+ * empty array when the catalog is empty — callers fail safe to config order.
+ * Shared by the per-turn reorder below and the spawn-time job tier pick.
+ */
+export async function buildModelCandidates(
+  ctx: ActionCtx,
+  organizationId: string,
+  refs: string[],
+): Promise<ModelCandidate[]> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action returns the declared shape
+  const catalog = (await ctx.runAction(
+    internal.providers.file_actions.getModelRoutingCatalog,
+    { organizationId },
+  )) as CatalogEntry[];
+  if (catalog.length === 0) return [];
+
+  const byId = new Map(catalog.map((c) => [c.id, c]));
+  return refs.map((ref) => {
+    const { modelId } = parseModelRef(ref);
+    const entry = byId.get(modelId);
+    const meta = resolveModelMetadata({
+      tier: entry?.tier,
+      qualityScore: entry?.qualityScore,
+      // routingTags from the catalog are validated as the domain enum at
+      // config-load time; the metadata resolver re-types them.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- enum-validated upstream
+      routingTags: entry?.routingTags as ModelCandidate['routingTags'],
+    });
+    return {
+      ref,
+      tier: meta.tier,
+      qualityScore: meta.qualityScore,
+      routingTags: meta.routingTags,
+      outputCentsPerMillion: entry?.outputCentsPerMillion,
+      // Vision capability comes straight from the `'vision'` tag — there is
+      // no separate `supportsVision` field on the config any more.
+      supportsVision: entry?.tags.includes('vision') ?? false,
+    };
+  });
+}
+
+/**
  * Reorder `supportedModels` so the model best suited to this turn is first.
  * Returns the input unchanged when routing can't improve (≤1 model, no catalog,
  * or an error).
@@ -48,36 +91,12 @@ export async function routeModelOrder(
   if (refs.length <= 1) return refs;
 
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action returns the declared shape
-    const catalog = (await ctx.runAction(
-      internal.providers.file_actions.getModelRoutingCatalog,
-      { organizationId: opts.organizationId },
-    )) as CatalogEntry[];
-    if (catalog.length === 0) return refs;
-
-    const byId = new Map(catalog.map((c) => [c.id, c]));
-    const candidates: ModelCandidate[] = refs.map((ref) => {
-      const { modelId } = parseModelRef(ref);
-      const entry = byId.get(modelId);
-      const meta = resolveModelMetadata({
-        tier: entry?.tier,
-        qualityScore: entry?.qualityScore,
-        // routingTags from the catalog are validated as the domain enum at
-        // config-load time; the metadata resolver re-types them.
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- enum-validated upstream
-        routingTags: entry?.routingTags as ModelCandidate['routingTags'],
-      });
-      return {
-        ref,
-        tier: meta.tier,
-        qualityScore: meta.qualityScore,
-        routingTags: meta.routingTags,
-        outputCentsPerMillion: entry?.outputCentsPerMillion,
-        // Vision capability comes straight from the `'vision'` tag — there is
-        // no separate `supportsVision` field on the config any more.
-        supportsVision: entry?.tags.includes('vision') ?? false,
-      };
-    });
+    const candidates = await buildModelCandidates(
+      ctx,
+      opts.organizationId,
+      refs,
+    );
+    if (candidates.length === 0) return refs;
 
     const difficulty = scoreDifficulty({
       kind: 'chat',

@@ -46,7 +46,7 @@ Passe à l'onglet **Tools**. Les outils sont ce que l'agent peut faire au-delà 
 Les bascules qui méritent une attention particulière :
 
 - **Run code** est gouvernée par la [politique run-code](/fr/platform/admin/governance/run-code-policy) de l'organisation. Si la politique de ton organisation l'interdit, la bascule apparaît désactivée.
-- **Sub-agents** laisse cet agent déléguer à d'autres ; [Délégation d'agents](/fr/platform/agents/delegation) couvre quand c'est le bon mouvement.
+- Les agents de chat lancent d'eux-mêmes des **workers** ciblés pour des sous-tâches ponctuelles ; [Workers d'agent](/fr/platform/agents/delegation) couvre quand c'est le bon mouvement.
 
 ## Étape 5 — Publier et essayer
 
@@ -61,4 +61,4 @@ De retour sur **Instructions & model**, bascule **Visible in chat** sur on et cl
 
 ## Où ça s'utilise
 
-Créer un agent est le moment où le reste de la plateforme commence à sentir comme Tale plutôt que comme un chat générique. La marche suivante naturelle est [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge) — même forme, mais lie un dossier de PDF et exerce la pipeline de citations de bout en bout. Si l'agent que tu viens de construire doit passer la main à un spécialiste, [Déléguer entre agents](/fr/tutorials/editor/delegate-between-agents) est le pattern en chaîne.
+Créer un agent est le moment où le reste de la plateforme commence à sentir comme Tale plutôt que comme un chat générique. La marche suivante naturelle est [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge) — même forme, mais lie un dossier de PDF et exerce la pipeline de citations de bout en bout. Pour voir un agent confier une sous-tâche à un worker, [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents) est le parcours.

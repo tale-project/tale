@@ -366,6 +366,42 @@ export function useActiveApprovals(organizationId: string) {
   };
 }
 
+/** One spawned agent-on-demand job, as rendered by the inline job card. */
+export type AgentJobCard = NonNullable<
+  FunctionReturnType<typeof api.agent_jobs.queries.get>
+>;
+
+/**
+ * One spawned job by id (read off the `spawn_agent` tool row's persisted
+ * result). Live: progress and terminal state re-render as the backend
+ * patches the job row.
+ */
+export function useAgentJob(organizationId: string, jobId: string | null) {
+  const { data, isLoading } = useConvexQuery(
+    api.agent_jobs.queries.get,
+    jobId ? { jobId: toId<'agentJobs'>(jobId), organizationId } : 'skip',
+  );
+  return { job: data ?? null, isLoading };
+}
+
+/**
+ * The jobs spawned FROM a chat thread, for anchoring a LIVE job card while
+ * its `spawn_agent` call is still executing: the tool result (which carries
+ * the jobId) doesn't exist yet, but the job row's `toolCallId` matches the
+ * streamed tool part's id. Pass a null threadId to skip — subscribe only
+ * while an active turn has an unresolved spawn row.
+ */
+export function useThreadAgentJobs(
+  organizationId: string,
+  threadId: string | null,
+) {
+  const { data } = useConvexQuery(
+    api.agent_jobs.queries.listForThread,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+  );
+  return data ?? null;
+}
+
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';

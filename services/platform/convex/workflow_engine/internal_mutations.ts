@@ -2,6 +2,7 @@ import { vWorkflowId } from '@convex-dev/workflow';
 import { v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
+import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from './engine';
 import * as EngineHelpers from './helpers/engine';
@@ -38,6 +39,7 @@ export const recoverStuck = internalMutation({
   args: {},
   returns: v.object({ recovered: v.number() }),
   handler: async (ctx) => {
+    if (isE2ECronSuppressed()) return { recovered: 0 };
     return await recoverStuckExecutions(ctx, workflowManagers);
   },
 });

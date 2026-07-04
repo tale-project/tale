@@ -43,6 +43,7 @@ const integrationArgs = z.object({
 
 export const integrationTool: ToolDefinition = {
   name: 'integration',
+  availability: 'any',
   tool: createTool({
     description: `Execute a single operation on an integration.
 

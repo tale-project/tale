@@ -26,6 +26,7 @@ const websiteReadArgs = z.discriminatedUnion('operation', [
 
 export const websiteReadTool: ToolDefinition = {
   name: 'website_read',
+  availability: 'any',
   tool: createTool({
     description: `Read the monitored website records for the organization.
 

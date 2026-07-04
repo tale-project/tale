@@ -1,9 +1,13 @@
 'use node';
 
 /**
- * Reads delegate agent JSON files from the filesystem and converts them to
- * `DelegateAgentMeta`. A single bad/missing delegate is skipped rather than
- * failing the whole load, so the rest of the delegation tools stay available.
+ * Reads agent JSON files from the filesystem by slug and converts them to
+ * `DelegateAgentMeta`. A single bad/missing agent is skipped rather than
+ * failing the whole load. Despite the historical name, this is the generic
+ * "load an agent config by slug" helper — task runs, discussions, workflow
+ * sandbox execs, and the escalation tool all resolve agents through it (the
+ * `delegate_*` chat tools it originally served were replaced by
+ * `spawn_agent`).
  */
 
 import { readFile, stat } from 'node:fs/promises';
@@ -19,7 +23,19 @@ import {
   resolveAgentFilePathFromRelative,
 } from '../../agents/file_utils';
 import { resolveAgentRelativePath } from '../../agents/internal_actions';
-import type { DelegateAgentMeta } from './create_delegation_tool';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
+/** A slug-loaded agent config plus the display metadata callers render. */
+export interface DelegateAgentMeta {
+  agentSlug: string;
+  name: string;
+  displayName: string;
+  description: string;
+  agentConfig: SerializableAgentConfig;
+  model: string;
+  provider?: string;
+  roleRestriction?: 'admin_developer';
+}
 
 export async function loadDelegateAgents(
   ctx: ActionCtx,

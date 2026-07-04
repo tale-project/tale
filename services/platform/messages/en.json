@@ -3,6 +3,9 @@
     "title": "Apps",
     "searchPlaceholder": "Search apps…",
     "searchNoResults": "No apps match your search.",
+    "addMenu": {
+      "label": "Add app"
+    },
     "upload": {
       "uploadApp": "Upload app",
       "dialogTitle": "Upload private app",
@@ -57,10 +60,15 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
+    "addMenu": {
+      "label": "Add app"
+    },
     "install": {
       "install": "Install",
       "installed": "Installed",
       "installFailed": "Couldn't install the app",
+      "available": "Available",
+      "open": "Open",
       "reinstall": "Reinstall",
       "setup": "Finish setup",
       "uninstall": "Uninstall",
@@ -2446,6 +2454,24 @@
     "statusRejected": "This document save was rejected.",
     "allFilesFailed": "All {count} files failed to save",
     "errorSaveFailed": "Failed to save document"
+  },
+  "jobCard": {
+    "statusRunning": "Working",
+    "statusCompleted": "Done",
+    "statusFailed": "Failed",
+    "statusTimedOut": "Timed out",
+    "statusCancelled": "Cancelled",
+    "duration": "{seconds}s",
+    "narrowedNotice": "Skipped (outside this assistant's grants): {items}",
+    "failure": {
+      "generation_error": "The worker hit an error and stopped.",
+      "deadline_exceeded": "The worker ran out of time in this turn.",
+      "budget_exhausted": "Stopped — the monthly budget is exhausted.",
+      "orphaned": "The run was interrupted."
+    },
+    "showTranscript": "Show worker activity",
+    "hideTranscript": "Hide worker activity",
+    "transcriptEmpty": "No activity recorded."
   },
   "planApproval": {
     "cardTitle": "Proposed plan",
@@ -5569,7 +5595,6 @@
     "agents": {
       "title": "Agents",
       "tabs": {
-        "overview": "Overview",
         "list": "List",
         "metrics": "Metrics"
       },
@@ -5615,7 +5640,6 @@
         "skills": "Skills",
         "knowledge": "Knowledge",
         "webhook": "Webhooks",
-        "delegation": "Delegation",
         "conversationStarters": "Starters",
         "history": "History",
         "metrics": "Performance",
@@ -5791,10 +5815,6 @@
           "autoLabel": "Use org default",
           "autoDescription": "Fall back to the provider's vision default model."
         }
-      },
-      "delegation": {
-        "title": "Delegation",
-        "description": "Delegation follows the org chart. Use the side panel to set who this agent reports to and who it delegates to — delegation is many-to-many, an agent just can't reference itself."
       },
       "knowledge": {
         "retrievalMode": "Retrieval mode",
@@ -6000,6 +6020,9 @@
       "title": "Integrations",
       "pageSubtitle": "Connect third-party services to your workspace.",
       "addCustomIntegration": "Add integration",
+      "addMenu": {
+        "custom": "Custom integration"
+      },
       "slackNotify": {
         "title": "Slack bot & notifications",
         "agentLabel": "Agent that answers Slack",
@@ -7956,6 +7979,25 @@
       "transcript": "Discussion messages"
     }
   },
+  "catalogSync": {
+    "button": {
+      "agents": "Update built-in agents",
+      "workflows": "Update built-in automations",
+      "integrations": "Update built-in integrations",
+      "apps": "Update built-in apps"
+    },
+    "confirm": {
+      "title": "Update from the built-in catalog",
+      "description": "Replaces this page's built-in entries with the latest versions from the catalog — including any you changed. The previous version of each changed entry is saved to its history; entries you created yourself stay untouched.",
+      "action": "Update",
+      "loading": "Updating…"
+    },
+    "toast": {
+      "updated": "{count, plural, one {Updated 1 entry from the catalog} other {Updated {count} entries from the catalog}}",
+      "upToDate": "Already up to date",
+      "failed": "Could not update from the catalog"
+    }
+  },
   "agentCatalog": {
     "folders": {
       "workforce": "Workforce",
@@ -7995,37 +8037,6 @@
       "title": "No catalog agents",
       "description": "No installable agents were found for this organization."
     }
-  },
-  "organigram": {
-    "title": "Organigram",
-    "subtitle": "How your AI workforce delegates work — delegation, epic decomposition, SLA escalation, and budget handoff all follow these edges.",
-    "addAgent": "Add agent",
-    "node": {
-      "warning": "A delegation edge was dropped (it referenced a missing agent)."
-    },
-    "panel": {
-      "close": "Close",
-      "reportsTo": "Reports to",
-      "delegatesTo": "Delegates to",
-      "noAgents": "No other agents available.",
-      "delegationHint": "Delegation is many-to-many — an agent can report to and delegate to any number of agents. The only rule: it can't reference itself.",
-      "openAgent": "Open agent settings"
-    },
-    "errors": {
-      "self": "An agent can't report to or delegate to itself.",
-      "forbidden": "Your role cannot edit the organigram.",
-      "generic": "Could not update the organigram."
-    },
-    "empty": {
-      "title": "No agents yet",
-      "description": "Add agents to your workforce, then arrange how they delegate work here."
-    },
-    "humans": {
-      "title": "Humans",
-      "subtitle": "Top-level agents: {count}"
-    },
-    "saved": "Delegation saved",
-    "unsavedChanges": "Unsaved changes"
   },
   "workforce": {
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",

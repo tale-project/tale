@@ -167,6 +167,8 @@ export const requestHumanInputArgs = z.object({
 
 export const requestHumanInputTool = {
   name: 'request_human_input' as const,
+  // primary-only: Resume targets the PRIMARY agent — a job holding it would strand an unanswerable card.
+  availability: 'primary-only' as const,
   tool: createTool({
     description: `**DIRECTLY call this tool** to ask the user a question and collect their response in the current chat.
 
