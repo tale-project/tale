@@ -546,6 +546,14 @@ export const getThreadShareStatus = query({
       isShared: metadata.isShared ?? false,
       shareToken: metadata.shareToken ?? null,
       sharedAt: metadata.sharedAt ?? null,
+      // Mirror the guards in `shareThread` so the dialog can disable the
+      // toggle up front instead of only surfacing a failure after the fact
+      // (#2086). Arena and branch threads can't be shared, and an archived
+      // thread's share link is meaningless.
+      isShareable:
+        !metadata.arenaGroupId &&
+        !metadata.isBranch &&
+        metadata.status !== 'archived',
     };
   },
 });
