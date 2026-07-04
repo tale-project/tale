@@ -18,6 +18,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError, inferContentType } from './_shared';
 import { parseWorkspacePath } from './sandbox_paths';
@@ -115,6 +116,9 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
             'file_edit requires a thread context (organizationId + threadId).',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — resolve it before any lookup.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
 
       let parsed;
       try {
@@ -142,7 +146,7 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
 
       const row = await ctx.runQuery(
         internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId, path: normalizedPath },
+        { threadId: workspaceThreadId, path: normalizedPath },
       );
       if (row === null) {
         return {
@@ -257,7 +261,7 @@ QUOTAS: same as \`file_write\` — ≤ 10 MB per file, ≤ 100 MB per workspace.
           internal.thread_files.internal_mutations.upsertThreadFile,
           {
             organizationId,
-            threadId,
+            threadId: workspaceThreadId,
             path: normalizedPath,
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
             storageId: storageId as never,

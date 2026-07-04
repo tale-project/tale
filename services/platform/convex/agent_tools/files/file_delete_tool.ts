@@ -7,6 +7,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError } from './_shared';
 import { parseWorkspacePath } from './sandbox_paths';
@@ -41,6 +42,9 @@ Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`delet
             'file_delete requires a thread context (organizationId + threadId).',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — resolve it before any lookup.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
       let parsed;
       try {
         parsed = parseWorkspacePath(args.path);
@@ -68,7 +72,7 @@ Idempotent: deleting a path that doesn't exist returns \`ok: true\` with \`delet
         internal.thread_files.internal_mutations.deleteThreadFile,
         {
           organizationId,
-          threadId,
+          threadId: workspaceThreadId,
           path: normalizedPath,
         },
       );

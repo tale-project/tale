@@ -22,6 +22,7 @@ import {
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+import { getWorkspaceThreadId } from '../threads/get_parent_thread_id';
 import { refinePackagesObject } from './files/_shared';
 import { packageBaseName } from './files/_shared';
 import { appendFilePart } from './files/helpers/append_file_part';
@@ -236,11 +237,15 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
           message: 'run_code requires userId in the tool context.',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace and sandbox session — a worker's harvested
+      // outputs land where the parent agent and the canvas read them.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
 
       // Load every workspace file. The path the LLM passed must exist.
       const rows = await ctx.runQuery(
         internal.thread_files.internal_queries.listThreadFiles,
-        { threadId },
+        { threadId: workspaceThreadId },
       );
       const workspaceFiles = rows.filter(
         (r: { organizationId: string }) => r.organizationId === organizationId,
@@ -371,7 +376,7 @@ Every result includes a **\`sandboxState\`** manifest — the current files unde
           internal.node_only.sandbox.session_exec.executeCodeInSession,
           {
             organizationId,
-            threadId,
+            threadId: workspaceThreadId,
             uploadedBy: userId,
             stepPaths: stepPaths.map((rel) => `/user/code/${rel}`),
             ...(Object.keys(packagesByLang).length > 0 && { packagesByLang }),
@@ -469,7 +474,7 @@ If your script genuinely had no file deliverable (e.g. a sanity check or package
       } = { uploads: [], code: [], outputs: [] };
       const stateRows = await ctx.runQuery(
         internal.thread_files.internal_queries.listThreadFiles,
-        { threadId },
+        { threadId: workspaceThreadId },
       );
       for (const e of stateRows
         .filter(

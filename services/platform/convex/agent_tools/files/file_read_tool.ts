@@ -7,6 +7,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError } from './_shared';
 import { parseWorkspacePath } from './sandbox_paths';
@@ -49,6 +50,9 @@ Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for bi
             'file_read requires a thread context (organizationId + threadId).',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — resolve it before any lookup.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
       let parsed;
       try {
         parsed = parseWorkspacePath(args.path);
@@ -74,7 +78,7 @@ Returns the file's content (UTF-8 by default; pass \`encoding: "base64"\` for bi
 
       const row = await ctx.runQuery(
         internal.thread_files.internal_queries.getThreadFileByPath,
-        { threadId, path: parsed.path },
+        { threadId: workspaceThreadId, path: parsed.path },
       );
       if (row === null) {
         return {

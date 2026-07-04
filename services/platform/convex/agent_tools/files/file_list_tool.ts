@@ -7,6 +7,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 
 const fileListArgs = z.object({
@@ -39,12 +40,18 @@ Use this to discover what files exist (user uploads, prior \`run_code\` outputs,
             'file_list requires a thread context (organizationId + threadId).',
         };
       }
+      // Sub-thread runs (spawned jobs, delegates) share the parent chat
+      // thread's workspace — list that one, not the sub-thread's.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
       const prefix = args.prefix;
       // Stored paths are the canonical absolute `/user/<root>/…`, so an
       // absolute prefix filters directly.
       const rows = await ctx.runQuery(
         internal.thread_files.internal_queries.listThreadFiles,
-        { threadId, ...(prefix !== undefined && { prefix }) },
+        {
+          threadId: workspaceThreadId,
+          ...(prefix !== undefined && { prefix }),
+        },
       );
       const files = rows
         .filter(

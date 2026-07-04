@@ -17,6 +17,7 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { getWorkspaceThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
 import { InvalidFilePathError, inferContentType } from './_shared';
 import { parseWorkspacePath } from './sandbox_paths';
@@ -93,6 +94,10 @@ The canvas (right pane) renders workspace files by extension automatically — \
             'file_write requires a thread context (organizationId + threadId).',
         };
       }
+      // The workspace belongs to the parent chat thread — a spawned worker
+      // (job sub-thread) writes into the SAME workspace the parent agent and
+      // the user's canvas read, so its files are visible after the job ends.
+      const workspaceThreadId = await getWorkspaceThreadId(ctx, threadId);
       let parsed;
       try {
         parsed = parseWorkspacePath(args.path);
@@ -159,7 +164,7 @@ The canvas (right pane) renders workspace files by extension automatically — \
           internal.thread_files.internal_mutations.upsertThreadFile,
           {
             organizationId,
-            threadId,
+            threadId: workspaceThreadId,
             path: normalizedPath,
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ctx.storage.store returns a branded Id<'_storage'> string at runtime
             storageId: storageId as never,

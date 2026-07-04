@@ -60,3 +60,24 @@ export async function getApprovalThreadId(
   const parentThreadId = await getParentThreadId(ctx, currentThreadId);
   return parentThreadId ?? currentThreadId;
 }
+
+/**
+ * Get the thread ID that owns the thread workspace (`threadFiles` + the
+ * run_code sandbox session).
+ *
+ * The workspace belongs to the parent CHAT thread: a sub-thread run — a
+ * spawned agent job or a delegated sub-agent — reads and writes the same
+ * files the parent agent and the user (canvas) see, so a worker's output
+ * is visible to the parent and vice versa.
+ *
+ * @param ctx - Action context for running queries
+ * @param currentThreadId - The current thread ID (may be a sub-thread)
+ * @returns The thread ID whose workspace file tools should operate on
+ */
+export async function getWorkspaceThreadId(
+  ctx: ActionCtx,
+  currentThreadId: string,
+): Promise<string> {
+  const parentThreadId = await getParentThreadId(ctx, currentThreadId);
+  return parentThreadId ?? currentThreadId;
+}
