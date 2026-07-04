@@ -208,13 +208,12 @@ export function CreateAgentDialog({
               field: t('agents.form.name'),
             }),
           )
-          // `/` files the agent into a folder: each path segment must itself be
-          // a valid flat name (e.g. "marketing/seo-writer"). The last segment is
-          // the agent's id; the leading segments are the folder path.
-          .regex(
-            /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/,
-            t('agents.form.namePatternError'),
-          ),
+          // A flat, global agent id (the same alphabet `validateAgentSlug`
+          // enforces server-side). No `/`: a single slash is reserved by the
+          // backend for app-owned composites (`<app>/<name>`), so a "folder"
+          // name here would be filed under a phantom app bundle — created but
+          // unreachable at its route and absent from every list (#2337).
+          .regex(/^[a-z0-9][a-z0-9_-]*$/, t('agents.form.namePatternError')),
         displayName: z.string().min(
           1,
           tCommon('validation.required', {
@@ -268,9 +267,9 @@ export function CreateAgentDialog({
           : [];
     if (models.length === 0) return;
 
-    // A foldered name ("marketing/seo-writer") files the agent into a folder;
-    // its identity slug is the last path segment, which is what routes/refs use.
-    const agentSlug = data.name.split('/').pop() ?? data.name;
+    // The name is a flat global slug (the pattern rejects `/`), so it IS the
+    // agent's identity — what the file, install record, and route all key on.
+    const agentSlug = data.name;
 
     try {
       await saveAgent({

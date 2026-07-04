@@ -197,11 +197,14 @@ describe('CreateAgentDialog', () => {
     });
   });
 
-  // A `/` in the name files the agent into a folder. The name is saved verbatim
-  // (the backend writes it to `agents/<folder>/<slug>.json`), but the agent's
-  // identity slug — and so the route it navigates to — is the last path segment.
-  describe('folder create navigation', () => {
-    it('saves the foldered name but navigates by the basename slug', async () => {
+  // Regression test for #2337: a `/` in the name is NOT a folder path. The
+  // backend reserves a single slash for app-owned composites (`<app>/<name>`),
+  // so a foldered name was written to a phantom app bundle — created, but
+  // unreachable at its route and absent from every list. The name is now
+  // constrained to a flat global slug, so a `/` fails the pattern and can never
+  // be submitted.
+  describe('rejects folder-y names (#2337)', () => {
+    it('blocks a name with a slash and never calls saveAgent', async () => {
       const { user } = render(
         <CreateAgentDialog
           open={true}
@@ -212,7 +215,39 @@ describe('CreateAgentDialog', () => {
 
       await user.type(
         screen.getByLabelText('settings.agents.form.name'),
-        'marketing/seo-writer',
+        'qa/helper',
+      );
+      await user.type(
+        screen.getByLabelText('settings.agents.form.displayName'),
+        'QA Helper',
+      );
+
+      // The slash violates the flat-slug pattern: the error renders (once the
+      // field is blurred) and Continue stays disabled.
+      await waitFor(() =>
+        expect(
+          screen.getByText('settings.agents.form.namePatternError'),
+        ).toBeInTheDocument(),
+      );
+      const submit = screen.getByRole('button', {
+        name: 'settings.agents.createDialog.continue',
+      });
+      expect(submit).toBeDisabled();
+      expect(saveAgentMock).not.toHaveBeenCalled();
+    });
+
+    it('saves a flat name verbatim and navigates to that slug', async () => {
+      const { user } = render(
+        <CreateAgentDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.type(
+        screen.getByLabelText('settings.agents.form.name'),
+        'seo-writer',
       );
       await user.type(
         screen.getByLabelText('settings.agents.form.displayName'),
@@ -222,24 +257,15 @@ describe('CreateAgentDialog', () => {
       const submit = screen.getByRole('button', {
         name: 'settings.agents.createDialog.continue',
       });
-      // The slash is valid — Continue enables and no pattern error renders.
       await waitFor(() => expect(submit).toBeEnabled());
-      expect(
-        screen.queryByText('settings.agents.form.namePatternError'),
-      ).not.toBeInTheDocument();
-
       await user.click(submit);
 
-      // Saved with the foldered name (the backend derives folder + slug)…
       await waitFor(() =>
         expect(saveAgentMock).toHaveBeenCalledWith(
-          expect.objectContaining({
-            agentName: 'marketing/seo-writer',
-            isNew: true,
-          }),
+          expect.objectContaining({ agentName: 'seo-writer', isNew: true }),
         ),
       );
-      // …but the editor route uses the flat identity slug (basename).
+      // The flat name IS the identity slug — the route keys on it directly.
       await waitFor(() =>
         expect(navigateSpy).toHaveBeenCalledWith(
           expect.objectContaining({
