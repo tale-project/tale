@@ -3,19 +3,21 @@
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import {
-  Panel,
   useNodesInitialized,
   useReactFlow,
   type EdgeTypes,
   type NodeTypes,
 } from '@xyflow/react';
-import { Loader2, Network, Plus, Save, Undo2 } from 'lucide-react';
+import { Network, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FlowCanvas } from '@/app/components/flow/flow-canvas';
 import { useElkLayout } from '@/app/components/flow/layout/use-elk-layout';
+import {
+  useRegisterActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { useConfigDirtyState } from '@/app/components/ui/editor/use-config-dirty-state';
 import { useRegisterDirtySource } from '@/app/components/ui/editor/use-dirty-source';
 import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
@@ -44,6 +46,11 @@ import {
   ORG_ELK_OPTIONS,
 } from './organigram-layout';
 import { OrganigramPanel } from './organigram-panel';
+
+// The organigram commits every touched agent at once, so it has no per-tab
+// dirty keys to surface as a dot — a stable empty set keeps the controller
+// literal referentially cheap.
+const EMPTY_DIRTY_KEYS: ReadonlySet<string> = new Set();
 
 const nodeTypes: NodeTypes = { agent: AgentOrgNode, humans: HumansNode };
 // Reuse the automations edge renderer so the chart's arrows match the canvas.
@@ -82,6 +89,22 @@ function FocusOnNode({ slug }: { slug: string }) {
 }
 
 /**
+ * Registers the organigram's staged-draft controller as the active editor so
+ * the agents tab strip renders the shared Save/Discard cluster (matching the
+ * automation and agent editors) instead of a floating canvas overlay. Rendered
+ * only when the user can edit, so a read-only viewer never sees the cluster.
+ * Renders nothing.
+ */
+function OrganigramEditorRegistrar({
+  controller,
+}: {
+  controller: EditorController;
+}) {
+  useRegisterActiveEditor(controller);
+  return null;
+}
+
+/**
  * The organigram: the agents-only, many-to-many DELEGATION graph on the shared
  * {@link FlowCanvas}. The graph is read-only on the canvas — all editing
  * happens in the side panel. Edits are STAGED into a draft and only persisted
@@ -101,7 +124,6 @@ export function OrganigramCanvas({
   focusSlug?: string;
 }) {
   const { t } = useT('organigram');
-  const { t: tCommon } = useT('common');
   const { chart, isLoading, refetch } = useOrgChart(organizationId);
   const setDelegatesAction = useConvexAction(
     api.agents.org_chart_actions.setAgentDelegates,
@@ -246,6 +268,23 @@ export function OrganigramCanvas({
     t,
   ]);
 
+  // The unified editor contract the agents tab strip consumes via
+  // `useActiveEditor` → `EditorActions`. The organigram is always valid (there
+  // are no per-field validation gates), so `isValid` is constant; `isLoading`
+  // gates Save while the chart is still fetching.
+  const editorController: EditorController = useMemo(
+    () => ({
+      isDirty,
+      isSaving,
+      isValid: true,
+      isLoading,
+      dirtyKeys: EMPTY_DIRTY_KEYS,
+      save: handleSave,
+      reset: resetConfig,
+    }),
+    [isDirty, isSaving, isLoading, handleSave, resetConfig],
+  );
+
   // Rendered in both the empty state and the populated canvas, so define it
   // once. Pulls the chart (action-backed, non-reactive) and lands on the new
   // agent so its delegation can be wired up immediately.
@@ -287,6 +326,10 @@ export function OrganigramCanvas({
       align="stretch"
       className="border-border h-[calc(100vh-220px)] min-h-105 overflow-hidden rounded-lg border"
     >
+      {/* Save/Discard live in the agents tab strip (shared EditorActions),
+          not on the canvas — register the controller so the strip can drive
+          them. Edit-only; a viewer never registers. */}
+      {canEdit && <OrganigramEditorRegistrar controller={editorController} />}
       <div className="relative min-w-0 flex-1">
         <FlowCanvas
           nodes={nodes}
@@ -319,43 +362,6 @@ export function OrganigramCanvas({
             ) : undefined
           }
         >
-          {canEdit && isDirty && (
-            <Panel position="top-right" className="m-3">
-              <Row
-                gap={2}
-                className="ring-border bg-background rounded-lg p-1.5 pl-3 shadow-sm ring-1"
-              >
-                <Text variant="muted" className="text-xs">
-                  {t('unsavedChanges')}
-                </Text>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={Undo2}
-                  iconClassName="size-3.5"
-                  disabled={isSaving}
-                  onClick={resetConfig}
-                >
-                  {tCommon('actions.discard')}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={isSaving}
-                  aria-busy={isSaving ? 'true' : undefined}
-                  onClick={() => void handleSave()}
-                >
-                  {isSaving ? (
-                    <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none sm:mr-1.5" />
-                  ) : (
-                    <Save className="size-3.5 sm:mr-1.5" />
-                  )}
-                  {isSaving
-                    ? tCommon('actions.saving')
-                    : tCommon('actions.save')}
-                </Button>
-              </Row>
-            </Panel>
-          )}
           {focusSlug && focusExists && <FocusOnNode slug={focusSlug} />}
         </FlowCanvas>
       </div>

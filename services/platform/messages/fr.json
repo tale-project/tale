@@ -8025,8 +8025,7 @@
       "title": "Humains",
       "subtitle": "Agents de premier niveau : {count}"
     },
-    "saved": "Délégation enregistrée",
-    "unsavedChanges": "Modifications non enregistrées"
+    "saved": "Délégation enregistrée"
   },
   "workforce": {
     "subtitle": "Les performances de ta workforce IA : résultats, interventions humaines et coûts — toujours ensemble.",

@@ -14,6 +14,11 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import {
+  ActiveEditorProvider,
+  EditorActions,
+  useActiveEditor,
+} from '@/app/components/ui/editor';
+import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
@@ -95,58 +100,74 @@ function AgentsLayout() {
   }
 
   return (
-    <PageLayout
-      organizationId={organizationId}
-      header={
-        !isDetailPage ? (
-          <>
-            <AdaptiveHeaderRoot standalone={false}>
-              <AdaptiveHeaderTitle>
-                {segments.length > 0 ? (
-                  <span className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => goToFolder('')}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {t('agents.title')}
-                    </button>
-                    {segments.map((segment, i) => {
-                      const path = segments.slice(0, i + 1).join('/');
-                      const isLast = i === segments.length - 1;
-                      return (
-                        <span key={path} className="flex items-center gap-1">
-                          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-                          {isLast ? (
-                            <span>{segment}</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => goToFolder(path)}
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {segment}
-                            </button>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </span>
-                ) : (
-                  t('agents.title')
-                )}
-              </AdaptiveHeaderTitle>
-            </AdaptiveHeaderRoot>
-            <TabNavigation
-              items={tabs}
-              standalone={false}
-              ariaLabel={t('agents.title')}
-            />
-          </>
-        ) : undefined
-      }
-    >
-      {!abilityLoading && <Outlet />}
-    </PageLayout>
+    <ActiveEditorProvider>
+      <PageLayout
+        organizationId={organizationId}
+        header={
+          !isDetailPage ? (
+            <>
+              <AdaptiveHeaderRoot standalone={false}>
+                <AdaptiveHeaderTitle>
+                  {segments.length > 0 ? (
+                    <span className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => goToFolder('')}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {t('agents.title')}
+                      </button>
+                      {segments.map((segment, i) => {
+                        const path = segments.slice(0, i + 1).join('/');
+                        const isLast = i === segments.length - 1;
+                        return (
+                          <span key={path} className="flex items-center gap-1">
+                            <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+                            {isLast ? (
+                              <span>{segment}</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => goToFolder(path)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                {segment}
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    t('agents.title')
+                  )}
+                </AdaptiveHeaderTitle>
+              </AdaptiveHeaderRoot>
+              <TabNavigation
+                items={tabs}
+                standalone={false}
+                ariaLabel={t('agents.title')}
+              >
+                <AgentsEditorActionsSlot />
+              </TabNavigation>
+            </>
+          ) : undefined
+        }
+      >
+        {!abilityLoading && <Outlet />}
+      </PageLayout>
+    </ActiveEditorProvider>
   );
+}
+
+/**
+ * Reads the active child controller (the Overview tab's organigram) and renders
+ * the unified Save/Discard cluster in the agents tab strip — the same slot the
+ * automation and agent editors use. Tabs without an editor (List, Catalog,
+ * Metrics) leave the active editor null and the cluster doesn't render.
+ */
+function AgentsEditorActionsSlot() {
+  const controller = useActiveEditor();
+  if (!controller) return null;
+  return <EditorActions controller={controller} entityKind="organigram" />;
 }

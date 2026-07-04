@@ -8024,8 +8024,7 @@
       "title": "Humans",
       "subtitle": "Top-level agents: {count}"
     },
-    "saved": "Delegation saved",
-    "unsavedChanges": "Unsaved changes"
+    "saved": "Delegation saved"
   },
   "workforce": {
     "subtitle": "How your AI workforce performs: outcomes, human intervention, and cost — always together.",

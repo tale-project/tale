@@ -8024,8 +8024,7 @@
       "title": "Menschen",
       "subtitle": "Agenten der obersten Ebene: {count}"
     },
-    "saved": "Delegation gespeichert",
-    "unsavedChanges": "Nicht gespeicherte Änderungen"
+    "saved": "Delegation gespeichert"
   },
   "workforce": {
     "subtitle": "Wie deine KI-Workforce arbeitet: Ergebnisse, menschliche Eingriffe und Kosten — immer zusammen.",
