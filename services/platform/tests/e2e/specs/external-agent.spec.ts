@@ -238,10 +238,12 @@ test.describe('external agent (Cursor)', () => {
     const visibilitySwitch = page.getByRole('switch', {
       name: t('settings.agents.general.visibleInChat'),
     });
-    if ((await visibilitySwitch.getAttribute('aria-checked')) !== 'true') {
+    const needsVisibilitySave =
+      (await visibilitySwitch.getAttribute('aria-checked')) !== 'true';
+    if (needsVisibilitySave) {
       await visibilitySwitch.click();
+      await saveAndExpectToast(page);
     }
-    await saveAndExpectToast(page);
 
     await page.goto(`/dashboard/${org.organizationId}/chat`);
     const agentTrigger = page
