@@ -6,6 +6,7 @@
     "addMenu": {
       "label": "Add app"
     },
+    "private": "Private",
     "upload": {
       "uploadApp": "Upload app",
       "dialogTitle": "Upload private app",
@@ -36,7 +37,15 @@
       "uploadFailed": "Failed to upload app",
       "replaceTitle": "Replace existing app?",
       "replaceDescription": "A private app named \"{slug}\" already exists. Uploading will overwrite its current contents.",
-      "replaceConfirm": "Replace"
+      "replaceConfirm": "Replace",
+      "delete": "Delete upload",
+      "deleteMenuLabel": "Delete {name}",
+      "deleteTitle": "Delete uploaded app",
+      "deleteDescription": "This removes the uploaded app and its files from this organization. Built-in apps can't be deleted.",
+      "deleteWarning": "The app bundle is permanently removed. Uninstall the app first if it's still installed.",
+      "deleteSuccess": "Upload deleted",
+      "deleteFailed": "Couldn't delete the upload",
+      "deleteInstalledBlocked": "Uninstall the app before deleting its upload."
     },
     "empty": {
       "title": "No apps yet",
