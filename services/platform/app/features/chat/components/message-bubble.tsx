@@ -454,7 +454,7 @@ function MessageBubbleComponent({
     !isBlocked &&
     messageSegments.segments.length > 0 &&
     !hasVisibleActiveSegment(messageSegments.segments, {
-      active: !!isAssistantStreaming,
+      active: true,
       headerOwnsReasoning: headerOwnsReasoningForLoader,
     });
 
