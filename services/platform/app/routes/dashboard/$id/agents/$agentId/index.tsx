@@ -366,6 +366,17 @@ function GeneralTab() {
   const handleAgentKindChange = useCallback(
     (value: string) => {
       if (value !== 'claude-code' && value !== 'cursor') return;
+      // Cursor is BYO only (its CLI can't route through the platform gateway):
+      // force byo and drop any platform catalog model refs, which mean nothing
+      // to a raw Cursor model passthrough.
+      if (value === 'cursor') {
+        updateConfig({
+          agentKind: 'cursor',
+          authMode: 'byo',
+          supportedModels: [],
+        });
+        return;
+      }
       updateConfig({ agentKind: value });
     },
     [updateConfig],

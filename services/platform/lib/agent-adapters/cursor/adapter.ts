@@ -10,13 +10,15 @@ import type {
   CredentialPolicy,
   SessionExecSpec,
 } from '../types';
-// CredentialPolicy + AgentCapabilities live in ../types.ts
-import { DEFAULT_MAX_TURNS } from '../types';
 import { CursorParser } from './parse';
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'agent-env',
   supportsByo: true,
+  // The Cursor CLI takes only --api-key / CURSOR_API_KEY and has no
+  // OpenAI-compatible base-URL override, so it cannot route through the platform
+  // gateway. Cursor is BYO only.
+  supportsManaged: false,
 };
 
 const CAPABILITIES: AgentCapabilities = {
@@ -39,6 +41,10 @@ export class CursorAdapter implements AgentAdapter {
   readonly credentialEnvKeys = CREDENTIAL_ENV_KEYS;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {
+    // NO --max-turns: the pinned CLI (2026.03.20) has no such option, and an
+    // unknown flag makes `agent -p` exit 1 SILENTLY (no stdout/stderr) —
+    // verified in-sandbox. `spec.maxTurns` is deliberately ignored; runaway
+    // protection is the platform's exec timeout + action deadline.
     const argv = [
       'agent',
       '-p',
@@ -50,8 +56,6 @@ export class CursorAdapter implements AgentAdapter {
       'stream-json',
       '--workspace',
       spec.workdir,
-      '--max-turns',
-      String(spec.maxTurns ?? DEFAULT_MAX_TURNS),
     ];
 
     if (spec.agentSessionId) {

@@ -24,6 +24,8 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
+import { getCredentialPolicy } from '../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
 import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import type {
   ResponseReasoningSeed,
@@ -262,13 +264,52 @@ export const runChatTurnGeneration = internalAction({
       // (both unset for a pinned agent — the router only runs under Auto).
       agentConfig.responseStyle = routeStyle;
       agentConfig.routeSeed = routeSeed;
-      // BYO external agents bypass platform model governance entirely: their
-      // model is a raw provider id (or empty = the credential's default), not a
-      // catalog entry subject to default-model resolution or model-access RBAC.
-      // Auth, billing, and model choice all move to the user's credentials.
-      const isByoExternal =
+      // Env-managed external runtimes (Cursor) name their models by the vendor
+      // CLI's OWN ids (`auto`, `claude-opus-4-8-thinking-high`, …), not platform
+      // catalog entries — the vendor account + CLI own the model list. So their
+      // `supportedModels` is a runtime HINT, not a catalog allowlist: the first
+      // entry is the model to run this turn (empty ⇒ let the CLI pick), and
+      // catalog governance is bypassed whether or not it's set.
+      const externalAgentKind: ProductAgentSlug =
+        agentConfig.agentKind ?? 'claude-code';
+      const isEnvManagedExternal =
         agentConfig.primaryBehavior === 'external-agent' &&
-        agentConfig.authMode === 'byo';
+        agentConfig.authMode !== 'byo' &&
+        getCredentialPolicy(externalAgentKind).managedSource === 'agent-env';
+
+      // External agents whose `supportedModels` are vendor-native CLI ids rather
+      // than platform catalog entries: BYO (raw provider passthrough, e.g. a
+      // Cursor byo run) and env-managed (vendor account owns the model list).
+      // For these the first entry is the model to run this turn.
+      const externalUsesVendorModels =
+        agentConfig.primaryBehavior === 'external-agent' &&
+        (agentConfig.authMode === 'byo' || isEnvManagedExternal);
+
+      // External agents that don't draw from the platform model catalog bypass
+      // default-model resolution and model-access RBAC:
+      //  - BYO: raw provider id (or empty = credential default), not a catalog entry.
+      //  - env-managed (e.g. Cursor): the vendor CLI's own model ids, governed by
+      //    the vendor account — never openrouter catalog governance.
+      //  - any external agent with no supportedModels (nothing to police).
+      const skipsPlatformModelGovernance =
+        agentConfig.primaryBehavior === 'external-agent' &&
+        (agentConfig.authMode === 'byo' ||
+          isEnvManagedExternal ||
+          configResult.supportedModels.length === 0);
+
+      // Vendor-model pin: the agent's first supportedModels entry is the vendor
+      // CLI model id for this turn, passed straight through as the turn's
+      // modelRef → the adapter's `--model`. Governance is skipped above, so
+      // nothing else assigns `model`; an empty list leaves it 'default' (the CLI
+      // then picks its own default). An explicit request modelId still wins.
+      if (
+        externalUsesVendorModels &&
+        !args.modelId &&
+        !agentConfig.model &&
+        configResult.supportedModels.length > 0
+      ) {
+        agentConfig.model = configResult.supportedModels[0];
+      }
 
       const [guardrails, governance] = await Promise.all([
         loadGuardrailsSnapshot(ctx, args.organizationId),
@@ -290,7 +331,11 @@ export const runChatTurnGeneration = internalAction({
       ]);
 
       // 4. Governance default model (implicit path only).
-      if (!isByoExternal && !args.modelId && governance.defaultModel?.modelId) {
+      if (
+        !skipsPlatformModelGovernance &&
+        !args.modelId &&
+        governance.defaultModel?.modelId
+      ) {
         const qualifiedRef = governance.defaultModel.providerName
           ? `${governance.defaultModel.providerName}:${governance.defaultModel.modelId}`
           : governance.defaultModel.modelId;
@@ -304,7 +349,7 @@ export const runChatTurnGeneration = internalAction({
       // 5. Implicit model-access RBAC (no explicit modelId) — accessible set
       //    came back in the consolidated governance query above. Skipped for
       //    BYO (no platform catalog to police).
-      if (!isByoExternal && !args.modelId) {
+      if (!skipsPlatformModelGovernance && !args.modelId) {
         const accessibleSet = new Set(governance.accessibleModelIds);
         const accessibleRefs = configResult.supportedModels.filter((ref) =>
           accessibleSet.has(stripModelRefQualifier(ref)),
@@ -364,7 +409,7 @@ export const runChatTurnGeneration = internalAction({
       // 7. Explicit model-access RBAC (explicit modelId only) — access result
       //    came back in the consolidated governance query above. Skipped for
       //    BYO (the raw model id isn't a catalog entry).
-      if (!isByoExternal && args.modelId) {
+      if (!skipsPlatformModelGovernance && args.modelId) {
         const accessCheck = governance.explicitAccess;
         if (accessCheck && !accessCheck.allowed) {
           // Audit the denial, but never let an audit-log failure skip the

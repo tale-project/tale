@@ -112,8 +112,10 @@ export const ModelSelector = memo(function ModelSelector({
   const modelAgentKey = activeAgent?.name;
 
   // Env-backed externals (BYO or managed agent-env) use runtime model ids, not
-  // the platform catalog — show a calm indicator instead of the catalog dropdown.
-  const usesRuntimeModelIndicator = useMemo(() => {
+  // the platform catalog. Their `supportedModels` are raw vendor CLI ids: with
+  // one (or none) we show a calm indicator; with several the composer offers a
+  // plain picker over those raw ids (no catalog tags / governance filtering).
+  const usesRuntimeModels = useMemo(() => {
     if (activeAgent?.primaryBehavior !== 'external-agent') return false;
     if (activeAgent.authMode === 'byo') return true;
     const kind = activeAgent.agentKind ?? 'claude-code';
@@ -330,6 +332,11 @@ export const ModelSelector = memo(function ModelSelector({
   //   model the UI displays — otherwise the backend would fall back to
   //   `supportedModels[0]`, which may bypass the model_access allowlist.
   useEffect(() => {
+    // Runtime-model externals (BYO / env-managed) don't draw from the catalog,
+    // so `filteredModels` is empty for them — skip the catalog reconciliation
+    // (a dedicated effect below validates their raw override) to avoid clearing
+    // a valid vendor-model choice.
+    if (usesRuntimeModels) return;
     if (!modelAgentKey) return;
     const override = selectedModelOverrides[modelAgentKey];
     if (override && !filteredModels.includes(override)) {
@@ -340,11 +347,29 @@ export const ModelSelector = memo(function ModelSelector({
       setSelectedModelOverride(modelAgentKey, filteredModels[0]);
     }
   }, [
+    usesRuntimeModels,
     modelAgentKey,
     filteredModels,
     selectedModelOverrides,
     setSelectedModelOverride,
     isImageGenAgent,
+  ]);
+
+  // Runtime-model externals: drop an override that's no longer in the agent's
+  // raw `supportedModels` (e.g. the config's model list changed) so the picker
+  // and the turn fall back to the pinned first entry.
+  useEffect(() => {
+    if (!usesRuntimeModels || !modelAgentKey) return;
+    const override = selectedModelOverrides[modelAgentKey];
+    if (override && !supportedModels.includes(override)) {
+      setSelectedModelOverride(modelAgentKey, null);
+    }
+  }, [
+    usesRuntimeModels,
+    modelAgentKey,
+    supportedModels,
+    selectedModelOverrides,
+    setSelectedModelOverride,
   ]);
 
   const handleSelect = useCallback(
@@ -355,6 +380,17 @@ export const ModelSelector = memo(function ModelSelector({
       } else {
         setSelectedModelOverride(modelAgentKey, modelId);
       }
+    },
+    [modelAgentKey, setSelectedModelOverride],
+  );
+
+  // Runtime-model picker (BYO / env-managed externals): the raw vendor id IS the
+  // choice — there is no synthetic "Auto" (a vendor may list its own "auto"),
+  // and every option is always a concrete override sent as the turn's modelId.
+  const handleRuntimeSelect = useCallback(
+    (modelId: string) => {
+      if (!modelAgentKey) return;
+      setSelectedModelOverride(modelAgentKey, modelId);
     },
     [modelAgentKey, setSelectedModelOverride],
   );
@@ -416,8 +452,60 @@ export const ModelSelector = memo(function ModelSelector({
     );
   }
 
-  if (usesRuntimeModelIndicator) {
-    // Runtime model id (BYO or env-managed) — not a catalog choice.
+  if (usesRuntimeModels) {
+    // Raw vendor model ids (BYO / env-managed) — not a catalog choice. One (or
+    // none) renders a calm read-only indicator; several render a plain picker
+    // over the raw ids that sends the pick as the turn's modelId.
+    if (supportedModels.length > 1) {
+      const runtimeOverride = modelAgentKey
+        ? selectedModelOverrides[modelAgentKey]
+        : undefined;
+      // No override ⇒ the backend pins supportedModels[0], so mirror that here.
+      const runtimeCurrent =
+        runtimeOverride && supportedModels.includes(runtimeOverride)
+          ? runtimeOverride
+          : supportedModels[0];
+      const runtimeOptions: SearchableSelectOption[] = supportedModels.map(
+        (ref) => ({
+          value: ref,
+          label: getModelShortName(stripModelRefQualifier(ref)),
+        }),
+      );
+      return (
+        <SearchableSelect
+          value={runtimeCurrent}
+          onValueChange={handleRuntimeSelect}
+          options={runtimeOptions}
+          open={open}
+          onOpenChange={setOpen}
+          align="start"
+          side="top"
+          sideOffset={8}
+          contentClassName="w-[22rem]"
+          tooltip={t('modelSelector.label')}
+          tooltipSide="top"
+          searchPlaceholder={t('modelSelector.searchPlaceholder')}
+          emptyText={t('modelSelector.noResults')}
+          aria-label={t('modelSelector.label')}
+          showRadio
+          trigger={
+            <Button
+              type="button"
+              className="gap-1.5"
+              variant="ghost"
+              size="sm"
+              aria-label={t('modelSelector.label')}
+            >
+              <Cpu className="size-3.5" aria-hidden="true" />
+              <span>
+                {getModelShortName(stripModelRefQualifier(runtimeCurrent))}
+              </span>
+              <ChevronDown className="size-3" aria-hidden="true" />
+            </Button>
+          }
+        />
+      );
+    }
     const rawModel = supportedModels[0];
     return (
       <span

@@ -55,13 +55,17 @@ describe('nextConfigForBehavior', () => {
     expect(agentJsonSchema.safeParse(merged).success).toBe(true);
   });
 
-  it('keeps an existing agentKind when re-entering external-agent', () => {
+  it('keeps an existing agentKind when re-entering external-agent, pinning cursor to byo', () => {
     const cursor: AgentJsonConfig = {
       ...chatWithLoopConfig,
       agentKind: 'cursor',
     };
     const patch = nextConfigForBehavior(cursor, 'external-agent');
-    expect(applyPatch(cursor, patch).agentKind).toBe('cursor');
+    const merged = applyPatch(cursor, patch);
+    expect(merged.agentKind).toBe('cursor');
+    // Cursor is BYO only — re-entering External must pin authMode so the config
+    // passes the schema (which rejects cursor + managed/absent authMode).
+    expect(merged.authMode).toBe('byo');
   });
 
   it('external-agent → chat clears agentKind/authMode/nativeWebTools and stays valid', () => {

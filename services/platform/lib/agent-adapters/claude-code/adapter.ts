@@ -146,6 +146,7 @@ function withHouseRules(systemPromptAppend: string | undefined): string {
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'gateway',
   supportsByo: true,
+  supportsManaged: true,
 };
 
 const CAPABILITIES: AgentCapabilities = {

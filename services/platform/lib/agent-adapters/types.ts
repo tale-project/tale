@@ -115,9 +115,15 @@ export interface SessionExecSpec {
 }
 
 export interface CredentialPolicy {
-  /** Managed-mode credential source. BYO always injects env credentials. */
+  /** Managed-mode credential source. BYO always injects env credentials.
+   * Only meaningful when `supportsManaged` is true. */
   managedSource: 'gateway' | 'agent-env';
   supportsByo: boolean;
+  /** Whether the runtime can run in managed mode at all. False for runtimes
+   * whose CLI cannot route through the platform LLM gateway — e.g. Cursor, whose
+   * CLI authenticates with only `--api-key`/`CURSOR_API_KEY` and exposes no
+   * OpenAI-compatible base-URL override — which are therefore BYO only. */
+  supportsManaged: boolean;
 }
 
 export interface AgentCapabilities {

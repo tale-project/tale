@@ -266,9 +266,9 @@ RUN set -eux; \
     esac; \
     curl -fsSL -o /tmp/cursor-agent.tar.gz \
       "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${CUR_ARCH}/agent-cli-package.tar.gz"; \
-    mkdir -p /opt/agents/bin; \
-    tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/bin; \
-    chmod +x /opt/agents/bin/agent; \
+    mkdir -p /opt/agents/bin /opt/agents/cursor; \
+    tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/cursor --strip-components=1; \
+    ln -sf ../cursor/cursor-agent /opt/agents/bin/agent; \
     rm /tmp/cursor-agent.tar.gz; \
     /opt/agents/bin/agent --version
 

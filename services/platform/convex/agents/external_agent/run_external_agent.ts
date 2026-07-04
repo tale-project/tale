@@ -101,6 +101,7 @@ import {
   buildAttachmentStagePlan,
   composePromptWithAttachments,
 } from './attachment_files';
+import { resolveExternalAgentExecModel } from './exec_model';
 import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
@@ -1129,22 +1130,22 @@ export const runExternalAgentTurn = internalAction({
           // read-only. Only set when on so the adapter's headless self-launch
           // stays byte-identical to today otherwise.
           ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
-          // MANAGED: send the canonical gateway routing so the request hits the
-          // SAME gateway record the VK is bound to (per-model
-          // `<slug>__<modelId>` for custom providers; `<slug>/<modelId>` for
-          // standard) — must match mintVirtualKey's resolver. BYO: pass the raw
-          // model id straight through to the provider (no slug / catalog).
-          // BYO passes the raw provider model id straight through; the
-          // 'default' sentinel (or empty) means "no model" → omit it so Claude
-          // Code falls back to the credential's own default model.
-          // BYO prefers the catalog entry's vendor-native id (the gateway id
-          // does not exist on the vendor's own API); a raw user-typed id has
-          // no catalog entry and passes through unchanged.
-          model: byo
-            ? args.modelRef && args.modelRef !== 'default'
-              ? (byoNativeModel ?? args.modelRef)
-              : undefined
-            : resolveGatewayRoutingFromRef(args.modelRef).gatewayModel,
+          // GATEWAY-managed: the canonical gateway routing so the request hits
+          // the SAME gateway record the VK is bound to — must match
+          // mintVirtualKey's resolver. BYO: the catalog's vendor-native id
+          // (gateway ids don't exist on the vendor's API), else the raw ref.
+          // ENV-managed (e.g. Cursor): the raw ref — its backend only knows
+          // native ids. 'default'/empty → omit so the runtime uses its own
+          // default (routing 'default' through the gateway mapper mints the
+          // invalid `default__default/default`). Matrix in exec_model.ts.
+          model: resolveExternalAgentExecModel({
+            byo,
+            gatewayRun,
+            modelRef: args.modelRef,
+            byoNativeModel,
+            toGatewayModel: (ref) =>
+              resolveGatewayRoutingFromRef(ref).gatewayModel,
+          }),
           // Managed model-level fallback (catalog fallbackModelId, VK-allowed
           // above). Never sent for BYO — the user's model list is not overridden.
           ...(fallbackModel !== undefined && { fallbackModel }),

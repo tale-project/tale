@@ -404,7 +404,7 @@ describe('CursorAdapter.buildExec', () => {
     const { argv, env, cwd, stdin, stdinMode } = new CursorAdapter().buildExec(
       cursorBase,
     );
-    expect(argv.slice(0, 12)).toEqual([
+    expect(argv.slice(0, 10)).toEqual([
       'agent',
       '-p',
       '--force',
@@ -415,8 +415,6 @@ describe('CursorAdapter.buildExec', () => {
       'stream-json',
       '--workspace',
       '/user/workspace',
-      '--max-turns',
-      '200',
     ]);
     expect(argv[argv.length - 1]).toBe(cursorBase.prompt);
     expect(stdin).toBeUndefined();
@@ -425,6 +423,18 @@ describe('CursorAdapter.buildExec', () => {
     expect(argv).toContain('--model');
     expect(argv).toContain('composer-2.5');
     expect(cwd).toBe('/user/workspace');
+  });
+
+  it('REGRESSION GUARD: never passes --max-turns (unknown flag = silent exit 1)', () => {
+    // The pinned Cursor CLI (2026.03.20) has no --max-turns option, and an
+    // unknown flag makes `agent -p` exit 1 with NO output — the turn dies
+    // before the first stream-json byte. Verified in-sandbox 2026-07-04.
+    const { argv } = new CursorAdapter().buildExec({
+      ...cursorBase,
+      maxTurns: 40,
+    });
+    expect(argv).not.toContain('--max-turns');
+    expect(argv).not.toContain('40');
   });
 
   it('continues a session with --resume and omits --model when unset', () => {

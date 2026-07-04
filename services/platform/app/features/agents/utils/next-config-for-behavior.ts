@@ -42,15 +42,20 @@ export function nextConfigForBehavior(
         authMode: undefined,
         nativeWebTools: undefined,
       };
-    case 'external-agent':
+    case 'external-agent': {
+      // Default the runtime when entering External; keep an existing choice
+      // (e.g. round-tripping External → Chat → External).
+      const agentKind = current.agentKind ?? 'claude-code';
       return {
         primaryBehavior: 'external-agent',
         toolNames: undefined,
         workflows: undefined,
-        // Default the runtime when entering External; keep an existing choice
-        // (e.g. round-tripping External → Chat → External).
-        agentKind: current.agentKind ?? 'claude-code',
+        agentKind,
+        // Cursor is BYO only — the Cursor CLI can't route through the platform
+        // gateway. Pin authMode so the re-entered config passes the schema.
+        ...(agentKind === 'cursor' ? { authMode: 'byo' as const } : {}),
       };
+    }
     case 'image-generation':
       return {
         primaryBehavior: 'image-generation',

@@ -442,11 +442,14 @@ function InstructionsTab() {
   // passthrough.
   const isExternalAgent = config.primaryBehavior === 'external-agent';
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
-  const authMode = config.authMode ?? 'managed';
-  const isByo = isExternalAgent && authMode === 'byo';
   const productAgentKind: ProductAgentSlug =
     config.agentKind === 'cursor' ? 'cursor' : 'claude-code';
   const credentialPolicy = getCredentialPolicy(productAgentKind);
+  // Runtimes that can't reach the platform gateway (e.g. Cursor) are BYO only —
+  // there is no managed choice, so force byo and hide the selector.
+  const supportsManaged = credentialPolicy.supportsManaged;
+  const authMode = supportsManaged ? (config.authMode ?? 'managed') : 'byo';
+  const isByo = isExternalAgent && authMode === 'byo';
   const usesRuntimeModelEditor =
     isByo || credentialPolicy.managedSource === 'agent-env';
   const usesGatewayManaged =
@@ -553,7 +556,7 @@ function InstructionsTab() {
         </CollapsibleDetails>
       </Stack>
 
-      {isExternalAgent && (
+      {isExternalAgent && supportsManaged && (
         <PageSection
           title={t('agents.form.byo.sectionTitle')}
           description={t('agents.form.byo.sectionDescription')}

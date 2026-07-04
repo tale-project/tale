@@ -325,4 +325,102 @@ describe('runChatTurnGeneration', () => {
       );
     });
   });
+
+  it('skips model-access RBAC for BYO external agents with no catalog models', async () => {
+    mockResolveAgentConfigInline.mockResolvedValue({
+      config: {
+        primaryBehavior: 'external-agent',
+        authMode: 'byo',
+        agentKind: 'cursor',
+      },
+      supportedModels: [],
+      orgLocale: 'en',
+    });
+    const ctx = createCtx({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+      generationArgs: undefined,
+    });
+    ctx.runQuery.mockImplementation((ref: string) => {
+      if (ref === GOVERNANCE) {
+        return Promise.resolve({
+          defaultModel: { modelId: 'gpt-4o', providerName: 'openrouter' },
+          accessibleModelIds: ['gpt-4o'],
+          explicitAccess: null,
+          role: 'member',
+          teamIds: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    await generationHandler(
+      ctx as never,
+      { ...BASE_ARGS, agentSlug: 'cursor' } as never,
+    );
+
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      STARTCHAT,
+      expect.objectContaining({ agentSlug: 'cursor' }),
+    );
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      CLEARGEN,
+      expect.anything(),
+    );
+  });
+
+  it('pins a BYO external agent to its first supportedModels entry (vendor CLI id, not a catalog model) and skips governance', async () => {
+    // Cursor's supportedModels are vendor CLI ids, NOT platform catalog entries.
+    // With a hint set, governance MUST still be skipped (the id isn't in the
+    // catalog, so RBAC would otherwise reject it) and the id becomes the turn's
+    // model → the adapter's `--model`.
+    mockResolveAgentConfigInline.mockResolvedValue({
+      config: {
+        primaryBehavior: 'external-agent',
+        authMode: 'byo',
+        agentKind: 'cursor',
+      },
+      supportedModels: ['claude-opus-4-8-thinking-high'],
+      orgLocale: 'en',
+    });
+    const ctx = createCtx({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+      generationArgs: undefined,
+    });
+    ctx.runQuery.mockImplementation((ref: string) => {
+      if (ref === GOVERNANCE) {
+        return Promise.resolve({
+          // A catalog default + an accessible set that does NOT contain the
+          // Cursor id: if governance were NOT skipped, this would clear the
+          // generation with a "no permitted model" notice.
+          defaultModel: { modelId: 'gpt-4o', providerName: 'openrouter' },
+          accessibleModelIds: ['gpt-4o'],
+          explicitAccess: null,
+          role: 'member',
+          teamIds: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    await generationHandler(
+      ctx as never,
+      { ...BASE_ARGS, agentSlug: 'cursor' } as never,
+    );
+
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      CLEARGEN,
+      expect.anything(),
+    );
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      STARTCHAT,
+      expect.objectContaining({
+        agentSlug: 'cursor',
+        agentConfig: expect.objectContaining({
+          model: 'claude-opus-4-8-thinking-high',
+        }),
+      }),
+    );
+  });
 });

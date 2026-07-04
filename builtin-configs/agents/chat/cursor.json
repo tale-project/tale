@@ -1,6 +1,6 @@
 {
   "agentKind": "cursor",
-  "authMode": "managed",
+  "authMode": "byo",
   "composerMode": {
     "icon": "terminal",
     "label": "Cursor",

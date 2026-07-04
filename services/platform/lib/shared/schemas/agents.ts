@@ -463,6 +463,23 @@ export const agentJsonSchema = z
       });
     }
 
+    // Cursor runs BYO only. The Cursor CLI authenticates with only
+    // `--api-key` / `CURSOR_API_KEY` and exposes no OpenAI-compatible base-URL
+    // override, so it cannot route through the platform LLM gateway the way
+    // managed mode requires. Force `authMode: "byo"` (reject managed / absent).
+    if (
+      data.primaryBehavior === 'external-agent' &&
+      data.agentKind === 'cursor' &&
+      data.authMode !== 'byo'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authMode'],
+        message:
+          'Cursor supports BYO only — set authMode to "byo". The Cursor CLI cannot route through the platform gateway (no OpenAI-compatible base-URL override), so managed mode is unavailable.',
+      });
+    }
+
     // nativeWebTools only applies to external-agent.
     if (
       data.nativeWebTools !== undefined &&
