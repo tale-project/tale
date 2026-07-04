@@ -760,7 +760,8 @@
         "noDataDescription": "Exécute un workflow pour voir la répartition",
         "completed": "Terminées",
         "failed": "Échouées",
-        "running": "En cours"
+        "running": "En cours",
+        "pending": "En attente"
       },
       "table": {
         "title": "Top workflows",
@@ -858,6 +859,10 @@
           "variablesLabel": "Variables du workflow",
           "variablesDescription": "Paramètres d'entrée transmis à chaque exécution planifiée. Pré-remplis depuis le schéma d'entrée du workflow.",
           "variablesInvalid": "Les variables doivent être un objet JSON valide",
+          "validation": {
+            "cronRequired": "L'expression cron est requise",
+            "cronInvalid": "Doit être une expression cron valide à 5 champs"
+          },
           "presets": {
             "every5Minutes": "Toutes les 5 minutes",
             "hourly": "Toutes les heures",
@@ -1080,7 +1085,7 @@
       "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
-      "duplicateName": "Une automatisation avec ce nom existe déjà",
+      "duplicateName": "Une automatisation avec un identifiant équivalent existe déjà. Choisis un nom plus distinct.",
       "invalidName": "Le nom doit contenir au moins une lettre ou un chiffre"
     },
     "deleteAutomation": {
@@ -1986,6 +1991,7 @@
       "viewSource": "Voir la source",
       "source": "Source",
       "copy": "Copier",
+      "copyField": "Copier {label}",
       "copied": "Copié !",
       "showInfo": "Afficher les informations",
       "clearAll": "Tout effacer",

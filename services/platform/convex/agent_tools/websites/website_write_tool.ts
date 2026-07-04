@@ -12,10 +12,12 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
+import { SCAN_INTERVAL_VALUES } from '../../websites/validators';
 import { requireOrganizationId } from '../tasks/helpers/context';
 import type { ToolDefinition } from '../types';
 
 const STATUS = z.enum(['idle', 'scanning', 'active', 'error']);
+const SCAN_INTERVAL = z.enum(SCAN_INTERVAL_VALUES);
 
 // Optional attributes shared by create and update. `domain` and `scanInterval`
 // carry create-specific .describe() text, so they stay declared inline per
@@ -30,14 +32,14 @@ const websiteWriteArgs = z.discriminatedUnion('operation', [
   z.object({
     operation: z.literal('create'),
     domain: z.string().describe('Domain to register (e.g. example.com)'),
-    scanInterval: z.string().optional().describe('e.g. "6h", "1d"'),
+    scanInterval: SCAN_INTERVAL.optional().describe('e.g. "6h", "1d"'),
     ...websiteFields,
   }),
   z.object({
     operation: z.literal('update'),
     websiteId: z.string().describe('Convex Id<"websites">'),
     domain: z.string().optional(),
-    scanInterval: z.string().optional(),
+    scanInterval: SCAN_INTERVAL.optional(),
     ...websiteFields,
   }),
 ]);

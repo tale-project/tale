@@ -92,6 +92,13 @@ export function WorkflowMetricsPage({
             completed={summary?.completed ?? 0}
             failed={summary?.failed ?? 0}
             running={summary?.running ?? 0}
+            pending={Math.max(
+              0,
+              (summary?.total ?? 0) -
+                (summary?.completed ?? 0) -
+                (summary?.failed ?? 0) -
+                (summary?.running ?? 0),
+            )}
           />
         </div>
       </Grid>

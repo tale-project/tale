@@ -87,7 +87,9 @@ export function SecretRevealDialog({
                 variant="ghost"
                 onClick={() => handleCopy(secret.value, index)}
                 className="absolute top-1/2 right-2 -translate-y-1/2"
-                aria-label={`Copy ${secret.label}`}
+                aria-label={tCommon('actions.copyField', {
+                  label: secret.label,
+                })}
               >
                 {copiedIndex === index ? (
                   <Check className="size-4 text-green-500" />

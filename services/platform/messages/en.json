@@ -762,7 +762,8 @@
         "noDataDescription": "Run a workflow to see breakdown",
         "completed": "Completed",
         "failed": "Failed",
-        "running": "Running"
+        "running": "Running",
+        "pending": "Pending"
       },
       "table": {
         "title": "Top workflows",
@@ -860,6 +861,10 @@
           "variablesLabel": "Workflow variables",
           "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
           "variablesInvalid": "Variables must be valid JSON object",
+          "validation": {
+            "cronRequired": "Cron expression is required",
+            "cronInvalid": "Must be a valid 5-field cron expression"
+          },
           "presets": {
             "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
@@ -1082,7 +1087,7 @@
       "createFailed": "Failed to create automation"
     },
     "validation": {
-      "duplicateName": "An automation with this name already exists",
+      "duplicateName": "An automation with a matching identifier already exists. Try a more distinct name.",
       "invalidName": "Name must contain at least one letter or number"
     },
     "deleteAutomation": {
@@ -1988,6 +1993,7 @@
       "viewSource": "View source",
       "source": "Source",
       "copy": "Copy",
+      "copyField": "Copy {label}",
       "copied": "Copied!",
       "showInfo": "Show info",
       "clearAll": "Clear all",

@@ -24,6 +24,7 @@ import {
 } from '../lib/rest/helpers';
 import { toId } from '../lib/type_cast_helpers';
 import { toWebsiteDomain } from './create_website';
+import { isValidScanInterval, SCAN_INTERVAL_VALUES } from './validators';
 
 const PREFIX = '/api/v1/websites/';
 
@@ -55,6 +56,12 @@ export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
   }
   if (!body.scanInterval) {
     return jsonError('Missing required field: scanInterval', 400);
+  }
+  if (!isValidScanInterval(body.scanInterval)) {
+    return jsonError(
+      `Invalid scanInterval. Allowed values: ${SCAN_INTERVAL_VALUES.join(', ')}`,
+      400,
+    );
   }
 
   const domain = toWebsiteDomain(body.domain);
@@ -171,6 +178,16 @@ export const patchWebsite = withRestAuth('rest:api', async (rc, request) => {
   }
 
   const body = await request.json();
+
+  if (
+    body.scanInterval !== undefined &&
+    !isValidScanInterval(body.scanInterval)
+  ) {
+    return jsonError(
+      `Invalid scanInterval. Allowed values: ${SCAN_INTERVAL_VALUES.join(', ')}`,
+      400,
+    );
+  }
 
   await rc.ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
     websiteId: toId<'websites'>(id),
