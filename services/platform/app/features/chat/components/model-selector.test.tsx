@@ -13,6 +13,13 @@ type ProviderModel = {
   tags: string[];
 };
 
+type MockChatAgent = {
+  name: string;
+  displayName: string;
+  supportedModels: string[] | (() => string[]);
+  primaryBehavior?: 'external-agent';
+};
+
 let mockAgentSupportedModels: string[] = ['model-a', 'model-b'];
 let mockLockedAgent: {
   name: string;
@@ -20,7 +27,7 @@ let mockLockedAgent: {
   supportedModels: string[];
   primaryBehavior: 'external-agent';
 } | null = null;
-let mockAgents = [
+let mockAgents: MockChatAgent[] = [
   {
     name: 'assistant',
     displayName: 'Chat Agent',
