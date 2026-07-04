@@ -1414,6 +1414,10 @@
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
     "chatHistory": "Historique",
+    "unifiedSidebar": {
+      "title": "Menu",
+      "landmark": "Barre latérale du tableau de bord"
+    },
     "newProject": "Nouveau projet",
     "typeMessageHere": "Saisis ton message ici…",
     "send": "Envoyer le message",

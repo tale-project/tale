@@ -1413,6 +1413,10 @@
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
     "chatHistory": "Chatverlauf",
+    "unifiedSidebar": {
+      "title": "Menü",
+      "landmark": "Dashboard-Seitenleiste"
+    },
     "newProject": "Neues Projekt",
     "typeMessageHere": "Gib hier deine Nachricht ein...",
     "send": "Nachricht senden",

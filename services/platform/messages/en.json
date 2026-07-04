@@ -1416,6 +1416,10 @@
     "showHistory": "Show chats",
     "hideHistory": "Hide chats",
     "chatHistory": "Chats",
+    "unifiedSidebar": {
+      "title": "Menu",
+      "landmark": "Dashboard sidebar"
+    },
     "newProject": "New project",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
