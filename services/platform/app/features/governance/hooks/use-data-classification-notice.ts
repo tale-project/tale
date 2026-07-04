@@ -60,9 +60,17 @@ export function useDataClassificationNotice(
     'Treat this chat as you would email — avoid customer data, credentials, and unreleased information.',
   );
 
-  if (policy?.data === undefined) {
+  // While the query is loading (`data === undefined`) or skipped (no org),
+  // render nothing. Defaulting to `enabled: true` during load caused a
+  // show→hide flash for orgs whose stored policy resolves to disabled: the
+  // notice appeared on the loading default, then vanished once the real
+  // config arrived. Once the policy resolves, a missing row (`data === null`)
+  // falls through to the product default (on) below, so a never-configured
+  // org still gets a stable notice — it just appears when the data lands
+  // rather than flashing in and out.
+  if (policy.data === undefined) {
     return {
-      enabled: organizationId !== undefined,
+      enabled: false,
       message: fallback,
     };
   }
