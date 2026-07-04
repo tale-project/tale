@@ -760,6 +760,7 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
+import type * as lib_e2e_cron_guard from "../lib/e2e_cron_guard.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_errors_upstream_http_error from "../lib/errors/upstream_http_error.js";
 import type * as lib_file_io from "../lib/file_io.js";
@@ -2406,6 +2407,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
+  "lib/e2e_cron_guard": typeof lib_e2e_cron_guard;
   "lib/error_classification": typeof lib_error_classification;
   "lib/errors/upstream_http_error": typeof lib_errors_upstream_http_error;
   "lib/file_io": typeof lib_file_io;
