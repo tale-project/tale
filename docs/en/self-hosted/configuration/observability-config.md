@@ -19,14 +19,15 @@ Tale does not ship a log shipper. The driver swap is the supported integration p
 
 ## Metrics
 
-The Caddy proxy exposes two metrics paths gated by a single bearer token:
+The Caddy proxy exposes three metrics paths gated by a single bearer token:
 
-| Path                | Source          | What's inside                                               |
-| ------------------- | --------------- | ----------------------------------------------------------- |
-| `/metrics/platform` | `tale-platform` | HTTP latency, route counters, Node process metrics          |
-| `/metrics/convex`   | `tale-convex`   | 261 built-in Convex metrics, plus the RAG and crawl timings |
+| Path                 | Source          | What's inside                                                                       |
+| -------------------- | --------------- | ----------------------------------------------------------------------------------- |
+| `/metrics/platform`  | `tale-platform` | HTTP latency, route counters, Node process metrics, response-time SLA target gauges |
+| `/metrics/convex`    | `tale-convex`   | 261 built-in Convex metrics, plus the RAG and crawl timings                         |
+| `/metrics/sla-rules` | `tale-platform` | Generated Prometheus recording + alerting rules for the response-time SLAs          |
 
-Knowledge work (RAG search, document ingestion, web crawling) runs inside the Convex backend now, so its timings ride the `/metrics/convex` series rather than a separate endpoint. Set `METRICS_BEARER_TOKEN` in `.env` to enable the two endpoints; leave it unset to keep them returning 401 to every request. Anything other than the two listed paths returns 401 too, so a misrouted scraper does not accidentally see the platform's internal health endpoints.
+Knowledge work (RAG search, document ingestion, web crawling) runs inside the Convex backend now, so its timings ride the `/metrics/convex` series rather than a separate endpoint. Set `METRICS_BEARER_TOKEN` in `.env` to enable these endpoints; leave it unset to keep them returning 401 to every request. The `/metrics/sla-rules` path is a read-only YAML rules file you load into Prometheus, not a scrape target — the thresholds it carries are documented in [Operations](/self-hosted/operate/observability/operations). Anything other than the listed paths returns 401 too, so a misrouted scraper does not accidentally see the platform's internal health endpoints.
 
 A working Prometheus scrape stanza:
 

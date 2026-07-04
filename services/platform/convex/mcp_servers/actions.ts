@@ -10,8 +10,8 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
-import { action } from '../_generated/server';
-import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { action, internalAction } from '../_generated/server';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { jsonRecordValidator } from '../lib/validators/json';
 import type { McpServerConfig } from './client_factory';
 import { discoverTools, executeTool } from './client_factory';
@@ -38,11 +38,6 @@ export const testConnection = action({
     id: v.id('mcpServers'),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    }
-
     const server = await ctx.runQuery(
       internal.mcp_servers.internal_queries.getById,
       { id: args.id },
@@ -50,6 +45,13 @@ export const testConnection = action({
     if (!server) {
       throw new ConvexError({ code: 'NOT_FOUND' });
     }
+
+    // Verify the caller is a live member of the org that OWNS this server and
+    // holds the developerSettings capability before running discovery against
+    // the server with its stored credentials. Deriving the org from the server
+    // doc (rather than a client-supplied arg) makes the ownership match
+    // implicit — a member of another org cannot reach this server.
+    await requireOrgAdminOrDeveloper(ctx, server.organizationId);
 
     // Set status to discovering
     await ctx.runMutation(
@@ -115,7 +117,21 @@ export const testConnection = action({
   },
 });
 
-export const executeMcpTool = action({
+/**
+ * Execute a named tool against an MCP server with its stored (decrypted)
+ * credentials.
+ *
+ * Backend-orchestration only — exposed as an `internalAction`, NOT a public
+ * `api.*` action. The decrypted bearer token / OAuth secret and the
+ * server-controlled `server.url` it reaches make a public surface a
+ * cross-tenant credential-use + SSRF primitive: any authenticated user could
+ * drive another tenant's server. The only callers are trusted backend paths
+ * that have already resolved the server to the caller's org —
+ * `agent_tools/mcp/create_bound_mcp_tool.ts` (the bound agent tool) and
+ * `mcp_servers/execute_approved.ts` (post-approval replay) — both via
+ * `ctx.runAction(internal.mcp_servers.actions.executeMcpTool, …)`.
+ */
+export const executeMcpTool = internalAction({
   args: {
     serverId: v.id('mcpServers'),
     toolName: v.string(),

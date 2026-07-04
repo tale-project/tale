@@ -652,8 +652,13 @@
       },
       "validation": {
         "currentRequired": "Le mot de passe actuel est requis",
+        "currentIncorrect": "Le mot de passe actuel est incorrect",
         "confirmRequired": "Confirme ton nouveau mot de passe",
         "mismatch": "Les mots de passe ne correspondent pas"
+      },
+      "warning": {
+        "title": "Tu seras déconnecté partout",
+        "description": "Changer ton mot de passe te déconnecte de tous les appareils. Tu devras te reconnecter avec ton nouveau mot de passe."
       }
     },
     "forcedChange": {
@@ -1465,6 +1470,7 @@
     "uploadingFile": "Téléversement du fichier",
     "indexing": "Indexation...",
     "indexingFailed": "Échec de l'indexation",
+    "indexingFailedDescription": "{filename} n'a pas pu être indexé pour la recherche.",
     "viewImage": "Voir l'image",
     "fileTypes": {
       "image": "IMG",
@@ -1735,8 +1741,22 @@
       "verdictRecorded": "Verdict enregistré",
       "verdictError": "Échec de l'enregistrement du verdict"
     },
+    "humanControl": {
+      "cardTitle": "L'agent a besoin de ton aide dans le navigateur",
+      "takeControl": "Prendre le contrôle",
+      "takeControlHint": "Prends le contrôle pour terminer cette étape dans le navigateur en direct, puis rends-le.",
+      "controllingHint": "Tu pilotes le navigateur. Termine l'étape, puis rends le contrôle pour que l'agent reprenne.",
+      "returnControl": "Terminé — rendre le contrôle",
+      "errorAlreadyResolved": "Ce transfert a déjà été résolu.",
+      "errorTurnRunning": "L'agent a déjà repris.",
+      "errorReturnFailed": "Impossible de rendre le contrôle. Réessaie.",
+      "statusReturned": "Contrôle rendu — l'agent a repris.",
+      "statusSuperseded": "Remplacé par une demande plus récente.",
+      "statusTimedOut": "Personne n'a pris le contrôle — l'agent a continué."
+    },
     "canvas": {
       "title": "Canevas",
+      "error": "Impossible de charger ce fichier.",
       "noFile": "Aucun fichier sélectionné",
       "stripOpen": "Ouvrir le canevas",
       "download": "Télécharger",
@@ -1928,6 +1948,7 @@
       "back": "Retour",
       "next": "Suivant",
       "skip": "Passer",
+      "completeStepToContinue": "Terminez cette étape pour continuer",
       "loading": "Chargement...",
       "done": "Terminé",
       "duplicate": "Dupliquer",
@@ -4699,9 +4720,12 @@
     "cvc": "Cryptogramme",
     "iban": "IBAN",
     "ipAddress": "Adresse IP",
+    "macAddress": "Adresse MAC",
+    "jwt": "JWT",
     "ssn": "SSN",
     "dateOfBirth": "Date de naissance",
     "address": "Adresse",
+    "nationalId": "Identifiant national",
     "de-personalausweis": "CNI allemande",
     "at-passport": "Passeport AT",
     "fr-nir": "NIR",
@@ -5398,6 +5422,8 @@
         "sectionWorkflowBindings": "Flux de travail liés",
         "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
         "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
+        "bindIntegrationsPlaceholder": "Lier des intégrations…",
+        "bindWorkflowsPlaceholder": "Lier des flux de travail…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
         "skillBindingsCounter": "{count}/{max} liés",
@@ -5570,7 +5596,6 @@
       "webhook": {
         "title": "Webhooks",
         "description": "Crée des URL uniques pour discuter avec cet agent depuis des systèmes externes.",
-        "notPublished": "Publie cet agent pour activer l'accès par webhook.",
         "createButton": "Créer un webhook",
         "createdTitle": "Webhook créé",
         "urlWarning": "Enregistre cette URL de webhook. Le jeton dans l'URL sert d'identifiant d'authentification.",
@@ -7147,33 +7172,96 @@
   },
   "toast": {
     "success": {
-      "saved": "Modifications enregistrées avec succès",
-      "deleted": "Supprimé avec succès",
-      "profileUpdated": "Profil mis à jour avec succès",
-      "passwordChanged": "Mot de passe modifié avec succès",
-      "passwordSet": "Mot de passe défini avec succès",
-      "organizationUpdated": "Organisation mise à jour avec succès",
-      "newMemberCreated": "Nouveau membre créé et ajouté à l'organisation",
-      "existingUserAdded": "Utilisateur existant ajouté à l'organisation",
-      "automationDuplicated": "Automatisation dupliquée avec succès",
-      "automationRenamed": "Automatisation renommée avec succès",
-      "brandingUpdated": "Image de marque mise à jour avec succès",
-      "faviconGenerated": "Favicon généré à partir de ton logo"
+      "saved": {
+        "title": "Modifications enregistrées",
+        "description": "Tes modifications ont été enregistrées."
+      },
+      "deleted": {
+        "title": "Supprimé",
+        "description": "L'élément a été supprimé."
+      },
+      "profileUpdated": {
+        "title": "Profil mis à jour",
+        "description": "Les modifications de ton profil ont été enregistrées."
+      },
+      "passwordChanged": {
+        "title": "Mot de passe modifié",
+        "description": "Utilise ton nouveau mot de passe lors de ta prochaine connexion."
+      },
+      "passwordSet": {
+        "title": "Mot de passe défini",
+        "description": "Tu peux maintenant te connecter avec ton mot de passe."
+      },
+      "organizationUpdated": {
+        "title": "Organisation mise à jour",
+        "description": "Les modifications de ton organisation ont été enregistrées."
+      },
+      "newMemberCreated": {
+        "title": "Membre ajouté",
+        "description": "Le nouveau membre a été créé et ajouté à ton organisation."
+      },
+      "existingUserAdded": {
+        "title": "Membre ajouté",
+        "description": "L'utilisateur a été ajouté à ton organisation."
+      },
+      "automationDuplicated": {
+        "title": "Automatisation dupliquée",
+        "description": "Une copie de l'automatisation a été créée."
+      },
+      "automationRenamed": {
+        "title": "Automatisation renommée",
+        "description": "Le nouveau nom a été enregistré."
+      },
+      "brandingUpdated": {
+        "title": "Image de marque mise à jour",
+        "description": "Les modifications de ton image de marque ont été enregistrées."
+      },
+      "faviconGenerated": {
+        "title": "Favicon généré",
+        "description": "Nous avons créé un favicon à partir de ton logo."
+      }
     },
     "error": {
-      "saveFailed": "Échec de l'enregistrement des modifications",
-      "profileUpdateFailed": "Échec de la mise à jour du profil",
-      "passwordChangeFailed": "Échec du changement de mot de passe. Merci de vérifier ton mot de passe actuel et réessayer.",
-      "organizationUpdateFailed": "Échec de la mise à jour de l'organisation",
-      "brandingUpdateFailed": "Échec de la mise à jour de l'image de marque",
+      "saveFailed": {
+        "title": "Impossible d'enregistrer les modifications",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "profileUpdateFailed": {
+        "title": "Impossible de mettre à jour le profil",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "passwordChangeFailed": {
+        "title": "Impossible de changer le mot de passe",
+        "description": "Merci de vérifier ton mot de passe actuel et de réessayer."
+      },
+      "organizationUpdateFailed": {
+        "title": "Impossible de mettre à jour l'organisation",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "brandingUpdateFailed": {
+        "title": "Impossible de mettre à jour l'image de marque",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
       "imageUploadFailed": "Échec du téléversement de l'image",
       "imageTooLarge": "L'image est trop volumineuse. La taille maximale est de 2 Mo.",
       "imageMimeUnsupported": "Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.",
       "imageTypeInvalid": "Type d'image invalide",
-      "addMemberFailed": "Échec de l'ajout du membre",
-      "automationDuplicateFailed": "Échec de la duplication de l'automatisation",
-      "automationDeleteFailed": "Échec de la suppression de l'automatisation",
-      "generic": "Une erreur s'est produite. Merci de réessayer."
+      "addMemberFailed": {
+        "title": "Impossible d'ajouter le membre",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "automationDuplicateFailed": {
+        "title": "Impossible de dupliquer l'automatisation",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "automationDeleteFailed": {
+        "title": "Impossible de supprimer l'automatisation",
+        "description": "Une erreur s'est produite. Merci de réessayer."
+      },
+      "generic": {
+        "title": "Une erreur s'est produite",
+        "description": "Merci de réessayer."
+      }
     }
   },
   "todoList": {

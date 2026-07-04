@@ -82,6 +82,18 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | P6  | Settings save           | On `/dashboard/{org}/settings/account` edit a field; the global save bar appears; click **Save** (`common.actions.save`). | The bar shows a saved state; **reload the page and read the field back** — the new value persists (assert by reload, not the toast). Target: round-trip < 2 s warm.                                                                                                             |
 | P7  | Auth recovery           | During a cold load, induce a transient backend hiccup (restart Convex `:3210` mid-handshake).                             | The WS reconnects and authenticates: the shell finishes painting and chat becomes usable WITHOUT a manual reload (no endless skeletons). See `cold-start-auth-recovery`. Mark **ENVIRONMENT** if you cannot induce the hiccup.                                                  |
 
+## Response-time SLAs
+
+P2 above is the per-request **ceiling** a single warm first token should stay
+under; the contractual budget is a **mean** over many turns. Two SLAs are tracked
+continuously in Prometheus rather than by this manual pass — dialog input at a
+~1 s mean and long operations (e.g. evaluations) at a ~40 s mean. The targets,
+the recording/alerting rules, and the reconciliation of the ~1 s mean with this
+~3 s ceiling live in the operator guide (`docs/*/self-hosted/operate/observability/operations.md`,
+"Response-time SLAs") and are defined once in `services/platform/sla-targets.ts`.
+When tuning P2 here, confirm the change moves the mean the SLA tracks, not just a
+single warm sample.
+
 ## Boundary & error tests
 
 | ID  | Test                | Input                                                                 | Expected (verifiable)                                                                                                                                                                     |

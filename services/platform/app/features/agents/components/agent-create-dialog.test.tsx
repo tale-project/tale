@@ -253,8 +253,10 @@ describe('CreateAgentDialog', () => {
 
   // Migrated from tests/e2e/specs/validation.spec.ts —
   // "rejects an invalid slug and an empty name; cancels without creating".
-  // Pure client-side RHF + zod (mode: 'onChange'); the seeded mock provider
-  // supplies a model so the slug/name are the only things gating Continue.
+  // Pure client-side RHF + zod (shared `mode: 'onTouched'` default, #1943); the
+  // seeded mock provider supplies a model so the slug/name are the only things
+  // gating Continue. Each `user.type` of the next field blurs the previous one,
+  // marking it touched so its error renders.
   describe('slug + required validation gating (migrated from e2e)', () => {
     it('rejects an invalid slug and an empty name; cancels without creating', async () => {
       const onOpenChange = vi.fn();
@@ -275,7 +277,8 @@ describe('CreateAgentDialog', () => {
       });
 
       // (a) Invalid slug + valid display name → Continue stays DISABLED and the
-      // pattern error renders (mode: 'onChange').
+      // pattern error renders once the slug field is blurred (typing into the
+      // display name moves focus, marking the slug touched under `onTouched`).
       await user.type(slugField, 'Bad Slug!');
       await user.type(displayNameField, 'Valid Display Name');
       await waitFor(() =>

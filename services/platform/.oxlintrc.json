@@ -3,9 +3,27 @@
   "extends": ["../../.oxlintrc.json"],
   "rules": {
     "typescript/no-unsafe-type-assertion": "error",
-    "typescript/no-unnecessary-type-assertion": "error"
+    "typescript/no-unnecessary-type-assertion": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "react-hook-form",
+            "importNames": ["useForm"],
+            "message": "Import { useForm } from '@/app/components/ui/forms/use-form' so validation timing (mode: 'onTouched') stays consistent app-wide (#1943)."
+          }
+        ]
+      }
+    ]
   },
   "overrides": [
+    {
+      "files": ["app/components/ui/forms/use-form.ts"],
+      "rules": {
+        "eslint/no-restricted-imports": "off"
+      }
+    },
     {
       "files": ["convex/**/*.ts"],
       "rules": {

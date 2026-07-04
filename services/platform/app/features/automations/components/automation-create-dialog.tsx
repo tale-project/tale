@@ -6,12 +6,12 @@ import { Stack } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { convexErrorCode } from '@/lib/utils/convex-error';
@@ -97,7 +97,6 @@ function BlankTabContent({
     resolver: zodResolver(formSchema),
     // Validate on change so Continue stays disabled until the required
     // name is filled, instead of only failing after a submit attempt.
-    mode: 'onChange',
   });
 
   const onSubmit = useCallback(

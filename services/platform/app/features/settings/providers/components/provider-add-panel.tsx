@@ -9,7 +9,7 @@ import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
@@ -18,6 +18,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -170,7 +171,6 @@ export function ProviderAddPanel({
     getValues,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: '',
       displayName: '',

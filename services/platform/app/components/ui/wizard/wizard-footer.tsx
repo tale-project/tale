@@ -13,6 +13,13 @@ export interface WizardFooterProps {
   finishLabel: string;
   /** Required only when any step is optional (renders the Skip action). */
   skipLabel?: string;
+  /**
+   * Why the Next button is disabled while the active step is invalid, surfaced
+   * as a hover/focus tooltip on the (soft-disabled) button so users know what's
+   * left to do (#1949). Not shown while a step transition is submitting — the
+   * button's loading spinner already explains that state.
+   */
+  nextDisabledReason?: string;
   className?: string;
   /**
    * Full-width, vertically-stacked layout: the primary Next/Finish button spans
@@ -33,6 +40,7 @@ export function WizardFooter({
   nextLabel,
   finishLabel,
   skipLabel,
+  nextDisabledReason,
   className,
   stacked,
 }: WizardFooterProps) {
@@ -49,8 +57,13 @@ export function WizardFooter({
   } = useWizard();
 
   const submitting = status === 'submitting';
-  const nextDisabled = !activeStep || !isStepValid(activeStep.id) || submitting;
+  const stepInvalid = !activeStep || !isStepValid(activeStep.id);
+  const nextDisabled = stepInvalid || submitting;
   const showSkip = Boolean(activeStep?.optional && skipLabel);
+  // Only explain the "step incomplete" case — while submitting, the spinner
+  // (isLoading) already conveys why the button is inert.
+  const primaryDisabledReason =
+    stepInvalid && !submitting ? nextDisabledReason : undefined;
 
   // The active step may override the primary label/emphasis (e.g. "Skip for
   // now" vs "Connect"); otherwise fall back to the standard Next/Finish label.
@@ -70,6 +83,7 @@ export function WizardFooter({
           variant={primaryVariant}
           onClick={goNext}
           disabled={nextDisabled}
+          disabledReason={primaryDisabledReason}
           isLoading={submitting}
         >
           {primaryLabel}
@@ -107,6 +121,7 @@ export function WizardFooter({
           variant={primaryVariant}
           onClick={goNext}
           disabled={nextDisabled}
+          disabledReason={primaryDisabledReason}
           isLoading={submitting}
         >
           {primaryLabel}

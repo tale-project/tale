@@ -57,10 +57,13 @@ describe('TeamCreateDialog', () => {
 
   // Migrated from the `validation` E2E "create team dialog: disables submit until
   // a non-empty name is entered; cancels without creating". The gating is pure
-  // client UI: the name schema is `z.string().trim().min(1)` with RHF
-  // `mode: 'onChange'`, and the FormDialog submit button is disabled while
-  // `!isValid`. No backend call, router redirect, or persistence round-trip is
-  // involved in the assertion, so it belongs at the component tier.
+  // client UI: the name schema is `z.string().trim().min(1)` and the FormDialog
+  // submit button is disabled while `!isValid`. Validation timing follows the
+  // shared `useForm` wrapper's `mode: 'onTouched'` default (#1943): the field
+  // error renders only after the first blur, not on the first keystroke — while
+  // `isValid` (and therefore the submit gating) stays accurate throughout. No
+  // backend call, router redirect, or persistence round-trip is involved, so it
+  // belongs at the component tier.
   describe('name validation gating', () => {
     it('disables submit until a non-empty name is entered; cancels without creating', async () => {
       const onOpenChange = vi.fn();
@@ -82,8 +85,17 @@ describe('TeamCreateDialog', () => {
       expect(nameField).toHaveValue('');
       expect(submit).toBeDisabled();
 
-      // Whitespace-only trims to empty: still invalid → required error, disabled.
+      // First keystroke does NOT surface a validation error (the #1943 fix:
+      // `onTouched` waits for the first blur). Submit stays disabled because the
+      // whitespace-only value still trims to empty and gates `isValid`.
       await user.type(nameField, '   ');
+      expect(
+        screen.queryByText('Team name is required'),
+      ).not.toBeInTheDocument();
+      expect(submit).toBeDisabled();
+
+      // Blurring the still-invalid field surfaces the required error.
+      await user.tab();
       expect(
         await screen.findByText('Team name is required'),
       ).toBeInTheDocument();
@@ -120,8 +132,10 @@ describe('TeamCreateDialog', () => {
       const nameField = screen.getByRole('textbox', { name: /Team name/ });
       const submit = screen.getByRole('button', { name: 'Create team' });
 
-      // 81 chars → over the cap → inline message, submit DISABLED.
+      // 81 chars → over the cap. The inline message surfaces only after the
+      // first blur (onTouched, #1943); submit is disabled while over the cap.
       await user.type(nameField, 'a'.repeat(81));
+      await user.tab();
       expect(
         await screen.findByText('Team name must be 80 characters or fewer'),
       ).toBeInTheDocument();

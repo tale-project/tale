@@ -18,6 +18,8 @@ interface EntityDeleteTranslations {
   warningText?: string;
   /** Success toast message */
   successMessage: string;
+  /** Success toast description (optional) */
+  successDescription?: string;
   /** Error toast message */
   errorMessage: string;
 }
@@ -80,6 +82,7 @@ export function EntityDeleteDialog<TEntity>({
       await deleteMutation(entity);
       toast({
         title: translations.successMessage,
+        description: translations.successDescription,
       });
       onClose();
       onSuccess?.();

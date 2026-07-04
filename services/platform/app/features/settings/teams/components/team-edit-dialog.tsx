@@ -2,11 +2,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -71,7 +71,6 @@ export function TeamEditDialog({
 
   const form = useForm<TeamFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       name: team.name,
     },

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { TeamMemberChecklist } from './team-member-checklist';
 
@@ -20,12 +20,17 @@ function setMembers(members: typeof MEMBERS, isLoading = false) {
   mockUseMembers.mockReturnValue({ members, isLoading });
 }
 
-/** Find the checkbox control rendered inside the label that shows `name`. */
-function checkboxFor(name: string): HTMLElement {
-  const label = screen.getByText(name).closest('label');
-  if (!label) throw new Error(`No label found for ${name}`);
-  return within(label).getByRole('checkbox');
+/** The multi-select renders its options inside a popover, opened via the trigger. */
+async function openDropdown(user: ReturnType<typeof render>['user']) {
+  await user.click(screen.getByRole('combobox'));
 }
+
+/** Find the listbox option whose accessible name contains `name`. */
+function optionFor(name: string): HTMLElement {
+  return screen.getByRole('option', { name: new RegExp(name, 'i') });
+}
+
+const LAST_MEMBER_HINT = /A team must keep at least one member/i;
 
 describe('TeamMemberChecklist', () => {
   describe('accessibility', () => {
@@ -42,9 +47,9 @@ describe('TeamMemberChecklist', () => {
     });
   });
 
-  it('disables only the sole selected member and shows the hint when enforced', () => {
+  it('disables only the sole selected member and shows the hint when enforced', async () => {
     setMembers(MEMBERS);
-    render(
+    const { user } = render(
       <TeamMemberChecklist
         organizationId="org-1"
         selectedMemberIds={new Set(['user-1'])}
@@ -53,20 +58,19 @@ describe('TeamMemberChecklist', () => {
       />,
     );
 
-    // The only remaining member cannot be unchecked.
-    expect(checkboxFor('Alice')).toBeDisabled();
-    // Unselected members stay toggleable so members can still be added.
-    expect(checkboxFor('Bob')).not.toBeDisabled();
-
     // The constraint is surfaced as a persistent hint (not a silent refusal).
-    expect(
-      screen.getByText(/A team must keep at least one member/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(LAST_MEMBER_HINT)).toBeInTheDocument();
+
+    await openDropdown(user);
+    // The only remaining member cannot be unchecked.
+    expect(optionFor('Alice')).toHaveAttribute('aria-disabled', 'true');
+    // Unselected members stay toggleable so members can still be added.
+    expect(optionFor('Bob')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('does not disable any checkbox when more than one member is selected', () => {
+  it('does not disable any option when more than one member is selected', async () => {
     setMembers(MEMBERS);
-    render(
+    const { user } = render(
       <TeamMemberChecklist
         organizationId="org-1"
         selectedMemberIds={new Set(['user-1', 'user-2'])}
@@ -75,18 +79,18 @@ describe('TeamMemberChecklist', () => {
       />,
     );
 
-    expect(checkboxFor('Alice')).not.toBeDisabled();
-    expect(checkboxFor('Bob')).not.toBeDisabled();
-    expect(
-      screen.queryByText(/A team must keep at least one member/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(LAST_MEMBER_HINT)).not.toBeInTheDocument();
+
+    await openDropdown(user);
+    expect(optionFor('Alice')).not.toHaveAttribute('aria-disabled', 'true');
+    expect(optionFor('Bob')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('never enforces the minimum-one constraint in create mode (default)', () => {
+  it('never enforces the minimum-one constraint in create mode (default)', async () => {
     setMembers(MEMBERS);
-    // Create flow: 0 selected is valid (current user is auto-added) and the
-    // sole selected member must stay uncheckable so the user can return to 0.
-    const { rerender } = render(
+    // Create flow: 0 selected is valid (current user is auto-added) and the sole
+    // selected member must stay uncheckable so the user can return to 0.
+    const { user, rerender } = render(
       <TeamMemberChecklist
         organizationId="org-1"
         selectedMemberIds={new Set()}
@@ -95,12 +99,10 @@ describe('TeamMemberChecklist', () => {
     );
 
     // With nothing selected, no misleading "delete the team instead" hint.
-    expect(
-      screen.queryByText(/A team must keep at least one member/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(LAST_MEMBER_HINT)).not.toBeInTheDocument();
 
-    // With exactly one selected, its checkbox stays toggleable (not disabled)
-    // and the hint is still absent.
+    // With exactly one selected, its option stays toggleable (not disabled) and
+    // the hint is still absent.
     rerender(
       <TeamMemberChecklist
         organizationId="org-1"
@@ -109,14 +111,13 @@ describe('TeamMemberChecklist', () => {
       />,
     );
 
-    expect(checkboxFor('Alice')).not.toBeDisabled();
-    expect(checkboxFor('Bob')).not.toBeDisabled();
-    expect(
-      screen.queryByText(/A team must keep at least one member/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(LAST_MEMBER_HINT)).not.toBeInTheDocument();
+    await openDropdown(user);
+    expect(optionFor('Alice')).not.toHaveAttribute('aria-disabled', 'true');
+    expect(optionFor('Bob')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('toggles a member when an enabled checkbox is clicked', async () => {
+  it('toggles a member when an enabled option is clicked', async () => {
     setMembers(MEMBERS);
     const onToggleMember = vi.fn();
     const { user } = render(
@@ -127,7 +128,8 @@ describe('TeamMemberChecklist', () => {
       />,
     );
 
-    await user.click(checkboxFor('Bob'));
+    await openDropdown(user);
+    await user.click(optionFor('Bob'));
     expect(onToggleMember).toHaveBeenCalledWith('user-2');
   });
 

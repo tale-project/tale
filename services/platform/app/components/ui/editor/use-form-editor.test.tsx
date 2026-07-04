@@ -126,6 +126,31 @@ describe('useFormEditor', () => {
     expect(result.current.reset).toBe(reset0);
   });
 
+  it('seeds defined defaultValues while data is still loading (controlled from first render)', () => {
+    const { result, rerender } = renderHook(
+      ({ data }: { data: Form | undefined }) =>
+        useFormEditor<Form>({
+          data,
+          defaultValues: { name: '', color: '' },
+          schema,
+          save: vi.fn().mockResolvedValue(undefined),
+        }),
+      { initialProps: { data: undefined as Form | undefined } },
+    );
+
+    // Loading, but the controlled fields already read defined values rather
+    // than undefined — no uncontrolled→controlled churn when data arrives.
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.form.getValues('name')).toBe('');
+    expect(result.current.form.getValues('color')).toBe('');
+    expect(result.current.isDirty).toBe(false);
+
+    rerender({ data: { name: 'A', color: '#FF0000' } });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.form.getValues('name')).toBe('A');
+    expect(result.current.isDirty).toBe(false);
+  });
+
   it('reports isValid:false for schema-invalid input', async () => {
     const { result } = mount({ name: 'A', color: '#FF0000' });
     act(() => result.current.form.setValue('name', '', { shouldDirty: true }));

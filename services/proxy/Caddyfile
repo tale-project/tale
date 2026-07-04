@@ -194,7 +194,7 @@
 	# ============================================================================
 
 	@metricsAuth {
-		path /metrics/platform /metrics/convex
+		path /metrics/platform /metrics/convex /metrics/sla-rules
 		expression `"{$METRICS_BEARER_TOKEN:}" != ""`
 		header Authorization "Bearer {$METRICS_BEARER_TOKEN:}"
 	}
@@ -205,6 +205,9 @@
 		}
 		handle /metrics/convex {
 			rewrite * /metrics/convex
+			reverse_proxy platform:3000
+		}
+		handle /metrics/sla-rules {
 			reverse_proxy platform:3000
 		}
 	}

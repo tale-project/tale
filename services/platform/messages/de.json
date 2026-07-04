@@ -651,8 +651,13 @@
       },
       "validation": {
         "currentRequired": "Aktuelles Passwort ist erforderlich",
+        "currentIncorrect": "Aktuelles Passwort ist falsch",
         "confirmRequired": "Bitte bestätige dein neues Passwort",
         "mismatch": "Passwörter stimmen nicht überein"
+      },
+      "warning": {
+        "title": "Du wirst überall abgemeldet",
+        "description": "Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet. Du musst dich anschließend mit deinem neuen Passwort erneut anmelden."
       }
     },
     "forcedChange": {
@@ -1464,6 +1469,7 @@
     "uploadingFile": "Datei wird hochgeladen",
     "indexing": "Indizierung...",
     "indexingFailed": "Indizierung fehlgeschlagen",
+    "indexingFailedDescription": "{filename} konnte nicht für die Suche indiziert werden.",
     "viewImage": "Bild anzeigen",
     "fileTypes": {
       "image": "BILD",
@@ -1734,8 +1740,22 @@
       "verdictRecorded": "Bewertung gespeichert",
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
+    "humanControl": {
+      "cardTitle": "Der Agent braucht deine Hilfe im Browser",
+      "takeControl": "Kontrolle übernehmen",
+      "takeControlHint": "Übernimm die Kontrolle, um diesen Schritt im Live-Browser abzuschließen, und gib sie danach zurück.",
+      "controllingHint": "Du steuerst den Browser. Schließe den Schritt ab und gib die Kontrolle zurück, damit der Agent weitermacht.",
+      "returnControl": "Fertig — Kontrolle zurückgeben",
+      "errorAlreadyResolved": "Diese Übergabe wurde bereits abgeschlossen.",
+      "errorTurnRunning": "Der Agent läuft bereits wieder.",
+      "errorReturnFailed": "Die Kontrolle konnte nicht zurückgegeben werden. Bitte versuche es erneut.",
+      "statusReturned": "Kontrolle zurückgegeben — der Agent macht weiter.",
+      "statusSuperseded": "Durch eine neuere Anfrage ersetzt.",
+      "statusTimedOut": "Niemand hat übernommen — der Agent hat weitergemacht."
+    },
     "canvas": {
       "title": "Canvas",
+      "error": "Diese Datei konnte nicht geladen werden.",
       "noFile": "Keine Datei ausgewählt",
       "stripOpen": "Canvas öffnen",
       "download": "Herunterladen",
@@ -1927,6 +1947,7 @@
       "back": "Zurück",
       "next": "Weiter",
       "skip": "Überspringen",
+      "completeStepToContinue": "Schließe diesen Schritt ab, um fortzufahren",
       "loading": "Lädt...",
       "done": "Fertig",
       "duplicate": "Duplizieren",
@@ -4698,9 +4719,12 @@
     "cvc": "Karten-CVC",
     "iban": "IBAN",
     "ipAddress": "IP-Adresse",
+    "macAddress": "MAC-Adresse",
+    "jwt": "JWT",
     "ssn": "SSN",
     "dateOfBirth": "Geburtsdatum",
     "address": "Adresse",
+    "nationalId": "Nationale ID",
     "de-personalausweis": "Personalausweis",
     "at-passport": "Reisepass AT",
     "fr-nir": "Sozialversicherungs-Nr.",
@@ -5397,6 +5421,8 @@
         "sectionWorkflowBindings": "Gebundene Workflows",
         "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
         "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
+        "bindIntegrationsPlaceholder": "Integrationen binden…",
+        "bindWorkflowsPlaceholder": "Workflows binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
         "skillBindingsCounter": "{count}/{max} gebunden",
@@ -5569,7 +5595,6 @@
       "webhook": {
         "title": "Webhook",
         "description": "Eindeutige URLs erstellen, um mit diesem Agent von externen Systemen zu chatten.",
-        "notPublished": "Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren.",
         "createButton": "Webhook erstellen",
         "createdTitle": "Webhook erstellt",
         "urlWarning": "Speichere diese Webhook-URL. Das Token in der URL dient als Authentifizierungsnachweis.",
@@ -7146,33 +7171,96 @@
   },
   "toast": {
     "success": {
-      "saved": "Änderungen gespeichert",
-      "deleted": "Gelöscht",
-      "profileUpdated": "Profil aktualisiert",
-      "passwordChanged": "Passwort geändert",
-      "passwordSet": "Passwort festgelegt",
-      "organizationUpdated": "Organisation aktualisiert",
-      "newMemberCreated": "Neues Mitglied erstellt und zur Organisation hinzugefügt",
-      "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
-      "automationDuplicated": "Automatisierung dupliziert",
-      "automationRenamed": "Automatisierung umbenannt",
-      "brandingUpdated": "Branding aktualisiert",
-      "faviconGenerated": "Favicon aus deinem Logo erzeugt"
+      "saved": {
+        "title": "Änderungen gespeichert",
+        "description": "Deine Änderungen wurden gespeichert."
+      },
+      "deleted": {
+        "title": "Gelöscht",
+        "description": "Das Element wurde gelöscht."
+      },
+      "profileUpdated": {
+        "title": "Profil aktualisiert",
+        "description": "Deine Profiländerungen wurden gespeichert."
+      },
+      "passwordChanged": {
+        "title": "Passwort geändert",
+        "description": "Verwende dein neues Passwort bei der nächsten Anmeldung."
+      },
+      "passwordSet": {
+        "title": "Passwort festgelegt",
+        "description": "Du kannst dich jetzt mit deinem Passwort anmelden."
+      },
+      "organizationUpdated": {
+        "title": "Organisation aktualisiert",
+        "description": "Deine Änderungen an der Organisation wurden gespeichert."
+      },
+      "newMemberCreated": {
+        "title": "Mitglied hinzugefügt",
+        "description": "Das neue Mitglied wurde erstellt und zu deiner Organisation hinzugefügt."
+      },
+      "existingUserAdded": {
+        "title": "Mitglied hinzugefügt",
+        "description": "Der Benutzer wurde zu deiner Organisation hinzugefügt."
+      },
+      "automationDuplicated": {
+        "title": "Automatisierung dupliziert",
+        "description": "Eine Kopie der Automatisierung wurde erstellt."
+      },
+      "automationRenamed": {
+        "title": "Automatisierung umbenannt",
+        "description": "Der neue Name wurde gespeichert."
+      },
+      "brandingUpdated": {
+        "title": "Branding aktualisiert",
+        "description": "Deine Branding-Änderungen wurden gespeichert."
+      },
+      "faviconGenerated": {
+        "title": "Favicon erzeugt",
+        "description": "Wir haben aus deinem Logo ein Favicon erstellt."
+      }
     },
     "error": {
-      "saveFailed": "Änderungen konnten nicht gespeichert werden",
-      "profileUpdateFailed": "Profil konnte nicht aktualisiert werden",
-      "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte überprüfe dein aktuelles Passwort und versuche es erneut.",
-      "organizationUpdateFailed": "Organisation konnte nicht aktualisiert werden",
-      "brandingUpdateFailed": "Branding konnte nicht aktualisiert werden",
+      "saveFailed": {
+        "title": "Änderungen konnten nicht gespeichert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "profileUpdateFailed": {
+        "title": "Profil konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "passwordChangeFailed": {
+        "title": "Passwort konnte nicht geändert werden",
+        "description": "Bitte überprüfe dein aktuelles Passwort und versuche es erneut."
+      },
+      "organizationUpdateFailed": {
+        "title": "Organisation konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "brandingUpdateFailed": {
+        "title": "Branding konnte nicht aktualisiert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
       "imageUploadFailed": "Bild konnte nicht hochgeladen werden",
       "imageTooLarge": "Bild ist zu groß. Maximale Größe ist 2 MB.",
       "imageMimeUnsupported": "Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.",
       "imageTypeInvalid": "Ungültiger Bildtyp",
-      "addMemberFailed": "Mitglied konnte nicht hinzugefügt werden",
-      "automationDuplicateFailed": "Automatisierung konnte nicht dupliziert werden",
-      "automationDeleteFailed": "Automatisierung konnte nicht gelöscht werden",
-      "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      "addMemberFailed": {
+        "title": "Mitglied konnte nicht hinzugefügt werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "automationDuplicateFailed": {
+        "title": "Automatisierung konnte nicht dupliziert werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "automationDeleteFailed": {
+        "title": "Automatisierung konnte nicht gelöscht werden",
+        "description": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
+      },
+      "generic": {
+        "title": "Etwas ist schiefgelaufen",
+        "description": "Bitte versuche es erneut."
+      }
     }
   },
   "todoList": {

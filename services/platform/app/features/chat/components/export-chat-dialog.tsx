@@ -165,49 +165,51 @@ function ExportChatDialogContent({
     [data?.messages],
   );
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  // Selection is either the `'all'` sentinel (the default before the user
+  // touches anything — every message selected, including ones that load later)
+  // or an explicit Set. An explicit empty Set genuinely means "nothing
+  // selected", so deselecting down to zero stays at zero.
+  const [selection, setSelection] = useState<'all' | Set<string>>('all');
 
-  // Sync selection with messages once loaded (default all selected)
   const allIds = useMemo(() => new Set(messages.map((m) => m._id)), [messages]);
   const effectiveSelected = useMemo(() => {
-    if (selectedIds.size === 0 && messages.length > 0) {
+    if (selection === 'all') {
       return allIds;
     }
     // Remove stale IDs that no longer exist
     const valid = new Set<string>();
-    for (const id of selectedIds) {
+    for (const id of selection) {
       if (allIds.has(id)) valid.add(id);
     }
     return valid;
-  }, [selectedIds, allIds, messages.length]);
+  }, [selection, allIds]);
 
-  const allSelected = effectiveSelected.size === messages.length;
+  const allSelected =
+    messages.length > 0 && effectiveSelected.size === messages.length;
   const noneSelected = effectiveSelected.size === 0;
 
   const handleToggleAll = useCallback(() => {
     if (allSelected) {
-      setSelectedIds(new Set());
+      setSelection(new Set());
     } else {
-      setSelectedIds(new Set(messages.map((m) => m._id)));
+      setSelection('all');
     }
-  }, [allSelected, messages]);
+  }, [allSelected]);
 
   const handleToggleMessage = useCallback(
     (id: string) => {
-      setSelectedIds((prev) => {
-        const base =
-          prev.size === 0 && messages.length > 0
-            ? new Set(messages.map((m) => m._id))
-            : new Set(prev);
-        if (base.has(id)) {
-          base.delete(id);
+      setSelection((prev) => {
+        const base = prev === 'all' ? allIds : prev;
+        const next = new Set(base);
+        if (next.has(id)) {
+          next.delete(id);
         } else {
-          base.add(id);
+          next.add(id);
         }
-        return base;
+        return next;
       });
     },
-    [messages],
+    [allIds],
   );
 
   const youLabel = t('export.you');

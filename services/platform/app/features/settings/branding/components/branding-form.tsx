@@ -121,12 +121,14 @@ export function BrandingForm({
         onSaved?.();
         void refetchBranding();
         toast({
-          title: tToast('success.brandingUpdated'),
+          title: tToast('success.brandingUpdated.title'),
+          description: tToast('success.brandingUpdated.description'),
           variant: 'success',
         });
       } catch (err) {
         toast({
-          title: tToast('error.brandingUpdateFailed'),
+          title: tToast('error.brandingUpdateFailed.title'),
+          description: tToast('error.brandingUpdateFailed.description'),
           variant: 'destructive',
         });
         throw err;
@@ -207,7 +209,8 @@ export function BrandingForm({
         setValue('faviconLightFilename', filename, { shouldDirty: true });
         setFaviconPreviewUrl(`data:image/png;base64,${base64}`);
         toast({
-          title: tToast('success.faviconGenerated'),
+          title: tToast('success.faviconGenerated.title'),
+          description: tToast('success.faviconGenerated.description'),
           variant: 'success',
         });
       } catch (err) {

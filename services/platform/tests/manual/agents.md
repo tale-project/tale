@@ -98,13 +98,12 @@ confirmation only); create-agent validation is the component test above.
 | F19 | External BYO creds    | External agent (from F17) → Instructions tab → **Credentials** section (`settings.agents.form.byo.sectionTitle`) → select **Bring your own credentials (BYO)** (`settings.agents.form.byo.byoLabel`) → fill **Provider model id** (`settings.agents.form.byo.modelLabel`, placeholder **"e.g. claude-opus-4-20250514"**, `settings.agents.form.byo.modelPlaceholder`) → **Save**                                                                                            | After reload the BYO selection and the model id rehydrate (persistence is mode A; actually running on BYO credentials needs mode B / live keys)                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | F20 | Environment & secrets | Environment tab (**"Environment & secrets"**, `settings.agents.env.title`) → **Add variable** (`envEditor.add`) → fill **NAME** (`envEditor.keyPlaceholder`) + **value** (`envEditor.valuePlaceholder`); the **Type** select (`envEditor.valueType`) offers **Value / Secret / Token source** (`envEditor.secret` / `envEditor.typeTokenSource`) — pick **Secret** on one row → **Save** (`envEditor.save`)                                                                 | Toast **"Environment saved"** (`envEditor.saved`); after reload the rows persist and the secret's value is masked (type=password immediately; hint-mask like `pla••••e-2` after reload). Sub-asserts: an invalid NAME (e.g. `1BAD`) raises the `envEditor.badKey` error and a duplicate NAME the `envEditor.dupKey` error — both fire as **transient toasts on Save**, not inline field errors                                                                                                                                                                         |
 
-> **F11 publish gate (verified live — none exists)**: the
-> **"Publish this agent to enable webhook access."** warning
-> (`settings.agents.webhook.notPublished`) is unreachable dead code —
-> `agent-webhook-section.tsx` hardcodes `isPublished = true` ("all agents are
-> live in the file-based architecture"). **Create webhook** stays enabled even
-> with **Visible in chat** off. If the warning ever appears, that is a
-> regression worth filing.
+> **F11 publish gate (none exists — by design)**: every agent is live in the
+> file-based architecture, so there is no "publish" gate on webhook access.
+> **Create webhook** is always enabled, even with **Visible in chat** off. The
+> former dead `isPublished`/`notPublished` warning branch was removed (#2359);
+> if any "publish this agent" warning reappears, that is a regression worth
+> filing.
 
 ## Boundary & error tests
 

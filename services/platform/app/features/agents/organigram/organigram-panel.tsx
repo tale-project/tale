@@ -6,43 +6,35 @@ import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, X } from 'lucide-react';
 
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import {
+  MultiSelect,
+  type MultiSelectOption,
+} from '@/app/components/ui/forms/multi-select';
 import type { OrgChartNode } from '@/convex/agents/org_chart_actions';
 import { useT } from '@/lib/i18n/client';
 
-interface AgentOption {
-  slug: string;
-  label: string;
-}
-
-/** A bordered, scrollable checklist of agents — the panel's edit affordance
- *  for both the incoming ("reports to") and outgoing ("delegates to") edges.
- *  Toggling stages the COMPLETE next list into the draft; nothing persists
- *  until the canvas-level Save commits a new version. */
+/** A searchable, scrollable agent picker — the panel's edit affordance for both
+ *  the incoming ("reports to") and outgoing ("delegates to") edges. Built on the
+ *  shared {@link MultiSelect} so it scales as the workforce grows. Toggling
+ *  stages the COMPLETE next list into the draft; nothing persists until the
+ *  canvas-level Save commits a new version. */
 function AgentChecklist({
   label,
   options,
   selected,
   emptyText,
+  searchPlaceholder,
   disabled,
   onChange,
 }: {
   label: string;
-  options: AgentOption[];
+  options: MultiSelectOption[];
   selected: string[];
   emptyText: string;
+  searchPlaceholder: string;
   disabled: boolean;
   onChange: (next: string[]) => void;
 }) {
-  const selectedSet = new Set(selected);
-  const toggle = (slug: string) => {
-    onChange(
-      selectedSet.has(slug)
-        ? selected.filter((s) => s !== slug)
-        : [...selected, slug],
-    );
-  };
-
   return (
     <div className="flex flex-col gap-1.5">
       <Text as="h3" variant="label" className="text-xs">
@@ -53,23 +45,16 @@ function AgentChecklist({
           {emptyText}
         </Text>
       ) : (
-        <div className="border-border max-h-44 overflow-y-auto rounded-md border">
-          {options.map((option) => (
-            <label
-              key={option.slug}
-              className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 px-2.5 py-2"
-            >
-              <Checkbox
-                checked={selectedSet.has(option.slug)}
-                disabled={disabled}
-                onCheckedChange={() => toggle(option.slug)}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {option.label}
-              </span>
-            </label>
-          ))}
-        </div>
+        <MultiSelect
+          value={selected}
+          onValueChange={onChange}
+          options={options}
+          disabled={disabled}
+          placeholder={emptyText}
+          searchPlaceholder={searchPlaceholder}
+          emptyText={emptyText}
+          aria-label={label}
+        />
       )}
     </div>
   );
@@ -103,10 +88,11 @@ export function OrganigramPanel({
   onClose: () => void;
 }) {
   const { t } = useT('organigram');
-  const options: AgentOption[] = allNodes
+  const { t: tCommon } = useT('common');
+  const options: MultiSelectOption[] = allNodes
     .filter((other) => other.slug !== node.slug)
     .map((other) => ({
-      slug: other.slug,
+      value: other.slug,
       label: other.displayName || other.slug,
     }));
 
@@ -144,6 +130,7 @@ export function OrganigramPanel({
         options={options}
         selected={node.parentSlugs}
         emptyText={t('panel.noAgents')}
+        searchPlaceholder={tCommon('search.placeholder')}
         disabled={!canEdit || isSaving}
         onChange={onSetParents}
       />
@@ -153,6 +140,7 @@ export function OrganigramPanel({
         options={options}
         selected={node.directReports}
         emptyText={t('panel.noAgents')}
+        searchPlaceholder={tCommon('search.placeholder')}
         disabled={!canEdit || isSaving}
         onChange={onSetDelegates}
       />

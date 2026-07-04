@@ -8,7 +8,6 @@ import {
 } from '@tanstack/react-router';
 import { AlertCircle } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
@@ -16,6 +15,7 @@ import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Label } from '@/app/components/ui/forms/label';
+import { useForm } from '@/app/components/ui/forms/use-form';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { ConditionalAccessError } from '@/app/features/auth/components/conditional-access-error';
 import {
@@ -178,7 +178,6 @@ export function LogInPage() {
 
   const form = useForm<LogInFormData>({
     resolver: zodResolver(logInSchema),
-    mode: 'onChange',
     defaultValues: {
       email: '',
       password: '',

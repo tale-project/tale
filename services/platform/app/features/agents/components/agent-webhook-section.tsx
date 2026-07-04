@@ -1,6 +1,5 @@
 'use client';
 
-import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { Row } from '@tale/ui/layout';
@@ -15,6 +14,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { useCopy } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -44,6 +44,7 @@ export function AgentWebhookSection({
 }: AgentWebhookSectionProps) {
   const { t } = useT('settings');
   const { toast } = useToast();
+  const { copy } = useCopy();
 
   const { webhooks } = useAgentWebhooks(organizationId, agentSlug);
 
@@ -60,7 +61,6 @@ export function AgentWebhookSection({
 
   const siteUrl = useSiteUrl();
   const basePath = getEnv('BASE_PATH');
-  const isPublished = true; // All agents are live in the file-based architecture
 
   const getWebhookUrl = useCallback(
     (token: string) => `${siteUrl}${basePath}/api/agents/wh/${token}`,
@@ -131,19 +131,18 @@ export function AgentWebhookSection({
   const handleCopyUrl = useCallback(
     async (token: string) => {
       const url = getWebhookUrl(token);
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopiedToken(token);
-        toast({
-          title: t('agents.webhook.toast.urlCopied'),
-          variant: 'success',
-        });
-        setTimeout(() => setCopiedToken(null), 2000);
-      } catch {
-        // Clipboard API not available
-      }
+      // `useCopy` logs and shows a destructive toast when the clipboard write
+      // is denied — never leave the user believing a failed copy succeeded.
+      const copied = await copy(url);
+      if (!copied) return;
+      setCopiedToken(token);
+      toast({
+        title: t('agents.webhook.toast.urlCopied'),
+        variant: 'success',
+      });
+      setTimeout(() => setCopiedToken(null), 2000);
     },
-    [getWebhookUrl, toast, t],
+    [getWebhookUrl, copy, toast, t],
   );
 
   const { formatDate: formatDateLong } = useFormatDate();
@@ -306,12 +305,6 @@ export function AgentWebhookSection({
           </Button>
         }
       />
-      {!isPublished && (
-        <Alert
-          variant="warning"
-          description={t('agents.webhook.notPublished')}
-        />
-      )}
 
       <DataTable
         columns={columns}

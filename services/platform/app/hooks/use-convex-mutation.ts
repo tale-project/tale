@@ -57,8 +57,9 @@ export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
       console.error(`Mutation failed: ${getFunctionName(func)}`, error);
       if (errorToast !== false) {
         toast({
-          title: errorToast?.title ?? t('error.generic'),
-          description: errorToast?.description?.(error),
+          title: errorToast?.title ?? t('error.generic.title'),
+          description:
+            errorToast?.description?.(error) ?? t('error.generic.description'),
           variant: 'destructive',
         });
       }

@@ -651,8 +651,13 @@
       },
       "validation": {
         "currentRequired": "Current password is required",
+        "currentIncorrect": "Current password is incorrect",
         "confirmRequired": "Please confirm your new password",
         "mismatch": "Passwords do not match"
+      },
+      "warning": {
+        "title": "You'll be signed out everywhere",
+        "description": "Changing your password signs you out of all devices. You'll need to sign in again with your new password."
       }
     },
     "forcedChange": {
@@ -1483,6 +1488,7 @@
     "uploadingFile": "Uploading file",
     "indexing": "Indexing...",
     "indexingFailed": "Index failed",
+    "indexingFailedDescription": "{filename} could not be indexed for search.",
     "viewImage": "View image",
     "fileTypes": {
       "image": "IMG",
@@ -1753,8 +1759,22 @@
       "verdictRecorded": "Verdict recorded",
       "verdictError": "Failed to record verdict"
     },
+    "humanControl": {
+      "cardTitle": "The agent needs your help in the browser",
+      "takeControl": "Take control",
+      "takeControlHint": "Take control to complete this step in the live browser, then hand it back.",
+      "controllingHint": "You're driving the browser. Finish the step, then return control to resume the agent.",
+      "returnControl": "Done — return control",
+      "errorAlreadyResolved": "This handoff was already resolved.",
+      "errorTurnRunning": "The agent is already running again.",
+      "errorReturnFailed": "Couldn't return control. Please try again.",
+      "statusReturned": "Control returned — the agent resumed.",
+      "statusSuperseded": "Replaced by a newer request.",
+      "statusTimedOut": "No one took control — the agent moved on."
+    },
     "canvas": {
       "title": "Canvas",
+      "error": "Could not load this file.",
       "noFile": "No file selected",
       "stripOpen": "Open canvas",
       "download": "Download",
@@ -1927,6 +1947,7 @@
       "back": "Back",
       "next": "Next",
       "skip": "Skip",
+      "completeStepToContinue": "Complete this step to continue",
       "loading": "Loading...",
       "done": "Done",
       "duplicate": "Duplicate",
@@ -4698,9 +4719,12 @@
     "cvc": "Card CVC",
     "iban": "IBAN",
     "ipAddress": "IP address",
+    "macAddress": "MAC address",
+    "jwt": "JWT",
     "ssn": "SSN",
     "dateOfBirth": "Date of birth",
     "address": "Address",
+    "nationalId": "National ID",
     "de-personalausweis": "German ID",
     "at-passport": "Austrian passport",
     "fr-nir": "French SSN",
@@ -5661,6 +5685,8 @@
         "sectionWorkflowBindings": "Bound workflows",
         "sectionWorkflowBindingsDescription": "Bind specific workflows as dedicated tools. The agent won't need to specify the workflow ID.",
         "noWorkflowsAvailable": "No active workflows available.",
+        "bindIntegrationsPlaceholder": "Bind integrations…",
+        "bindWorkflowsPlaceholder": "Bind workflows…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
         "skillBindingsCounter": "{count}/{max} bound",
@@ -5833,7 +5859,6 @@
       "webhook": {
         "title": "Webhooks",
         "description": "Create unique URLs to chat with this agent from external systems.",
-        "notPublished": "Publish this agent to enable webhook access.",
         "createButton": "Create webhook",
         "createdTitle": "Webhook created",
         "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
@@ -7410,33 +7435,96 @@
   },
   "toast": {
     "success": {
-      "saved": "Changes saved successfully",
-      "deleted": "Successfully deleted",
-      "profileUpdated": "Profile updated successfully",
-      "passwordChanged": "Password changed successfully",
-      "passwordSet": "Password set successfully",
-      "organizationUpdated": "Organization updated successfully",
-      "newMemberCreated": "New member created and added to organization",
-      "existingUserAdded": "Existing user added to organization",
-      "automationDuplicated": "Automation duplicated successfully",
-      "automationRenamed": "Automation renamed successfully",
-      "brandingUpdated": "Branding updated successfully",
-      "faviconGenerated": "Favicon generated from your logo"
+      "saved": {
+        "title": "Changes saved",
+        "description": "Your changes have been saved."
+      },
+      "deleted": {
+        "title": "Deleted",
+        "description": "The item has been deleted."
+      },
+      "profileUpdated": {
+        "title": "Profile updated",
+        "description": "Your profile changes have been saved."
+      },
+      "passwordChanged": {
+        "title": "Password changed",
+        "description": "Use your new password the next time you sign in."
+      },
+      "passwordSet": {
+        "title": "Password set",
+        "description": "You can now sign in with your password."
+      },
+      "organizationUpdated": {
+        "title": "Organization updated",
+        "description": "Your organization changes have been saved."
+      },
+      "newMemberCreated": {
+        "title": "Member added",
+        "description": "The new member has been created and added to your organization."
+      },
+      "existingUserAdded": {
+        "title": "Member added",
+        "description": "The user has been added to your organization."
+      },
+      "automationDuplicated": {
+        "title": "Automation duplicated",
+        "description": "A copy of the automation has been created."
+      },
+      "automationRenamed": {
+        "title": "Automation renamed",
+        "description": "The new name has been saved."
+      },
+      "brandingUpdated": {
+        "title": "Branding updated",
+        "description": "Your branding changes have been saved."
+      },
+      "faviconGenerated": {
+        "title": "Favicon generated",
+        "description": "We created a favicon from your logo."
+      }
     },
     "error": {
-      "saveFailed": "Failed to save changes",
-      "profileUpdateFailed": "Failed to update profile",
-      "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
-      "organizationUpdateFailed": "Failed to update organization",
-      "brandingUpdateFailed": "Failed to update branding",
+      "saveFailed": {
+        "title": "Couldn't save changes",
+        "description": "Something went wrong. Please try again."
+      },
+      "profileUpdateFailed": {
+        "title": "Couldn't update profile",
+        "description": "Something went wrong. Please try again."
+      },
+      "passwordChangeFailed": {
+        "title": "Couldn't change password",
+        "description": "Please check your current password and try again."
+      },
+      "organizationUpdateFailed": {
+        "title": "Couldn't update organization",
+        "description": "Something went wrong. Please try again."
+      },
+      "brandingUpdateFailed": {
+        "title": "Couldn't update branding",
+        "description": "Something went wrong. Please try again."
+      },
       "imageUploadFailed": "Failed to upload image",
       "imageTooLarge": "Image is too large. Maximum size is 2 MB.",
       "imageMimeUnsupported": "Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.",
       "imageTypeInvalid": "Invalid image type",
-      "addMemberFailed": "Failed to add member",
-      "automationDuplicateFailed": "Failed to duplicate automation",
-      "automationDeleteFailed": "Failed to delete automation",
-      "generic": "Something went wrong. Please try again."
+      "addMemberFailed": {
+        "title": "Couldn't add member",
+        "description": "Something went wrong. Please try again."
+      },
+      "automationDuplicateFailed": {
+        "title": "Couldn't duplicate automation",
+        "description": "Something went wrong. Please try again."
+      },
+      "automationDeleteFailed": {
+        "title": "Couldn't delete automation",
+        "description": "Something went wrong. Please try again."
+      },
+      "generic": {
+        "title": "Something went wrong",
+        "description": "Please try again."
+      }
     }
   },
   "todoList": {
