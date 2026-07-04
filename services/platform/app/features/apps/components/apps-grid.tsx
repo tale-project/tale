@@ -9,11 +9,12 @@ import { Button } from '@tale/ui/button';
 import { Card, CardGrid } from '@tale/ui/card';
 import { EmptyState } from '@tale/ui/empty-state';
 import { HStack, Row, Stack, VStack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { LayoutGrid } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
@@ -28,6 +29,40 @@ import {
 import { AppLifecycleActions } from './app-lifecycle-actions';
 import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
+/** Placeholder cards while the installed + catalog union loads. */
+const PLACEHOLDER_CARD_COUNT = 6;
+
+/**
+ * Placeholder card matching the app hub card footprint (icon tile, title,
+ * two-line description, footer action row) so the loading grid occupies the
+ * same height as the loaded grid. Decorative; the enclosing `<Skeletonize>`
+ * owns the single status announcement.
+ */
+function AppCardSkeleton() {
+  return (
+    <Card className="h-full">
+      <VStack gap={3}>
+        <HStack gap={3} className="items-start justify-between">
+          <HStack gap={3} className="min-w-0 items-start">
+            <SkeletonBox>
+              <div className="size-9 rounded-md" />
+            </SkeletonBox>
+            <VStack gap={1} className="min-w-0 flex-1">
+              <div className="w-28 text-sm leading-none">
+                <SkeletonText />
+              </div>
+              <div className="text-sm leading-snug">
+                <SkeletonText lines={2} />
+              </div>
+            </VStack>
+          </HStack>
+        </HStack>
+        <div className="h-8" />
+      </VStack>
+    </Card>
+  );
+}
+
 function InstallBadge({ state }: { state: AppInstallState }) {
   const { t } = useT('apps');
   if (state.status === 'broken') {
@@ -39,7 +74,16 @@ function InstallBadge({ state }: { state: AppInstallState }) {
   return <Badge variant="green">{t('install.installed')}</Badge>;
 }
 
-export function AppsGrid({ organizationId }: { organizationId: string }) {
+export function AppsGrid({
+  organizationId,
+  action,
+}: {
+  organizationId: string;
+  /** Toolbar action rendered on the same row as the search input (e.g. the
+   * "Upload app" button). Right-aligned; stays visible while apps load or when
+   * none are installed yet. */
+  action?: ReactNode;
+}) {
   const { t } = useT('apps');
   // The hub shows the UNION of the org's installed apps and the built-in
   // catalog, keyed by slug. An installed entry wins (it carries the full
@@ -77,26 +121,58 @@ export function AppsGrid({ organizationId }: { organizationId: string }) {
     );
   }, [apps, searchQuery]);
 
-  if (isLoading && apps.length === 0) return <SkeletonText lines={4} />;
-  if (apps.length === 0) {
+  const hasApps = apps.length > 0;
+  const showToolbar = hasApps || action != null;
+
+  // Loading: render the same toolbar + card-grid shape with placeholder cards
+  // inside a single Skeletonize so the hub resolves under stable chrome rather
+  // than swapping in from a blank text block.
+  if (isLoading && !hasApps) {
     return (
-      <EmptyState
-        icon={LayoutGrid}
-        title={t('empty.title')}
-        description={t('empty.description')}
-      />
+      <Skeletonize loading label={t('title')}>
+        <Stack gap={4}>
+          <Row justify="between" gap={4}>
+            <div className="w-64">
+              <SkeletonBox>
+                <div className="h-9 rounded-md" />
+              </SkeletonBox>
+            </div>
+            {action ?? <span />}
+          </Row>
+          <CardGrid>
+            {Array.from({ length: PLACEHOLDER_CARD_COUNT }).map((_, i) => (
+              <AppCardSkeleton key={i} />
+            ))}
+          </CardGrid>
+        </Stack>
+      </Skeletonize>
     );
   }
 
   return (
     <Stack gap={4}>
-      <SearchInput
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder={t('searchPlaceholder')}
-        className="w-64"
-      />
-      {filteredApps.length === 0 ? (
+      {showToolbar ? (
+        <Row justify="between" gap={4}>
+          {hasApps ? (
+            <SearchInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('searchPlaceholder')}
+              className="w-64"
+            />
+          ) : (
+            <span />
+          )}
+          {action}
+        </Row>
+      ) : null}
+      {!hasApps ? (
+        <EmptyState
+          icon={LayoutGrid}
+          title={t('empty.title')}
+          description={t('empty.description')}
+        />
+      ) : filteredApps.length === 0 ? (
         <EmptyState icon={LayoutGrid} title={t('searchNoResults')} />
       ) : (
         <CardGrid>

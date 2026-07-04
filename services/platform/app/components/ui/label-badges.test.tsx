@@ -23,15 +23,13 @@ describe('LabelBadges', () => {
   it('shows the first label as a badge and no overflow when only one', () => {
     render(<LabelBadges labels={['Sales']} />);
     expect(screen.getByText('Sales')).toBeInTheDocument();
-    expect(screen.queryByText('…')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
   });
 
-  it('shows the first label plus an overflow badge for the rest', () => {
+  it('shows the first label with a +n suffix when more exist', () => {
     render(<LabelBadges labels={['Sales', 'Outreach', 'Email']} />);
-    expect(screen.getByText('Sales')).toBeInTheDocument();
-    // The remaining labels collapse into a single "…" overflow badge whose
-    // tooltip carries them comma-separated.
-    expect(screen.getByText('…')).toBeInTheDocument();
+    expect(screen.getByText('Sales +2')).toBeInTheDocument();
     expect(screen.queryByText('Outreach')).not.toBeInTheDocument();
+    expect(screen.queryByText('+2')).not.toBeInTheDocument();
   });
 });

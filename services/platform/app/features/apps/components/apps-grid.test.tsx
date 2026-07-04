@@ -72,6 +72,26 @@ beforeEach(() => {
 });
 
 describe('AppsGrid catalog/installed union (#1979)', () => {
+  it('renders a card-grid skeleton while the union loads', () => {
+    useAppsMock.mockReturnValue({
+      apps: [],
+      isLoading: true,
+      error: null,
+    });
+    useAppCatalogMock.mockReturnValue({
+      apps: [],
+      isLoading: true,
+      error: null,
+    });
+
+    const { container } = render(<AppsGrid organizationId="org_1" />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Apps');
+    // Six icon tiles — one per placeholder card in the loading grid.
+    expect(container.getElementsByClassName('size-9')).toHaveLength(6);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('renders the union of installed and catalog apps, keyed by slug', () => {
     useAppsMock.mockReturnValue({
       apps: [app({ slug: 'installed-only', name: 'Installed Only' })],

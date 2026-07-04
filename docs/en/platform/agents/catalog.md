@@ -9,11 +9,11 @@ Each agent's JSON configuration is the source of truth for its name, description
 
 ## States and actions
 
-Every card shows one of three states and the action that fits it:
+Every card shows its roster state and the action that fits it:
 
-- **Available** — in the catalog but not installed. **Install** adds it to your organization (enabled).
+- **Not installed** — no status badge; **Install** adds the agent to your organization (enabled).
 - **Enabled** — installed and live: it can be mentioned, routed to, and assigned work. **Disable** keeps the installation but takes it out of rotation; **Uninstall** removes it.
-- **Disabled** — installed but out of rotation. **Enable** brings it back.
+- **Disabled** — installed but out of rotation (red badge). **Enable** brings it back.
 
 Cards are grouped by department (their primary label — Engineering, Marketing, Sales, Finance, and so on), and a search box filters by name, description, or department.
 

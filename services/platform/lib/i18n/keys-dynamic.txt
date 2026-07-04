@@ -233,7 +233,7 @@ agentCatalog.uninstalled
 agentCatalog.folders.workforce
 agentCatalog.folders.chat
 agentCatalog.folders.github
-agentCatalog.folders.other
+agentCatalog.folders.general
 
 # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
 # Runtimes) are driven by the API_NAV_ITEMS catalog in

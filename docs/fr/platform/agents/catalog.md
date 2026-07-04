@@ -9,11 +9,11 @@ La configuration JSON de chaque agent fait foi pour son nom, sa description et s
 
 ## États et actions
 
-Chaque carte affiche l'un de trois états et l'action correspondante :
+Chaque carte affiche son état de roster et l'action correspondante :
 
-- **Disponible** — au catalogue mais pas installé. **Installer** l'ajoute à ton organisation (activé).
+- **Non installé** — pas de badge d'état ; **Installer** l'ajoute à ton organisation (activé).
 - **Activé** — installé et actif : il peut être mentionné, recevoir du routage et des tâches. **Désactiver** conserve l'installation mais le met hors service ; **Désinstaller** le retire.
-- **Désactivé** — installé mais hors service. **Activer** le remet en service.
+- **Désactivé** — installé mais hors service (badge rouge). **Activer** le remet en service.
 
 Les cartes sont regroupées par service (leur libellé principal — Ingénierie, Marketing, Ventes, Finance, etc.), et un champ de recherche filtre par nom, description ou service.
 

@@ -97,7 +97,9 @@ export function CatalogCard({
         <div className="mt-3 flex flex-wrap items-center gap-1.5">{meta}</div>
       ) : null}
       {actions ? (
-        <div className="mt-auto flex items-center gap-2 pt-4">{actions}</div>
+        <div className="mt-auto flex w-full items-center gap-2 pt-4">
+          {actions}
+        </div>
       ) : null}
     </>
   );
