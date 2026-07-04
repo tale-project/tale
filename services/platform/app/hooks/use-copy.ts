@@ -49,7 +49,7 @@ interface UseCopyReturn {
  * });
  * ```
  */
-function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
+export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   const {
     copiedDuration = 2000,
     onSuccess,
