@@ -25,7 +25,7 @@ import { Grid, HStack, Row, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { LayoutGrid, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -53,6 +53,7 @@ import { AppView } from '../registry/app-view';
 import { AppRuntimeProvider, resolvePackLabel } from '../runtime/app-runtime';
 import { ResourceDetailProvider } from '../runtime/resource-detail';
 import { AppConfigDrawer } from './app-config-drawer';
+import { AppDeleteAction } from './app-delete-action';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
@@ -583,6 +584,7 @@ function AppDetails({
   labels,
   wizardOpen,
   onWizardOpenChange,
+  isPrivate,
 }: {
   organizationId: string;
   appSlug: string;
@@ -594,8 +596,12 @@ function AppDetails({
   // while the wizard is open, so the flow reaches its integration/Done steps.
   wizardOpen: boolean;
   onWizardOpenChange: (open: boolean) => void;
+  /** A private (uploaded) app — earns a "Private" badge and a Delete affordance
+   *  (built-in catalog apps have neither). */
+  isPrivate: boolean;
 }) {
   const { t } = useT('apps');
+  const navigate = useNavigate();
   const { install, isPending } = useAppInstallActions(organizationId);
   const needsWizard =
     app.scope === 'project' || app.requiredIntegrations.length > 0;
@@ -637,7 +643,7 @@ function AppDetails({
             <Text as="span" className="text-xl font-semibold">
               {app.name}
             </Text>
-            <div>
+            <HStack gap={2} className="flex-wrap items-center">
               <Badge variant="slate">
                 {t(
                   app.scope === 'project'
@@ -645,22 +651,38 @@ function AppDetails({
                     : 'details.scopeOrg',
                 )}
               </Badge>
-            </div>
+              {isPrivate && <Badge variant="outline">{t('private')}</Badge>}
+            </HStack>
           </VStack>
         </HStack>
-        <Button
-          disabled={isPending}
-          onClick={() =>
-            needsWizard
-              ? onWizardOpenChange(true)
-              : notifyOnInstallFailure(
-                  install(appSlug),
-                  t('install.installFailed'),
-                )
-          }
-        >
-          {t('install.install')}
-        </Button>
+        <HStack gap={2} className="shrink-0 items-center">
+          <Button
+            disabled={isPending}
+            onClick={() =>
+              needsWizard
+                ? onWizardOpenChange(true)
+                : notifyOnInstallFailure(
+                    install(appSlug),
+                    t('install.installFailed'),
+                  )
+            }
+          >
+            {t('install.install')}
+          </Button>
+          {isPrivate && (
+            <AppDeleteAction
+              appSlug={appSlug}
+              appName={app.name}
+              organizationId={organizationId}
+              onDeleted={() =>
+                void navigate({
+                  to: '/dashboard/$id/apps',
+                  params: { id: organizationId },
+                })
+              }
+            />
+          )}
+        </HStack>
       </HStack>
 
       <Text variant="muted">
@@ -748,6 +770,11 @@ export function AppPage({
     apps.find((a) => a.slug === appSlug) ??
     catalog.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
+  // Private (uploaded) apps live in the org dir but not the built-in catalog —
+  // the deletable, badge-worthy kind (mirrors the union in apps-grid.tsx).
+  const isPrivate =
+    apps.some((a) => a.slug === appSlug) &&
+    !catalog.some((a) => a.slug === appSlug);
   const { bindings } = useAppBindings(organizationId, appSlug);
   // Owned here (not in AppDetails) so the pre-install details page survives the
   // install: the wizard's Install step flips `state`, which would otherwise
@@ -817,6 +844,7 @@ export function AppPage({
         labels={labels}
         wizardOpen={detailsWizardOpen}
         onWizardOpenChange={setDetailsWizardOpen}
+        isPrivate={isPrivate}
       />
     );
   }

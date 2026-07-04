@@ -31,6 +31,7 @@ import {
   useAppInstallActions,
   useAppInstallStates,
 } from '../hooks/use-install-state';
+import { AppDeleteAction } from './app-delete-action';
 import { AppLifecycleActions } from './app-lifecycle-actions';
 import { AppInstallWizard } from './install-wizard/app-install-wizard';
 
@@ -111,6 +112,14 @@ export function AppsGrid({
       a.name.localeCompare(b.name),
     );
   }, [installed, catalog]);
+  // A private (uploaded) app lives in the org's apps dir but not the built-in
+  // catalog. It's the only kind the UI offers a Delete for (the server refuses
+  // any built-in slug regardless), and it earns a "Private" badge so it's
+  // distinguishable from a built-in card sharing the same display name.
+  const catalogSlugs = useMemo(
+    () => new Set(catalog.map((a) => a.slug)),
+    [catalog],
+  );
   const { bySlug } = useAppInstallStates(organizationId);
   const { install, isPending } = useAppInstallActions(organizationId);
   // The app whose install wizard is open. Project-scoped apps (need a target
@@ -186,6 +195,7 @@ export function AppsGrid({
         <CatalogGrid>
           {filteredApps.map((app) => {
             const state = bySlug.get(app.slug);
+            const isPrivate = !catalogSlugs.has(app.slug);
             return (
               <CatalogCard
                 key={app.slug}
@@ -196,7 +206,12 @@ export function AppsGrid({
                 }
                 title={app.name}
                 description={app.description}
-                badge={<InstallBadge state={state} />}
+                badge={
+                  <>
+                    {isPrivate && <Badge variant="slate">{t('private')}</Badge>}
+                    <InstallBadge state={state} />
+                  </>
+                }
                 actions={
                   state ? (
                     <>
@@ -222,20 +237,31 @@ export function AppsGrid({
                       </div>
                     </>
                   ) : (
-                    <Button
-                      disabled={isPending}
-                      onClick={() =>
-                        app.scope === 'project' ||
-                        app.requiredIntegrations.length > 0
-                          ? setWizardApp(app)
-                          : notifyOnInstallFailure(
-                              install(app.slug),
-                              t('install.installFailed'),
-                            )
-                      }
-                    >
-                      {t('install.install')}
-                    </Button>
+                    <>
+                      <Button
+                        disabled={isPending}
+                        onClick={() =>
+                          app.scope === 'project' ||
+                          app.requiredIntegrations.length > 0
+                            ? setWizardApp(app)
+                            : notifyOnInstallFailure(
+                                install(app.slug),
+                                t('install.installFailed'),
+                              )
+                        }
+                      >
+                        {t('install.install')}
+                      </Button>
+                      {isPrivate && (
+                        <div className="ml-auto">
+                          <AppDeleteAction
+                            appSlug={app.slug}
+                            appName={app.name}
+                            organizationId={organizationId}
+                          />
+                        </div>
+                      )}
+                    </>
                   )
                 }
               />

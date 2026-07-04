@@ -6,6 +6,7 @@
     "addMenu": {
       "label": "App hinzufügen"
     },
+    "private": "Privat",
     "upload": {
       "uploadApp": "App hochladen",
       "dialogTitle": "Private App hochladen",
@@ -36,7 +37,15 @@
       "uploadFailed": "App konnte nicht hochgeladen werden",
       "replaceTitle": "Bestehende App ersetzen?",
       "replaceDescription": "Eine private App namens „{slug}“ existiert bereits. Beim Hochladen wird ihr aktueller Inhalt überschrieben.",
-      "replaceConfirm": "Ersetzen"
+      "replaceConfirm": "Ersetzen",
+      "delete": "Hochgeladene App löschen",
+      "deleteMenuLabel": "{name} löschen",
+      "deleteTitle": "Hochgeladene App löschen",
+      "deleteDescription": "Entfernt die hochgeladene App und ihre Dateien aus dieser Organisation. Integrierte Apps lassen sich nicht löschen.",
+      "deleteWarning": "Das App-Bundle wird dauerhaft entfernt. Deinstalliere die App zuerst, falls sie noch installiert ist.",
+      "deleteSuccess": "Hochgeladene App gelöscht",
+      "deleteFailed": "Die hochgeladene App konnte nicht gelöscht werden",
+      "deleteInstalledBlocked": "Deinstalliere die App, bevor du sie löschst."
     },
     "empty": {
       "title": "Noch keine Apps",

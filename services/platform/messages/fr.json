@@ -6,6 +6,7 @@
     "addMenu": {
       "label": "Ajouter une application"
     },
+    "private": "Privé",
     "upload": {
       "uploadApp": "Téléverser une application",
       "dialogTitle": "Téléverser une application privée",
@@ -36,7 +37,15 @@
       "uploadFailed": "Échec du téléversement de l'application",
       "replaceTitle": "Remplacer l'application existante ?",
       "replaceDescription": "Une application privée nommée « {slug} » existe déjà. Le téléversement écrasera son contenu actuel.",
-      "replaceConfirm": "Remplacer"
+      "replaceConfirm": "Remplacer",
+      "delete": "Supprimer le téléversement",
+      "deleteMenuLabel": "Supprimer {name}",
+      "deleteTitle": "Supprimer l'application téléversée",
+      "deleteDescription": "Retire l'application téléversée et ses fichiers de cette organisation. Les applications intégrées ne peuvent pas être supprimées.",
+      "deleteWarning": "Le bundle de l'application est supprimé définitivement. Désinstalle d'abord l'application si elle est encore installée.",
+      "deleteSuccess": "Téléversement supprimé",
+      "deleteFailed": "Échec de la suppression du téléversement",
+      "deleteInstalledBlocked": "Désinstalle l'application avant de la supprimer."
     },
     "empty": {
       "title": "Aucune application",
