@@ -34,6 +34,7 @@ vi.mock('../_generated/api', () => ({
       mutations: { cleanupAgentBinding: 'cleanupAgentBinding' },
       internal_queries: { getBindingByAgent: 'getBindingByAgent' },
       installations: { getInstallationInternal: 'getInstallationInternal' },
+      audit_mutations: { logAgentAuditEvent: 'logAgentAuditEvent' },
     },
     organizations: {
       internal_queries: {
@@ -121,7 +122,7 @@ vi.mock('../../lib/shared/schemas/agents', () => ({
 // Import handlers
 // ---------------------------------------------------------------------------
 
-const { deleteAgent, duplicateAgent, restoreFromHistory } =
+const { deleteAgent, duplicateAgent, restoreFromHistory, setAgentAuthMode } =
   await import('./file_actions');
 
 type ActionConfig = {
@@ -131,6 +132,8 @@ type ActionConfig = {
 const deleteHandler = (deleteAgent as unknown as ActionConfig).handler;
 const duplicateHandler = (duplicateAgent as unknown as ActionConfig).handler;
 const restoreHandler = (restoreFromHistory as unknown as ActionConfig).handler;
+const setAuthModeHandler = (setAgentAuthMode as unknown as ActionConfig)
+  .handler;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -586,6 +589,100 @@ describe('restoreFromHistory', () => {
     ).rejects.toMatchObject({
       data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
     });
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: setAgentAuthMode
+// ---------------------------------------------------------------------------
+
+describe('setAgentAuthMode', () => {
+  const externalByoConfig = {
+    displayName: 'Desk Implementer',
+    description: 'Runs as Claude Code',
+    primaryBehavior: 'external-agent',
+    agentKind: 'claude-code',
+    authMode: 'byo',
+    // An unresolvable model: `saveAgent` would throw UNKNOWN_MODEL on this,
+    // which is exactly what used to block the flip (#2342).
+    supportedModels: ['openrouter:anthropic/claude-opus-4.6'],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireOrgMembershipById.mockResolvedValue({
+      orgId: 'org-123',
+      orgSlug: 'default',
+      userId: 'user-1',
+      email: 'a@b.com',
+      name: 'A',
+      member: { _id: 'm-1', role: 'member' },
+    });
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: externalByoConfig,
+      hash: 'abc123',
+    });
+    mockAtomicWrite.mockResolvedValue(undefined);
+  });
+
+  it('persists the managed flip even when supportedModels are unresolvable', async () => {
+    // Regression (#2342): the flip must NOT re-validate supportedModels against
+    // the provider catalog — an agent whose declared model the org hasn't
+    // configured still gets its auth mode persisted.
+    const ctx = createMockCtx();
+
+    const result = await setAuthModeHandler(
+      ctx as never,
+      {
+        organizationId: 'org-123',
+        agentName: 'issue-desk/desk-implementer',
+        authMode: 'managed',
+      } as never,
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(mockAtomicWrite).toHaveBeenCalledTimes(1);
+    const [writtenPath, writtenContent] = mockAtomicWrite.mock.calls[0];
+    expect(writtenPath).toBe('/data/agents/issue-desk/desk-implementer.json');
+    expect(JSON.parse(writtenContent).authMode).toBe('managed');
+  });
+
+  it('is a no-op write when the mode is already set', async () => {
+    const ctx = createMockCtx();
+
+    const result = await setAuthModeHandler(
+      ctx as never,
+      {
+        organizationId: 'org-123',
+        agentName: 'issue-desk/desk-implementer',
+        authMode: 'byo',
+      } as never,
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-external agent', async () => {
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: { ...validConfig, primaryBehavior: 'chat' },
+      hash: 'abc123',
+    });
+    const ctx = createMockCtx();
+
+    await expect(
+      setAuthModeHandler(
+        ctx as never,
+        {
+          organizationId: 'org-123',
+          agentName: 'my-agent',
+          authMode: 'managed',
+        } as never,
+      ),
+    ).rejects.toThrow('authMode only applies to an external-agent.');
     expect(mockAtomicWrite).not.toHaveBeenCalled();
   });
 });
