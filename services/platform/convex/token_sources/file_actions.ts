@@ -97,14 +97,17 @@ export const getTokenSource = action({
     const read = await loadTokenSource(orgSlug, args.slug);
     if (!read.ok) return null;
     // "Configured" = a secret sidecar exists (presence, not decryptability) OR
-    // the auth declares a `secretEnv` env-ref. Never decrypt here — the value
-    // is write-only and a momentary SOPS-key gap must not read as "no secret".
+    // the auth's `secretEnv` env-ref is actually set in this deployment. Never
+    // decrypt the sidecar here — the value is write-only and a momentary
+    // SOPS-key gap must not read as "no secret". The env-ref, however, must be
+    // resolved: a declared-but-unset `secretEnv` is NOT configured (it mirrors
+    // the pool fetcher, which reads `process.env[secretEnv]` at request time).
     const sidecarExists = await tokenSourceSecretExists(orgSlug, args.slug);
     const auth = read.config.auth;
     const hasEnvRef =
       auth.method !== 'none' &&
       typeof auth.secretEnv === 'string' &&
-      auth.secretEnv.length > 0;
+      (process.env[auth.secretEnv] ?? '').length > 0;
     return { config: read.config, hasSecret: sidecarExists || hasEnvRef };
   },
 });
