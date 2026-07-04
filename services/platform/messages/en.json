@@ -1759,8 +1759,22 @@
       "verdictRecorded": "Verdict recorded",
       "verdictError": "Failed to record verdict"
     },
+    "humanControl": {
+      "cardTitle": "The agent needs your help in the browser",
+      "takeControl": "Take control",
+      "takeControlHint": "Take control to complete this step in the live browser, then hand it back.",
+      "controllingHint": "You're driving the browser. Finish the step, then return control to resume the agent.",
+      "returnControl": "Done — return control",
+      "errorAlreadyResolved": "This handoff was already resolved.",
+      "errorTurnRunning": "The agent is already running again.",
+      "errorReturnFailed": "Couldn't return control. Please try again.",
+      "statusReturned": "Control returned — the agent resumed.",
+      "statusSuperseded": "Replaced by a newer request.",
+      "statusTimedOut": "No one took control — the agent moved on."
+    },
     "canvas": {
       "title": "Canvas",
+      "error": "Could not load this file.",
       "noFile": "No file selected",
       "stripOpen": "Open canvas",
       "download": "Download",

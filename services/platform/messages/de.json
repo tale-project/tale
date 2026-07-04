@@ -1740,8 +1740,22 @@
       "verdictRecorded": "Bewertung gespeichert",
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
+    "humanControl": {
+      "cardTitle": "Der Agent braucht deine Hilfe im Browser",
+      "takeControl": "Kontrolle übernehmen",
+      "takeControlHint": "Übernimm die Kontrolle, um diesen Schritt im Live-Browser abzuschließen, und gib sie danach zurück.",
+      "controllingHint": "Du steuerst den Browser. Schließe den Schritt ab und gib die Kontrolle zurück, damit der Agent weitermacht.",
+      "returnControl": "Fertig — Kontrolle zurückgeben",
+      "errorAlreadyResolved": "Diese Übergabe wurde bereits abgeschlossen.",
+      "errorTurnRunning": "Der Agent läuft bereits wieder.",
+      "errorReturnFailed": "Die Kontrolle konnte nicht zurückgegeben werden. Bitte versuche es erneut.",
+      "statusReturned": "Kontrolle zurückgegeben — der Agent macht weiter.",
+      "statusSuperseded": "Durch eine neuere Anfrage ersetzt.",
+      "statusTimedOut": "Niemand hat übernommen — der Agent hat weitergemacht."
+    },
     "canvas": {
       "title": "Canvas",
+      "error": "Diese Datei konnte nicht geladen werden.",
       "noFile": "Keine Datei ausgewählt",
       "stripOpen": "Canvas öffnen",
       "download": "Herunterladen",
