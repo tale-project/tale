@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildMessageSegments } from './build-message-segments';
+import {
+  buildMessageSegments,
+  hasVisibleActiveSegment,
+} from './build-message-segments';
 
 describe('buildMessageSegments', () => {
   it('returns empty for undefined/empty parts', () => {
@@ -239,5 +242,80 @@ describe('buildMessageSegments', () => {
       { type: 'reasoning', text: 'ok', state: 'done' },
     ] as unknown[]);
     expect(segments).toHaveLength(1);
+  });
+});
+
+describe('hasVisibleActiveSegment', () => {
+  const active = { active: true, headerOwnsReasoning: true };
+
+  it('returns false when the turn is not active', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'tool-web', toolCallId: 'w1', state: 'input-available' },
+    ]);
+    expect(
+      hasVisibleActiveSegment(segments, { ...active, active: false }),
+    ).toBe(false);
+  });
+
+  it('flags an in-flight tool as visibly active', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'tool-web', toolCallId: 'w1', state: 'input-available' },
+    ]);
+    expect(hasVisibleActiveSegment(segments, active)).toBe(true);
+  });
+
+  it('flags the trailing text typewriter as visibly active', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'text', text: 'partial answer', state: 'streaming' },
+    ]);
+    expect(hasVisibleActiveSegment(segments, active)).toBe(true);
+  });
+
+  it('does not treat intermediate streaming text followed by a settled tool as visibly active', () => {
+    // Interim narration between tool calls can leave an earlier text run still
+    // marked `streaming` while a later text run (and settled tools) already
+    // landed — only the final text run owns the typewriter, so the earlier
+    // run renders statically and the trailing dots must stay up.
+    const { segments, isStreaming } = buildMessageSegments([
+      {
+        type: 'text',
+        text: 'Looking further for the kickoff time.',
+        state: 'streaming',
+      },
+      {
+        type: 'tool-web',
+        toolCallId: 'w1',
+        state: 'output-available',
+        output: 'page 1',
+      },
+      {
+        type: 'tool-web',
+        toolCallId: 'w2',
+        state: 'output-available',
+        output: 'page 2',
+      },
+      { type: 'text', text: 'Still checking schedules.', state: 'done' },
+    ]);
+    expect(isStreaming).toBe(true);
+    expect(hasVisibleActiveSegment(segments, active)).toBe(false);
+  });
+
+  it('suppresses inline reasoning when the header owns it', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'reasoning', text: 'planning', state: 'streaming' },
+    ]);
+    expect(hasVisibleActiveSegment(segments, active)).toBe(false);
+  });
+
+  it('flags inline reasoning when the header does not own it', () => {
+    const { segments } = buildMessageSegments([
+      { type: 'reasoning', text: 'planning', state: 'streaming' },
+    ]);
+    expect(
+      hasVisibleActiveSegment(segments, {
+        active: true,
+        headerOwnsReasoning: false,
+      }),
+    ).toBe(true);
   });
 });

@@ -52,6 +52,7 @@ import {
 } from '../hooks/use-voice-output';
 import {
   buildMessageSegments,
+  hasVisibleActiveSegment,
   type MessageSegment,
 } from '../utils/build-message-segments';
 import {
@@ -431,23 +432,31 @@ function MessageBubbleComponent({
   // `hasAnswerStarted` is the boolean `!!displayContent`, which flips once
   // (empty → non-empty) and then stays stable through the answer stream.
   const hasAnswerStarted = !!displayContent;
-  // Trailing "still working" affordance: while the turn streams but EVERY
-  // segment is SETTLED — `messageSegments.isStreaming` is the any-segment-live
-  // predicate (in-flight tool, streaming reasoning/text anywhere, not just the
-  // tail; parallel tool calls can settle out of order, leaving an in-flight
-  // spinner mid-list behind a settled tail) — show pulsing dots at the end of
-  // the bubble so a long external-agent turn never reads as finished between
-  // tool calls. When any segment is itself active, that element is the
-  // affordance and the dots stay hidden: exactly one live signal per bubble.
+  // Trailing "still working" affordance: while the turn streams but no segment
+  // renders its own live affordance (tool spinner, inline reasoning, trailing
+  // text typewriter) — show pulsing dots at the end of the bubble so a long
+  // turn never reads as finished between tool calls. Uses
+  // `hasVisibleActiveSegment` (not the broader `messageSegments.isStreaming`)
+  // so an intermediate text part still marked `streaming` but followed by a
+  // settled tool row does not suppress the dots during the gap before the
+  // next tool call lands. When a segment IS visibly active, that element owns
+  // the signal and the dots stay hidden: exactly one live signal per bubble.
   // `isFinalReveal` excludes the one-cycle isStreaming carry-over a native
   // turn uses to mount its typewriter animated — the turn is already done.
+  const headerOwnsReasoningForLoader =
+    messageSegments.hasReasoning ||
+    messageSegments.toolCount > 0 ||
+    messageSegments.skillCount > 0;
   const showTrailingLoader =
     !isUser &&
     !!isAssistantStreaming &&
     !message.isFinalReveal &&
     !isBlocked &&
     messageSegments.segments.length > 0 &&
-    !messageSegments.isStreaming;
+    !hasVisibleActiveSegment(messageSegments.segments, {
+      active: !!isAssistantStreaming,
+      headerOwnsReasoning: headerOwnsReasoningForLoader,
+    });
 
   // Post-answer toolbar gating: the toolbar appears only after the typewriter
   // has fully REVEALED the answer, not merely when the server stream ends —
