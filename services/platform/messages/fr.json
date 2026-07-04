@@ -8120,7 +8120,16 @@
       "cliHint": "Installez d'abord la CLI Tale si ce n'est pas déjà fait :",
       "description": "À installer une fois par machine : setup demande l'URL de cet espace, une clé API et l'espace de travail git où les agents peuvent travailler. Liez ensuite un agent à une runtime dans sa configuration — ses tâches s'exécuteront sur votre machine et reviendront pour revue.",
       "privacy": "Les chemins locaux ne quittent jamais votre machine — seules les clés d'espace de travail que vous choisissez sont annoncées ici. La permission full_auto exige un opt-in côté serveur ET côté daemon.",
-      "createKey": "Créer une clé API"
+      "createKey": "Créer une clé API",
+      "generate": "Générer une clé et copier la commande",
+      "generateHint": "Génère une nouvelle clé API et copie une commande de setup prête à l'emploi, avec l'URL de cet espace et la clé déjà renseignées.",
+      "generated": "Commande de setup générée",
+      "generateError": "Impossible de générer une clé. Réessayez.",
+      "copied": "Commande de setup copiée dans le presse-papiers",
+      "commandLabel": "À exécuter sur la machine du daemon",
+      "copyCommand": "Copier la commande de setup",
+      "keyCaveat": "Cette commande contient une nouvelle clé API, affichée une seule fois. Quiconque la détient peut agir en tant que ce daemon — gardez-la secrète et révoquez-la dans Paramètres → API → REST en cas de fuite.",
+      "keyName": "Daemon"
     },
     "list": {
       "title": "Daemons connectés",

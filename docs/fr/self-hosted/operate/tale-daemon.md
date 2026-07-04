@@ -15,6 +15,15 @@ tale daemon status   # configuration, CLIs détectées, connectivité serveur
 
 `setup` génère une identité stable et stocke la configuration dans `~/.tale-daemon/config.json` (mode 600). Utilisez une clé API Tale normale (**Paramètres → API → REST**) ; définissez `TALE_DAEMON_API_KEY` pour garder la clé hors du fichier. Les daemons connectés apparaissent sous **Paramètres → API → Runtimes** avec leur statut en direct.
 
+Le plus rapide est le bouton **Générer une clé et copier la commande** sous **Paramètres → API → Runtimes** : il génère une nouvelle clé API et copie une commande prête à l'emploi, avec l'URL de cet espace et la clé déjà renseignées. Toute réponse demandée par `setup` peut aussi être passée en option, de sorte que la commande s'exécute sans surveillance :
+
+```sh
+tale daemon setup --yes --url https://your-org.tale.dev --key <api-key>
+tale daemon start
+```
+
+La clé figure dans la ligne de commande — traitez l'extrait comme un secret et révoquez la clé sous **Paramètres → API → REST** en cas de fuite.
+
 ## Confidentialité & permissions
 
 - Les **chemins locaux ne quittent jamais la machine** — seules les clés d'espace de travail que vous choisissez sont annoncées au serveur.
