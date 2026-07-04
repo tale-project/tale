@@ -20,7 +20,7 @@ export default createPlaywrightConfig({
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
-    // Search-index build + Vite cold start.
-    timeout: 180_000,
+    // Search-index build + Vite cold start (CI runners can stall post-index).
+    timeout: 240_000,
   },
 });
