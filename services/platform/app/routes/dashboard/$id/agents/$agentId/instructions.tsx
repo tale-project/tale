@@ -262,6 +262,13 @@ function InstructionsTab() {
         continue;
       if (config.provider && provider.name !== config.provider) continue;
       for (const model of provider.models) {
+        // Models flagged "Hidden from model pickers" must not appear in the
+        // agent's Add-model picker — the flag's contract covers agent model
+        // selection too (see providers schema), matching the chat composer
+        // (model-selector.tsx) and the create-agent dialog. Already-selected
+        // models are dropped as candidates below, so a hidden model an agent
+        // already references stays in its saved list without being re-offered.
+        if (model.hidden === true) continue;
         const variants = Array.isArray(model.quantizations)
           ? model.quantizations
           : undefined;
