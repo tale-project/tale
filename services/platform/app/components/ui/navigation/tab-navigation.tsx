@@ -177,12 +177,14 @@ export function TabNavigation({
     updateIndicator();
   }, [updateIndicator]);
 
-  // Re-measure once web fonts finish loading. The indicator width/left come
-  // from `offsetWidth`/`offsetLeft`, which on a cold reload are first measured
-  // against the system-fallback glyph metrics (Inter ships `font-display:
-  // swap`). Without this the underline stays sized for the fallback text after
-  // Inter swaps in. `updateIndicator` no-ops when the values are unchanged, so
-  // the extra call is cheap when the font was already cached.
+  // Re-measure once web fonts finish loading — belt-and-braces. The indicator
+  // width/left come from `offsetWidth`/`offsetLeft`, measured against whatever
+  // glyphs are painted. Inter is now preloaded at app boot (see
+  // packages/ui/src/fonts.ts), so on a cold load it is normally cached before
+  // the first paint and no fallback→Inter swap occurs. This guard still covers
+  // the slow-network case where Inter lands after the first measure: without it
+  // the underline would stay sized for the fallback text. `updateIndicator`
+  // no-ops when the values are unchanged, so the extra call is cheap.
   useEffect(() => {
     if (typeof document === 'undefined' || !('fonts' in document)) {
       return undefined;
