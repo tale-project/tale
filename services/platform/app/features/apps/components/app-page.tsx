@@ -581,15 +581,22 @@ function AppDetails({
   appSlug,
   app,
   labels,
+  wizardOpen,
+  onWizardOpenChange,
 }: {
   organizationId: string;
   appSlug: string;
   app: AppSummary;
   labels: Record<string, string>;
+  // Controlled by AppPage: installing flips the app's install state, which
+  // would otherwise unmount this pre-install page (and the open wizard) the
+  // instant the wizard's Install step runs. AppPage keeps this page mounted
+  // while the wizard is open, so the flow reaches its integration/Done steps.
+  wizardOpen: boolean;
+  onWizardOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('apps');
   const { install, isPending } = useAppInstallActions(organizationId);
-  const [wizardOpen, setWizardOpen] = useState(false);
   const needsWizard =
     app.scope === 'project' || app.requiredIntegrations.length > 0;
 
@@ -645,7 +652,7 @@ function AppDetails({
           disabled={isPending}
           onClick={() =>
             needsWizard
-              ? setWizardOpen(true)
+              ? onWizardOpenChange(true)
               : notifyOnInstallFailure(
                   install(appSlug),
                   t('install.installFailed'),
@@ -703,7 +710,7 @@ function AppDetails({
       {needsWizard && (
         <AppInstallWizard
           open={wizardOpen}
-          onOpenChange={setWizardOpen}
+          onOpenChange={onWizardOpenChange}
           organizationId={organizationId}
           appSlug={appSlug}
           appName={app.name}
@@ -742,6 +749,11 @@ export function AppPage({
     catalog.find((a) => a.slug === appSlug);
   const state = bySlug.get(appSlug);
   const { bindings } = useAppBindings(organizationId, appSlug);
+  // Owned here (not in AppDetails) so the pre-install details page survives the
+  // install: the wizard's Install step flips `state`, which would otherwise
+  // unmount AppDetails and its still-open wizard before its integration/Done
+  // steps run. While the wizard is open we keep rendering AppDetails.
+  const [detailsWizardOpen, setDetailsWizardOpen] = useState(false);
 
   const labels = useMemo<Record<string, string>>(
     () => resolvePackLabels(app?.messages, locale),
@@ -793,14 +805,18 @@ export function AppPage({
 
   // ORG route, not installed — a pre-install details page (full description +
   // what it includes / needs) with Install as the CTA. The wizard (project pick
-  // for a project-scoped app / required integrations) lives inside it.
-  if (!state) {
+  // for a project-scoped app / required integrations) lives inside it. Stay on
+  // this page while its wizard is open even after the install lands `state`, so
+  // the flow continues to its integration/Done steps instead of vanishing.
+  if (!state || detailsWizardOpen) {
     return (
       <AppDetails
         organizationId={organizationId}
         appSlug={appSlug}
         app={app}
         labels={labels}
+        wizardOpen={detailsWizardOpen}
+        onWizardOpenChange={setDetailsWizardOpen}
       />
     );
   }

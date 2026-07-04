@@ -14,10 +14,13 @@ import { AppPage } from './app-page';
  * slug — otherwise every discovery card contradicts itself with "App not found".
  */
 
-const { useAppsMock, useAppCatalogMock } = vi.hoisted(() => ({
-  useAppsMock: vi.fn(),
-  useAppCatalogMock: vi.fn(),
-}));
+const { useAppsMock, useAppCatalogMock, useAppInstallStatesMock } = vi.hoisted(
+  () => ({
+    useAppsMock: vi.fn(),
+    useAppCatalogMock: vi.fn(),
+    useAppInstallStatesMock: vi.fn(),
+  }),
+);
 
 vi.mock('../hooks/use-apps', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/use-apps')>()),
@@ -26,14 +29,35 @@ vi.mock('../hooks/use-apps', async (importOriginal) => ({
 }));
 
 vi.mock('../hooks/use-install-state', () => ({
-  // A catalog-only app is not installed, so it has no install state.
-  useAppInstallStates: () => ({ bySlug: new Map(), isLoading: false }),
+  useAppInstallStates: useAppInstallStatesMock,
   useAppBindings: () => ({ bindings: [], isLoading: false }),
   useAppInstallActions: () => ({
     install: vi.fn(),
     uninstall: vi.fn(),
     verify: vi.fn(),
     isPending: false,
+  }),
+}));
+
+// Probe the wizard as a lightweight open/closed marker so the test asserts the
+// details page keeps hosting it across the install-state transition, without
+// pulling in the wizard's Convex/integration machinery.
+vi.mock('./install-wizard/app-install-wizard', () => ({
+  AppInstallWizard: ({ open }: { open: boolean }) =>
+    open ? <div>wizard step probe</div> : null,
+}));
+
+// The installed views (MembershipHub/InstalledAppBody) reach into Convex-backed
+// readiness; stub them so the #2341 test observes a clean assertion (the wizard
+// disappearing on the old code) rather than a Convex-provider crash.
+vi.mock('../hooks/use-app-agent-readiness', () => ({
+  useAppAgentReadiness: () => ({ agents: [], refetch: vi.fn() }),
+}));
+vi.mock('../hooks/use-required-integrations', () => ({
+  useRequiredIntegrations: () => ({
+    required: [],
+    blockedSlugs: [],
+    isLoading: false,
   }),
 }));
 
@@ -55,6 +79,11 @@ function catalogApp(overrides: Partial<AppSummary> = {}): AppSummary {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: nothing installed, so an app resolves to its pre-install details.
+  useAppInstallStatesMock.mockReturnValue({
+    bySlug: new Map(),
+    isLoading: false,
+  });
 });
 
 describe('AppPage catalog discovery (#1979)', () => {
@@ -110,5 +139,51 @@ describe('AppPage catalog discovery (#1979)', () => {
     expect(
       screen.getByRole('heading', { name: 'App not found', level: 3 }),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Regression net for #2341: the pre-install details page hosts the install
+ * wizard. The wizard's Install step installs the app, which flips the reactive
+ * install state to defined — and AppPage keys the details page on `!state`.
+ * Before the fix that transition unmounted the details page (and its open
+ * wizard) mid-flow, so a project-scoped install closed silently after Install
+ * instead of continuing to its integration/Done steps.
+ */
+describe('AppPage keeps the install wizard mounted across install (#2341)', () => {
+  const projectApp = () =>
+    catalogApp({
+      slug: 'issue-desk',
+      name: 'Issue Resolution Desk',
+      scope: 'project',
+    });
+
+  it('keeps hosting the wizard after the install lands install state', async () => {
+    useAppsMock.mockReturnValue({ apps: [], isLoading: false, error: null });
+    useAppCatalogMock.mockReturnValue({
+      apps: [projectApp()],
+      isLoading: false,
+      error: null,
+    });
+
+    const { user, rerender } = render(
+      <AppPage organizationId="org_1" appSlug="issue-desk" />,
+    );
+
+    // Open the wizard from the pre-install details page.
+    await user.click(screen.getByRole('button', { name: 'Install' }));
+    expect(screen.getByText('wizard step probe')).toBeInTheDocument();
+
+    // The Install step installs the app: its reactive state now resolves. The
+    // details page must survive this so the wizard reaches its later steps.
+    useAppInstallStatesMock.mockReturnValue({
+      bySlug: new Map([
+        ['issue-desk', { status: 'active', blockedIntegrations: [] }],
+      ]),
+      isLoading: false,
+    });
+    rerender(<AppPage organizationId="org_1" appSlug="issue-desk" />);
+
+    expect(screen.getByText('wizard step probe')).toBeInTheDocument();
   });
 });
