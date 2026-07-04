@@ -105,6 +105,68 @@ paths:
                 usage:
                   prompt_tokens: 8
                   total_tokens: 8
+  /moderations:
+    post:
+      operationId: createModeration
+      summary: Classify text against the moderation categories.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                input:
+                  oneOf:
+                    - type: string
+                    - type: array
+              required: [input]
+      responses:
+        '200':
+          description: A moderation result in the OpenAI moderations shape.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, model, results]
+                properties:
+                  id: { type: string }
+                  model: { type: string }
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [flagged, categories, category_scores]
+                      properties:
+                        flagged: { type: boolean }
+                        categories:
+                          type: object
+                          additionalProperties: { type: boolean }
+                        category_scores:
+                          type: object
+                          additionalProperties: { type: number }
+              # Benign verdict so the governance moderation "Run test" resolves
+              # to a deterministic PASS in the hermetic stack. Category keys
+              # cover the OpenAI preset's default mappings (harassment, hate,
+              # violence, sexual, self-harm) so a `flag`-mode mapping resolves.
+              example:
+                id: modr-mock
+                model: omni-moderation-latest
+                results:
+                  - flagged: false
+                    categories:
+                      harassment: false
+                      hate: false
+                      violence: false
+                      sexual: false
+                      self-harm: false
+                    category_scores:
+                      harassment: 0.0001
+                      hate: 0.0001
+                      violence: 0.0001
+                      sexual: 0.0001
+                      self-harm: 0.0001
   /images/generations:
     post:
       operationId: createImage

@@ -117,6 +117,19 @@ describe('Prism-served AI endpoints (deterministic examples)', () => {
     expect(body.data[0].embedding.length).toBeGreaterThan(0);
   });
 
+  test('POST /v1/moderations returns a benign OpenAI-shaped verdict', async () => {
+    const res = await post('/v1/moderations', {
+      model: 'omni-moderation-latest',
+      input: 'hello there',
+    });
+    expect(res.status).toBe(200);
+    const body = await readJson(res);
+    expect(Array.isArray(body.results)).toBe(true);
+    expect(body.results[0].flagged).toBe(false);
+    expect(typeof body.results[0].categories).toBe('object');
+    expect(typeof body.results[0].category_scores).toBe('object');
+  });
+
   test('POST /v1/images/generations returns base64 image data', async () => {
     const res = await post('/v1/images/generations', {
       model: 'img',
