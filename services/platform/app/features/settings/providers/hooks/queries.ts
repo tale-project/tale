@@ -10,6 +10,11 @@ import type {
   ProviderJson,
 } from '@/lib/shared/schemas/providers';
 
+import {
+  mergeModelCapabilities,
+  modelCapabilitiesFromConfig,
+} from '../utils/model-capabilities';
+
 /**
  * Shape returned by the `readProvider` action. The action declares `v.any()`,
  * so consumers cast to this to read `envSecretStatus` (issue #1711) and the
@@ -99,13 +104,14 @@ export function useHasModelSecret(
 }
 
 /**
- * Cached OpenRouter/provider capabilities (cost, context window, reasoning,
- * prompt-caching, tools/vision) for a set of model ids, keyed by id. Backs the
- * `ModelInfoPopover` info button across every model selector. The daily cron
- * and the live "Fetch models" action both populate `modelCapabilityCache`;
- * ids without a cache row are simply absent from the map (the popover then
- * hides those rows). Pass the currently-visible ids only — the query reads one
- * row per id.
+ * Capabilities (cost, context window, reasoning, prompt-caching, tools/vision)
+ * for a set of model ids, keyed by id. Backs the `ModelInfoPopover` info button
+ * across every model selector. Two sources are merged per field: the synced
+ * catalog cache (`modelCapabilityCache`, populated by the daily cron and the
+ * live "Fetch models" action) and the operator-declared org-config fields on
+ * each provider's model. Operator declarations win per field and are available
+ * before the first sync, so the popover stays useful pre-sync (issue #2357).
+ * Pass the currently-visible ids only — the catalog query reads one row per id.
  */
 export function useModelCapabilities(
   organizationId: string,
@@ -115,10 +121,16 @@ export function useModelCapabilities(
     api.model_catalog.queries.getModelCapabilities,
     { organizationId, modelIds },
   );
+  // Org-config capabilities are read from the provider list (the same source
+  // the pickers already subscribe to); skip the fetch when no ids are wanted,
+  // mirroring the gated catalog query above.
+  const { providers } = useListProviders(organizationId, {
+    enabled: modelIds.length > 0,
+  });
   return useMemo(() => {
-    const map = new Map<string, ModelInfoCapabilities>();
+    const catalog = new Map<string, ModelInfoCapabilities>();
     for (const c of data ?? []) {
-      map.set(c.modelId, {
+      catalog.set(c.modelId, {
         contextWindow: c.contextWindow,
         maxOutputTokens: c.maxOutputTokens,
         inputCentsPerMillion: c.inputCentsPerMillion,
@@ -129,6 +141,23 @@ export function useModelCapabilities(
         supportsVision: c.supportsVision,
       });
     }
+    const config = new Map<string, ModelInfoCapabilities>();
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) {
+        config.set(model.id, modelCapabilitiesFromConfig(model));
+      }
+    }
+    const map = new Map<string, ModelInfoCapabilities>();
+    for (const id of new Set([...catalog.keys(), ...config.keys()])) {
+      const merged = mergeModelCapabilities(config.get(id), catalog.get(id));
+      if (merged) map.set(id, merged);
+    }
     return map;
-  }, [data]);
+  }, [data, providers]);
 }
