@@ -968,6 +968,8 @@ import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_inde
 import type * as migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta from "../migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta.js";
 import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_index from "../migrations/versions/v0_2_89/03_claude_code_fable_default/index.js";
 import type * as migrations_versions_v0_2_89_03_claude_code_fable_default_meta from "../migrations/versions/v0_2_89/03_claude_code_fable_default/meta.js";
+import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index.js";
+import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -2615,6 +2617,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_89/02_thread_files_absolute_paths/meta": typeof migrations_versions_v0_2_89_02_thread_files_absolute_paths_meta;
   "migrations/versions/v0_2_89/03_claude_code_fable_default/index": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_index;
   "migrations/versions/v0_2_89/03_claude_code_fable_default/meta": typeof migrations_versions_v0_2_89_03_claude_code_fable_default_meta;
+  "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/index": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_index;
+  "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;
