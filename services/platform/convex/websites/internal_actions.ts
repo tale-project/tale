@@ -88,6 +88,39 @@ export async function deregisterDomainFromCrawler(
   });
 }
 
+/**
+ * Delete a website row, best-effort deregistering its crawler binding first.
+ *
+ * The crawler deregister is best-effort: an unreachable or failing crawler
+ * (e.g. the crawler datastore is down) must NOT block deletion of the website
+ * record, otherwise the row can never be removed while the crawler is down
+ * (#2316). Log and proceed on failure — the local row is the source of truth
+ * for the UI, and a stale crawler binding is reconciled on the next scan or
+ * re-add. A genuinely reachable crawler still deregisters cleanly first.
+ *
+ * Shared by the Convex `actions.deleteWebsite` surface and the REST
+ * `deregisterAndDelete` internal action so both delete paths behave the same.
+ */
+export async function deregisterAndDeleteWebsiteRow(
+  ctx: ActionCtx,
+  websiteId: Id<'websites'>,
+  orgSlug: string,
+  domain: string,
+): Promise<void> {
+  try {
+    await deregisterDomainFromCrawler(ctx, orgSlug, domain);
+  } catch (error) {
+    console.warn(
+      `[deleteWebsite] crawler deregister failed for ${domain}, deleting row anyway: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
+    websiteId,
+  });
+}
+
 /** Map the in-process `getWebsite` shape onto `CrawlerWebsiteInfo`. */
 function toWebsiteInfo(website: {
   domain: string;
@@ -334,12 +367,15 @@ export const registerAndSync = internalAction({
 
 /**
  * Internal-action equivalent of `actions.deleteWebsite`'s body:
- * deregister the crawler binding first, then delete the row. The REST
+ * deregister the crawler binding, then delete the row. The REST
  * `DELETE /api/v1/websites/:id` path delegates to this so REST and the
  * Convex action have the same shape — without it, REST deleted the
  * `websites` row but left the crawler with a dangling registration that
  * would keep scanning and produce "website not found in crawler" errors
  * if the same domain was re-added later.
+ *
+ * Delegates to `deregisterAndDeleteWebsiteRow`, so the crawler deregister
+ * is best-effort and can never block the row delete (#2316).
  *
  * Caller is responsible for verifying caller membership / row
  * ownership BEFORE invoking (REST: `withRestAuth` + the existing
@@ -357,13 +393,12 @@ export const deregisterAndDelete = internalAction({
     );
     if (!website) return;
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    // Deregister first so a crawler-side failure surfaces to the
-    // caller (matches `actions.deleteWebsite` semantics) and the row
-    // is left in place for retry rather than orphaning the registration.
-    await deregisterDomainFromCrawler(ctx, orgSlug, website.domain);
-    await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
-      websiteId: args.websiteId,
-    });
+    await deregisterAndDeleteWebsiteRow(
+      ctx,
+      args.websiteId,
+      orgSlug,
+      website.domain,
+    );
   },
 });
 

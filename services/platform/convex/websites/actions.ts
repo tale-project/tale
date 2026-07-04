@@ -8,7 +8,7 @@ import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { toWebsiteDomain } from './create_website';
 import {
-  deregisterDomainFromCrawler,
+  deregisterAndDeleteWebsiteRow,
   updateCrawlerScanInterval,
 } from './internal_actions';
 import type {
@@ -149,12 +149,14 @@ export const deleteWebsite = action({
     );
 
     const orgSlug = await orgSlugFromId(ctx, website.organizationId);
-    // Deregister from crawler first — if this fails, the user can retry
-    await deregisterDomainFromCrawler(ctx, orgSlug, website.domain);
-
-    await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
-      websiteId: args.websiteId,
-    });
+    // Best-effort crawler deregister then delete the row: an unreachable
+    // crawler must not block deletion of the website record (#2316).
+    await deregisterAndDeleteWebsiteRow(
+      ctx,
+      args.websiteId,
+      orgSlug,
+      website.domain,
+    );
 
     return null;
   },
