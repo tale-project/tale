@@ -71,6 +71,7 @@ import { createDebugLog } from '../debug_log';
 import { orgSlugFromId } from '../helpers/org_slug';
 import { summarizeForLog } from '../log_redact';
 import {
+  computeThinkingDurationMs,
   resolveTurnStartMs,
   startAbortWatcher,
   type AbortWatcher,
@@ -2059,10 +2060,21 @@ export async function generateAgentResponse(
     // Pre-answer wall-clock the user actually waited, anchored to the TURN start
     // (markGenerating, before routing) so it includes the Auto-router classifier
     // — what the chat "Thought for Ns" summary should show. Resolved here
-    // (post-stream) so the extra read never delays first token.
-    const thinkingDurationMs = firstTokenTime
-      ? firstTokenTime - (await resolveTurnStartMs(ctx, threadId, startTime))
-      : undefined;
+    // (post-stream) so the extra read never delays first token. The thinking
+    // window closes at the first answer token; a reasoning/tool-only or aborted
+    // turn never produces one, so it closes at the turn's end instead — this
+    // keeps "Thought for Ns" on those messages after a reload. Turns with no
+    // thinking phase at all are gated out by the UI (hasActualThought).
+    const resolvedTurnStartMs = await resolveTurnStartMs(
+      ctx,
+      threadId,
+      startTime,
+    );
+    const thinkingDurationMs = computeThinkingDurationMs(
+      firstTokenTime,
+      resolvedTurnStartMs,
+      Date.now(),
+    );
 
     debugLog('Response generated', {
       durationMs,
@@ -2677,10 +2689,20 @@ export async function generateAgentResponse(
     if (metadataMessageId) {
       try {
         const durationMs = Date.now() - startTime;
-        const thinkingDurationMs = firstTokenTime
-          ? firstTokenTime -
-            (await resolveTurnStartMs(ctx, threadId, startTime))
-          : undefined;
+        // Persist the thinking window even for an aborted/errored turn that
+        // never produced a first answer token: it closes at the turn's end so
+        // the reloaded message still shows "Thought for Ns" (see the success
+        // path above for the full rationale).
+        const resolvedTurnStartMs = await resolveTurnStartMs(
+          ctx,
+          threadId,
+          startTime,
+        );
+        const thinkingDurationMs = computeThinkingDurationMs(
+          firstTokenTime,
+          resolvedTurnStartMs,
+          Date.now(),
+        );
         const { toolCalls, toolsUsage, citations } = extractToolCallsFromSteps(
           result.steps ?? [],
         );
