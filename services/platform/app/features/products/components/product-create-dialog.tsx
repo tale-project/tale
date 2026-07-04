@@ -6,6 +6,7 @@ import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 import { z } from 'zod';
 
+import { Image } from '@/app/components/ui/data-display/image';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -323,6 +324,18 @@ export function ProductCreateDialog({
         <WizardStep id="review">
           <Text variant="muted">{tProducts('createWizard.reviewHint')}</Text>
           <div className="border-border rounded-lg border p-3">
+            {values.imageUrl.trim() ? (
+              <Row align="center" justify="between" className="py-1">
+                <Text variant="muted" className="shrink-0">
+                  {tProducts('edit.labels.image')}
+                </Text>
+                <Image
+                  src={values.imageUrl.trim()}
+                  alt=""
+                  className="border-border size-12 shrink-0 rounded-md border object-cover"
+                />
+              </Row>
+            ) : null}
             <ReviewRow
               label={tProducts('edit.labels.name')}
               value={values.name.trim()}
