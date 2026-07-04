@@ -761,13 +761,17 @@ export function ChatInput({
         return;
       }
       if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+        e.preventDefault();
         const selected = mentionResults[clampedMentionHighlight]?.data;
         if (selected) {
-          e.preventDefault();
           handleSelectMention(selected);
           return;
         }
-        // No results to pick: Enter falls through to send below.
+        // "No matches" empty state: swallow Enter/Tab and dismiss the picker
+        // so it never falls through to send the literal `@query` (#2346). A
+        // second Enter then sends, matching the picker-closed behaviour.
+        setMentionTrigger(null);
+        return;
       }
     }
 
