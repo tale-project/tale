@@ -1,13 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
-// On a deployment where several orgs enable SSO, the organization email is the
-// routing key. Clicking "Continue with SSO" must step into the dedicated SSO
-// screen (`?method=sso`) that asks for it — an SSO user never touches the
-// credential form, and no request leaves the page until the email routes.
+// On a deployment where several orgs enable SSO, clicking "Continue with SSO"
+// steps into the org-picker screen (`?method=sso`) — no email field, no discover
+// round-trip until the user picks an organization.
 
 // ── Router ───────────────────────────────────────────────────────────────────
 const { mockNavigate, mockSearch } = vi.hoisted(() => ({
@@ -52,14 +51,20 @@ vi.mock('@/lib/auth-client', () => ({
 // ── Component (imported after all vi.mock calls) ─────────────────────────────
 import { LogInPage } from '@/app/routes/_auth/log-in';
 
-const mockFetch = vi.fn();
+const locationAssign = vi.fn();
 
 beforeEach(() => {
   mockSearch.value = {};
   mockSelectableOrgs.value = [];
-  vi.stubGlobal('fetch', mockFetch);
-  // `redirectToSso` reads SITE_URL via getEnv, which throws when the runtime
-  // env bridge is absent — provide it like the real page load does.
+  locationAssign.mockReset();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: {
+      ...window.location,
+      href: 'http://localhost/',
+      assign: locationAssign,
+    },
+  });
   window.__ENV__ = {
     SITE_URL: 'http://localhost:3000',
     BASE_PATH: '',
@@ -73,7 +78,7 @@ afterEach(() => {
   delete window.__ENV__;
 });
 
-describe('LogInPage – multi-connection SSO steps into the dedicated email screen', () => {
+describe('LogInPage – multi-connection SSO org picker', () => {
   it('clicking the SSO button navigates to ?method=sso instead of redirecting', async () => {
     const { user } = render(<LogInPage />);
 
@@ -88,89 +93,30 @@ describe('LogInPage – multi-connection SSO steps into the dedicated email scre
     };
     expect(call.to).toBe('/log-in');
     expect(call.search({})).toMatchObject({ method: 'sso' });
-    // No discovery round-trip, no IdP redirect from the credential screen.
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('renders only the SSO email step under ?method=sso (no credential form)', () => {
+  it('renders the org picker under ?method=sso (no credential or email form)', () => {
     mockSearch.value = { method: 'sso' };
+    mockSelectableOrgs.value = [
+      { organizationId: 'org_x', displayName: 'Org X SSO', protocol: 'oidc' },
+    ];
 
     render(<LogInPage />);
 
     expect(screen.getByText('login.ssoDescription')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'login.continueWithSso' }),
+      screen.getByRole('option', { name: /Org X SSO/ }),
     ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^email\b/i)).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'login.ssoBackToLogin' }),
-    ).toBeInTheDocument();
-    // The password login is a different method — it must not render here.
-    expect(screen.queryByLabelText(/^password\b/i)).not.toBeInTheDocument();
+      screen.queryByRole('button', { name: 'login.continueWithSso' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'login.loginButton' }),
     ).not.toBeInTheDocument();
   });
 
-  it('asks for the email when continuing with an empty field', async () => {
-    mockSearch.value = { method: 'sso' };
-    const { user } = render(<LogInPage />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'login.continueWithSso' }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('login.ssoEmailRequired')).toBeInTheDocument();
-    });
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('says when no connection matches the typed email domain', async () => {
-    mockSearch.value = { method: 'sso' };
-    mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ ssoEnabled: false }), { status: 200 }),
-    );
-    const { user } = render(<LogInPage />);
-
-    await user.type(
-      screen.getByLabelText('email', { exact: false }),
-      'someone@unrouted.example',
-    );
-    await user.click(
-      screen.getByRole('button', { name: 'login.continueWithSso' }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('login.ssoEmailNoMatch')).toBeInTheDocument();
-    });
-    // Discovery ran once; the authorize redirect did not happen.
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('clears the hint as soon as the email is edited', async () => {
-    mockSearch.value = { method: 'sso' };
-    const { user } = render(<LogInPage />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'login.continueWithSso' }),
-    );
-    await waitFor(() => {
-      expect(screen.getByText('login.ssoEmailRequired')).toBeInTheDocument();
-    });
-
-    await user.type(
-      screen.getByLabelText('email', { exact: false }),
-      'member@a.example',
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.queryByText('login.ssoEmailRequired'),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it('lists domain-less connections for manual selection', () => {
+  it('lists every enabled connection, including those with an email domain', () => {
     mockSearch.value = { method: 'sso' };
     mockSelectableOrgs.value = [
       { organizationId: 'org_x', displayName: 'Org X SSO', protocol: 'oidc' },
@@ -179,41 +125,32 @@ describe('LogInPage – multi-connection SSO steps into the dedicated email scre
 
     render(<LogInPage />);
 
-    expect(screen.getByText('login.ssoPickOrganization')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Org X SSO' }),
+      screen.getByRole('option', { name: /Org X SSO/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Org Y SSO' }),
+      screen.getByRole('option', { name: /Org Y SSO/ }),
     ).toBeInTheDocument();
   });
 
-  it('hides the picker when every connection has an email domain', () => {
+  it('redirects to the IdP with organizationId pinned when an org is picked', async () => {
+    mockSearch.value = { method: 'sso' };
+    mockSelectableOrgs.value = [
+      { organizationId: 'org_x', displayName: 'Org X SSO', protocol: 'oidc' },
+    ];
+    const { user } = render(<LogInPage />);
+
+    await user.click(screen.getByRole('option', { name: /Org X SSO/ }));
+
+    expect(window.location.href).toContain('/api/sso/authorize');
+    expect(window.location.href).toContain('organizationId=org_x');
+  });
+
+  it('shows a message when no organizations are available', () => {
     mockSearch.value = { method: 'sso' };
 
     render(<LogInPage />);
 
-    expect(
-      screen.queryByText('login.ssoPickOrganization'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('the back button returns to the credential screen', async () => {
-    mockSearch.value = { method: 'sso' };
-    const { user } = render(<LogInPage />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'login.ssoBackToLogin' }),
-    );
-
-    expect(mockNavigate).toHaveBeenCalledTimes(1);
-    const call = mockNavigate.mock.calls[0][0] as {
-      to: string;
-      search: (prev: Record<string, unknown>) => Record<string, unknown>;
-    };
-    expect(call.to).toBe('/log-in');
-    expect(call.search({ method: 'sso' })).toMatchObject({
-      method: undefined,
-    });
+    expect(screen.getByText('login.ssoNoOrganizations')).toBeInTheDocument();
   });
 });

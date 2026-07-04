@@ -101,7 +101,6 @@ const DEFAULT_SCOPES: Record<UiProtocol, string> = {
 interface SsoFormData {
   protocol: UiProtocol;
   displayName: string;
-  domain: string;
   // OIDC / OAuth2
   issuer: string;
   clientId: string;
@@ -150,7 +149,6 @@ const ROLE_RULE_TARGETS = [
 const EMPTY_FORM_DATA: SsoFormData = {
   protocol: 'entra-id',
   displayName: '',
-  domain: '',
   issuer: '',
   clientId: '',
   clientSecret: '',
@@ -231,7 +229,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
       .object({
         protocol: z.enum(UI_PROTOCOLS),
         displayName: z.string(),
-        domain: z.string(),
         issuer: z.string(),
         clientId: z.string(),
         clientSecret: z.string(),
@@ -366,7 +363,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     return {
       protocol,
       displayName: config.displayName ?? 'Enterprise SSO',
-      domain: config.domain ?? '',
       issuer,
       // clientId is no longer in the read view; revealed lazily (see effect
       // below) and seeded from state so a reset preserves it.
@@ -410,7 +406,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           await upsertOidc.mutateAsync({
             organizationId,
             displayName: values.displayName,
-            domain: values.domain || undefined,
             providerId: values.protocol,
             issuer: values.issuer,
             authorizationEndpoint:
@@ -436,7 +431,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           await upsertSaml.mutateAsync({
             organizationId,
             displayName: values.displayName,
-            domain: values.domain || undefined,
             idpEntityId: values.idpEntityId,
             idpSsoUrl: values.idpSsoUrl,
             idpCertificate: values.idpCertificate,
@@ -714,29 +708,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               errorMessage={errors.displayName?.message}
               {...register('displayName')}
             />
-            <Input
-              id="sso-domain"
-              label={t('integrations.enterpriseSso.domainLabel')}
-              description={t('integrations.enterpriseSso.domainHelp')}
-              placeholder="example.com"
-              {...register('domain')}
-            />
-            {/* Multi-org deployments route sign-in by this domain. Leaving it
-                empty makes the connection unroutable by address — it is then
-                listed publicly by display name on the SSO screen. Warn, don't
-                block: the operator may want exactly that. */}
-            {config?.enabled &&
-              config.otherOrgsEnabled === true &&
-              !(watch('domain') ?? '').trim() && (
-                <Alert
-                  variant="warning"
-                  icon={AlertTriangle}
-                  title={t('integrations.enterpriseSso.domainWarning.title')}
-                  description={t(
-                    'integrations.enterpriseSso.domainWarning.description',
-                  )}
-                />
-              )}
           </Section>
 
           {isOidcLike ? (
