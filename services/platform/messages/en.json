@@ -5859,7 +5859,6 @@
       "webhook": {
         "title": "Webhooks",
         "description": "Create unique URLs to chat with this agent from external systems.",
-        "notPublished": "Publish this agent to enable webhook access.",
         "createButton": "Create webhook",
         "createdTitle": "Webhook created",
         "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",

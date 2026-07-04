@@ -5596,7 +5596,6 @@
       "webhook": {
         "title": "Webhooks",
         "description": "Crée des URL uniques pour discuter avec cet agent depuis des systèmes externes.",
-        "notPublished": "Publie cet agent pour activer l'accès par webhook.",
         "createButton": "Créer un webhook",
         "createdTitle": "Webhook créé",
         "urlWarning": "Enregistre cette URL de webhook. Le jeton dans l'URL sert d'identifiant d'authentification.",

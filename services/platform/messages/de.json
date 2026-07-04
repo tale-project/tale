@@ -5595,7 +5595,6 @@
       "webhook": {
         "title": "Webhook",
         "description": "Eindeutige URLs erstellen, um mit diesem Agent von externen Systemen zu chatten.",
-        "notPublished": "Veröffentliche diesen Agent, um Webhook-Zugriff zu aktivieren.",
         "createButton": "Webhook erstellen",
         "createdTitle": "Webhook erstellt",
         "urlWarning": "Speichere diese Webhook-URL. Das Token in der URL dient als Authentifizierungsnachweis.",
