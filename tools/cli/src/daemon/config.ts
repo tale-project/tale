@@ -36,7 +36,7 @@ export function configPath(): string {
   return path.join(configDir(), 'config.json');
 }
 
-export function newDaemonId(): string {
+function newDaemonId(): string {
   return `daemon_${randomUUID()}`;
 }
 
