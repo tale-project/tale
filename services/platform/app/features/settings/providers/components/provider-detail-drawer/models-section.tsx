@@ -469,24 +469,16 @@ export function ModelsSection({
             }
           : undefined;
       const isImageGen = form.tags.includes('image-generation');
+      // Both editors are JsonInput bound to an object schema
+      // (providerOptionsClientSchema / requestBodyMapClientSchema): the field
+      // only emits JSON that already parses and satisfies the schema, so these
+      // parses can't throw and a non-object can't reach here.
       let providerOptions: Record<string, unknown> | undefined;
       const trimmedProviderOptions = form.providerOptionsJson.trim();
       if (trimmedProviderOptions) {
-        try {
-          const parsed: unknown = JSON.parse(trimmedProviderOptions);
-          if (isRecord(parsed)) {
-            if (Object.keys(parsed).length > 0) {
-              providerOptions = parsed;
-            }
-          }
-        } catch (parseErr) {
-          toast({
-            title: t('providers.providerOptions.invalidJson'),
-            description:
-              parseErr instanceof Error ? parseErr.message : String(parseErr),
-            variant: 'destructive',
-          });
-          return;
+        const parsed: unknown = JSON.parse(trimmedProviderOptions);
+        if (isRecord(parsed) && Object.keys(parsed).length > 0) {
+          providerOptions = parsed;
         }
       }
       let requestBodyMap:
@@ -494,23 +486,13 @@ export function ModelsSection({
         | undefined;
       const trimmedRequestBodyMap = form.requestBodyMapJson.trim();
       if (trimmedRequestBodyMap) {
-        try {
-          const parsed: unknown = JSON.parse(trimmedRequestBodyMap);
-          if (isRecord(parsed) && Object.keys(parsed).length > 0) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape is checked client-side by requestBodyMapClientSchema and authoritatively by providerJsonSchema.parse on save
-            requestBodyMap = parsed as {
-              rename?: Record<string, string>;
-              remove?: string[];
-            };
-          }
-        } catch (parseErr) {
-          toast({
-            title: t('providers.requestBodyMap.invalidJson'),
-            description:
-              parseErr instanceof Error ? parseErr.message : String(parseErr),
-            variant: 'destructive',
-          });
-          return;
+        const parsed: unknown = JSON.parse(trimmedRequestBodyMap);
+        if (isRecord(parsed) && Object.keys(parsed).length > 0) {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape is checked client-side by requestBodyMapClientSchema and authoritatively by providerJsonSchema.parse on save
+          requestBodyMap = parsed as {
+            rename?: Record<string, string>;
+            remove?: string[];
+          };
         }
       }
       const reasoning = form.reasoningKnob

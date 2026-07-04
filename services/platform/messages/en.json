@@ -6448,7 +6448,6 @@
         "save": "Save provider options",
         "saveSuccess": "Provider options saved",
         "saveError": "Failed to save provider options",
-        "invalidJson": "Provider options is not valid JSON",
         "exampleLabel": "Example",
         "discardConfirmTitle": "Discard unsaved changes?",
         "discardConfirmDescription": "Your provider-options edits will be lost.",
@@ -6460,8 +6459,7 @@
         "modelLevelTitle": "Advanced — Request body map",
         "modelLevelDescription": "Rename or remove fields on the final request Tale sends to this model — for endpoints whose wire format differs. Unlike Provider Options, this never reaches the provider as data; it rewrites the body in place.",
         "guideLabel": "How the request body map works",
-        "modelLevelHelp": "Two optional keys:\n\n- **rename** — map one field name to another (applied first). The classic case is an OpenAI/Azure reasoning deployment that wants `max_completion_tokens` instead of `max_tokens`:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — drop fields the endpoint rejects:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModels flagged with a reasoning capability already get the `max_tokens` → `max_completion_tokens` rename automatically. Empty input clears the override.",
-        "invalidJson": "Request body map is not valid JSON"
+        "modelLevelHelp": "Two optional keys:\n\n- **rename** — map one field name to another (applied first). The classic case is an OpenAI/Azure reasoning deployment that wants `max_completion_tokens` instead of `max_tokens`:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — drop fields the endpoint rejects:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModels flagged with a reasoning capability already get the `max_tokens` → `max_completion_tokens` rename automatically. Empty input clears the override."
       },
       "versionConflictTitle": "Provider was modified",
       "versionConflictDescription": "Reload the page to see the latest version, then re-apply your changes.",
@@ -7874,7 +7872,6 @@
       "submit": "Generate",
       "error": "Failed to create app-password",
       "errorLimit": "You have reached the maximum number of app-passwords. Revoke an unused one first.",
-      "errorInvalidLabel": "Enter a label between 1 and 64 characters.",
       "errorRateLimited": "Too many app-passwords created recently. Please try again later.",
       "savedTitle": "Save this password — it will not be shown again.",
       "copy": "Copy",

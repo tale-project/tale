@@ -6184,7 +6184,6 @@
         "save": "Provider-Optionen speichern",
         "saveSuccess": "Provider-Optionen gespeichert",
         "saveError": "Provider-Optionen konnten nicht gespeichert werden",
-        "invalidJson": "Provider-Optionen sind kein gültiges JSON",
         "exampleLabel": "Beispiel",
         "discardConfirmTitle": "Nicht gespeicherte Änderungen verwerfen?",
         "discardConfirmDescription": "Deine Bearbeitungen der Provider-Optionen gehen verloren.",
@@ -6196,8 +6195,7 @@
         "modelLevelTitle": "Erweitert — Request-Body-Map",
         "modelLevelDescription": "Benenne Felder der finalen Anfrage an dieses Modell um oder entferne sie — für Endpunkte mit abweichendem Wire-Format. Anders als Provider-Optionen erreicht dies den Anbieter nie als Daten; es schreibt den Body direkt um.",
         "guideLabel": "So funktioniert die Request-Body-Map",
-        "modelLevelHelp": "Zwei optionale Schlüssel:\n\n- **rename** — benennt einen Feldnamen in einen anderen um (wird zuerst angewendet). Der klassische Fall ist ein OpenAI-/Azure-Reasoning-Deployment, das `max_completion_tokens` statt `max_tokens` erwartet:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — entfernt Felder, die der Endpunkt ablehnt:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModelle mit einer Reasoning-Capability erhalten die Umbenennung `max_tokens` → `max_completion_tokens` bereits automatisch. Leere Eingabe entfernt die Einstellung.",
-        "invalidJson": "Request-Body-Map ist kein gültiges JSON"
+        "modelLevelHelp": "Zwei optionale Schlüssel:\n\n- **rename** — benennt einen Feldnamen in einen anderen um (wird zuerst angewendet). Der klassische Fall ist ein OpenAI-/Azure-Reasoning-Deployment, das `max_completion_tokens` statt `max_tokens` erwartet:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — entfernt Felder, die der Endpunkt ablehnt:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModelle mit einer Reasoning-Capability erhalten die Umbenennung `max_tokens` → `max_completion_tokens` bereits automatisch. Leere Eingabe entfernt die Einstellung."
       },
       "versionConflictTitle": "Provider wurde geändert",
       "versionConflictDescription": "Lade die Seite neu, um die aktuelle Version zu sehen, und wende deine Änderungen erneut an.",
@@ -7874,7 +7872,6 @@
       "submit": "Erzeugen",
       "error": "App-Passwort konnte nicht erstellt werden",
       "errorLimit": "Du hast die maximale Anzahl an App-Passwörtern erreicht. Widerrufe zuerst ein nicht genutztes.",
-      "errorInvalidLabel": "Gib eine Bezeichnung mit 1 bis 64 Zeichen ein.",
       "errorRateLimited": "Zu viele App-Passwörter in letzter Zeit erstellt. Bitte versuche es später erneut.",
       "savedTitle": "Speichere dieses Passwort — es wird nicht erneut angezeigt.",
       "copy": "Kopieren",

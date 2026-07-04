@@ -284,11 +284,9 @@ function CreateAppPasswordDialog(props: {
       const title =
         code === 'LIMIT_EXCEEDED'
           ? t('create.errorLimit')
-          : code === 'INVALID_LABEL'
-            ? t('create.errorInvalidLabel')
-            : code === 'rate_limited'
-              ? t('create.errorRateLimited')
-              : t('create.error');
+          : code === 'rate_limited'
+            ? t('create.errorRateLimited')
+            : t('create.error');
       toast({ title, variant: 'destructive' });
     } finally {
       setIsCreating(false);
