@@ -290,7 +290,10 @@ export function AgentWebhookSection({
   }, [usageUrl, t]);
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    // Full content width (not the 544px `narrow` column the other agent tabs
+    // use): this tab's webhook table shows long URLs that are unreadable when
+    // squeezed into a narrow column inside the ~1220px main area (#2378).
+    <ContentArea variant="page" gap={6}>
       <SectionHeader
         title={t('agents.webhook.title')}
         description={t('agents.webhook.description')}
