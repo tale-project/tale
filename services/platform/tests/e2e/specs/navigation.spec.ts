@@ -11,9 +11,9 @@ import { SEEDED_AGENT_DISPLAY_NAME, SEEDED_AGENT_SLUG } from '../helpers/seed';
  * up-navigation, the not-found shell, and back/forward history. Read-only —
  * only navigates and asserts.
  *
- * Rail links are icon-only with portalled tooltips (no accessible name), so we
- * scope to the main-navigation landmark and locate each by its deterministic
- * href.
+ * Rail links are icon-only with portalled tooltips; we scope to the
+ * main-navigation landmark and locate each by its deterministic href (the rail
+ * links carry `aria-label`s since #2329, but the href is the stable anchor).
  *
  * NOT-FOUND NOTE: a splat/catch-all route (`/dashboard/$id/$`) renders a styled
  * 404 inside the matched `$id` layout's `<Outlet/>` for any unmatched child —
@@ -224,10 +224,13 @@ test.describe('navigation: breadcrumbs', () => {
     );
 
     // The breadcrumb parent ("Agents") is a real link; the leaf is the agent's
-    // display name. Both prove the trail rendered.
-    const agentsCrumb = page.getByRole('link', {
-      name: t('settings.agents.title'),
-    });
+    // display name. Both prove the trail rendered. Scope to the breadcrumb
+    // landmark: the side-nav rail also has an "Agents" link now (icon-only, but
+    // #2329 gave every rail link an `aria-label`), so a page-wide lookup hits a
+    // strict-mode collision. The breadcrumb nav is the unique container here.
+    const agentsCrumb = page
+      .getByRole('navigation', { name: t('common.aria.breadcrumb') })
+      .getByRole('link', { name: t('settings.agents.title') });
     await expect(agentsCrumb).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     // The breadcrumb trail (like all adaptive-header content) renders twice —
     // desktop strip + mobile slot — so the leaf appears once visibly and once
