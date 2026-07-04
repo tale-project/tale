@@ -337,6 +337,22 @@ export const taskAction: ActionDefinition<TaskActionParams> = {
       }
 
       case 'list_open_external': {
+        // `parametersValidator` declares `owner`/`repo` required, but the
+        // workflow engine calls `execute` directly without validating
+        // (`execute_action_node.ts`), so a scheduled reconcile whose
+        // `variables` never received the app's `repository` config reaches
+        // here with `owner`/`repo` undefined. Fail loudly with an actionable
+        // message instead of letting the query's generic ArgumentValidationError
+        // surface — and instead of degrading to an org-wide scan, which would
+        // close tasks in repos this desk was never configured to touch.
+        if (!params.owner || !params.repo) {
+          throw new Error(
+            'list_open_external requires both `owner` and `repo`, but they were not provided. ' +
+              "The schedule is missing its repository config — set the issue-desk app's " +
+              '"repository" config (it derives into owner/repo and syncs into the schedule ' +
+              'variables via setAppConfig), or pass owner/repo explicitly on this run.',
+          );
+        }
         const refs = await ctx.runQuery(
           internal.tasks.internal_queries.listOpenExternalTaskRefs,
           {
