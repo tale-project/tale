@@ -1,9 +1,10 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
-import { Download } from 'lucide-react';
+import { ChevronDown, Download } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -190,30 +191,38 @@ export function AuditLogsPage({
                 />
               )}
               {isAdminUser && (
-                <>
-                  <Button
-                    variant="secondary"
-                    icon={Download}
-                    onClick={() => handleExport('csv')}
-                    disabled={exportAction.isPending}
-                    aria-label={t('logs.audit.export.csvLabel')}
-                  >
-                    {exportAction.isPending
-                      ? t('logs.audit.export.inProgress')
-                      : t('logs.audit.export.csv')}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    icon={Download}
-                    onClick={() => handleExport('json')}
-                    disabled={exportAction.isPending}
-                    aria-label={t('logs.audit.export.jsonLabel')}
-                  >
-                    {exportAction.isPending
-                      ? t('logs.audit.export.inProgress')
-                      : t('logs.audit.export.json')}
-                  </Button>
-                </>
+                <DropdownMenu
+                  align="end"
+                  trigger={
+                    <Button
+                      variant="secondary"
+                      icon={Download}
+                      disabled={exportAction.isPending}
+                      aria-label={t('logs.audit.export.triggerLabel')}
+                    >
+                      {exportAction.isPending
+                        ? t('logs.audit.export.inProgress')
+                        : t('logs.audit.export.label')}
+                      <ChevronDown className="ml-2 size-4" aria-hidden="true" />
+                    </Button>
+                  }
+                  items={[
+                    [
+                      {
+                        type: 'item',
+                        label: t('logs.audit.export.csv'),
+                        icon: Download,
+                        onClick: () => handleExport('csv'),
+                      },
+                      {
+                        type: 'item',
+                        label: t('logs.audit.export.json'),
+                        icon: Download,
+                        onClick: () => handleExport('json'),
+                      },
+                    ],
+                  ]}
+                />
               )}
             </Row>
           }
