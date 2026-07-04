@@ -40,9 +40,16 @@ vi.mock('./documents-mention-source', () => ({
 // production; render it (and its overlay) as plain passthroughs here.
 vi.mock('@/app/components/ui/forms/file-upload', () => ({
   FileUpload: {
+    Root: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropZone: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Overlay: () => null,
   },
+}));
+
+// The send-gate tests below assert a blocked Enter toasts instead of sending.
+const mockToast = vi.fn();
+vi.mock('@/app/hooks/use-toast', () => ({
+  toast: (...args: unknown[]) => mockToast(...args),
 }));
 
 // Actor source that never matches — reproduces the "No matches" empty state.
@@ -95,5 +102,68 @@ describe('ChatInput @-mention keyboard handling', () => {
     await user.keyboard('{Enter}');
     expect(onSendMessage).toHaveBeenCalledTimes(1);
     expect(onSendMessage).toHaveBeenCalledWith('@zzzz', undefined, undefined);
+  });
+});
+
+const BUDGET_REASON = 'Your usage limit has been reached for this period.';
+
+function renderInput(overrides?: Partial<Parameters<typeof ChatInput>[0]>) {
+  const onSendMessage = vi.fn();
+  const utils = render(
+    <ChatInput
+      organizationId="org-1"
+      value="over-budget message"
+      onChange={vi.fn()}
+      onSendMessage={onSendMessage}
+      attachments={[]}
+      uploadingFiles={[]}
+      uploadFiles={vi.fn()}
+      removeAttachment={vi.fn()}
+      clearAttachments={vi.fn(() => [])}
+      variant="assistant"
+      sendBlocked
+      sendBlockedReason={BUDGET_REASON}
+      {...overrides}
+    />,
+  );
+  return { ...utils, onSendMessage };
+}
+
+// #2345 regression: budget enforcement used to be server-side only, so the
+// composer left Send enabled and pressing Enter was a silent no-op. The client
+// now feeds the budget-exceeded state into ChatInput's `sendBlocked`/
+// `sendBlockedReason` gate (chat-interface).
+describe('ChatInput send gate', () => {
+  it('states the block reason and disables Send when sendBlocked', () => {
+    renderInput();
+
+    expect(screen.getByRole('status')).toHaveTextContent(BUDGET_REASON);
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('turns a keyboard Enter into a toast instead of sending', async () => {
+    mockToast.mockClear();
+    const { user, onSendMessage } = renderInput();
+
+    await user.click(screen.getByRole('textbox'));
+    await user.keyboard('{Enter}');
+
+    expect(onSendMessage).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      title: BUDGET_REASON,
+      variant: 'destructive',
+    });
+  });
+
+  it('sends normally once the block clears', async () => {
+    const { user, onSendMessage } = renderInput({
+      sendBlocked: false,
+      sendBlockedReason: undefined,
+    });
+
+    await user.click(screen.getByRole('textbox'));
+    await user.keyboard('{Enter}');
+
+    expect(onSendMessage).toHaveBeenCalledTimes(1);
   });
 });
