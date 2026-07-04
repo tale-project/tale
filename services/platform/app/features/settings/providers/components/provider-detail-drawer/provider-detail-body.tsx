@@ -17,6 +17,7 @@ export function ProviderDetailBody({
   maskedModelKeys,
   providerEnvStatus,
   isLoading,
+  initialEditGeneral,
 }: {
   organizationId: string;
   providerName: string;
@@ -24,12 +25,14 @@ export function ProviderDetailBody({
   maskedModelKeys: Record<string, string>;
   providerEnvStatus?: EnvSecretStatus;
   isLoading: boolean;
+  initialEditGeneral?: boolean;
 }) {
   return (
     <Stack gap={6}>
       <GeneralSection
         providerName={providerName}
         organizationId={organizationId}
+        initialEditOpen={initialEditGeneral}
       />
       <ApiKeySection
         organizationId={organizationId}
