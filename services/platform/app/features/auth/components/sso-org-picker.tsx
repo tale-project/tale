@@ -46,6 +46,7 @@ function SsoOrgPickerRow({
     <button
       type="button"
       role="option"
+      aria-selected={false}
       className={cn(
         'group flex w-full cursor-pointer items-center gap-3 px-4 py-3.5 text-left transition-colors',
         'hover:bg-bg-elevated focus-visible:bg-bg-elevated',

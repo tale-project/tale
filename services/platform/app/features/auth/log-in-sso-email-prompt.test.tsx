@@ -60,7 +60,6 @@ beforeEach(() => {
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: {
-      ...window.location,
       href: 'http://localhost/',
       assign: locationAssign,
     },
