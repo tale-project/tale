@@ -19,3 +19,43 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
+// @fontsource ships `font-display: swap`, and a webfont is only fetched once the
+// browser lays out text that uses it — which here is *after* the JS bundle has
+// parsed and React has painted. On a cold load the tab labels (and other chrome)
+// therefore paint first in the metric-matched 'Inter Fallback' and visibly swap
+// to Inter a beat later: a FOUT (see globals.css `Inter Fallback` — it fixes the
+// metrics, not the glyph shapes, so the swap is still visible).
+//
+// Preloading the above-the-fold Latin subsets starts their download at app boot,
+// in parallel with the JS bundle, so Inter is normally in the browser cache
+// before the first paint and no fallback ever shows. We keep `swap` rather than
+// `optional` so text always renders immediately (no invisible-text block) and so
+// @fontsource stays the single source of truth for the @font-face set — the
+// preload only reorders the fetch, it doesn't redefine the faces.
+//
+// Only the Latin subset (weights 400 body / 500 for `font-medium` chrome like the
+// tab labels) is preloaded: every shipped UI locale is Latin, and non-Latin
+// subsets (Cyrillic/Greek/…) stay lazily fetched on demand. `?url` yields the
+// hashed, same-origin build asset; `crossorigin` (anonymous) must match the CORS
+// mode @font-face fetches use, or the preload is discarded and the font
+// re-downloads.
+import interLatin400Url from '@fontsource/inter/files/inter-latin-400-normal.woff2?url';
+import interLatin500Url from '@fontsource/inter/files/inter-latin-500-normal.woff2?url';
+
+if (typeof document !== 'undefined') {
+  for (const href of [interLatin400Url, interLatin500Url]) {
+    if (
+      document.head.querySelector(`link[rel="preload"][href="${href}"]`) !==
+      null
+    ) {
+      continue;
+    }
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'font';
+    link.type = 'font/woff2';
+    link.href = href;
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  }
+}
