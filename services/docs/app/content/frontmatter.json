@@ -461,7 +461,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Préférences",
-      "description": "Les réglages au niveau membre qui te suivent entre orgs et chats — nom d'affichage et mot de passe sous Compte, thème et langue dans le menu de profil, instructions personnalisées et mémoires sous Personnalisation, et déconnexion."
+      "description": "Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, instructions personnalisées et mémoires sous Personnalisation, et déconnexion."
     }
   },
   "fr:platform/approvals/configure": {
@@ -1597,7 +1597,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Preferences",
-      "description": "The member-level settings that follow you across orgs and chats — display name and password under Account, theme and locale in the profile menu, custom instructions and memories under Personalization, and sign-out."
+      "description": "The member-level settings that follow you across orgs and chats — name and password under Account, theme and locale in the profile menu, custom instructions and memories under Personalization, and sign-out."
     }
   },
   "en:platform/approvals/configure": {
@@ -2733,7 +2733,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einstellungen",
-      "description": "Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Anzeigename und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden."
+      "description": "Die Mitglieder-Einstellungen, die dir über Organisationen und Chats hinweg folgen — Name und Passwort unter Konto, Theme und Locale im Profilmenü, eigene Anweisungen und Erinnerungen unter Personalisierung, und Abmelden."
     }
   },
   "de:platform/approvals/configure": {
