@@ -878,6 +878,16 @@ export const listProviders = action({
               // these out; without projecting it here, hidden models leaked
               // into the picker.
               hidden: m.hidden,
+              // Operator-declared capability fields the model-info popover
+              // renders. The synced catalog is the richer source, but these
+              // authoritative fields are available before the first sync, so
+              // projecting them lets the popover fall back to org-config
+              // pre-sync (issue #2357).
+              maxOutputTokens: m.maxOutputTokens,
+              contextWindow: m.contextWindow,
+              cost: m.cost,
+              reasoning: m.reasoning,
+              promptCaching: m.promptCaching,
             })),
             i18n: result.config.i18n,
           };
