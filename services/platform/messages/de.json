@@ -938,7 +938,8 @@
     "executions": {
       "title": "Ausführungen",
       "entityLabel": "Ausführungen",
-      "searchPlaceholder": "Nach Ausführungs-ID suchen"
+      "searchPlaceholder": "Nach Ausführungs-ID suchen",
+      "viewOnCanvas": "Auf dem Canvas ansehen"
     },
     "createDialog": {
       "title": "Automatisierung erstellen",
