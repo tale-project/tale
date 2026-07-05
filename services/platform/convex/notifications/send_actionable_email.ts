@@ -7,6 +7,7 @@
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
+import { notificationFromAddress } from '../conversations/reply_from';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
 import { isImapSmtpIntegration } from '../integrations/guards/is_imap_smtp_integration';
 import { resolveImapSmtpConnection } from '../integrations/imap_smtp_config';
@@ -20,7 +21,7 @@ export type SendableMailbox =
   | { kind: 'smtp'; integration: LoadedIntegration }
   | { kind: 'connector'; integration: LoadedIntegration; slug: string };
 
-function resolveFromAddress(
+function resolveSmtpNotificationFrom(
   integration: LoadedIntegration,
   smtpUser: string,
 ): string {
@@ -28,14 +29,13 @@ function resolveFromAddress(
   const connConfig = integration.connectionConfig as
     | Record<string, unknown>
     | undefined;
-  if (
+  const baseFrom =
     connConfig &&
     typeof connConfig.fromAddress === 'string' &&
     connConfig.fromAddress.trim() !== ''
-  ) {
-    return connConfig.fromAddress.trim();
-  }
-  return smtpUser;
+      ? connConfig.fromAddress.trim()
+      : smtpUser;
+  return notificationFromAddress(baseFrom);
 }
 
 export async function findSendableMailbox(
@@ -99,7 +99,7 @@ export async function sendActionableEmail(
       ctx,
       args.mailbox.integration,
     );
-    const from = resolveFromAddress(
+    const from = resolveSmtpNotificationFrom(
       args.mailbox.integration,
       connection.smtp.user,
     );
