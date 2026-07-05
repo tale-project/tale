@@ -1,7 +1,6 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 import { notifyChatMentions } from './notify';
 

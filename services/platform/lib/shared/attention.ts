@@ -10,7 +10,7 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   'agent_escalation',
 ] as const;
 
-export type ActionableNotificationType =
+type ActionableNotificationType =
   (typeof ACTIONABLE_NOTIFICATION_TYPES)[number];
 
 const ACTIONABLE_SET = new Set<string>(ACTIONABLE_NOTIFICATION_TYPES);

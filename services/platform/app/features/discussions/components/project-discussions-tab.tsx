@@ -36,7 +36,7 @@ export function ProjectDiscussionsTab({
   initialThreadId,
 }: ProjectDiscussionsTabProps) {
   const { t } = useT('discussions');
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
+  const [selectedThreadId, setSelectedThreadId] = useState(
     initialThreadId ?? null,
   );
   const [createOpen, setCreateOpen] = useState(false);
