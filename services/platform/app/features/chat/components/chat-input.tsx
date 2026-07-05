@@ -1157,7 +1157,7 @@ export function ChatInput({
                 (isArenaMode ? (
                   <ArenaModelSelector organizationId={organizationId} />
                 ) : (
-                  <HStack gap={1} align="center">
+                  <HStack gap={2} align="center">
                     <AgentSelector
                       organizationId={organizationId}
                       projectId={projectId}
