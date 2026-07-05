@@ -33,6 +33,8 @@ export const notificationTypeValidator = v.union(
   v.literal('runtime_offline'),
   // Daily/weekly workforce digest.
   v.literal('workforce_digest'),
+  // Inbound customer message in Conversations (automation-driven).
+  v.literal('conversation_message'),
 );
 
 export const notificationActorTypeValidator = v.union(
@@ -57,6 +59,7 @@ export const userNotificationsTable = defineTable({
     v.literal('wf_execution'),
     v.literal('runtime'),
     v.literal('dashboard'),
+    v.literal('conversation'),
   ),
   resourceId: v.string(),
   taskId: v.optional(v.id('tasks')),
@@ -109,6 +112,8 @@ export const notificationPreferencesTable = defineTable({
   // Groups automation_failed / budget_alert / runtime_offline.
   automationAlerts: v.optional(v.boolean()),
   digest: v.optional(v.boolean()),
+  /** Inbound customer messages in Conversations (automation-driven). */
+  conversationMessages: v.optional(v.boolean()),
   /** Master toggle for actionable return-loop email delivery. */
   actionableEmail: v.optional(v.boolean()),
   updatedAt: v.number(),

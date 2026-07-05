@@ -42,6 +42,7 @@ const notificationRowValidator = v.object({
     v.literal('wf_execution'),
     v.literal('runtime'),
     v.literal('dashboard'),
+    v.literal('conversation'),
   ),
   resourceId: v.string(),
   taskId: v.optional(v.id('tasks')),
