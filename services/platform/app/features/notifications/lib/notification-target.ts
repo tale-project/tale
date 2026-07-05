@@ -1,5 +1,25 @@
 import { isRecord } from '@/lib/utils/type-utils';
 
+const CONVERSATION_URL_STATUSES = [
+  'open',
+  'closed',
+  'archived',
+  'spam',
+] as const;
+
+type ConversationUrlStatus = (typeof CONVERSATION_URL_STATUSES)[number];
+
+function isConversationUrlStatus(raw: string): raw is ConversationUrlStatus {
+  return (CONVERSATION_URL_STATUSES as readonly string[]).includes(raw);
+}
+
+function conversationUrlStatus(raw: unknown): ConversationUrlStatus {
+  if (typeof raw === 'string' && isConversationUrlStatus(raw)) {
+    return raw;
+  }
+  return 'open';
+}
+
 /**
  * A typed TanStack-Router navigate descriptor for a notification's in-app deep
  * link. `to` is constrained to the routes we actually emit, so each member is
@@ -20,6 +40,11 @@ export type NotificationTarget =
   | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
+    }
+  | {
+      to: '/dashboard/$id/conversations/$status';
+      params: { id: string; status: 'open' | 'closed' | 'archived' | 'spam' };
+      search: { conversation: string };
     }
   | {
       to: '/dashboard/$id/agents/$agentId';
@@ -96,7 +121,18 @@ export function personalNotificationTarget(args: {
     typeof params?.projectId === 'string' ? params.projectId : undefined;
   const threadId =
     typeof params?.threadId === 'string' ? params.threadId : undefined;
+  const conversationId = params?.conversationId;
 
+  if (typeof conversationId === 'string') {
+    return {
+      to: '/dashboard/$id/conversations/$status',
+      params: {
+        id,
+        status: conversationUrlStatus(params?.conversationStatus),
+      },
+      search: { conversation: conversationId },
+    };
+  }
   if (params?.chat === true && threadId) {
     return {
       to: '/dashboard/$id/chat/$threadId',

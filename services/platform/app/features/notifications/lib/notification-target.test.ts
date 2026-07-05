@@ -21,6 +21,24 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  it('builds a conversation deep-link when conversationId is present', () => {
+    const target = personalNotificationTarget({
+      organizationId: ORG,
+      taskId: undefined,
+      params: {
+        conversationId: 'conv_abc',
+        conversationStatus: 'open',
+        subject: 'Help',
+        sender: 'customer@example.com',
+      },
+    });
+    expect(target).toEqual({
+      to: '/dashboard/$id/conversations/$status',
+      params: { id: ORG, status: 'open' },
+      search: { conversation: 'conv_abc' },
+    });
+  });
+
   it('builds a chat deep-link when chat + threadId are present', () => {
     const target = personalNotificationTarget({
       organizationId: ORG,
