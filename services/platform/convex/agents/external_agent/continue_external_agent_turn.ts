@@ -109,9 +109,6 @@ export const continueExternalAgentTurn = internalAction({
             ...(checkpoint.planText !== undefined && {
               planText: checkpoint.planText,
             }),
-            ...(checkpoint.humanControlReason !== undefined && {
-              humanControlReason: checkpoint.humanControlReason,
-            }),
             ...(checkpoint.toolNames !== undefined && {
               toolNames: checkpoint.toolNames,
             }),
@@ -166,26 +163,6 @@ export const continueExternalAgentTurn = internalAction({
         onTimeline: async (content) => {
           await patchStreamingMessage(ctx, args.assistantMessageId, content);
         },
-        // Handoff requested in a continuation segment → raise the card now too
-        // (idempotent on the mutation side). Autonomous runs have no human to
-        // take over, so the callback is never wired (defense-in-depth — the
-        // tool is also gated off in the adapter).
-        ...(args.interactionMode !== 'autonomous' && {
-          onHumanControlRequest: async (reason: string) => {
-            await ctx.runMutation(
-              internal.approvals.internal_mutations.createHumanControlRequest,
-              {
-                organizationId: turn.organizationId,
-                threadId: turn.threadId,
-                messageId: turn.assistantMessageId,
-                agentSlug: turn.agentSlug ?? turn.agentKind,
-                modelRef: turn.modelRef,
-                reason,
-                ...(turn.userId !== undefined && { requestedBy: turn.userId }),
-              },
-            );
-          },
-        }),
       });
       await handleTurnOutcome(ctx, turn, result);
     } catch (err) {

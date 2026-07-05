@@ -88,7 +88,6 @@ import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
-import { HumanControlCard } from './human-control-card';
 import {
   ProviderSettingsToastAction,
   useCanManageProviders,
@@ -457,7 +456,6 @@ export function ChatInterface({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    humanControlRequests,
   } = useThreadApprovals(organizationId, dataThreadId);
 
   // Resolved human-input requests — rendered inline in the history with the
@@ -534,16 +532,6 @@ export function ChatInterface({
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
-
-  // External-agent browser handoff: while the agent is parked waiting for a
-  // human to drive the live browser, REPLACE the composer with the take-control
-  // card (the agent is stopped — typing does nothing useful). At most one is
-  // pending at a time (createHumanControlRequest supersedes older ones). Not
-  // anchored to a message: it lives in the composer slot, so a long thread that
-  // has paginated the requesting message out still shows it.
-  const pendingHumanControl = humanControlRequests.find(
-    (r) => r.status === 'pending' || r.status === 'executing',
-  );
 
   // Whole-page drag & drop: a file dropped ANYWHERE in the chat (not just the
   // composer's drop zone) attaches to the message being composed. Gate it
@@ -1420,97 +1408,86 @@ export function ChatInterface({
                   />
                 </div>
               )}
-              {pendingHumanControl ? (
-                <div className="mx-auto w-full max-w-(--chat-max-width) pb-3">
-                  <HumanControlCard
-                    approvalId={pendingHumanControl._id}
-                    organizationId={organizationId}
-                    status={pendingHumanControl.status}
-                    metadata={pendingHumanControl.metadata}
-                  />
-                </div>
-              ) : (
-                <ChatInput
-                  className="mx-auto w-full max-w-(--chat-max-width)"
-                  placeholder={
-                    queueModeActive
-                      ? agentLingering
-                        ? t('queue.placeholderIdle')
-                        : t('queue.placeholder')
-                      : isImageGenAgent
-                        ? activeEditingImage && currentModelSupportsEdit
-                          ? t('imageEdit.placeholder')
-                          : t('imageEdit.placeholderCreate')
-                        : t('placeholder')
-                  }
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSendMessage={handleSendMessage}
-                  onStopGenerating={
-                    agentActivelyWorking ? stopGenerating : undefined
-                  }
-                  isLoading={isLoading}
-                  queueModeActive={queueModeActive}
-                  disabled={hasNoAgents || hasActiveApproval}
-                  disabledReason={
-                    hasNoAgents
-                      ? 'no-agents'
-                      : hasActiveApproval
-                        ? 'pending-approval'
-                        : undefined
-                  }
-                  organizationId={organizationId}
-                  projectId={currentProjectId}
-                  threadId={dataThreadId}
-                  onComposerActivate={prewarmChatCache}
-                  attachments={attachments}
-                  uploadingFiles={uploadingFiles}
-                  uploadFiles={uploadFiles}
-                  cancelUpload={cancelUpload}
-                  removeAttachment={removeAttachment}
-                  clearAttachments={clearAttachments}
-                  fileUploadDisabled={fileUploadDisabled}
-                  isIndexing={isIndexing}
-                  indexingStatuses={indexingStatuses}
-                  isTranscribing={isTranscribing || isTranscriptionQueryLoading}
-                  transcriptionStatuses={transcriptionStatuses}
-                  hasFailedAudioJobs={hasFailedAudioJobs}
-                  retryAudioTranscription={retryAttachmentTranscription}
-                  videoLinkJobs={videoLinkJobs}
-                  isProcessingVideo={isProcessingVideo}
-                  hasFailedVideoJobs={hasFailedVideoJobs}
-                  ingestVideoUrlsFromText={ingestVideoUrlsFromText}
-                  cancelVideoJob={cancelVideoJob}
-                  retryVideoJob={retryVideoJob}
-                  sendBlocked={
-                    budgetExceeded ||
-                    imageEditBlocked ||
-                    activeModelMissingApiKey ||
-                    noProviderHasApiKey
-                  }
-                  sendBlockedReason={
-                    budgetExceeded
-                      ? t('budgetExceededDefault')
-                      : imageEditBlocked
-                        ? t('imageEdit.modelCannotEdit')
-                        : activeModelMissingApiKey
-                          ? t('modelSelector.noApiKey')
-                          : noProviderHasApiKey
-                            ? t('modelSelector.noProviderKey')
-                            : undefined
-                  }
-                  sendBlockedAction={sendBlockedAction}
-                  sendBlockedDescription={sendBlockedDescription}
-                  onSavePrompt={(content) =>
-                    setSavePromptData({ messageId: '', content })
-                  }
-                  onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
-                  kbMentions={kbMentions}
-                  addKbMention={addKbMention}
-                  removeKbMention={removeKbMention}
-                  clearKbMentions={clearKbMentions}
-                />
-              )}
+              <ChatInput
+                className="mx-auto w-full max-w-(--chat-max-width)"
+                placeholder={
+                  queueModeActive
+                    ? agentLingering
+                      ? t('queue.placeholderIdle')
+                      : t('queue.placeholder')
+                    : isImageGenAgent
+                      ? activeEditingImage && currentModelSupportsEdit
+                        ? t('imageEdit.placeholder')
+                        : t('imageEdit.placeholderCreate')
+                      : t('placeholder')
+                }
+                value={inputValue}
+                onChange={setInputValue}
+                onSendMessage={handleSendMessage}
+                onStopGenerating={
+                  agentActivelyWorking ? stopGenerating : undefined
+                }
+                isLoading={isLoading}
+                queueModeActive={queueModeActive}
+                disabled={hasNoAgents || hasActiveApproval}
+                disabledReason={
+                  hasNoAgents
+                    ? 'no-agents'
+                    : hasActiveApproval
+                      ? 'pending-approval'
+                      : undefined
+                }
+                organizationId={organizationId}
+                projectId={currentProjectId}
+                threadId={dataThreadId}
+                onComposerActivate={prewarmChatCache}
+                attachments={attachments}
+                uploadingFiles={uploadingFiles}
+                uploadFiles={uploadFiles}
+                cancelUpload={cancelUpload}
+                removeAttachment={removeAttachment}
+                clearAttachments={clearAttachments}
+                fileUploadDisabled={fileUploadDisabled}
+                isIndexing={isIndexing}
+                indexingStatuses={indexingStatuses}
+                isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+                transcriptionStatuses={transcriptionStatuses}
+                hasFailedAudioJobs={hasFailedAudioJobs}
+                retryAudioTranscription={retryAttachmentTranscription}
+                videoLinkJobs={videoLinkJobs}
+                isProcessingVideo={isProcessingVideo}
+                hasFailedVideoJobs={hasFailedVideoJobs}
+                ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+                cancelVideoJob={cancelVideoJob}
+                retryVideoJob={retryVideoJob}
+                sendBlocked={
+                  budgetExceeded ||
+                  imageEditBlocked ||
+                  activeModelMissingApiKey ||
+                  noProviderHasApiKey
+                }
+                sendBlockedReason={
+                  budgetExceeded
+                    ? t('budgetExceededDefault')
+                    : imageEditBlocked
+                      ? t('imageEdit.modelCannotEdit')
+                      : activeModelMissingApiKey
+                        ? t('modelSelector.noApiKey')
+                        : noProviderHasApiKey
+                          ? t('modelSelector.noProviderKey')
+                          : undefined
+                }
+                sendBlockedAction={sendBlockedAction}
+                sendBlockedDescription={sendBlockedDescription}
+                onSavePrompt={(content) =>
+                  setSavePromptData({ messageId: '', content })
+                }
+                onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+                kbMentions={kbMentions}
+                addKbMention={addKbMention}
+                removeKbMention={removeKbMention}
+                clearKbMentions={clearKbMentions}
+              />
             </div>
           </FileUpload.Root>
         )}

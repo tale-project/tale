@@ -274,4 +274,27 @@ test.describe('external agent (Cursor)', () => {
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await page.keyboard.press('Escape');
   });
+
+  test('Skills tab is visible for external agents and hides workflow disciplines', async ({
+    page,
+    org,
+  }) => {
+    await openAgentTab(page, org.organizationId, 'skills');
+
+    await expect(
+      page.getByRole('link', {
+        name: t('agents.navigation.skills'),
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    await expect(
+      page.getByText(
+        t('settings.agents.skills.sectionSkillBindingsExternalDescription'),
+      ),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    await expect(page.getByText('fix-bug', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('write-notes', { exact: true })).toHaveCount(0);
+  });
 });

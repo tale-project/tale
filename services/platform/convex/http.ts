@@ -751,9 +751,8 @@ http.route({
     }
 
     // Writable control (`?control=1`) is a SEPARATE, stricter grant than view:
-    // it's available to the thread OWNER at any time (not gated on an agent
-    // request_human_control handoff), so a human can grab the wheel whenever the
-    // session is active. A denied control request (a non-owner viewer) still
+    // it's available to the thread OWNER at any time, so a human can grab the
+    // wheel whenever the session is active. A denied control request (a non-owner
     // streams read-only (control:false) — the pane just stays a mirror — so a
     // second viewer can watch while the owner drives.
     let control = false;

@@ -1328,7 +1328,7 @@
       "noResults": "Keine Agents gefunden",
       "addAgent": "Katalog",
       "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
-      "lockedExternalLabel": "Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)"
+      "lockedExternalLabel": "Agent: {agent} (für diesen Sandbox-Chat festgelegt)"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -1777,19 +1777,6 @@
       "bothBad": "Beide schlecht",
       "verdictRecorded": "Bewertung gespeichert",
       "verdictError": "Bewertung konnte nicht gespeichert werden"
-    },
-    "humanControl": {
-      "cardTitle": "Der Agent braucht deine Hilfe im Browser",
-      "takeControl": "Kontrolle übernehmen",
-      "takeControlHint": "Übernimm die Kontrolle, um diesen Schritt im Live-Browser abzuschließen, und gib sie danach zurück.",
-      "controllingHint": "Du steuerst den Browser. Schließe den Schritt ab und gib die Kontrolle zurück, damit der Agent weitermacht.",
-      "returnControl": "Fertig — Kontrolle zurückgeben",
-      "errorAlreadyResolved": "Diese Übergabe wurde bereits abgeschlossen.",
-      "errorTurnRunning": "Der Agent läuft bereits wieder.",
-      "errorReturnFailed": "Die Kontrolle konnte nicht zurückgegeben werden. Bitte versuche es erneut.",
-      "statusReturned": "Kontrolle zurückgegeben — der Agent macht weiter.",
-      "statusSuperseded": "Durch eine neuere Anfrage ersetzt.",
-      "statusTimedOut": "Niemand hat übernommen — der Agent hat weitergemacht."
     },
     "canvas": {
       "title": "Canvas",
@@ -5483,6 +5470,8 @@
         "bindWorkflowsPlaceholder": "Workflows binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
+        "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",
+        "skillBindingsExternalNoCustomSkillsDescription": "Noch keine zusätzlichen Org-Skills zum Binden — Workflow-Disziplinen laden trotzdem automatisch. Lege in den Skills-Einstellungen einen eigenen Skill an, wenn dieser Agent einen braucht.",
         "skillBindingsCounter": "{count}/{max} gebunden",
         "skillBindingsToggleAria": "{slug} binden",
         "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",

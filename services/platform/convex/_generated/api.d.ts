@@ -1002,6 +1002,7 @@ import type * as node_only_integration_sandbox_types from "../node_only/integrat
 import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbox/agent_message_parts.js";
 import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/agent_run_outcome.js";
 import type * as node_only_sandbox_api_error_detection from "../node_only/sandbox/api_error_detection.js";
+import type * as node_only_sandbox_bound_org_skills from "../node_only/sandbox/bound_org_skills.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
@@ -2652,6 +2653,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/agent_message_parts": typeof node_only_sandbox_agent_message_parts;
   "node_only/sandbox/agent_run_outcome": typeof node_only_sandbox_agent_run_outcome;
   "node_only/sandbox/api_error_detection": typeof node_only_sandbox_api_error_detection;
+  "node_only/sandbox/bound_org_skills": typeof node_only_sandbox_bound_org_skills;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;

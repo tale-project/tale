@@ -308,29 +308,39 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               message list uses. Without this, the canvas reads files from the raw
               route threadId and branch-tip files vanish after streaming. */}
           <BranchProvider threadId={threadId} organizationId={organizationId}>
-            <Stack gap={0} className="min-h-0 flex-1 overflow-hidden">
-              <BudgetBanner organizationId={organizationId} />
-              <LayoutErrorBoundary organizationId={organizationId}>
-                <ThreadGate
-                  organizationId={organizationId}
-                  threadId={threadId}
-                  newChatCount={newChatCount}
-                />
-              </LayoutErrorBoundary>
-            </Stack>
+            {/* Chat column + right panel strip must stay in a row — BranchProvider
+                renders children through Context without a DOM wrapper, so this
+                Row is what keeps ChatPanel beside the scroller (not stacked under
+                ChatHeader, which collapses the message list to height 0). */}
+            <Row
+              gap={0}
+              align="stretch"
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              <Stack gap={0} className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <BudgetBanner organizationId={organizationId} />
+                <LayoutErrorBoundary organizationId={organizationId}>
+                  <ThreadGate
+                    organizationId={organizationId}
+                    threadId={threadId}
+                    newChatCount={newChatCount}
+                  />
+                </LayoutErrorBoundary>
+              </Stack>
 
-            {/* The four panes are registrars — they publish descriptors to the
-                unified right panel and render nothing themselves. The single
-                <ChatPanel> shell renders the shared strip / tabs / bodies. Plan
-                and Canvas always mount; the sandbox panes (Files + Live browser)
-                register only when `sandboxPanesAvailable`. */}
-            <PlanPane />
-            <CanvasPane organizationId={organizationId} />
-            <WorkspaceFilesPane available={sandboxPanesAvailable} />
-            <LiveBrowserPane available={sandboxPanesAvailable} />
-            <LayoutErrorBoundary organizationId={organizationId}>
-              <ChatPanel />
-            </LayoutErrorBoundary>
+              {/* The four panes are registrars — they publish descriptors to the
+                  unified right panel and render nothing themselves. The single
+                  <ChatPanel> shell renders the shared strip / tabs / bodies. Plan
+                  and Canvas always mount; the sandbox panes (Files + Live browser)
+                  register only when `sandboxPanesAvailable`. */}
+              <PlanPane />
+              <CanvasPane organizationId={organizationId} />
+              <WorkspaceFilesPane available={sandboxPanesAvailable} />
+              <LiveBrowserPane available={sandboxPanesAvailable} />
+              <LayoutErrorBoundary organizationId={organizationId}>
+                <ChatPanel />
+              </LayoutErrorBoundary>
+            </Row>
           </BranchProvider>
         </Stack>
       </Row>

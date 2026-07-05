@@ -34,10 +34,10 @@ export interface AgentRunSpec {
    * = the existing full-access behavior. Adapters without the concept ignore
    * it. Fixed for the whole turn — continuations re-attach to the same exec. */
   permissionMode?: 'plan' | 'execute';
-  /** Turn interaction posture. `autonomous` = no human in the loop: adapters
-   * gate off the human-in-loop affordances (e.g. the request_human_control MCP
-   * server). `interactive` (default / absent) keeps them. Independent of
-   * permissionMode. Adapters without the concept ignore it. */
+  /** Turn interaction posture. `autonomous` = no human in the loop (adapters may
+   * gate off interactive-only affordances). `interactive` (default / absent)
+   * keeps them. Independent of permissionMode. Adapters without the concept
+   * ignore it. */
   interactionMode?: 'interactive' | 'autonomous';
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
@@ -126,6 +126,16 @@ export interface CredentialPolicy {
   supportsManaged: boolean;
 }
 
+/** Session-relative user-level dir under HOME (/user/.runtime/home) where Tale
+ * stages org/integration/workflow/bound skills for sandbox runtimes. null =
+ * runtime does not support filesystem skills (skip staging + skillsGuidance). */
+export const CLAUDE_COMPAT_SKILLS_STAGE_DIR =
+  '.runtime/home/.claude/skills' as const;
+
+/** agentskills.io standard user-level dir — native for Cursor / OpenCode / Pi. */
+export const AGENTS_STANDARD_SKILLS_STAGE_DIR =
+  '.runtime/home/.agents/skills' as const;
+
 export interface AgentCapabilities {
   processLifecycle: 'stdin-hold' | 'one-shot';
   promptTransport: 'stdin-ndjson' | 'argv-positional';
@@ -135,6 +145,9 @@ export interface AgentCapabilities {
   supportsAttachmentDirs: boolean;
   supportsIntegrationsBridge: boolean;
   supportsVisionPolyfill: boolean;
+  /** Where Tale stages user-level skills for this runtime (session-relative).
+   * null = no filesystem skill support. */
+  skillsStageDir: string | null;
 }
 
 export interface AgentAdapter {
