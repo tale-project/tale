@@ -18,7 +18,7 @@ const base = {
 
 describe('HermesAdapter.buildExec', () => {
   it('builds tale-hermes-run with OpenAI-compatible gateway env', () => {
-    const base = {
+    const hermesBase = {
       prompt: 'Fix issue #1',
       model: 'openrouter:anthropic/claude-sonnet-4.6',
       gateway: {
@@ -27,7 +27,7 @@ describe('HermesAdapter.buildExec', () => {
       },
       workdir: '/user/workspace',
     } satisfies AgentRunSpec;
-    const { argv, env } = new HermesAdapter().buildExec(base);
+    const { argv, env } = new HermesAdapter().buildExec(hermesBase);
     expect(argv[0]).toBe('tale-hermes-run');
     expect(env.OPENAI_BASE_URL).toBe(
       'http://sandbox-llm-gateway:8080/openai/v1',

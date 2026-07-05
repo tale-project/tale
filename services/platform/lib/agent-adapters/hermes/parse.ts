@@ -14,7 +14,7 @@ import type {
   AgentEventParser,
   AgentResultStatus,
 } from '../events';
-import { isRecord, LineReassembler, parseJsonLine } from '../jsonl';
+import { LineReassembler, parseJsonLine } from '../jsonl';
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
