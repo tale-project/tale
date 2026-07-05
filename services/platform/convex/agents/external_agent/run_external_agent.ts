@@ -103,6 +103,10 @@ import {
   composePromptWithAttachments,
 } from './attachment_files';
 import { resolveExternalAgentExecModel } from './exec_model';
+import {
+  externalAgentVkAllowlist,
+  pickExternalAgentExecFallback,
+} from './resolve_external_agent_model';
 import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
@@ -386,6 +390,10 @@ export const runExternalAgentTurn = internalAction({
      * polyfill hook when the agent's own model is text-only. Preferred over the
      * provider registry's `vision`-tagged default; ignored for BYO. */
     visionModel: v.optional(v.string()),
+    /** Agent-configured fallback model refs (`supportedModels[1:]`), resolved
+     * dynamically in chat_turn_generate. Layered with the catalog entry's
+     * `fallbackModelId` on the primary for managed gateway runs. */
+    fallbackModelRefs: v.optional(v.array(v.string())),
     /** Chat attachments uploaded with this turn. Staged into the sandbox under
      * /user/uploads/<promptMessageId>/ and referenced by absolute path in the
      * prompt so the agent can read them (the in-process path instead inlines
@@ -460,7 +468,8 @@ export const runExternalAgentTurn = internalAction({
       // unavailability retries AND the content-based Fable classifier
       // fallback. The VK below is scoped to also allow it, else the gateway
       // 403s the fallback request and the turn fails anyway.
-      let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
+      const agentFallbackRefs = args.fallbackModelRefs ?? [];
+      let fallbackModelRef: string | undefined; // catalog tale ref for the VK allowlist
       let fallbackModel: string | undefined; // gateway model id the chain requests
       // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
       // defaults) names the model by its GATEWAY id, which the vendor's own
@@ -493,8 +502,6 @@ export const runExternalAgentTurn = internalAction({
               providerName: agentEntry.providerName,
               modelId: agentEntry.fallbackModelId,
             });
-            fallbackModel =
-              resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
           }
           if (gatewayRun && !(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
@@ -526,11 +533,28 @@ export const runExternalAgentTurn = internalAction({
       // The session VK allows the agent's model plus (when polyfilling) the
       // vision model the bridge calls and (when configured) the fallback model
       // — else the gateway 403s those requests.
-      const allowedModels = [
-        args.modelRef,
-        visionModelRef,
+      const execFallbackRef = pickExternalAgentExecFallback(
+        agentFallbackRefs,
         fallbackModelRef,
-      ].filter((ref): ref is string => ref !== undefined);
+      );
+      if (gatewayRun && execFallbackRef && execFallbackRef !== 'default') {
+        try {
+          fallbackModel =
+            resolveGatewayRoutingFromRef(execFallbackRef).gatewayModel;
+        } catch {
+          // Raw gateway id (env-managed tail) — pass through.
+          fallbackModel = execFallbackRef;
+        }
+      } else if (!gatewayRun && agentFallbackRefs.length > 0) {
+        fallbackModel = agentFallbackRefs[0];
+      }
+
+      const allowedModels = externalAgentVkAllowlist(
+        args.modelRef,
+        agentFallbackRefs,
+        fallbackModelRef,
+        visionModelRef,
+      );
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,

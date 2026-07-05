@@ -46,6 +46,7 @@ import {
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useThreadAgentLock } from '../hooks/use-thread-agent-lock';
 import { ModelInfoPopover } from './model-info-popover';
@@ -79,6 +80,7 @@ export const ModelSelector = memo(function ModelSelector({
   const { agents, isLoading: agentsLoading } = useChatAgents(organizationId);
   const { providers, isLoading: providersLoading } =
     useListProviders(organizationId);
+  const { data: governanceDefaultModel } = useDefaultModel(organizationId);
   const { project } = useProject(
     projectId ? asProjectId(projectId) : undefined,
   );
@@ -125,6 +127,13 @@ export const ModelSelector = memo(function ModelSelector({
 
   const supportedModels = useMemo(() => {
     return activeAgent?.supportedModels ?? [];
+  }, [activeAgent]);
+
+  const isGatewayManagedExternal = useMemo(() => {
+    if (activeAgent?.primaryBehavior !== 'external-agent') return false;
+    if (activeAgent.authMode === 'byo') return false;
+    const kind = activeAgent.agentKind ?? 'claude-code';
+    return getCredentialPolicy(kind).managedSource === 'gateway';
   }, [activeAgent]);
 
   const requiredTag =
@@ -310,6 +319,13 @@ export const ModelSelector = memo(function ModelSelector({
   // just hide a creative decision behind a vague default — we force an
   // explicit pick instead.
   const isImageGenAgent = requiredTag === 'image-generation';
+
+  const resolvedGovernanceDefaultRef = useMemo(() => {
+    if (!governanceDefaultModel) return undefined;
+    return governanceDefaultModel.providerName
+      ? `${governanceDefaultModel.providerName}:${governanceDefaultModel.modelId}`
+      : governanceDefaultModel.modelId;
+  }, [governanceDefaultModel]);
 
   const currentModelId = useMemo(() => {
     // User's explicit override (localStorage) takes highest priority
@@ -516,8 +532,25 @@ export const ModelSelector = memo(function ModelSelector({
         <span className="truncate">
           {rawModel
             ? getModelShortName(stripModelRefQualifier(rawModel))
-            : t('modelSelector.byoDefault')}
+            : resolvedGovernanceDefaultRef
+              ? getDisplayName(resolvedGovernanceDefaultRef)
+              : t('modelSelector.byoDefault')}
         </span>
+      </span>
+    );
+  }
+
+  if (isGatewayManagedExternal && supportedModels.length === 0) {
+    const label = resolvedGovernanceDefaultRef
+      ? getDisplayName(resolvedGovernanceDefaultRef)
+      : t('modelSelector.auto');
+    return (
+      <span
+        className="text-muted-foreground flex items-center gap-1.5 text-sm"
+        title={t('modelSelector.autoDescription')}
+      >
+        <Cpu className="size-3.5" aria-hidden="true" />
+        <span className="truncate">{label}</span>
       </span>
     );
   }
