@@ -66,6 +66,8 @@ export default {
         // Listed in `optimizeDeps.include` in vite.config.ts as a string literal so vite prebundles it;
         // consumed transitively via @tale/ui components, never imported by name from platform code.
         '@radix-ui/react-slot',
+        'rehype-katex',
+        'remark-math',
         // Peer of @vitest/browser-playwright, required at runtime by vitest's browser test mode
         // but never imported directly.
         '@vitest/browser',
