@@ -26,8 +26,16 @@ import { queueActionableEmail } from './notify_email';
 import { notificationTypeValidator } from './schema';
 
 const DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
-const MAX_RECIPIENTS = 100;
+const MEMBER_PAGE_SIZE = 100;
+const MAX_RECIPIENTS = 500;
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+const MEMBER_ROLES = new Set([
+  'owner',
+  'admin',
+  'developer',
+  'editor',
+  'member',
+]);
 
 const audienceValidator = v.union(
   v.literal('user_ids'),
@@ -35,25 +43,50 @@ const audienceValidator = v.union(
   v.literal('task_subscribers'),
   v.literal('project_creator'),
   v.literal('org_admins'),
+  v.literal('org_members'),
 );
 
 async function orgAdminUserIds(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<string[]> {
-  const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: { cursor: null, numItems: MAX_RECIPIENTS },
-    where: [{ field: 'organizationId', value: organizationId, operator: 'eq' }],
-  });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown
-  const page = (result as { page?: Array<Record<string, unknown>> })?.page;
+  return orgMemberUserIds(ctx, organizationId, ADMIN_ROLES);
+}
+
+async function orgMemberUserIds(
+  ctx: MutationCtx,
+  organizationId: string,
+  roles: Set<string> = MEMBER_ROLES,
+): Promise<string[]> {
   const ids: string[] = [];
-  for (const member of page ?? []) {
-    const role = getString(member, 'role');
-    const userId = getString(member, 'userId');
-    if (role && userId && ADMIN_ROLES.has(role)) ids.push(userId);
+  let cursor: string | null = null;
+
+  while (ids.length < MAX_RECIPIENTS) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown
+    const result = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'member',
+      paginationOpts: {
+        cursor,
+        numItems: Math.min(MEMBER_PAGE_SIZE, MAX_RECIPIENTS - ids.length),
+      },
+      where: [
+        { field: 'organizationId', value: organizationId, operator: 'eq' },
+      ],
+    })) as {
+      page?: Array<Record<string, unknown>>;
+      isDone?: boolean;
+      continueCursor?: string | null;
+    };
+    const page = result.page;
+    for (const member of page ?? []) {
+      const role = getString(member, 'role');
+      const userId = getString(member, 'userId');
+      if (role && userId && roles.has(role)) ids.push(userId);
+    }
+    if (result.isDone === true || !result.continueCursor) break;
+    cursor = result.continueCursor;
   }
+
   return ids;
 }
 
@@ -98,6 +131,7 @@ export const notifyFromAutomation = internalMutation({
     params: v.optional(jsonRecordValidator),
     taskId: v.optional(v.id('tasks')),
     projectId: v.optional(v.id('projects')),
+    conversationId: v.optional(v.id('conversations')),
     userIds: v.optional(v.array(v.string())),
   },
   returns: v.object({ notified: v.number() }),
@@ -111,6 +145,12 @@ export const notifyFromAutomation = internalMutation({
     const projectId = args.projectId ?? task?.projectId;
     const project = projectId ? await ctx.db.get(projectId) : null;
     if (project && project.organizationId !== args.organizationId) {
+      return { notified: 0 };
+    }
+    const conversation = args.conversationId
+      ? await ctx.db.get(args.conversationId)
+      : null;
+    if (conversation && conversation.organizationId !== args.organizationId) {
       return { notified: 0 };
     }
 
@@ -140,6 +180,9 @@ export const notifyFromAutomation = internalMutation({
       case 'org_admins':
         recipients = await orgAdminUserIds(ctx, args.organizationId);
         break;
+      case 'org_members':
+        recipients = await orgMemberUserIds(ctx, args.organizationId);
+        break;
       default: {
         const unhandled: never = args.audience;
         throw new Error(`Unsupported audience: ${JSON.stringify(unhandled)}`);
@@ -147,9 +190,28 @@ export const notifyFromAutomation = internalMutation({
     }
 
     const unique = [...new Set(recipients)].slice(0, MAX_RECIPIENTS);
-    const resourceType = args.taskId ? 'task' : 'dashboard';
+    const resourceType = args.taskId
+      ? 'task'
+      : args.conversationId
+        ? 'conversation'
+        : 'dashboard';
     const resourceId: string =
-      args.taskId ?? args.projectId ?? args.organizationId;
+      args.taskId ??
+      args.conversationId ??
+      args.projectId ??
+      args.organizationId;
+
+    const notificationParams = {
+      ...args.params,
+      ...(args.conversationId
+        ? {
+            conversationId: String(args.conversationId),
+            ...(conversation?.status
+              ? { conversationStatus: conversation.status }
+              : {}),
+          }
+        : {}),
+    };
 
     let notified = 0;
     const now = Date.now();
@@ -174,7 +236,7 @@ export const notifyFromAutomation = internalMutation({
         type: args.type,
         titleKey: args.titleKey,
         bodyKey: args.bodyKey,
-        params: args.params,
+        params: notificationParams,
         resourceType,
         resourceId,
         taskId: args.taskId ?? (task ? task._id : undefined),
@@ -188,7 +250,7 @@ export const notifyFromAutomation = internalMutation({
         type: args.type,
         titleKey: args.titleKey,
         bodyKey: args.bodyKey,
-        params: args.params,
+        params: notificationParams,
         resourceType,
         resourceId,
         taskId: args.taskId ?? (task ? task._id : undefined),

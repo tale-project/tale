@@ -30,6 +30,7 @@ const PREF_FIELD: Record<
   | 'escalation'
   | 'automationAlerts'
   | 'digest'
+  | 'conversationMessages'
 > = {
   task_assigned: 'taskAssigned',
   task_status_changed: 'taskStatusChanged',
@@ -42,6 +43,7 @@ const PREF_FIELD: Record<
   budget_alert: 'automationAlerts',
   runtime_offline: 'automationAlerts',
   workforce_digest: 'digest',
+  conversation_message: 'conversationMessages',
 };
 
 /** Tri-state email delivery toggle — independent of in-app per-type prefs. */

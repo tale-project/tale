@@ -3,10 +3,12 @@
 import { type SearchResult } from '@tale/ui/search';
 import { Text } from '@tale/ui/text';
 import { Bot, User } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { AnchoredMentionPopoverShell } from './anchored-mention-popover-shell';
 
 export interface ActorMentionData {
   type: 'user' | 'agent';
@@ -18,6 +20,8 @@ export interface ActorMentionData {
 }
 
 interface ActorMentionPopoverProps {
+  anchorRef: RefObject<HTMLElement | null>;
+  open: boolean;
   results: SearchResult<ActorMentionData>[];
   highlightedIndex: number;
   onHighlight: (index: number) => void;
@@ -38,6 +42,8 @@ interface ActorMentionPopoverProps {
  * mention UX.
  */
 export function ActorMentionPopover({
+  anchorRef,
+  open,
   results,
   highlightedIndex,
   onHighlight,
@@ -55,7 +61,7 @@ export function ActorMentionPopover({
   }, [highlightedIndex]);
 
   return (
-    <div className="border-border bg-popover text-popover-foreground absolute bottom-full left-0 z-50 mb-2 w-max max-w-sm min-w-56 overflow-hidden rounded-xl border shadow-lg">
+    <AnchoredMentionPopoverShell anchorRef={anchorRef} open={open}>
       <div className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs font-medium">
         {t('mentionPicker.title')}
       </div>
@@ -108,13 +114,17 @@ export function ActorMentionPopover({
                     aria-hidden
                   />
                 )}
-                <Text as="span" variant="label" className="shrink-0 truncate">
+                <Text
+                  as="span"
+                  variant="label"
+                  className="min-w-0 flex-1 truncate"
+                >
                   {actor.name}
                 </Text>
                 <Text
                   as="span"
                   variant="caption"
-                  className="text-muted-foreground min-w-0 flex-1 truncate"
+                  className="text-muted-foreground max-w-[9rem] shrink-0 truncate"
                 >
                   @{actor.handle}
                 </Text>
@@ -123,6 +133,6 @@ export function ActorMentionPopover({
           })}
         </ul>
       )}
-    </div>
+    </AnchoredMentionPopoverShell>
   );
 }

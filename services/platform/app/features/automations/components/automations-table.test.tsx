@@ -53,6 +53,10 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
+vi.mock('@/app/components/catalog/use-catalog-sync', () => ({
+  useCatalogSync: () => ({ menuItem: null, dialog: null }),
+}));
+
 vi.mock('../hooks/file-queries', () => ({
   useListWorkflows: () => ({
     workflows: mockWorkflows.current,

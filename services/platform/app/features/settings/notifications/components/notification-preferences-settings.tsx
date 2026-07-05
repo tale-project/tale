@@ -22,7 +22,8 @@ type InAppPrefKey =
   | 'taskReview'
   | 'escalation'
   | 'automationAlerts'
-  | 'digest';
+  | 'digest'
+  | 'conversationMessages';
 
 const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'taskAssigned',
@@ -33,6 +34,7 @@ const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'escalation',
   'automationAlerts',
   'digest',
+  'conversationMessages',
 ];
 
 export function NotificationPreferencesSettings() {
@@ -75,6 +77,7 @@ function NotificationPreferencesSettingsView({
         escalation?: boolean;
         automationAlerts?: boolean;
         digest?: boolean;
+        conversationMessages?: boolean;
         actionableEmail?: boolean;
       }
     | undefined;
