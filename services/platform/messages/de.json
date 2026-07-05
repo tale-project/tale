@@ -232,7 +232,6 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen",
-      "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "failed": "Fehlgeschlagen",
@@ -8216,5 +8215,19 @@
     "saveError": "Umgebung konnte nicht gespeichert werden",
     "badKey": "„{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
     "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
+  },
+  "agents": {
+    "navigation": {
+      "general": "Allgemein",
+      "instructionsModel": "Anweisungen & Modelle",
+      "tools": "Tools",
+      "skills": "Skills",
+      "knowledge": "Wissen",
+      "webhook": "Webhook",
+      "conversationStarters": "Gesprächseinstiege",
+      "history": "Verlauf",
+      "metrics": "Leistung",
+      "environment": "Umgebung"
+    }
   }
 }

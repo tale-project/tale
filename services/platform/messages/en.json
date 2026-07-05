@@ -69,9 +69,6 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
-    "addMenu": {
-      "label": "Add app"
-    },
     "install": {
       "install": "Install",
       "installed": "Installed",
@@ -235,7 +232,6 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
-      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
@@ -8219,5 +8215,19 @@
     "saveError": "Couldn't save environment",
     "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
     "dupKey": "Duplicate variable name — each NAME must be unique."
+  },
+  "agents": {
+    "navigation": {
+      "general": "General",
+      "instructionsModel": "Instructions & models",
+      "tools": "Tools",
+      "skills": "Skills",
+      "knowledge": "Knowledge",
+      "webhook": "Webhooks",
+      "conversationStarters": "Starters",
+      "history": "History",
+      "metrics": "Performance",
+      "environment": "Environment"
+    }
   }
 }
