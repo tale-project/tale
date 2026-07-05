@@ -4622,6 +4622,10 @@
       "digest": {
         "label": "Zusammenfassung",
         "description": "Regelmäßige Übersicht der Workforce-Aktivität."
+      },
+      "conversationMessages": {
+        "label": "Konversationsnachrichten",
+        "description": "Wenn eine Kundennachricht in Konversationen ankommt."
       }
     }
   },
@@ -6993,6 +6997,8 @@
     "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
+    "conversationInboundMessage": "Neue Konversationsnachricht",
+    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne Konversationen, um zu antworten.",
     "agentEscalation": "Agenten-Eskalation",
     "agentEscalationBody": "{agent} hat eskaliert: {reason}",
     "email": {

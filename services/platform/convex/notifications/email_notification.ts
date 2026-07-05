@@ -37,6 +37,14 @@ export function buildPersonalNotificationUrl(args: {
   if (args.params?.chat === true && typeof threadId === 'string') {
     return `${base}/dashboard/${args.organizationId}/chat/${encodeURIComponent(threadId)}`;
   }
+  const conversationId = args.params?.conversationId;
+  if (typeof conversationId === 'string') {
+    const status =
+      typeof args.params?.conversationStatus === 'string'
+        ? args.params.conversationStatus
+        : 'open';
+    return `${base}/dashboard/${args.organizationId}/conversations/${encodeURIComponent(status)}?conversation=${encodeURIComponent(conversationId)}`;
+  }
   if (typeof threadId === 'string' && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/discussions?thread=${encodeURIComponent(threadId)}`;
   }

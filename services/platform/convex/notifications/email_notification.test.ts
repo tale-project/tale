@@ -30,6 +30,21 @@ describe('buildPersonalNotificationUrl', () => {
     ).toBe('https://app.example.com/dashboard/org_1/chat/thread_chat');
   });
 
+  it('builds a conversation deep link when conversationId is present', () => {
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: 'org_1',
+        params: {
+          conversationId: 'conv_abc',
+          conversationStatus: 'open',
+        },
+        siteUrl: 'https://app.example.com',
+      }),
+    ).toBe(
+      'https://app.example.com/dashboard/org_1/conversations/open?conversation=conv_abc',
+    );
+  });
+
   it('builds a discussion deep link when threadId and projectId are present', () => {
     expect(
       buildPersonalNotificationUrl({

@@ -4625,6 +4625,10 @@
       "digest": {
         "label": "Digest",
         "description": "Periodic summary of workforce activity."
+      },
+      "conversationMessages": {
+        "label": "Conversation messages",
+        "description": "When a customer message arrives in Conversations."
       }
     }
   },
@@ -7260,6 +7264,8 @@
     "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
+    "conversationInboundMessage": "New conversation message",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
     "agentEscalation": "Agent escalation",
     "agentEscalationBody": "{agent} escalated: {reason}",
     "email": {

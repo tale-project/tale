@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { emitEvent } from '../workflows/triggers/emit_event';
 import { createConversationWithMessage } from './create_conversation_with_message';
 import type { CreateConversationWithMessageArgs } from './create_conversation_with_message';
 
@@ -15,6 +16,10 @@ vi.mock('./create_conversation', () => ({
     success: true,
     conversationId: 'created_conversation' as Id<'conversations'>,
   }),
+}));
+
+vi.mock('../workflows/triggers/emit_event', () => ({
+  emitEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 const ORG_ID = 'org_1';
@@ -51,6 +56,40 @@ describe('createConversationWithMessage — client-facing failures use ConvexErr
       createConversationWithMessage(ctx, makeArgs()),
     ).rejects.toMatchObject({
       data: { code: 'conversation_not_found' },
+    });
+  });
+
+  it('emits conversation.message_received after the initial message is stored', async () => {
+    const conversation = {
+      _id: 'created_conversation' as Id<'conversations'>,
+      organizationId: ORG_ID,
+      status: 'open',
+    };
+    const message = {
+      _id: 'message_id' as Id<'conversationMessages'>,
+      direction: 'inbound',
+    };
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(conversation)
+      .mockResolvedValueOnce(message)
+      .mockResolvedValueOnce(conversation);
+    const ctx = {
+      db: {
+        get,
+        insert: vi
+          .fn()
+          .mockResolvedValue('message_id' as Id<'conversationMessages'>),
+        patch: vi.fn().mockResolvedValue(undefined),
+      },
+    } as unknown as MutationCtx;
+
+    await createConversationWithMessage(ctx, makeArgs());
+
+    expect(emitEvent).toHaveBeenCalledWith(ctx, {
+      organizationId: ORG_ID,
+      eventType: 'conversation.message_received',
+      eventData: { conversation, message },
     });
   });
 });
