@@ -13,6 +13,12 @@ Um ein Dokument hochzuladen, öffne **Wissen > Dokumente** und lass die Datei au
 
 Das Dokument an einen Agent zu binden ist ein separater Schritt. Öffne den Agent und füg das Dokument unter seinem **Wissen**-Tab hinzu; die nächste Anfrage, die der Agent bedient, ruft über die Chunks des neuen Dokuments ab. Ein Dokument ohne Bindungen bleibt indexiert, ist aber für jeden Agent unsichtbar — nützlich, wenn du das Dokument in der Bibliothek willst, aber noch nicht in der Produktion.
 
+## Import aus Microsoft 365
+
+Dokumente können statt von der Festplatte auch aus OneDrive oder SharePoint kommen. Öffne **Wissen > Dokumente > Dokumente hochladen > Von Microsoft 365**, wähle Dateien oder Ordner und entscheide dich für einen Import-Modus. **Einmaliger Import** holt die Dateien einmal; sie verhalten sich wie Uploads von der Festplatte. **Synchronisierungsimport** hält die Auswahl synchron: neue Dateien im OneDrive-Ordner erscheinen bei einem späteren Sync-Lauf, geänderte Dateien werden neu indexiert, und an der Quelle gelöschte Dateien verschwinden aus dem Workspace. Beide Modi erhalten die Ordnerstruktur deiner Auswahl. Die Synchronisierung deckt persönliche OneDrive-Ordner ab — eine SharePoint-Auswahl importiert immer einmalig.
+
+Um die Synchronisierung eines Ordners zu beenden, öffne das Menü der Ordner-Zeile und klicke auf **Synchronisierung beenden**; die importierten Dateien bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners beendet die Synchronisierung. In beiden Fällen bleiben die Dateien in OneDrive unberührt.
+
 ## Was die Indexierungs-Pipeline tut
 
 Die Indexierung passiert in vier Stufen, der Reihe nach:

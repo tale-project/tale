@@ -40,7 +40,13 @@ export function createUploadAndCreateDocDeps(
         },
       );
     },
-    saveFileMetadata: async (storageId, fileName, contentType, size) => {
+    saveFileMetadata: async (
+      storageId,
+      fileName,
+      contentType,
+      size,
+      documentId,
+    ) => {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.saveFileMetadata,
         {
@@ -49,8 +55,8 @@ export function createUploadAndCreateDocDeps(
           fileName,
           contentType,
           size,
-          // Provenance is finalized by linkDocumentToFile from the document's
-          // sourceProvider ('onedrive' / 'sharepoint').
+          documentId,
+          scheduleRag: false,
           source: 'user',
         },
       );
@@ -59,6 +65,12 @@ export function createUploadAndCreateDocDeps(
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.linkDocumentToFile,
         { storageId, documentId },
+      );
+    },
+    scheduleHubDocumentRagIndexing: async (documentId) => {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.scheduleHubDocumentRagIndexing,
+        { documentId },
       );
     },
   };

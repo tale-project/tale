@@ -2552,7 +2552,10 @@
       "deleteFolderFailed": "Ordner konnte nicht gelöscht werden",
       "deleteFileFailed": "Beim Löschen der Datei ist ein unerwarteter Fehler aufgetreten.",
       "manageTeams": "Team zuweisen",
-      "reindex": "Neu indexieren"
+      "reindex": "Neu indexieren",
+      "stopSync": "Synchronisierung beenden",
+      "stopSyncDone": "Synchronisierung beendet. Die importierten Dateien bleiben in deinem Workspace.",
+      "stopSyncFailed": "Synchronisierung konnte nicht beendet werden"
     },
     "folder": {
       "newFolder": "Neuer Ordner",
@@ -6118,7 +6121,8 @@
             "s4": "Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren Sie den Geheimnis-Wert (nicht die Geheimnis-ID).",
             "s6": "Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.",
-            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung."
+            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung.",
+            "s8": "Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld Scopes."
           },
           "google": {
             "intro": "Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen Sie die Daten unten ein.",

@@ -9,6 +9,7 @@
  */
 
 import type * as accounts_helpers from "../accounts/helpers.js";
+import type * as accounts_microsoft_account from "../accounts/microsoft_account.js";
 import type * as accounts_queries from "../accounts/queries.js";
 import type * as accounts_types from "../accounts/types.js";
 import type * as accounts_validators from "../accounts/validators.js";
@@ -398,6 +399,7 @@ import type * as documents_queries from "../documents/queries.js";
 import type * as documents_query_documents from "../documents/query_documents.js";
 import type * as documents_read_file_base64_from_storage from "../documents/read_file_base64_from_storage.js";
 import type * as documents_rest_api from "../documents/rest_api.js";
+import type * as documents_schedule_hub_document_rag_indexing from "../documents/schedule_hub_document_rag_indexing.js";
 import type * as documents_search_documents_for_mention from "../documents/search_documents_for_mention.js";
 import type * as documents_team_fields from "../documents/team_fields.js";
 import type * as documents_transform_to_document_item from "../documents/transform_to_document_item.js";
@@ -1048,9 +1050,13 @@ import type * as notifications_queries from "../notifications/queries.js";
 import type * as notifications_send_actionable_email from "../notifications/send_actionable_email.js";
 import type * as oauth2 from "../oauth2.js";
 import type * as onedrive_actions from "../onedrive/actions.js";
-import type * as onedrive_create_sync_configs from "../onedrive/create_sync_configs.js";
+import type * as onedrive_deactivate_sync_configs from "../onedrive/deactivate_sync_configs.js";
+import type * as onedrive_derive_sync_targets from "../onedrive/derive_sync_targets.js";
 import type * as onedrive_download_and_store_file from "../onedrive/download_and_store_file.js";
 import type * as onedrive_download_file from "../onedrive/download_file.js";
+import type * as onedrive_ensure_sync_workflow from "../onedrive/ensure_sync_workflow.js";
+import type * as onedrive_ensure_sync_workflow_constants from "../onedrive/ensure_sync_workflow_constants.js";
+import type * as onedrive_ensure_sync_workflow_provision from "../onedrive/ensure_sync_workflow_provision.js";
 import type * as onedrive_get_file_metadata from "../onedrive/get_file_metadata.js";
 import type * as onedrive_get_user_token from "../onedrive/get_user_token.js";
 import type * as onedrive_helpers from "../onedrive/helpers.js";
@@ -1064,8 +1070,13 @@ import type * as onedrive_list_folder_contents from "../onedrive/list_folder_con
 import type * as onedrive_list_sharepoint_drives from "../onedrive/list_sharepoint_drives.js";
 import type * as onedrive_list_sharepoint_files from "../onedrive/list_sharepoint_files.js";
 import type * as onedrive_list_sharepoint_sites from "../onedrive/list_sharepoint_sites.js";
+import type * as onedrive_mutations from "../onedrive/mutations.js";
 import type * as onedrive_read_file from "../onedrive/read_file.js";
+import type * as onedrive_reconcile_folder_sync from "../onedrive/reconcile_folder_sync.js";
+import type * as onedrive_refresh_credentials from "../onedrive/refresh_credentials.js";
 import type * as onedrive_refresh_token from "../onedrive/refresh_token.js";
+import type * as onedrive_run_config_sync from "../onedrive/run_config_sync.js";
+import type * as onedrive_run_folder_reconcile from "../onedrive/run_folder_reconcile.js";
 import type * as onedrive_types from "../onedrive/types.js";
 import type * as onedrive_update_sync_config from "../onedrive/update_sync_config.js";
 import type * as onedrive_upload_and_create_document from "../onedrive/upload_and_create_document.js";
@@ -1666,6 +1677,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "accounts/helpers": typeof accounts_helpers;
+  "accounts/microsoft_account": typeof accounts_microsoft_account;
   "accounts/queries": typeof accounts_queries;
   "accounts/types": typeof accounts_types;
   "accounts/validators": typeof accounts_validators;
@@ -2055,6 +2067,7 @@ declare const fullApi: ApiFromModules<{
   "documents/query_documents": typeof documents_query_documents;
   "documents/read_file_base64_from_storage": typeof documents_read_file_base64_from_storage;
   "documents/rest_api": typeof documents_rest_api;
+  "documents/schedule_hub_document_rag_indexing": typeof documents_schedule_hub_document_rag_indexing;
   "documents/search_documents_for_mention": typeof documents_search_documents_for_mention;
   "documents/team_fields": typeof documents_team_fields;
   "documents/transform_to_document_item": typeof documents_transform_to_document_item;
@@ -2705,9 +2718,13 @@ declare const fullApi: ApiFromModules<{
   "notifications/send_actionable_email": typeof notifications_send_actionable_email;
   oauth2: typeof oauth2;
   "onedrive/actions": typeof onedrive_actions;
-  "onedrive/create_sync_configs": typeof onedrive_create_sync_configs;
+  "onedrive/deactivate_sync_configs": typeof onedrive_deactivate_sync_configs;
+  "onedrive/derive_sync_targets": typeof onedrive_derive_sync_targets;
   "onedrive/download_and_store_file": typeof onedrive_download_and_store_file;
   "onedrive/download_file": typeof onedrive_download_file;
+  "onedrive/ensure_sync_workflow": typeof onedrive_ensure_sync_workflow;
+  "onedrive/ensure_sync_workflow_constants": typeof onedrive_ensure_sync_workflow_constants;
+  "onedrive/ensure_sync_workflow_provision": typeof onedrive_ensure_sync_workflow_provision;
   "onedrive/get_file_metadata": typeof onedrive_get_file_metadata;
   "onedrive/get_user_token": typeof onedrive_get_user_token;
   "onedrive/helpers": typeof onedrive_helpers;
@@ -2721,8 +2738,13 @@ declare const fullApi: ApiFromModules<{
   "onedrive/list_sharepoint_drives": typeof onedrive_list_sharepoint_drives;
   "onedrive/list_sharepoint_files": typeof onedrive_list_sharepoint_files;
   "onedrive/list_sharepoint_sites": typeof onedrive_list_sharepoint_sites;
+  "onedrive/mutations": typeof onedrive_mutations;
   "onedrive/read_file": typeof onedrive_read_file;
+  "onedrive/reconcile_folder_sync": typeof onedrive_reconcile_folder_sync;
+  "onedrive/refresh_credentials": typeof onedrive_refresh_credentials;
   "onedrive/refresh_token": typeof onedrive_refresh_token;
+  "onedrive/run_config_sync": typeof onedrive_run_config_sync;
+  "onedrive/run_folder_reconcile": typeof onedrive_run_folder_reconcile;
   "onedrive/types": typeof onedrive_types;
   "onedrive/update_sync_config": typeof onedrive_update_sync_config;
   "onedrive/upload_and_create_document": typeof onedrive_upload_and_create_document;

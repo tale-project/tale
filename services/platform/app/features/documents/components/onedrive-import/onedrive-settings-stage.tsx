@@ -8,6 +8,7 @@ import { SectionHeader } from '@tale/ui/section-header';
 import { SelectableRow } from '@tale/ui/selectable-row';
 import { Separator } from '@tale/ui/separator';
 import { Spinner } from '@tale/ui/spinner';
+import type { TFunction } from 'i18next';
 import { Database, Loader2, Users } from 'lucide-react';
 
 import { FormSection } from '@/app/components/ui/forms/form-section';
@@ -16,7 +17,6 @@ import {
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
-import { useT } from '@/lib/i18n/client';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 
 import type { ImportType } from './types';
@@ -32,6 +32,12 @@ interface OneDriveSettingsStageProps {
   teams: Array<{ id: string; name: string }> | undefined;
   isLoadingTeams: boolean;
   selectedTeamId?: string;
+  /** `documents`-namespace translator, owned by the dialog. This stage is a
+   *  plain function (not a component), so it must not call hooks itself —
+   *  the picker↔settings switch would change the parent's hook count. */
+  t: TFunction;
+  /** `common`-namespace translator, owned by the dialog. */
+  tCommon: TFunction;
   onImportTypeChange: (type: ImportType) => void;
   onSelectTeam: (teamId: string | undefined) => void;
   onBack: () => void;
@@ -45,14 +51,13 @@ export function OneDriveSettingsStage({
   teams,
   isLoadingTeams,
   selectedTeamId,
+  t,
+  tCommon,
   onImportTypeChange,
   onSelectTeam,
   onBack,
   onImport,
 }: OneDriveSettingsStageProps) {
-  const { t } = useT('documents');
-  const { t: tCommon } = useT('common');
-
   const footer = (
     <HStack gap={4} className="w-full justify-stretch">
       <Button

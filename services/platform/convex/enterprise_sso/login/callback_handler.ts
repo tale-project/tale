@@ -279,6 +279,7 @@ export async function ssoCallbackHandler(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         accessTokenExpiresAt: tokens.expiresAt,
+        scope: tokens.scope,
         organizationId: config.organizationId,
       },
     );

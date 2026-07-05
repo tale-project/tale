@@ -112,6 +112,11 @@ export function DocumentsTable({
       folderId: folder._id,
       lastModified: folder._creationTime,
       teamIds: folder.teamTags ?? (folder.teamId ? [folder.teamId] : []),
+      syncConfigId: folder.syncConfigId,
+      ...(folder.syncConfigId && {
+        sourceProvider: 'onedrive',
+        sourceMode: 'auto' as const,
+      }),
     }));
   }, [folders]);
 

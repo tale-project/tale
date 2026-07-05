@@ -13,6 +13,12 @@ Pour téléverser un document, ouvre **Connaissance > Documents** et lâche le f
 
 Lier le document à un agent est une étape séparée. Ouvre l'agent et ajoute le document sous son onglet **Connaissance** ; la requête suivante que sert l'agent récupère sur les chunks du nouveau document. Un document sans liaison reste indexé mais est invisible à chaque agent — utile quand tu veux le document dans la bibliothèque mais pas encore en production.
 
+## Importer depuis Microsoft 365
+
+Les documents peuvent venir de OneDrive ou SharePoint au lieu du disque. Ouvre **Connaissance > Documents > Téléverser des documents > Depuis Microsoft 365**, choisis des fichiers ou des dossiers, puis le mode d'importation. **Importation unique** apporte les fichiers une fois ; ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d'un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l'espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s'importe toujours une seule fois.
+
+Pour arrêter la synchronisation d'un dossier, ouvre le menu de la ligne du dossier et clique sur **Arrêter la synchronisation** ; les fichiers importés restent dans l'espace de travail et cessent d'être mis à jour. Supprimer un dossier synchronisé arrête aussi la synchronisation. Dans les deux cas, les fichiers dans OneDrive restent intacts.
+
 ## Ce que fait la pipeline d'indexation
 
 L'indexation arrive en quatre étapes, dans l'ordre :
