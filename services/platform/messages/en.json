@@ -1331,7 +1331,7 @@
       "noResults": "No agents found",
       "addAgent": "Catalog",
       "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
-      "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)"
+      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1799,19 +1799,6 @@
       "bothBad": "Both bad",
       "verdictRecorded": "Verdict recorded",
       "verdictError": "Failed to record verdict"
-    },
-    "humanControl": {
-      "cardTitle": "The agent needs your help in the browser",
-      "takeControl": "Take control",
-      "takeControlHint": "Take control to complete this step in the live browser, then hand it back.",
-      "controllingHint": "You're driving the browser. Finish the step, then return control to resume the agent.",
-      "returnControl": "Done — return control",
-      "errorAlreadyResolved": "This handoff was already resolved.",
-      "errorTurnRunning": "The agent is already running again.",
-      "errorReturnFailed": "Couldn't return control. Please try again.",
-      "statusReturned": "Control returned — the agent resumed.",
-      "statusSuperseded": "Replaced by a newer request.",
-      "statusTimedOut": "No one took control — the agent moved on."
     },
     "canvas": {
       "title": "Canvas",
@@ -5750,6 +5737,8 @@
         "bindWorkflowsPlaceholder": "Bind workflows…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
+        "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",
+        "skillBindingsExternalNoCustomSkillsDescription": "No extra org skills to bind yet — workflow disciplines still load automatically. Create a custom skill in Skills settings if this agent needs one.",
         "skillBindingsCounter": "{count}/{max} bound",
         "skillBindingsToggleAria": "Bind {slug}",
         "skillBindingsAtCapReason": "Maximum {max} skills bound — unbind one to add another.",

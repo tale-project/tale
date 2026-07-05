@@ -1329,7 +1329,7 @@
       "noResults": "Aucun agent trouvé",
       "addAgent": "Catalogue",
       "lockedExternal": "Ce chat s'exécute dans une sandbox et garde son agent — démarre un nouveau chat pour en utiliser un autre.",
-      "lockedExternalLabel": "Agent : {{agent}} (fixé pour ce chat sandbox)"
+      "lockedExternalLabel": "Agent : {agent} (fixé pour ce chat sandbox)"
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
@@ -1778,19 +1778,6 @@
       "bothBad": "Les deux sont mauvais",
       "verdictRecorded": "Verdict enregistré",
       "verdictError": "Échec de l'enregistrement du verdict"
-    },
-    "humanControl": {
-      "cardTitle": "L'agent a besoin de ton aide dans le navigateur",
-      "takeControl": "Prendre le contrôle",
-      "takeControlHint": "Prends le contrôle pour terminer cette étape dans le navigateur en direct, puis rends-le.",
-      "controllingHint": "Tu pilotes le navigateur. Termine l'étape, puis rends le contrôle pour que l'agent reprenne.",
-      "returnControl": "Terminé — rendre le contrôle",
-      "errorAlreadyResolved": "Ce transfert a déjà été résolu.",
-      "errorTurnRunning": "L'agent a déjà repris.",
-      "errorReturnFailed": "Impossible de rendre le contrôle. Réessaie.",
-      "statusReturned": "Contrôle rendu — l'agent a repris.",
-      "statusSuperseded": "Remplacé par une demande plus récente.",
-      "statusTimedOut": "Personne n'a pris le contrôle — l'agent a continué."
     },
     "canvas": {
       "title": "Canevas",
@@ -5484,6 +5471,8 @@
         "bindWorkflowsPlaceholder": "Lier des flux de travail…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
+        "sectionSkillBindingsExternalDescription": "Les disciplines workflow (fix-bug, write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici uniquement des skills org supplémentaires. Chaque skill lié est injecté dans la session à chaque tour.",
+        "skillBindingsExternalNoCustomSkillsDescription": "Aucun skill org supplémentaire à lier pour l'instant — les disciplines workflow se chargent quand même automatiquement. Crée un skill personnalisé dans les paramètres Skills si cet agent en a besoin.",
         "skillBindingsCounter": "{count}/{max} liés",
         "skillBindingsToggleAria": "Lier {slug}",
         "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",

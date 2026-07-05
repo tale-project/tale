@@ -55,6 +55,8 @@ interface SkillsTableProps {
    * the org Skills settings instead of the generic marketing copy.
    */
   emptyStateOverride?: { title?: string; description: ReactNode };
+  /** Slugs hidden from the table (e.g. workflow disciplines on external agents). */
+  excludeSlugs?: ReadonlySet<string>;
 }
 
 export function SkillsTable({
@@ -63,6 +65,7 @@ export function SkillsTable({
   hideActionMenu,
   initialDetailSlug,
   emptyStateOverride,
+  excludeSlugs,
 }: SkillsTableProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
@@ -110,6 +113,11 @@ export function SkillsTable({
     }
     return rows;
   }, [rawSkills]);
+
+  const filteredSkills = useMemo(() => {
+    if (!excludeSlugs || excludeSlugs.size === 0) return skills;
+    return skills.filter((s) => !excludeSlugs.has(s.slug));
+  }, [skills, excludeSlugs]);
 
   const invalidateSkills = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['config', 'skills'] });
@@ -163,7 +171,7 @@ export function SkillsTable({
   const list = useListPage<SkillRow>({
     dataSource: {
       type: 'query',
-      data: isLoading ? undefined : skills,
+      data: isLoading ? undefined : filteredSkills,
     },
     pageSize,
     // Omit approxRowCount so the table shows the shared default skeleton-row
