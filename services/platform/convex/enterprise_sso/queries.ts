@@ -45,8 +45,8 @@ export const isConfigured = query({
       providerType: first.providerType,
       // Seamless (silent) SSO is now driven by a query param, not stored config.
       seamlessSsoEnabled: false,
-      // With several orgs' connections enabled, sign-in must be routed by the
-      // organization email — the login page asks for it before redirecting.
+      // With several orgs' connections enabled, sign-in steps into the org
+      // picker — the user picks their organization before redirecting.
       multiple: enabledCount > 1,
     };
   },
@@ -57,11 +57,9 @@ export const isConfigured = query({
 const MAX_SELECTABLE_CONNECTIONS = 20;
 
 /**
- * Public login-page query: the enabled connections WITHOUT an email domain.
- * Email routing can never reach them (matching is by exact domain), so the SSO
- * step lists them for manual selection instead of dead-ending. Deliberate
- * disclosure: their display names are visible pre-auth — setting a domain on a
- * connection removes it from this list, so the operator controls the exposure.
+ * Public login-page query: every enabled connection on a multi-org deployment.
+ * The SSO step lists them for manual selection — display names are visible
+ * pre-auth, so operators should set a clear display name per connection.
  */
 export const listSelectable = query({
   args: {},
@@ -88,7 +86,6 @@ export const listSelectable = query({
       if (!parsed.success || !parsed.data.enabled || !parsed.data.protocol) {
         continue;
       }
-      if (parsed.data.domain) continue;
       selectable.push({
         organizationId: row.organizationId,
         displayName: parsed.data.displayName,
