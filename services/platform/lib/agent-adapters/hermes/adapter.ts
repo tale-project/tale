@@ -15,7 +15,7 @@ import { DEFAULT_MAX_TURNS } from '../types';
 import { HermesParser } from './parse';
 
 /** Session-relative Hermes profile root under HOME (/user/.runtime/home). */
-export const HERMES_SKILLS_STAGE_DIR = '.runtime/home/.hermes/skills' as const;
+const HERMES_SKILLS_STAGE_DIR = '.runtime/home/.hermes/skills' as const;
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'gateway',
