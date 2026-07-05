@@ -14,11 +14,11 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
-import { Text } from '@tale/ui/text';
+import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useRegisterDirtySource } from '@/app/components/ui/editor/use-dirty-source';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
@@ -133,6 +133,8 @@ export function EnvVarListEditor({
 
   const [localRows, setLocalRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
+  // Index of the row awaiting remove confirmation (null = no dialog open).
+  const [pendingRemove, setPendingRemove] = useState<number | null>(null);
   // While the user has unsaved edits, server (re)loads must not clobber them.
   // After a save we clear this so the post-write reactive update re-snapshots
   // with the freshly-computed secret previews.
@@ -197,6 +199,22 @@ export function EnvVarListEditor({
     markDirty();
     setLocalRows((rs) => rs.filter((_, j) => j !== i));
   };
+  // A blank, never-saved row carries no data — drop it immediately. Any row with
+  // content (a typed key, or one loaded from the server) goes through a
+  // confirmation modal before it's removed.
+  const requestRemove = (i: number): void => {
+    const r = localRows[i];
+    if (r && r.existingKey === null && r.key.trim() === '') {
+      removeRow(i);
+      return;
+    }
+    setPendingRemove(i);
+  };
+  const confirmRemove = (): void => {
+    if (pendingRemove === null) return;
+    removeRow(pendingRemove);
+    setPendingRemove(null);
+  };
 
   const onSave = async (): Promise<void> => {
     const active = localRows.filter((r) => r.key.trim() !== '');
@@ -256,158 +274,169 @@ export function EnvVarListEditor({
 
   const busy = saving || disabled;
 
-  if (isLoading && localRows.length === 0) {
-    return <SkeletonText lines={3} />;
-  }
+  // Headerless, no-skeleton, no-empty-state table (#1950): when there are no
+  // rows the table isn't rendered at all — only the Add/Save controls remain.
+  const renderRow = (r: Row, i: number) => {
+    const isBinding = r.tokenSourceSlug !== undefined;
+    // When the surface supports token sources, a single per-row "type"
+    // chooser (Value / Secret / a source) replaces the Secret checkbox —
+    // the user picks ONE: type a value, or draw from a rotating pool. The
+    // value field shows only for Value/Secret. Surfaces without sources keep
+    // the plain value + Secret-checkbox layout.
+    const hasSources = tokenSources !== undefined && tokenSources.length > 0;
+    const rowType = isBinding
+      ? 'token-source'
+      : r.isSecret
+        ? 'secret'
+        : 'value';
+    const onTypeChange = (v: string): void => {
+      if (!v) return; // ignore Radix's spurious '' during flux
+      if (v === 'value') {
+        patch(i, {
+          isSecret: false,
+          tokenSourceSlug: undefined,
+          masked: false,
+          ...(r.isSecret && { secretDirty: true, value: '' }),
+        });
+      } else if (v === 'secret') {
+        patch(i, {
+          isSecret: true,
+          secretDirty: true,
+          tokenSourceSlug: undefined,
+          ...(r.masked && { value: '', masked: false }),
+        });
+      } else if (v === 'token-source') {
+        // Default to the first source; the second dropdown lets the user
+        // change it. (Only reachable when hasSources, so [0] exists.)
+        const firstSlug = tokenSources?.[0]?.slug;
+        if (firstSlug !== undefined) {
+          patch(i, {
+            tokenSourceSlug: firstSlug,
+            isSecret: true,
+            value: '',
+            masked: false,
+            secretDirty: false,
+          });
+        }
+      }
+    };
+    return (
+      <TableRow key={i} data-no-hover>
+        <TableCell className="w-48 align-middle">
+          <Input
+            placeholder={t('keyPlaceholder')}
+            value={r.key}
+            disabled={busy}
+            className="font-mono"
+            onChange={(e) => patch(i, { key: e.target.value })}
+          />
+        </TableCell>
+        {hasSources && (
+          <TableCell className="w-0 align-middle">
+            <Select
+              aria-label={t('valueType')}
+              className="w-40 shrink-0"
+              disabled={busy}
+              value={rowType}
+              options={[
+                { value: 'value', label: t('typeValue') },
+                { value: 'secret', label: t('secret') },
+                { value: 'token-source', label: t('typeTokenSource') },
+              ]}
+              onValueChange={onTypeChange}
+            />
+          </TableCell>
+        )}
+        <TableCell className="align-middle">
+          {isBinding ? (
+            // Second dropdown: WHICH token source (shown only once the type
+            // is "Token source"). Keeps sources out of the type list.
+            <Select
+              aria-label={t('typeTokenSource')}
+              className="w-full"
+              disabled={busy}
+              value={r.tokenSourceSlug ?? ''}
+              options={(tokenSources ?? []).map((s) => ({
+                value: s.slug,
+                label: s.displayName,
+              }))}
+              onValueChange={(v) => {
+                if (v) patch(i, { tokenSourceSlug: v });
+              }}
+            />
+          ) : (
+            <Input
+              type={r.isSecret && !r.masked ? 'password' : 'text'}
+              placeholder={t('valuePlaceholder')}
+              value={r.value}
+              disabled={busy}
+              className="font-mono"
+              onFocus={() => {
+                if (r.masked) patchDisplay(i, { value: '', masked: false });
+              }}
+              onChange={(e) =>
+                patch(i, {
+                  value: e.target.value,
+                  masked: false,
+                  ...(r.isSecret && { secretDirty: true }),
+                })
+              }
+              onBlur={() => {
+                if (
+                  r.isSecret &&
+                  r.existingKey !== null &&
+                  !r.secretDirty &&
+                  r.value === ''
+                ) {
+                  patchDisplay(i, { value: r.maskedDisplay, masked: true });
+                }
+              }}
+            />
+          )}
+        </TableCell>
+        {!hasSources && (
+          <TableCell className="w-0 align-middle">
+            <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+              <Checkbox
+                checked={r.isSecret}
+                disabled={busy}
+                onCheckedChange={(c) =>
+                  patch(i, {
+                    isSecret: c === true,
+                    secretDirty: true,
+                    ...(r.masked && { value: '', masked: false }),
+                  })
+                }
+              />
+              {t('secret')}
+            </label>
+          </TableCell>
+        )}
+        <TableCell className="w-0 align-middle">
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={busy}
+            aria-label={t('remove')}
+            onClick={() => requestRemove(i)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const pendingRow =
+    pendingRemove !== null ? localRows[pendingRemove] : undefined;
 
   return (
     <VStack gap={2}>
-      {localRows.length === 0 && (
-        <Text variant="muted" className="text-sm">
-          {t('none')}
-        </Text>
+      {localRows.length > 0 && (
+        <Table>
+          <TableBody>{localRows.map((r, i) => renderRow(r, i))}</TableBody>
+        </Table>
       )}
-      {localRows.map((r, i) => {
-        const isBinding = r.tokenSourceSlug !== undefined;
-        // When the surface supports token sources, a single per-row "type"
-        // chooser (Value / Secret / a source) replaces the Secret checkbox —
-        // the user picks ONE: type a value, or draw from a rotating pool. The
-        // value field shows only for Value/Secret. Surfaces without sources keep
-        // the plain value + Secret-checkbox layout.
-        const hasSources =
-          tokenSources !== undefined && tokenSources.length > 0;
-        const rowType = isBinding
-          ? 'token-source'
-          : r.isSecret
-            ? 'secret'
-            : 'value';
-        const onTypeChange = (v: string): void => {
-          if (!v) return; // ignore Radix's spurious '' during flux
-          if (v === 'value') {
-            patch(i, {
-              isSecret: false,
-              tokenSourceSlug: undefined,
-              masked: false,
-              ...(r.isSecret && { secretDirty: true, value: '' }),
-            });
-          } else if (v === 'secret') {
-            patch(i, {
-              isSecret: true,
-              secretDirty: true,
-              tokenSourceSlug: undefined,
-              ...(r.masked && { value: '', masked: false }),
-            });
-          } else if (v === 'token-source') {
-            // Default to the first source; the second dropdown lets the user
-            // change it. (Only reachable when hasSources, so [0] exists.)
-            const firstSlug = tokenSources?.[0]?.slug;
-            if (firstSlug !== undefined) {
-              patch(i, {
-                tokenSourceSlug: firstSlug,
-                isSecret: true,
-                value: '',
-                masked: false,
-                secretDirty: false,
-              });
-            }
-          }
-        };
-        return (
-          <HStack key={i} gap={2} className="items-center">
-            <Input
-              placeholder={t('keyPlaceholder')}
-              value={r.key}
-              disabled={busy}
-              className="font-mono"
-              onChange={(e) => patch(i, { key: e.target.value })}
-            />
-            {hasSources && (
-              <Select
-                aria-label={t('valueType')}
-                className="w-40 shrink-0"
-                disabled={busy}
-                value={rowType}
-                options={[
-                  { value: 'value', label: t('typeValue') },
-                  { value: 'secret', label: t('secret') },
-                  { value: 'token-source', label: t('typeTokenSource') },
-                ]}
-                onValueChange={onTypeChange}
-              />
-            )}
-            {isBinding ? (
-              // Second dropdown: WHICH token source (shown only once the type is
-              // "Token source"). Keeps sources out of the type list.
-              <Select
-                aria-label={t('typeTokenSource')}
-                className="flex-1"
-                disabled={busy}
-                value={r.tokenSourceSlug ?? ''}
-                options={(tokenSources ?? []).map((s) => ({
-                  value: s.slug,
-                  label: s.displayName,
-                }))}
-                onValueChange={(v) => {
-                  if (v) patch(i, { tokenSourceSlug: v });
-                }}
-              />
-            ) : (
-              <Input
-                type={r.isSecret && !r.masked ? 'password' : 'text'}
-                placeholder={t('valuePlaceholder')}
-                value={r.value}
-                disabled={busy}
-                className="font-mono"
-                onFocus={() => {
-                  if (r.masked) patchDisplay(i, { value: '', masked: false });
-                }}
-                onChange={(e) =>
-                  patch(i, {
-                    value: e.target.value,
-                    masked: false,
-                    ...(r.isSecret && { secretDirty: true }),
-                  })
-                }
-                onBlur={() => {
-                  if (
-                    r.isSecret &&
-                    r.existingKey !== null &&
-                    !r.secretDirty &&
-                    r.value === ''
-                  ) {
-                    patchDisplay(i, { value: r.maskedDisplay, masked: true });
-                  }
-                }}
-              />
-            )}
-            {!hasSources && (
-              <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-                <Checkbox
-                  checked={r.isSecret}
-                  disabled={busy}
-                  onCheckedChange={(c) =>
-                    patch(i, {
-                      isSecret: c === true,
-                      secretDirty: true,
-                      ...(r.masked && { value: '', masked: false }),
-                    })
-                  }
-                />
-                {t('secret')}
-              </label>
-            )}
-            <Button
-              size="icon"
-              variant="ghost"
-              disabled={busy}
-              aria-label={t('remove')}
-              onClick={() => removeRow(i)}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </HStack>
-        );
-      })}
       <HStack gap={2} className="justify-between">
         <Button
           variant="ghost"
@@ -422,6 +451,21 @@ export function EnvVarListEditor({
           {saving ? t('saving') : t('save')}
         </Button>
       </HStack>
+      <DeleteDialog
+        open={pendingRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null);
+        }}
+        title={t('confirmRemoveTitle')}
+        description={t('confirmRemoveDescription')}
+        preview={
+          pendingRow
+            ? { primary: pendingRow.key.trim() || t('keyPlaceholder') }
+            : undefined
+        }
+        deleteText={t('remove')}
+        onDelete={confirmRemove}
+      />
     </VStack>
   );
 }

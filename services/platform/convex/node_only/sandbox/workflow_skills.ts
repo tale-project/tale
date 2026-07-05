@@ -1,19 +1,15 @@
 'use node';
 
 /**
- * Stage the org's WORKFLOW skills (the generic senior-dev disciplines seeded
- * from builtin-configs at org-create) into the session's user-level skill dir,
- * so a sandbox Claude Code session can load the skills the system prompt's
- * guidance section names (lib/skills/guidance.ts). Staged per-turn like the
- * integration skills, so an org-level edit or delete is reflected next turn;
- * repo-owned skills win on a name collision (lib/skills/precedence.ts).
- * Best-effort throughout — staging must never fail a turn — and availability
- * is only claimed for skills PROVEN present (fail-safe: the guidance never
- * names a skill that did not land).
+ * Stage the org's WORKFLOW skills (senior-dev disciplines seeded from
+ * builtin-configs at org-create) into the session's user-level skill dir.
+ * Staged per-turn; repo-owned skills win on name collision. Best-effort.
  */
 
 import { readFile, readdir } from 'node:fs/promises';
 
+import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import type { ActionCtx } from '../../_generated/server';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { WORKFLOW_SKILL_NAMES } from '../../lib/skills/guidance';
@@ -26,20 +22,14 @@ import {
   sessionListFiles,
   sessionStageFiles,
 } from './helpers/session_client';
-import { repoOwnedSkillNames, SKILLS_DIR } from './integration_skills';
+import { repoOwnedSkillNames } from './integration_skills';
 
 export interface WorkflowSkillPlan {
-  /** Allowlisted skills to stage from the org dir (org ships them, repo doesn't). */
   toStage: string[];
-  /** Previously staged workflow dirs to remove — the org deleted the skill or
-   * the repo now shadows it. Only allowlist names, never integration-* /
-   * browser-human-control / baked skills. */
   toPrune: string[];
-  /** Skills the agent can actually load: staged ∪ (repo-owned ∩ allowlist). */
   available: Set<string>;
 }
 
-/** Pure stage/prune/availability decision, unit-tested without I/O. */
 export function planWorkflowSkillStaging(input: {
   orgSkillsOnDisk: ReadonlySet<string>;
   repoOwned: ReadonlySet<string>;
@@ -64,12 +54,6 @@ export function planWorkflowSkillStaging(input: {
   return { toStage: kept, toPrune, available };
 }
 
-/**
- * Tale-monorepo marker: the workspace repo is this product's own monorepo,
- * whose AGENTS.md already carries the skill workflow — the generated guidance
- * section is skipped there. The `.agents` + `builtin-configs` dir conjunction
- * is unique to the Tale layout (a deliberate fork skips equally correctly).
- */
 export function isTaleRepoWorkspace(
   entries: readonly SessionFsEntry[] | null,
 ): boolean {
@@ -80,9 +64,6 @@ export function isTaleRepoWorkspace(
   return dirs.has('.agents') && dirs.has('builtin-configs');
 }
 
-/** Best-effort I/O wrapper around {@link isTaleRepoWorkspace}: one workspace
- * listing; false on any failure — the product workspace is the normal case,
- * so on doubt the guidance shows. */
 export async function workspaceIsTaleRepo(sessionId: string): Promise<boolean> {
   try {
     return isTaleRepoWorkspace(await sessionListFiles(sessionId, 'workspace'));
@@ -95,17 +76,19 @@ export async function workspaceIsTaleRepo(sessionId: string): Promise<boolean> {
   }
 }
 
-/**
- * Stage the org's workflow skills into the session and return the names the
- * agent can actually load this turn (staged-and-not-skipped ∪ repo-owned).
- * Returns an empty set on failure or under the TALE_SANDBOX_WORKFLOW_SKILLS=0
- * kill-switch — callers then render no guidance rather than a wrong one.
- */
 export async function stageWorkflowSkills(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    productKind: ProductAgentSlug;
+  },
 ): Promise<Set<string>> {
   if (process.env.TALE_SANDBOX_WORKFLOW_SKILLS === '0') return new Set();
+
+  const skillsStageDir = getSkillsStageDir(args.productKind);
+  if (!skillsStageDir) return new Set();
+
   try {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const skillsDir = resolveSkillsDir(orgSlug);
@@ -116,8 +99,6 @@ export async function stageWorkflowSkills(
         entries.filter((e) => e.isDirectory()).map((e) => e.name),
       );
     } catch (err) {
-      // Unreadable org dir (never seeded, or a transient fs error): claim
-      // nothing and prune nothing — don't tear down staged skills on a blip.
       console.warn(
         `[stageWorkflowSkills] org skills dir unreadable (${skillsDir}); skipping:`,
         err,
@@ -125,7 +106,10 @@ export async function stageWorkflowSkills(
       return new Set();
     }
     const repoOwned = await repoOwnedSkillNames(args.sessionId);
-    const stagedEntries = await sessionListFiles(args.sessionId, SKILLS_DIR);
+    const stagedEntries = await sessionListFiles(
+      args.sessionId,
+      skillsStageDir,
+    );
     const stagedDirNames = new Set(
       (stagedEntries ?? []).filter((e) => e.type === 'dir').map((e) => e.name),
     );
@@ -137,7 +121,7 @@ export async function stageWorkflowSkills(
     if (plan.toPrune.length > 0) {
       await sessionDeleteFiles(
         args.sessionId,
-        plan.toPrune.map((name) => `${SKILLS_DIR}/${name}`),
+        plan.toPrune.map((name) => `${skillsStageDir}/${name}`),
       );
     }
     const available = plan.available;
@@ -146,7 +130,7 @@ export async function stageWorkflowSkills(
       try {
         const content = await readFile(resolveSkillMdPath(orgSlug, name));
         files.push({
-          path: `${SKILLS_DIR}/${name}/SKILL.md`,
+          path: `${skillsStageDir}/${name}/SKILL.md`,
           contentBase64: content.toString('base64'),
         });
       } catch (err) {
@@ -160,9 +144,7 @@ export async function stageWorkflowSkills(
     if (files.length > 0) {
       const result = await sessionStageFiles(args.sessionId, files);
       for (const skip of result.skipped) {
-        // path is `${SKILLS_DIR}/<name>/SKILL.md` — never claim a skill that
-        // failed to land.
-        const name = skip.path.slice(SKILLS_DIR.length + 1).split('/')[0];
+        const name = skip.path.slice(skillsStageDir.length + 1).split('/')[0];
         if (name) available.delete(name);
         console.warn('[stageWorkflowSkills] staging skipped:', skip);
       }

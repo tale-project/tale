@@ -352,10 +352,8 @@ function ScreencastViewport({
 
 /**
  * Take / release writable control of the live browser. Control is ALWAYS
- * available to the thread owner while a session is active — it is not gated on
- * an agent `request_human_control` handoff (that flow still exists for the agent
- * to ASK and to pause/resume). Flipping this reconnects the RFB socket to the
- * writable (`control=1`) or read-only endpoint via the context `control` state.
+ * available to the thread owner while a session is active. Flipping this
+ * reconnects the RFB socket to the writable (`control=1`) or read-only endpoint via the context `control` state.
  * Once in control, drive the browser's own menu bar (omnibox, back/forward,
  * reload) directly in the stream.
  */

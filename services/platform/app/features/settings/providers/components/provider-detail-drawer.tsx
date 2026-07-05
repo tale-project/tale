@@ -22,6 +22,12 @@ interface ProviderDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   providerName: string;
+  /**
+   * When true, the General section opens its edit form on mount. Used by the
+   * row menu's "Edit provider" action so it deep-links into the same drawer
+   * the row click opens, rather than a separate dialog.
+   */
+  initialEditGeneral?: boolean;
 }
 
 /**
@@ -54,6 +60,7 @@ export function ProviderDetailDrawer({
   onOpenChange,
   organizationId,
   providerName,
+  initialEditGeneral = false,
 }: ProviderDetailDrawerProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -143,6 +150,11 @@ export function ProviderDetailDrawer({
                 maskedModelKeys={okData?.maskedModelKeys ?? {}}
                 providerEnvStatus={okData?.envSecretStatus?.provider}
                 isLoading={isLoading}
+                // Defer the auto-opened edit form until the real config has
+                // loaded — the body remounts on the loading→loaded key change,
+                // so the General section seeds its form from live data, not the
+                // masked placeholder.
+                initialEditGeneral={initialEditGeneral && !isLoading}
               />
             </ProviderConfigProvider>
           </Skeletonize>

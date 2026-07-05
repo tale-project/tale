@@ -146,12 +146,11 @@ export function TopWorkflowsTable({
       <DataTable
         columns={columns}
         data={rows}
-        getRowId={(row) =>
-          row.wfDefinitionId ?? row.workflowSlug ?? Math.random().toString()
-        }
+        getRowId={(row) => row.wfDefinitionId ?? row.workflowSlug ?? 'unknown'}
         isLoading={isLoading}
         approxRowCount={isLoading ? 5 : rows.length}
         onRowClick={handleRowClick}
+        isRowClickable={(row) => !!row.original.workflowSlug}
         emptyState={{
           icon: BarChart3,
           title: t('metrics.empty.title'),

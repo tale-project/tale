@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -81,6 +81,15 @@ describe('AgentsTable', () => {
         <AgentsTable organizationId="test-org-id" />,
       );
       await checkAccessibility(container);
+    });
+
+    it('gives the table an sr-only caption (#1980)', () => {
+      const { container } = render(
+        <AgentsTable organizationId="test-org-id" />,
+      );
+      const caption = container.querySelector('caption');
+      expect(caption).not.toBeNull();
+      expect(caption).toHaveTextContent('settings.agents.tableCaption');
     });
   });
 });

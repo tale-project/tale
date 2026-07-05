@@ -28,7 +28,7 @@ export interface SerializableAgentConfig {
    */
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   /** External agent runtime for `primaryBehavior: 'external-agent'`. */
-  agentKind?: 'claude-code' | 'opencode';
+  agentKind?: 'claude-code' | 'cursor';
   /**
    * Credential/auth mode for `primaryBehavior: 'external-agent'`. 'managed'
    * (default) routes through the platform gateway with a minted virtual key;

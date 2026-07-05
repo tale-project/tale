@@ -120,6 +120,13 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     new Map<string, { dedupKey: string; size: number }>(),
   );
 
+  // AbortController per in-flight upload, keyed by the same per-upload id used
+  // for `uploadingFiles` and the reservation map. Lets the user cancel an
+  // upload mid-flight (#2086): `cancelUpload` aborts the `fetch`, so a large
+  // file that's still streaming stops immediately instead of running to
+  // completion and committing an attachment the user no longer wants.
+  const uploadAbortsRef = useRef(new Map<string, AbortController>());
+
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const validFiles: { file: File; resolvedType: string }[] = [];
@@ -412,6 +419,8 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
       const uploadPromises = preparedFiles.map(
         async ({ file, fileToUpload, resolvedType, fileId }) => {
+          const abortController = new AbortController();
+          uploadAbortsRef.current.set(fileId, abortController);
           setUploadingFiles((prev) => [...prev, fileId]);
 
           try {
@@ -424,6 +433,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
                 'Content-Type': resolvedType || 'application/octet-stream',
               },
               body: fileToUpload,
+              signal: abortController.signal,
             });
 
             if (!result.ok) {
@@ -504,6 +514,13 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               });
             }
           } catch (error) {
+            // A user-initiated cancel aborts the `fetch`, which rejects with an
+            // AbortError. That's an expected outcome, not a failure — the chip
+            // is already gone, so surfacing an "upload failed" toast would be
+            // noise. Every other error still toasts.
+            if (abortController.signal.aborted) {
+              return;
+            }
             console.error('Upload error:', error);
             toast({
               title: t('uploadFailed'),
@@ -512,7 +529,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
             });
           } finally {
             // Idempotent: the success path already released the reservation;
-            // this covers the failure path so a failed upload frees its slot.
+            // this covers the failure/cancel path so a stopped upload frees its
+            // slot and its abort controller.
+            uploadAbortsRef.current.delete(fileId);
             pendingUploadsRef.current.delete(fileId);
             setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
           }
@@ -532,6 +551,22 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       t,
     ],
   );
+
+  // Cancel an upload that's still in flight (before it commits to
+  // `attachments`). Aborts the `fetch` — the upload promise's catch sees the
+  // abort and skips the failure toast; its finally frees the reservation and
+  // clears the spinner. We also clear the state here so the chip disappears
+  // the instant the user clicks, without waiting for the aborted fetch to
+  // reject. All three maps/sets are idempotent, so the finally re-running is
+  // harmless. Keyed by the internal per-upload id (a plain string), not the
+  // `_storage` id — the file has no storage id until the upload completes.
+  const cancelUpload = useCallback((fileId: string) => {
+    const controller = uploadAbortsRef.current.get(fileId);
+    controller?.abort();
+    uploadAbortsRef.current.delete(fileId);
+    pendingUploadsRef.current.delete(fileId);
+    setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
+  }, []);
 
   const removeAttachment = useCallback(
     (fileId: Id<'_storage'>) => {
@@ -618,6 +653,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     uploadingFiles,
     isUploading: uploadingFiles.length > 0,
     uploadFiles,
+    cancelUpload,
     removeAttachment,
     retryAttachmentTranscription,
     clearAttachments,

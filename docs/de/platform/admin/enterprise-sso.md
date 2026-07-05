@@ -55,9 +55,7 @@ Tale unterstützt sowohl IdP-initiiertes SAML (der IdP sendet eine Assertion an 
 
 ## Mehrere Organisationen auf einem Deployment
 
-Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherbergen. Die Anmeldung wird über das Feld **E-Mail-Domäne** zugeordnet: Setzen Sie es auf jeder Verbindung (zum Beispiel `example.com`), dann erreichen Mitglieder, die ihre E-Mail-Adresse auf der Anmeldeseite eingeben, den IdP ihrer Organisation. Bei einer einzigen aktivierten Verbindung ist das Feld optional — die Anmeldung fällt auf diese Verbindung zurück. Bei mehreren gibt es keinen Rückfall: Eine Anmeldung, die sich nicht zuordnen lässt, fragt nach der E-Mail-Adresse der Organisation, statt eine Verbindung zu raten.
-
-Verbindungen **ohne** E-Mail-Domäne sind über den Adressabgleich nicht erreichbar; der SSO-Bildschirm listet sie deshalb unter ihrem **Anzeigename** zur manuellen Auswahl auf. Dieser Anzeigename ist auf der Anmeldeseite für alle sichtbar — setzen Sie eine E-Mail-Domäne, um eine Verbindung von der Liste fernzuhalten.
+Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherbergen. Klicke auf der Anmeldeseite auf **Weiter mit SSO** und wähle deine Organisation aus der Liste — jeder Eintrag zeigt den **Anzeigenamen** der Verbindung. Dieser Name ist auf der Anmeldeseite für alle sichtbar; setze in **Einstellungen > Enterprise SSO** pro Verbindung einen klaren Anzeigenamen.
 
 ## Bereitstellung: Rollen und Teams
 

@@ -87,7 +87,7 @@
       "additionalProperties": false,
       "properties": {
         "agentKind": {
-          "enum": ["claude-code", "opencode"],
+          "enum": ["claude-code", "cursor"],
           "type": "string"
         },
         "authMode": {

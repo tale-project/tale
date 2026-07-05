@@ -38,8 +38,9 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: [], isLoading: false }),
 }));
 
+const exportMutate = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useConvexAction: () => ({ mutate: exportMutate, isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -78,6 +79,7 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 afterEach(() => {
   memberRole.current = 'owner';
+  exportMutate.mockClear();
 });
 
 // The DataTable reads the org id from the router; outside a RouterProvider that
@@ -186,6 +188,30 @@ describe('AuditLogsPage', () => {
     renderPage();
     expect(screen.queryByText('Chain integrity')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Logs' })).toBeInTheDocument();
+  });
+
+  it('consolidates export into one dropdown whose format items trigger the export', async () => {
+    // The two side-by-side "Export CSV"/"Export JSON" buttons are now one
+    // labelled "Export" trigger opening a keyboard-reachable format menu.
+    const { user } = renderPage();
+
+    expect(
+      screen.queryByRole('button', { name: /Export CSV/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Export JSON/ }),
+    ).not.toBeInTheDocument();
+
+    const trigger = screen.getByRole('button', { name: 'Export audit logs' });
+    await user.click(trigger);
+
+    const csvItem = await screen.findByRole('menuitem', { name: 'CSV' });
+    expect(screen.getByRole('menuitem', { name: 'JSON' })).toBeInTheDocument();
+
+    await user.click(csvItem);
+    expect(exportMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'csv' }),
+    );
   });
 
   it('passes an axe audit of the tab strip and active audit table', async () => {

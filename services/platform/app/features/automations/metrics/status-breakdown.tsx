@@ -17,15 +17,19 @@ interface StatusBreakdownProps {
   completed: number;
   failed: number;
   running: number;
+  pending: number;
 }
 
 export function StatusBreakdown({
   completed,
   failed,
   running,
+  pending,
 }: StatusBreakdownProps) {
   const { t } = useT('automations');
-  const total = completed + failed + running;
+  // Include pending so the donut center agrees with the "Total runs" KPI, which
+  // counts every in-window run regardless of status.
+  const total = completed + failed + running + pending;
 
   const segments: DonutSegment[] = [
     {
@@ -45,6 +49,12 @@ export function StatusBreakdown({
       label: t('metrics.chart.running'),
       value: running,
       color: CHART_COLORS.neutral,
+    },
+    {
+      key: 'pending',
+      label: t('metrics.chart.pending'),
+      value: pending,
+      color: CHART_COLORS.warning,
     },
   ];
 

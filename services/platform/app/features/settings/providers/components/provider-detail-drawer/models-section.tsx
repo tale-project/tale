@@ -122,6 +122,18 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   promptCachingMaxBreakpoints: '',
 };
 
+/**
+ * Convert a USD cost-input value into cents for storage. Catalog prices carry
+ * sub-cent precision (e.g. GPT-OSS 120B at $0.039/1M → 3.9 cents), so a plain
+ * `Math.round(... * 100)` would silently snap 3.9 → 4 on save. Rounding to
+ * three decimals of a cent instead preserves every real catalog value while
+ * stripping the IEEE-754 noise a bare `× 100` leaves behind (0.039 * 100 =
+ * 3.9000000000000004).
+ */
+function usdInputToCents(usd: string): number {
+  return Math.round(Number(usd) * 1e5) / 1e3;
+}
+
 export function ModelsSection({
   organizationId,
   providerName,
@@ -452,41 +464,31 @@ export function ModelsSection({
               ...(hasTokenCost
                 ? {
                     inputCentsPerMillion: form.inputCostPerMillion
-                      ? Math.round(Number(form.inputCostPerMillion) * 100)
+                      ? usdInputToCents(form.inputCostPerMillion)
                       : 0,
                     outputCentsPerMillion: form.outputCostPerMillion
-                      ? Math.round(Number(form.outputCostPerMillion) * 100)
+                      ? usdInputToCents(form.outputCostPerMillion)
                       : 0,
                   }
                 : {}),
               ...(hasImageCost
                 ? {
-                    imageCentsPerImage: Math.round(
-                      Number(form.imageCostPerImage) * 100,
-                    ),
+                    imageCentsPerImage: usdInputToCents(form.imageCostPerImage),
                   }
                 : {}),
             }
           : undefined;
       const isImageGen = form.tags.includes('image-generation');
+      // Both editors are JsonInput bound to an object schema
+      // (providerOptionsClientSchema / requestBodyMapClientSchema): the field
+      // only emits JSON that already parses and satisfies the schema, so these
+      // parses can't throw and a non-object can't reach here.
       let providerOptions: Record<string, unknown> | undefined;
       const trimmedProviderOptions = form.providerOptionsJson.trim();
       if (trimmedProviderOptions) {
-        try {
-          const parsed: unknown = JSON.parse(trimmedProviderOptions);
-          if (isRecord(parsed)) {
-            if (Object.keys(parsed).length > 0) {
-              providerOptions = parsed;
-            }
-          }
-        } catch (parseErr) {
-          toast({
-            title: t('providers.providerOptions.invalidJson'),
-            description:
-              parseErr instanceof Error ? parseErr.message : String(parseErr),
-            variant: 'destructive',
-          });
-          return;
+        const parsed: unknown = JSON.parse(trimmedProviderOptions);
+        if (isRecord(parsed) && Object.keys(parsed).length > 0) {
+          providerOptions = parsed;
         }
       }
       let requestBodyMap:
@@ -494,23 +496,13 @@ export function ModelsSection({
         | undefined;
       const trimmedRequestBodyMap = form.requestBodyMapJson.trim();
       if (trimmedRequestBodyMap) {
-        try {
-          const parsed: unknown = JSON.parse(trimmedRequestBodyMap);
-          if (isRecord(parsed) && Object.keys(parsed).length > 0) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape is checked client-side by requestBodyMapClientSchema and authoritatively by providerJsonSchema.parse on save
-            requestBodyMap = parsed as {
-              rename?: Record<string, string>;
-              remove?: string[];
-            };
-          }
-        } catch (parseErr) {
-          toast({
-            title: t('providers.requestBodyMap.invalidJson'),
-            description:
-              parseErr instanceof Error ? parseErr.message : String(parseErr),
-            variant: 'destructive',
-          });
-          return;
+        const parsed: unknown = JSON.parse(trimmedRequestBodyMap);
+        if (isRecord(parsed) && Object.keys(parsed).length > 0) {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape is checked client-side by requestBodyMapClientSchema and authoritatively by providerJsonSchema.parse on save
+          requestBodyMap = parsed as {
+            rename?: Record<string, string>;
+            remove?: string[];
+          };
         }
       }
       const reasoning = form.reasoningKnob
@@ -1143,7 +1135,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.inputCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
                 <Input
                   label={t('providers.outputCostLabel')}
@@ -1157,7 +1149,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.outputCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
               </HStack>
               {form.tags.includes('image-generation') && (
@@ -1173,7 +1165,7 @@ export function ModelsSection({
                   }
                   placeholder={t('providers.imageCostPlaceholder')}
                   min={0}
-                  step={0.01}
+                  step="any"
                 />
               )}
               <Text className="text-muted-foreground text-xs">

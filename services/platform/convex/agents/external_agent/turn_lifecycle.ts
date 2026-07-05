@@ -36,16 +36,6 @@ import {
  * finishing, a user Stop, and the exec's sliding orphan deadline. */
 const CONTINUATION_LOG_EVERY = 100;
 
-/**
- * How long a request_human_control handoff parks before the no-human fallback
- * auto-resumes the agent ("nobody available — proceed or report"). One value
- * for now; an interactive run could warrant a longer wait than a scheduled/
- * always-on one (a future refinement). Env-overridable for ops.
- */
-const HUMAN_CONTROL_PARK_TIMEOUT_MS = Number(
-  process.env.EXTERNAL_AGENT_HUMAN_CONTROL_PARK_MS ?? String(15 * 60 * 1000),
-);
-
 /** Everything the lifecycle needs to finalize or continue a turn — carried in
  * action args and mirrored onto the op row so the recovery path has it too. */
 export interface TurnContext {
@@ -53,7 +43,7 @@ export interface TurnContext {
   sessionId: string;
   execId: string;
   threadId: string;
-  agentKind: 'claude-code' | 'opencode';
+  agentKind: 'claude-code' | 'cursor';
   agentSlug?: string;
   modelRef: string;
   userId?: string;
@@ -371,12 +361,6 @@ export async function handleTurnOutcome(
       // its capture state from this so the terminal segment's detection sees
       // it (still subject to run_agent's execute-mode reset rule).
       ...(result.planText !== undefined && { planText: result.planText }),
-      // request_human_control reason captured by this segment — the
-      // continuation seeds its capture state from this so the terminal
-      // segment's detection raises the handoff card (same last-tool-call reset).
-      ...(result.humanControlReason !== undefined && {
-        humanControlReason: result.humanControlReason,
-      }),
       // toolUseId → toolName across the whole turn so far, so a post-seam
       // segment can name the orphan results of pre-seam tool calls instead of
       // rendering them as a bare "Tool" (long parallel subagent calls
@@ -551,39 +535,6 @@ export async function handleTurnOutcome(
       );
     }
   }
-  // request_human_control → take-control card (the agent parked its turn to let
-  // a human drive the live browser). Mutually exclusive with a plan in
-  // practice (handoff is an execute-mode tool, ExitPlanMode a plan-mode one),
-  // and only meaningful when there's a browser to drive. Best-effort: a card
-  // failure must never skip finalize. Returning control resumes a fresh turn
-  // in the same Claude session (returnHumanControl → startQueuedTurn).
-  if (
-    plan === null &&
-    turn.interactionMode !== 'autonomous' &&
-    result.humanControlReason !== undefined &&
-    result.humanControlReason.trim() !== ''
-  ) {
-    try {
-      await ctx.runMutation(
-        internal.approvals.internal_mutations.createHumanControlRequest,
-        {
-          organizationId: turn.organizationId,
-          threadId: turn.threadId,
-          messageId: turn.assistantMessageId,
-          agentSlug: turn.agentSlug ?? turn.agentKind,
-          modelRef: turn.modelRef,
-          reason: result.humanControlReason.trim(),
-          parkTimeoutMs: HUMAN_CONTROL_PARK_TIMEOUT_MS,
-          ...(turn.userId !== undefined && { requestedBy: turn.userId }),
-        },
-      );
-    } catch (hcErr) {
-      console.error(
-        '[handleTurnOutcome] human-control request create failed:',
-        hcErr,
-      );
-    }
-  }
   await finalizeTurnSideEffects(ctx, turn, turnTokensOf(result));
 }
 
@@ -686,7 +637,6 @@ export async function loadCheckpoint(
   lastSeq: number;
   agentSessionId?: string;
   planText?: string;
-  humanControlReason?: string;
   toolNames?: Record<string, string>;
   toolUseParents?: Record<string, string>;
   agentResultSeen?: boolean;
@@ -702,7 +652,6 @@ export async function loadCheckpoint(
       lastSeq: number;
       agentSessionId?: string;
       planText?: string;
-      humanControlReason?: string;
       toolNames?: Record<string, string>;
       toolUseParents?: Record<string, string>;
       agentResultSeen?: boolean;

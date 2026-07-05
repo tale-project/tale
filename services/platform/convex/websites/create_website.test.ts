@@ -1,6 +1,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
+import { internal } from '../_generated/api';
 import schema from '../schema';
 import { createWebsite } from './create_website';
 
@@ -96,5 +97,43 @@ describe('createWebsite duplicate guard (#2056)', () => {
 
     const row = await t.run((ctx) => ctx.db.get(id));
     expect(row?.domain).toBe('fresh.example.org');
+  });
+});
+
+describe('provisionWebsite scanInterval guard (#2090)', () => {
+  // Regression: an out-of-enum scanInterval must be rejected at the write
+  // chokepoint. Otherwise it is stored verbatim and silently crawled at the 6h
+  // default (scanIntervalToSeconds falls back to 21600 for unknown values).
+  it('rejects an out-of-enum scanInterval with INVALID_SCAN_INTERVAL', async () => {
+    const t = convexTest(schema, modules);
+
+    let code: string | undefined;
+    try {
+      await t.mutation(internal.websites.internal_mutations.provisionWebsite, {
+        organizationId: ORG,
+        domain: 'https://guarded.example.com',
+        scanInterval: '3h',
+      });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('INVALID_SCAN_INTERVAL');
+  });
+
+  it('stores a website when the scanInterval is in the allowed enum', async () => {
+    const t = convexTest(schema, modules);
+
+    const id = await t.mutation(
+      internal.websites.internal_mutations.provisionWebsite,
+      {
+        organizationId: ORG,
+        domain: 'https://valid.example.com',
+        scanInterval: '12h',
+      },
+    );
+
+    const row = await t.run((ctx) => ctx.db.get(id));
+    expect(row?.scanInterval).toBe('12h');
   });
 });

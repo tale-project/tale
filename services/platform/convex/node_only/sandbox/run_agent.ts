@@ -17,6 +17,7 @@
 import { v } from 'convex/values';
 
 import { buildSteerStdinPayload } from '../../../lib/agent-adapters/claude-code/stdin';
+import { getAgentCapabilities } from '../../../lib/agent-adapters/credential-policy';
 import type {
   AgentEvent,
   AgentResultStatus,
@@ -152,13 +153,13 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'opencode';
+  agentSlug: 'claude-code' | 'cursor';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
    * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
   fallbackModel?: string;
-  /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
+  /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
@@ -218,11 +219,6 @@ export interface RunAgentInSessionArgs {
    * the op (`liveTimeline`) for the run view to read. The chat path leaves this
    * off (it renders from the persisted message via `onTimeline`). */
   captureLiveTimeline?: boolean;
-  /** Fired the MOMENT the agent calls request_human_control (mid-stream), so
-   * the handoff card can appear immediately — the turn itself may then linger
-   * (I/O-conduit) and not reach the terminal path for a while. Fired at most
-   * once per invocation. */
-  onHumanControlRequest?: (reason: string) => Promise<void>;
   /** Absolute time (ms) by which THIS action must hand off (it runs under the
    * Convex action ceiling). Reached without a terminal result → the run returns
    * status 'running' (a non-terminal handoff) + a checkpoint instead of
@@ -239,9 +235,6 @@ export interface RunAgentInSessionArgs {
     /** Plan captured by an earlier segment (ExitPlanMode) — carried across
      * the seam and still subject to the execute-mode reset rule. */
     planText?: string;
-    /** request_human_control reason captured by an earlier segment — carried
-     * across the seam, subject to the same last-tool-call reset as planText. */
-    humanControlReason?: string;
     /** toolUseId → toolName for every tool-use seen by earlier segments, so a
      * result landing after the seam still renders under its real tool name. */
     toolNames?: Record<string, string>;
@@ -317,12 +310,6 @@ export interface RunAgentInSessionResult {
    * denial and kept working — a stale plan must not surface as a pending
    * approval card). Turn-end detection turns this into a plan-approval row. */
   planText?: string;
-  /** The reason the agent passed to request_human_control (the live-browser
-   * handoff tool), when that was the turn's last tool call (same last-tool-call
-   * reset as planText). Turn-end detection turns this into an
-   * external_agent_human_control approval that parks the turn until a human
-   * takes + returns browser control. */
-  humanControlReason?: string;
   /** status==='running' only — stdin-hold lifecycle for the checkpoint (see
    * resumeFrom): result-seen flag, idle flag, and the unbalanced background-
    * task ledger at the seam. */
@@ -451,12 +438,6 @@ export async function runAgentInSessionImpl(
   // early segment's capture survives the seam — and stays subject to the
   // execute-mode reset rule below.
   let planText: string | undefined = args.resumeFrom?.planText;
-  // Reason from request_human_control (live-browser handoff). Seeded from the
-  // checkpoint like planText, and subject to the same last-tool-call reset.
-  let humanControlReason: string | undefined =
-    args.resumeFrom?.humanControlReason;
-  // Guards the mid-stream onHumanControlRequest callback to fire once per run.
-  let humanControlFired = false;
   let usage: RunAgentInSessionResult['usage'];
   let lastFlush = 0;
   // When the agent last emitted ANY stream event. Stays frozen while the CLI
@@ -509,7 +490,8 @@ export async function runAgentInSessionImpl(
   // messages (idle-state stdin lines are processed within seconds — verified
   // 2.1.173). EOF is sent only when the bg ledger is balanced AND no steer
   // rows are queued/in flight — EOF ABANDONS still-running background tasks.
-  const stdinHold = args.agentSlug === 'claude-code';
+  const stdinHold =
+    getAgentCapabilities(args.agentSlug).processLifecycle === 'stdin-hold';
   const pendingTasks = new Set<string>(args.resumeFrom?.pendingTaskIds ?? []);
   let agentResultSeen = args.resumeFrom?.agentResultSeen === true;
   let agentResultStatus: AgentResultStatus | undefined;
@@ -1048,37 +1030,12 @@ export async function runAgentInSessionImpl(
           // tale-plan-gate hook, which doesn't affect the input streaming out).
           const plan = planFromToolInput(e.input);
           if (plan !== undefined) planText = plan;
-        } else if (isHumanControlTool(e.toolName)) {
-          // request_human_control (MCP tool): the agent is handing the live
-          // browser to a human. The reason rides input.reason; the tool result
-          // tells the model to stop, so this is normally the turn's last tool
-          // call (the reset below clears it if the agent kept working anyway).
-          const reason = reasonFromToolInput(e.input);
-          if (reason !== undefined) {
-            humanControlReason = reason;
-            // Raise the handoff card NOW (mid-stream), not at turn end — a
-            // lingering session may not reach the terminal path for a long
-            // time, and the agent expects the human to take over immediately.
-            if (!humanControlFired && args.onHumanControlRequest) {
-              humanControlFired = true;
-              void args
-                .onHumanControlRequest(reason)
-                .catch((err) =>
-                  console.warn(
-                    '[run_agent] onHumanControlRequest failed:',
-                    err,
-                  ),
-                );
-            }
-          }
         } else if (args.permissionMode !== 'plan') {
-          // Execute-mode reset rule: a plan / handoff only counts if its tool
-          // was the turn's LAST tool call. Verified on 2.1.173: under
-          // bypassPermissions the model can shrug off the denial/stop and keep
-          // executing — surfacing a stale plan or a handoff card after the work
-          // already continued would be wrong.
+          // Execute-mode reset rule: a plan only counts if its tool was the
+          // turn's LAST tool call. Verified on 2.1.173: under bypassPermissions
+          // the model can shrug off the denial/stop and keep executing —
+          // surfacing a stale plan after the work already continued would be wrong.
           planText = undefined;
-          humanControlReason = undefined;
         }
       } else if (e.type === 'steer-injected') {
         // Live confirmation that the steer hook injected queued user
@@ -1436,7 +1393,6 @@ export async function runAgentInSessionImpl(
         }),
         ...(finalText !== undefined && { finalText }),
         ...(planText !== undefined && { planText }),
-        ...(humanControlReason !== undefined && { humanControlReason }),
         ...(usage !== undefined && { usage }),
         assistantContent: buildAssistantContent(
           timeline,
@@ -1535,7 +1491,6 @@ export async function runAgentInSessionImpl(
     }),
     ...(terminalFinalText !== undefined && { finalText: terminalFinalText }),
     ...(planText !== undefined && { planText }),
-    ...(humanControlReason !== undefined && { humanControlReason }),
     ...(usage !== undefined && { usage }),
     ...(agentResultStatus !== undefined && { agentResultStatus }),
     ...(resultIsError !== undefined && { isError: resultIsError }),
@@ -1570,35 +1525,15 @@ function planFromToolInput(input: unknown): string | undefined {
   return typeof plan === 'string' && plan.trim() !== '' ? plan : undefined;
 }
 
-/** True for the request_human_control tool. MCP tools surface in stream-json
- * under their namespaced name (mcp__<server>__<tool>), so match on the suffix
- * rather than the bare name — robust to the server key the adapter chose. */
-function isHumanControlTool(toolName: string): boolean {
-  return (
-    toolName === 'request_human_control' ||
-    toolName.endsWith('__request_human_control')
-  );
-}
-
-/** Narrow a request_human_control tool input to its `reason` string. */
-function reasonFromToolInput(input: unknown): string | undefined {
-  if (typeof input !== 'object' || input === null) return undefined;
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const reason = (input as { reason?: unknown }).reason;
-  return typeof reason === 'string' && reason.trim() !== ''
-    ? reason.trim()
-    : undefined;
-}
-
 export const runAgentInSession = internalAction({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
     execId: v.string(),
-    agentSlug: v.union(v.literal('claude-code'), v.literal('opencode')),
+    agentSlug: v.union(v.literal('claude-code'), v.literal('cursor')),
     prompt: v.string(),
     model: v.optional(v.string()),
-    /** Resume handle from a prior run (Claude session_id / OpenCode sessionID). */
+    /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
     agentSessionId: v.optional(v.string()),
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),

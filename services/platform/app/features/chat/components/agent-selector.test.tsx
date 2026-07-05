@@ -9,7 +9,7 @@ import { AgentSelector } from './agent-selector';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
-    t: (key: string) => {
+    t: (key: string, params?: Record<string, string>) => {
       const translations: Record<string, string> = {
         'agentSelector.label': 'Select agent',
         'agentSelector.defaultAgent': 'Default agent',
@@ -17,8 +17,15 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.searchPlaceholder': 'Search agents...',
         'agentSelector.noResults': 'No agents found',
         'agentSelector.addAgent': 'Catalog',
+        'agentSelector.lockedExternalLabel':
+          'Agent: {agent} (pinned for this sandbox chat)',
       };
-      return translations[key] ?? key;
+      const template = translations[key] ?? key;
+      if (!params) return template;
+      return Object.entries(params).reduce(
+        (value, [name, replacement]) => value.replace(`{${name}}`, replacement),
+        template,
+      );
     },
   }),
 }));
@@ -159,7 +166,7 @@ describe('AgentSelector', () => {
 
       // The locked agent is shown, not the (stale) global selection…
       const trigger = screen.getByRole('button', {
-        name: 'agentSelector.lockedExternalLabel',
+        name: 'Agent: Claude Code (pinned for this sandbox chat)',
       });
       expect(within(trigger).getByText('Claude Code')).toBeInTheDocument();
       // …the control is marked non-interactive but stays focusable so the

@@ -95,6 +95,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+import { ProviderDetailDrawer } from './provider-detail-drawer';
 import { ProvidersTable } from './providers-table';
 
 // Mirror the route chrome: the level-2 section heading ("AI providers") that the
@@ -153,6 +154,32 @@ describe('Providers list + detail drawer', () => {
     expect(
       await screen.findByRole('heading', { name: 'General', level: 3 }),
     ).toBeInTheDocument();
+  });
+
+  // The row menu's "Edit provider" action routes into this same drawer with
+  // `initialEditGeneral`, so it opens the shared editor rather than a separate
+  // standalone dialog. Assert the drawer honours that deep-link: it opens the
+  // General section's edit form (title + the fields the old dialog owned).
+  it('opens the General edit form when deep-linked via initialEditGeneral', async () => {
+    render(
+      <SettingsSection title="AI providers">
+        <ProviderDetailDrawer
+          open
+          onOpenChange={() => {}}
+          organizationId="org-1"
+          providerName={PROVIDER_SLUG}
+          initialEditGeneral
+        />
+      </SettingsSection>,
+    );
+
+    // The drawer opens straight into the General edit form (a modal over the
+    // drawer) — the same editor the row menu's "Edit provider" now targets,
+    // rather than a separate standalone dialog.
+    expect(await screen.findByText('Edit general details')).toBeInTheDocument();
+    // The consolidated editor still exposes the fields the old dialog owned.
+    const baseUrl = screen.getByRole('textbox', { name: /Base URL/i });
+    expect(baseUrl).toHaveValue(PROVIDER_BASE_URL);
   });
 
   it('passes an axe audit of the opened detail drawer', async () => {

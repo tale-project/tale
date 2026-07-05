@@ -12,6 +12,7 @@ import {
 
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useActiveOrganizationId } from '@/app/lib/active-organization';
+import { setTitleSuffix } from '@/app/lib/title-suffix';
 import { adjustColorForTheme, hexToHsl, isLightColor } from '@/lib/utils/color';
 
 interface BrandingState {
@@ -42,8 +43,6 @@ export function useBrandingContext() {
 interface BrandingProviderProps {
   children: ReactNode;
 }
-
-const DEFAULT_TITLE_SUFFIX = 'Tale';
 
 const CSS_OVERRIDES = ['primary', 'primary-foreground'] as const;
 
@@ -85,39 +84,25 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
 
   const originalFaviconHrefRef = useRef<string | null>(null);
 
-  // App title override
+  // App title suffix: publish the org name to the title-suffix cache so the
+  // route `head`/`seo()` composes "<page> - <org>" at head time. On a hard
+  // reload the cache is seeded synchronously from localStorage, so the correct
+  // suffix already renders on first paint; here we only handle the first time
+  // an org name becomes known (or changes). Sign-out clears the cache so the
+  // logged-out shell falls back to "Tale".
   useEffect(() => {
     const customName = branding?.appName;
-    const targetSuffix = customName || DEFAULT_TITLE_SUFFIX;
-
-    const updateTitle = () => {
-      const title = document.title;
-      const updated = title.replace(/- [^-]+$/, `- ${targetSuffix}`);
-      if (updated !== title) {
-        document.title = updated;
-      }
-    };
-
-    updateTitle();
-
-    const observer = new MutationObserver(updateTitle);
-    const titleElement = document.querySelector('title');
-    if (titleElement) {
-      observer.observe(titleElement, { childList: true });
+    if (!customName) return;
+    if (setTitleSuffix(customName)) {
+      // The head for the current match already ran with the previous suffix
+      // (e.g. the "Tale" fallback on a first-ever login). Re-run heads so the
+      // live document title picks up the org name now that it is known.
+      // Dynamic import keeps `@/app/router` (and its env + routeTree deps) off
+      // the module graph for unit tests that only pull in branding consumers.
+      void import('@/app/router').then(({ router }) => {
+        void router.invalidate();
+      });
     }
-
-    return () => {
-      observer.disconnect();
-      if (customName) {
-        const title = document.title;
-        if (title.includes(`- ${customName}`)) {
-          document.title = title.replace(
-            `- ${customName}`,
-            `- ${DEFAULT_TITLE_SUFFIX}`,
-          );
-        }
-      }
-    };
   }, [branding?.appName]);
 
   // Favicon override

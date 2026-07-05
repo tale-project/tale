@@ -21,9 +21,11 @@
  * projected.
  *
  * `runSync` does three things, in both modes:
- *   1. Guards the SHIPPED skill roots (`builtin-configs/skills/`, `skills/`)
- *      against the portability contract — a shipped skill whose code can't run
- *      where it lands, or whose SKILL.md points at a missing script, never passes.
+ *   1. Guards the skill roots — the SHIPPED roots (`builtin-configs/skills/`,
+ *      `skills/`) against the portability contract (a shipped skill whose code
+ *      can't run where it lands, or whose SKILL.md points at a missing script),
+ *      and ALL roots' SKILL.md frontmatter against strict YAML — never passes on
+ *      a violation.
  *   2. Projects `builtin-configs/skills/<workflow>/` → `.agents/skills/<workflow>/`
  *      (the generated copy a repo-dev harness reads; never hand-edit it).
  *   3. Mirrors `.agents/skills/` → `.claude/skills/` (the only Claude Code copy).
@@ -38,8 +40,10 @@ import { join } from 'node:path';
 
 import {
   checkCommandRefs,
+  checkFrontmatter,
   checkImports,
   type CommandRefViolation,
+  type FrontmatterViolation,
   type ImportViolation,
 } from './guards';
 import {
@@ -89,6 +93,15 @@ const WORKFLOW_SKILLS: readonly string[] = [
  * it is docs-only and references repo paths, not skill-relative scripts.
  */
 const SHIPPED_ROOTS: readonly string[] = ['builtin-configs/skills', 'skills'];
+
+/**
+ * Repo-relative roots whose every SKILL.md frontmatter must parse as strict
+ * YAML. This covers ALL three roots the tool walks — including the docs-only
+ * `.agents/skills` guides — because every harness that reads a skill (Cursor,
+ * Codex, Claude Code, external product-org agents) parses the frontmatter, so a
+ * malformed block breaks a consumer wherever it lives.
+ */
+const FRONTMATTER_ROOTS: readonly string[] = [MIRROR_SOURCE, ...SHIPPED_ROOTS];
 
 export interface SyncOptions {
   /** Absolute path to the repo root (the parent of `.agents/`). */
@@ -167,12 +180,15 @@ function skillDirsIn(repoRoot: string, root: string): string[] {
 interface GuardPlan {
   readonly imports: readonly ImportViolation[];
   readonly commands: readonly CommandRefViolation[];
+  readonly frontmatter: readonly FrontmatterViolation[];
 }
 
 /**
- * Run the portability guards over every shipped skill. The skill label is its
- * repo-relative path (`builtin-configs/skills/pptx`) so a violation names the
- * exact bundle. Pure read.
+ * Run the guards over the skill roots. The portability guards (imports, command
+ * refs) apply only to the SHIPPED roots; the strict-YAML frontmatter guard
+ * applies to ALL roots the tool walks (see {@link FRONTMATTER_ROOTS}). The skill
+ * label is its repo-relative path (`builtin-configs/skills/pptx`) so a violation
+ * names the exact bundle. Pure read.
  */
 export function planGuards(repoRoot: string): GuardPlan {
   const imports: ImportViolation[] = [];
@@ -185,7 +201,15 @@ export function planGuards(repoRoot: string): GuardPlan {
       commands.push(...checkCommandRefs(label, source));
     }
   }
-  return { imports, commands };
+  const frontmatter: FrontmatterViolation[] = [];
+  for (const root of FRONTMATTER_ROOTS) {
+    for (const name of skillDirsIn(repoRoot, root)) {
+      const label = `${root}/${name}`;
+      const source = readTree(join(repoRoot, root, name));
+      frontmatter.push(...checkFrontmatter(label, name, source));
+    }
+  }
+  return { imports, commands, frontmatter };
 }
 
 /** Write missing+changed files and delete stale extras for one tree target. */
@@ -272,7 +296,7 @@ function formatProjectionDrift(drift: readonly ProjectionPlan[]): string {
 
 function formatGuardFailures(plan: GuardPlan): string {
   const lines = [
-    '[skills:check] FAILED — a shipped skill violates the portability contract.',
+    '[skills:check] FAILED — a skill violates the portability or frontmatter contract.',
     '',
   ];
   if (plan.imports.length > 0) {
@@ -292,6 +316,13 @@ function formatGuardFailures(plan: GuardPlan): string {
     }
     lines.push('');
   }
+  if (plan.frontmatter.length > 0) {
+    lines.push('  SKILL.md frontmatter is not valid strict YAML:');
+    for (const v of plan.frontmatter) {
+      lines.push(`    ${v.skill}: ${v.problem}`);
+    }
+    lines.push('');
+  }
   lines.push('Fix the shipped skill, then run: bun run skills:sync');
   return lines.join('\n');
 }
@@ -304,7 +335,11 @@ function formatGuardFailures(plan: GuardPlan): string {
  */
 export async function runSync(opts: SyncOptions): Promise<number> {
   const guards = planGuards(opts.repoRoot);
-  if (guards.imports.length > 0 || guards.commands.length > 0) {
+  if (
+    guards.imports.length > 0 ||
+    guards.commands.length > 0 ||
+    guards.frontmatter.length > 0
+  ) {
     console.error(formatGuardFailures(guards));
     return 1;
   }

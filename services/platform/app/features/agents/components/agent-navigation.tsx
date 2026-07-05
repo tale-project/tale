@@ -166,11 +166,9 @@ export function AgentNavigation({
   // are unaffected (encodeURIComponent is a no-op for them).
   const basePath = `/dashboard/${organizationId}/agents/${encodeURIComponent(agentId)}`;
 
-  // Only chat agents run the platform tool loop, so the loop-only tabs (Skills,
-  // Knowledge, Response Tuning) are no-ops for the other types and are hidden.
-  // The Tools tab stays for external agents (it carries their integration
-  // bindings — the sandbox MCP grant set) but image-generation has nothing
-  // there, so it drops too.
+  // Chat agents use the platform tool loop for skills (expand_skill). External
+  // agents stage bound org skills into the sandbox skill dir — same tab, different
+  // runtime. Knowledge stays chat-only (RAG / web search mode).
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
   const isExternalAgent = config.primaryBehavior === 'external-agent';
 
@@ -197,7 +195,7 @@ export function AgentNavigation({
           },
         ]
       : []),
-    ...(isChat
+    ...(isChat || isExternalAgent
       ? [
           {
             label: t('agents.navigation.skills'),
@@ -205,6 +203,10 @@ export function AgentNavigation({
             matchMode: 'exact' as const,
             dirtyKeys: AGENT_TAB_DIRTY_KEYS.skills,
           },
+        ]
+      : []),
+    ...(isChat
+      ? [
           {
             label: t('agents.navigation.knowledge'),
             href: `${basePath}/knowledge`,

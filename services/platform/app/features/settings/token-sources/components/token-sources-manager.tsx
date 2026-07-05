@@ -26,6 +26,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { readConvexErrorData } from '@/app/features/settings/providers/utils/error-dispatch';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -103,6 +104,32 @@ interface LoadedTokenSource {
     selection?: Selection;
   };
   hasSecret: boolean;
+}
+
+/**
+ * Map a `VALIDATION_ERROR` ConvexError's `fieldErrors` (a Zod `flatten()`
+ * shape) into a flat record of joined per-field messages keyed by the config
+ * field name (`slug`, `displayName`, `endpoint`, …). Returns undefined for any
+ * other error so the caller falls back to a clean generic toast rather than
+ * leaking the raw ConvexError JSON + request id.
+ */
+function readTokenSourceFieldErrors(
+  err: unknown,
+): Record<string, string> | undefined {
+  const data = readConvexErrorData(err);
+  if (data?.code !== 'VALIDATION_ERROR') return undefined;
+  const raw = data.fieldErrors;
+  if (raw == null || typeof raw !== 'object') return undefined;
+  const out: Record<string, string> = {};
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `raw` is runtime-checked to be a non-null object above; entries are narrowed per-field below
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    const msg = value
+      .filter((m): m is string => typeof m === 'string')
+      .join('; ');
+    if (msg) out[key] = msg;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function fromConfig(res: LoadedTokenSource): FormState {
@@ -364,8 +391,19 @@ function TokenSourceFormSheet({
   );
 
   const [form, setForm] = useState(editSlug ? null : emptyForm());
-  const set = (p: Partial<FormState>): void =>
+  // Server-side per-field validation errors, keyed by config field name. Each
+  // edited field clears its own error so the inline message can't go stale.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const set = (p: Partial<FormState>): void => {
     setForm((f) => (f ? { ...f, ...p } : f));
+    setFieldErrors((prev) => {
+      const keys = Object.keys(p);
+      if (!keys.some((k) => k in prev)) return prev;
+      const next = { ...prev };
+      for (const k of keys) delete next[k];
+      return next;
+    });
+  };
 
   // Populate from the detail query the first time it resolves for this slug;
   // never clobber in-progress edits (guarded on `existingSlug`).
@@ -380,6 +418,7 @@ function TokenSourceFormSheet({
 
   const onSave = async (): Promise<void> => {
     if (!form) return;
+    setFieldErrors({});
     const auth =
       form.authMethod === 'none'
         ? { method: 'none' as const }
@@ -416,9 +455,22 @@ function TokenSourceFormSheet({
       toast({ title: t('tokenSources.saved'), variant: 'success' });
       onSaved();
     } catch (err) {
+      // Prefer inline per-field errors from the server's VALIDATION_ERROR; the
+      // raw ConvexError message is a JSON blob with a request id, so it must
+      // never reach the toast. Anything else gets a clean generic message.
+      const mapped = readTokenSourceFieldErrors(err);
+      if (mapped) {
+        setFieldErrors(mapped);
+        toast({
+          title: t('tokenSources.saveError'),
+          description: tCommon('editor.fixHighlightedFields'),
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: t('tokenSources.saveError'),
-        description: err instanceof Error ? err.message : String(err),
+        description: tCommon('errors.generic'),
         variant: 'destructive',
       });
     }
@@ -464,12 +516,14 @@ function TokenSourceFormSheet({
               disabled={form.existingSlug !== null || saving}
               placeholder="coolai"
               className="font-mono"
+              errorMessage={fieldErrors.slug}
               onChange={(e) => set({ slug: e.target.value })}
             />
             <Input
               label={t('tokenSources.displayName')}
               value={form.displayName}
               disabled={saving}
+              errorMessage={fieldErrors.displayName}
               onChange={(e) => set({ displayName: e.target.value })}
             />
             <Input
@@ -478,6 +532,7 @@ function TokenSourceFormSheet({
               disabled={saving}
               placeholder="https://broker.example.com/api/tokens"
               className="font-mono"
+              errorMessage={fieldErrors.endpoint}
               onChange={(e) => set({ endpoint: e.target.value })}
             />
 
@@ -520,6 +575,7 @@ function TokenSourceFormSheet({
                 disabled={saving}
                 placeholder="X-Api-Key"
                 className="font-mono"
+                errorMessage={fieldErrors.auth}
                 onChange={(e) => set({ headerName: e.target.value })}
               />
             )}
@@ -605,6 +661,7 @@ function TokenSourceFormSheet({
               disabled={saving}
               placeholder="CLAUDE_CODE_OAUTH_TOKEN"
               className="font-mono"
+              errorMessage={fieldErrors.targetEnvVar}
               onChange={(e) => set({ targetEnvVar: e.target.value })}
             />
             <Select

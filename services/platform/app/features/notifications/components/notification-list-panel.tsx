@@ -11,7 +11,7 @@ import {
   Loader2,
   Maximize2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
@@ -36,6 +36,7 @@ import {
   useNotificationsUnreadCount,
   type NotificationsFilter,
 } from '../hooks/queries';
+import { mergeNotificationsByRecency } from '../lib/merge-notifications';
 import {
   orgNotificationTarget,
   personalNotificationTarget,
@@ -65,6 +66,11 @@ interface NotificationListPanelProps {
 }
 
 const LOAD_MORE_NUM_ITEMS = 25;
+
+// How long the arrival announcement stays in the live region before it is
+// cleared, so a subsequent arrival re-announces even when the text is
+// identical (screen readers skip a live region whose text did not change).
+const ARRIVAL_ANNOUNCE_HOLD_MS = 1000;
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
 // stored in earlier rows — we already bind the namespace with
@@ -183,6 +189,44 @@ export function NotificationListPanel({
     }
   }, [results, myNotifications, hiddenIds]);
 
+  // Announce newly-arrived notifications to screen readers. A polite, sr-only
+  // live region (below) speaks a short message whenever a notification with a
+  // timestamp newer than any seen so far appears — so SR users hear arrivals
+  // that land while the panel is open. The first render only sets the baseline,
+  // so the list already present when the panel opened is never announced.
+  const [arrivalAnnouncement, setArrivalAnnouncement] = useState('');
+  const latestSeenAtRef = useRef<number | null>(null);
+  const clearAnnounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let newest = 0;
+    for (const n of results) if (n.createdAt > newest) newest = n.createdAt;
+    for (const n of myNotifications)
+      if (n.createdAt > newest) newest = n.createdAt;
+
+    const seenAt = latestSeenAtRef.current;
+    if (seenAt === null) {
+      latestSeenAtRef.current = newest;
+      return;
+    }
+    if (newest > seenAt) {
+      latestSeenAtRef.current = newest;
+      setArrivalAnnouncement(t('newNotifications'));
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+      clearAnnounceRef.current = setTimeout(
+        () => setArrivalAnnouncement(''),
+        ARRIVAL_ANNOUNCE_HOLD_MS,
+      );
+    }
+  }, [results, myNotifications, t]);
+
+  useEffect(
+    () => () => {
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+    },
+    [],
+  );
+
   // Filter client-side so toggling Unread/All never changes the query key (a
   // query reset would re-flash the skeleton). `hiddenIds` covers the optimistic
   // "just marked read" gap before the server-side `read` flag catches up.
@@ -193,20 +237,31 @@ export function NotificationListPanel({
       ),
     [results, hiddenIds, filter],
   );
-  // Priority sort floats actionable (high-priority) rows to the top; ties and
-  // the `recent` mode both fall back to the server's created-desc order.
-  const myItems = useMemo(() => {
-    const filtered = myNotifications.filter(
-      (n) => !hiddenIds.has(n._id) && (filter === 'all' || !n.read),
-    );
-    if (sort !== 'priority') return filtered;
-    return [...filtered].sort((a, b) => {
-      const aPriority = isActionableNotificationType(a.type) ? 1 : 0;
-      const bPriority = isActionableNotificationType(b.type) ? 1 : 0;
+  const myItems = useMemo(
+    () =>
+      myNotifications.filter(
+        (n) => !hiddenIds.has(n._id) && (filter === 'all' || !n.read),
+      ),
+    [myNotifications, hiddenIds, filter],
+  );
+  // One chronologically sorted stream across BOTH sources (#2377); optional
+  // priority sort floats actionable personal rows to the top.
+  const mergedItems = useMemo(() => {
+    const merged = mergeNotificationsByRecency(myItems, items);
+    if (sort !== 'priority') return merged;
+    return [...merged].sort((a, b) => {
+      const aPriority =
+        a.kind === 'personal' && isActionableNotificationType(a.item.type)
+          ? 1
+          : 0;
+      const bPriority =
+        b.kind === 'personal' && isActionableNotificationType(b.item.type)
+          ? 1
+          : 0;
       if (aPriority !== bPriority) return bPriority - aPriority;
-      return b.createdAt - a.createdAt;
+      return b.item.createdAt - a.item.createdAt;
     });
-  }, [myNotifications, hiddenIds, filter, sort]);
+  }, [myItems, items, sort]);
   const unreadCount = (unread ?? 0) + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
@@ -252,6 +307,14 @@ export function NotificationListPanel({
         className,
       )}
     >
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {arrivalAnnouncement}
+      </div>
       <div className="border-border flex flex-col gap-2.5 border-b px-4 py-3">
         {showHeaderRow && (
           <div className="flex items-center justify-between gap-2">
@@ -358,54 +421,58 @@ export function NotificationListPanel({
           )
         ) : (
           <ul role="list" className="divide-border divide-y">
-            {myItems.map((n) => {
+            {mergedItems.map((entry) => {
+              if (entry.kind === 'personal') {
+                const n = entry.item;
+                const params = isRecord(n.params) ? n.params : undefined;
+                const approvalId =
+                  n.type === 'task_review_requested' &&
+                  typeof params?.approvalId === 'string'
+                    ? params.approvalId
+                    : undefined;
+                const target = personalNotificationTarget({
+                  organizationId,
+                  taskId: n.taskId,
+                  params: n.params,
+                });
+                return (
+                  <NotificationRow
+                    key={`personal:${n._id}`}
+                    title={tInbox(n.titleKey)}
+                    body={tInbox(
+                      n.bodyKey,
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                      params as Record<string, string | number>,
+                    )}
+                    createdAt={n.createdAt}
+                    read={n.read}
+                    target={target}
+                    onActivate={() => {
+                      if (!n.read) handleMarkMyRead(n._id);
+                      onNavigate?.();
+                    }}
+                    onMarkRead={() => handleMarkMyRead(n._id)}
+                    markReadPending={markMyRead.isPending}
+                  >
+                    {approvalId && (
+                      <ReviewActions
+                        notificationId={n._id}
+                        approvalId={approvalId}
+                      />
+                    )}
+                  </NotificationRow>
+                );
+              }
+              const n = entry.item;
               const params = isRecord(n.params) ? n.params : undefined;
-              const approvalId =
-                n.type === 'task_review_requested' &&
-                typeof params?.approvalId === 'string'
-                  ? params.approvalId
-                  : undefined;
-              const target = personalNotificationTarget({
+              const target = orgNotificationTarget(
                 organizationId,
-                taskId: n.taskId,
-                params: n.params,
-              });
-              return (
-                <NotificationRow
-                  key={n._id}
-                  title={tInbox(n.titleKey)}
-                  body={tInbox(
-                    n.bodyKey,
-                    // `params` is the i18n interpolation map (stored as
-                    // v.any()); narrow to what t() accepts.
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                    params as Record<string, string | number>,
-                  )}
-                  createdAt={n.createdAt}
-                  read={n.read}
-                  target={target}
-                  onActivate={() => {
-                    if (!n.read) handleMarkMyRead(n._id);
-                    if (target) onNavigate?.();
-                  }}
-                  onMarkRead={() => handleMarkMyRead(n._id)}
-                  markReadPending={markMyRead.isPending}
-                >
-                  {approvalId && (
-                    <ReviewActions
-                      notificationId={n._id}
-                      approvalId={approvalId}
-                    />
-                  )}
-                </NotificationRow>
+                n.link,
+                n.category,
               );
-            })}
-            {items.map((n) => {
-              const params = isRecord(n.params) ? n.params : undefined;
-              const target = orgNotificationTarget(organizationId, n.link);
               return (
                 <NotificationRow
-                  key={n._id}
+                  key={`org:${n._id}`}
                   title={t(stripNsPrefix(n.titleKey), params)}
                   body={t(stripNsPrefix(n.bodyKey), params)}
                   createdAt={n.createdAt}
@@ -413,7 +480,7 @@ export function NotificationListPanel({
                   target={target}
                   onActivate={() => {
                     if (!n.read) handleMarkRead(n._id);
-                    if (target) onNavigate?.();
+                    onNavigate?.();
                   }}
                   onMarkRead={() => handleMarkRead(n._id)}
                   markReadPending={markRead.isPending}

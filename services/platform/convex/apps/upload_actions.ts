@@ -29,7 +29,10 @@ import path from 'node:path';
 
 import { ConvexError, v } from 'convex/values';
 
-import { MAX_APP_BUNDLE_TOTAL_BYTES } from '../../lib/shared/schemas/apps';
+import {
+  isValidAppSlug,
+  MAX_APP_BUNDLE_TOTAL_BYTES,
+} from '../../lib/shared/schemas/apps';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action, type ActionCtx } from '../_generated/server';
@@ -238,5 +241,70 @@ export const uploadAppBundle = action({
     }
 
     return { ok: true as const, slug: parsed.slug };
+  },
+});
+
+/**
+ * Delete a PRIVATE (uploaded) app's on-disk bundle — the inverse of
+ * `uploadAppBundle`. Removes `<config>/<org>/apps/<slug>/` so the app leaves the
+ * Apps hub for good. Two guards keep it safe:
+ *
+ *   1. A first-party BUILT-IN app can never be deleted here — the catalog is
+ *      read-only, and its dir doesn't even live under the org (this is a no-op
+ *      on disk, but we refuse loudly so the UI never offers it).
+ *   2. An app with an active install record is refused (`APP_INSTALLED`): deleting
+ *      the bundle out from under a live install would orphan its agent/workflow
+ *      rows, schedules, and env/secrets. Uninstall first (which, for a private
+ *      app, keeps the bundle on disk), then delete.
+ *
+ * Idempotent: a slug with no bundle on disk returns `{ deleted: false }`.
+ */
+export const deleteApp = action({
+  args: {
+    organizationId: v.string(),
+    slug: v.string(),
+  },
+  returns: v.object({ deleted: v.boolean() }),
+  handler: async (ctx, args): Promise<{ deleted: boolean }> => {
+    if (!isValidAppSlug(args.slug)) {
+      throw new ConvexError({
+        code: 'INVALID_SLUG',
+        message: `Invalid app slug: ${args.slug}`,
+      });
+    }
+    // Same gate as upload (developer-settings capability): whoever can upload a
+    // private app can remove it.
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+
+    if (await appExistsInBuiltinCatalog(args.slug)) {
+      throw new ConvexError({
+        code: 'APP_IS_BUILTIN',
+        message: `"${args.slug}" is a built-in app and cannot be deleted.`,
+      });
+    }
+
+    const record = await ctx.runQuery(
+      internal.apps.install_mutations.getAppInstallationInternal,
+      { organizationId: args.organizationId, appSlug: args.slug },
+    );
+    if (record) {
+      throw new ConvexError({
+        code: 'APP_INSTALLED',
+        message: `Uninstall "${args.slug}" before deleting its upload.`,
+      });
+    }
+
+    // No manifest on disk → nothing to delete (the app was never uploaded here,
+    // or was already removed). Report a no-op rather than a spurious success.
+    const manifest = await readFileSafe(
+      resolveAppManifestPath(auth.orgSlug, args.slug),
+    );
+    if (manifest === null) return { deleted: false };
+
+    await rm(resolveAppDir(auth.orgSlug, args.slug), {
+      recursive: true,
+      force: true,
+    });
+    return { deleted: true };
   },
 });

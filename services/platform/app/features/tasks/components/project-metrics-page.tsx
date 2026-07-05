@@ -29,6 +29,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { formatCostCents } from '@/lib/utils/format/number';
 
 export type PeriodDays = 7 | 30 | 90;
 
@@ -107,13 +108,6 @@ function reduceTotals(days: ProjectMetricsDay[]): ProjectTotals {
       capped: false,
     },
   );
-}
-
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 function avgCycleHours(t: ProjectTotals): number | undefined {
@@ -368,7 +362,7 @@ export function ProjectMetricsPage({
 
             <StatCard
               label={t('metrics.cost', { days: periodDays })}
-              value={formatCents(totals.cost)}
+              value={formatCostCents(totals.cost)}
             >
               <Stack gap={1} className="mt-0.5">
                 <TrendIndicator
@@ -490,7 +484,7 @@ export function ProjectMetricsPage({
                 xKey="dateKey"
                 xTickFormatter={shortDay}
                 allowDecimals
-                valueFormatter={(v) => formatCents(v * 100)}
+                valueFormatter={(v) => formatCostCents(v * 100)}
               />
             </ChartCard>
           </Grid>

@@ -143,6 +143,8 @@ await assertOk(
 // Pinned versions resolve (a broken install would non-zero here).
 await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
+await assertOk('agent on PATH', 10001, 'command -v agent');
+await assertOk('agent --version runs', 10001, 'agent --version');
 // HOME on the workspace volume must be writable for agent state.
 await assertOk(
   'HOME writable for agent state',

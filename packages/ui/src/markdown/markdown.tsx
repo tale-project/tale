@@ -5,9 +5,18 @@ import {
   type ReactNode,
 } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
+// KaTeX's stylesheet, self-hosted via a JS side-effect import (not a CSS
+// `@import`) so the bundler rebases its `url()` webfont refs to hashed build
+// assets — the same routing `../fonts.ts` uses for the Inter webfont. Every
+// consumer of this module (including the streaming `IncrementalMarkdown`,
+// which imports from here) picks the styles up, so rendered `$…$`/`$$…$$`
+// math is styled wherever markdown renders.
+import 'katex/dist/katex.min.css';
 import { cn } from '../lib/cn';
 import { AnchoredHeading } from './anchored-heading';
 import { CodeBlock } from './code-block';
@@ -375,7 +384,11 @@ export function Markdown({ children, components, className }: MarkdownProps) {
   return (
     <div className={className}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        // `remarkMath` parses `$…$` (inline) and `$$…$$` (block) into math
+        // nodes so `rehypeKatex` can render them; without it TeX would show
+        // verbatim. It sits after `remarkGfm` so GFM tables/lists/fences are
+        // unaffected.
+        remarkPlugins={[remarkGfm, remarkMath]}
         // `rehypePreserveCodeMeta` lifts each code fence's metastring
         // (the part after the language, e.g. `` ```python Python ``) onto
         // a `data-meta` attribute. It must run before `rehype-raw`, which
@@ -389,10 +402,16 @@ export function Markdown({ children, components, className }: MarkdownProps) {
         // `rehypeNumericColumns` walks each table and tags columns whose
         // body cells are all numeric-like with `text-right`, so finance /
         // metric tables read aligned without any author opt-in.
+        // `rehypeKatex` renders the `language-math` nodes `remarkMath`
+        // produced into KaTeX markup. It runs last — after `rehypeRaw`, so
+        // any raw-HTML-embedded math is parsed first, and after the other
+        // transforms so it replaces the math `<pre>`/`<code>` wholesale
+        // before they reach the code-block component map.
         rehypePlugins={[
           rehypePreserveCodeMeta,
           rehypeRaw,
           rehypeNumericColumns,
+          rehypeKatex,
         ]}
         components={{ ...baseComponents, ...components }}
       >

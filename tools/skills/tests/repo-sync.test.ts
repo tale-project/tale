@@ -33,4 +33,8 @@ describe('committed skills are in sync with their source', () => {
     expect(guards.imports).toEqual([]);
     expect(guards.commands).toEqual([]);
   });
+
+  test('every skill has strict-YAML frontmatter', () => {
+    expect(planGuards(repoRoot).frontmatter).toEqual([]);
+  });
 });

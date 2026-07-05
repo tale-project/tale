@@ -49,6 +49,7 @@ import { meta as apiKeyBudgetScopeMeta } from '../versions/v0_2_89/01_usage_ledg
 import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_files_absolute_paths';
 import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
+import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
 import type { DbMigration, MigrationMeta } from './types';
 
 /**
@@ -81,6 +82,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   apiKeyBudgetScopeMeta,
   threadFilesAbsPathsMeta,
   claudeCodeFableDefaultMeta,
+  agentKindOpencodeMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */

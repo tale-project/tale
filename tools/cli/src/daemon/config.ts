@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { isRecord, type PermissionMode } from './adapters/types';
 
+const DEFAULT_BASE_URL = 'http://localhost:3000';
+
 /**
  * Daemon configuration at `~/.tale-daemon/config.json` (chmod 600 — it
  * holds the API key; set `TALE_DAEMON_API_KEY` instead to keep the key out
@@ -34,12 +36,51 @@ export function configPath(): string {
   return path.join(configDir(), 'config.json');
 }
 
-export function newDaemonId(): string {
+function newDaemonId(): string {
   return `daemon_${randomUUID()}`;
 }
 
-function isPermissionMode(value: unknown): value is PermissionMode {
+export function isPermissionMode(value: unknown): value is PermissionMode {
   return value === 'safe' || value === 'auto_edits' || value === 'full_auto';
+}
+
+/** The answers `daemon setup` collects — from flags, prompts, or a mix. */
+export interface DaemonSetupInput {
+  baseUrl?: string;
+  apiKey?: string;
+  name?: string;
+  workspacePath?: string;
+  workspaceKey?: string;
+  permissionCeiling?: PermissionMode;
+}
+
+/**
+ * Assemble a {@link DaemonConfig} from the setup answers — pure, so the same
+ * shape is produced whether the values came from interactive prompts or from
+ * the non-interactive flags the Runtimes settings page embeds in its
+ * copy-paste command. Trims the base URL, drops a trailing slash, and derives
+ * the advertised workspace key from the path when it is not given explicitly.
+ * The API key is never logged; it lives only in the returned config.
+ */
+export function buildDaemonConfig(input: DaemonSetupInput): DaemonConfig {
+  const baseUrl =
+    (input.baseUrl ?? DEFAULT_BASE_URL).trim().replace(/\/$/, '') ||
+    DEFAULT_BASE_URL;
+  const apiKey = input.apiKey?.trim() || undefined;
+  const name = input.name?.trim() || undefined;
+  const workspacePath = input.workspacePath?.trim() ?? '';
+  const workspaceKey = workspacePath
+    ? input.workspaceKey?.trim() || path.basename(workspacePath)
+    : '';
+  return {
+    baseUrl,
+    apiKey,
+    daemonId: newDaemonId(),
+    name,
+    workspaces: workspacePath ? { [workspaceKey]: workspacePath } : {},
+    defaultWorkspace: workspaceKey || undefined,
+    permissionCeiling: input.permissionCeiling ?? 'safe',
+  };
 }
 
 function asStringRecord(value: unknown): Record<string, string> {

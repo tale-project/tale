@@ -109,7 +109,7 @@ export function ScheduleCreateDialog({
         cronExpression: z
           .string()
           .trim()
-          .min(1, 'Cron expression is required')
+          .min(1, t('triggers.schedules.form.validation.cronRequired'))
           .refine((value) => {
             try {
               CronExpressionParser.parse(value);
@@ -117,9 +117,9 @@ export function ScheduleCreateDialog({
             } catch {
               return false;
             }
-          }, 'Must be a valid 5-field cron expression'),
+          }, t('triggers.schedules.form.validation.cronInvalid')),
       }),
-    [],
+    [t],
   );
 
   const form = useForm<ScheduleFormData>({

@@ -7,7 +7,7 @@
 
 import { ConvexError } from 'convex/values';
 
-import { internal } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import { createAuth } from '../../auth';
 import {
@@ -96,6 +96,42 @@ export function jsonError(message: string, status: number): Response {
 // ---------------------------------------------------------------------------
 
 /**
+ * Stamp the API key's `lastRequest` so the Settings → API table can show a
+ * real "Last used" instead of "Never used".
+ *
+ * Better Auth's api-key session hook is supposed to record this itself, but its
+ * write goes through the component adapter, which the Convex Better Auth plugin
+ * turns into a no-op outside a mutation-capable request — so a plain `getSession`
+ * auth on a `/api/v1/*` HTTP action never persists it. We write the field
+ * directly on the component row instead (same mechanism as the create-time
+ * suffix stamp in `auth.ts`), which is deterministic in the HTTP-action context.
+ *
+ * Best-effort: a stamp failure must never break an otherwise valid request, so
+ * this swallows its own errors — the worst case is the pre-existing behaviour of
+ * the row still reading "Never used".
+ */
+async function recordApiKeyLastUsed(
+  ctx: HttpCtx,
+  apiKeyId: string,
+): Promise<void> {
+  try {
+    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+      input: {
+        model: 'apikey',
+        where: [{ field: '_id', value: apiKeyId, operator: 'eq' }],
+        update: { lastRequest: Date.now() },
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+  } catch (err) {
+    console.warn(
+      '[rest-auth] failed to record API key last-used',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/**
  * Authenticate a REST request via Bearer token.
  * Extracts the API key from the Authorization header and validates it
  * through BetterAuth, returning the authenticated user info.
@@ -125,6 +161,15 @@ export async function authenticateRequest(
 
     if (!session?.user) {
       throw new AuthError('Invalid API key or session');
+    }
+
+    // For an api-key session, Better Auth sets `session.id` to the api-key
+    // row's id (see @better-auth/api-key session hook). Stamp last-used so the
+    // key stops reading "Never used" after real authenticated calls (#2317).
+    const apiKeyId =
+      typeof session.session?.id === 'string' ? session.session.id : undefined;
+    if (apiKeyId) {
+      await recordApiKeyLastUsed(ctx, apiKeyId);
     }
 
     return {

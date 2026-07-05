@@ -3,7 +3,14 @@
 // bypassPermissions (permitted because the agent-profile user is non-root).
 
 import type { AgentEventParser } from '../events';
-import type { AgentAdapter, AgentRunSpec, SessionExecSpec } from '../types';
+import type {
+  AgentAdapter,
+  AgentCapabilities,
+  AgentRunSpec,
+  CredentialPolicy,
+  SessionExecSpec,
+} from '../types';
+import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../types';
 import { DEFAULT_MAX_TURNS } from '../types';
 import { ClaudeCodeParser } from './parse';
 import { buildStdinUserMessage } from './stdin';
@@ -51,15 +58,6 @@ const PLAYWRIGHT_MCP_SERVER = {
 const PLAYWRIGHT_MCP_CDP_SERVER = {
   command: 'tale-playwright-mcp',
   args: ['--cdp-endpoint', 'http://127.0.0.1:9222'],
-};
-
-/** Human-control bridge (browserCdp only). A dependency-free stdio shim that
- * exposes `request_human_control({reason})`. The tool makes NO network call —
- * the platform observes the tool_use in stream-json (run_agent) and raises a
- * take-control card + parks the turn. Only meaningful when the live headed
- * browser exists (browserCdp), since a human drives it via the x11vnc path. */
-const HUMAN_CONTROL_MCP_SERVER = {
-  command: 'tale-human-control-mcp',
 };
 
 /** Model families whose context window Claude Code expands to 1M when the model
@@ -137,8 +135,36 @@ function withHouseRules(systemPromptAppend: string | undefined): string {
     : CLAUDE_CODE_HOUSE_RULES;
 }
 
+const CREDENTIAL_POLICY: CredentialPolicy = {
+  managedSource: 'gateway',
+  supportsByo: true,
+  supportsManaged: true,
+};
+
+const CAPABILITIES: AgentCapabilities = {
+  processLifecycle: 'stdin-hold',
+  promptTransport: 'stdin-ndjson',
+  mcpDelivery: 'inline-argv',
+  supportsPlanMode: true,
+  supportsMidTurnSteering: true,
+  supportsAttachmentDirs: true,
+  supportsIntegrationsBridge: true,
+  supportsVisionPolyfill: true,
+  skillsStageDir: CLAUDE_COMPAT_SKILLS_STAGE_DIR,
+};
+
+const CREDENTIAL_ENV_KEYS = [
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
+  'TALE_GATEWAY_TOKEN',
+] as const;
+
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly slug = 'claude-code' as const;
+  readonly credentialPolicy = CREDENTIAL_POLICY;
+  readonly capabilities = CAPABILITIES;
+  readonly credentialEnvKeys = CREDENTIAL_ENV_KEYS;
 
   buildExec(spec: AgentRunSpec): SessionExecSpec {
     // BYO ("bring your own credentials") opts out of the platform gateway: no
@@ -227,13 +253,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
             args: [...browserServer.args, '--image-responses', 'omit'],
           }
         : browserServer;
-      // Human takeover only applies to the live headed browser (browserCdp) —
-      // that's the one a human can drive via x11vnc. The self-launched headless
-      // browser has no VNC surface, so the tool would be a dead end there.
-      // Autonomous runs have no human to take over, so the tool is never offered.
-      if (spec.browserCdp === true && spec.interactionMode !== 'autonomous') {
-        mcpServers.humanControl = HUMAN_CONTROL_MCP_SERVER;
-      }
     }
     if (spec.integrationsBaseUrl && spec.gateway) {
       // The integration-dispatch bridge — lets the agent use the org's connected

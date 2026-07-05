@@ -226,10 +226,17 @@ function AppInstallWizardBody({
     isExternalAgent(a)
       ? (modeChoices[a.agentSlug] ?? authModeOf(a))
       : 'managed';
-  const needsProvider = (a: AgentReadiness): boolean =>
-    a.mode === 'internal' || a.mode === 'image' || effMode(a) === 'managed';
-  const needsEnv = (a: AgentReadiness): boolean =>
-    isExternalAgent(a) && effMode(a) === 'byo';
+  const needsProvider = (a: AgentReadiness): boolean => {
+    if (a.mode === 'internal' || a.mode === 'image') return true;
+    if (!isExternalAgent(a)) return false;
+    if (effMode(a) === 'byo') return false;
+    return a.mode === 'external-gateway-managed';
+  };
+  const needsEnv = (a: AgentReadiness): boolean => {
+    if (!isExternalAgent(a)) return false;
+    if (effMode(a) === 'byo') return true;
+    return a.mode === 'external-env-managed';
+  };
 
   // Providers to connect: distinct, exist-but-unkeyed providers that a
   // not-yet-resolvable provider+model agent needs under its chosen mode.

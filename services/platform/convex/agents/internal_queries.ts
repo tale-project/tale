@@ -8,7 +8,14 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { routeSeedValidator, routeTuningValidator } from './schema';
+
+export const getUserTeamIdsInternal = internalQuery({
+  args: { userId: v.string() },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => getUserTeamIds(ctx, args.userId),
+});
 
 export const getBindingByAgent = internalQuery({
   args: {

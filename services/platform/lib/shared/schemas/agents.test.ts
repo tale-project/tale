@@ -87,13 +87,42 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         .success,
     ).toBe(true);
     expect(
-      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'opencode' })
-        .success,
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'cursor',
+        authMode: 'byo',
+      }).success,
     ).toBe(true);
+  });
+
+  it('rejects cursor external-agent with managed authMode (Cursor is BYO only)', () => {
+    const managed = agentJsonSchema.safeParse({
+      ...externalBase,
+      agentKind: 'cursor',
+      authMode: 'managed',
+    });
+    expect(managed.success).toBe(false);
+    // Absent authMode is also rejected — Cursor must be explicit byo.
+    expect(
+      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'cursor' })
+        .success,
+    ).toBe(false);
   });
 
   it('accepts external-agent without agentKind (runtime defaults claude-code)', () => {
     expect(agentJsonSchema.safeParse(externalBase).success).toBe(true);
+  });
+
+  it('accepts cursor external-agent with no supportedModels (optional runtime hint)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Cursor',
+        primaryBehavior: 'external-agent',
+        agentKind: 'cursor',
+        authMode: 'byo',
+        supportedModels: [],
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts authMode managed/byo on an external-agent', () => {

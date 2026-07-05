@@ -214,7 +214,9 @@ describe('CreateAutomationDialog', () => {
       // The duplicate-name field error appears…
       await waitFor(() =>
         expect(
-          screen.getByText('An automation with this name already exists'),
+          screen.getByText(
+            'An automation with a matching identifier already exists. Try a more distinct name.',
+          ),
         ).toBeInTheDocument(),
       );
       // …install never runs and the dialog stays put (no navigation).

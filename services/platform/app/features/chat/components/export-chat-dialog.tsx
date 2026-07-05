@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, Printer } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -266,7 +266,7 @@ function ExportChatDialogContent({
             disabled={noneSelected}
             className="gap-1.5"
           >
-            <FileText className="size-3.5" />
+            <Printer className="size-3.5" />
             {t('export.downloadPdf')}
           </Button>
         </Row>

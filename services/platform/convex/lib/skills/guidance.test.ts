@@ -110,6 +110,12 @@ describe('buildSkillsGuidance', () => {
     // Staged but deliberately not a numbered step.
     expect(out).not.toContain('review-pr');
   });
+
+  it('uses runtime-neutral skill invocation wording', () => {
+    const out = buildSkillsGuidance(ALL);
+    expect(out).toContain('automatic discovery');
+    expect(out).not.toContain('Skill tool');
+  });
 });
 
 describe('WORKFLOW_SKILL_NAMES', () => {

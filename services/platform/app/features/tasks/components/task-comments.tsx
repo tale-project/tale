@@ -43,23 +43,25 @@ interface TaskComment {
  * Task comment thread, unified onto the task's `task_discussion` thread (one
  * conversation surface shared with project discussions). A flat message list —
  * author identity (resolved name + avatar), relative timestamps, the `(edited)`
- * marker, and inline edit/delete. Composer + edit are gated on `canEdit`
- * (project write); edit is author-only; delete is author-or-admin (re-enforced
- * server-side). Agent replies (from `run_on_task`) render as agent-authored
- * messages here. A task with no comments yet shows just the composer.
+ * marker, and inline edit/delete. Composer + edit are gated on `canComment`
+ * (read-level — any org member who can open the task, mirroring a project
+ * discussion reply); edit is author-only; delete is author-or-admin (all
+ * re-enforced server-side). Agent replies (from `run_on_task`) render as
+ * agent-authored messages here. A task with no comments yet shows just the
+ * composer.
  */
 export function TaskComments({
   taskId,
   organizationId,
   projectId,
-  canEdit,
+  canComment,
   currentUserId,
   isAdmin,
 }: {
   taskId: Id<'tasks'>;
   organizationId: string;
   projectId: Id<'projects'>;
-  canEdit: boolean;
+  canComment: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
 }) {
@@ -188,7 +190,7 @@ export function TaskComments({
             />
           )}
 
-          {!isEditing && canEdit && (
+          {!isEditing && canComment && (
             <Row
               gap={3}
               className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
@@ -237,7 +239,7 @@ export function TaskComments({
         ))}
       </Stack>
 
-      {canEdit && (
+      {canComment && (
         <Row gap={2} align="start" className="mt-4">
           {currentUser && (
             <AssigneeAvatar

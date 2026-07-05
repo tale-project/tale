@@ -32,6 +32,7 @@ type LocaleStrings = Record<string, string>;
 export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
   en: {
     title: 'Notifications',
+    newNotifications: 'New notifications',
     ariaUnread: 'Unread',
     emptyCaughtUpTitle: "You're all caught up",
     emptyCaughtUpDescription: "We'll let you know when anything new comes in.",
@@ -95,6 +96,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
   },
   de: {
     title: 'Benachrichtigungen',
+    newNotifications: 'Neue Benachrichtigungen',
     ariaUnread: 'Ungelesen',
     emptyCaughtUpTitle: 'Alles erledigt',
     emptyCaughtUpDescription: 'Wir melden uns, sobald etwas Neues eintrifft.',
@@ -163,6 +165,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
   },
   fr: {
     title: 'Notifications',
+    newNotifications: 'Nouvelles notifications',
     ariaUnread: 'Non lu',
     emptyCaughtUpTitle: 'Tout est à jour',
     emptyCaughtUpDescription:

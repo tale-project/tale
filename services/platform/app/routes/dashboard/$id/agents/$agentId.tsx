@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { Heading } from '@tale/ui/heading';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
@@ -34,6 +35,19 @@ export const Route = createFileRoute('/dashboard/$id/agents/$agentId')({
   }),
   loader: ({ context, params }) => {
     const { id: organizationId, agentId: agentName } = params;
+    // This warm calls the Convex action directly, bypassing the auth gate that
+    // useActionQuery applies to useReadAgent. On a cold load / reload the loader
+    // runs before the WebSocket auth handshake completes, so firing it then ran
+    // the action unauthenticated → a thrown `UNAUTHENTICATED` ConvexError logged
+    // as a console Server Error on every cold entry. Gate on the same signal the
+    // app's authed queries use — the getCurrentUser auth probe having resolved a
+    // user into the shared cache — so the row-hover preload (already in-app and
+    // authenticated) still warms the config, while a cold load defers to the
+    // auth-gated useReadAgent hook, which fetches the moment auth is ready.
+    const isAuthenticated = !!context.queryClient.getQueryData(
+      convexQuery(api.users.queries.getCurrentUser, {}).queryKey,
+    );
+    if (!isAuthenticated) return;
     // Warm the agent config (filesystem-backed action) so the detail paints
     // without a skeleton — also runs on the agents list's row-hover preload.
     // Mirrors useReadAgent's key + args so the component reads it warm.

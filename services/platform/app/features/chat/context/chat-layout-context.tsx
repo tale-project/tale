@@ -147,7 +147,13 @@ export function ChatLayoutProvider({
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const sidebarExpandedKey = user?.userId
+    ? `chat-dashboard-sidebar-expanded-${user.userId}-${organizationId}`
+    : `chat-dashboard-sidebar-expanded-${organizationId}`;
+  const [isHistoryOpen, setIsHistoryOpen] = usePersistedState(
+    sidebarExpandedKey,
+    false,
+  );
   const [insertedPrompt, setInsertedPrompt] = useState<string | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
   const [editingImageRef, setEditingImageRef] =
@@ -266,6 +272,7 @@ export function ChatLayoutProvider({
       clearChatState,
       pendingMessage,
       isHistoryOpen,
+      setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
       selectedModelOverrides,

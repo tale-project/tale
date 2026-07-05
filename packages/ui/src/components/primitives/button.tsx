@@ -1,4 +1,4 @@
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Link } from '@tanstack/react-router';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -182,23 +182,36 @@ const ButtonBase = React.forwardRef<HTMLButtonElement, ButtonBaseProps>(
         children
       );
 
-    const content =
-      asChild && !isLoading && !Icon ? (
-        children
-      ) : isLoading ? (
-        <>
-          <Loader2
-            className={cn(iconClass, 'animate-spin motion-reduce:animate-none')}
-            aria-hidden="true"
-          />
-          {label}
-        </>
+    const leading = isLoading ? (
+      <Loader2
+        key="leading"
+        className={cn(iconClass, 'animate-spin motion-reduce:animate-none')}
+        aria-hidden="true"
+      />
+    ) : Icon ? (
+      <Icon key="leading" className={iconClass} aria-hidden="true" />
+    ) : null;
+
+    // Under `asChild` the single child element (e.g. a Link) IS the rendered
+    // control, so a leading icon/spinner must be injected as its sibling via
+    // `Slottable` — Radix then merges props onto that child and keeps the icon
+    // inside it. The icon and `Slottable` are passed as an ARRAY (direct Slot
+    // children), never a Fragment: Slot doesn't descend into a Fragment to find
+    // the `Slottable`, and forwarding `className` onto a Fragment triggers
+    // React's "Invalid prop `className` supplied to `React.Fragment`" (#1976).
+    // With no leading element the child is passed straight through.
+    const content = asChild ? (
+      leading ? (
+        [leading, <Slottable key="child">{children}</Slottable>]
       ) : (
-        <>
-          {Icon ? <Icon className={iconClass} aria-hidden="true" /> : null}
-          {label}
-        </>
-      );
+        children
+      )
+    ) : (
+      <>
+        {leading}
+        {label}
+      </>
+    );
 
     return (
       <Comp

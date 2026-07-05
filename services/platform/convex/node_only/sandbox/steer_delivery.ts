@@ -23,6 +23,8 @@
 
 import { v } from 'convex/values';
 
+import { getAgentCapabilities } from '../../../lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { sessionStageFiles } from './helpers/session_client';
@@ -36,9 +38,12 @@ export const deliverSteerMessages = internalAction({
       internal.sandbox.session_queries.getRunningAgentRunByThread,
       { threadId: args.threadId },
     );
-    // Steering is a Claude Code mechanism (hooks); other kinds drain at the
-    // turn boundary instead. No running exec → boundary drain handles it too.
-    if (!target || target.agentKind !== 'claude-code') return null;
+    // Mid-turn steering applies only to runtimes that support it.
+    const agentKind: ProductAgentSlug =
+      target?.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+    if (!target || !getAgentCapabilities(agentKind).supportsMidTurnSteering) {
+      return null;
+    }
 
     // Lingering exec (per-turn result in, process idle on its held-open
     // stdin): a staged file would sit unconsumed — no tool/stop boundaries
