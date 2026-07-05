@@ -7,13 +7,23 @@
 // is documented in the implementation plan.
 
 /** Product external runtimes exposed in schema, UI, and registry. */
-export const PRODUCT_AGENT_SLUGS = ['claude-code', 'cursor'] as const;
+export const PRODUCT_AGENT_SLUGS = [
+  'claude-code',
+  'cursor',
+  'opencode',
+] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
 
-/** Archived runtime — parser fixtures only; not in product registry. */
-export type LegacyAgentSlug = 'opencode';
+export type AgentSlug = ProductAgentSlug;
 
-export type AgentSlug = ProductAgentSlug | LegacyAgentSlug;
+/** Map a stored/config agentKind to the product registry slug. */
+export function resolveProductAgentKind(
+  agentKind: string | undefined,
+): ProductAgentSlug {
+  if (agentKind === 'cursor') return 'cursor';
+  if (agentKind === 'opencode') return 'opencode';
+  return 'claude-code';
+}
 
 export type AgentResultStatus =
   | 'completed'

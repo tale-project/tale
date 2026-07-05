@@ -19,7 +19,10 @@
 
 import { v } from 'convex/values';
 
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../../lib/agent-adapters/events';
 import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
@@ -48,8 +51,7 @@ const RECOVERY_SWEEP_LIMIT = 50;
 
 /** Coerce a stored session-op agentKind (may include legacy values) to a product slug. */
 function storedProductAgentKind(kind: string | undefined): ProductAgentSlug {
-  if (kind === 'cursor') return 'cursor';
-  return 'claude-code';
+  return resolveProductAgentKind(kind);
 }
 
 export const recoverStuckExternalAgentTurns = internalAction({

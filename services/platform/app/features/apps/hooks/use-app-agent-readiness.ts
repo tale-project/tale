@@ -38,7 +38,7 @@ export interface AgentReadiness {
   shortName: string;
   displayName: string;
   mode: AgentReadinessMode;
-  agentKind?: 'claude-code' | 'cursor';
+  agentKind?: 'claude-code' | 'cursor' | 'opencode';
   /** Saved runtime vs Environment credentials disagree — see pack `readiness.mismatch.*`. */
   credentialMismatch?: CredentialRuntimeMismatchDetail;
   /** Ready under the agent's CURRENT effective mode. */

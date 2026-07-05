@@ -153,13 +153,13 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'cursor';
+  agentSlug: 'claude-code' | 'cursor' | 'opencode';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
    * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
   fallbackModel?: string;
-  /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
+  /** Resume handle from a prior run (Claude session_id / Cursor chat id / OpenCode sessionID). */
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
@@ -1530,10 +1530,14 @@ export const runAgentInSession = internalAction({
     organizationId: v.string(),
     sessionId: v.string(),
     execId: v.string(),
-    agentSlug: v.union(v.literal('claude-code'), v.literal('cursor')),
+    agentSlug: v.union(
+      v.literal('claude-code'),
+      v.literal('cursor'),
+      v.literal('opencode'),
+    ),
     prompt: v.string(),
     model: v.optional(v.string()),
-    /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
+    /** Resume handle from a prior run (Claude session_id / Cursor chat id / OpenCode sessionID). */
     agentSessionId: v.optional(v.string()),
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),

@@ -335,7 +335,9 @@ function GeneralTab() {
         label:
           slug === 'cursor'
             ? t('agents.form.agentKind.cursor')
-            : t('agents.form.agentKind.claudeCode'),
+            : slug === 'opencode'
+              ? t('agents.form.agentKind.opencode')
+              : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -365,7 +367,13 @@ function GeneralTab() {
 
   const handleAgentKindChange = useCallback(
     (value: string) => {
-      if (value !== 'claude-code' && value !== 'cursor') return;
+      if (
+        value !== 'claude-code' &&
+        value !== 'cursor' &&
+        value !== 'opencode'
+      ) {
+        return;
+      }
       // Cursor is BYO only (its CLI can't route through the platform gateway):
       // force byo and drop any platform catalog model refs, which mean nothing
       // to a raw Cursor model passthrough.
@@ -374,6 +382,15 @@ function GeneralTab() {
           agentKind: 'cursor',
           authMode: 'byo',
           supportedModels: [],
+        });
+        return;
+      }
+      // OpenCode is managed-only — clear BYO and restore managed auth when
+      // switching from Cursor.
+      if (value === 'opencode') {
+        updateConfig({
+          agentKind: 'opencode',
+          authMode: 'managed',
         });
         return;
       }

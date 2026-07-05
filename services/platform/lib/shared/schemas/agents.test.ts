@@ -95,6 +95,26 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     ).toBe(true);
   });
 
+  it('accepts external-agent with agentKind opencode (managed-only)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'opencode',
+        authMode: 'managed',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects opencode external-agent with byo authMode (OpenCode is managed-only)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'opencode',
+        authMode: 'byo',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects cursor external-agent with managed authMode (Cursor is BYO only)', () => {
     const managed = agentJsonSchema.safeParse({
       ...externalBase,

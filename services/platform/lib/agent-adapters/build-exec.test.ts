@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CursorAdapter } from './cursor/adapter';
+import { OpenCodeAdapter } from './opencode/adapter';
 import type { AgentRunSpec } from './types';
 
 const base = {
@@ -366,6 +367,79 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8');
     expect(argv).toContain('--disallowedTools');
+  });
+});
+
+describe('OpenCodeAdapter.buildExec', () => {
+  const opencodeBase = {
+    prompt: 'Fix issue #1 and open a PR',
+    model: 'claude-sonnet-4-6',
+    gateway: {
+      baseUrl: 'http://sandbox-llm-gateway:8080',
+      token: 'sk-bf-test',
+    },
+    workdir: '/user/workspace',
+  } satisfies AgentRunSpec;
+
+  it('builds headless json invocation with gateway env and session resume', () => {
+    const { argv, env, cwd, stdinMode } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      agentSessionId: 'sess-oc-1',
+    });
+    expect(argv.slice(0, 10)).toEqual([
+      'opencode',
+      'run',
+      '--format',
+      'json',
+      '--dir',
+      '/user/workspace',
+      '-s',
+      'sess-oc-1',
+      '-m',
+      'tale/claude-sonnet-4-6',
+    ]);
+    expect(argv[argv.length - 1]).toBe(opencodeBase.prompt);
+    expect(stdinMode).toBe('close');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.provider.tale.options.baseURL).toBe(
+      'http://sandbox-llm-gateway:8080/openai/v1',
+    );
+    expect(config.mcp.playwright.command).toEqual([
+      'tale-playwright-mcp',
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+      '--ignore-https-errors',
+    ]);
+    expect(cwd).toBe('/user/workspace');
+  });
+
+  it('adds the integration MCP bridge when integrationsBaseUrl is set', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      integrationsBaseUrl: 'http://proxy/api/integrations',
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.mcp.integrations.command).toEqual(['tale-integrations-mcp']);
+    expect(config.mcp.integrations.env.TALE_INTEGRATIONS_URL).toBe(
+      'http://proxy/api/integrations',
+    );
+    expect(config.mcp.integrations.env.TALE_INTEGRATIONS_TOKEN).toBe(
+      'sk-bf-test',
+    );
+  });
+
+  it('throws for BYO (managed-only runtime)', () => {
+    expect(() =>
+      new OpenCodeAdapter().buildExec({
+        prompt: 'hi',
+        authMode: 'byo',
+        workdir: '/user/workspace',
+      }),
+    ).toThrow(/managed gateway/);
   });
 });
 
