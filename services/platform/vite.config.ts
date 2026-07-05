@@ -112,6 +112,8 @@ export default defineConfig({
       // no mid-session re-optimization is ever triggered.
       'react-markdown',
       'remark-gfm',
+      'remark-math',
+      'rehype-katex',
       'rehype-raw',
       'rehype-sanitize',
       // Custom markdown plugins (@tale/ui) reach *past* react-markdown and
