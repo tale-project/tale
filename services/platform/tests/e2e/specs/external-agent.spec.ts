@@ -283,7 +283,7 @@ test.describe('external agent (Cursor)', () => {
 
     await expect(
       page.getByRole('link', {
-        name: t('agents.navigation.skills'),
+        name: t('settings.agents.navigation.skills'),
         exact: true,
       }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
