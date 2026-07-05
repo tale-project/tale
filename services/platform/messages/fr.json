@@ -232,7 +232,6 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct",
-      "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
       "failed": "Échec",
@@ -2134,6 +2133,10 @@
       "noResults": "Aucun résultat trouvé",
       "tryAdjusting": "Essaie d'ajuster tes critères de recherche",
       "placeholder": "Rechercher..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention non reconnue",
+      "unresolvedDescription": "{tokens} ne correspond à personne dans ta organisation — aucune notification n'a été envoyée."
     },
     "errors": {
       "generic": "Une erreur s'est produite. Merci de réessayer.",
@@ -4394,6 +4397,10 @@
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choisis les événements qui t'envoient une notification."
+    },
     "environment": {
       "title": "Variables d'environnement et secrets",
       "description": "Variables d'environnement et secrets injectés dans tes sandboxes d'agent."
@@ -4573,6 +4580,51 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "SSO d'entreprise"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choisis les événements qui apparaissent dans ta cloche. Les demandes de review restent toujours actives — ce sont des signaux de sécurité.",
+    "deliveryTitle": "Envoi par e-mail",
+    "deliveryDescription": "Les alertes actionnables (assignations, mentions, reviews, escalades) peuvent aussi arriver sur ton e-mail de compte quand l'organisation a une boîte connectée.",
+    "saveFailed": "Impossible d'enregistrer tes préférences de notification.",
+    "fields": {
+      "actionableEmail": {
+        "label": "M'envoyer les alertes actionnables par e-mail",
+        "description": "Envoie les notifications de retour sur ton e-mail de compte via la boîte Gmail, Outlook ou SMTP connectée de l'organisation."
+      },
+      "taskAssigned": {
+        "label": "Tâche qui m'est assignée",
+        "description": "Quand une tâche t'est assignée."
+      },
+      "taskStatusChanged": {
+        "label": "Changement de statut",
+        "description": "Quand une tâche que tu suis change de statut."
+      },
+      "taskCommented": {
+        "label": "Nouveau commentaire",
+        "description": "Quand quelqu'un commente une tâche que tu suis."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "Quand quelqu'un te mentionne avec @."
+      },
+      "taskReview": {
+        "label": "Demandes de review",
+        "description": "Quand le travail d'un agent attend ta review."
+      },
+      "escalation": {
+        "label": "Escalades d'agent",
+        "description": "Quand un agent escalade une tâche vers un humain."
+      },
+      "automationAlerts": {
+        "label": "Alertes d'automatisation",
+        "description": "Échecs, avertissements de budget et runtimes hors ligne."
+      },
+      "digest": {
+        "label": "Résumé",
+        "description": "Résumé périodique de l'activité de la workforce."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Non lu",
@@ -4582,8 +4634,12 @@
     "emptyAllDescription": "Les alertes et mises à jour système apparaîtront ici à mesure qu'elles arriveront.",
     "markAsRead": "Marquer comme lu",
     "markAllAsRead": "Tout marquer comme lu",
+    "expand": "Agrandir",
     "filterUnread": "Non lus",
     "filterAll": "Tous",
+    "sortLabel": "Trier",
+    "sortRecent": "Plus récentes",
+    "sortPriority": "Priorité",
     "loadMore": "Charger plus",
     "loading": "Chargement…",
     "newNotifications": "Nouvelles notifications",
@@ -5142,6 +5198,9 @@
       },
       "personalization": {
         "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
+      },
+      "notifications": {
+        "description": "Choisis les événements qui t'envoient une notification."
       },
       "environment": {
         "description": "Variables d'environnement et secrets injectés dans tes sandboxes."
@@ -6902,17 +6961,17 @@
   },
   "inbox": {
     "taskAssigned": "Tâche assignée",
-    "taskAssignedBody": "«Â {title}Â » t'a été assignée.",
+    "taskAssignedBody": "« {title} » t'a été assignée.",
     "taskStatusChanged": "Statut de tâche modifié",
     "taskStatusChangedBody": "«Â {title}Â » est passée de {from} à {to}.",
     "taskCommented": "Nouveau commentaire",
     "taskCommentedBody": "Nouveau commentaire sur «Â {title}Â ».",
     "mention": "Tu as été mentionné",
-    "mentionBody": "Tu as été mentionné dans «Â {title}Â ».",
-    "taskAssignedByBody": "{actor} t'a assigné «Â {title}Â ».",
+    "mentionBody": "Tu as été mentionné dans « {title} ».",
+    "taskAssignedByBody": "{actor} t'a assigné « {title} ».",
     "taskStatusChangedByBody": "{actor} a fait passer «Â {title}Â » de {from} à {to}.",
     "taskCommentedByBody": "{actor} a commenté «Â {title}Â ».",
-    "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
+    "mentionByBody": "{actor} t'a mentionné dans « {title} ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
     "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
@@ -6935,7 +6994,11 @@
     "workforceDigest": "Synthèse quotidienne de la workforce",
     "workforceDigestBody": "{created} créées · {completed} terminées · {runs} exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de revue · {queued} en file · {breakers} en pause.",
     "agentEscalation": "Escalade d'agent",
-    "agentEscalationBody": "{agent} a escaladé : {reason}"
+    "agentEscalationBody": "{agent} a escaladé : {reason}",
+    "email": {
+      "cta": "Ouvrir dans Tale",
+      "footer": "Tu reçois cet e-mail parce que tu as activé les notifications dans Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7042,6 +7105,9 @@
     },
     "board": {
       "noTasks": "Aucune tâche"
+    },
+    "filters": {
+      "waitingOnMe": "En attente de moi"
     },
     "detail": {
       "overview": "Aperçu",

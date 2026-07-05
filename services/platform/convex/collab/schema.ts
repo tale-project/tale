@@ -109,5 +109,7 @@ export const notificationPreferencesTable = defineTable({
   // Groups automation_failed / budget_alert / runtime_offline.
   automationAlerts: v.optional(v.boolean()),
   digest: v.optional(v.boolean()),
+  /** Master toggle for actionable return-loop email delivery. */
+  actionableEmail: v.optional(v.boolean()),
   updatedAt: v.number(),
 }).index('by_userId_organizationId', ['userId', 'organizationId']);

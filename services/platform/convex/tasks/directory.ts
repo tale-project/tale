@@ -88,3 +88,31 @@ export async function buildMentionDirectory(
     permissiveAgents: (args.project.agentMode ?? 'all') !== 'restricted',
   };
 }
+
+/**
+ * Org-wide human mention directory for surfaces without a project anchor
+ * (private agent chat). Agents are omitted — chat `@` routing for agents is
+ * out of scope here; only teammate notifications are fan-out.
+ */
+export async function buildOrgMentionDirectory(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+): Promise<MentionDirectory> {
+  const entries: MentionDirectoryEntry[] = [];
+  try {
+    const members = await listByOrganizationHandler(ctx, { organizationId });
+    for (const member of members) {
+      entries.push({
+        type: 'user',
+        id: member.userId,
+        handles: memberHandles(member),
+      });
+    }
+  } catch (error) {
+    console.warn(
+      '[tasks] buildOrgMentionDirectory: member listing failed',
+      error,
+    );
+  }
+  return { entries, permissiveAgents: false };
+}

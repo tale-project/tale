@@ -224,6 +224,9 @@ describe('NotificationListPanel', () => {
       streamState.org = 'CanLoadMore';
       streamState.my = 'CanLoadMore';
       const { user } = renderPanel();
+      // Default Unread filter hides load-more on an empty list; All keeps it
+      // visible while older read pages remain paginated.
+      await user.click(screen.getByRole('tab', { name: 'All' }));
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 
@@ -235,6 +238,7 @@ describe('NotificationListPanel', () => {
       streamState.org = 'Exhausted';
       streamState.my = 'CanLoadMore';
       const { user } = renderPanel();
+      await user.click(screen.getByRole('tab', { name: 'All' }));
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 
@@ -246,11 +250,25 @@ describe('NotificationListPanel', () => {
       streamState.org = 'CanLoadMore';
       streamState.my = 'Exhausted';
       const { user } = renderPanel();
+      await user.click(screen.getByRole('tab', { name: 'All' }));
 
       await user.click(screen.getByRole('button', { name: 'Load more' }));
 
       expect(orgLoadMore).toHaveBeenCalledTimes(1);
       expect(myLoadMore).not.toHaveBeenCalled();
+    });
+
+    it('hides "Load more" on Unread when caught up but older read pages remain', () => {
+      streamState.org = 'CanLoadMore';
+      streamState.orgUnread = 0;
+      streamState.myUnread = 0;
+
+      renderPanel();
+
+      expect(
+        screen.queryByRole('button', { name: 'Load more' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("You're all caught up")).toBeInTheDocument();
     });
   });
 });

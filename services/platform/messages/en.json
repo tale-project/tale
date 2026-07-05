@@ -2137,6 +2137,10 @@
       "tryAdjusting": "Try adjusting your search criteria",
       "placeholder": "Search..."
     },
+    "mentions": {
+      "unresolvedTitle": "Mention not recognized",
+      "unresolvedDescription": "{tokens} did not match anyone in your organization — no notification was sent."
+    },
     "errors": {
       "generic": "Something went wrong. Please try again.",
       "failedToCopy": "Failed to copy to clipboard",
@@ -4396,6 +4400,10 @@
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choose which events send you a notification."
+    },
     "environment": {
       "title": "Environment variables & secrets",
       "description": "Environment variables and secrets injected into your agent sandboxes."
@@ -4575,6 +4583,51 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choose which events appear in your bell inbox. Review requests always stay on — they are safety signals.",
+    "deliveryTitle": "Email delivery",
+    "deliveryDescription": "Actionable alerts (assignments, mentions, reviews, escalations) can also reach your inbox when this organization has a connected mailbox.",
+    "saveFailed": "Couldn't save your notification preferences.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Email me actionable alerts",
+        "description": "Send return-loop notifications to your account email via the organization's connected Gmail, Outlook, or SMTP mailbox."
+      },
+      "taskAssigned": {
+        "label": "Task assigned to me",
+        "description": "When a task is assigned to you."
+      },
+      "taskStatusChanged": {
+        "label": "Task status changed",
+        "description": "When a task you follow moves to a new status."
+      },
+      "taskCommented": {
+        "label": "New comment",
+        "description": "When someone comments on a task you follow."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "When someone @-mentions you."
+      },
+      "taskReview": {
+        "label": "Review requests",
+        "description": "When agent work is waiting for your review."
+      },
+      "escalation": {
+        "label": "Agent escalations",
+        "description": "When an agent escalates a task to a human."
+      },
+      "automationAlerts": {
+        "label": "Automation alerts",
+        "description": "Failures, budget warnings, and offline runtimes."
+      },
+      "digest": {
+        "label": "Digest",
+        "description": "Periodic summary of workforce activity."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Unread",
@@ -4584,8 +4637,12 @@
     "emptyAllDescription": "Alerts and system updates will appear here when they arrive.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
+    "expand": "Expand",
     "filterUnread": "Unread",
     "filterAll": "All",
+    "sortLabel": "Sort",
+    "sortRecent": "Most recent",
+    "sortPriority": "Priority",
     "loadMore": "Load more",
     "loading": "Loading…",
     "newNotifications": "New notifications",
@@ -5408,6 +5465,9 @@
       },
       "personalization": {
         "description": "How Tale adapts to you — memory, instructions, and voice."
+      },
+      "notifications": {
+        "description": "Choose which events send you a notification."
       },
       "environment": {
         "description": "Environment variables and secrets injected into your sandboxes."
@@ -7201,7 +7261,11 @@
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
     "agentEscalation": "Agent escalation",
-    "agentEscalationBody": "{agent} escalated: {reason}"
+    "agentEscalationBody": "{agent} escalated: {reason}",
+    "email": {
+      "cta": "Open in Tale",
+      "footer": "You received this email because you have notifications enabled in Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7308,6 +7372,9 @@
     },
     "board": {
       "noTasks": "No tasks"
+    },
+    "filters": {
+      "waitingOnMe": "Waiting on me"
     },
     "detail": {
       "overview": "Overview",

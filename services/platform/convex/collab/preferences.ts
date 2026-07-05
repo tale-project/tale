@@ -17,6 +17,7 @@ const prefsValidator = v.object({
   escalation: v.optional(v.boolean()),
   automationAlerts: v.optional(v.boolean()),
   digest: v.optional(v.boolean()),
+  actionableEmail: v.optional(v.boolean()),
 });
 
 export const getNotificationPreferences = query({
@@ -45,6 +46,7 @@ export const getNotificationPreferences = query({
       escalation: row?.escalation,
       automationAlerts: row?.automationAlerts,
       digest: row?.digest,
+      actionableEmail: row?.actionableEmail,
     };
   },
 });
@@ -60,6 +62,7 @@ export const setNotificationPreferences = mutation({
     escalation: v.optional(v.boolean()),
     automationAlerts: v.optional(v.boolean()),
     digest: v.optional(v.boolean()),
+    actionableEmail: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -85,6 +88,7 @@ export const setNotificationPreferences = mutation({
       escalation: args.escalation,
       automationAlerts: args.automationAlerts,
       digest: args.digest,
+      actionableEmail: args.actionableEmail,
       updatedAt: Date.now(),
     };
     if (existing) {

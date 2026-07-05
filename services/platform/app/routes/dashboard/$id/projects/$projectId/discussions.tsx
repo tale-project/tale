@@ -2,10 +2,15 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { lazyComponent } from '@/lib/utils/lazy-component';
+
+const searchSchema = z.object({
+  thread: z.string().optional(),
+});
 
 function DiscussionsChunkFallback() {
   return (
@@ -32,6 +37,7 @@ const ProjectDiscussionsTab = lazyComponent(
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/discussions',
 )({
+  validateSearch: searchSchema,
   loader: () => {
     void import('@/app/features/discussions/components/project-discussions-tab');
   },
@@ -40,10 +46,12 @@ export const Route = createFileRoute(
 
 function ProjectDiscussionsPage() {
   const { id: organizationId, projectId } = Route.useParams();
+  const { thread } = Route.useSearch();
   return (
     <ProjectDiscussionsTab
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
+      initialThreadId={thread}
     />
   );
 }

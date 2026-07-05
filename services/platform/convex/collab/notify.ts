@@ -8,8 +8,9 @@
 import type { Infer } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { DatabaseReader, MutationCtx } from '../_generated/server';
 import { resolveUserDisplayName } from '../notifications/actor_name';
+import { queueActionableEmail } from './notify_email';
 import type {
   notificationTypeValidator,
   subscriptionReasonValidator,
@@ -42,6 +43,22 @@ const PREF_FIELD: Record<
   runtime_offline: 'automationAlerts',
   workforce_digest: 'digest',
 };
+
+/** Tri-state email delivery toggle — independent of in-app per-type prefs. */
+export async function isActionableEmailEnabled(
+  ctx: { db: DatabaseReader },
+  userId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const prefs = await ctx.db
+    .query('notificationPreferences')
+    .withIndex('by_userId_organizationId', (q) =>
+      q.eq('userId', userId).eq('organizationId', organizationId),
+    )
+    .first();
+  const value = prefs?.actionableEmail;
+  return value === undefined ? true : value;
+}
 
 /** Tri-state preference resolution: undefined → default ON. Shared with the
  *  automation fan-out (`internal_mutations.ts::notifyFromAutomation`). */
@@ -132,6 +149,17 @@ async function writeNotification(
     actorId: args.actorId,
     read: false,
     createdAt: Date.now(),
+  });
+  await queueActionableEmail(ctx, {
+    userId: args.userId,
+    organizationId: args.organizationId,
+    type: args.type,
+    titleKey: args.titleKey,
+    bodyKey: args.bodyKey,
+    params: args.params,
+    resourceType: args.resourceType,
+    resourceId: args.resourceId,
+    taskId: args.taskId,
   });
 }
 
@@ -261,6 +289,83 @@ export async function notifyTaskAssigned(
  * description on create/edit. Callers pass only the NEWLY added mentions so
  * an unrelated description edit never re-notifies everyone already mentioned.
  */
+/**
+ * Mention fan-out for project/task discussions. Task comments already notify
+ * via {@link notifyTaskComment}; the discussion write path was agent-routing
+ * only until return-loop notifications wired human @mentions here.
+ */
+export async function notifyDiscussionMentions(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    threadId: string;
+    discussionTitle: string;
+    projectId: Id<'projects'>;
+    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    actorType: ActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+  for (const mention of args.mentions) {
+    if (mention.type !== 'user') continue;
+    if (args.actorType === 'user' && mention.id === args.actorId) continue;
+    await writeNotification(ctx, {
+      userId: mention.id,
+      organizationId: args.organizationId,
+      type: 'mention',
+      titleKey: 'mention',
+      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
+      params: {
+        title: args.discussionTitle,
+        projectId: String(args.projectId),
+        threadId: args.threadId,
+      },
+      resourceType: 'thread',
+      resourceId: args.threadId,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
+/** Mention fan-out for private/project-scoped agent chat threads. */
+export async function notifyChatMentions(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    threadId: string;
+    threadTitle: string;
+    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    actorType: ActorType;
+    actorId: string;
+    projectId?: Id<'projects'>;
+  },
+): Promise<void> {
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+  for (const mention of args.mentions) {
+    if (mention.type !== 'user') continue;
+    if (args.actorType === 'user' && mention.id === args.actorId) continue;
+    await writeNotification(ctx, {
+      userId: mention.id,
+      organizationId: args.organizationId,
+      type: 'mention',
+      titleKey: 'mention',
+      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
+      params: {
+        title: args.threadTitle,
+        threadId: args.threadId,
+        chat: true,
+        ...(args.projectId ? { projectId: String(args.projectId) } : {}),
+      },
+      resourceType: 'thread',
+      resourceId: args.threadId,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
 export async function notifyTaskMentions(
   ctx: MutationCtx,
   args: {
