@@ -260,7 +260,7 @@ export async function provisionDeclaredWorkflowTriggersImpl(
 
   let activated = { events: 0, schedules: 0 };
   if (args.activate) {
-    const slugs = [args.workflowSlug];
+    const slugs = new Set([args.workflowSlug]);
     let events = 0;
     let schedules = 0;
     for await (const sub of ctx.db
@@ -268,8 +268,8 @@ export async function provisionDeclaredWorkflowTriggersImpl(
       .withIndex('by_org', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      if (!sub.workflowSlug || !slugs.includes(sub.workflowSlug)) continue;
-      if (sub.isActive !== true) {
+      if (!sub.workflowSlug || !slugs.has(sub.workflowSlug)) continue;
+      if (!sub.isActive) {
         await ctx.db.patch(sub._id, { isActive: true });
         events += 1;
       }
@@ -279,8 +279,8 @@ export async function provisionDeclaredWorkflowTriggersImpl(
       .withIndex('by_org', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      if (!sched.workflowSlug || !slugs.includes(sched.workflowSlug)) continue;
-      if (sched.isActive !== true) {
+      if (!sched.workflowSlug || !slugs.has(sched.workflowSlug)) continue;
+      if (!sched.isActive) {
         await ctx.db.patch(sched._id, { isActive: true });
         schedules += 1;
       }
