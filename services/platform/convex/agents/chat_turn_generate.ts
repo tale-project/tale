@@ -351,8 +351,16 @@ export const runChatTurnGeneration = internalAction({
 
       // 5. Implicit model-access RBAC (no explicit modelId) — accessible set
       //    came back in the consolidated governance query above. Skipped for
-      //    BYO (no platform catalog to police).
-      if (!skipsPlatformModelGovernance && !args.modelId) {
+      //    BYO (no platform catalog to police) and for gateway-managed Claude
+      //    Code with an empty `supportedModels` (step 5b resolves + RBAC-checks
+      //    the governance/platform default instead).
+      const deferToExternalDynamicResolution =
+        isGatewayManagedExternal && configResult.supportedModels.length === 0;
+      if (
+        !skipsPlatformModelGovernance &&
+        !args.modelId &&
+        !deferToExternalDynamicResolution
+      ) {
         const accessibleSet = new Set(governance.accessibleModelIds);
         const accessibleRefs = configResult.supportedModels.filter((ref) =>
           accessibleSet.has(stripModelRefQualifier(ref)),
