@@ -2120,6 +2120,10 @@
       "tryAdjusting": "Passe deine Suchkriterien an",
       "placeholder": "Suchen..."
     },
+    "mentions": {
+      "unresolvedTitle": "Erwähnung nicht erkannt",
+      "unresolvedDescription": "{tokens} passt zu niemandem in deiner Organisation — es wurde keine Benachrichtigung gesendet."
+    },
     "errors": {
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
       "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
@@ -4379,6 +4383,10 @@
       "title": "Personalisierung",
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken."
     },
+    "notificationPreferences": {
+      "title": "Benachrichtigungen",
+      "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
+    },
     "environment": {
       "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes eingespeist werden."
@@ -4558,6 +4566,51 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise-SSO"
   },
+  "notificationPreferences": {
+    "title": "Benachrichtigungen",
+    "description": "Wähle, welche Ereignisse in deiner Glocke erscheinen. Review-Anfragen bleiben immer an — das sind Sicherheitssignale.",
+    "deliveryTitle": "E-Mail-Zustellung",
+    "deliveryDescription": "Handlungsrelevante Alerts (Zuweisungen, Erwähnungen, Reviews, Eskalationen) können zusätzlich an deine Konto-E-Mail gehen, wenn die Organisation ein verbundenes Postfach hat.",
+    "saveFailed": "Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Handlungsrelevante Alerts per E-Mail",
+        "description": "Return-Loop-Benachrichtigungen an deine Konto-E-Mail senden — über das verbundene Gmail-, Outlook- oder SMTP-Postfach der Organisation."
+      },
+      "taskAssigned": {
+        "label": "Aufgabe mir zugewiesen",
+        "description": "Wenn dir eine Aufgabe zugewiesen wird."
+      },
+      "taskStatusChanged": {
+        "label": "Status geändert",
+        "description": "Wenn eine Aufgabe, der du folgst, den Status wechselt."
+      },
+      "taskCommented": {
+        "label": "Neuer Kommentar",
+        "description": "Wenn jemand eine Aufgabe kommentiert, der du folgst."
+      },
+      "mention": {
+        "label": "Erwähnungen",
+        "description": "Wenn dich jemand mit @ erwähnt."
+      },
+      "taskReview": {
+        "label": "Review-Anfragen",
+        "description": "Wenn Agenten-Arbeit auf dein Review wartet."
+      },
+      "escalation": {
+        "label": "Agenten-Eskalationen",
+        "description": "Wenn ein Agent eine Aufgabe an einen Menschen eskaliert."
+      },
+      "automationAlerts": {
+        "label": "Automatisierungs-Warnungen",
+        "description": "Fehler, Budget-Warnungen und offline gegangene Runtimes."
+      },
+      "digest": {
+        "label": "Zusammenfassung",
+        "description": "Regelmäßige Übersicht der Workforce-Aktivität."
+      }
+    }
+  },
   "notifications": {
     "title": "Benachrichtigungen",
     "ariaUnread": "Ungelesen",
@@ -4567,8 +4620,12 @@
     "emptyAllDescription": "Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.",
     "markAsRead": "Als gelesen markieren",
     "markAllAsRead": "Alle als gelesen markieren",
+    "expand": "Vergrößern",
     "filterUnread": "Ungelesen",
     "filterAll": "Alle",
+    "sortLabel": "Sortieren",
+    "sortRecent": "Neueste zuerst",
+    "sortPriority": "Priorität",
     "loadMore": "Mehr laden",
     "loading": "Lädt…",
     "accountLocked": "Konto vorübergehend gesperrt: {email}",
@@ -5125,6 +5182,9 @@
       },
       "personalization": {
         "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
+      },
+      "notifications": {
+        "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
       },
       "environment": {
         "description": "Umgebungsvariablen und Geheimnisse, die in deine Sandboxes eingespeist werden."
@@ -6923,7 +6983,11 @@
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
     "agentEscalation": "Agenten-Eskalation",
-    "agentEscalationBody": "{agent} hat eskaliert: {reason}"
+    "agentEscalationBody": "{agent} hat eskaliert: {reason}",
+    "email": {
+      "cta": "In Tale öffnen",
+      "footer": "Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7029,6 +7093,9 @@
     },
     "board": {
       "noTasks": "Keine Aufgaben"
+    },
+    "filters": {
+      "waitingOnMe": "Wartet auf mich"
     },
     "detail": {
       "overview": "Übersicht",

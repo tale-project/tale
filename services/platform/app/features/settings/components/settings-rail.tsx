@@ -79,6 +79,7 @@ export function SettingsRail({
     const personal: RailItem[] = [
       { kind: 'leaf', labelKey: 'account', path: 'account' },
       { kind: 'leaf', labelKey: 'personalization', path: 'personalization' },
+      { kind: 'leaf', labelKey: 'notifications', path: 'notifications' },
       { kind: 'leaf', labelKey: 'environment', path: 'environment' },
     ];
     if (!showAccountTab) personal.shift();

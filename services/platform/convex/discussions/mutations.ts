@@ -9,13 +9,18 @@ import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
+import { notifyDiscussionMentions } from '../collab/notify';
+import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type { AuthenticatedUser } from '../lib/rls/types';
-import { buildMentionDirectory } from '../tasks/directory';
-import { extractMentions } from '../tasks/mentions';
 import { emitEvent } from '../workflows/triggers/emit_event';
+
+const mentionResultValidator = v.object({
+  mentionCount: v.number(),
+  unresolvedMentionTokens: v.array(v.string()),
+});
 
 /**
  * Discussions = chat threads with `kind: 'project_discussion' | 'task_discussion'`.
@@ -61,51 +66,60 @@ async function assertDiscussionAccess(
 }
 
 /**
- * Bring every @mentioned agent into a discussion post by emitting a single
- * `discussion.mentioned` event (the `react-to-discussion-mention` workflow
- * fans it out to a `run_on_discussion` run per agent mention). A post with no
- * agent mention stays a pure human message — no event, no agent summoned —
- * keeping discussions human-first. Returns the count of agent mentions.
+ * Resolve @mentions in a discussion post, notify mentioned humans (in-app +
+ * email), and emit `discussion.mentioned` for agent routing. Returns the count
+ * of agent mentions (for callers that surface it).
  */
-async function emitDiscussionMentions(
+async function handleDiscussionMentions(
   ctx: MutationCtx,
   args: {
     organizationId: string;
     projectId: Id<'projects'> | undefined;
     threadId: string;
+    discussionTitle: string;
     body: string;
+    actorType: 'user' | 'agent';
     actorId: string;
   },
-): Promise<number> {
-  if (!args.projectId) return 0;
-  const project = await ctx.db.get(args.projectId);
-  if (!project) return 0;
-  const directory = await buildMentionDirectory(ctx, {
-    organizationId: args.organizationId,
-    project,
-  });
-  const mentions = extractMentions(
-    args.body,
-    directory.entries,
-    directory.permissiveAgents,
+): Promise<{ mentionCount: number; unresolvedMentionTokens: string[] }> {
+  if (!args.projectId) {
+    return { mentionCount: 0, unresolvedMentionTokens: [] };
+  }
+  const { mentions, unresolvedMentionTokens } = await resolveSurfaceMentions(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      body: args.body,
+      projectId: args.projectId,
+    },
   );
+
+  await notifyDiscussionMentions(ctx, {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    discussionTitle: args.discussionTitle,
+    projectId: args.projectId,
+    mentions,
+    actorType: args.actorType,
+    actorId: args.actorId,
+  });
+
   const agentMentions = mentions.filter((m) => m.type === 'agent');
-  if (agentMentions.length === 0) return 0;
+  if (agentMentions.length === 0) {
+    return { mentionCount: 0, unresolvedMentionTokens };
+  }
   await emitEvent(ctx, {
     organizationId: args.organizationId,
     eventType: 'discussion.mentioned',
     eventData: {
       threadId: args.threadId,
       projectId: String(args.projectId),
-      // Pass the full mention set; the workflow filters to agent mentions and
-      // skips self-mentions. `actorType: 'user'` clears the workflow-actor
-      // guard (only automation-authored writes are inert).
       mentions,
-      actorType: 'user',
+      actorType: args.actorType,
       actorId: args.actorId,
     },
   });
-  return agentMentions.length;
+  return { mentionCount: agentMentions.length, unresolvedMentionTokens };
 }
 
 /** Open a new project discussion with an initial message (optionally @an agent). */
@@ -117,11 +131,19 @@ export const createDiscussion = mutation({
     message: v.string(),
     category: v.optional(v.string()),
   },
-  returns: v.object({ threadId: v.string(), mentionCount: v.number() }),
+  returns: v.object({
+    threadId: v.string(),
+    mentionCount: v.number(),
+    unresolvedMentionTokens: v.array(v.string()),
+  }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ threadId: string; mentionCount: number }> => {
+  ): Promise<{
+    threadId: string;
+    mentionCount: number;
+    unresolvedMentionTokens: string[];
+  }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'forbidden' });
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -161,14 +183,17 @@ export const createDiscussion = mutation({
 
     // Bring in every @mentioned agent (event-driven; see module header). A post
     // with no agent mention summons no one — discussions are human-first.
-    const mentionCount = await emitDiscussionMentions(ctx, {
-      organizationId: args.organizationId,
-      projectId: args.projectId,
-      threadId,
-      body: args.message,
-      actorId: authUser.userId,
-    });
-    return { threadId, mentionCount };
+    const { mentionCount, unresolvedMentionTokens } =
+      await handleDiscussionMentions(ctx, {
+        organizationId: args.organizationId,
+        projectId: args.projectId,
+        threadId,
+        discussionTitle: args.title,
+        body: args.message,
+        actorType: 'user',
+        actorId: authUser.userId,
+      });
+    return { threadId, mentionCount, unresolvedMentionTokens };
   },
 });
 
@@ -179,8 +204,14 @@ export const postReply = mutation({
     threadId: v.string(),
     message: v.string(),
   },
-  returns: v.object({ mentionCount: v.number() }),
-  handler: async (ctx, args): Promise<{ mentionCount: number }> => {
+  returns: mentionResultValidator,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    mentionCount: number;
+    unresolvedMentionTokens: string[];
+  }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new ConvexError({ code: 'forbidden' });
     const meta = await assertDiscussionAccess(
@@ -213,14 +244,15 @@ export const postReply = mutation({
       agentReplyDepth: 0,
     });
 
-    const mentionCount = await emitDiscussionMentions(ctx, {
+    return handleDiscussionMentions(ctx, {
       organizationId: args.organizationId,
       projectId: meta.projectId ?? undefined,
       threadId: args.threadId,
+      discussionTitle: meta.title ?? args.threadId,
       body: args.message,
+      actorType: 'user',
       actorId: authUser.userId,
     });
-    return { mentionCount };
   },
 });
 

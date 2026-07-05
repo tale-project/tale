@@ -26,6 +26,7 @@ import {
   notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
+import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
@@ -946,11 +947,19 @@ export const addTaskComment = mutation({
   // Returns the new message id AND the (lazily-created) discussion thread id —
   // the frontend bootstrap needs the threadId to resolve a previously-threadless
   // task without a read-after-write ordering hole.
-  returns: v.object({ messageId: v.string(), threadId: v.string() }),
+  returns: v.object({
+    messageId: v.string(),
+    threadId: v.string(),
+    unresolvedMentionTokens: v.array(v.string()),
+  }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ messageId: string; threadId: string }> => {
+  ): Promise<{
+    messageId: string;
+    threadId: string;
+    unresolvedMentionTokens: string[];
+  }> => {
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
@@ -1050,7 +1059,13 @@ export const addTaskComment = mutation({
       });
     }
 
-    return { messageId, threadId };
+    const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
+      organizationId: task.organizationId,
+      body,
+      projectId: task.projectId,
+    });
+
+    return { messageId, threadId, unresolvedMentionTokens };
   },
 });
 

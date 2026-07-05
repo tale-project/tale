@@ -14,6 +14,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { AUTO_AGENT_SLUG } from '@/lib/shared/constants/agents';
+import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 
 import type {
   PendingMessage,
@@ -259,6 +260,7 @@ export function useSendMessage({
   restoreKbMentions,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
   const navigate = useNavigate();
 
   const { mutateAsync: createThread } = useCreateThread();
@@ -952,7 +954,7 @@ export function useSendMessage({
           // the retry closure (a `let` widens back to `string | undefined`).
           const threadIdForSend = currentThreadId;
           // Retry through a deploy drain window (transient BACKEND_DRAINING).
-          await withBackendDrainRetry(() =>
+          const sendResult = await withBackendDrainRetry(() =>
             chatWithAgent({
               agentSlug: agentSlugToSend,
               threadId: threadIdForSend,
@@ -964,17 +966,15 @@ export function useSendMessage({
                   ? enabledCapabilities
                   : undefined,
               attachments: mutationAttachments,
-              // `@`-mention KB pins. Server-resolved (access + RAG status), so
-              // only the document ids travel — never client-supplied fileIds.
               referencedDocumentIds,
               userContext: userContextPayload,
-              // projectId from URL query is a string; chatWithAgent expects
-              // an Id<'projects'>. The branding is structural-only TS; server
-              // validates it via assertProjectAccessForChat. We use the
-              // dedicated `asProjectId` helper to keep the lint-disable in
-              // one place (see features/projects/hooks/use-project-id-param.ts).
               projectId: projectId ? asProjectId(projectId) : undefined,
             }),
+          );
+          toastUnresolvedMentions(
+            sendResult.unresolvedMentionTokens,
+            toast,
+            tCommon,
           );
         }
       } catch (error) {
@@ -1098,6 +1098,7 @@ export function useSendMessage({
       userContext,
       navigate,
       t,
+      tCommon,
       convexClient,
       teamId,
       projectId,

@@ -22,6 +22,7 @@ import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { jsonRecordValidator } from '../lib/validators/json';
 import { isAllowed, taskSubscriberUserIds } from './notify';
+import { queueActionableEmail } from './notify_email';
 import { notificationTypeValidator } from './schema';
 
 const DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -180,6 +181,17 @@ export const notifyFromAutomation = internalMutation({
         actorType: 'system',
         read: false,
         createdAt: now,
+      });
+      await queueActionableEmail(ctx, {
+        userId,
+        organizationId: args.organizationId,
+        type: args.type,
+        titleKey: args.titleKey,
+        bodyKey: args.bodyKey,
+        params: args.params,
+        resourceType,
+        resourceId,
+        taskId: args.taskId ?? (task ? task._id : undefined),
       });
       notified += 1;
     }

@@ -26,14 +26,19 @@ import { DiscussionThreadView } from './discussion-thread-view';
 interface ProjectDiscussionsTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
+  /** Deep-link from notification bell / email (`?thread=`). */
+  initialThreadId?: string;
 }
 
 export function ProjectDiscussionsTab({
   organizationId,
   projectId,
+  initialThreadId,
 }: ProjectDiscussionsTabProps) {
   const { t } = useT('discussions');
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
+    initialThreadId ?? null,
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const { data: discussions, isPending } = useProjectDiscussions(
     organizationId,

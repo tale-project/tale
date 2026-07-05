@@ -4,11 +4,13 @@ import { Button, LinkButton } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { BarChart3, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { useMyAttentionSummary } from '@/app/features/notifications/hooks/queries';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -56,6 +58,25 @@ export function TasksWorkspace({
   const { edges } = useProjectDependencies(typedProjectId);
   const { runningTaskIds, reviewTaskIds } =
     useTaskOpsIndicators(typedProjectId);
+  const { data: attention } = useMyAttentionSummary(
+    organizationId,
+    typedProjectId,
+  );
+  const [waitingOnMeOnly, setWaitingOnMeOnly] = usePersistedState(
+    `tale.platform.tasks.${projectId}.waitingOnMe`,
+    false,
+  );
+  const waitingOnMeIds = useMemo(
+    () => new Set(attention?.waitingOnMeTaskIds ?? []),
+    [attention?.waitingOnMeTaskIds],
+  );
+  const visibleTasks = useMemo(
+    () =>
+      waitingOnMeOnly
+        ? tasks.filter((task) => waitingOnMeIds.has(task._id))
+        : tasks,
+    [tasks, waitingOnMeOnly, waitingOnMeIds],
+  );
   const { project } = useProject(typedProjectId);
   const projectKey = project?.key ?? null;
 
@@ -83,18 +104,32 @@ export function TasksWorkspace({
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col py-4">
-      <Row gap={3} justify="between">
-        <Tabs
-          variant="pill"
-          value={view}
-          onValueChange={(value) => {
-            if (isTaskView(value) && value !== view) onViewChange(value);
-          }}
-          items={[
-            { value: 'board', label: t('views.board') },
-            { value: 'list', label: t('views.list') },
-          ]}
-        />
+      <Row gap={3} justify="between" wrap>
+        <Row gap={2} wrap>
+          <Tabs
+            variant="pill"
+            value={view}
+            onValueChange={(value) => {
+              if (isTaskView(value) && value !== view) onViewChange(value);
+            }}
+            items={[
+              { value: 'board', label: t('views.board') },
+              { value: 'list', label: t('views.list') },
+            ]}
+          />
+          <Button
+            variant={waitingOnMeOnly ? 'primary' : 'secondary'}
+            size="sm"
+            aria-pressed={waitingOnMeOnly}
+            disabled={waitingOnMeIds.size === 0 && !waitingOnMeOnly}
+            onClick={() => setWaitingOnMeOnly((prev) => !prev)}
+          >
+            {t('filters.waitingOnMe')}
+            {waitingOnMeIds.size > 0
+              ? ` (${waitingOnMeIds.size > 99 ? '99+' : waitingOnMeIds.size})`
+              : ''}
+          </Button>
+        </Row>
         <Row gap={2}>
           <LinkButton
             href="/dashboard/$id/projects/$projectId/metrics"
@@ -121,7 +156,7 @@ export function TasksWorkspace({
         // An empty project still renders every lane / section (with its empty
         // hint) so the page keeps its shape instead of swapping to an island.
         <TaskBoardProvider
-          tasks={tasks}
+          tasks={visibleTasks}
           dependencyEdges={edges}
           runningTaskIds={runningTaskIds}
           reviewTaskIds={reviewTaskIds}
@@ -129,7 +164,7 @@ export function TasksWorkspace({
           {view === 'board' ? (
             <div className="min-h-0 flex-1">
               <KanbanBoard
-                tasks={tasks}
+                tasks={visibleTasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
                 canEdit={canEdit}
@@ -138,7 +173,7 @@ export function TasksWorkspace({
           ) : (
             <div className="min-h-0 flex-1">
               <TasksList
-                tasks={tasks}
+                tasks={visibleTasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
                 canEdit={canEdit}

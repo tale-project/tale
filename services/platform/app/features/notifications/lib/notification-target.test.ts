@@ -21,6 +21,39 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  it('builds a chat deep-link when chat + threadId are present', () => {
+    const target = personalNotificationTarget({
+      organizationId: ORG,
+      taskId: undefined,
+      params: {
+        threadId: 'thread_chat',
+        chat: true,
+        title: 'Planning',
+      },
+    });
+    expect(target).toEqual({
+      to: '/dashboard/$id/chat/$threadId',
+      params: { id: ORG, threadId: 'thread_chat' },
+    });
+  });
+
+  it('builds a discussion deep-link when threadId + projectId are present', () => {
+    const target = personalNotificationTarget({
+      organizationId: ORG,
+      taskId: undefined,
+      params: {
+        projectId: 'proj_xyz',
+        threadId: 'thread_abc',
+        title: 'API shape',
+      },
+    });
+    expect(target).toEqual({
+      to: '/dashboard/$id/projects/$projectId/discussions',
+      params: { id: ORG, projectId: 'proj_xyz' },
+      search: { thread: 'thread_abc' },
+    });
+  });
+
   it('returns null when projectId is missing (legacy rows)', () => {
     expect(
       personalNotificationTarget({

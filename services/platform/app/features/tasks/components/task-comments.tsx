@@ -9,6 +9,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -98,7 +99,8 @@ export function TaskComments({
     const body = draft.trim();
     if (!body) return;
     try {
-      await addComment.mutateAsync({ taskId, body });
+      const result = await addComment.mutateAsync({ taskId, body });
+      toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
       setDraft('');
     } catch (error) {
       onError(error);

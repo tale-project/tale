@@ -14,6 +14,15 @@ export type NotificationTarget =
       search: { task: string };
     }
   | {
+      to: '/dashboard/$id/projects/$projectId/discussions';
+      params: { id: string; projectId: string };
+      search: { thread: string };
+    }
+  | {
+      to: '/dashboard/$id/chat/$threadId';
+      params: { id: string; threadId: string };
+    }
+  | {
       to: '/dashboard/$id/agents/$agentId';
       params: { id: string; agentId: string };
     }
@@ -45,9 +54,9 @@ export type OrgNotificationLink =
   | { kind: 'security-monitoring' };
 
 /**
- * Deep-link target for a PERSONAL notification (`userNotifications`). Every
- * task-bound type (assignment / status / comment / mention / review) routes to
- * the task inside its project. Returns `null` when the row lacks the context to
+ * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
+ * types route to the task inside its project; discussion mentions route to the
+ * thread inside its project. Returns `null` when the row lacks the context to
  * build a link — legacy rows written before `projectId` was stored in `params`,
  * or non-task resources we don't deep-link yet.
  */
@@ -58,6 +67,24 @@ export function personalNotificationTarget(args: {
 }): NotificationTarget | null {
   const params = isRecord(args.params) ? args.params : undefined;
   const projectId = params?.projectId;
+  const threadId = params?.threadId;
+  if (params?.chat === true && typeof threadId === 'string') {
+    return {
+      to: '/dashboard/$id/chat/$threadId',
+      params: { id: args.organizationId, threadId },
+    };
+  }
+  if (
+    typeof threadId === 'string' &&
+    typeof projectId === 'string' &&
+    !args.taskId
+  ) {
+    return {
+      to: '/dashboard/$id/projects/$projectId/discussions',
+      params: { id: args.organizationId, projectId },
+      search: { thread: threadId },
+    };
+  }
   if (args.taskId && typeof projectId === 'string') {
     return {
       to: '/dashboard/$id/projects/$projectId/tasks',
