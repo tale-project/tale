@@ -289,9 +289,7 @@ test.describe('external agent (Cursor)', () => {
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     await expect(
-      page.getByText(
-        t('settings.agents.skills.sectionSkillBindingsExternalDescription'),
-      ),
+      page.getByText(t('agents.form.sectionSkillBindingsExternalDescription')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     await expect(page.getByText('fix-bug', { exact: true })).toHaveCount(0);
