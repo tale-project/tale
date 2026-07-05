@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   emailDomain,
   inboundRecipientAddress,
+  notificationFromAddress,
   resolveReplyFrom,
 } from './reply_from';
 
@@ -73,5 +74,20 @@ describe('resolveReplyFrom', () => {
     expect(resolveReplyFrom('billing@support.activ.ng', 'resend')).toBe(
       'resend',
     );
+  });
+});
+
+describe('notificationFromAddress', () => {
+  it('uses notification@ on the base send domain', () => {
+    expect(notificationFromAddress('hello@support.activ.ng')).toBe(
+      'notification@support.activ.ng',
+    );
+    expect(notificationFromAddress('Support@Example.COM')).toBe(
+      'notification@example.com',
+    );
+  });
+
+  it('falls back when the base address has no domain', () => {
+    expect(notificationFromAddress('resend')).toBe('resend');
   });
 });
