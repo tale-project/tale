@@ -117,6 +117,12 @@ await assertContains(
 );
 await assertOk('claude on PATH', 10001, 'command -v claude');
 await assertOk('opencode on PATH', 10001, 'command -v opencode');
+await assertOk('hermes on PATH', 10001, 'command -v hermes');
+await assertOk(
+  'tale-hermes-run wrapper present',
+  10001,
+  'test -x /usr/local/bin/tale-hermes-run',
+);
 await assertOk('gh on PATH', 10001, 'command -v gh');
 await assertOk(
   'git/ripgrep/fd present',
@@ -143,6 +149,7 @@ await assertOk(
 // Pinned versions resolve (a broken install would non-zero here).
 await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
+await assertOk('hermes --version runs', 10001, 'hermes --version');
 await assertOk('agent on PATH', 10001, 'command -v agent');
 await assertOk('agent --version runs', 10001, 'agent --version');
 // HOME on the workspace volume must be writable for agent state.

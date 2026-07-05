@@ -154,7 +154,7 @@ function configuredMismatchedKeys(
  * `<messageNamespace>.readiness.mismatch.<code>` — no platform i18n here.
  */
 export function detectCredentialRuntimeMismatch(args: {
-  agentKind?: 'claude-code' | 'cursor';
+  agentKind?: 'claude-code' | 'cursor' | 'hermes';
   setKeys: ReadonlySet<string>;
   needsEnv: boolean;
   /** Keys the saved runtime expects (from `resolveEffectiveRequiredEnv`). */
@@ -198,13 +198,17 @@ export function detectCredentialRuntimeMismatch(args: {
  * time, not stale `metadata.requires.env` left over after an agentKind switch.
  */
 export function resolveEffectiveRequiredEnv(args: {
-  agentKind?: 'claude-code' | 'cursor';
+  agentKind?: 'claude-code' | 'cursor' | 'hermes';
   needs: Pick<AgentReadinessNeeds, 'needsEnv' | 'mode' | 'requiredEnv'>;
 }): RequiredEnvKey[] {
   if (!args.needs.needsEnv) return [];
 
   const productKind: ProductAgentSlug =
-    args.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+    args.agentKind === 'cursor'
+      ? 'cursor'
+      : args.agentKind === 'hermes'
+        ? 'hermes'
+        : 'claude-code';
   const metadataByKey = new Map(
     args.needs.requiredEnv.map((e) => [e.key, e] as const),
   );

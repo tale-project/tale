@@ -89,8 +89,7 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     expect(
       agentJsonSchema.safeParse({
         ...externalBase,
-        agentKind: 'cursor',
-        authMode: 'byo',
+        agentKind: 'hermes',
       }).success,
     ).toBe(true);
   });

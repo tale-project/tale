@@ -5886,7 +5886,8 @@
           "label": "External runtime",
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
-          "cursor": "Cursor"
+          "cursor": "Cursor",
+          "hermes": "Hermes Agent"
         },
         "webTools": {
           "sectionTitle": "Web tools",

@@ -353,7 +353,11 @@ export const runExternalAgentTurn = internalAction({
     modelRef: v.string(),
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
-    agentKind: v.union(v.literal('claude-code'), v.literal('cursor')),
+    agentKind: v.union(
+      v.literal('claude-code'),
+      v.literal('cursor'),
+      v.literal('hermes'),
+    ),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
      * uses the user-injected sandbox credentials. The per-agent authMode is the
      * sole control; there is no separate org-level gate. */

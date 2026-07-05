@@ -5619,7 +5619,8 @@
           "label": "Externe Laufzeit",
           "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
           "claudeCode": "Claude Code",
-          "cursor": "Cursor"
+          "cursor": "Cursor",
+          "hermes": "Hermes Agent"
         },
         "webTools": {
           "sectionTitle": "Web-Tools",

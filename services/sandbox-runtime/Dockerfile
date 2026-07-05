@@ -27,6 +27,7 @@ FROM python:3.12-slim-bookworm
 ARG CLAUDE_CODE_VERSION=2.1.173
 ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
+ARG HERMES_AGENT_VERSION=0.18.0
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -285,6 +286,12 @@ RUN set -eux; \
     mv "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" /usr/local/bin/gh; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
+
+# Hermes Agent (pinned PyPI wheel) + Tale NDJSON wrapper for sandbox runs.
+RUN pip install --no-cache-dir "hermes-agent==${HERMES_AGENT_VERSION}" \
+    && hermes --version
+COPY services/sandbox-runtime/tale-hermes-run /usr/local/bin/tale-hermes-run
+RUN chmod +x /usr/local/bin/tale-hermes-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in
