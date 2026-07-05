@@ -28,6 +28,7 @@ import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
+import { notifyDiscussionMentions } from '../collab/notify';
 import { buildMentionDirectory } from '../tasks/directory';
 import { extractMentions, type ResolvedMention } from '../tasks/mentions';
 import { emitEvent } from '../workflows/triggers/emit_event';
@@ -181,6 +182,15 @@ export const agentOpenDiscussion = internalMutation({
       args.projectId,
       body,
     );
+    await notifyDiscussionMentions(ctx, {
+      organizationId: args.organizationId,
+      threadId,
+      discussionTitle: title,
+      projectId: args.projectId,
+      mentions,
+      actorType: 'agent',
+      actorId: args.actorId,
+    });
     await emitEvent(ctx, {
       organizationId: args.organizationId,
       eventType: 'discussion.created',
@@ -259,6 +269,17 @@ export const agentReplyToDiscussion = internalMutation({
       meta.projectId,
       body,
     );
+    if (meta.projectId) {
+      await notifyDiscussionMentions(ctx, {
+        organizationId: args.organizationId,
+        threadId: args.threadId,
+        discussionTitle: meta.title ?? args.threadId,
+        projectId: meta.projectId,
+        mentions,
+        actorType: 'agent',
+        actorId: args.actorId,
+      });
+    }
     await emitEvent(ctx, {
       organizationId: args.organizationId,
       eventType: 'discussion.reply',

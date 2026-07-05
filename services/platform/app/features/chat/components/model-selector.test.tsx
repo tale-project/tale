@@ -26,6 +26,8 @@ let mockLockedAgent: {
   displayName: string;
   supportedModels: string[];
   primaryBehavior: 'external-agent';
+  authMode?: 'managed' | 'byo';
+  agentKind?: 'claude-code' | 'cursor';
 } | null = null;
 let mockAgents: MockChatAgent[] = [
   {
@@ -278,6 +280,65 @@ describe('ModelSelector', () => {
       expect(screen.getByText('Claude Opus 4.8')).toBeInTheDocument();
       expect(screen.queryByText('Model A')).not.toBeInTheDocument();
       expect(screen.queryByText('Model B')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('BYO runtime models', () => {
+    it('renders a picker over the raw vendor model ids (no synthetic Auto) when a BYO agent lists several', async () => {
+      mockLockedAgent = {
+        name: 'cursor',
+        displayName: 'Cursor',
+        primaryBehavior: 'external-agent',
+        authMode: 'byo',
+        agentKind: 'cursor',
+        supportedModels: [
+          'auto',
+          'claude-fable-5-thinking-high',
+          'claude-opus-4-8-thinking-high',
+          'gpt-5.3-codex',
+        ],
+      };
+
+      const { user } = render(
+        <ModelSelector organizationId="org-1" threadId="thread-1" />,
+      );
+
+      // No override ⇒ trigger mirrors the pinned first entry.
+      expect(
+        screen.getByRole('button', { name: 'Select model' }),
+      ).toHaveTextContent('auto');
+
+      await user.click(screen.getByRole('button', { name: 'Select model' }));
+
+      // Every raw vendor id is offered; the catalog synthetic "Auto" is not.
+      expect(
+        screen.getByText('claude-fable-5-thinking-high'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('claude-opus-4-8-thinking-high'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('gpt-5.3-codex')).toBeInTheDocument();
+      expect(screen.queryByText('Auto')).not.toBeInTheDocument();
+    });
+
+    it('shows a read-only indicator (no picker) when a BYO agent lists a single model', () => {
+      mockLockedAgent = {
+        name: 'cursor',
+        displayName: 'Cursor',
+        primaryBehavior: 'external-agent',
+        authMode: 'byo',
+        agentKind: 'cursor',
+        supportedModels: ['claude-opus-4-8-thinking-high'],
+      };
+
+      render(<ModelSelector organizationId="org-1" threadId="thread-1" />);
+
+      expect(
+        screen.getByText('claude-opus-4-8-thinking-high'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Select model' }),
+      ).not.toBeInTheDocument();
     });
   });
 

@@ -35,6 +35,7 @@ interface AttachmentTrayProps {
   transcriptionStatuses?: Map<Id<'_storage'>, TranscriptionStatusInfo>;
   indexingStatuses?: Map<Id<'_storage'>, IndexingStatusInfo>;
   retryAudioTranscription?: (fileId: Id<'_storage'>) => void;
+  cancelUpload?: (fileId: string) => void;
   removeAttachment: (fileId: Id<'_storage'>) => void;
   onPreviewImage: (preview: { src: string; alt: string }) => void;
   onPreviewTranscript: (preview: TranscriptPreview) => void;
@@ -56,6 +57,7 @@ export function AttachmentTray({
   transcriptionStatuses,
   indexingStatuses,
   retryAudioTranscription,
+  cancelUpload,
   removeAttachment,
   onPreviewImage,
   onPreviewTranscript,
@@ -252,9 +254,19 @@ export function AttachmentTray({
           aria-label={tChat('uploadingFile')}
           gap={0}
           justify="center"
-          className="border-border bg-muted size-9 overflow-hidden rounded-lg border"
+          className="border-border bg-muted group relative size-9 overflow-hidden rounded-lg border"
         >
           <Loader className="text-muted-foreground size-4 animate-spin" />
+          {cancelUpload && (
+            <button
+              type="button"
+              aria-label={tChat('cancelUpload')}
+              onClick={() => cancelUpload(fileId)}
+              className="bg-background absolute top-0.5 right-0.5 flex size-4 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <X className="text-muted-foreground size-2.5" />
+            </button>
+          )}
         </Row>
       ))}
     </HStack>

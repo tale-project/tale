@@ -1,6 +1,7 @@
 export { useConvexAuth } from 'convex/react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
@@ -18,6 +19,10 @@ function useConvexAuthUser() {
 
   const signOut = async () => {
     await authClient.signOut();
+    // Forget the cached org name so the logged-out shell renders "Tale" rather
+    // than the previous org's suffix (the sign-out flows hard-navigate, so the
+    // next document title is composed from a fresh, empty cache).
+    clearTitleSuffix();
   };
 
   return {

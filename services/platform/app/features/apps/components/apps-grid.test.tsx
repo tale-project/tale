@@ -34,6 +34,13 @@ vi.mock('../hooks/use-install-state', () => ({
   useAppInstallActions: () => ({ install: vi.fn(), isPending: false }),
 }));
 
+// The delete affordance's mutation hook needs a Convex client the test harness
+// doesn't provide — stub it (the behaviour under test is which cards render the
+// Private badge + Delete menu, not the delete call itself).
+vi.mock('../hooks/upload-mutations', () => ({
+  useDeleteApp: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 // Render the card Link as a plain anchor (no router needed); aria-label carries
 // the app name so we can assert the rendered set and its order.
 vi.mock('@tanstack/react-router', () => ({
@@ -149,6 +156,33 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
     expect(screen.getByText('Installed Shared')).toBeInTheDocument();
     expect(screen.getByText('From the org install.')).toBeInTheDocument();
     expect(screen.queryByText('Catalog Shared')).not.toBeInTheDocument();
+  });
+
+  // #2355: a private (uploaded) app lives in the org install list but not the
+  // built-in catalog. It must be distinguishable (a "Private" badge) and
+  // deletable (a Delete ⋯ menu) — a built-in catalog card gets neither.
+  it('badges + offers Delete only for a private (uploaded) app', () => {
+    useAppsMock.mockReturnValue({
+      apps: [app({ slug: 'my-upload', name: 'My Upload' })],
+      isLoading: false,
+      error: null,
+    });
+    useAppCatalogMock.mockReturnValue({
+      apps: [app({ slug: 'builtin', name: 'Builtin App' })],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<AppsGrid organizationId="org_1" />);
+
+    // Exactly one Private badge — on the uploaded app, not the built-in one.
+    expect(screen.getByText('Private')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Delete My Upload' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Delete Builtin App' }),
+    ).not.toBeInTheDocument();
   });
 
   it('sorts the union by name', () => {

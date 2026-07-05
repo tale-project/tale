@@ -30,7 +30,10 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 import { stripModelRefQualifier } from '../../../../lib/shared/utils/model-ref';
 import { useDeletePrompt } from '../../prompts/hooks/mutations';
 import { useSavedSourceMessageIds } from '../../prompts/hooks/queries';
-import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
+import {
+  useMyBudgetStatus,
+  useMyFeatureFlags,
+} from '../../settings/governance/hooks/queries';
 import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
@@ -85,7 +88,10 @@ import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
-import { HumanControlCard } from './human-control-card';
+import {
+  ProviderSettingsToastAction,
+  useCanManageProviders,
+} from './provider-settings-action';
 import {
   QueuedMessageTray,
   type PendingTrayEntry,
@@ -243,6 +249,7 @@ export function ChatInterface({
     setAttachments,
     uploadingFiles,
     uploadFiles,
+    cancelUpload,
     removeAttachment,
     retryAttachmentTranscription,
     clearAttachments,
@@ -408,6 +415,25 @@ export function ChatInterface({
   const { active: activeEditingImage } = useEffectiveEditingImage(threadImages);
   const { setEditingImageRef, setDismissedImageKey } = useChatLayout();
 
+  // Send-block breakdown: the missing-API-key subcase is the only one with an
+  // actionable fix, so it — and only it — carries the "Open provider settings"
+  // deep link (or an "ask an admin" hint for members who can't manage
+  // providers). The image-edit block takes priority in the reason string, so
+  // exclude it here to keep the two blocked reasons in lockstep.
+  const imageEditBlocked =
+    isImageGenAgent && !!activeEditingImage && !currentModelSupportsEdit;
+  const missingKeyBlocked =
+    !imageEditBlocked && (activeModelMissingApiKey || noProviderHasApiKey);
+  const canManageProviders = useCanManageProviders();
+  const sendBlockedAction =
+    missingKeyBlocked && canManageProviders ? (
+      <ProviderSettingsToastAction organizationId={organizationId} />
+    ) : undefined;
+  const sendBlockedDescription =
+    missingKeyBlocked && !canManageProviders
+      ? t('askAdminProviderKey')
+      : undefined;
+
   // Thread status — disable input for archived threads. Status is derived from
   // the URL threadId (root thread), not dataThreadId (which may be a branch
   // thread that wasn't individually archived). Provided by ThreadGate to avoid
@@ -430,7 +456,6 @@ export function ChatInterface({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    humanControlRequests,
   } = useThreadApprovals(organizationId, dataThreadId);
 
   // Resolved human-input requests — rendered inline in the history with the
@@ -507,16 +532,6 @@ export function ChatInterface({
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
-
-  // External-agent browser handoff: while the agent is parked waiting for a
-  // human to drive the live browser, REPLACE the composer with the take-control
-  // card (the agent is stopped — typing does nothing useful). At most one is
-  // pending at a time (createHumanControlRequest supersedes older ones). Not
-  // anchored to a message: it lives in the composer slot, so a long thread that
-  // has paginated the requesting message out still shows it.
-  const pendingHumanControl = humanControlRequests.find(
-    (r) => r.status === 'pending' || r.status === 'executing',
-  );
 
   // Whole-page drag & drop: a file dropped ANYWHERE in the chat (not just the
   // composer's drop zone) attaches to the message being composed. Gate it
@@ -717,6 +732,19 @@ export function ChatInterface({
 
   const userContext = useUserContext();
   const teamFilter = useOptionalTeamFilter();
+
+  // Client-side budget gate. The server enforces the budget authoritatively
+  // (a refused turn), but without this the composer left Send enabled and the
+  // user only learned they were over budget after the message landed as an
+  // inline turn error (#2345). Reuse the same query the BudgetBanner and the
+  // server use; `exceeded` is team-independent (checkBudget always spans all
+  // teams for hard blocks), so send is blocked whatever team is selected.
+  // Loading returns `undefined` → the gate stays false, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    teamFilter?.selectedTeamId,
+  );
+  const budgetExceeded = budgetStatus?.exceeded === true;
 
   // Projects feature: when the chat was opened from a project's "New
   // chat in this project" CTA, the projectId is passed as a URL search
@@ -1380,95 +1408,86 @@ export function ChatInterface({
                   />
                 </div>
               )}
-              {pendingHumanControl ? (
-                <div className="mx-auto w-full max-w-(--chat-max-width) pb-3">
-                  <HumanControlCard
-                    approvalId={pendingHumanControl._id}
-                    organizationId={organizationId}
-                    status={pendingHumanControl.status}
-                    metadata={pendingHumanControl.metadata}
-                  />
-                </div>
-              ) : (
-                <ChatInput
-                  className="mx-auto w-full max-w-(--chat-max-width)"
-                  placeholder={
-                    queueModeActive
-                      ? agentLingering
-                        ? t('queue.placeholderIdle')
-                        : t('queue.placeholder')
-                      : isImageGenAgent
-                        ? activeEditingImage && currentModelSupportsEdit
-                          ? t('imageEdit.placeholder')
-                          : t('imageEdit.placeholderCreate')
-                        : t('placeholder')
-                  }
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSendMessage={handleSendMessage}
-                  onStopGenerating={
-                    agentActivelyWorking ? stopGenerating : undefined
-                  }
-                  isLoading={isLoading}
-                  queueModeActive={queueModeActive}
-                  disabled={hasNoAgents || hasActiveApproval}
-                  disabledReason={
-                    hasNoAgents
-                      ? 'no-agents'
-                      : hasActiveApproval
-                        ? 'pending-approval'
-                        : undefined
-                  }
-                  organizationId={organizationId}
-                  projectId={currentProjectId}
-                  threadId={dataThreadId}
-                  onComposerActivate={prewarmChatCache}
-                  attachments={attachments}
-                  uploadingFiles={uploadingFiles}
-                  uploadFiles={uploadFiles}
-                  removeAttachment={removeAttachment}
-                  clearAttachments={clearAttachments}
-                  fileUploadDisabled={fileUploadDisabled}
-                  isIndexing={isIndexing}
-                  indexingStatuses={indexingStatuses}
-                  isTranscribing={isTranscribing || isTranscriptionQueryLoading}
-                  transcriptionStatuses={transcriptionStatuses}
-                  hasFailedAudioJobs={hasFailedAudioJobs}
-                  retryAudioTranscription={retryAttachmentTranscription}
-                  videoLinkJobs={videoLinkJobs}
-                  isProcessingVideo={isProcessingVideo}
-                  hasFailedVideoJobs={hasFailedVideoJobs}
-                  ingestVideoUrlsFromText={ingestVideoUrlsFromText}
-                  cancelVideoJob={cancelVideoJob}
-                  retryVideoJob={retryVideoJob}
-                  sendBlocked={
-                    (isImageGenAgent &&
-                      !!activeEditingImage &&
-                      !currentModelSupportsEdit) ||
-                    activeModelMissingApiKey ||
-                    noProviderHasApiKey
-                  }
-                  sendBlockedReason={
-                    isImageGenAgent &&
-                    !!activeEditingImage &&
-                    !currentModelSupportsEdit
+              <ChatInput
+                className="mx-auto w-full max-w-(--chat-max-width)"
+                placeholder={
+                  queueModeActive
+                    ? agentLingering
+                      ? t('queue.placeholderIdle')
+                      : t('queue.placeholder')
+                    : isImageGenAgent
+                      ? activeEditingImage && currentModelSupportsEdit
+                        ? t('imageEdit.placeholder')
+                        : t('imageEdit.placeholderCreate')
+                      : t('placeholder')
+                }
+                value={inputValue}
+                onChange={setInputValue}
+                onSendMessage={handleSendMessage}
+                onStopGenerating={
+                  agentActivelyWorking ? stopGenerating : undefined
+                }
+                isLoading={isLoading}
+                queueModeActive={queueModeActive}
+                disabled={hasNoAgents || hasActiveApproval}
+                disabledReason={
+                  hasNoAgents
+                    ? 'no-agents'
+                    : hasActiveApproval
+                      ? 'pending-approval'
+                      : undefined
+                }
+                organizationId={organizationId}
+                projectId={currentProjectId}
+                threadId={dataThreadId}
+                onComposerActivate={prewarmChatCache}
+                attachments={attachments}
+                uploadingFiles={uploadingFiles}
+                uploadFiles={uploadFiles}
+                cancelUpload={cancelUpload}
+                removeAttachment={removeAttachment}
+                clearAttachments={clearAttachments}
+                fileUploadDisabled={fileUploadDisabled}
+                isIndexing={isIndexing}
+                indexingStatuses={indexingStatuses}
+                isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+                transcriptionStatuses={transcriptionStatuses}
+                hasFailedAudioJobs={hasFailedAudioJobs}
+                retryAudioTranscription={retryAttachmentTranscription}
+                videoLinkJobs={videoLinkJobs}
+                isProcessingVideo={isProcessingVideo}
+                hasFailedVideoJobs={hasFailedVideoJobs}
+                ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+                cancelVideoJob={cancelVideoJob}
+                retryVideoJob={retryVideoJob}
+                sendBlocked={
+                  budgetExceeded ||
+                  imageEditBlocked ||
+                  activeModelMissingApiKey ||
+                  noProviderHasApiKey
+                }
+                sendBlockedReason={
+                  budgetExceeded
+                    ? t('budgetExceededDefault')
+                    : imageEditBlocked
                       ? t('imageEdit.modelCannotEdit')
                       : activeModelMissingApiKey
                         ? t('modelSelector.noApiKey')
                         : noProviderHasApiKey
                           ? t('modelSelector.noProviderKey')
                           : undefined
-                  }
-                  onSavePrompt={(content) =>
-                    setSavePromptData({ messageId: '', content })
-                  }
-                  onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
-                  kbMentions={kbMentions}
-                  addKbMention={addKbMention}
-                  removeKbMention={removeKbMention}
-                  clearKbMentions={clearKbMentions}
-                />
-              )}
+                }
+                sendBlockedAction={sendBlockedAction}
+                sendBlockedDescription={sendBlockedDescription}
+                onSavePrompt={(content) =>
+                  setSavePromptData({ messageId: '', content })
+                }
+                onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+                kbMentions={kbMentions}
+                addKbMention={addKbMention}
+                removeKbMention={removeKbMention}
+                clearKbMentions={clearKbMentions}
+              />
             </div>
           </FileUpload.Root>
         )}

@@ -21,6 +21,7 @@ type ThreadFixture = {
   title?: string;
   sharedWithProject?: boolean;
   userId: string;
+  authorName?: string;
 };
 
 let yoursFixture: ThreadFixture[] = [];
@@ -104,6 +105,30 @@ describe('ProjectThreadsTab', () => {
       expect(screen.getByText('No shared chats yet.')).toBeInTheDocument();
 
       await checkAccessibility(container, NO_HEADING_ORDER);
+    });
+
+    it("shows the author's resolved name for shared chats, falling back to a userId fragment", () => {
+      sharedFixture = [
+        {
+          _id: 's1',
+          threadId: 'thread-shared-1',
+          title: 'Named author chat',
+          sharedWithProject: true,
+          userId: 'user-2',
+          authorName: 'Ada Lovelace',
+        },
+        {
+          _id: 's2',
+          threadId: 'thread-shared-2',
+          title: 'Unresolved author chat',
+          sharedWithProject: true,
+          userId: 'abcdef1234567890',
+        },
+      ];
+      renderTab();
+
+      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.getByText('abcdef12')).toBeInTheDocument();
     });
   });
 

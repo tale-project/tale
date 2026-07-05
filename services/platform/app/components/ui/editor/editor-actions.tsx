@@ -167,6 +167,11 @@ export function EditorActions({
         icon={Undo2}
         iconClassName="size-3.5"
         collapseLabel
+        // The `sm` size is 32px tall and, once the label collapses to an icon
+        // below the `sm` breakpoint, narrower than the 44px WCAG 2.5.5 touch
+        // target. Grow the hit area to 44×44px on mobile only; the dense
+        // desktop size is kept from `sm` up (WCAG 2.5.5 / #1980).
+        className="max-sm:min-h-11 max-sm:min-w-11"
         disabled={discardDisabled}
         aria-disabled={discardDisabled ? 'true' : undefined}
       >
@@ -176,6 +181,7 @@ export function EditorActions({
         type={formId ? 'submit' : 'button'}
         size="sm"
         form={formId}
+        className="max-sm:min-h-11 max-sm:min-w-11"
         onClick={formId ? undefined : () => void runSave()}
         disabled={saveDisabled}
         aria-busy={controller.isSaving ? 'true' : undefined}

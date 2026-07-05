@@ -2,6 +2,8 @@ import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 
 /**
+ * @deprecated Login no longer routes by email domain; use the org picker instead.
+ *
  * POST /api/sso/discover — given an email, report whether SSO is enabled and,
  * if so, the org + protocol so the login screen can start the right flow.
  */

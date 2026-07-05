@@ -6,6 +6,7 @@
     "addMenu": {
       "label": "Ajouter une application"
     },
+    "private": "Privé",
     "upload": {
       "uploadApp": "Téléverser une application",
       "dialogTitle": "Téléverser une application privée",
@@ -36,7 +37,15 @@
       "uploadFailed": "Échec du téléversement de l'application",
       "replaceTitle": "Remplacer l'application existante ?",
       "replaceDescription": "Une application privée nommée « {slug} » existe déjà. Le téléversement écrasera son contenu actuel.",
-      "replaceConfirm": "Remplacer"
+      "replaceConfirm": "Remplacer",
+      "delete": "Supprimer le téléversement",
+      "deleteMenuLabel": "Supprimer {name}",
+      "deleteTitle": "Supprimer l'application téléversée",
+      "deleteDescription": "Retire l'application téléversée et ses fichiers de cette organisation. Les applications intégrées ne peuvent pas être supprimées.",
+      "deleteWarning": "Le bundle de l'application est supprimé définitivement. Désinstalle d'abord l'application si elle est encore installée.",
+      "deleteSuccess": "Téléversement supprimé",
+      "deleteFailed": "Échec de la suppression du téléversement",
+      "deleteInstalledBlocked": "Désinstalle l'application avant de la supprimer."
     },
     "empty": {
       "title": "Aucune application",
@@ -100,7 +109,9 @@
       "connect": "Connectez {integration} pour utiliser cette application.",
       "connectButton": "Connecter",
       "agentNeedsSetup": "{agent} doit être configuré pour fonctionner.",
-      "setupButton": "Configurer"
+      "agentNeedsKeys": "{agent} a besoin de {keys} dans Environment.",
+      "setupButton": "Configurer",
+      "openAgentFallback": "Ouvrir l'agent"
     },
     "config": {
       "title": "Configuration",
@@ -221,7 +232,6 @@
       "colStatus": "Statut",
       "colStarted": "Démarré",
       "watchLive": "Voir en direct",
-      "backToApp": "Retour à l'application",
       "queuedForCapacity": "En attente de capacité",
       "queuedForCapacityHint": "En attente d'un emplacement de sandbox libre. Démarre automatiquement dès qu'une capacité se libère.",
       "failed": "Échec",
@@ -568,11 +578,10 @@
       "loginButton": "Se connecter",
       "continueWithSso": "Continuer avec SSO",
       "ssoTitle": "Se connecter avec SSO",
-      "ssoDescription": "Saisis l’adresse e-mail de ton organisation — elle détermine la connexion à utiliser.",
+      "ssoDescription": "Choisis ton organisation pour continuer avec SSO.",
+      "ssoOrgListLabel": "Organisations",
       "ssoBackToLogin": "Retour à la connexion",
-      "ssoPickOrganization": "Ou choisis ton organisation",
-      "ssoEmailRequired": "Saisis l’adresse e-mail de ton organisation pour continuer avec SSO.",
-      "ssoEmailNoMatch": "L’authentification unique n’est pas configurée pour ce domaine de messagerie. Vérifie l’adresse ou contacte ton administration.",
+      "ssoNoOrganizations": "Aucune organisation disponible pour la connexion. Contacte ton administration.",
       "continueWithPasskey": "Se connecter avec un passkey",
       "passkeyFailed": "La connexion par passkey a échoué ou a été annulée. Réessaie ou utilise ton mot de passe.",
       "wrongCredentials": "Courriel ou mot de passe incorrect",
@@ -751,7 +760,8 @@
         "noDataDescription": "Exécute un workflow pour voir la répartition",
         "completed": "Terminées",
         "failed": "Échouées",
-        "running": "En cours"
+        "running": "En cours",
+        "pending": "En attente"
       },
       "table": {
         "title": "Top workflows",
@@ -849,6 +859,10 @@
           "variablesLabel": "Variables du workflow",
           "variablesDescription": "Paramètres d'entrée transmis à chaque exécution planifiée. Pré-remplis depuis le schéma d'entrée du workflow.",
           "variablesInvalid": "Les variables doivent être un objet JSON valide",
+          "validation": {
+            "cronRequired": "L'expression cron est requise",
+            "cronInvalid": "Doit être une expression cron valide à 5 champs"
+          },
           "presets": {
             "every5Minutes": "Toutes les 5 minutes",
             "hourly": "Toutes les heures",
@@ -944,7 +958,8 @@
     "executions": {
       "title": "Exécutions",
       "entityLabel": "exécutions",
-      "searchPlaceholder": "Rechercher par ID d'exécution"
+      "searchPlaceholder": "Rechercher par ID d'exécution",
+      "viewOnCanvas": "Voir sur le canevas"
     },
     "createDialog": {
       "title": "Créer une automatisation",
@@ -1070,7 +1085,7 @@
       "createFailed": "Échec de la création de l'automatisation"
     },
     "validation": {
-      "duplicateName": "Une automatisation avec ce nom existe déjà",
+      "duplicateName": "Une automatisation avec un identifiant équivalent existe déjà. Choisis un nom plus distinct.",
       "invalidName": "Le nom doit contenir au moins une lettre ou un chiffre"
     },
     "deleteAutomation": {
@@ -1313,7 +1328,7 @@
       "noResults": "Aucun agent trouvé",
       "addAgent": "Catalogue",
       "lockedExternal": "Ce chat s'exécute dans une sandbox et garde son agent — démarre un nouveau chat pour en utiliser un autre.",
-      "lockedExternalLabel": "Agent : {{agent}} (fixé pour ce chat sandbox)"
+      "lockedExternalLabel": "Agent : {agent} (fixé pour ce chat sandbox)"
     },
     "modelSelector": {
       "label": "Sélectionner un modèle",
@@ -1397,7 +1412,10 @@
     "hideSearch": "Masquer la recherche",
     "showHistory": "Afficher l'historique",
     "hideHistory": "Masquer l'historique",
-    "chatHistory": "Historique",
+    "unifiedSidebar": {
+      "title": "Menu",
+      "landmark": "Barre latérale du tableau de bord"
+    },
     "newProject": "Nouveau projet",
     "typeMessageHere": "Saisis ton message ici…",
     "send": "Envoyer le message",
@@ -1422,6 +1440,8 @@
     "errorGenerating": "Une erreur s'est produite",
     "errorDetailsSummary": "Détails techniques",
     "retryGeneration": "Réessayer",
+    "openProviderSettings": "Ouvrir les paramètres du fournisseur",
+    "askAdminProviderKey": "Demande à un administrateur d’ajouter une clé API dans Paramètres → Fournisseurs d’IA.",
     "showMore": "Voir plus",
     "showLess": "Voir moins",
     "editMessage": "Modifier le message",
@@ -1479,6 +1499,7 @@
     "duplicateFile": "Fichier en double",
     "duplicateFileDescription": "{filename} est déjà joint.",
     "removeAttachment": "Supprimer la pièce jointe",
+    "cancelUpload": "Annuler le téléversement",
     "uploadingFile": "Téléversement du fichier",
     "indexing": "Indexation...",
     "indexingFailed": "Échec de l'indexation",
@@ -1710,6 +1731,10 @@
       "linkHint": "Toute personne de ton organisation disposant de ce lien peut consulter le chat.",
       "preview": "Aperçu",
       "shareFailed": "Échec du partage du chat",
+      "cannotShareArena": "Les chats en mode arène ne peuvent pas être partagés.",
+      "cannotShareBranch": "Les chats de branche ne peuvent pas être partagés.",
+      "cannotShareArchived": "Les chats archivés ne peuvent pas être partagés.",
+      "notShareable": "Ce chat ne peut pas être partagé.",
       "unshareFailed": "Échec de l'arrêt du partage",
       "sharedChat": "Chat partagé",
       "forkChat": "Dupliquer ce chat",
@@ -1752,19 +1777,6 @@
       "bothBad": "Les deux sont mauvais",
       "verdictRecorded": "Verdict enregistré",
       "verdictError": "Échec de l'enregistrement du verdict"
-    },
-    "humanControl": {
-      "cardTitle": "L'agent a besoin de ton aide dans le navigateur",
-      "takeControl": "Prendre le contrôle",
-      "takeControlHint": "Prends le contrôle pour terminer cette étape dans le navigateur en direct, puis rends-le.",
-      "controllingHint": "Tu pilotes le navigateur. Termine l'étape, puis rends le contrôle pour que l'agent reprenne.",
-      "returnControl": "Terminé — rendre le contrôle",
-      "errorAlreadyResolved": "Ce transfert a déjà été résolu.",
-      "errorTurnRunning": "L'agent a déjà repris.",
-      "errorReturnFailed": "Impossible de rendre le contrôle. Réessaie.",
-      "statusReturned": "Contrôle rendu — l'agent a repris.",
-      "statusSuperseded": "Remplacé par une demande plus récente.",
-      "statusTimedOut": "Personne n'a pris le contrôle — l'agent a continué."
     },
     "canvas": {
       "title": "Canevas",
@@ -1969,6 +1981,7 @@
       "viewSource": "Voir la source",
       "source": "Source",
       "copy": "Copier",
+      "copyField": "Copier {label}",
       "copied": "Copié !",
       "showInfo": "Afficher les informations",
       "clearAll": "Tout effacer",
@@ -2120,6 +2133,10 @@
       "noResults": "Aucun résultat trouvé",
       "tryAdjusting": "Essaie d'ajuster tes critères de recherche",
       "placeholder": "Rechercher..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention non reconnue",
+      "unresolvedDescription": "{tokens} ne correspond à personne dans ta organisation — aucune notification n'a été envoyée."
     },
     "errors": {
       "generic": "Une erreur s'est produite. Merci de réessayer.",
@@ -2497,6 +2514,7 @@
   },
   "documents": {
     "entityLabel": "documents",
+    "tableCaption": "Documents et dossiers",
     "searchPlaceholder": "Rechercher des documents",
     "deleteFolder": {
       "title": "Supprimer le dossier",
@@ -2594,12 +2612,10 @@
       "downloadComplete": "Téléchargement terminé",
       "downloadFile": "Télécharger le fichier",
       "closePreview": "Fermer l'aperçu",
-      "fileDownloaded": "{fileName} a été téléchargé",
       "downloadedSuccessfully": "{filename} a été téléchargé",
       "downloadFailed": "Échec du téléchargement du fichier",
       "notAvailable": "Aperçu non disponible",
       "notAvailableDescription": "Ce type de fichier ne peut pas être prévisualisé. Merci de télécharger le fichier pour consulter son contenu.",
-      "downloading": "Téléchargement...",
       "download": "Télécharger",
       "document": "Document",
       "title": "Aperçu du document",
@@ -3410,6 +3426,7 @@
       "presetApplied": "Preset appliqué",
       "presetAppliedMappings": "{count} correspondances de catégories par défaut ajoutées (toutes en mode flag — à ajuster ci-dessous).",
       "customJsonPathHint": "Ouvre « Endpoint » ci-dessous, renseigne ton URL HTTPS, le template de corps de requête et le JSONPath des catégories. Le commutateur ne persistera pas tant que ces champs ne sont pas définis.",
+      "enableNeedsEndpoint": "Définis d'abord un endpoint. Ouvre « Endpoint » ci-dessous et ajoute l'URL de l'API de modération — l'activation ne persistera pas tant qu'il n'est pas configuré.",
       "apiKey": "Clé API",
       "apiKeyDescription": "Collée ici, chiffrée avec AES-256-GCM côté serveur et stockée dans `governanceSecrets`. La valeur en clair remplace `{secretPlaceholder}` dans les headers de ton endpoint au moment de la requête. Utilise la valeur complète pour les headers de type Authorization (p. ex. 'Bearer sk-…') ; la clé brute pour `Ocp-Apim-Subscription-Key` d'Azure.",
       "apiKeyPlaceholder": "Bearer sk-... ou clé API brute",
@@ -4380,6 +4397,10 @@
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choisis les événements qui t'envoient une notification."
+    },
     "environment": {
       "title": "Variables d'environnement et secrets",
       "description": "Variables d'environnement et secrets injectés dans tes sandboxes d'agent."
@@ -4559,6 +4580,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "SSO d'entreprise"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choisis les événements qui apparaissent dans ta cloche. Les demandes de review restent toujours actives — ce sont des signaux de sécurité.",
+    "deliveryTitle": "Envoi par e-mail",
+    "deliveryDescription": "Les alertes actionnables (assignations, mentions, reviews, escalades) peuvent aussi arriver sur ton e-mail de compte quand l'organisation a une boîte connectée.",
+    "saveFailed": "Impossible d'enregistrer tes préférences de notification.",
+    "fields": {
+      "actionableEmail": {
+        "label": "M'envoyer les alertes actionnables par e-mail",
+        "description": "Envoie les notifications de retour sur ton e-mail de compte via la boîte Gmail, Outlook ou SMTP connectée de l'organisation."
+      },
+      "taskAssigned": {
+        "label": "Tâche qui m'est assignée",
+        "description": "Quand une tâche t'est assignée."
+      },
+      "taskStatusChanged": {
+        "label": "Changement de statut",
+        "description": "Quand une tâche que tu suis change de statut."
+      },
+      "taskCommented": {
+        "label": "Nouveau commentaire",
+        "description": "Quand quelqu'un commente une tâche que tu suis."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "Quand quelqu'un te mentionne avec @."
+      },
+      "taskReview": {
+        "label": "Demandes de review",
+        "description": "Quand le travail d'un agent attend ta review."
+      },
+      "escalation": {
+        "label": "Escalades d'agent",
+        "description": "Quand un agent escalade une tâche vers un humain."
+      },
+      "automationAlerts": {
+        "label": "Alertes d'automatisation",
+        "description": "Échecs, avertissements de budget et runtimes hors ligne."
+      },
+      "digest": {
+        "label": "Résumé",
+        "description": "Résumé périodique de l'activité de la workforce."
+      },
+      "conversationMessages": {
+        "label": "Messages de conversation",
+        "description": "Quand un message client arrive dans Conversations."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Non lu",
@@ -4568,10 +4638,15 @@
     "emptyAllDescription": "Les alertes et mises à jour système apparaîtront ici à mesure qu'elles arriveront.",
     "markAsRead": "Marquer comme lu",
     "markAllAsRead": "Tout marquer comme lu",
+    "expand": "Agrandir",
     "filterUnread": "Non lus",
     "filterAll": "Tous",
+    "sortLabel": "Trier",
+    "sortRecent": "Plus récentes",
+    "sortPriority": "Priorité",
     "loadMore": "Charger plus",
     "loading": "Chargement…",
+    "newNotifications": "Nouvelles notifications",
     "accountLocked": "Compte temporairement verrouillé : {email}",
     "lockoutDetails": "{consecutiveFailures} tentatives de connexion échouées depuis {ip}.",
     "auditIntegrityFailed": "Échec du contrôle d'intégrité du journal d'audit",
@@ -4857,6 +4932,7 @@
         "name": "Nom du produit",
         "description": "Description",
         "imageUrl": "URL de l'image",
+        "image": "Image",
         "price": "Prix",
         "currency": "Devise",
         "stock": "Stock",
@@ -5127,6 +5203,9 @@
       "personalization": {
         "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
       },
+      "notifications": {
+        "description": "Choisis les événements qui t'envoient une notification."
+      },
       "environment": {
         "description": "Variables d'environnement et secrets injectés dans tes sandboxes."
       },
@@ -5340,6 +5419,7 @@
         "metrics": "Métriques"
       },
       "entityLabel": "agents",
+      "tableCaption": "Agents installés",
       "createAgent": "Créer un agent",
       "createMenu": {
         "blank": "Vierge",
@@ -5454,6 +5534,8 @@
         "bindWorkflowsPlaceholder": "Lier des flux de travail…",
         "sectionSkillBindings": "Skills liés",
         "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
+        "sectionSkillBindingsExternalDescription": "Les disciplines workflow (fix-bug, write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici uniquement des skills org supplémentaires. Chaque skill lié est injecté dans la session à chaque tour.",
+        "skillBindingsExternalNoCustomSkillsDescription": "Aucun skill org supplémentaire à lier pour l'instant — les disciplines workflow se chargent quand même automatiquement. Crée un skill personnalisé dans les paramètres Skills si cet agent en a besoin.",
         "skillBindingsCounter": "{count}/{max} liés",
         "skillBindingsToggleAria": "Lier {slug}",
         "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",
@@ -5467,9 +5549,9 @@
         "sectionAccessDescription": "Contrôle quelles équipes peuvent utiliser cet agent",
         "name": "Nom",
         "namePlaceholder": "mon-agent",
-        "nameHelp": "Identifiant unique — lettres minuscules, chiffres, tirets, underscores. Ajoute un / pour le classer dans un dossier, ex. marketing/seo-writer.",
-        "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Ajoute un / pour le classer dans un dossier (ex. marketing/seo-writer). Non modifiable ensuite.",
-        "namePatternError": "Chaque partie doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores. Sépare les dossiers par /.",
+        "nameHelp": "Identifiant unique — lettres minuscules, chiffres, tirets et underscores.",
+        "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Non modifiable ensuite.",
+        "namePatternError": "Doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores.",
         "displayName": "Nom d'affichage",
         "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
         "displayNamePlaceholder": "Mon Agent",
@@ -5527,7 +5609,7 @@
           "internalLabel": "Agent interne",
           "internalDescription": "S'exécute sur la plateforme avec les outils de chat, les connaissances et les workflows.",
           "externalLabel": "Agent externe",
-          "externalDescription": "Exécute Claude Code ou OpenCode dans un bac à sable isolé, en utilisant les intégrations liées.",
+          "externalDescription": "Exécute Claude Code ou Cursor dans un bac à sable isolé, en utilisant les intégrations liées.",
           "imageLabel": "Génération d'images",
           "imageDescription": "Achemine le message directement vers un modèle d'image.",
           "switchTitle": "Changer le type d'agent ?",
@@ -5541,7 +5623,7 @@
           "label": "Exécution externe",
           "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
           "claudeCode": "Claude Code",
-          "openCode": "OpenCode"
+          "cursor": "Cursor"
         },
         "webTools": {
           "sectionTitle": "Outils web",
@@ -5950,8 +6032,6 @@
           "saml": "SAML 2.0"
         },
         "displayNameLabel": "Nom affiché",
-        "domainLabel": "Domaine de messagerie",
-        "domainHelp": "Facultatif — orienter les utilisateurs de ce domaine vers cette connexion.",
         "signInSection": "Connexion",
         "issuerLabel": "URL de l'émetteur",
         "authzEndpointLabel": "Point de terminaison d'autorisation",
@@ -6025,10 +6105,6 @@
         },
         "redirectUrlLabel": "URL de redirection à enregistrer dans Entra",
         "redirectUrlHelp": "Enregistrez exactement cette URL comme URI de redirection « Web » dans votre inscription d'application — elle doit correspondre au caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon la connexion échoue avec AADSTS50011.",
-        "domainWarning": {
-          "title": "Aucun domaine de messagerie défini",
-          "description": "Plusieurs organisations de ce déploiement utilisent le SSO. Sans domaine de messagerie, la connexion ne peut pas orienter les membres par adresse — elle est alors listée publiquement sous son nom affiché sur l’écran SSO."
-        },
         "deploymentWarning": {
           "title": "Déploiement non entièrement configuré pour le SSO",
           "callbackMissing": "L'URL de redirection est vide car SITE_URL n'est pas défini sur le serveur. La connexion SSO échouera tant qu'il ne sera pas configuré.",
@@ -6212,7 +6288,6 @@
         "save": "Enregistrer les options",
         "saveSuccess": "Options du fournisseur enregistrées",
         "saveError": "Échec de l'enregistrement des options du fournisseur",
-        "invalidJson": "Les options du fournisseur ne sont pas un JSON valide",
         "exampleLabel": "Exemple",
         "discardConfirmTitle": "Abandonner les modifications non enregistrées ?",
         "discardConfirmDescription": "Vos modifications des options du fournisseur seront perdues.",
@@ -6224,8 +6299,7 @@
         "modelLevelTitle": "Avancé — Mappage du corps de requête",
         "modelLevelDescription": "Renomme ou supprime des champs de la requête finale envoyée à ce modèle — pour les points de terminaison dont le format diffère. Contrairement aux options du fournisseur, ceci n'atteint jamais le fournisseur en tant que données ; cela réécrit le corps sur place.",
         "guideLabel": "Comment fonctionne le mappage du corps de requête",
-        "modelLevelHelp": "Deux clés optionnelles :\n\n- **rename** — renomme un champ en un autre (appliqué en premier). Le cas classique est un déploiement de raisonnement OpenAI/Azure qui attend `max_completion_tokens` au lieu de `max_tokens` :\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — supprime les champs que le point de terminaison rejette :\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nLes modèles dotés d'une capacité de raisonnement reçoivent déjà automatiquement le renommage `max_tokens` → `max_completion_tokens`. Une entrée vide efface le réglage.",
-        "invalidJson": "Le mappage du corps de requête n'est pas un JSON valide"
+        "modelLevelHelp": "Deux clés optionnelles :\n\n- **rename** — renomme un champ en un autre (appliqué en premier). Le cas classique est un déploiement de raisonnement OpenAI/Azure qui attend `max_completion_tokens` au lieu de `max_tokens` :\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — supprime les champs que le point de terminaison rejette :\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nLes modèles dotés d'une capacité de raisonnement reçoivent déjà automatiquement le renommage `max_tokens` → `max_completion_tokens`. Une entrée vide efface le réglage."
       },
       "versionConflictTitle": "Le fournisseur a été modifié",
       "versionConflictDescription": "Recharge la page pour voir la dernière version, puis réapplique tes modifications.",
@@ -6491,10 +6565,10 @@
           "agent": "Agent"
         },
         "export": {
-          "csv": "Exporter en CSV",
-          "json": "Exporter en JSON",
-          "csvLabel": "Exporter les journaux d'audit au format CSV",
-          "jsonLabel": "Exporter les journaux d'audit au format JSON",
+          "label": "Exporter",
+          "triggerLabel": "Exporter les journaux d'audit",
+          "csv": "CSV",
+          "json": "JSON",
           "inProgress": "Exportation...",
           "complete": "Exportation terminée",
           "error": "Échec de l'exportation"
@@ -6891,17 +6965,17 @@
   },
   "inbox": {
     "taskAssigned": "Tâche assignée",
-    "taskAssignedBody": "«Â {title}Â » t'a été assignée.",
+    "taskAssignedBody": "« {title} » t'a été assignée.",
     "taskStatusChanged": "Statut de tâche modifié",
     "taskStatusChangedBody": "«Â {title}Â » est passée de {from} à {to}.",
     "taskCommented": "Nouveau commentaire",
     "taskCommentedBody": "Nouveau commentaire sur «Â {title}Â ».",
     "mention": "Tu as été mentionné",
-    "mentionBody": "Tu as été mentionné dans «Â {title}Â ».",
-    "taskAssignedByBody": "{actor} t'a assigné «Â {title}Â ».",
+    "mentionBody": "Tu as été mentionné dans « {title} ».",
+    "taskAssignedByBody": "{actor} t'a assigné « {title} ».",
     "taskStatusChangedByBody": "{actor} a fait passer «Â {title}Â » de {from} à {to}.",
     "taskCommentedByBody": "{actor} a commenté «Â {title}Â ».",
-    "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
+    "mentionByBody": "{actor} t'a mentionné dans « {title} ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
     "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
@@ -6923,8 +6997,14 @@
     "humanInputEscalatedBody": "Un workflow attend une saisie humaine depuis {ageHours} heures.",
     "workforceDigest": "Synthèse quotidienne de la workforce",
     "workforceDigestBody": "{created} créées · {completed} terminées · {runs} exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de revue · {queued} en file · {breakers} en pause.",
+    "conversationInboundMessage": "Nouveau message de conversation",
+    "conversationInboundMessageBody": "De {sender} : « {subject} » — ouvre Conversations pour répondre.",
     "agentEscalation": "Escalade d'agent",
-    "agentEscalationBody": "{agent} a escaladé : {reason}"
+    "agentEscalationBody": "{agent} a escaladé : {reason}",
+    "email": {
+      "cta": "Ouvrir dans Tale",
+      "footer": "Tu reçois cet e-mail parce que tu as activé les notifications dans Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7015,6 +7095,7 @@
     },
     "actions": {
       "create": "Créer une tâche",
+      "created": "Tâche créée",
       "comment": "Commenter",
       "reply": "Répondre",
       "assign": "Assigner",
@@ -7030,6 +7111,9 @@
     },
     "board": {
       "noTasks": "Aucune tâche"
+    },
+    "filters": {
+      "waitingOnMe": "En attente de moi"
     },
     "detail": {
       "overview": "Aperçu",
@@ -7330,7 +7414,6 @@
       "revokeButton": "Supprimer",
       "revokeConfirmTitle": "Supprimer le passkey ?",
       "revokeConfirmDescription": "Cela supprime « {name} » qui ne pourra plus être utilisé pour se connecter. S'il s'agissait de ton seul second facteur, il se peut que tu doives reconfigurer la double authentification.",
-      "empty": "Aucun passkey enregistré pour l'instant.",
       "unnamed": "Passkey",
       "registered": "Passkey enregistré",
       "revoked": "Passkey supprimé",
@@ -7902,7 +7985,6 @@
       "submit": "Générer",
       "error": "Impossible de créer le mot de passe applicatif",
       "errorLimit": "Tu as atteint le nombre maximum de mots de passe applicatifs. Révoque-en un inutilisé d’abord.",
-      "errorInvalidLabel": "Saisis un libellé de 1 à 64 caractères.",
       "errorRateLimited": "Trop de mots de passe applicatifs créés récemment. Réessaie plus tard.",
       "savedTitle": "Sauvegarde ce mot de passe — il ne sera plus affiché.",
       "copy": "Copier",
@@ -8112,13 +8194,22 @@
     }
   },
   "runtimes": {
-    "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, OpenCode).",
+    "description": "Exécutez le travail des tâches sur vos propres machines, avec les CLIs d'agents de code que vous utilisez déjà (Claude Code, Codex, Cursor).",
     "install": {
       "title": "Connecter un daemon",
       "cliHint": "Installez d'abord la CLI Tale si ce n'est pas déjà fait :",
       "description": "À installer une fois par machine : setup demande l'URL de cet espace, une clé API et l'espace de travail git où les agents peuvent travailler. Liez ensuite un agent à une runtime dans sa configuration — ses tâches s'exécuteront sur votre machine et reviendront pour revue.",
       "privacy": "Les chemins locaux ne quittent jamais votre machine — seules les clés d'espace de travail que vous choisissez sont annoncées ici. La permission full_auto exige un opt-in côté serveur ET côté daemon.",
-      "createKey": "Créer une clé API"
+      "createKey": "Créer une clé API",
+      "generate": "Générer une clé et copier la commande",
+      "generateHint": "Génère une nouvelle clé API et copie une commande de setup prête à l'emploi, avec l'URL de cet espace et la clé déjà renseignées.",
+      "generated": "Commande de setup générée",
+      "generateError": "Impossible de générer une clé. Réessayez.",
+      "copied": "Commande de setup copiée dans le presse-papiers",
+      "commandLabel": "À exécuter sur la machine du daemon",
+      "copyCommand": "Copier la commande de setup",
+      "keyCaveat": "Cette commande contient une nouvelle clé API, affichée une seule fois. Quiconque la détient peut agir en tant que ce daemon — gardez-la secrète et révoquez-la dans Paramètres → API → REST en cas de fuite.",
+      "keyName": "Daemon"
     },
     "list": {
       "title": "Daemons connectés",
@@ -8182,7 +8273,8 @@
     "accessDenied": "Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes."
   },
   "envEditor": {
-    "none": "Aucune variable d'environnement pour l'instant.",
+    "confirmRemoveTitle": "Supprimer la variable ?",
+    "confirmRemoveDescription": "Elle sera supprimée lorsque tu enregistreras tes modifications. Cette action est irréversible.",
     "keyPlaceholder": "NOM",
     "valuePlaceholder": "valeur",
     "secret": "Secret",

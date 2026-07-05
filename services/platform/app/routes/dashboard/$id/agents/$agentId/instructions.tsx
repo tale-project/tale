@@ -31,6 +31,8 @@ import {
 import { useToast } from '@/app/hooks/use-toast';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
+import { getCredentialPolicy } from '@/lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '@/lib/agent-adapters/events';
 import { useT } from '@/lib/i18n/client';
 import { getVariantBadgeLabel } from '@/lib/shared/utils/expand-model-variants';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
@@ -262,6 +264,13 @@ function InstructionsTab() {
         continue;
       if (config.provider && provider.name !== config.provider) continue;
       for (const model of provider.models) {
+        // Models flagged "Hidden from model pickers" must not appear in the
+        // agent's Add-model picker — the flag's contract covers agent model
+        // selection too (see providers schema), matching the chat composer
+        // (model-selector.tsx) and the create-agent dialog. Already-selected
+        // models are dropped as candidates below, so a hidden model an agent
+        // already references stays in its saved list without being re-offered.
+        if (model.hidden === true) continue;
         const variants = Array.isArray(model.quantizations)
           ? model.quantizations
           : undefined;
@@ -433,8 +442,18 @@ function InstructionsTab() {
   // passthrough.
   const isExternalAgent = config.primaryBehavior === 'external-agent';
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
-  const authMode = config.authMode ?? 'managed';
+  const productAgentKind: ProductAgentSlug =
+    config.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+  const credentialPolicy = getCredentialPolicy(productAgentKind);
+  // Runtimes that can't reach the platform gateway (e.g. Cursor) are BYO only —
+  // there is no managed choice, so force byo and hide the selector.
+  const supportsManaged = credentialPolicy.supportsManaged;
+  const authMode = supportsManaged ? (config.authMode ?? 'managed') : 'byo';
   const isByo = isExternalAgent && authMode === 'byo';
+  const usesRuntimeModelEditor =
+    isByo || credentialPolicy.managedSource === 'agent-env';
+  const usesGatewayManaged =
+    isExternalAgent && !isByo && credentialPolicy.managedSource === 'gateway';
 
   const handleAuthModeChange = useCallback(
     (next: string) => {
@@ -537,7 +556,7 @@ function InstructionsTab() {
         </CollapsibleDetails>
       </Stack>
 
-      {isExternalAgent && (
+      {isExternalAgent && supportsManaged && (
         <PageSection
           title={t('agents.form.byo.sectionTitle')}
           description={t('agents.form.byo.sectionDescription')}
@@ -550,7 +569,7 @@ function InstructionsTab() {
         </PageSection>
       )}
 
-      {isExternalAgent && !isByo && (
+      {usesGatewayManaged && (
         <PageSection
           title={t('agents.form.webTools.sectionTitle')}
           description={t('agents.form.webTools.sectionDescription')}
@@ -566,7 +585,7 @@ function InstructionsTab() {
         </PageSection>
       )}
 
-      {isExternalAgent && !isByo && (
+      {usesGatewayManaged && (
         <PageSection
           title={t('agents.form.vision.sectionTitle')}
           description={t('agents.form.vision.sectionDescription')}
@@ -591,12 +610,12 @@ function InstructionsTab() {
         id="models"
         title={t('agents.form.sectionModel')}
         description={
-          isByo
+          usesRuntimeModelEditor
             ? t('agents.form.byo.modelSectionDescription')
             : t('agents.form.sectionModelDescription')
         }
       >
-        {isByo ? (
+        {usesRuntimeModelEditor ? (
           <>
             <ByoModelEditor
               models={selectedModels}

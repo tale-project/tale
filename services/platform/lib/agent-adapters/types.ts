@@ -1,9 +1,9 @@
 // Adapter input/output contract shared by every agent.
 
-import type { AgentEventParser, AgentSlug } from './events';
+import type { AgentEventParser, ProductAgentSlug } from './events';
 
 /** The platform LLM gateway endpoint + the session-scoped key. The
- * adapter appends its own protocol route (Claude → /anthropic, OpenCode →
+ * adapter appends its own protocol route (Claude → /anthropic, Cursor uses
  * /openai/v1) so callers pass one base. */
 export interface GatewayTarget {
   /** Gateway root, no trailing slash, e.g. http://sandbox-llm-gateway:8080 */
@@ -24,7 +24,7 @@ export interface AgentRunSpec {
    * classifier fallback (the `ANTHROPIC_DEFAULT_OPUS_MODEL` slot). */
   fallbackModel?: string;
   /** Resume handle captured from a prior run's `run-started`/`result`
-   * (Claude session_id / OpenCode sessionID). Continues the same agent
+   * (Claude session_id / Cursor chat id). Continues the same agent
    * conversation in the same workspace. */
   agentSessionId?: string;
   /** Agent loop cap; defaults to 40 (matches the platform agent maxSteps). */
@@ -34,10 +34,10 @@ export interface AgentRunSpec {
    * = the existing full-access behavior. Adapters without the concept ignore
    * it. Fixed for the whole turn — continuations re-attach to the same exec. */
   permissionMode?: 'plan' | 'execute';
-  /** Turn interaction posture. `autonomous` = no human in the loop: adapters
-   * gate off the human-in-loop affordances (e.g. the request_human_control MCP
-   * server). `interactive` (default / absent) keeps them. Independent of
-   * permissionMode. Adapters without the concept ignore it. */
+  /** Turn interaction posture. `autonomous` = no human in the loop (adapters may
+   * gate off interactive-only affordances). `interactive` (default / absent)
+   * keeps them. Independent of permissionMode. Adapters without the concept
+   * ignore it. */
   interactionMode?: 'interactive' | 'autonomous';
   /** Extra system-prompt text appended to the agent's defaults. */
   systemPromptAppend?: string;
@@ -114,8 +114,44 @@ export interface SessionExecSpec {
   stdinMode?: 'close' | 'hold';
 }
 
+export interface CredentialPolicy {
+  /** Managed-mode credential source. BYO always injects env credentials.
+   * Only meaningful when `supportsManaged` is true. */
+  managedSource: 'gateway' | 'agent-env';
+  supportsByo: boolean;
+  /** Whether the runtime can run in managed mode at all. False for runtimes
+   * whose CLI cannot route through the platform LLM gateway — e.g. Cursor, whose
+   * CLI authenticates with only `--api-key`/`CURSOR_API_KEY` and exposes no
+   * OpenAI-compatible base-URL override — which are therefore BYO only. */
+  supportsManaged: boolean;
+}
+
+/** Session-relative user-level dir under HOME (/user/.runtime/home) where Tale
+ * stages org/integration/workflow/bound skills for sandbox runtimes. null =
+ * runtime does not support filesystem skills (skip staging + skillsGuidance). */
+export const CLAUDE_COMPAT_SKILLS_STAGE_DIR =
+  '.runtime/home/.claude/skills' as const;
+
+export interface AgentCapabilities {
+  processLifecycle: 'stdin-hold' | 'one-shot';
+  promptTransport: 'stdin-ndjson' | 'argv-positional';
+  mcpDelivery: 'inline-argv' | 'inline-env' | 'staged-file';
+  supportsPlanMode: boolean;
+  supportsMidTurnSteering: boolean;
+  supportsAttachmentDirs: boolean;
+  supportsIntegrationsBridge: boolean;
+  supportsVisionPolyfill: boolean;
+  /** Where Tale stages user-level skills for this runtime (session-relative).
+   * null = no filesystem skill support. */
+  skillsStageDir: string | null;
+}
+
 export interface AgentAdapter {
-  readonly slug: AgentSlug;
+  readonly slug: ProductAgentSlug;
+  readonly credentialPolicy: CredentialPolicy;
+  readonly capabilities: AgentCapabilities;
+  /** Env vars this runtime uses for credentials (scrubbed on agent switch). */
+  readonly credentialEnvKeys: readonly string[];
   buildExec(spec: AgentRunSpec): SessionExecSpec;
   createParser(): AgentEventParser;
 }

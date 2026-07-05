@@ -8,11 +8,17 @@ import { RotateCcw, TriangleAlert } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
+import { ProviderKeyErrorAction } from './provider-settings-action';
 
 interface ChatErrorDisplayProps {
   /** Raw error string stored on the message (the verbatim provider error). */
   error: string | undefined;
   onRetry?: () => void;
+  /**
+   * Org for the "Open provider settings" deep link on a missing-API-key error.
+   * Optional so surfaces without an org context (if any) still render the hint.
+   */
+  organizationId?: string;
 }
 
 /**
@@ -23,7 +29,11 @@ interface ChatErrorDisplayProps {
  * is otherwise mislabeled as a token-limit problem). Unknown ("generic") errors
  * open the disclosure by default since the raw text is the only signal.
  */
-export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
+export function ChatErrorDisplay({
+  error,
+  onRetry,
+  organizationId,
+}: ChatErrorDisplayProps) {
   const { t: tChat } = useT('chat');
   const sanitized = sanitizeChatError(error);
 
@@ -51,6 +61,9 @@ export function ChatErrorDisplay({ error, onRetry }: ChatErrorDisplayProps) {
             {sanitized.rawMessage}
           </p>
         </CollapsibleDetails>
+      )}
+      {sanitized.code === 'missing_api_key' && organizationId && (
+        <ProviderKeyErrorAction organizationId={organizationId} />
       )}
       {onRetry && (
         <Button

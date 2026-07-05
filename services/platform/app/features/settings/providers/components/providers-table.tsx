@@ -18,13 +18,11 @@ import { useT } from '@/lib/i18n/client';
 import { resolveProviderLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useDeleteProvider } from '../hooks/mutations';
-import { useListProviders, useReadProvider } from '../hooks/queries';
-import { ProviderConfigProvider } from '../hooks/use-provider-config-context';
+import { useListProviders } from '../hooks/queries';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
 import { dispatchOrgAccessError } from '../utils/error-dispatch';
 import { ProviderAddPanel } from './provider-add-panel';
 import { ProviderDetailDrawer } from './provider-detail-drawer';
-import { ProviderEditPanel } from './provider-edit-panel';
 import { TestConnectionSheet } from './test-connection-sheet';
 
 export interface ProviderRow {
@@ -59,7 +57,6 @@ export function ProvidersTable({
   const { providers: rawProviders, isLoading } =
     useListProviders(organizationId);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editProvider, setEditProvider] = useState<ProviderRow | null>(null);
   const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<ProviderRow | null>(
     null,
@@ -67,6 +64,10 @@ export function ProvidersTable({
   const [detailProvider, setDetailProvider] = useState(
     initialDetailProvider ?? null,
   );
+  // When the drawer is opened via the row menu's "Edit provider" action we
+  // deep-link straight into the General edit form so both entry points share
+  // the drawer — the row click opens it in read mode, the menu in edit mode.
+  const [detailEditGeneral, setDetailEditGeneral] = useState(false);
   const deleteProviderMutation = useDeleteProvider();
 
   const providers = useMemo(() => {
@@ -101,6 +102,12 @@ export function ProvidersTable({
   const { columns, stickyLayout, pageSize } = useProvidersTableConfig();
 
   const handleRowClick = useCallback((row: Row<ProviderRow>) => {
+    setDetailEditGeneral(false);
+    setDetailProvider(row.original.name);
+  }, []);
+
+  const handleEdit = useCallback((row: Row<ProviderRow>) => {
+    setDetailEditGeneral(true);
     setDetailProvider(row.original.name);
   }, []);
 
@@ -140,14 +147,14 @@ export function ProvidersTable({
         size: ACTIONS_COLUMN_SIZE,
         cell: ({ row }: { row: Row<ProviderRow> }) => (
           <ProviderRowActions
-            onEdit={() => setEditProvider(row.original)}
+            onEdit={() => handleEdit(row)}
             onTest={() => setTestProvider(row.original)}
             onDelete={() => setDeleteProvider(row.original)}
           />
         ),
       },
     ],
-    [columns],
+    [columns, handleEdit],
   );
 
   const list = useListPage<ProviderRow>({
@@ -183,14 +190,6 @@ export function ProvidersTable({
         organizationId={organizationId}
       />
 
-      {editProvider && (
-        <ProviderEditPanelLoader
-          providerName={editProvider.name}
-          organizationId={organizationId}
-          onClose={() => setEditProvider(null)}
-        />
-      )}
-
       {testProvider && (
         <TestConnectionSheet
           open
@@ -222,10 +221,14 @@ export function ProvidersTable({
         <ProviderDetailDrawer
           open
           onOpenChange={(open) => {
-            if (!open) setDetailProvider(null);
+            if (!open) {
+              setDetailProvider(null);
+              setDetailEditGeneral(false);
+            }
           }}
           organizationId={organizationId}
           providerName={detailProvider}
+          initialEditGeneral={detailEditGeneral}
         />
       )}
     </>
@@ -285,41 +288,5 @@ function ProviderRowActions({
       items={items}
       align="end"
     />
-  );
-}
-
-/**
- * Wrapper that fetches the provider's config + hash and hands them to
- * `ProviderConfigProvider`, so the row-level Edit action gets the same
- * optimistic-concurrency context as the detail drawer. Without it,
- * `useProviderConfig` inside `ProviderEditPanel` throws.
- */
-function ProviderEditPanelLoader({
-  providerName,
-  organizationId,
-  onClose,
-}: {
-  providerName: string;
-  organizationId: string;
-  onClose: () => void;
-}) {
-  const { data } = useReadProvider(organizationId, providerName);
-  if (!data?.ok) return null;
-  return (
-    <ProviderConfigProvider
-      organizationId={organizationId}
-      providerName={providerName}
-      initialConfig={data.config}
-      initialHash={data.hash}
-    >
-      <ProviderEditPanel
-        open
-        onOpenChange={(open) => {
-          if (!open) onClose();
-        }}
-        providerName={providerName}
-        organizationId={organizationId}
-      />
-    </ProviderConfigProvider>
   );
 }

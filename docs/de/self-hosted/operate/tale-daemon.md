@@ -15,6 +15,15 @@ tale daemon status   # Konfiguration, erkannte CLIs, Server-Erreichbarkeit
 
 `setup` erzeugt eine stabile Daemon-Identität und speichert die Konfiguration unter `~/.tale-daemon/config.json` (Modus 600). Nutze einen normalen Tale-API-Schlüssel (**Einstellungen → API → REST**); setze `TALE_DAEMON_API_KEY`, um den Schlüssel aus der Datei herauszuhalten. Verbundene Daemons erscheinen unter **Einstellungen → API → Runtimes** mit Live-Status.
 
+Am schnellsten geht es über den Button **Schlüssel erzeugen & Befehl kopieren** unter **Einstellungen → API → Runtimes**: Er erzeugt einen neuen API-Schlüssel und kopiert einen fertigen Befehl, in dem die URL dieses Workspaces und der Schlüssel bereits eingetragen sind. Jede Antwort, nach der `setup` fragt, lässt sich auch als Flag übergeben, sodass der Befehl unbeaufsichtigt läuft:
+
+```sh
+tale daemon setup --yes --url https://your-org.tale.dev --key <api-key>
+tale daemon start
+```
+
+Der Schlüssel steht in der Befehlszeile — behandle den Ausschnitt als Geheimnis und widerrufe den Schlüssel unter **Einstellungen → API → REST**, falls er nach außen gelangt.
+
 ## Datenschutz & Berechtigungen
 
 - Lokale Workspace-**Pfade verlassen die Maschine nie** — nur die von dir gewählten Workspace-Schlüssel werden dem Server gemeldet.

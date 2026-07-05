@@ -16,6 +16,8 @@ export interface AppConfigField {
   /** Render a multi-line textarea instead of a single-line input (free-text
    *  fields like per-repo notes). `type` stays `'string'`. */
   multiline?: boolean;
+  /** When true, an empty stored value still counts as configured. */
+  optional?: boolean;
   /** Optional one-input → many-keys derivation: the entered string is split by
    *  `pattern` into the `into` keys (e.g. `owner`/`repo`) on save. The field's
    *  own key keeps the raw input for read-back; the views bind the split keys. */

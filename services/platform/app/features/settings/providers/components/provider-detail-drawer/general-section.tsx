@@ -17,13 +17,15 @@ import { InfoRow } from './info-row';
 export function GeneralSection({
   providerName,
   organizationId,
+  initialEditOpen = false,
 }: {
   providerName: string;
   organizationId: string;
+  initialEditOpen?: boolean;
 }) {
   const { t } = useT('settings');
   const { config } = useProviderConfig();
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(initialEditOpen);
 
   return (
     <Stack gap={3}>

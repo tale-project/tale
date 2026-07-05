@@ -21,6 +21,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 
 import { ChatInput } from '../../chat/components/chat-input';
 import { MessageBubble } from '../../chat/components/message-bubble';
@@ -60,6 +61,7 @@ export function DiscussionThreadView({
   onBack,
 }: DiscussionThreadViewProps) {
   const { t } = useT('discussions');
+  const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const messageHistoryLabelId = useId();
   const [inputValue, setInputValue] = useState('');
@@ -115,7 +117,8 @@ export function DiscussionThreadView({
       if (!message.trim() || isSending || isLocked) return;
       setIsSending(true);
       try {
-        await postReply({ organizationId, threadId, message });
+        const result = await postReply({ organizationId, threadId, message });
+        toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
         setInputValue('');
       } catch (error) {
         console.error('Failed to post discussion reply', error);
@@ -124,7 +127,7 @@ export function DiscussionThreadView({
         setIsSending(false);
       }
     },
-    [isSending, isLocked, postReply, organizationId, threadId, t],
+    [isSending, isLocked, postReply, organizationId, threadId, t, tCommon],
   );
 
   const handleSetStatus = useCallback(

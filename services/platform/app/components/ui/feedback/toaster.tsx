@@ -49,8 +49,13 @@ export function Toaster() {
   const { toasts } = useToast();
   const position: ToastPosition = toasts[0]?.position ?? 'top-right';
 
+  // 5s auto-dismiss: long enough to read a title + description without rushing
+  // (WCAG 2.2.1 favours generous timing), while Radix pauses the timer on
+  // hover/focus and when the window loses focus so slower readers can still
+  // finish. The prior 3.5s was tight enough that even 5s test waits and human
+  // readers routinely missed save/copy/delete toasts.
   return (
-    <ToastPrimitives.Provider duration={3500}>
+    <ToastPrimitives.Provider duration={5000}>
       {toasts.map(
         ({
           id,

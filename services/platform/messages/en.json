@@ -6,6 +6,7 @@
     "addMenu": {
       "label": "Add app"
     },
+    "private": "Private",
     "upload": {
       "uploadApp": "Upload app",
       "dialogTitle": "Upload private app",
@@ -36,7 +37,15 @@
       "uploadFailed": "Failed to upload app",
       "replaceTitle": "Replace existing app?",
       "replaceDescription": "A private app named \"{slug}\" already exists. Uploading will overwrite its current contents.",
-      "replaceConfirm": "Replace"
+      "replaceConfirm": "Replace",
+      "delete": "Delete upload",
+      "deleteMenuLabel": "Delete {name}",
+      "deleteTitle": "Delete uploaded app",
+      "deleteDescription": "This removes the uploaded app and its files from this organization. Built-in apps can't be deleted.",
+      "deleteWarning": "The app bundle is permanently removed. Uninstall the app first if it's still installed.",
+      "deleteSuccess": "Upload deleted",
+      "deleteFailed": "Couldn't delete the upload",
+      "deleteInstalledBlocked": "Uninstall the app before deleting its upload."
     },
     "empty": {
       "title": "No apps yet",
@@ -103,7 +112,9 @@
       "connect": "Connect {integration} to use this app.",
       "connectButton": "Connect",
       "agentNeedsSetup": "{agent} needs setup to run.",
-      "setupButton": "Set up"
+      "agentNeedsKeys": "{agent} needs {keys} in Environment.",
+      "setupButton": "Set up",
+      "openAgentFallback": "Open agent"
     },
     "config": {
       "title": "Configuration",
@@ -570,11 +581,10 @@
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
       "ssoTitle": "Sign in with SSO",
-      "ssoDescription": "Enter your organization email address — it selects your organization's sign-in.",
+      "ssoDescription": "Choose your organization to continue with SSO.",
+      "ssoOrgListLabel": "Organizations",
       "ssoBackToLogin": "Back to log in",
-      "ssoPickOrganization": "Or choose your organization",
-      "ssoEmailRequired": "Enter your organization email address to continue with SSO.",
-      "ssoEmailNoMatch": "Single sign-on is not set up for this email domain. Check the address, or contact your administrator.",
+      "ssoNoOrganizations": "No organizations are available for sign-in. Contact your administrator.",
       "continueWithPasskey": "Sign in with a passkey",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use your password.",
       "wrongCredentials": "Wrong email or password",
@@ -753,7 +763,8 @@
         "noDataDescription": "Run a workflow to see breakdown",
         "completed": "Completed",
         "failed": "Failed",
-        "running": "Running"
+        "running": "Running",
+        "pending": "Pending"
       },
       "table": {
         "title": "Top workflows",
@@ -851,6 +862,10 @@
           "variablesLabel": "Workflow variables",
           "variablesDescription": "Input parameters passed to each scheduled run. Pre-filled from the workflow's input schema.",
           "variablesInvalid": "Variables must be valid JSON object",
+          "validation": {
+            "cronRequired": "Cron expression is required",
+            "cronInvalid": "Must be a valid 5-field cron expression"
+          },
           "presets": {
             "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
@@ -946,7 +961,8 @@
     "executions": {
       "title": "Executions",
       "entityLabel": "executions",
-      "searchPlaceholder": "Search by execution ID"
+      "searchPlaceholder": "Search by execution ID",
+      "viewOnCanvas": "View on canvas"
     },
     "createDialog": {
       "title": "Create automation",
@@ -1072,7 +1088,7 @@
       "createFailed": "Failed to create automation"
     },
     "validation": {
-      "duplicateName": "An automation with this name already exists",
+      "duplicateName": "An automation with a matching identifier already exists. Try a more distinct name.",
       "invalidName": "Name must contain at least one letter or number"
     },
     "deleteAutomation": {
@@ -1315,7 +1331,7 @@
       "noResults": "No agents found",
       "addAgent": "Catalog",
       "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
-      "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)"
+      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1399,7 +1415,10 @@
     "hideSearch": "Hide search",
     "showHistory": "Show chats",
     "hideHistory": "Hide chats",
-    "chatHistory": "Chats",
+    "unifiedSidebar": {
+      "title": "Menu",
+      "landmark": "Dashboard sidebar"
+    },
     "newProject": "New project",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
@@ -1424,6 +1443,8 @@
     "errorGenerating": "Something went wrong",
     "errorDetailsSummary": "Technical details",
     "retryGeneration": "Try again",
+    "openProviderSettings": "Open provider settings",
+    "askAdminProviderKey": "Ask an admin to add an API key in Settings → AI providers.",
     "showMore": "Show more",
     "showLess": "Show less",
     "editMessage": "Edit message",
@@ -1500,6 +1521,7 @@
     "duplicateFile": "Duplicate file",
     "duplicateFileDescription": "{filename} is already attached.",
     "removeAttachment": "Remove attachment",
+    "cancelUpload": "Cancel upload",
     "uploadingFile": "Uploading file",
     "indexing": "Indexing...",
     "indexingFailed": "Index failed",
@@ -1731,6 +1753,10 @@
       "linkHint": "Anyone in your organization with this link can view the chat.",
       "preview": "Preview",
       "shareFailed": "Failed to share chat",
+      "cannotShareArena": "Arena chats can't be shared.",
+      "cannotShareBranch": "Branch chats can't be shared.",
+      "cannotShareArchived": "Archived chats can't be shared.",
+      "notShareable": "This chat can't be shared.",
       "unshareFailed": "Failed to stop sharing",
       "sharedChat": "Shared chat",
       "forkChat": "Fork this chat",
@@ -1773,19 +1799,6 @@
       "bothBad": "Both bad",
       "verdictRecorded": "Verdict recorded",
       "verdictError": "Failed to record verdict"
-    },
-    "humanControl": {
-      "cardTitle": "The agent needs your help in the browser",
-      "takeControl": "Take control",
-      "takeControlHint": "Take control to complete this step in the live browser, then hand it back.",
-      "controllingHint": "You're driving the browser. Finish the step, then return control to resume the agent.",
-      "returnControl": "Done — return control",
-      "errorAlreadyResolved": "This handoff was already resolved.",
-      "errorTurnRunning": "The agent is already running again.",
-      "errorReturnFailed": "Couldn't return control. Please try again.",
-      "statusReturned": "Control returned — the agent resumed.",
-      "statusSuperseded": "Replaced by a newer request.",
-      "statusTimedOut": "No one took control — the agent moved on."
     },
     "canvas": {
       "title": "Canvas",
@@ -1971,6 +1984,7 @@
       "viewSource": "View source",
       "source": "Source",
       "copy": "Copy",
+      "copyField": "Copy {label}",
       "copied": "Copied!",
       "showInfo": "Show info",
       "clearAll": "Clear all",
@@ -2122,6 +2136,10 @@
       "noResults": "No results found",
       "tryAdjusting": "Try adjusting your search criteria",
       "placeholder": "Search..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention not recognized",
+      "unresolvedDescription": "{tokens} did not match anyone in your organization — no notification was sent."
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",
@@ -2499,6 +2517,7 @@
   },
   "documents": {
     "entityLabel": "documents",
+    "tableCaption": "Documents and folders",
     "searchPlaceholder": "Search documents",
     "deleteFolder": {
       "title": "Delete folder",
@@ -2596,12 +2615,10 @@
       "downloadComplete": "Download complete",
       "downloadFile": "Download file",
       "closePreview": "Close preview",
-      "fileDownloaded": "{fileName} has been downloaded",
       "downloadedSuccessfully": "{filename} has been downloaded",
       "downloadFailed": "Failed to download the file",
       "notAvailable": "Preview not available",
       "notAvailableDescription": "This file type cannot be previewed. Please download the file to view its contents.",
-      "downloading": "Downloading...",
       "download": "Download",
       "document": "Document",
       "title": "Document preview",
@@ -3412,6 +3429,7 @@
       "presetApplied": "Preset applied",
       "presetAppliedMappings": "Added {count} default category mappings (all in flag mode — tune them below).",
       "customJsonPathHint": "Open Endpoint below, fill in your HTTPS URL, request body template, and the JSONPath for categories. The switch won't persist until those fields are set.",
+      "enableNeedsEndpoint": "Set an endpoint first. Open Endpoint below and add the moderation API URL — enabling won't persist until it's configured.",
       "apiKey": "API key",
       "apiKeyDescription": "Pasted here, encrypted with AES-256-GCM on the server, and stored in governanceSecrets. The plaintext value replaces `{secretPlaceholder}` in your endpoint headers at request time. Use the full header value for Authorization-style headers (e.g. 'Bearer sk-…'); raw key for Azure's Ocp-Apim-Subscription-Key.",
       "apiKeyPlaceholder": "Bearer sk-... or raw API key",
@@ -4382,6 +4400,10 @@
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choose which events send you a notification."
+    },
     "environment": {
       "title": "Environment variables & secrets",
       "description": "Environment variables and secrets injected into your agent sandboxes."
@@ -4561,6 +4583,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choose which events appear in your bell inbox. Review requests always stay on — they are safety signals.",
+    "deliveryTitle": "Email delivery",
+    "deliveryDescription": "Actionable alerts (assignments, mentions, reviews, escalations) can also reach your inbox when this organization has a connected mailbox.",
+    "saveFailed": "Couldn't save your notification preferences.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Email me actionable alerts",
+        "description": "Send return-loop notifications to your account email via the organization's connected Gmail, Outlook, or SMTP mailbox."
+      },
+      "taskAssigned": {
+        "label": "Task assigned to me",
+        "description": "When a task is assigned to you."
+      },
+      "taskStatusChanged": {
+        "label": "Task status changed",
+        "description": "When a task you follow moves to a new status."
+      },
+      "taskCommented": {
+        "label": "New comment",
+        "description": "When someone comments on a task you follow."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "When someone @-mentions you."
+      },
+      "taskReview": {
+        "label": "Review requests",
+        "description": "When agent work is waiting for your review."
+      },
+      "escalation": {
+        "label": "Agent escalations",
+        "description": "When an agent escalates a task to a human."
+      },
+      "automationAlerts": {
+        "label": "Automation alerts",
+        "description": "Failures, budget warnings, and offline runtimes."
+      },
+      "digest": {
+        "label": "Digest",
+        "description": "Periodic summary of workforce activity."
+      },
+      "conversationMessages": {
+        "label": "Conversation messages",
+        "description": "When a customer message arrives in Conversations."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Unread",
@@ -4570,10 +4641,15 @@
     "emptyAllDescription": "Alerts and system updates will appear here when they arrive.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
+    "expand": "Expand",
     "filterUnread": "Unread",
     "filterAll": "All",
+    "sortLabel": "Sort",
+    "sortRecent": "Most recent",
+    "sortPriority": "Priority",
     "loadMore": "Load more",
     "loading": "Loading…",
+    "newNotifications": "New notifications",
     "accountLocked": "Account temporarily locked: {email}",
     "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}.",
     "auditIntegrityFailed": "Audit log integrity check failed",
@@ -4859,6 +4935,7 @@
         "name": "Product name",
         "description": "Description",
         "imageUrl": "Image URL",
+        "image": "Image",
         "price": "Price",
         "currency": "Currency",
         "stock": "Stock",
@@ -5393,6 +5470,9 @@
       "personalization": {
         "description": "How Tale adapts to you — memory, instructions, and voice."
       },
+      "notifications": {
+        "description": "Choose which events send you a notification."
+      },
       "environment": {
         "description": "Environment variables and secrets injected into your sandboxes."
       },
@@ -5606,6 +5686,7 @@
         "metrics": "Metrics"
       },
       "entityLabel": "agents",
+      "tableCaption": "Installed agents",
       "createAgent": "Create agent",
       "createMenu": {
         "blank": "Blank",
@@ -5720,6 +5801,8 @@
         "bindWorkflowsPlaceholder": "Bind workflows…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
+        "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",
+        "skillBindingsExternalNoCustomSkillsDescription": "No extra org skills to bind yet — workflow disciplines still load automatically. Create a custom skill in Skills settings if this agent needs one.",
         "skillBindingsCounter": "{count}/{max} bound",
         "skillBindingsToggleAria": "Bind {slug}",
         "skillBindingsAtCapReason": "Maximum {max} skills bound — unbind one to add another.",
@@ -5733,9 +5816,9 @@
         "sectionAccessDescription": "Control which teams can use this agent",
         "name": "Name",
         "namePlaceholder": "my-agent",
-        "nameHelp": "Unique id — lowercase letters, numbers, hyphens, underscores. Add a / to file it in a folder, e.g. marketing/seo-writer.",
-        "nameTooltip": "A unique, URL-safe id used in links and the API. Add a / to file it in a folder (e.g. marketing/seo-writer). You can't change it later.",
-        "namePatternError": "Each part must start with a letter or number and use only lowercase letters, numbers, hyphens, and underscores. Separate folders with /.",
+        "nameHelp": "Unique id — lowercase letters, numbers, hyphens, and underscores.",
+        "nameTooltip": "A unique, URL-safe id used in links and the API. You can't change it later.",
+        "namePatternError": "Must start with a letter or number and use only lowercase letters, numbers, hyphens, and underscores.",
         "displayName": "Display name",
         "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
         "displayNamePlaceholder": "My Agent",
@@ -5793,7 +5876,7 @@
           "internalLabel": "Internal agent",
           "internalDescription": "Runs on the platform with chat tools, knowledge, and workflows.",
           "externalLabel": "External agent",
-          "externalDescription": "Runs Claude Code or OpenCode in an isolated sandbox, using bound integrations.",
+          "externalDescription": "Runs Claude Code or Cursor in an isolated sandbox, using bound integrations.",
           "imageLabel": "Image generation",
           "imageDescription": "Routes the message straight to an image model.",
           "switchTitle": "Change agent type?",
@@ -5807,7 +5890,7 @@
           "label": "External runtime",
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
-          "openCode": "OpenCode"
+          "cursor": "Cursor"
         },
         "webTools": {
           "sectionTitle": "Web tools",
@@ -6216,8 +6299,6 @@
           "saml": "SAML 2.0"
         },
         "displayNameLabel": "Display name",
-        "domainLabel": "Email domain",
-        "domainHelp": "Optional — route users with this email domain to this connection.",
         "signInSection": "Sign-in",
         "issuerLabel": "Issuer URL",
         "authzEndpointLabel": "Authorization endpoint",
@@ -6291,10 +6372,6 @@
         },
         "redirectUrlLabel": "Redirect URL to register in Entra",
         "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
-        "domainWarning": {
-          "title": "No email domain set",
-          "description": "Several organizations on this deployment use SSO. Without an email domain, sign-in cannot route members to this connection by address — it is instead listed publicly by its display name on the SSO screen."
-        },
         "deploymentWarning": {
           "title": "Deployment not fully configured for SSO",
           "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",
@@ -6478,7 +6555,6 @@
         "save": "Save provider options",
         "saveSuccess": "Provider options saved",
         "saveError": "Failed to save provider options",
-        "invalidJson": "Provider options is not valid JSON",
         "exampleLabel": "Example",
         "discardConfirmTitle": "Discard unsaved changes?",
         "discardConfirmDescription": "Your provider-options edits will be lost.",
@@ -6490,8 +6566,7 @@
         "modelLevelTitle": "Advanced — Request body map",
         "modelLevelDescription": "Rename or remove fields on the final request Tale sends to this model — for endpoints whose wire format differs. Unlike Provider Options, this never reaches the provider as data; it rewrites the body in place.",
         "guideLabel": "How the request body map works",
-        "modelLevelHelp": "Two optional keys:\n\n- **rename** — map one field name to another (applied first). The classic case is an OpenAI/Azure reasoning deployment that wants `max_completion_tokens` instead of `max_tokens`:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — drop fields the endpoint rejects:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModels flagged with a reasoning capability already get the `max_tokens` → `max_completion_tokens` rename automatically. Empty input clears the override.",
-        "invalidJson": "Request body map is not valid JSON"
+        "modelLevelHelp": "Two optional keys:\n\n- **rename** — map one field name to another (applied first). The classic case is an OpenAI/Azure reasoning deployment that wants `max_completion_tokens` instead of `max_tokens`:\n\n```json\n{ \"rename\": { \"max_tokens\": \"max_completion_tokens\" } }\n```\n\n- **remove** — drop fields the endpoint rejects:\n\n```json\n{ \"remove\": [\"frequency_penalty\"] }\n```\n\nModels flagged with a reasoning capability already get the `max_tokens` → `max_completion_tokens` rename automatically. Empty input clears the override."
       },
       "versionConflictTitle": "Provider was modified",
       "versionConflictDescription": "Reload the page to see the latest version, then re-apply your changes.",
@@ -6757,10 +6832,10 @@
           "agent": "Agent"
         },
         "export": {
-          "csv": "Export CSV",
-          "json": "Export JSON",
-          "csvLabel": "Export audit logs as CSV",
-          "jsonLabel": "Export audit logs as JSON",
+          "label": "Export",
+          "triggerLabel": "Export audit logs",
+          "csv": "CSV",
+          "json": "JSON",
           "inProgress": "Exporting...",
           "complete": "Export complete",
           "error": "Export failed"
@@ -7189,8 +7264,14 @@
     "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
+    "conversationInboundMessage": "New conversation message",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
     "agentEscalation": "Agent escalation",
-    "agentEscalationBody": "{agent} escalated: {reason}"
+    "agentEscalationBody": "{agent} escalated: {reason}",
+    "email": {
+      "cta": "Open in Tale",
+      "footer": "You received this email because you have notifications enabled in Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7281,6 +7362,7 @@
     },
     "actions": {
       "create": "Create task",
+      "created": "Task created",
       "comment": "Comment",
       "reply": "Reply",
       "assign": "Assign",
@@ -7296,6 +7378,9 @@
     },
     "board": {
       "noTasks": "No tasks"
+    },
+    "filters": {
+      "waitingOnMe": "Waiting on me"
     },
     "detail": {
       "overview": "Overview",
@@ -7596,7 +7681,6 @@
       "revokeButton": "Remove",
       "revokeConfirmTitle": "Remove passkey?",
       "revokeConfirmDescription": "This removes \"{name}\" and it can no longer be used to sign in. If it was your only second factor, you may be prompted to set up two-factor authentication again.",
-      "empty": "No passkeys registered yet.",
       "unnamed": "Passkey",
       "registered": "Passkey registered",
       "revoked": "Passkey removed",
@@ -7904,7 +7988,6 @@
       "submit": "Generate",
       "error": "Failed to create app-password",
       "errorLimit": "You have reached the maximum number of app-passwords. Revoke an unused one first.",
-      "errorInvalidLabel": "Enter a label between 1 and 64 characters.",
       "errorRateLimited": "Too many app-passwords created recently. Please try again later.",
       "savedTitle": "Save this password — it will not be shown again.",
       "copy": "Copy",
@@ -8114,13 +8197,22 @@
     }
   },
   "runtimes": {
-    "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, OpenCode).",
+    "description": "Run task work on your own machines with the coding-agent CLIs you already use (Claude Code, Codex, Cursor).",
     "install": {
       "title": "Connect a daemon",
       "cliHint": "First, install the Tale CLI if you haven't already:",
       "description": "Install once per machine: setup asks for this workspace URL, an API key, and the git workspace agents may work in. Then bind an agent to a runtime in its config — its board tasks will run on your machine and report back for review.",
       "privacy": "Local workspace paths never leave your machine — only the workspace keys you choose are advertised here. full_auto permission requires opting in on both the server and the daemon.",
-      "createKey": "Create API key"
+      "createKey": "Create API key",
+      "generate": "Generate key & copy command",
+      "generateHint": "Mints a fresh API key and copies a ready-to-run setup command with this workspace's URL and the key already filled in.",
+      "generated": "Setup command generated",
+      "generateError": "Couldn't generate a key. Try again.",
+      "copied": "Setup command copied to clipboard",
+      "commandLabel": "Run this on the daemon machine",
+      "copyCommand": "Copy setup command",
+      "keyCaveat": "This command carries a new API key, shown only once. Anyone who has it can act as this daemon — keep it secret, and revoke it under Settings → API → REST if it leaks.",
+      "keyName": "Daemon setup"
     },
     "list": {
       "title": "Connected daemons",
@@ -8184,7 +8276,8 @@
     "accessDenied": "You need developer or admin access to manage sandboxes."
   },
   "envEditor": {
-    "none": "No environment variables yet.",
+    "confirmRemoveTitle": "Remove variable?",
+    "confirmRemoveDescription": "It will be removed when you save your changes. This can't be undone.",
     "keyPlaceholder": "NAME",
     "valuePlaceholder": "value",
     "secret": "Secret",

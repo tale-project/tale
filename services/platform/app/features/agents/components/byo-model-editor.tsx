@@ -129,3 +129,6 @@ export function ByoModelEditor({ models, onChange }: ByoModelEditorProps) {
     </div>
   );
 }
+
+/** Alias — also used for env-managed external agents (raw model ids, no catalog). */
+export const RuntimeModelEditor = ByoModelEditor;

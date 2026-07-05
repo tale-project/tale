@@ -1,19 +1,21 @@
 // Slug → adapter resolution. The single place entry points map a chosen agent
-// to its adapter; adding a new agent (Codex, Gemini CLI) is one line here plus
-// its adapter/parser module.
+// to its adapter; adding a new product runtime is one adapter module + a line
+// here (and extending PRODUCT_AGENT_SLUGS in events.ts).
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
-import type { AgentSlug } from './events';
-import { OpenCodeAdapter } from './opencode/adapter';
+import { CursorAdapter } from './cursor/adapter';
+import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
 import type { AgentAdapter } from './types';
 
-// Record keyed by AgentSlug — TS enforces every slug is mapped, so adding a
-// member to the union is a compile error until its adapter is registered here.
-const ADAPTERS: Record<AgentSlug, AgentAdapter> = {
+const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   'claude-code': new ClaudeCodeAdapter(),
-  opencode: new OpenCodeAdapter(),
+  cursor: new CursorAdapter(),
 };
 
-export function getAgentAdapter(slug: AgentSlug): AgentAdapter {
+export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {
   return ADAPTERS[slug];
+}
+
+export function listProductAgentSlugs(): readonly ProductAgentSlug[] {
+  return PRODUCT_AGENT_SLUGS;
 }

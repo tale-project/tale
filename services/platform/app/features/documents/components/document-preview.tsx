@@ -1,12 +1,10 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Center } from '@tale/ui/layout';
-import { Image, Download, Loader2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Image } from 'lucide-react';
+import { useMemo } from 'react';
 
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { mimeToExtension } from '@/lib/shared/file-types';
 import { getFileExtension } from '@/lib/utils/document-helpers';
@@ -89,8 +87,6 @@ export function DocumentPreview({
   fileName,
   mimeType,
 }: DocumentPreviewProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const { toast } = useToast();
   const { t } = useT('documents');
 
   // Prefer the authoritative mimeType (synced docs keep clean, extension-less
@@ -100,46 +96,6 @@ export function DocumentPreview({
     if (fromMime) return fromMime.toUpperCase();
     return getFileExtension(fileName || url);
   }, [fileName, url, mimeType]);
-
-  const handleDownload = async () => {
-    try {
-      setIsDownloading(true);
-
-      // Fetch the file as a blob to bypass CORS restrictions
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(t('preview.downloadFailed'));
-
-      const blob = await response.blob();
-
-      // Create a blob URL and trigger download with proper filename
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName || 'download';
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-
-      toast({
-        title: t('preview.downloadComplete'),
-        description: t('preview.fileDownloaded', {
-          fileName: fileName || 'File',
-        }),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Download error:', error);
-      toast({
-        title: t('preview.downloadFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   if (extension === 'PDF') {
     return <DocumentPreviewPDF url={url} />;
@@ -161,26 +117,15 @@ export function DocumentPreview({
     return <DocumentPreviewText url={url} fileName={fileName} />;
   }
 
+  // Unpreviewable types (e.g. PPT/PPTX) fall through here. Downloading is
+  // owned by the single Download button in the preview dialog header, so this
+  // state stays informational — no competing download button/toast.
   return (
     <Center className="flex-1 p-6">
       <EmptyState
         icon={Image}
         title={t('preview.notAvailable')}
         description={t('preview.notAvailableDescription')}
-        action={
-          <Button onClick={handleDownload} disabled={isDownloading}>
-            {isDownloading ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />{' '}
-                {t('preview.downloading')}
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 size-4" /> {t('preview.download')}
-              </>
-            )}
-          </Button>
-        }
       />
     </Center>
   );

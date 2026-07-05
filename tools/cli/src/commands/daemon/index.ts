@@ -5,81 +5,113 @@ import { Command } from 'commander';
 import { detectAdapters } from '../../daemon/adapters/index';
 import { TaleApi } from '../../daemon/api';
 import {
+  buildDaemonConfig,
   configPath,
+  isPermissionMode,
   loadConfig,
-  newDaemonId,
   saveConfig,
   type DaemonConfig,
+  type DaemonSetupInput,
 } from '../../daemon/config';
 import { runDaemon } from '../../daemon/daemon';
+import { usageError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { input, select } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
 
-async function setup(): Promise<void> {
+/**
+ * Raw `--flag` values from `commander`. When every prompt is supplied a value
+ * — as the Runtimes settings page does with its `--url`/`--key` command —
+ * setup runs unattended; missing values fall back to interactive prompts (or
+ * their defaults under `--yes`). `--ceiling` is validated up front so a typo
+ * fails loudly instead of silently downgrading to `safe`.
+ */
+interface SetupFlags {
+  url?: string;
+  key?: string;
+  name?: string;
+  workspace?: string;
+  workspaceKey?: string;
+  ceiling?: string;
+}
+
+function parseCeiling(
+  value: string | undefined,
+): DaemonConfig['permissionCeiling'] | undefined {
+  if (value === undefined) return undefined;
+  if (!isPermissionMode(value)) {
+    throw usageError(
+      `Invalid --ceiling "${value}" — use safe, auto_edits, or full_auto.`,
+    );
+  }
+  return value;
+}
+
+async function setup(flags: SetupFlags): Promise<void> {
   logger.info('Configuring the Tale daemon for this machine.');
 
   const baseUrl =
-    (
-      await input({
-        message: 'Tale base URL (e.g. https://your-org.tale.dev):',
-        default: 'http://localhost:3000',
-      })
-    )
-      .trim()
-      .replace(/\/$/, '') || 'http://localhost:3000';
-  const apiKey = (
-    await input({
+    flags.url ??
+    (await input({
+      message: 'Tale base URL (e.g. https://your-org.tale.dev):',
+      default: 'http://localhost:3000',
+    }));
+  const apiKey =
+    flags.key ??
+    (await input({
       message:
         'API key (Settings → API → create key; leave empty to use TALE_DAEMON_API_KEY):',
-    })
-  ).trim();
+      default: '',
+    }));
   const name =
-    (
-      await input({
-        message: 'Daemon name (shown in Tale, e.g. "macbook-yannick"):',
-      })
-    ).trim() || undefined;
-  const workspacePath = (
-    await input({
+    flags.name ??
+    (await input({
+      message: 'Daemon name (shown in Tale, e.g. "macbook-yannick"):',
+      default: '',
+    }));
+  const workspacePath =
+    flags.workspace ??
+    (await input({
       message: 'Workspace path (a git repo agents may work in):',
-    })
-  ).trim();
-  const workspaceKey = workspacePath
-    ? (
-        await input({
+      default: '',
+    }));
+  const workspaceKey =
+    flags.workspaceKey ??
+    (workspacePath.trim()
+      ? await input({
           message: 'Workspace key to advertise for it:',
-          default: path.basename(workspacePath),
+          default: path.basename(workspacePath.trim()),
         })
-      ).trim() || path.basename(workspacePath)
-    : '';
-  const permissionCeiling = await select<DaemonConfig['permissionCeiling']>({
-    message: 'Permission ceiling',
-    default: 'safe',
-    choices: [
-      { name: 'safe', value: 'safe', description: 'Read-only; no edits' },
-      {
-        name: 'auto_edits',
-        value: 'auto_edits',
-        description: 'Edits allowed without per-step approval',
-      },
-      {
-        name: 'full_auto',
-        value: 'full_auto',
-        description: 'Fully autonomous (highest trust)',
-      },
-    ],
-  });
+      : '');
+  const permissionCeiling =
+    parseCeiling(flags.ceiling) ??
+    (await select<DaemonConfig['permissionCeiling']>({
+      message: 'Permission ceiling',
+      default: 'safe',
+      choices: [
+        { name: 'safe', value: 'safe', description: 'Read-only; no edits' },
+        {
+          name: 'auto_edits',
+          value: 'auto_edits',
+          description: 'Edits allowed without per-step approval',
+        },
+        {
+          name: 'full_auto',
+          value: 'full_auto',
+          description: 'Fully autonomous (highest trust)',
+        },
+      ],
+    }));
 
-  const config: DaemonConfig = {
+  const setupInput: DaemonSetupInput = {
     baseUrl,
-    apiKey: apiKey || undefined,
-    daemonId: newDaemonId(),
+    apiKey,
     name,
-    workspaces: workspacePath ? { [workspaceKey]: workspacePath } : {},
-    defaultWorkspace: workspaceKey || undefined,
+    workspacePath,
+    workspaceKey,
     permissionCeiling,
   };
+  const config = buildDaemonConfig(setupInput);
   saveConfig(config);
   logger.success(`Saved ${configPath()} (key stored chmod 600).`);
 
@@ -139,6 +171,12 @@ permission is min(server-configured, local ceiling); 'safe' by default.
   tale daemon start    Register + claim loop (Ctrl-C drains the current run)
   tale daemon status   Show config, detected CLIs, server connectivity
 
+Any setup answer can be passed as a flag to skip its prompt; add --yes to run
+fully unattended (this is what the "generate & copy" button in Settings → API →
+Runtimes embeds):
+
+  tale daemon setup --yes --url https://your-org.tale.dev --key <api-key>
+
 Config lives at ~/.tale-daemon/config.json (chmod 600). Set TALE_DAEMON_API_KEY
 to keep the key out of the file; TALE_DAEMON_HOME overrides the config dir.
 `,
@@ -147,11 +185,23 @@ to keep the key out of the file; TALE_DAEMON_HOME overrides the config dir.
   daemon
     .command('setup')
     .description(
-      'Interactive: base URL, API key, workspace, permission ceiling',
+      'Configure base URL, API key, workspace, permission ceiling (flags skip prompts)',
+    )
+    .option('--url <url>', 'Tale base URL (skips the prompt)')
+    .option('--key <key>', 'API key for this daemon (skips the prompt)')
+    .option('--name <name>', 'Daemon name shown in Tale (skips the prompt)')
+    .option('--workspace <path>', 'Local git workspace path (skips the prompt)')
+    .option(
+      '--workspace-key <key>',
+      'Advertised workspace key (skips the prompt)',
+    )
+    .option(
+      '--ceiling <mode>',
+      'Permission ceiling: safe | auto_edits | full_auto (skips the prompt)',
     )
     .action(
-      action(async () => {
-        await setup();
+      action(async (flags: SetupFlags) => {
+        await setup(flags);
       }),
     );
 

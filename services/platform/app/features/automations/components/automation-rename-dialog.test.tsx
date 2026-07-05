@@ -104,7 +104,9 @@ describe('AutomationRenameDialog', () => {
     // A name collision is surfaced inline on the field…
     await waitFor(() => {
       expect(
-        screen.getByText('An automation with this name already exists'),
+        screen.getByText(
+          'An automation with a matching identifier already exists. Try a more distinct name.',
+        ),
       ).toBeInTheDocument();
     });
     // …with no destructive toast, and the dialog stays open.

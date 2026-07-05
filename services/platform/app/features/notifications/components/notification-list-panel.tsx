@@ -1,9 +1,17 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
-import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowDownUp,
+  CheckCheck,
+  ChevronLeft,
+  Inbox,
+  Loader2,
+  Maximize2,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   useMarkAllNotificationsRead as useMarkAllMyNotificationsRead,
@@ -15,6 +23,7 @@ import {
 } from '@/app/features/inbox/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { isActionableNotificationType } from '@/lib/shared/attention';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -27,6 +36,7 @@ import {
   useNotificationsUnreadCount,
   type NotificationsFilter,
 } from '../hooks/queries';
+import { mergeNotificationsByRecency } from '../lib/merge-notifications';
 import {
   orgNotificationTarget,
   personalNotificationTarget,
@@ -36,10 +46,17 @@ import { ReviewActions } from './review-actions';
 
 interface NotificationListPanelProps {
   organizationId: string;
-  /** Override the panel height. Defaults to `24rem`. */
+  /** Override the panel height. Defaults to `24rem` in compact layout. */
   className?: string;
+  /**
+   * `compact` — bell popover / dropdown embed. `expanded` — full-page view
+   * (same panel, more vertical space; title lives in the page header).
+   */
+  layout?: 'compact' | 'expanded';
   /** Called after a row navigates (deep link) so the host popover can close. */
   onNavigate?: () => void;
+  /** Compact layout only — opens the full-page notifications view. */
+  onExpand?: () => void;
   /**
    * When provided, renders a back-chevron button in the header (left of the
    * title) that invokes this callback. Used by the profile-dropdown integration
@@ -49,6 +66,11 @@ interface NotificationListPanelProps {
 }
 
 const LOAD_MORE_NUM_ITEMS = 25;
+
+// How long the arrival announcement stays in the live region before it is
+// cleared, so a subsequent arrival re-announces even when the text is
+// identical (screen readers skip a live region whose text did not change).
+const ARRIVAL_ANNOUNCE_HOLD_MS = 1000;
 
 // Strip a leading `notifications.` namespace prefix that was accidentally
 // stored in earlier rows — we already bind the namespace with
@@ -68,10 +90,15 @@ function stripNsPrefix(key: string): string {
 export function NotificationListPanel({
   organizationId,
   className,
+  layout = 'compact',
   onNavigate,
+  onExpand,
   onBack,
 }: NotificationListPanelProps) {
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
+  // `priority` floats actionable notifications (reviews, mentions, assignments,
+  // escalations) to the top; `recent` keeps the server's created-desc order.
+  const [sort, setSort] = useState<'recent' | 'priority'>('recent');
   const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
   const { t: tInbox } = useT('inbox');
@@ -162,6 +189,44 @@ export function NotificationListPanel({
     }
   }, [results, myNotifications, hiddenIds]);
 
+  // Announce newly-arrived notifications to screen readers. A polite, sr-only
+  // live region (below) speaks a short message whenever a notification with a
+  // timestamp newer than any seen so far appears — so SR users hear arrivals
+  // that land while the panel is open. The first render only sets the baseline,
+  // so the list already present when the panel opened is never announced.
+  const [arrivalAnnouncement, setArrivalAnnouncement] = useState('');
+  const latestSeenAtRef = useRef<number | null>(null);
+  const clearAnnounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let newest = 0;
+    for (const n of results) if (n.createdAt > newest) newest = n.createdAt;
+    for (const n of myNotifications)
+      if (n.createdAt > newest) newest = n.createdAt;
+
+    const seenAt = latestSeenAtRef.current;
+    if (seenAt === null) {
+      latestSeenAtRef.current = newest;
+      return;
+    }
+    if (newest > seenAt) {
+      latestSeenAtRef.current = newest;
+      setArrivalAnnouncement(t('newNotifications'));
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+      clearAnnounceRef.current = setTimeout(
+        () => setArrivalAnnouncement(''),
+        ARRIVAL_ANNOUNCE_HOLD_MS,
+      );
+    }
+  }, [results, myNotifications, t]);
+
+  useEffect(
+    () => () => {
+      if (clearAnnounceRef.current) clearTimeout(clearAnnounceRef.current);
+    },
+    [],
+  );
+
   // Filter client-side so toggling Unread/All never changes the query key (a
   // query reset would re-flash the skeleton). `hiddenIds` covers the optimistic
   // "just marked read" gap before the server-side `read` flag catches up.
@@ -179,67 +244,146 @@ export function NotificationListPanel({
       ),
     [myNotifications, hiddenIds, filter],
   );
+  // One chronologically sorted stream across BOTH sources (#2377); optional
+  // priority sort floats actionable personal rows to the top.
+  const mergedItems = useMemo(() => {
+    const merged = mergeNotificationsByRecency(myItems, items);
+    if (sort !== 'priority') return merged;
+    return [...merged].sort((a, b) => {
+      const aPriority =
+        a.kind === 'personal' && isActionableNotificationType(a.item.type)
+          ? 1
+          : 0;
+      const bPriority =
+        b.kind === 'personal' && isActionableNotificationType(b.item.type)
+          ? 1
+          : 0;
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      return b.item.createdAt - a.item.createdAt;
+    });
+  }, [myItems, items, sort]);
   const unreadCount = (unread ?? 0) + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
   // click advances every stream that still has more.
   const canLoadMore = status === 'CanLoadMore' || myStatus === 'CanLoadMore';
   const isLoadingMore = status === 'LoadingMore' || myStatus === 'LoadingMore';
+  const hasVisibleItems = items.length > 0 || myItems.length > 0;
+  // Pagination is server-side over the full stream (read + unread); the Unread
+  // tab filters client-side. When you're caught up (`unreadCount === 0`) the
+  // remaining pages are only read history — "Load more" would not surface
+  // anything visible and contradicts the empty state.
+  const showLoadMore =
+    (canLoadMore || isLoadingMore) &&
+    (hasVisibleItems || filter === 'all' || unreadCount > 0);
   const handleLoadMore = useCallback(() => {
     if (status === 'CanLoadMore') loadMore(LOAD_MORE_NUM_ITEMS);
     if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
   }, [status, loadMore, myStatus, loadMoreMy]);
 
+  const sortButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon={ArrowDownUp}
+      aria-pressed={sort === 'priority'}
+      aria-label={`${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`}
+      onClick={() =>
+        setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'))
+      }
+    >
+      {sort === 'priority' ? t('sortPriority') : t('sortRecent')}
+    </Button>
+  );
+
+  const showHeaderRow =
+    onBack != null || layout === 'compact' || unreadCount > 0;
+
   return (
-    <div className={cn('flex h-[24rem] flex-col', className)}>
-      <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                aria-label={tCommon('actions.back')}
-                className="hover:bg-muted -ml-1.5 flex size-6 items-center justify-center rounded-md transition-colors"
-              >
-                <ChevronLeft className="text-muted-foreground size-4" />
-              </button>
-            )}
-            <span className="text-sm font-semibold">{t('title')}</span>
-          </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              disabled={markAllRead.isPending || markAllMyRead.isPending}
-              onClick={handleMarkAllRead}
-            >
-              {t('markAllAsRead')}
-            </Button>
-          )}
-        </div>
-        <Tabs
-          value={filter}
-          onValueChange={(v) => {
-            if (v === 'unread' || v === 'all') handleFilterChange(v);
-          }}
-          // The host popover surface is itself `dark:bg-muted`, so the pill
-          // track's default `bg-muted` vanishes into the panel in dark mode.
-          // Recess the track to the base surface so the segmented control
-          // reads as a proper well with the active pill raised on top.
-          listClassName="dark:bg-bg-base"
-          items={[
-            {
-              value: 'unread',
-              label:
-                unreadCount > 0
-                  ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
-                  : t('filterUnread'),
-            },
-            { value: 'all', label: t('filterAll') },
-          ]}
-        />
+    <div
+      className={cn(
+        'flex flex-col',
+        layout === 'compact' ? 'h-[24rem]' : 'min-h-0 flex-1',
+        className,
+      )}
+    >
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {arrivalAnnouncement}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="border-border flex flex-col gap-2.5 border-b px-4 py-3">
+        {showHeaderRow && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label={tCommon('actions.back')}
+                  className="hover:bg-muted -ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                >
+                  <ChevronLeft className="text-muted-foreground size-4" />
+                </button>
+              )}
+              {layout === 'compact' && (
+                <span className="truncate text-sm font-semibold">
+                  {t('title')}
+                </span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {layout === 'compact' && onExpand && (
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  icon={Maximize2}
+                  aria-label={t('expand')}
+                  onClick={onExpand}
+                />
+              )}
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={markAllRead.isPending || markAllMyRead.isPending}
+                  onClick={handleMarkAllRead}
+                >
+                  {t('markAllAsRead')}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Tabs
+            value={filter}
+            onValueChange={(v) => {
+              if (v === 'unread' || v === 'all') handleFilterChange(v);
+            }}
+            // The host popover surface is itself `dark:bg-muted`, so the pill
+            // track's default `bg-muted` vanishes into the panel in dark mode.
+            // Recess the track to the base surface so the segmented control
+            // reads as a proper well with the active pill raised on top.
+            listClassName="dark:bg-bg-base"
+            items={[
+              {
+                value: 'unread',
+                label:
+                  unreadCount > 0
+                    ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                    : t('filterUnread'),
+              },
+              { value: 'all', label: t('filterAll') },
+            ]}
+          />
+          {sortButton}
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {items.length === 0 && myItems.length === 0 ? (
           status === 'LoadingFirstPage' || myStatus === 'LoadingFirstPage' ? (
             // Short-lived async load — a centered spinner + label reads
@@ -248,7 +392,7 @@ export function NotificationListPanel({
             <div
               role="status"
               aria-live="polite"
-              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+              className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center"
             >
               <Loader2
                 aria-hidden="true"
@@ -257,7 +401,7 @@ export function NotificationListPanel({
               <p className="text-xs">{t('loading')}</p>
             </div>
           ) : (
-            <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
               {filter === 'unread' ? (
                 <CheckCheck className="size-8" aria-hidden="true" />
               ) : (
@@ -277,54 +421,58 @@ export function NotificationListPanel({
           )
         ) : (
           <ul role="list" className="divide-border divide-y">
-            {myItems.map((n) => {
+            {mergedItems.map((entry) => {
+              if (entry.kind === 'personal') {
+                const n = entry.item;
+                const params = isRecord(n.params) ? n.params : undefined;
+                const approvalId =
+                  n.type === 'task_review_requested' &&
+                  typeof params?.approvalId === 'string'
+                    ? params.approvalId
+                    : undefined;
+                const target = personalNotificationTarget({
+                  organizationId,
+                  taskId: n.taskId,
+                  params: n.params,
+                });
+                return (
+                  <NotificationRow
+                    key={`personal:${n._id}`}
+                    title={tInbox(n.titleKey)}
+                    body={tInbox(
+                      n.bodyKey,
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
+                      params as Record<string, string | number>,
+                    )}
+                    createdAt={n.createdAt}
+                    read={n.read}
+                    target={target}
+                    onActivate={() => {
+                      if (!n.read) handleMarkMyRead(n._id);
+                      onNavigate?.();
+                    }}
+                    onMarkRead={() => handleMarkMyRead(n._id)}
+                    markReadPending={markMyRead.isPending}
+                  >
+                    {approvalId && (
+                      <ReviewActions
+                        notificationId={n._id}
+                        approvalId={approvalId}
+                      />
+                    )}
+                  </NotificationRow>
+                );
+              }
+              const n = entry.item;
               const params = isRecord(n.params) ? n.params : undefined;
-              const approvalId =
-                n.type === 'task_review_requested' &&
-                typeof params?.approvalId === 'string'
-                  ? params.approvalId
-                  : undefined;
-              const target = personalNotificationTarget({
+              const target = orgNotificationTarget(
                 organizationId,
-                taskId: n.taskId,
-                params: n.params,
-              });
-              return (
-                <NotificationRow
-                  key={n._id}
-                  title={tInbox(n.titleKey)}
-                  body={tInbox(
-                    n.bodyKey,
-                    // `params` is the i18n interpolation map (stored as
-                    // v.any()); narrow to what t() accepts.
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                    params as Record<string, string | number>,
-                  )}
-                  createdAt={n.createdAt}
-                  read={n.read}
-                  target={target}
-                  onActivate={() => {
-                    if (!n.read) handleMarkMyRead(n._id);
-                    if (target) onNavigate?.();
-                  }}
-                  onMarkRead={() => handleMarkMyRead(n._id)}
-                  markReadPending={markMyRead.isPending}
-                >
-                  {approvalId && (
-                    <ReviewActions
-                      notificationId={n._id}
-                      approvalId={approvalId}
-                    />
-                  )}
-                </NotificationRow>
+                n.link,
+                n.category,
               );
-            })}
-            {items.map((n) => {
-              const params = isRecord(n.params) ? n.params : undefined;
-              const target = orgNotificationTarget(organizationId, n.link);
               return (
                 <NotificationRow
-                  key={n._id}
+                  key={`org:${n._id}`}
                   title={t(stripNsPrefix(n.titleKey), params)}
                   body={t(stripNsPrefix(n.bodyKey), params)}
                   createdAt={n.createdAt}
@@ -332,7 +480,7 @@ export function NotificationListPanel({
                   target={target}
                   onActivate={() => {
                     if (!n.read) handleMarkRead(n._id);
-                    if (target) onNavigate?.();
+                    onNavigate?.();
                   }}
                   onMarkRead={() => handleMarkRead(n._id)}
                   markReadPending={markRead.isPending}
@@ -341,7 +489,7 @@ export function NotificationListPanel({
             })}
           </ul>
         )}
-        {(canLoadMore || isLoadingMore) && (
+        {showLoadMore && (
           <div className="border-border border-t p-2">
             <Button
               variant="ghost"

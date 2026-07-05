@@ -9,6 +9,8 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { getAgentCapabilities } from '@/lib/agent-adapters/credential-policy';
+import type { ProductAgentSlug } from '@/lib/agent-adapters/events';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -76,7 +78,11 @@ export function ExternalAgentModeToggle({
       : undefined;
   if (
     active?.primaryBehavior !== 'external-agent' ||
-    active.agentKind !== 'claude-code'
+    !getAgentCapabilities(
+      (active.agentKind === 'cursor'
+        ? 'cursor'
+        : 'claude-code') satisfies ProductAgentSlug,
+    ).supportsPlanMode
   ) {
     return null;
   }

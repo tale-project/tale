@@ -177,8 +177,8 @@ describe('isConfigured (login page probe)', () => {
   });
 });
 
-describe('listSelectable (manual picker for domain-less connections)', () => {
-  it('lists only enabled connections without an email domain', async () => {
+describe('listSelectable (multi-org login org picker)', () => {
+  it('lists every enabled connection regardless of email domain', async () => {
     const t = convexTest(schema, modules);
     await seedConnection(t, 'org_domainless', oidcConnection());
     await seedConnection(
@@ -196,6 +196,11 @@ describe('listSelectable (manual picker for domain-less connections)', () => {
     expect(list).toEqual([
       {
         organizationId: 'org_domainless',
+        displayName: 'Enterprise SSO',
+        protocol: 'oidc',
+      },
+      {
+        organizationId: 'org_routed',
         displayName: 'Enterprise SSO',
         protocol: 'oidc',
       },

@@ -1,19 +1,22 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { LinkButton } from '@tale/ui/button';
+import { Button, LinkButton } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Cpu, KeyRound } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
+import { useCreateApiKey } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { useSiteUrl } from '@/lib/site-url-context';
 import { cn } from '@/lib/utils/cn';
 
 interface RuntimeRow {
@@ -37,6 +40,17 @@ const CLI_INSTALL_COMMAND =
 const SETUP_COMMANDS = 'tale daemon setup\ntale daemon start';
 
 /**
+ * The one-liner the "generate & copy" button produces: a fresh key plus this
+ * workspace's canonical URL are baked into `tale daemon setup --yes`, so
+ * pasting it on the target machine registers a daemon without any further
+ * URL/key prompts. `start` follows to open the claim loop.
+ */
+function buildSetupCommand(siteUrl: string, apiKey: string): string {
+  const url = siteUrl.replace(/\/$/, '');
+  return `tale daemon setup --yes --url ${url} --key ${apiKey}\ntale daemon start`;
+}
+
+/**
  * Settings → API → Runtimes — built on the shared settings UI
  * (SettingsSection, CodeBlock, EmptyState) so it matches every other settings
  * page: a connect-a-daemon section plus the live fleet list (one row per
@@ -50,9 +64,35 @@ export function RuntimesSettings({
 }) {
   const { t } = useT('runtimes');
   const { formatRelative } = useFormatDate();
+  const { toast } = useToast();
+  const siteUrl = useSiteUrl();
+  const { mutateAsync: createKey, isPending: isGenerating } =
+    useCreateApiKey(organizationId);
+  // The minted key is shown exactly once, embedded in the setup command; it is
+  // never logged and clears when the user leaves or regenerates.
+  const [setupCommand, setSetupCommand] = useState<string | null>(null);
   const { data } = useConvexQuery(api.agent_runtimes.queries.listRuntimes, {
     organizationId,
   });
+
+  const handleGenerate = async () => {
+    try {
+      const { key } = await createKey({ name: t('install.keyName') });
+      const command = buildSetupCommand(siteUrl, key);
+      setSetupCommand(command);
+      try {
+        await navigator.clipboard.writeText(command);
+        toast({ title: t('install.copied'), variant: 'success' });
+      } catch {
+        // Clipboard can be blocked (permissions/insecure context) — the
+        // command is still shown below with its own copy button.
+        toast({ title: t('install.generated'), variant: 'success' });
+      }
+    } catch (error) {
+      console.error('runtimes: generate daemon key failed', error);
+      toast({ title: t('install.generateError'), variant: 'destructive' });
+    }
+  };
   const daemons = useMemo(() => {
     const rows: RuntimeRow[] = data ?? [];
     const byDaemon = new Map<string, RuntimeRow[]>();
@@ -89,7 +129,34 @@ export function RuntimesSettings({
         <Text as="p" variant="muted" className="text-sm">
           {t('install.description')}
         </Text>
-        <CodeBlock copyValue={SETUP_COMMANDS}>{SETUP_COMMANDS}</CodeBlock>
+        {setupCommand ? (
+          <>
+            <CodeBlock
+              label={t('install.commandLabel')}
+              copyValue={setupCommand}
+              copyLabel={t('install.copyCommand')}
+            >
+              {setupCommand}
+            </CodeBlock>
+            <Text as="p" variant="muted" className="text-xs">
+              {t('install.keyCaveat')}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Button
+              icon={KeyRound}
+              onClick={handleGenerate}
+              isLoading={isGenerating}
+            >
+              {t('install.generate')}
+            </Button>
+            <Text as="p" variant="muted" className="text-xs">
+              {t('install.generateHint')}
+            </Text>
+            <CodeBlock copyValue={SETUP_COMMANDS}>{SETUP_COMMANDS}</CodeBlock>
+          </>
+        )}
         <Text as="p" variant="muted" className="text-xs">
           {t('install.privacy')}
         </Text>

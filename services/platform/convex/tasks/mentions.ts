@@ -94,6 +94,30 @@ export function extractMentions(
 }
 
 /**
+ * `@tokens` present in the body that did not resolve against the directory.
+ * With `permissiveAgents`, unknown tokens become agent mentions instead — they
+ * are not treated as unresolved.
+ */
+export function findUnresolvedMentionTokens(
+  body: string,
+  directory: MentionDirectoryEntry[],
+  permissiveAgents = false,
+): string[] {
+  if (permissiveAgents) return [];
+  const handleToEntry = new Map<string, MentionDirectoryEntry>();
+  for (const entry of directory) {
+    for (const handle of entry.handles) {
+      handleToEntry.set(handle.toLowerCase(), entry);
+    }
+  }
+  const unresolved: string[] = [];
+  for (const token of parseMentionTokens(body)) {
+    if (!handleToEntry.has(token)) unresolved.push(token);
+  }
+  return unresolved;
+}
+
+/**
  * Mentions present in `next` but not `previous` — what a description EDIT
  * newly introduces. Editing prose around an existing `@mention` must not
  * re-notify (or re-trigger) the actors already mentioned before the edit.

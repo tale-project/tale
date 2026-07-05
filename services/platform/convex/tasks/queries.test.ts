@@ -54,6 +54,28 @@ async function seedProject(t: T, name: string): Promise<Id<'projects'>> {
   );
 }
 
+async function seedTask(
+  t: T,
+  projectId: Id<'projects'>,
+  assigneeId?: string,
+): Promise<Id<'tasks'>> {
+  return await t.run((ctx) =>
+    ctx.db.insert('tasks', {
+      organizationId: ORG,
+      projectId,
+      title: 'Task',
+      status: 'todo',
+      rank: 'a0',
+      number: 1,
+      createdBy: 'user_1',
+      createdByType: 'user',
+      createdAt: 0,
+      updatedAt: 0,
+      ...(assigneeId ? { assigneeType: 'user' as const, assigneeId } : {}),
+    }),
+  );
+}
+
 function upsertIssue(
   t: T,
   projectId: Id<'projects'>,
@@ -179,6 +201,31 @@ describe('listTasksByProject canEdit', () => {
       });
     // Reads succeed (no throw) but writes are gated off.
     expect(result.canEdit).toBe(false);
+  });
+});
+
+// Commenting is a READ-level action on the unified task_discussion surface: any
+// org member who can read a task may post, exactly like a project discussion
+// reply — so `getTask` reports canComment true even for a read-only member who
+// cannot edit the task. The modal gates the comment composer off this flag, not
+// canEdit, so a plain member (including a task's own assignee) keeps a composer
+// instead of a fully read-only modal (#2339).
+describe('getTask canComment', () => {
+  it('reports canComment true (canEdit false) for a read-only member', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'A'); // org-wide → readable by all
+    const taskId = await seedTask(t, projectId, 'user_member'); // member is the assignee
+    await seedMember(t, 'user_member', 'member');
+
+    const result = await t
+      .withIdentity({ subject: 'user_member' })
+      .query(api.tasks.queries.getTask, { taskId, organizationId: ORG });
+
+    expect(result).not.toBeNull();
+    // A read-only member cannot edit the task…
+    expect(result?.canEdit).toBe(false);
+    // …but CAN comment on it (the composer stays available).
+    expect(result?.canComment).toBe(true);
   });
 });
 

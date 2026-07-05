@@ -23,5 +23,8 @@
   "issueDesk.config.testCommand": "Testbefehl",
   "issueDesk.config.testCommandPlaceholder": "z. B. bun test — leer lassen für automatische Erkennung",
   "issueDesk.config.repoNotes": "Repository-Hinweise",
-  "issueDesk.config.repoNotesPlaceholder": "Repospezifische Hinweise für die Agents — Build-Eigenheiten, Konventionen, zu Vermeidendes"
+  "issueDesk.config.repoNotesPlaceholder": "Repospezifische Hinweise für die Agents — Build-Eigenheiten, Konventionen, zu Vermeidendes",
+  "issueDesk.readiness.openAgent": "Agent öffnen",
+  "issueDesk.readiness.mismatch.cursorKeyOnClaudeRuntime": "{agent} läuft als Claude Code, in Environment steht aber {configuredKeys} — für diesen Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle External runtime auf Cursor und speichere, oder trage das passende Secret ein.",
+  "issueDesk.readiness.mismatch.claudeKeyOnCursorRuntime": "{agent} läuft als Cursor, in Environment steht aber {configuredKeys} — für diesen Runtime brauchst du {expectedKeys}. Öffne den Agent → Allgemein, stelle External runtime auf Claude Code und speichere, oder träge das passende Secret ein."
 }

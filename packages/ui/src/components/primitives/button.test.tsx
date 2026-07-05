@@ -138,6 +138,27 @@ describe('Button', () => {
       expect(tooltip).toHaveTextContent('Rich tip');
     });
 
+    it('forwards an icon into the slotted child without a Fragment className warning (asChild + icon)', () => {
+      // Regression for #1976: `asChild` + `icon` used to wrap the icon and the
+      // child in a bare Fragment and hand it to Radix Slot, which forwarded
+      // `className` onto the Fragment ("Invalid prop `className` supplied to
+      // `React.Fragment`"). The icon must land inside the slotted anchor.
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(
+        <Button asChild icon={Mail} variant="secondary">
+          <a href="/test">Open</a>
+        </Button>,
+      );
+      const link = screen.getByRole('link', { name: 'Open' });
+      expect(link.querySelector('svg')).toBeInTheDocument();
+      expect(
+        errorSpy.mock.calls.some((args) =>
+          String(args[0]).includes('React.Fragment'),
+        ),
+      ).toBe(false);
+      errorSpy.mockRestore();
+    });
+
     it('renders no tooltip trigger when used as a Slot (asChild)', () => {
       // A Slot is typically another overlay's trigger; wrapping it in a tooltip
       // trigger would break that composition, so the tooltip is suppressed.

@@ -78,7 +78,6 @@ describe('planWorkflowSkillStaging', () => {
       repoOwned: NONE,
       stagedDirNames: new Set([
         'integration-github',
-        'browser-human-control',
         'visual-aspect-analyzer',
         'my-org-skill',
       ]),

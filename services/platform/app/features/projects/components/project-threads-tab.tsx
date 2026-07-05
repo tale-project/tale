@@ -164,7 +164,9 @@ export function ProjectThreadsTab({
                 >
                   {thread.title ?? thread.threadId}
                 </Link>
-                <Text variant="caption">{thread.userId.slice(0, 8)}</Text>
+                <Text variant="caption">
+                  {thread.authorName ?? thread.userId.slice(0, 8)}
+                </Text>
               </HStack>
             ))}
           </div>

@@ -46,12 +46,6 @@ export function useRejectPlan() {
   return useConvexMutation(api.approvals.plan_mutations.rejectPlan);
 }
 
-export function useReturnHumanControl() {
-  return useConvexMutation(
-    api.approvals.human_control_mutations.returnHumanControl,
-  );
-}
-
 export function useExecuteApprovedIntegrationOperation() {
   return useConvexAction(
     api.approvals.actions.executeApprovedIntegrationOperation,
@@ -188,11 +182,18 @@ export function useDeleteQueuedMessage() {
 }
 
 export function useShareThread() {
-  return useConvexMutation(api.threads.mutations.shareThread);
+  // The Share dialog maps the backend's ConvexError codes to actionable copy
+  // in its own onError toast (#2086), so suppress the default generic toast to
+  // avoid a duplicate, less-specific message firing alongside it.
+  return useConvexMutation(api.threads.mutations.shareThread, {
+    errorToast: false,
+  });
 }
 
 export function useUnshareThread() {
-  return useConvexMutation(api.threads.mutations.unshareThread);
+  return useConvexMutation(api.threads.mutations.unshareThread, {
+    errorToast: false,
+  });
 }
 
 export function useForkThread() {

@@ -48,6 +48,17 @@ The rules file names three rules each editor enforces while editing:
 
 When the editor proposes a change, ask it to cite the file in `.tale/reference/` it relied on. If it cannot, regenerate the mirror with `tale update` and try again.
 
+## Cursor: config plane vs runtime plane
+
+Cursor shows up in Tale in two separate places — do not conflate them.
+
+| Plane       | What it does                                                                                                              | Where it lives                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Config**  | Helps Cursor (or any AI editor) edit Tale project JSON on your machine                                                    | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — everything `tale init` writes               |
+| **Runtime** | Runs the Cursor Agent CLI headlessly inside an isolated sandbox when you chat with the built-in **Cursor** external agent | Chat picker → **Cursor**; agent JSON with `primaryBehavior: "external-agent"` and `agentKind: "cursor"` |
+
+The rules file and schema mirror on this page are the **config plane**: they steer a local editor while you change agents, workflows, and integrations. The **runtime plane** is a managed sandbox turn — `agent -p --output-format stream-json` with your `CURSOR_API_KEY`, normalized progress in chat, and session resume across follow-ups. Credentials, models, and billing for runtime turns are covered in [External agents](/platform/agents/external-agent), not here.
+
 ## Where this fits
 
 AI-assisted development is the editing path; deployment is the publishing path. Once a config passes editor validation, [`tale deploy`](/self-hosted/install/cli-install) reconciles it against the platform — the same schema check, this time as a gate. For features the editor cannot reach (the in-product builder, the visual workflow editor), the [Platform tab](/platform) is the canonical surface; the AI-editor path here is for projects that prefer config-as-code.

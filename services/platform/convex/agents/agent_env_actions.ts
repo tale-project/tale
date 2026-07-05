@@ -15,16 +15,16 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { decryptString } from '../lib/crypto/decrypt_string';
 import { encryptString } from '../lib/crypto/encrypt_string';
-import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { UnauthorizedError } from '../lib/rls/errors';
 import {
   maskSecretPreview,
   validateEnvKey,
   validateEnvValue,
 } from '../sandbox/user_env_constants';
 import { validateTokenSourceSlug } from '../token_sources/validators';
+import { checkAgentAccess } from './access';
 
 export const setAgentEnvVar = action({
   args: {
@@ -40,14 +40,28 @@ export const setAgentEnvVar = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new UnauthorizedError('Not authenticated');
-    // DB-backed RLS can't run in an action — assert org membership via a query
-    // (throws UnauthorizedError when the user is not a member of the org).
-    await ctx.runQuery(internal.sandbox.user_env.assertOrgMembershipInternal, {
-      userId: authUser.userId,
-      organizationId: args.organizationId,
-    });
+    const { userId, member } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+    const teamIds = await ctx.runQuery(
+      internal.agents.internal_queries.getUserTeamIdsInternal,
+      { userId },
+    );
+    const binding = await ctx.runQuery(
+      internal.agents.internal_queries.getBindingByAgent,
+      {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+      },
+    );
+    const { canEdit } = checkAgentAccess(binding, teamIds, member.role);
+    if (!canEdit) {
+      throw new ConvexError({
+        code: 'ORG_FORBIDDEN',
+        message: 'You do not have permission to edit this agent environment.',
+      });
+    }
 
     const keyCheck = validateEnvKey(args.key);
     if (!keyCheck.ok) {
@@ -72,7 +86,7 @@ export const setAgentEnvVar = action({
         key: args.key,
         isSecret: true,
         tokenSourceSlug: args.tokenSourceSlug,
-        updatedBy: authUser.userId,
+        updatedBy: userId,
       });
       return null;
     }
@@ -103,14 +117,18 @@ export const setAgentEnvVar = action({
       ...(args.isSecret ? {} : { value }),
       ...(encryptedValue !== undefined && { encryptedValue }),
       ...(maskedPreview !== undefined && { maskedPreview }),
-      updatedBy: authUser.userId,
+      updatedBy: userId,
     });
     return null;
   },
 });
 
 export const resolveAgentEnv = internalAction({
-  args: { organizationId: v.string(), agentSlug: v.string() },
+  args: {
+    organizationId: v.string(),
+    agentSlug: v.string(),
+    sessionId: v.optional(v.string()),
+  },
   returns: v.object({
     env: v.record(v.string(), v.string()),
     /** Token-source bindings (env var name → source slug). NOT resolved here —
@@ -134,6 +152,7 @@ export const resolveAgentEnv = internalAction({
 
     const env: Record<string, string> = {};
     const tokenBindings: { key: string; tokenSourceSlug: string }[] = [];
+    let secretCount = 0;
     for (const row of rows) {
       if (row.tokenSourceSlug !== undefined) {
         tokenBindings.push({
@@ -146,6 +165,7 @@ export const resolveAgentEnv = internalAction({
         if (row.encryptedValue === undefined) continue;
         try {
           env[row.key] = await decryptString(row.encryptedValue);
+          secretCount += 1;
         } catch (err) {
           // A corrupt secret / rotated key must not abort the run — skip it.
           console.warn(
@@ -156,6 +176,17 @@ export const resolveAgentEnv = internalAction({
       } else {
         env[row.key] = row.value ?? '';
       }
+    }
+    if (secretCount > 0 && args.sessionId !== undefined) {
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.recordCredentialAccess,
+        {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          slug: 'agent-env',
+          kind: 'bootstrap',
+        },
+      );
     }
     return { env, tokenBindings };
   },

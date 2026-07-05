@@ -19,6 +19,8 @@
 
 import { v } from 'convex/values';
 
+import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { isE2ECronSuppressed } from '../../lib/e2e_cron_guard';
@@ -43,6 +45,12 @@ const RECOVERY_STALE_MS = Number(
   process.env.EXTERNAL_AGENT_RECOVERY_STALE_MS ?? String(90 * 1000),
 );
 const RECOVERY_SWEEP_LIMIT = 50;
+
+/** Coerce a stored session-op agentKind (may include legacy values) to a product slug. */
+function storedProductAgentKind(kind: string | undefined): ProductAgentSlug {
+  if (kind === 'cursor') return 'cursor';
+  return 'claude-code';
+}
 
 export const recoverStuckExternalAgentTurns = internalAction({
   args: {},
@@ -72,12 +80,16 @@ export const recoverStuckExternalAgentTurns = internalAction({
           continue;
         }
 
+        const agentKind = getAgentAdapter(
+          storedProductAgentKind(op.agentKind),
+        ).slug;
+
         const turn: TurnContext = {
           organizationId: op.organizationId,
           sessionId: op.sessionId,
           execId: op.execId,
           threadId: op.threadId ?? '',
-          agentKind: op.agentKind === 'opencode' ? 'opencode' : 'claude-code',
+          agentKind,
           modelRef: op.modelRef ?? '',
           assistantMessageId: op.assistantMessageId ?? '',
           mintedKeyId: op.mintedKeyId ?? null,
@@ -144,8 +156,7 @@ export const recoverStuckExternalAgentTurns = internalAction({
               sessionId: op.sessionId,
               execId: op.execId,
               threadId: op.threadId ?? '',
-              agentKind:
-                op.agentKind === 'opencode' ? 'opencode' : 'claude-code',
+              agentKind,
               modelRef: op.modelRef ?? '',
               assistantMessageId: op.assistantMessageId,
               mintedKeyId: op.mintedKeyId ?? null,

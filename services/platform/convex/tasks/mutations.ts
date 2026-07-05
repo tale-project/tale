@@ -26,6 +26,7 @@ import {
   notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
+import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
@@ -946,15 +947,28 @@ export const addTaskComment = mutation({
   // Returns the new message id AND the (lazily-created) discussion thread id —
   // the frontend bootstrap needs the threadId to resolve a previously-threadless
   // task without a read-after-write ordering hole.
-  returns: v.object({ messageId: v.string(), threadId: v.string() }),
+  returns: v.object({
+    messageId: v.string(),
+    threadId: v.string(),
+    unresolvedMentionTokens: v.array(v.string()),
+  }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ messageId: string; threadId: string }> => {
+  ): Promise<{
+    messageId: string;
+    threadId: string;
+    unresolvedMentionTokens: string[];
+  }> => {
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
-    assertTaskWritable(project, auth);
+    // Commenting is a READ-level action on the unified task_discussion surface:
+    // any org member who can read the task may post, exactly like a project
+    // discussion reply (`discussions/postReply` + `can_access_thread`'s
+    // discussion branch). Gating this on write access (editor+) locked plain
+    // members — including a task's own assignee — out of collaboration (#2339).
+    assertTaskReadable(project, auth);
 
     const body = args.body.trim();
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
@@ -1050,7 +1064,13 @@ export const addTaskComment = mutation({
       });
     }
 
-    return { messageId, threadId };
+    const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
+      organizationId: task.organizationId,
+      body,
+      projectId: task.projectId,
+    });
+
+    return { messageId, threadId, unresolvedMentionTokens };
   },
 });
 
@@ -1088,7 +1108,9 @@ export const editTaskDiscussionMessage = mutation({
       ctx,
       args.messageId,
     );
-    assertTaskWritable(project, auth);
+    // Read-level like posting (see addTaskComment) — a member who could post
+    // must be able to fix their own comment. Delete already uses this gate.
+    assertTaskReadable(project, auth);
     // Only the human author can edit their own comment.
     if (meta.authorType !== 'user' || meta.authorId !== auth.userId) {
       throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });

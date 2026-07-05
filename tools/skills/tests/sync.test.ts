@@ -158,7 +158,12 @@ describe('runSync — workflow-skill projection', () => {
   test('check fails (pointing at builtin-configs) when the projected copy is hand-edited', async () => {
     scaffoldWorkflow();
     await run(false);
-    writeFileSync(projected('fix-bug/SKILL.md'), 'tampered');
+    // Tamper the body while keeping valid frontmatter, so this exercises the
+    // projection-drift path (not the frontmatter guard, which runs earlier).
+    writeFileSync(
+      projected('fix-bug/SKILL.md'),
+      '---\nname: fix-bug\ndescription: x\n---\n\n# Tampered\n',
+    );
     const checked = await run(true);
     expect(checked.code).toBe(1);
     expect(checked.out).toContain('workflow-skill projection is out of date');

@@ -71,6 +71,7 @@ export function SharedChatView({
     attachments,
     uploadingFiles,
     uploadFiles,
+    cancelUpload,
     removeAttachment,
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
@@ -278,6 +279,7 @@ export function SharedChatView({
                 attachments={attachments}
                 uploadingFiles={uploadingFiles}
                 uploadFiles={uploadFiles}
+                cancelUpload={cancelUpload}
                 removeAttachment={removeAttachment}
                 clearAttachments={clearAttachments}
               />

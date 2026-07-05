@@ -4,6 +4,8 @@
  * the SOURCE tree (`skills/<name>/`), before anything is synced.
  */
 
+import { parseDocument } from 'yaml';
+
 import { isShipExcluded } from './exclude';
 import type { FileTree } from './tree';
 
@@ -121,6 +123,109 @@ export function checkCommandRefs(
     if (seen.has(ref)) continue;
     seen.add(ref);
     if (!source.has(ref)) violations.push({ skill, referenced: ref });
+  }
+  return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Guard 3 — strict-YAML frontmatter.
+//
+// Every harness that reads a SKILL.md parses its `---` frontmatter block as
+// YAML. Our sync is byte-level and never parsed it, so frontmatter that trips a
+// strict parser (the classic being a `: ` colon-space inside an unquoted
+// `description:`, read as a nested mapping) shipped green here and choked
+// downstream. This guard parses the block with a strict YAML parser and asserts
+// the shape every harness relies on: a mapping with a non-empty string `name`
+// (matching the skill directory) and a non-empty string `description`. Extra
+// keys (e.g. `license` on the document skills) are allowed.
+// ---------------------------------------------------------------------------
+
+/** A SKILL.md whose YAML frontmatter is malformed or fails the required shape. */
+export interface FrontmatterViolation {
+  readonly skill: string;
+  /** Human-readable problem, with a `SKILL.md` line reference where available. */
+  readonly problem: string;
+}
+
+/**
+ * Capture the YAML body of a leading `---` fenced frontmatter block. Anchored at
+ * the start of the file; the closing fence is a `---` line (end-of-file allowed
+ * for a block with no trailing body).
+ */
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+
+/**
+ * Validate a skill's SKILL.md frontmatter as strict YAML. Reports: a missing
+ * frontmatter block, a YAML parse error (with line), a non-mapping document, a
+ * missing/empty/non-string `name` or one that does not match the skill
+ * directory, and a missing/empty/non-string `description`. A missing SKILL.md is
+ * left to {@link checkCommandRefs} to report.
+ */
+export function checkFrontmatter(
+  skill: string,
+  expectedName: string,
+  source: FileTree,
+): FrontmatterViolation[] {
+  const skillMd = source.get('SKILL.md');
+  if (skillMd === undefined) return [];
+  const text = new TextDecoder().decode(skillMd);
+  const match = FRONTMATTER_RE.exec(text);
+  if (match === null) {
+    return [
+      {
+        skill,
+        problem:
+          'SKILL.md has no YAML frontmatter block (it must open with a `---` fenced block)',
+      },
+    ];
+  }
+
+  const doc = parseDocument(match[1]);
+  if (doc.errors.length > 0) {
+    const err = doc.errors[0];
+    // The frontmatter body starts on file line 2 (line 1 is the opening `---`).
+    const line = (err.linePos?.[0]?.line ?? 1) + 1;
+    const detail = err.message.replace(/ at line \d+, column \d+:[\s\S]*$/, '');
+    return [
+      {
+        skill,
+        problem: `SKILL.md frontmatter is not valid YAML at line ${line}: ${detail}`,
+      },
+    ];
+  }
+
+  const value = doc.toJS() as unknown;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return [
+      {
+        skill,
+        problem:
+          'SKILL.md frontmatter must be a YAML mapping of `key: value` pairs',
+      },
+    ];
+  }
+
+  const record = value as Record<string, unknown>;
+  const violations: FrontmatterViolation[] = [];
+  const { name, description } = record;
+  if (typeof name !== 'string' || name.trim() === '') {
+    violations.push({
+      skill,
+      problem:
+        'SKILL.md frontmatter `name` is missing or not a non-empty string',
+    });
+  } else if (name !== expectedName) {
+    violations.push({
+      skill,
+      problem: `SKILL.md frontmatter \`name\` is "${name}" but must match the skill directory "${expectedName}"`,
+    });
+  }
+  if (typeof description !== 'string' || description.trim() === '') {
+    violations.push({
+      skill,
+      problem:
+        'SKILL.md frontmatter `description` is missing or not a non-empty string',
+    });
   }
   return violations;
 }

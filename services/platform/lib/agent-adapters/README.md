@@ -1,18 +1,20 @@
 # @tale/agent-adapters
 
-Entry-agnostic adapters for driving coding agents (Claude Code, OpenCode) inside
+Entry-agnostic adapters for driving coding agents (Claude Code, Cursor) inside
 a Tale sandbox session.
 
 Two responsibilities, both pure logic with **zero runtime dependencies**:
 
 1. **`buildExec(spec)`** — turn a normalized `AgentRunSpec` (prompt, model,
    resume handle, gateway endpoint+token, workdir) into a `SessionExecSpec`
-   (`argv` + `env` + `cwd` + `stdin`) the sandbox session-exec API runs. The
-   prompt rides stdin, never argv.
+   (`argv` + `env` + `cwd` + `stdin`) the sandbox session-exec API runs. Most
+   agents ride the prompt on stdin; argv-positional runtimes (Cursor) are the
+   documented exception.
 2. **`createParser()`** — incrementally consume the agent's native stdout
-   stream (Claude Code `--output-format stream-json`, OpenCode `run --format
-json`) and emit one normalized `AgentEvent` union, so any entry point
-   (chat, workflow node, …) renders progress + meters usage the same way.
+   stream (Claude Code `--output-format stream-json`, Cursor `agent -p
+--output-format stream-json`) and emit one normalized `AgentEvent` union, so
+   any entry point (chat, workflow node, …) renders progress + meters usage the
+   same way.
 
 The sandbox service stays 100% agent-agnostic — it only ships the generic
 session exec primitive. This package is the seam every entry point reuses.

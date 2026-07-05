@@ -15,6 +15,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { listByOrganizationHandler } from '../members/queries';
 import { isHiddenFromChatHistory } from '../threads/list_threads';
 import {
   checkProjectAccess,
@@ -353,6 +354,10 @@ export const listProjectThreads = query({
       _id: v.id('threadMetadata'),
       threadId: v.string(),
       userId: v.string(),
+      /** Author's display name, resolved from org membership. Absent when the
+       *  author is no longer a member or the org exceeds the listing cap;
+       *  callers fall back to a userId fragment. */
+      authorName: v.optional(v.string()),
       title: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.optional(v.number()),
@@ -373,6 +378,25 @@ export const listProjectThreads = query({
     if (!project) return [];
     const auth = await getAuthContext(ctx, project.organizationId);
     if (!hasProjectAccess(project, auth.teamIds, auth.role)) return [];
+
+    // Resolve author display names once so shared threads show a name rather
+    // than a raw userId fragment. Degrades gracefully to the fallback when a
+    // member can't be resolved.
+    const authorNames = new Map<string, string>();
+    try {
+      const members = await listByOrganizationHandler(ctx, {
+        organizationId: project.organizationId,
+      });
+      for (const member of members) {
+        if (member.displayName)
+          authorNames.set(member.userId, member.displayName);
+      }
+    } catch (error) {
+      console.warn(
+        '[projects] listProjectThreads: author name resolution failed',
+        error,
+      );
+    }
 
     const threadsQuery = ctx.db
       .query('threadMetadata')
@@ -413,6 +437,7 @@ export const listProjectThreads = query({
         _id: t._id,
         threadId: t.threadId,
         userId: t.userId,
+        authorName: authorNames.get(t.userId),
         title: t.title,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,

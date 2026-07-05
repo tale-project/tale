@@ -201,6 +201,16 @@ tale daemon start    # register + claim loop (Ctrl-C drains the current run)
 tale daemon status   # config, detected CLIs, server connectivity
 ```
 
+Any `setup` answer can be passed as a flag (`--url`, `--key`, `--name`,
+`--workspace`, `--workspace-key`, `--ceiling`) to skip its prompt; add `--yes`
+to run unattended. This is what the **Generate key & copy command** button under
+**Settings → API → Runtimes** produces:
+
+```bash
+tale daemon setup --yes --url https://your-org.tale.dev --key <api-key>
+tale daemon start
+```
+
 Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 `TALE_DAEMON_API_KEY` to keep the key out of the file.
 

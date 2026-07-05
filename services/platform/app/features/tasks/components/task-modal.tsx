@@ -272,7 +272,7 @@ function CreateTaskBody({
         assigneeId: assignee?.id,
         dueDate,
       });
-      toast({ title: t('actions.create'), variant: 'success' });
+      toast({ title: t('actions.created'), variant: 'success' });
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
@@ -404,7 +404,7 @@ function EditTaskBody({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { task, canEdit } = useTask(taskId);
+  const { task, canEdit, canComment } = useTask(taskId);
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const projectKey = project?.key ?? null;
@@ -674,7 +674,7 @@ function EditTaskBody({
             taskId={task._id}
             organizationId={task.organizationId}
             projectId={task.projectId}
-            canEdit={canEdit}
+            canComment={canComment}
             currentUserId={me?.userId}
             isAdmin={me?.isAdmin}
           />

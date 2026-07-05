@@ -26,6 +26,7 @@ FROM python:3.12-slim-bookworm
 # which 1.0.x rejects (exit 1 before the agent even starts).
 ARG CLAUDE_CODE_VERSION=2.1.173
 ARG OPENCODE_VERSION=1.17.3
+ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -254,6 +255,22 @@ RUN set -eux; \
     chmod +x /opt/agents/bin/opencode; \
     rm /tmp/opencode.tar.gz; \
     /opt/agents/bin/opencode --version
+
+# Cursor Agent CLI (pinned). downloads.cursor.com serves versioned tarballs;
+# do NOT use cursor.com/install (non-reproducible + auto-update).
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) CUR_ARCH=x64 ;; \
+      arm64) CUR_ARCH=arm64 ;; \
+      *) echo "unsupported arch ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/cursor-agent.tar.gz \
+      "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${CUR_ARCH}/agent-cli-package.tar.gz"; \
+    mkdir -p /opt/agents/bin /opt/agents/cursor; \
+    tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/cursor --strip-components=1; \
+    ln -sf ../cursor/cursor-agent /opt/agents/bin/agent; \
+    rm /tmp/cursor-agent.tar.gz; \
+    /opt/agents/bin/agent --version
 
 # gh CLI (pinned) for the issue→PR workflow (GITHUB_TOKEN env auth).
 RUN set -eux; \

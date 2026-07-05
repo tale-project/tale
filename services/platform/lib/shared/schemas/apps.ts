@@ -62,6 +62,9 @@ export const appManifestSchema = z
                *  for free-text fields like per-repo notes. `type` stays
                *  `'string'`; this is purely a presentation hint. */
               multiline: z.boolean().optional(),
+              /** When true, an empty value still counts as configured — the
+               *  field is a hint/override, not a readiness gate. */
+              optional: z.boolean().optional(),
               /**
                * Optional derivation: collect this field as ONE input, then split
                * the entered string into several stored keys via a regex. `pattern`
