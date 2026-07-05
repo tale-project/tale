@@ -132,10 +132,6 @@ export interface CredentialPolicy {
 export const CLAUDE_COMPAT_SKILLS_STAGE_DIR =
   '.runtime/home/.claude/skills' as const;
 
-/** agentskills.io standard user-level dir — native for Cursor / OpenCode / Pi. */
-export const AGENTS_STANDARD_SKILLS_STAGE_DIR =
-  '.runtime/home/.agents/skills' as const;
-
 export interface AgentCapabilities {
   processLifecycle: 'stdin-hold' | 'one-shot';
   promptTransport: 'stdin-ndjson' | 'argv-positional';

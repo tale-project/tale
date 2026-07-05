@@ -9,6 +9,7 @@
 
 import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import { isRecord } from '../../../lib/utils/type-utils';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
@@ -37,14 +38,7 @@ interface SkillReadOk {
 }
 
 function isSkillReadOk(value: unknown): value is SkillReadOk {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    'ok' in value &&
-    value.ok === true &&
-    'body' in value &&
-    typeof (value as SkillReadOk).body === 'string'
-  );
+  return isRecord(value) && value.ok === true && typeof value.body === 'string';
 }
 
 /** Slugs in skillBindings that are custom (not workflow auto-staged). */
