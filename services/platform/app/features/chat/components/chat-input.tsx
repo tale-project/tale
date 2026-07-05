@@ -294,6 +294,7 @@ export function ChatInput({
   const textareaId = useId();
   const textareaLabelId = `${textareaId}-label`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dictationRef = useRef<DictationButtonHandle>(null);
   // True while a CJK IME (Chinese / Japanese / Korean) is composing a
@@ -334,6 +335,7 @@ export function ChatInput({
     durationSec?: number;
   } | null>(null);
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
+  const sendBlockedVisible = sendBlocked && sendBlockedReason && !isLoading;
 
   const isUploading = uploadingFiles.length > 0;
   // Queue mode keeps the textarea usable during a running turn; non-text
@@ -990,9 +992,11 @@ export function ChatInput({
 
           <QuotedReferenceChip />
 
-          <div className="relative">
+          <div className="relative" ref={mentionAnchorRef}>
             {mentionPickerOpen && mentionTrigger && actorMentionsEnabled && (
               <ActorMentionPopover
+                anchorRef={mentionAnchorRef}
+                open={mentionPickerOpen}
                 results={actorMentionResults}
                 highlightedIndex={clampedMentionHighlight}
                 onHighlight={setMentionHighlight}
@@ -1003,6 +1007,8 @@ export function ChatInput({
             )}
             {mentionPickerOpen && mentionTrigger && !actorMentionsEnabled && (
               <KbMentionPopover
+                anchorRef={mentionAnchorRef}
+                open={mentionPickerOpen}
                 results={kbMentionResults}
                 status={kbMentionState.status}
                 query={mentionTrigger.query}
@@ -1017,7 +1023,7 @@ export function ChatInput({
                 disabled button's tooltip and the Enter toast are invisible
                 until interacted with, which read as "the app is dead" on a
                 fresh install with no provider key. */}
-            {sendBlocked && sendBlockedReason && !isLoading && (
+            {sendBlockedVisible && value.length > 0 && (
               <p role="status" className="text-destructive px-1 pb-1 text-xs">
                 {sendBlockedReason}
               </p>
@@ -1073,23 +1079,33 @@ export function ChatInput({
               chips={pasteChips}
               onOpen={openPastedImage}
             />
-            {value.length === 0 && !inputDisabled && (
-              <Text
-                as="div"
-                variant="muted"
-                className="pointer-events-none absolute top-0 right-0 left-0 flex items-center gap-1"
-              >
-                <span className="truncate">{defaultPlaceholder}</span>
-                {/* The Enter-to-send hint is irrelevant on touch keyboards
+            {value.length === 0 &&
+              !inputDisabled &&
+              (sendBlockedVisible ? (
+                <Text
+                  as="div"
+                  className="text-destructive pointer-events-none absolute top-0 right-0 left-0 truncate px-0 text-xs"
+                  role="status"
+                >
+                  {sendBlockedReason}
+                </Text>
+              ) : (
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="pointer-events-none absolute top-0 right-0 left-0 flex items-center gap-1"
+                >
+                  <span className="truncate">{defaultPlaceholder}</span>
+                  {/* The Enter-to-send hint is irrelevant on touch keyboards
                     and only crowds the placeholder on narrow viewports. */}
-                <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
-                  <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
-                    <EnterKeyIcon className="size-3" />
+                  <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
+                    <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
+                      <EnterKeyIcon className="size-3" />
+                    </span>
+                    {tDialogs('toSend')}
                   </span>
-                  {tDialogs('toSend')}
-                </span>
-              </Text>
-            )}
+                </Text>
+              ))}
             {disabled && (
               <Text
                 as="div"

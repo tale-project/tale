@@ -1,3 +1,4 @@
+import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -19,6 +20,14 @@ vi.mock('@/lib/i18n/client', () => ({
       return translations[key] ?? key;
     },
   }),
+}));
+
+vi.mock('./anchored-mention-popover-shell', () => ({
+  AnchoredMentionPopoverShell: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <div data-testid="mention-popover-shell">{children}</div>,
 }));
 
 function mention(n: number): KbMention {
@@ -43,6 +52,8 @@ function resultOf(n: number) {
 }
 
 const baseProps = {
+  anchorRef: createRef<HTMLDivElement>(),
+  open: true,
   query: 'doc',
   highlightedIndex: 0,
   onHighlight: vi.fn(),

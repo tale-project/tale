@@ -129,7 +129,7 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
    */
   isOwn?: boolean;
   /**
-   * Name-only author label rendered above the bubble for NON-own entries
+   * Name-only author label rendered inside the bubble for NON-own entries
    * (teammates + agents). Omitted for own entries — right-alignment already
    * signals "you". Undefined in 1:1 chat → no label, no layout change.
    */
@@ -727,7 +727,7 @@ function MessageBubbleComponent({
     <div
       className={cn(
         'group/message',
-        alignRight ? 'flex flex-col items-end' : 'flex justify-start',
+        alignRight ? 'flex flex-col items-end' : 'flex flex-col items-start',
         className,
       )}
       {...restProps}
@@ -735,21 +735,28 @@ function MessageBubbleComponent({
       data-message-role={message.role}
       data-message-id={message.id}
     >
-      {showAuthorLabel ? (
-        <div className="text-muted-foreground mb-0.5 px-1 text-xs font-medium">
-          {authorName}
-        </div>
-      ) : null}
       <div
         className={cn(
           'rounded-2xl',
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
             : 'text-foreground bg-background w-full min-w-0',
-          (displayContent || message.isAborted || isBlocked || showTimeline) &&
+          (displayContent ||
+            message.isAborted ||
+            isBlocked ||
+            showTimeline ||
+            showAuthorLabel) &&
             'px-4 py-3',
         )}
       >
+        {showAuthorLabel ? (
+          <div
+            className="text-muted-foreground mb-1 text-xs font-medium"
+            data-testid="message-author-label"
+          >
+            {authorName}
+          </div>
+        ) : null}
         {/* Thought-process HEADER strip (state-based label + timing summary):
             above the answer, persists collapsed in history. Hidden for
             guardrails-blocked messages. The reasoning/tool DETAIL renders
