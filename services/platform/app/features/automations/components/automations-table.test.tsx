@@ -70,6 +70,10 @@ vi.mock('../hooks/file-mutations', () => ({
   useInstallWorkflow: () => ({ mutateAsync: vi.fn() }),
 }));
 
+vi.mock('@/app/components/catalog/use-catalog-sync', () => ({
+  useCatalogSync: () => ({ menuItem: null, dialog: null }),
+}));
+
 describe('AutomationsTable', () => {
   beforeEach(() => {
     mockWorkflows.current = [
