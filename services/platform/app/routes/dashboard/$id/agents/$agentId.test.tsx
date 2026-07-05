@@ -18,6 +18,8 @@ vi.mock('@tanstack/react-router', () => ({
     useParams: mockUseParams,
     ...config,
   }),
+  createRootRouteWithContext: () => () => (config: Record<string, unknown>) =>
+    config,
   Link: ({ children }: { children: React.ReactNode }) => (
     <a href="/">{children}</a>
   ),
