@@ -5,8 +5,13 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
+import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
-import { deactivateSyncConfigsForPath } from './deactivate_sync_configs';
+import {
+  deactivateSyncConfigById,
+  deactivateSyncConfigsForPath,
+  stopSyncForDeletedDocument,
+} from './deactivate_sync_configs';
 
 // convex-test module map keyed relative to the convex/ root (this file is at
 // convex/onedrive/, mirror sandbox/admission.test.ts).
@@ -82,6 +87,104 @@ describe('deactivateSyncConfigsForPath', () => {
     expect(deactivated).toBe(0);
     await t.run(async (ctx) => {
       expect((await ctx.db.get(otherOrgId))?.status).toBe('active');
+    });
+  });
+});
+
+describe('deactivateSyncConfigById', () => {
+  it('flips an active config to inactive', async () => {
+    const t = convexTest(schema, modules);
+    const id = await seedConfig(t, 'Document 1.docx');
+
+    const flipped = await t.run((ctx) =>
+      deactivateSyncConfigById(ctx, ORG, id),
+    );
+
+    expect(flipped).toBe(true);
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(id))?.status).toBe('inactive');
+    });
+  });
+
+  it('is a no-op for another org, an already-inactive, or a missing config', async () => {
+    const t = convexTest(schema, modules);
+    const otherOrg = await seedConfig(t, 'X', 'active', 'org_other');
+    const already = await seedConfig(t, 'Y', 'inactive');
+
+    await t.run(async (ctx) => {
+      expect(await deactivateSyncConfigById(ctx, ORG, otherOrg)).toBe(false);
+      expect(await deactivateSyncConfigById(ctx, ORG, already)).toBe(false);
+      expect(
+        await deactivateSyncConfigById(
+          ctx,
+          ORG,
+          'nonexistent' as Id<'onedriveSyncConfigs'>,
+        ),
+      ).toBe(false);
+      expect((await ctx.db.get(otherOrg))?.status).toBe('active');
+    });
+  });
+});
+
+describe('stopSyncForDeletedDocument', () => {
+  it('stops the sync for a directly-selected single-file doc', async () => {
+    const t = convexTest(schema, modules);
+    const configId = await seedConfig(t, 'Document 1.docx');
+
+    const stopped = await t.run((ctx) =>
+      stopSyncForDeletedDocument(ctx, {
+        organizationId: ORG,
+        metadata: {
+          sourceMode: 'auto',
+          isDirectlySelected: true,
+          syncConfigId: configId,
+        },
+      }),
+    );
+
+    expect(stopped).toBe(true);
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(configId))?.status).toBe('inactive');
+    });
+  });
+
+  it('leaves a folder-member doc alone (would stop the whole folder)', async () => {
+    const t = convexTest(schema, modules);
+    const configId = await seedConfig(t, 'Meetings');
+
+    const stopped = await t.run((ctx) =>
+      stopSyncForDeletedDocument(ctx, {
+        organizationId: ORG,
+        metadata: {
+          sourceMode: 'auto',
+          isDirectlySelected: false,
+          syncConfigId: configId,
+        },
+      }),
+    );
+
+    expect(stopped).toBe(false);
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(configId))?.status).toBe('active');
+    });
+  });
+
+  it('ignores manual uploads and docs with no sync config', async () => {
+    const t = convexTest(schema, modules);
+
+    await t.run(async (ctx) => {
+      expect(
+        await stopSyncForDeletedDocument(ctx, {
+          organizationId: ORG,
+          metadata: { sourceMode: 'manual', isDirectlySelected: true },
+        }),
+      ).toBe(false);
+      expect(
+        await stopSyncForDeletedDocument(ctx, {
+          organizationId: ORG,
+          metadata: {},
+        }),
+      ).toBe(false);
     });
   });
 });
