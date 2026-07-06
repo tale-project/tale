@@ -1,8 +1,11 @@
 {
   "issueDesk.assign": "Sichten & zuweisen",
+  "issueDesk.advise": "Fix planen",
+  "issueDesk.planReview": "Plan prüfen",
   "issueDesk.implement": "Fehler beheben",
   "issueDesk.verify": "Tests ausführen",
   "issueDesk.review": "Prüfen & beheben",
+  "issueDesk.dream": "Erkenntnisse festhalten",
   "issueDesk.judge": "Merge-Entscheidung",
   "issueDesk.markInReview": "Als in Prüfung markieren",
   "issueDesk.verdictReady": "Bereit zum Mergen",

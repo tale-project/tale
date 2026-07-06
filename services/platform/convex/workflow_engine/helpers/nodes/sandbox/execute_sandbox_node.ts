@@ -9,8 +9,8 @@ import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import { toId } from '../../../../lib/type_cast_helpers';
 import {
-  sessionIdForWorkflowRun,
-  workflowRunOwnerId,
+  resolveWorkflowSandboxSession,
+  type SandboxSessionScope,
 } from '../../../../sandbox/session_naming';
 import type { StepExecutionResult } from '../../../types';
 import type { SandboxNodeConfig } from '../../../types/nodes';
@@ -32,6 +32,13 @@ export async function executeSandboxNode(
   const inputs = config.inputs ?? [];
   const isAgent = 'agent' in run;
   const runMode = isAgent ? ('agent' as const) : ('script' as const);
+  const sessionScope: SandboxSessionScope =
+    isAgent && run.sessionScope === 'workflow' ? 'workflow' : 'step';
+  const { sessionId, ownerId, checkpointKey } = resolveWorkflowSandboxSession({
+    executionId,
+    stepSlug,
+    sessionScope,
+  });
 
   // Park-on-capacity admission gate. A workflow sandbox step that hits its org's
   // concurrency cap WAITS (FIFO) instead of failing: poll the queue, and if not
@@ -46,7 +53,7 @@ export async function executeSandboxNode(
   // gate the poll on fresh entry only — for an agent step that means no live
   // checkpoint; a script step never resumes.
   const ownerType = 'workflow_run';
-  const ownerId = workflowRunOwnerId(executionId, stepSlug);
+  const ownerIdForAdmission = ownerId;
   const canPark = organizationId !== '' && executionId !== '';
   // Sticky "Queued" marker on the execution row so the run view shows a steady
   // badge across the rapid poll segments (the per-segment in-progress blip would
@@ -58,14 +65,22 @@ export async function executeSandboxNode(
       { executionId: toId<'wfExecutions'>(executionId), stepSlug, waiting },
     );
   let resuming = false;
+  let sharedSessionLive = false;
   if (canPark && isAgent) {
     const checkpoint = await ctx.runQuery(
       internal.sandbox.session_queries.loadAgentCheckpoint,
-      { sessionId: sessionIdForWorkflowRun(executionId, stepSlug) },
+      { sessionId: checkpointKey },
     );
     resuming = checkpoint !== null;
+    if (sessionScope === 'workflow' && !resuming) {
+      const live = await ctx.runQuery(
+        internal.sandbox.session_queries.getSessionBySessionId,
+        { sessionId },
+      );
+      sharedSessionLive = live !== null;
+    }
   }
-  if (canPark && !resuming) {
+  if (canPark && !resuming && !sharedSessionLive) {
     const poll = await ctx.runMutation(
       internal.sandbox.admission.pollAdmission,
       {
@@ -75,7 +90,7 @@ export async function executeSandboxNode(
         organizationId,
         kind: 'session',
         ownerType,
-        ownerId,
+        ownerId: ownerIdForAdmission,
         source: 'workflow',
         wfExecutionId: executionId,
         stepSlug,
@@ -181,6 +196,9 @@ export async function executeSandboxNode(
             inputs,
             ...(config.output !== undefined && { output: config.output }),
             ...(hasStepEnv && { env: stepEnv }),
+            ...(run.sessionScope !== undefined && {
+              sessionScope: run.sessionScope,
+            }),
           },
         )
       : await ctx.runAction(

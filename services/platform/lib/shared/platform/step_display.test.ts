@@ -7,9 +7,9 @@ import {
 } from './step_display';
 
 describe('stepTreatment', () => {
-  // The issue-desk workflow's 9 steps — the ground-truth truth table both the
-  // friendly map and the run view must agree on. Spine = implement → review →
-  // judge (gate) → to_review; everything else collapses out.
+  // The issue-desk v2 workflow's representative steps — the ground-truth table
+  // both the friendly map and the run view must agree on. Spine = advise →
+  // execute → grade → judge (gate) → to_review; plumbing collapses out.
   const deskSteps: {
     slug: string;
     stepType: string;
@@ -20,24 +20,36 @@ describe('stepTreatment', () => {
     { slug: 'start', stepType: 'start', hasUi: false, expected: 'hidden' },
     { slug: 'ack', stepType: 'action', hasUi: false, expected: 'hidden' },
     {
-      slug: 'implement',
+      slug: 'advise',
       stepType: 'sandbox',
       hasUi: true,
       expected: 'normal',
     },
     {
-      slug: 'impl_check',
+      slug: 'advise_gate',
       stepType: 'condition',
       hasUi: false,
       expected: 'hidden',
     },
     {
-      slug: 'impl_failed',
+      slug: 'execute',
+      stepType: 'sandbox',
+      hasUi: true,
+      expected: 'normal',
+    },
+    {
+      slug: 'execute_check',
+      stepType: 'condition',
+      hasUi: false,
+      expected: 'hidden',
+    },
+    {
+      slug: 'execute_failed',
       stepType: 'action',
       hasUi: false,
       expected: 'hidden',
     },
-    { slug: 'review', stepType: 'sandbox', hasUi: true, expected: 'normal' },
+    { slug: 'grade', stepType: 'sandbox', hasUi: true, expected: 'normal' },
     {
       slug: 'judge',
       stepType: 'llm',
@@ -46,7 +58,7 @@ describe('stepTreatment', () => {
       expected: 'gate',
     },
     {
-      slug: 'judge_decision',
+      slug: 'judge_pass',
       stepType: 'condition',
       hasUi: false,
       expected: 'hidden',
@@ -73,7 +85,7 @@ describe('stepTreatment', () => {
     });
   }
 
-  it('hides only 6 of the 9 desk steps, leaving the 4-step spine', () => {
+  it('hides plumbing steps, leaving the five-step operator spine', () => {
     const visible = deskSteps.filter((s) =>
       isStepVisible({
         stepType: s.stepType,
@@ -82,8 +94,9 @@ describe('stepTreatment', () => {
       }),
     );
     expect(visible.map((s) => s.slug)).toEqual([
-      'implement',
-      'review',
+      'advise',
+      'execute',
+      'grade',
       'judge',
       'to_review',
     ]);

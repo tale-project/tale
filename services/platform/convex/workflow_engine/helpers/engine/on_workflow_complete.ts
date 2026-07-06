@@ -114,6 +114,16 @@ export async function handleWorkflowComplete(
     if (kind !== 'canceled') {
       await postCompletionMessageToThread(ctx, exec, kind, result);
     }
+    // Tear down any workflow-scoped sandbox sessions held by this execution.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.workflow_sandbox_exec
+        .cancelSandboxForExecution,
+      {
+        organizationId: exec.organizationId,
+        executionId: String(exec._id),
+      },
+    );
   }
 }
 

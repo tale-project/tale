@@ -1,8 +1,11 @@
 {
   "issueDesk.assign": "Triage & assign",
+  "issueDesk.advise": "Plan the fix",
+  "issueDesk.planReview": "Review the plan",
   "issueDesk.implement": "Implement the fix",
   "issueDesk.verify": "Run tests",
   "issueDesk.review": "Review & fix",
+  "issueDesk.dream": "Capture lessons",
   "issueDesk.judge": "Merge decision",
   "issueDesk.markInReview": "Mark as In review",
   "issueDesk.verdictReady": "Ready to merge",

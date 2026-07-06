@@ -16,7 +16,11 @@ import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../members/types';
-import { sessionIdForWorkflowRun, userOwnerId } from './session_naming';
+import {
+  sessionIdForWorkflowExecution,
+  sessionIdForWorkflowRun,
+  userOwnerId,
+} from './session_naming';
 import { isLiveSessionStatus } from './sessions_schema';
 
 /**
@@ -146,31 +150,32 @@ export const getWorkflowSandboxOp = query({
       throw err;
     }
 
-    const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
-    // Newest AGENT-RUN op for this deterministic workflow-run session. Filter on
-    // `kind` (the by_sessionId index doesn't carry it) so a later non-agent-run
-    // op never shadows the agent-run row; order desc picks the newest if the
-    // deterministic id was reused across incarnations.
-    const op = await ctx.db
-      .query('sandboxSessionOps')
-      .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-      .order('desc')
-      .filter((q) => q.eq(q.field('kind'), 'agent-run'))
-      .first();
-    if (!op) return null;
-    // Defense in depth: the deterministic id is org-derived, but verify the row's
-    // org matches the gated org before exposing its progress text.
-    if (op.organizationId !== args.organizationId) return null;
-    return {
-      status: op.status,
-      ...(op.progressText !== undefined && { progressText: op.progressText }),
-      ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
-      ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
-      ...(op.agentIdleAt !== undefined && { agentIdleAt: op.agentIdleAt }),
-      ...(op.continuationCount !== undefined && {
-        continuationCount: op.continuationCount,
-      }),
-    };
+    const stepSessionId = sessionIdForWorkflowRun(
+      args.executionId,
+      args.stepSlug,
+    );
+    const workflowSessionId = sessionIdForWorkflowExecution(args.executionId);
+    for (const sessionId of [workflowSessionId, stepSessionId]) {
+      const op = await ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+        .order('desc')
+        .filter((q) => q.eq(q.field('kind'), 'agent-run'))
+        .first();
+      if (!op) continue;
+      if (op.organizationId !== args.organizationId) continue;
+      return {
+        status: op.status,
+        ...(op.progressText !== undefined && { progressText: op.progressText }),
+        ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
+        ...(op.agentIdleAt !== undefined && { agentIdleAt: op.agentIdleAt }),
+        ...(op.continuationCount !== undefined && {
+          continuationCount: op.continuationCount,
+        }),
+      };
+    }
+    return null;
   },
 });
 

@@ -72,6 +72,17 @@ describe('validateSandboxStep', () => {
     expect(res.valid).toBe(true);
   });
 
+  it('accepts workflow-scoped agent runs', () => {
+    const res = validateSandboxStep({
+      run: {
+        agent: 'advisor',
+        sessionScope: 'workflow',
+        budget: { maxCents: 100, maxWallClockMs: 600000 },
+      },
+    });
+    expect(res.valid).toBe(true);
+  });
+
   it('rejects an unknown input source key', () => {
     const res = validateSandboxStep({
       run: { script: 's', language: 'python' },

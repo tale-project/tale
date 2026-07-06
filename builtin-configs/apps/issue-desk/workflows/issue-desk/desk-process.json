@@ -1,7 +1,7 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk. A GitHub issue (bound to a task by the github sync) is picked up by an implementer Claude Code agent that runs in the platform's own ephemeral sandbox on the user's BYO Claude credentials: it derives the repo from the issue, clones it, and FIRST checks whether an open pull request already resolves the issue — if one does it pushes its update onto that existing PR's branch (closing any redundant duplicate PRs) rather than opening a competing one; otherwise it fixes the issue on a tale/<id> branch, runs the project's OWN tests to verify, commits, pushes (broker-injected github token + the in-image credential helper, private repos included), opens (or updates) a pull request, and then WAITS for the project's CI to pass green — fixing failures and re-pushing until it does. The sandbox step is durable: it transparently spans the 10-minute Convex action ceiling (segmenting into re-attached windows), so a 40-50 minute CI run never times the step out, with no separate CI-poll step. A separate reviewer agent fetches the PR, re-runs the tests, confirms CI is green, and posts review comments. A toolless LLM judge then reads the review and decides merge-readiness: if yes, the task parks at In review and the workflow ends (the human merges); if no, it loops back to the implementer with the review feedback, repeating until the judge approves — or until the rework loop hits a configurable cap (config.variables.maxReworkLoops, default 3, adjustable per deployment), after which the desk stops looping, comments on the task, and parks it at In review for a human to take over. Cross-step state lives on the git branch + PR (plus a reworkCount loop counter in workflow variables); the per-step sandboxes are stateless. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
-  "version": "1.5.0",
+  "description": "A config-driven, repo-agnostic issue-resolution desk with a shared workflow sandbox across four phases — Advise (planner explores the issue and writes .desk/plan.md), Execute (implementer follows the plan, dedupes open PRs, fixes the issue, and waits for CI), Grade (reviewer grades the change, posts PR comments, and writes structured .desk/grade.json), and Dream (retrospective appends durable lessons to .desk/memory.md for the next round). A GitHub issue (bound to a task by the github sync) flows through pre-checks, then the advisor plans; if the plan flags NEEDS_HUMAN the desk pauses in the same run for a human plan review (TaskReviewCard) before Execute — the shared sandbox stays alive. Otherwise the implementer resolves the issue on a persistent workspace — adopting an existing open PR when one already resolves the issue, or opening tale/<id> — then the reviewer grades and a toolless LLM judge reads the structured grade to decide merge-readiness. Wrong approach sends the run back to Advise for a replan; approval parks at In review; otherwise Dream captures lessons and the desk loops Execute → Grade → Judge until the judge approves or the configurable rework cap (config.variables.maxReworkLoops, default 3) is reached. Cross-phase state lives in .desk/ on the shared workspace plus reworkCount in workflow variables. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
+  "version": "2.0.0",
   "metadata": {
     "pack": "issue-desk",
     "autoInstall": false
@@ -11,9 +11,13 @@
     "variables": {
       "workflowId": "issue_desk_process",
       "maxReworkLoops": 3,
+      "planReviewRound": 0,
+      "planReviewFeedback": "",
       "roles": {
+        "advisor": "issue-desk/desk-advisor",
         "implementer": "issue-desk/desk-implementer",
-        "reviewer": "issue-desk/desk-reviewer"
+        "reviewer": "issue-desk/desk-reviewer",
+        "dreamer": "issue-desk/desk-dreamer"
       }
     }
   },
@@ -126,7 +130,257 @@
         }
       },
       "nextSteps": {
+        "success": "assign_advisor"
+      }
+    },
+    {
+      "stepSlug": "assign_advisor",
+      "name": "Assign to the advisor",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "assign",
+          "taskId": "{{input.task._id}}",
+          "assigneeType": "agent",
+          "assigneeId": "issue-desk/desk-advisor"
+        }
+      },
+      "nextSteps": {
+        "success": "advise"
+      }
+    },
+    {
+      "stepSlug": "advise",
+      "name": "Advisor plans the resolution",
+      "stepType": "sandbox",
+      "role": "advisor",
+      "ui": {
+        "stage": "work",
+        "render": "stream",
+        "labelKey": "issueDesk.advise",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-advisor",
+          "sessionScope": "workflow",
+          "instructions": "Plan the resolution for GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nREPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, follow it): {{input.appConfig.repoNotes}}\n\nWorkflow reworkCount: {{variables.reworkCount || 0}}\n\nPrior plan review feedback (when replanning after Request changes): {{variables.planReviewFeedback || 'none'}}\n\nGit is authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone and gh calls work, private repos included.\n\nSHARED WORKSPACE — this sandbox persists across Advise, Execute, Grade, and Dream. If `/user/workspace/.git` already exists, do NOT re-clone; `cd /user/workspace` and continue. Otherwise derive the repo (owner/name) from the issue URL and `cd /user/workspace && git clone <repo> .` (trailing `.` — repo root IS the workspace root). Export `OWNER` and `REPO`.\n\nRead `.desk/memory.md` when present (prior lessons). Write `.desk/plan.md` and `.desk/state.json` (phase advise, reworkCount from above). If human feedback was provided above, incorporate it into the plan first — only flag NEEDS_HUMAN when still genuinely blocked after that feedback. If the issue is genuinely ambiguous with no prior feedback, start `plan.md` with `NEEDS_HUMAN` and explain what a human must decide.\n\nMANDATORY: write `/user/output/summary.md` mirroring the plan verdict (include NEEDS_HUMAN when applicable).",
+          "budget": {
+            "maxCents": 100,
+            "maxWallClockMs": 1800000,
+            "maxTurns": 60
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "advise_gate"
+      }
+    },
+    {
+      "stepSlug": "advise_gate",
+      "name": "Does the plan need a human?",
+      "stepType": "condition",
+      "config": {
+        "expression": "'NEEDS_HUMAN' in steps.advise.output.data.summary",
+        "description": "When the advisor flags NEEDS_HUMAN in the plan summary, pause the run for a human plan review (same execution, shared sandbox) instead of ending the workflow."
+      },
+      "nextSteps": {
+        "true": "human_needed_comment",
+        "false": "assign_implementer"
+      }
+    },
+    {
+      "stepSlug": "human_needed_comment",
+      "name": "Log ambiguous plan for the human reviewer",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The advisor flagged NEEDS_HUMAN — the plan needs your review before the desk can implement. Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\n{{steps.advise.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "plan_review_pick"
+      }
+    },
+    {
+      "stepSlug": "plan_review_pick",
+      "name": "First plan review round?",
+      "stepType": "condition",
+      "config": {
+        "expression": "variables.planReviewRound == 0",
+        "description": "Plan-review gate round 0 uses request_plan_review; round 1 uses request_plan_re_review; round 2+ escalates to manual takeover."
+      },
+      "nextSteps": {
+        "true": "request_plan_review",
+        "false": "plan_review_pick_2"
+      }
+    },
+    {
+      "stepSlug": "plan_review_pick_2",
+      "name": "Second plan review round?",
+      "stepType": "condition",
+      "config": {
+        "expression": "variables.planReviewRound == 1",
+        "description": "After one Request changes cycle, a still-ambiguous plan gets a fresh approval gate. If both rounds are exhausted, park at In review for manual takeover."
+      },
+      "nextSteps": {
+        "true": "request_plan_re_review",
+        "false": "plan_review_exhausted_comment"
+      }
+    },
+    {
+      "stepSlug": "request_plan_review",
+      "name": "Review the plan (pauses here)",
+      "stepType": "action",
+      "ui": {
+        "stage": "work",
+        "render": "review",
+        "labelKey": "issueDesk.planReview",
+        "params": {
+          "mode": "gate"
+        }
+      },
+      "config": {
+        "type": "approval",
+        "parameters": {
+          "operation": "request_review",
+          "taskId": "{{input.task._id}}",
+          "agentSlug": "issue-desk/desk-advisor",
+          "question": "The advisor flagged ambiguity in the plan. Approve to proceed with implementation, or request changes with guidance.\n\n{{steps.advise.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "plan_review_decide"
+      }
+    },
+    {
+      "stepSlug": "request_plan_re_review",
+      "name": "Re-review the replanned fix (pauses here)",
+      "stepType": "action",
+      "ui": {
+        "stage": "work",
+        "render": "review",
+        "labelKey": "issueDesk.planReview",
+        "params": {
+          "mode": "gate"
+        }
+      },
+      "config": {
+        "type": "approval",
+        "parameters": {
+          "operation": "request_review",
+          "taskId": "{{input.task._id}}",
+          "agentSlug": "issue-desk/desk-advisor",
+          "question": "The advisor replanned after your earlier feedback but still needs a human decision. Approve to proceed, or request more changes.\n\n{{steps.advise.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "plan_review_decide"
+      }
+    },
+    {
+      "stepSlug": "plan_review_decide",
+      "name": "Plan approved?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.request_plan_review.output.data.decision == 'approve' || steps.request_plan_re_review.output.data.decision == 'approve'",
+        "description": "After the human responds, the engine re-executes the review step, which returns the recorded decision instead of creating a duplicate request."
+      },
+      "nextSteps": {
+        "true": "plan_approved_comment",
+        "false": "capture_plan_feedback"
+      }
+    },
+    {
+      "stepSlug": "capture_plan_feedback",
+      "name": "Store plan review feedback for replanning",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "planReviewFeedback",
+              "value": "{{steps.request_plan_re_review.output.data.feedback || steps.request_plan_review.output.data.feedback || ''}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "plan_feedback_comment"
+      }
+    },
+    {
+      "stepSlug": "plan_approved_comment",
+      "name": "Log plan approval",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] Plan approved — the desk continues with implementation on the shared workspace."
+        }
+      },
+      "nextSteps": {
         "success": "assign_implementer"
+      }
+    },
+    {
+      "stepSlug": "plan_feedback_comment",
+      "name": "Post plan review feedback",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] Plan review — changes requested: {{variables.planReviewFeedback || 'see review'}}"
+        }
+      },
+      "nextSteps": {
+        "success": "bump_plan_review_round"
+      }
+    },
+    {
+      "stepSlug": "bump_plan_review_round",
+      "name": "Count this plan review round",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "planReviewRound",
+              "value": "{{(variables.planReviewRound || 0) + 1}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "assign_advisor"
+      }
+    },
+    {
+      "stepSlug": "plan_review_exhausted_comment",
+      "name": "Plan review rounds exhausted",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The plan is still ambiguous after two human review rounds — a human should take over from here.\n\n{{steps.advise.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
       }
     },
     {
@@ -143,11 +397,11 @@
         }
       },
       "nextSteps": {
-        "success": "implement"
+        "success": "execute"
       }
     },
     {
-      "stepSlug": "implement",
+      "stepSlug": "execute",
       "name": "Implementer resolves the issue & opens/updates the PR",
       "stepType": "sandbox",
       "role": "implementer",
@@ -162,7 +416,8 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-implementer",
-          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so clone/commit/push work, private repos included.\n\nREPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, follow it): {{input.appConfig.repoNotes}}\n\n(1) CLONE: derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> .` (the trailing `.` clones straight into the workspace root — no nested `repo/` subdir; /user/workspace is your empty cwd, so the repo root IS the workspace root), and export `OWNER` and `REPO` for the calls below.\n\n(2) DEDUPE BEFORE YOU BRANCH — never open a second PR for an issue that already has one. Enumerate the OPEN pull requests that resolve issue #{{input.issueNumber}}: (a) the ones GitHub has formally LINKED to it via a closing reference — `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state isDraft author{login}}}}}}'`; (b) PLUS a text fallback for PRs that mention it without a formal link — `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body' --json number,headRefName,url,author,updatedAt` and any open `tale/*` head branch. Union the results, keep only OPEN PRs, and confirm by reading each candidate's title/body/diff that it truly targets THIS issue (discard a PR that only mentions #{{input.issueNumber}} in passing but fixes something else).\n\n(3) PICK THE CANONICAL PR and set `BRANCH`:\n  - If our branch `tale/{{input.task._id}}` already has an open PR -> that is canonical (the normal rework path); `BRANCH=tale/{{input.task._id}}`.\n  - Else if exactly ONE other open PR resolves the issue -> ADOPT it: it is canonical and you commit your update onto ITS head branch; set `BRANCH` to that head ref. Do NOT open a competing PR.\n  - Else if SEVERAL open PRs resolve the issue -> read each one's contents carefully (diff, tests, CI state, review comments, how complete the fix is) and choose the single furthest-along as canonical (prefer green/most-complete CI, the most thorough fix, one already under review); set `BRANCH` to its head ref. Then, for every OTHER duplicate that is genuinely redundant (same issue, superseded by the canonical one, not merged, carrying no unique work worth keeping), close it: `gh pr close <n> --repo $OWNER/$REPO --comment 'Superseded by #<canonical> — closing as a duplicate fix for issue #{{input.issueNumber}}.'`. Be conservative — closing is reversible, but only close CLEAR duplicates; never delete a human's branch, and if a PR holds distinct work the canonical one lacks, leave it open and flag it in your summary.\n  - Else (NO open PR exists yet) -> `BRANCH=tale/{{input.task._id}}`; you will create it and open the PR in step 7.\n\n(4) CHECK OUT THE WORKING BRANCH: `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`, or for a brand-new `tale/{{input.task._id}}` with no remote yet `git checkout -b \"$BRANCH\"`.\n\n(5) IF THE CANONICAL PR ALREADY EXISTED this is a RE-WORK pass: the reviewer records what must change as comments on the PR, so act ONLY on feedback NEWER than the branch's current HEAD commit (earlier rounds were already handled by earlier commits). Get HEAD's time with `git log -1 --format=%cI`, then fetch the PR's review summaries, inline review comments, and issue comments (`gh pr view \"$BRANCH\" --repo $OWNER/$REPO --json reviews,comments` plus `gh api repos/$OWNER/$REPO/pulls/<number>/comments`) and treat only those submitted/created AFTER that HEAD timestamp as your to-do list; ignore older comments that predate HEAD.\n\n(6) Implement or refine the fix, then VERIFY IT YOURSELF — find the project's OWN test/build command from its config and run it until green. Operator-configured test command for THIS repo (when non-empty, use it as the test/build command): {{input.appConfig.testCommand}}\n\n(7) COMMIT following the repo's convention (default Conventional Commits so a repo with commit-lint accepts it): `git add -A && git commit -m \"fix: {{input.task.title}} (#{{input.issueNumber}})\"` (lowercase type, no trailing period), then `git push -u origin \"$BRANCH\"`. If `$BRANCH` has NO PR yet, open one to the repo's default branch with a body that formally links the issue (include `Closes #{{input.issueNumber}}` so future runs find it via the link) via `gh pr create` or the GitHub REST API with $GITHUB_TOKEN — otherwise your push already updated the canonical PR.\n\n(8) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO --watch` (or poll `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. If the FAILING check is a commit-message / commit-lint check, the fix is NOT a new commit — AMEND the message to the repo's required convention (e.g. `git commit --amend -m \"fix: ...\"`) and force-push with `git push --force-with-lease origin \"$BRANCH\"`. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch.\n\nMANDATORY: write a summary to /user/output/summary.md (absolute path) covering what you changed, the canonical PR number + URL, any duplicate PRs you closed and why (or chose to leave open and why), the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL.",
+          "sessionScope": "workflow",
+          "instructions": "Resolve this GitHub issue: '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}\n{{input.task.description}}\n\nGit is already authenticated for https (broker $GITHUB_TOKEN + credential helper), so commit/push work, private repos included.\n\nREPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, follow it): {{input.appConfig.repoNotes}}\n\nSHARED WORKSPACE — this sandbox is the same workspace the advisor used. If `/user/workspace/.git` exists, do NOT re-clone; `cd /user/workspace`. Otherwise `cd /user/workspace && git clone <repo> .` (trailing `.` — repo root IS the workspace root). Export `OWNER` and `REPO`.\n\nREAD `.desk/plan.md` — your implementation MUST follow the advisor's plan (acceptance criteria, affected files, approach, test strategy). READ `.desk/state.json` for any branch/prNumber the advisor recorded; update it as you establish the canonical PR.\n\n(1) DEDUPE BEFORE YOU BRANCH — never open a second PR for an issue that already has one. Enumerate the OPEN pull requests that resolve issue #{{input.issueNumber}}: (a) the ones GitHub has formally LINKED to it via a closing reference — `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state isDraft author{login}}}}}}'`; (b) PLUS a text fallback for PRs that mention it without a formal link — `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body' --json number,headRefName,url,author,updatedAt` and any open `tale/*` head branch. Union the results, keep only OPEN PRs, and confirm by reading each candidate's title/body/diff that it truly targets THIS issue (discard a PR that only mentions #{{input.issueNumber}} in passing but fixes something else).\n\n(2) PICK THE CANONICAL PR and set `BRANCH` (persist branch + prNumber in `.desk/state.json`):\n  - If our branch `tale/{{input.task._id}}` already has an open PR -> that is canonical (the normal rework path); `BRANCH=tale/{{input.task._id}}`.\n  - Else if exactly ONE other open PR resolves the issue -> ADOPT it: it is canonical and you commit your update onto ITS head branch; set `BRANCH` to that head ref. Do NOT open a competing PR.\n  - Else if SEVERAL open PRs resolve the issue -> read each one's contents carefully (diff, tests, CI state, review comments, how complete the fix is) and choose the single furthest-along as canonical (prefer green/most-complete CI, the most thorough fix, one already under review); set `BRANCH` to its head ref. Then, for every OTHER duplicate that is genuinely redundant (same issue, superseded by the canonical one, not merged, carrying no unique work worth keeping), close it: `gh pr close <n> --repo $OWNER/$REPO --comment 'Superseded by #<canonical> — closing as a duplicate fix for issue #{{input.issueNumber}}.'`. Be conservative — closing is reversible, but only close CLEAR duplicates; never delete a human's branch, and if a PR holds distinct work the canonical one lacks, leave it open and flag it in your summary.\n  - Else (NO open PR exists yet) -> `BRANCH=tale/{{input.task._id}}`; you will create it and open the PR in step 6.\n\n(3) CHECK OUT THE WORKING BRANCH: `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`, or for a brand-new `tale/{{input.task._id}}` with no remote yet `git checkout -b \"$BRANCH\"`.\n\n(4) IF THE CANONICAL PR ALREADY EXISTED this is a RE-WORK pass: the reviewer records what must change in `.desk/grade.json` and as comments on the PR, so act ONLY on feedback NEWER than the branch's current HEAD commit (earlier rounds were already handled by earlier commits). Get HEAD's time with `git log -1 --format=%cI`, then fetch the PR's review summaries, inline review comments, and issue comments (`gh pr view \"$BRANCH\" --repo $OWNER/$REPO --json reviews,comments` plus `gh api repos/$OWNER/$REPO/pulls/<number>/comments`) and treat only those submitted/created AFTER that HEAD timestamp as your to-do list; also read `.desk/grade.json` from the last Grade phase. Ignore older comments that predate HEAD.\n\n(5) Implement or refine the fix per `.desk/plan.md`, then VERIFY IT YOURSELF — find the project's OWN test/build command from its config and run it until green. Operator-configured test command for THIS repo (when non-empty, use it as the test/build command): {{input.appConfig.testCommand}}\n\n(6) COMMIT following the repo's convention (default Conventional Commits so a repo with commit-lint accepts it): `git add -A && git commit -m \"fix: {{input.task.title}} (#{{input.issueNumber}})\"` (lowercase type, no trailing period), then `git push -u origin \"$BRANCH\"`. If `$BRANCH` has NO PR yet, open one to the repo's default branch with a body that formally links the issue (include `Closes #{{input.issueNumber}}` so future runs find it via the link) via `gh pr create` or the GitHub REST API with $GITHUB_TOKEN — otherwise your push already updated the canonical PR. Update `.desk/state.json` with the final branch and prNumber.\n\n(7) WAIT FOR CI: once the PR exists, watch its checks with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO --watch` (or poll `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO`) until they ALL finish. If any check FAILS, read its logs (`gh run view --log-failed`, or open the failing run), fix the cause, commit, push (the PR + checks re-run), and watch again — repeat until every required check is green. If the FAILING check is a commit-message / commit-lint check, the fix is NOT a new commit — AMEND the message to the repo's required convention (e.g. `git commit --amend -m \"fix: ...\"`) and force-push with `git push --force-with-lease origin \"$BRANCH\"`. Do NOT finish with red or still-pending CI. CI can take 40+ minutes; that is expected — keep waiting, this step is durable and will not time out mid-watch.\n\nMANDATORY: write `.desk/implement-log.md` (what you changed, canonical PR, CI state, rework context) and `/user/output/summary.md` covering what you changed, the canonical PR number + URL, any duplicate PRs you closed and why (or chose to leave open and why), the checks/tests you ran, the FINAL CI state (which checks passed), and the PR URL.",
           "budget": {
             "maxCents": 500,
             "maxWallClockMs": 5400000,
@@ -171,24 +426,24 @@
         }
       },
       "nextSteps": {
-        "success": "impl_check"
+        "success": "execute_check"
       }
     },
     {
-      "stepSlug": "impl_check",
+      "stepSlug": "execute_check",
       "name": "Did the implementer succeed?",
       "stepType": "condition",
       "config": {
-        "expression": "steps.implement.output.data.ok == true",
+        "expression": "steps.execute.output.data.ok == true",
         "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. Stop if the implementer failed to push a verified fix + PR."
       },
       "nextSteps": {
-        "true": "impl_success_comment",
-        "false": "impl_failed"
+        "true": "execute_success_comment",
+        "false": "execute_failed"
       }
     },
     {
-      "stepSlug": "impl_success_comment",
+      "stepSlug": "execute_success_comment",
       "name": "Log the fix + PR on the task",
       "stepType": "action",
       "config": {
@@ -196,15 +451,15 @@
         "parameters": {
           "operation": "comment",
           "taskId": "{{input.task._id}}",
-          "body": "[automated] ✅ Implemented — PR opened and CI green; handing to review.\n\n{{steps.implement.output.data.summary}}"
+          "body": "[automated] ✅ Implemented — PR opened and CI green; handing to review. Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\n{{steps.execute.output.data.summary}}"
         }
       },
       "nextSteps": {
-        "success": "review"
+        "success": "grade"
       }
     },
     {
-      "stepSlug": "impl_failed",
+      "stepSlug": "execute_failed",
       "name": "Explain the implementer failure",
       "stepType": "action",
       "config": {
@@ -212,7 +467,7 @@
         "parameters": {
           "operation": "comment",
           "taskId": "{{input.task._id}}",
-          "body": "[automated] The implementer could not resolve this issue: {{steps.implement.output.data.error || steps.implement.output.data.summary || 'no output'}} — returned to To do."
+          "body": "[automated] The implementer could not resolve this issue: {{steps.execute.output.data.error || steps.execute.output.data.summary || 'no output'}} — returned to To do."
         }
       },
       "nextSteps": {
@@ -220,8 +475,8 @@
       }
     },
     {
-      "stepSlug": "review",
-      "name": "Reviewer re-tests & comments on the PR",
+      "stepSlug": "grade",
+      "name": "Reviewer grades the change & comments on the PR",
       "stepType": "sandbox",
       "role": "reviewer",
       "ui": {
@@ -235,7 +490,8 @@
       "config": {
         "run": {
           "agent": "issue-desk/desk-reviewer",
-          "instructions": "Review the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}. Git is authenticated ($GITHUB_TOKEN + helper). REPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, weigh it in your review): {{input.appConfig.repoNotes}} SET UP ONCE: (1) derive the repo (owner/name) from the issue URL, `cd /user/workspace && git clone <repo> .` (the trailing `.` clones straight into the workspace root — no nested `repo/` subdir; /user/workspace is your empty cwd, so the repo root IS the workspace root), and export `OWNER` and `REPO`; (2) RESOLVE THE CANONICAL PR the implementer worked on — the single OPEN pull request that resolves issue #{{input.issueNumber}} (the implementer dedupes the issue down to exactly one). Find it with `gh api graphql -F owner=$OWNER -F name=$REPO -F num={{input.issueNumber}} -f query='query($owner:String!,$name:String!,$num:Int!){repository(owner:$owner,name:$name){issue(number:$num){closedByPullRequestsReferences(first:50,includeClosedPrs:false){nodes{number headRefName url state}}}}}'` (fallbacks: `gh pr list --repo $OWNER/$REPO --state open --search '{{input.issueNumber}} in:title,body'`, else the `tale/{{input.task._id}}` branch). Set `BRANCH` to its head ref — that head ref IS the branch the implementer pushed its code to, so fetching and checking it out gives you exactly the implementer's work. If more than one open PR somehow remains, pick the most recently updated, review THAT, and note the anomaly in your report. Then `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`; (3) run the project's OWN tests a single time here, so your review subagents don't each re-run the suite (operator-configured test command for THIS repo, use it when non-empty: {{input.appConfig.testCommand}}). THEN REVIEW BY YOUR FULL METHOD — do NOT collapse this into one linear sweep, and ALWAYS run BOTH rounds: ROUND 1 (breadth) dispatching 5–30 parallel review subagents SIZED TO THE ACTUAL CHANGE (≈5 for a small focused PR, scaling up toward 30 as the changed files / logic branches / modules grow — never fewer than 5, never more than 30) as your system instructions define, then ROUND 2 (confirmation) independently re-verifying every finding you would block the merge on. As part of the bar, confirm the PR's CI with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO` — red OR still-pending CI is a BLOCKING problem you must call out. REPORT: post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code, the implementer fixes. MANDATORY: write your findings to /user/output/summary.md (absolute path): state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
+          "sessionScope": "workflow",
+          "instructions": "Grade the implementer's fix for '{{input.task.title}}' (#{{input.issueNumber}}) at {{input.task.externalUrl}}. Git is authenticated ($GITHUB_TOKEN + helper). REPO NOTES — operator-provided guidance for THIS repo from the app config (may be empty; when present, weigh it in your review): {{input.appConfig.repoNotes}}\n\nSHARED WORKSPACE — do NOT re-clone; the repo is already at `/user/workspace` from earlier phases. `cd /user/workspace` and export `OWNER` and `REPO` from the remote or `.desk/state.json`.\n\nREAD `.desk/plan.md` for acceptance criteria and the grade schema the advisor defined. READ `.desk/state.json` to resolve the canonical PR/branch the implementer worked on.\n\nRESOLVE THE CANONICAL PR — the single OPEN pull request that resolves issue #{{input.issueNumber}} (use branch/prNumber from `.desk/state.json` when set; otherwise find via `gh api graphql` / `gh pr list` as in the implementer dedupe flow). Set `BRANCH` to its head ref, then `git fetch origin \"$BRANCH\" && git checkout \"$BRANCH\"`.\n\nREAD THE CHANGE — `git fetch origin main && git diff origin/main...HEAD` (or the repo's default branch instead of `main` when that is not default). Understand the full diff in context of the plan.\n\nRUN TESTS ONCE — operator-configured test command for THIS repo (use when non-empty): {{input.appConfig.testCommand}}. Confirm CI with `gh pr checks \"$BRANCH\" --repo $OWNER/$REPO` — red OR still-pending CI is a BLOCKING problem.\n\nREVIEW BY YOUR FULL METHOD — do NOT collapse this into one linear sweep, and ALWAYS run BOTH rounds: ROUND 1 (breadth) dispatching 5–30 parallel review subagents SIZED TO THE ACTUAL CHANGE (≈5 for a small focused PR, scaling up toward 30 as the changed files / logic branches / modules grow — never fewer than 5, never more than 30), then ROUND 2 (confirmation) independently re-verifying every finding you would block the merge on.\n\nREPORT — post your review as comments on the pull request (`gh pr review` / `gh pr comment`, or the GitHub REST API with $GITHUB_TOKEN) — do NOT change or push code.\n\nMANDATORY STRUCTURED OUTPUT — write BOTH `.desk/grade.json` AND `/user/output/grade.json` (identical content) using the schema/fields the advisor specified in `.desk/plan.md` (include severity, verdict-ready signal, blocking findings, CI state, test outcome). Also write `/user/output/summary.md`: state the CI state (which checks passed/failed) and clearly whether the change is ready to merge or what specifically must be fixed.",
           "budget": {
             "maxCents": 2000,
             "maxWallClockMs": 5400000,
@@ -265,30 +521,130 @@
       },
       "config": {
         "name": "merge-judge",
-        "systemPrompt": "You are a strict merge gate for a code-review desk. You are given ONLY the reviewer's written summary of a proposed fix. Decide whether it is ready to merge: approve only when the reviewer reports no blocking problems and the tests pass. You have no tools and must judge solely from the summary. Reply with EXACTLY one lowercase word and nothing else: yes (ready to merge) or no (needs more work).",
-        "userPrompt": "Reviewer summary for issue #{{input.issueNumber}} ('{{input.task.title}}'):\n\n{{steps.review.output.data.summary}}\n\nReady to merge? Answer yes or no.",
+        "systemPrompt": "You are a strict merge gate for a code-review desk. You are given ONLY the reviewer's structured grade JSON for a proposed fix. Decide merge-readiness from it alone — you have no tools and no other context. Reply with EXACTLY two lines and nothing else:\nseverity: merge_ready|minor_fix|major_rework|wrong_approach\nverdict: yes|no\n\nUse severity merge_ready only when the grade reports no blocking problems and CI/tests are green. Use wrong_approach when the fundamental approach is unsound and replanning is needed. Use minor_fix or major_rework with verdict no when more implementation work is required. Use verdict yes only for merge_ready severity.",
+        "userPrompt": "Structured grade for issue #{{input.issueNumber}} ('{{input.task.title}}'):\n\n{{steps.grade.output.data.gradeJson}}\n\nReply with exactly two lines: severity and verdict.",
         "outputFormat": "text",
         "tools": []
       },
       "nextSteps": {
-        "success": "judge_decision"
+        "success": "judge_wrong_approach"
       }
     },
     {
-      "stepSlug": "judge_decision",
+      "stepSlug": "judge_wrong_approach",
+      "name": "Wrong approach — replan?",
+      "stepType": "condition",
+      "config": {
+        "expression": "'wrong_approach' in steps.judge.output.data",
+        "description": "When the judge's severity is wrong_approach, the desk sends the run back to Advise for a fresh plan instead of looping Execute with the same approach."
+      },
+      "nextSteps": {
+        "true": "dream_wrong",
+        "false": "judge_pass"
+      }
+    },
+    {
+      "stepSlug": "judge_pass",
       "name": "Mergeable?",
       "stepType": "condition",
       "config": {
         "expression": "'yes' in steps.judge.output.data",
-        "description": "The judge replies with a bare yes/no (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through the rework counter, which loops back to the implementer with the review feedback until the configurable cap is reached."
+        "description": "The judge replies with a bare yes/no verdict line (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through Dream and the rework counter."
       },
       "nextSteps": {
-        "true": "approved_comment",
-        "false": "bump_rework"
+        "true": "dream_pass",
+        "false": "dream_rework"
       }
     },
     {
-      "stepSlug": "approved_comment",
+      "stepSlug": "dream_wrong",
+      "name": "Dream — capture lessons (wrong approach)",
+      "stepType": "sandbox",
+      "role": "dreamer",
+      "ui": {
+        "stage": "deliver",
+        "render": "stream",
+        "labelKey": "issueDesk.dream",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-dreamer",
+          "sessionScope": "workflow",
+          "instructions": "The judge ruled wrong_approach for issue #{{input.issueNumber}} ('{{input.task.title}}'). Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\nRead all files under `/user/workspace/.desk/`. Append durable lessons to `.desk/memory.md` about why the approach failed and what to avoid next round. Write `/user/output/summary.md` listing what you appended.",
+          "budget": {
+            "maxCents": 50,
+            "maxWallClockMs": 600000,
+            "maxTurns": 30
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "assign_advisor"
+      }
+    },
+    {
+      "stepSlug": "dream_pass",
+      "name": "Dream — capture lessons (approved)",
+      "stepType": "sandbox",
+      "role": "dreamer",
+      "ui": {
+        "stage": "deliver",
+        "render": "stream",
+        "labelKey": "issueDesk.dream",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-dreamer",
+          "sessionScope": "workflow",
+          "instructions": "The judge approved the change for issue #{{input.issueNumber}} ('{{input.task.title}}'). Rework loops: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\nRead all files under `/user/workspace/.desk/`. Append durable lessons to `.desk/memory.md` — what worked, repo traps, CI quirks worth remembering. Write `/user/output/summary.md` listing what you appended.",
+          "budget": {
+            "maxCents": 50,
+            "maxWallClockMs": 600000,
+            "maxTurns": 30
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "metrics_approved_comment"
+      }
+    },
+    {
+      "stepSlug": "dream_rework",
+      "name": "Dream — capture lessons (needs rework)",
+      "stepType": "sandbox",
+      "role": "dreamer",
+      "ui": {
+        "stage": "deliver",
+        "render": "stream",
+        "labelKey": "issueDesk.dream",
+        "params": {
+          "entryKind": "message"
+        }
+      },
+      "config": {
+        "run": {
+          "agent": "issue-desk/desk-dreamer",
+          "sessionScope": "workflow",
+          "instructions": "The judge sent the change back for more work on issue #{{input.issueNumber}} ('{{input.task.title}}'). Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\nRead all files under `/user/workspace/.desk/` (especially grade.json). Append durable lessons to `.desk/memory.md` about what failed review and patterns to fix. Write `/user/output/summary.md` listing what you appended.",
+          "budget": {
+            "maxCents": 50,
+            "maxWallClockMs": 600000,
+            "maxTurns": 30
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "bump_rework"
+      }
+    },
+    {
+      "stepSlug": "metrics_approved_comment",
       "name": "Log the merge-ready verdict on the task",
       "stepType": "action",
       "config": {
@@ -296,7 +652,7 @@
         "parameters": {
           "operation": "comment",
           "taskId": "{{input.task._id}}",
-          "body": "[automated] 🎯 The desk reviewed and approved this change — the pull request is ready for a human to merge."
+          "body": "[automated] 🎯 The desk reviewed and approved this change — the pull request is ready for a human to merge. Rework loops: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.{{(variables.reworkCount || 0) == 0 ? ' First-pass approval.' : ''}}"
         }
       },
       "nextSteps": {
@@ -328,10 +684,10 @@
       "stepType": "condition",
       "config": {
         "expression": "variables.reworkCount <= config.maxReworkLoops",
-        "description": "Bounds the review -> implement rework loop. reworkCount (workflow variables) counts how many times the reviewer has sent the change back; allow up to config.variables.maxReworkLoops reworks (default 3, adjustable per deployment). While within budget, loop back to the implementer with the latest feedback; once exhausted, escalate to a human instead of looping until the workflow timeout."
+        "description": "Bounds the grade → execute rework loop. reworkCount (workflow variables) counts how many times the reviewer has sent the change back; allow up to config.variables.maxReworkLoops reworks (default 3, adjustable per deployment). While within budget, loop back to the implementer with the latest feedback; once exhausted, escalate to a human instead of looping until the workflow timeout."
       },
       "nextSteps": {
-        "true": "implement",
+        "true": "execute",
         "false": "loops_exhausted"
       }
     },
@@ -344,7 +700,7 @@
         "parameters": {
           "operation": "comment",
           "taskId": "{{input.task._id}}",
-          "body": "[automated] The desk reached its rework limit ({{config.maxReworkLoops}} loops) without the reviewer approving the change. The pull request is left open with the latest attempt and the review feedback — a human should take it over from here. Moving to In review."
+          "body": "[automated] The desk reached its rework limit ({{config.maxReworkLoops}} loops; used {{variables.reworkCount}}) without the reviewer approving the change. The pull request is left open with the latest attempt and the review feedback — a human should take it over from here. Moving to In review."
         }
       },
       "nextSteps": {

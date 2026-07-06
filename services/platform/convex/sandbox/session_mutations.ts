@@ -631,6 +631,26 @@ export const deleteAgentCheckpoint = internalMutation({
   },
 });
 
+/** Drop every checkpoint row for a spawner session — the step-scoped row (when
+ * scope is `step`) and all `${spawnerSessionId}::${stepSlug}` rows (when scope
+ * is `workflow`). Used at workflow-scoped session teardown. */
+export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
+  args: { spawnerSessionId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const prefix = `${args.spawnerSessionId}::`;
+    for await (const row of ctx.db.query('sandboxAgentCheckpoints')) {
+      if (
+        row.sessionId === args.spawnerSessionId ||
+        row.sessionId.startsWith(prefix)
+      ) {
+        await ctx.db.delete(row._id);
+      }
+    }
+    return null;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**
