@@ -99,6 +99,40 @@ Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les 
 
 Pour descendre _délibérément_ d'une version — disons qu'une release minor se comporte mal et que tu as déjà inversé ses migrations — fixe la cible avec `tale update --version <version>`. La commande prévient quand la cible est plus ancienne que la version qui tourne et te rappelle d'inverser d'abord les migrations de données.
 
+## Monter depuis la 0.3.1 ou antérieure
+
+Les instances en version 0.3.1 ou antérieure gardent les données du backend Convex dans le volume Docker `platform-data`. Les versions plus récentes font tourner Convex comme service à part entière avec son propre volume `convex-data` — et la copie automatique que les premières releases embarquaient pour ce déménagement n'est plus dans la CLI. Franchis cette frontière d'un coup et `tale deploy` pré-crée un volume `convex-data` **vide** : l'instance démarre vierge alors que chaque octet de tes données reste, intact, dans l'ancien volume `platform-data`. Rien n'est supprimé — mais les données ne bougent pas toutes seules, et `tale update` avertit quand il détecte cette situation.
+
+Docker n'a pas de renommage natif de volume ; le déménagement passe donc par une copie via un conteneur intermédiaire. Exécute-la avant `tale deploy`, stack arrêtée, pour que rien ne garde le volume ouvert :
+
+```bash
+# 1. Repérer le volume legacy — <project> est l'`id` de tale.json.
+docker volume ls | grep platform-data
+# Les installations antérieures à la 0.2.33 utilisaient le préfixe
+# fixe `tale_` au lieu de `<project>_` ; la destination ci-dessous
+# garde `<project>_`.
+
+# 2. Arrêter la stack.
+docker compose -p <project> down
+
+# 3. Créer le volume de destination et copier les données.
+docker volume create <project>_convex-data
+docker run --rm \
+  -v <project>_platform-data:/from:ro \
+  -v <project>_convex-data:/to \
+  alpine sh -c "cd /from && cp -a . /to"
+
+# 4. Rouler la stack, puis vérifier que tes données sont là.
+tale deploy
+
+# 5. Une fois vérifié seulement, récupérer l'espace de l'ancien volume.
+docker volume rm <project>_platform-data
+```
+
+Un workspace de dev suit le même déménagement sous le scope `-dev` : `<project>-dev_platform-data` → `<project>-dev_convex-data`, avec `docker compose -p <project>-dev down` comme étape d'arrêt.
+
+Si tu as déjà déployé et obtenu une instance vide, tes données sont toujours en sécurité dans `platform-data`. Arrête la stack, supprime le volume vide fraîchement créé avec `docker volume rm <project>_convex-data`, puis exécute la copie ci-dessus et redéploie.
+
 ## Où cela s'inscrit
 
 Le flow de montée de version noue chaque autre page d'exploitation — les backups sont ce qui rend une montée de version échouée récupérable, l'observabilité est ce qui te dit que la nouvelle couleur est saine, le durcissement est ce que tu reparcours après une version majeure. Si tu mets en place la CLI pour la première fois, [Installer la CLI tale](/fr/self-hosted/install/cli-install) couvre le setup côté workstation ; si tu prends le pager en plein rollout, [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) nomme les symptômes.
