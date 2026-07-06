@@ -78,6 +78,7 @@ const WORKFLOW_SKILLS: readonly string[] = [
   'fix-bug',
   'review-code',
   'create-pr',
+  'create-issue',
   'review-pr',
   'test-code',
   'write-notes',

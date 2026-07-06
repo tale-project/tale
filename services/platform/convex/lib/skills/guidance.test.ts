@@ -107,8 +107,9 @@ describe('buildSkillsGuidance', () => {
     expect(out).not.toContain('bun run');
     expect(out).not.toContain('.agents/');
     expect(out).not.toContain('builtin-configs');
-    // Staged but deliberately not a numbered step.
+    // Staged but deliberately not numbered steps.
     expect(out).not.toContain('review-pr');
+    expect(out).not.toContain('create-issue');
   });
 
   it('uses runtime-neutral skill invocation wording', () => {
