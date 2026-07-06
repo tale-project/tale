@@ -5767,21 +5767,7 @@
       },
       "columns": {
         "name": "Skill",
-        "description": "Description",
-        "loadError": "Impossible de lire SKILL.md"
-      },
-      "loadError": {
-        "yamlSyntaxLine": "Erreur de syntaxe YAML (ligne {line})",
-        "yamlSyntax": "Erreur de syntaxe YAML dans le frontmatter",
-        "missingFrontmatter": "Frontmatter YAML manquant",
-        "unclosedFrontmatter": "Frontmatter YAML non fermé",
-        "frontmatterTooLarge": "Frontmatter trop volumineux",
-        "invalidFrontmatter": "Frontmatter invalide",
-        "emptyFrontmatter": "Frontmatter vide",
-        "notFound": "SKILL.md introuvable",
-        "symlink": "SKILL.md est un lien symbolique",
-        "inaccessible": "Impossible de lire SKILL.md",
-        "generic": "Impossible de lire SKILL.md"
+        "description": "Description"
       },
       "loadErrorDetail": {
         "fixHint": "Remplace le bundle par un zip valide, ou supprime ce skill.",

@@ -298,7 +298,9 @@ describe('DataTable loading states', () => {
       ).toBeInTheDocument();
     });
 
-    it('does not render a toolbar row for action-only headers', () => {
+    it('keeps the primary action reachable on action-only headers', () => {
+      // Regression: hiding the toolbar for action-only tables removed the only
+      // create affordance from token sources / API keys / teams / triggers.
       render(
         <DataTable
           columns={columns}
@@ -310,8 +312,8 @@ describe('DataTable loading states', () => {
       );
 
       expect(
-        screen.queryByRole('button', { name: 'Add Item' }),
-      ).not.toBeInTheDocument();
+        screen.getByRole('button', { name: 'Add Item' }),
+      ).toBeInTheDocument();
     });
 
     it('renders table border container during loading', () => {
