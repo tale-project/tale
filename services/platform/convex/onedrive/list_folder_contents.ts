@@ -36,30 +36,57 @@ interface DriveItemResponse {
     lastModifiedDateTime?: string;
     fileSystemInfo?: { lastModifiedDateTime?: string };
   }>;
+  '@odata.nextLink'?: string;
 }
+
+/**
+ * Fail-safe bound on the page walk. Graph `/children` returns ~200 items per
+ * page, so this covers ~100k direct children in one folder — far past any real
+ * synced folder. Hitting it means something is wrong (a nextLink cycle); we
+ * THROW rather than truncate, because a truncated listing makes reconcile prune
+ * the un-listed documents. Failing the sync is safe; a silent short read is not.
+ */
+const MAX_PAGES = 500;
 
 async function fetchChildren(
   itemId: string,
   token: string,
 ): Promise<DriveItemResponse['value']> {
-  const response = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/children`,
-    {
+  const children: DriveItemResponse['value'] = [];
+  // Graph paginates `/children` with an absolute `@odata.nextLink`; follow it
+  // to the end so large folders list in full. Without this, only the first
+  // page returns and every later item looks deleted to the sync reconcile.
+  let url: string | undefined =
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/children`;
+
+  for (let page = 0; url; page++) {
+    if (page >= MAX_PAGES) {
+      throw new Error(
+        `Failed to list folder contents: exceeded ${MAX_PAGES} pages for item ${itemId} while still paginating`,
+      );
+    }
+
+    const response: Response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
       },
-    },
-  );
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to list folder contents: ${response.status} ${errorText}`,
-    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Failed to list folder contents: ${response.status} ${errorText}`,
+      );
+    }
+
+    const body: DriveItemResponse =
+      await fetchJson<DriveItemResponse>(response);
+    children.push(...body.value);
+    url = body['@odata.nextLink'];
   }
 
-  return (await fetchJson<DriveItemResponse>(response)).value;
+  return children;
 }
 
 function toFileItem(

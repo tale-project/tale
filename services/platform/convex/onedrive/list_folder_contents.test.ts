@@ -90,4 +90,53 @@ describe('listFolderContents', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('404');
   });
+
+  // Regression: a folder larger than one Graph page (~200 items) only listed
+  // its first page, so the sync reconcile pruned every later file as "gone".
+  it('follows @odata.nextLink across pages', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('skiptoken=PAGE2')) {
+          return Promise.resolve(
+            Response.json({ value: [file('f3', 'c.txt')] }),
+          );
+        }
+        return Promise.resolve(
+          Response.json({
+            value: [file('f1', 'a.txt'), file('f2', 'b.txt')],
+            '@odata.nextLink':
+              'https://graph.microsoft.com/v1.0/me/drive/items/root/children?$skiptoken=PAGE2',
+          }),
+        );
+      }),
+    );
+
+    const result = await listFolderContents({ itemId: 'root', token: 't' });
+
+    expect(result.success).toBe(true);
+    expect(result.files?.map((f) => f.id)).toEqual(['f1', 'f2', 'f3']);
+  });
+
+  // A never-ending nextLink must fail the listing, never return a truncated
+  // set — a short read would make reconcile delete the un-listed documents.
+  it('throws rather than truncating when pagination never ends', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            value: [file('f', 'x.txt')],
+            '@odata.nextLink':
+              'https://graph.microsoft.com/v1.0/me/drive/items/root/children?$skiptoken=LOOP',
+          }),
+        ),
+      ),
+    );
+
+    const result = await listFolderContents({ itemId: 'root', token: 't' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('pages');
+  });
 });
