@@ -213,11 +213,11 @@ describe('MessageBubble author-aware alignment', () => {
 
     // Assistant, no override → left-aligned, no name label.
     const root = screen.getByTestId('chat-message');
-    expect(root.className).toContain('justify-start');
+    expect(root.className).toContain('items-start');
     expect(root.className).not.toContain('items-end');
   });
 
-  it('left-aligns a teammate reply (role:user, isOwn=false) and shows the name', async () => {
+  it('left-aligns a teammate reply (role:user, isOwn=false) and shows the name inside the bubble', async () => {
     const { MessageBubble } = await import('./message-bubble');
 
     render(
@@ -232,9 +232,11 @@ describe('MessageBubble author-aware alignment', () => {
 
     // Authorship beats role: a user-role message from someone else lands LEFT.
     const root = screen.getByTestId('chat-message');
-    expect(root.className).toContain('justify-start');
+    expect(root.className).toContain('items-start');
     expect(root.className).not.toContain('items-end');
-    expect(screen.getByText('Alex')).toBeInTheDocument();
+    const authorLabel = screen.getByTestId('message-author-label');
+    expect(authorLabel).toHaveTextContent('Alex');
+    expect(authorLabel.closest('[class*="rounded-2xl"]')).not.toBeNull();
   });
 
   it('right-aligns my own reply (isOwn=true) with no name label', async () => {

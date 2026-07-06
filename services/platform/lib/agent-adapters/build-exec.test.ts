@@ -259,30 +259,6 @@ describe('ClaudeCodeAdapter.buildExec', () => {
     );
   });
 
-  it('gates the human-control MCP server off for autonomous runs (no human to take over)', () => {
-    const interactive = new ClaudeCodeAdapter().buildExec({
-      ...base,
-      browserCdp: true,
-      interactionMode: 'interactive',
-    });
-    const interactiveMcp = JSON.parse(
-      interactive.argv[interactive.argv.indexOf('--mcp-config') + 1] ?? '{}',
-    );
-    expect(interactiveMcp.mcpServers.humanControl).toBeDefined();
-
-    const autonomous = new ClaudeCodeAdapter().buildExec({
-      ...base,
-      browserCdp: true,
-      interactionMode: 'autonomous',
-    });
-    const autonomousMcp = JSON.parse(
-      autonomous.argv[autonomous.argv.indexOf('--mcp-config') + 1] ?? '{}',
-    );
-    expect(autonomousMcp.mcpServers.humanControl).toBeUndefined();
-    // Playwright is still attached — an autonomous run can still drive the browser.
-    expect(autonomousMcp.mcpServers.playwright).toBeDefined();
-  });
-
   it('denies AskUserQuestion in autonomous mode too (unchanged deny list)', () => {
     const { argv } = new ClaudeCodeAdapter().buildExec({
       ...base,

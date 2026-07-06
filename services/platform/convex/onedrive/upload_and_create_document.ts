@@ -44,9 +44,13 @@ export interface UploadAndCreateDocDependencies {
     fileName: string,
     contentType: string,
     size: number,
+    documentId: Id<'documents'>,
   ) => Promise<void>;
   linkDocumentToFile?: (
     storageId: Id<'_storage'>,
+    documentId: Id<'documents'>,
+  ) => Promise<void>;
+  scheduleHubDocumentRagIndexing?: (
     documentId: Id<'documents'>,
   ) => Promise<void>;
 }
@@ -79,12 +83,6 @@ export async function uploadAndCreateDocument(
     }
 
     const storageId = await deps.storageStore(blob);
-    await deps.saveFileMetadata(
-      storageId,
-      args.fileName,
-      args.contentType || 'application/octet-stream',
-      blob.size,
-    );
 
     const externalItemId =
       args.metadata.oneDriveItemId ?? args.metadata.oneDriveId;
@@ -100,7 +98,16 @@ export async function uploadAndCreateDocument(
         externalItemId,
       });
 
+      await deps.saveFileMetadata(
+        storageId,
+        args.fileName,
+        args.contentType || 'application/octet-stream',
+        blob.size,
+        args.documentIdToUpdate,
+      );
+
       await deps.linkDocumentToFile?.(storageId, args.documentIdToUpdate);
+      await deps.scheduleHubDocumentRagIndexing?.(args.documentIdToUpdate);
 
       return {
         success: true,
@@ -122,7 +129,15 @@ export async function uploadAndCreateDocument(
     });
 
     if (documentId) {
+      await deps.saveFileMetadata(
+        storageId,
+        args.fileName,
+        args.contentType || 'application/octet-stream',
+        blob.size,
+        documentId,
+      );
       await deps.linkDocumentToFile?.(storageId, documentId);
+      await deps.scheduleHubDocumentRagIndexing?.(documentId);
     }
 
     return { success: true, fileId: storageId, documentId };

@@ -12,6 +12,8 @@ import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
+import { deactivateSyncConfigsForPath } from '../onedrive/deactivate_sync_configs';
+import { buildFolderPath } from './queries';
 
 type TeamFields = {
   teamId: string | undefined;
@@ -373,6 +375,18 @@ export const deleteFolder = mutation({
       folder.organizationId,
       holds,
     );
+
+    // Deleting a synced folder means "stop syncing it" — deactivate any
+    // config targeting this folder (or a descendant) before the cascade, or
+    // the next sync run would recreate everything just removed.
+    const folderPath = await buildFolderPath(ctx, args.folderId);
+    if (folderPath) {
+      await deactivateSyncConfigsForPath(
+        ctx,
+        folder.organizationId,
+        folderPath,
+      );
+    }
 
     await deleteFolderContents(ctx, args.folderId, folder.organizationId);
     await ctx.db.delete(args.folderId);

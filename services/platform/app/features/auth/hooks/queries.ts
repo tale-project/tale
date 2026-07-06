@@ -26,8 +26,7 @@ export function useIsSsoConfigured() {
   );
 }
 
-// The SSO step's manual picker: enabled connections without an email domain
-// (unreachable by email routing). Pre-auth like isConfigured.
+// The SSO step's org picker: every enabled connection on a multi-org deployment.
 export function useSsoSelectableOrgs() {
   return useConvexQuery(
     api.enterprise_sso.queries.listSelectable,

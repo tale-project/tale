@@ -51,6 +51,7 @@ import { Route as DashboardIdSettingsPersonalizationRouteImport } from './routes
 import { Route as DashboardIdSettingsPersonalRouteImport } from './routes/dashboard/$id/settings/personal';
 import { Route as DashboardIdSettingsPeopleRouteImport } from './routes/dashboard/$id/settings/people';
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization';
+import { Route as DashboardIdSettingsNotificationsRouteImport } from './routes/dashboard/$id/settings/notifications';
 import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers';
 import { Route as DashboardIdSettingsMcpRouteImport } from './routes/dashboard/$id/settings/mcp';
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs';
@@ -355,6 +356,12 @@ const DashboardIdSettingsOrganizationRoute =
   DashboardIdSettingsOrganizationRouteImport.update({
     id: '/organization',
     path: '/organization',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
+const DashboardIdSettingsNotificationsRoute =
+  DashboardIdSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any);
 const DashboardIdSettingsMcpServersRoute =
@@ -901,6 +908,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
@@ -1013,6 +1021,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
@@ -1137,6 +1146,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute;
   '/dashboard/$id/settings/mcp': typeof DashboardIdSettingsMcpRoute;
   '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute;
+  '/dashboard/$id/settings/notifications': typeof DashboardIdSettingsNotificationsRoute;
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute;
   '/dashboard/$id/settings/people': typeof DashboardIdSettingsPeopleRoute;
   '/dashboard/$id/settings/personal': typeof DashboardIdSettingsPersonalRoute;
@@ -1263,6 +1273,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personal'
@@ -1375,6 +1386,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personal'
@@ -1498,6 +1510,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/mcp'
     | '/dashboard/$id/settings/mcp-servers'
+    | '/dashboard/$id/settings/notifications'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/people'
     | '/dashboard/$id/settings/personal'
@@ -1873,6 +1886,13 @@ declare module '@tanstack/react-router' {
       path: '/organization';
       fullPath: '/dashboard/$id/settings/organization';
       preLoaderRoute: typeof DashboardIdSettingsOrganizationRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
+    '/dashboard/$id/settings/notifications': {
+      id: '/dashboard/$id/settings/notifications';
+      path: '/notifications';
+      fullPath: '/dashboard/$id/settings/notifications';
+      preLoaderRoute: typeof DashboardIdSettingsNotificationsRouteImport;
       parentRoute: typeof DashboardIdSettingsRoute;
     };
     '/dashboard/$id/settings/mcp-servers': {
@@ -2778,6 +2798,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute;
   DashboardIdSettingsMcpRoute: typeof DashboardIdSettingsMcpRoute;
   DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute;
+  DashboardIdSettingsNotificationsRoute: typeof DashboardIdSettingsNotificationsRoute;
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute;
   DashboardIdSettingsPeopleRoute: typeof DashboardIdSettingsPeopleRoute;
   DashboardIdSettingsPersonalRoute: typeof DashboardIdSettingsPersonalRoute;
@@ -2807,6 +2828,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsMcpRoute: DashboardIdSettingsMcpRoute,
   DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
+  DashboardIdSettingsNotificationsRoute: DashboardIdSettingsNotificationsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
   DashboardIdSettingsPeopleRoute: DashboardIdSettingsPeopleRoute,
   DashboardIdSettingsPersonalRoute: DashboardIdSettingsPersonalRoute,

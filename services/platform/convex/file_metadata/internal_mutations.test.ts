@@ -143,6 +143,10 @@ describe('saveFileMetadata (internal)', () => {
       fileName: 'updated.pdf',
       contentType: 'application/pdf',
       size: 2048,
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
     });
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
@@ -221,6 +225,10 @@ describe('saveFileMetadata (internal)', () => {
       contentType: 'application/pdf',
       size: 1024,
       documentId: 'doc_1',
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
     });
   });
 
@@ -243,6 +251,10 @@ describe('saveFileMetadata (internal)', () => {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragQueuedAt: expect.any(Number),
     });
   });
 });

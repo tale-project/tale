@@ -11,6 +11,7 @@ import {
 import { BarChart3, Network } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useCatalogSync } from '@/app/components/catalog/use-catalog-sync';
 import { SELECT_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
@@ -21,7 +22,10 @@ import { useT } from '@/lib/i18n/client';
 import { buildFolderView, isInFolder } from '@/lib/utils/folder-tree';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
-import { useDeleteWorkflowFile } from '../hooks/file-mutations';
+import {
+  useDeleteWorkflowFile,
+  useInvalidateWorkflows,
+} from '../hooks/file-mutations';
 import { useListWorkflows } from '../hooks/file-queries';
 import { useAutomationsTableConfig } from '../hooks/use-automations-table-config';
 import { AutomationsActionMenu } from './automations-action-menu';
@@ -103,6 +107,15 @@ export function AutomationsTable({
   });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { mutateAsync: deleteWorkflow } = useDeleteWorkflowFile();
+  const invalidateWorkflows = useInvalidateWorkflows();
+  const { menuItem: syncItem, dialog: syncDialog } = useCatalogSync({
+    organizationId,
+    domain: 'workflows',
+    onSynced: async () => {
+      await invalidateWorkflows(organizationId);
+      window.dispatchEvent(new Event('workflow-updated'));
+    },
+  });
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -342,7 +355,10 @@ export function AutomationsTable({
           >
             {tAutomations('metrics.link')}
           </LinkButton>
-          <AutomationsActionMenu organizationId={organizationId} />
+          <AutomationsActionMenu
+            organizationId={organizationId}
+            extraMenuItems={syncItem ? [syncItem] : undefined}
+          />
         </div>
       </div>
 
@@ -406,6 +422,7 @@ export function AutomationsTable({
           />
         }
       />
+      {syncDialog}
     </Stack>
   );
 }

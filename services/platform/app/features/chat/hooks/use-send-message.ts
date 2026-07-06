@@ -14,6 +14,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { AUTO_AGENT_SLUG } from '@/lib/shared/constants/agents';
+import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 
 import type {
   PendingMessage,
@@ -259,6 +260,7 @@ export function useSendMessage({
   restoreKbMentions,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
   const navigate = useNavigate();
 
   const { mutateAsync: createThread } = useCreateThread();
@@ -537,14 +539,20 @@ export function useSendMessage({
       // reasoning. Covers all three branches below uniformly.
       markScrollIntent();
       if (isArena) {
-        if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
+        const arenaThreadIdA = currentArena.arenaThreadIdA;
+        const arenaThreadIdB = currentArena.arenaThreadIdB;
+        if (arenaThreadIdA && arenaThreadIdB) {
           setPendingMessage({
             content: optimisticContent,
-            threadId: currentArena.arenaThreadIdA,
-            arenaThreadIdB: currentArena.arenaThreadIdB,
+            threadId: arenaThreadIdA,
+            arenaThreadIdB: arenaThreadIdB,
             attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
+          });
+          queueMicrotask(() => {
+            markSendPending(arenaThreadIdA);
+            markSendPending(arenaThreadIdB);
           });
         } else {
           // Thread A may exist (arenaThreadIdA set) but B needs creation,
@@ -552,11 +560,14 @@ export function useSendMessage({
           // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
             content: optimisticContent,
-            threadId: currentArena.arenaThreadIdA ?? 'pending',
+            threadId: arenaThreadIdA ?? 'pending',
             attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
           });
+          if (arenaThreadIdA) {
+            queueMicrotask(() => markSendPending(arenaThreadIdA));
+          }
         }
       } else {
         setPendingMessage({
@@ -566,6 +577,9 @@ export function useSendMessage({
           timestamp: pendingTimestamp,
           lastMessageKey,
         });
+        // Defer one microtask so the optimistic user (and shell) commit before
+        // `isSendPending` — prevents one frame of thinking on the prior turn.
+        if (threadId) queueMicrotask(() => markSendPending(threadId));
       }
 
       // Background bind. With `setPendingMessage` already rendered above,
@@ -952,7 +966,7 @@ export function useSendMessage({
           // the retry closure (a `let` widens back to `string | undefined`).
           const threadIdForSend = currentThreadId;
           // Retry through a deploy drain window (transient BACKEND_DRAINING).
-          await withBackendDrainRetry(() =>
+          const sendResult = await withBackendDrainRetry(() =>
             chatWithAgent({
               agentSlug: agentSlugToSend,
               threadId: threadIdForSend,
@@ -964,17 +978,15 @@ export function useSendMessage({
                   ? enabledCapabilities
                   : undefined,
               attachments: mutationAttachments,
-              // `@`-mention KB pins. Server-resolved (access + RAG status), so
-              // only the document ids travel — never client-supplied fileIds.
               referencedDocumentIds,
               userContext: userContextPayload,
-              // projectId from URL query is a string; chatWithAgent expects
-              // an Id<'projects'>. The branding is structural-only TS; server
-              // validates it via assertProjectAccessForChat. We use the
-              // dedicated `asProjectId` helper to keep the lint-disable in
-              // one place (see features/projects/hooks/use-project-id-param.ts).
               projectId: projectId ? asProjectId(projectId) : undefined,
             }),
+          );
+          toastUnresolvedMentions(
+            sendResult.unresolvedMentionTokens,
+            toast,
+            tCommon,
           );
         }
       } catch (error) {
@@ -1098,6 +1110,7 @@ export function useSendMessage({
       userContext,
       navigate,
       t,
+      tCommon,
       convexClient,
       teamId,
       projectId,

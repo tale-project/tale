@@ -103,6 +103,13 @@ export async function updateDocumentInternal(
   const needsContentReindex =
     hashChanged && hasNewFile && wasIndexed && document.fileId;
 
+  const needsFirstTimeIndex =
+    hashChanged &&
+    hasNewFile &&
+    !wasIndexed &&
+    currentFm?.ragStatus !== 'running' &&
+    updateData.fileId !== undefined;
+
   const needsTitleReindex =
     titleChanged && !hashChanged && wasIndexed && document.fileId;
 
@@ -124,7 +131,13 @@ export async function updateDocumentInternal(
   // the document row is later deleted/cleared before the scheduled
   // job fires — otherwise the orphan oldFileId chunks survive
   // forever (round-3 P2 R4-P2-a).
-  if (needsReindex && oldFileId) {
+  if (needsFirstTimeIndex) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documents.internal_actions.uploadDocumentToRag,
+      { documentId },
+    );
+  } else if (needsReindex && oldFileId) {
     await ctx.scheduler.runAfter(
       0,
       internal.documents.internal_actions.reindexDocumentInRag,

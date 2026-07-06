@@ -20,6 +20,8 @@ A pure-instruction skill is the right shape when the behaviour is voice or const
 
 A skill becomes visible to an agent by attachment. The agent's editor lists the org's available skills under the **Skills** tab; check the ones that apply. Attached skills always inject their instructions; a skill with a script also appears in the agent's tool list as the agent can choose to call.
 
+For **external agents** (Claude Code, Cursor, and other sandbox runtimes), workflow disciplines such as fix-bug and write-notes load automatically each turn — you do not bind them on the Skills tab. Use the tab to attach **extra org skills** only; bound skills are staged into the session as files the runtime discovers natively.
+
 The attachment is per agent: two agents can attach the same skill and the agent's behaviour is the union of its instructions and the skill's. Detaching is symmetric — the next request runs without the skill.
 
 ## Skill scripts and the sandbox

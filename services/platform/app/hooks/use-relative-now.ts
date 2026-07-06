@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 
 import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 
+import { useClockOffset } from './use-clock-offset';
+
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -41,6 +43,10 @@ export function useRelativeNow(
   options?: RelativeNowOptions,
 ): string | null {
   const { locale } = useLocale();
+  // `timestamp` is a server `_creationTime`; measure "now" in the SERVER frame
+  // (client wall clock + learned offset) so a freshly-created row never reads as
+  // "in 3s" / a few seconds off under client↔server clock skew.
+  const { serverEpochNow } = useClockOffset();
   const paused = options?.paused === true;
   const [, setTick] = useState(0);
 
@@ -48,7 +54,7 @@ export function useRelativeNow(
     if (paused || timestamp === undefined) return undefined;
     let handle: number;
     const schedule = () => {
-      const diff = Math.max(0, Date.now() - timestamp);
+      const diff = Math.max(0, serverEpochNow() - timestamp);
       // Below a minute, wake exactly on the next 5s boundary so the label
       // flips precisely when its value changes; above, a per-minute tick.
       const next =
@@ -62,11 +68,11 @@ export function useRelativeNow(
     };
     schedule();
     return () => window.clearTimeout(handle);
-  }, [paused, timestamp]);
+  }, [paused, timestamp, serverEpochNow]);
 
   if (paused || timestamp === undefined) return null;
 
-  const diff = Math.max(0, Date.now() - timestamp);
+  const diff = Math.max(0, serverEpochNow() - timestamp);
   if (diff < MINUTE_MS) {
     // Quantise to 5-second steps: 0s, 5s, 10s … 55s. Floor (not round) so the
     // value never jumps ahead of the elapsed time.
@@ -75,5 +81,5 @@ export function useRelativeNow(
   if (diff < HOUR_MS) {
     return `${Math.floor(diff / MINUTE_MS)}m`;
   }
-  return formatRelativeTime(timestamp, locale, 'narrow');
+  return formatRelativeTime(timestamp, locale, serverEpochNow(), 'narrow');
 }

@@ -51,7 +51,7 @@
         "parameters": {
           "operation": "find_unprocessed",
           "tableName": "documents",
-          "backoffHours": "{{backoffHours}}"
+          "backoffHours": "{{config.backoffHours}}"
         }
       },
       "nextSteps": {

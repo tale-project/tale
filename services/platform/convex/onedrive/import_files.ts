@@ -2,7 +2,9 @@
  * Import Files - Business logic for importing files from OneDrive/SharePoint
  */
 
+import { resolveFileType } from '../../lib/shared/file-types';
 import type { Id } from '../_generated/dataModel';
+import { deriveSyncTargets, type SyncTarget } from './derive_sync_targets';
 
 export interface ImportItem {
   id: string;
@@ -49,26 +51,33 @@ export interface ImportFilesDependencies {
     siteId?: string,
     driveId?: string,
   ) => Promise<{ success: boolean; data?: FileMetadata; error?: string }>;
-  downloadFile: (
-    itemId: string,
-    token: string,
-    siteId?: string,
-    driveId?: string,
-  ) => Promise<{
+  /**
+   * Download the source file and land it in Convex storage in one step,
+   * returning only the storage id — the bytes never come back into the
+   * caller's heap. Backed by a streaming `'use node'` action so a large file
+   * (e.g. a 57 MB PDF) can't OOM the 64 MB workflow isolate the import runs in.
+   */
+  downloadToStorage: (args: {
+    itemId: string;
+    token: string;
+    siteId?: string;
+    driveId?: string;
+  }) => Promise<{
     success: boolean;
-    content?: ArrayBuffer;
+    storageId?: Id<'_storage'>;
     mimeType?: string;
+    size?: number;
     error?: string;
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
   }) => Promise<{ _id: Id<'documents'>; contentHash?: string } | null>;
-  storeFile: (blob: Blob) => Promise<Id<'_storage'>>;
   createDocument: (args: {
     organizationId: string;
     title: string;
     fileId: Id<'_storage'>;
+    mimeType?: string;
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
@@ -81,6 +90,7 @@ export interface ImportFilesDependencies {
     documentId: Id<'documents'>;
     title: string;
     fileId: Id<'_storage'>;
+    mimeType?: string;
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
@@ -99,11 +109,27 @@ export interface ImportFilesDependencies {
     fileName: string,
     contentType: string,
     size: number,
+    documentId: Id<'documents'>,
   ) => Promise<void>;
   linkDocumentToFile?: (
     storageId: Id<'_storage'>,
     documentId: Id<'documents'>,
   ) => Promise<void>;
+  /** Queue RAG indexing after the document row and folder path exist. */
+  scheduleHubDocumentRagIndexing?: (
+    documentId: Id<'documents'>,
+  ) => Promise<void>;
+  /** Create-or-reactivate the sync config for a selected item ("Sync import"
+   *  only). Returns the config id so imported documents can point back at it. */
+  upsertSyncConfig?: (
+    target: SyncTarget & {
+      organizationId: string;
+      userId: string;
+      teamId?: string;
+      targetBucket: string;
+      storagePrefix?: string;
+    },
+  ) => Promise<string | null>;
 }
 
 export async function importFiles(
@@ -121,6 +147,27 @@ export async function importFiles(
   let successCount = 0;
   let failedCount = 0;
   let skippedCount = 0;
+
+  // "Sync import" registers each selected item as a sync config before any
+  // file lands, so the sync workflow keeps the selection fresh afterwards.
+  // Imported documents carry the config id in metadata (syncConfigId) — the
+  // link the engine uses to update and prune them on later runs.
+  const configIdByItemId = new Map<string, string>();
+  if (args.importType === 'sync' && deps.upsertSyncConfig) {
+    for (const target of deriveSyncTargets(args.items)) {
+      const configId = await deps.upsertSyncConfig({
+        ...target,
+        organizationId: args.organizationId,
+        userId: args.userId,
+        teamId: args.teamId,
+        targetBucket: 'documents',
+        storagePrefix: target.itemPath
+          ? `${args.organizationId}/${target.itemPath}`
+          : args.organizationId,
+      });
+      if (configId) configIdByItemId.set(target.itemId, configId);
+    }
+  }
 
   for (const item of args.items) {
     try {
@@ -149,6 +196,7 @@ export async function importFiles(
         contentHash &&
         existingDoc.contentHash === contentHash
       ) {
+        await deps.scheduleHubDocumentRagIndexing?.(existingDoc._id);
         results.push({
           fileId: item.id,
           fileName: item.name,
@@ -159,38 +207,44 @@ export async function importFiles(
         continue;
       }
 
-      const downloadResult = await deps.downloadFile(
-        item.id,
-        args.token,
-        item.siteId,
-        item.driveId,
-      );
+      const stored = await deps.downloadToStorage({
+        itemId: item.id,
+        token: args.token,
+        siteId: item.siteId,
+        driveId: item.driveId,
+      });
 
-      if (!downloadResult.success || !downloadResult.content) {
-        throw new Error(downloadResult.error || 'Failed to download file');
+      if (!stored.success || !stored.storageId) {
+        throw new Error(stored.error || 'Failed to download file');
       }
 
-      const blob = new Blob([downloadResult.content], {
-        type: downloadResult.mimeType || 'application/octet-stream',
-      });
-      const storageId = await deps.storeFile(blob);
-      await deps.saveFileMetadata(
-        storageId,
+      const storageId = stored.storageId;
+      const contentType = resolveFileType(
         item.name,
-        downloadResult.mimeType || 'application/octet-stream',
-        blob.size,
+        stored.mimeType || 'application/octet-stream',
       );
+      // Size, most-reliable first: the transferred byte count, then the Graph
+      // item-metadata size (always present for a file), then the listing size.
+      // A recursive listing can omit `size` for a freshly copied/uploaded item
+      // (list_folder_contents forwards it verbatim); without this fallback the
+      // row's metadata.size stays undefined and the hub renders it as "—".
+      const fileSize = stored.size ?? metadataResult.data.size ?? item.size;
 
       const storagePath = item.relativePath
         ? `${args.organizationId}/${item.relativePath}`
         : `${args.organizationId}/${item.name}`;
+
+      const syncConfigId = configIdByItemId.get(
+        item.selectedParentId ?? item.id,
+      );
 
       const metadata: Record<string, unknown> = {
         oneDriveItemId: item.id,
         itemPath: item.relativePath || '',
         sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
         storagePath,
-        size: item.size,
+        size: fileSize,
+        ...(syncConfigId && { syncConfigId }),
         ...(item.selectedParentId && {
           selectedParentId: item.selectedParentId,
         }),
@@ -227,6 +281,7 @@ export async function importFiles(
           documentId: existingDoc._id,
           title: item.name,
           fileId: storageId,
+          mimeType: contentType,
           sourceProvider,
           externalItemId: item.id,
           contentHash,
@@ -240,6 +295,7 @@ export async function importFiles(
           organizationId: args.organizationId,
           title: item.name,
           fileId: storageId,
+          mimeType: contentType,
           sourceProvider,
           externalItemId: item.id,
           contentHash,
@@ -250,7 +306,17 @@ export async function importFiles(
         });
       }
 
+      await deps.saveFileMetadata(
+        storageId,
+        item.name,
+        contentType,
+        fileSize,
+        documentId,
+      );
+
       await deps.linkDocumentToFile?.(storageId, documentId);
+
+      await deps.scheduleHubDocumentRagIndexing?.(documentId);
 
       results.push({
         fileId: item.id,

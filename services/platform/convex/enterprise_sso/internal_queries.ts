@@ -212,6 +212,9 @@ export const resolveSamlConfig = internalQuery({
 });
 
 /**
+ * @deprecated Login no longer routes by email domain; use the org picker instead.
+ * Kept for the deprecated POST /api/sso/discover endpoint.
+ *
  * Discovery for the login screen: is SSO enabled, and for which org/protocol?
  * Routes by email domain when set, else falls back to the single enabled
  * connection. Returns null when no enabled connection exists.

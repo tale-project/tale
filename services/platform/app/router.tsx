@@ -80,7 +80,14 @@ if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
     release: getEnv('TALE_VERSION'),
-    integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+    integrations: [
+      Sentry.tanstackRouterBrowserTracingIntegration(router),
+      // Sentry captures thrown/unhandled errors by default but treats a plain
+      // `console.error(...)` as a breadcrumb, not an issue. Promote error-level
+      // console calls to issues so deliberately-logged failures are visible too.
+      // Kept to `error` only (not `warn`) to bound event volume.
+      Sentry.captureConsoleIntegration({ levels: ['error'] }),
+    ],
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }

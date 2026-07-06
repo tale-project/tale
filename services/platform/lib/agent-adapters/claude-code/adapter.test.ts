@@ -202,14 +202,29 @@ describe('ClaudeCodeAdapter buildExec — model passthrough', () => {
     expect(modelArg(exec.argv)).toBe('claude-opus-4-20250514[1m]');
   });
 
-  it('leaves managed sessions on the gateway catalog ref', () => {
+  it('leaves managed sessions on the gateway catalog ref without [1m]', () => {
     delete process.env.TALE_SANDBOX_CONTEXT_1M;
     const exec = adapter.buildExec(
       baseSpec({ model: '~anthropic/claude-fable-latest' }),
     );
-    expect(modelArg(exec.argv)).toBe('~anthropic/claude-fable-latest[1m]');
+    // Gateway refs (provider/model spelling) must not carry the window marker —
+    // CC only strips [1m] from vendor-native ids; a suffixed gateway ref never
+    // reaches the LLM gateway (#2396).
+    expect(modelArg(exec.argv)).toBe('~anthropic/claude-fable-latest');
+    expect(exec.env.ANTHROPIC_MODEL).toBe('~anthropic/claude-fable-latest');
     expect(exec.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe(
       '~anthropic/claude-fable-latest',
+    );
+  });
+
+  it('REGRESSION #2396: OpenRouter gateway refs must not get the [1m] suffix', () => {
+    delete process.env.TALE_SANDBOX_CONTEXT_1M;
+    const exec = adapter.buildExec(
+      baseSpec({ model: 'openrouter/anthropic/claude-sonnet-4.6' }),
+    );
+    expect(modelArg(exec.argv)).toBe('openrouter/anthropic/claude-sonnet-4.6');
+    expect(exec.env.ANTHROPIC_MODEL).toBe(
+      'openrouter/anthropic/claude-sonnet-4.6',
     );
   });
 });

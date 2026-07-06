@@ -123,6 +123,28 @@ export async function expectCannedReply(page: Page): Promise<void> {
   });
 }
 
+/** Desktop/mobile history toggle — label flips once the panel is open. */
+function historySidebarToggle(page: Page): Locator {
+  return page
+    .getByRole('button', { name: t('chat.showHistory') })
+    .or(page.getByRole('button', { name: t('chat.hideHistory') }))
+    .first();
+}
+
+/**
+ * Ensure the chat history column is expanded. After #2428 the open/closed
+ * preference persists per user+org, so callers must not assume "Show chats" is
+ * always present — only click when `aria-expanded` is false.
+ */
+export async function ensureHistorySidebarOpen(page: Page): Promise<void> {
+  const toggle = historySidebarToggle(page);
+  await expect(toggle).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
 /**
  * Delete a thread deterministically by its id via the history sidebar. Scopes
  * to the row carrying `data-thread-id` (added to `ChatRow`) — never `.first()`,
@@ -132,11 +154,7 @@ export async function deleteThreadById(
   page: Page,
   threadId: string,
 ): Promise<void> {
-  // Open the history sidebar (the toggle's label is "Show" while collapsed).
-  await page
-    .getByRole('button', { name: t('chat.showHistory') })
-    .first()
-    .click();
+  await ensureHistorySidebarOpen(page);
 
   const row = page.locator(`[data-thread-id="${threadId}"]`);
   await expect(row).toBeVisible({ timeout: TIMEOUT.VISIBLE });

@@ -117,32 +117,17 @@ export const syncDefaultWorkflowInstallations = internalAction({
           },
         );
 
-        for (const event of workflow.triggers?.events ?? []) {
-          await ctx.runMutation(
-            internal.workflows.provision_defaults_mutations
-              .ensureEventSubscription,
-            {
-              organizationId: args.organizationId,
-              workflowSlug,
-              eventType: event.eventType,
-              eventFilter: event.eventFilter,
-              isActive: true,
-            },
-          );
-        }
-        for (const schedule of workflow.triggers?.schedules ?? []) {
-          await ctx.runMutation(
-            internal.workflows.provision_defaults_mutations.ensureSchedule,
-            {
-              organizationId: args.organizationId,
-              workflowSlug,
-              cronExpression: schedule.cron,
-              timezone: schedule.timezone,
-              variables: schedule.variables,
-              isActive: true,
-            },
-          );
-        }
+        await ctx.runMutation(
+          internal.workflows.provision_defaults_mutations
+            .provisionDeclaredWorkflowTriggers,
+          {
+            organizationId: args.organizationId,
+            workflowSlug,
+            events: workflow.triggers?.events,
+            schedules: workflow.triggers?.schedules,
+            activate: true,
+          },
+        );
 
         await ctx.runMutation(
           internal.workflows.provision_defaults_mutations.recordProvision,

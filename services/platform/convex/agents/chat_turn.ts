@@ -28,6 +28,8 @@ import {
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
+import { notifyChatMentions } from '../collab/notify';
+import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
 import { isDrainingNow } from '../control/drain';
 import { isActiveDocument } from '../documents/_helpers';
 import { userContextValidator } from '../lib/agent_response/validators';
@@ -162,6 +164,7 @@ export const chatWithAgentTurn = mutation({
   returns: v.object({
     messageAlreadyExists: v.boolean(),
     streamId: v.string(),
+    unresolvedMentionTokens: v.array(v.string()),
   }),
   handler: async (ctx, args) => {
     const requestStartMs = Date.now();
@@ -204,7 +207,11 @@ export const chatWithAgentTurn = mutation({
           prewarm: true,
         },
       );
-      return { messageAlreadyExists: false, streamId: '' };
+      return {
+        messageAlreadyExists: false,
+        streamId: '',
+        unresolvedMentionTokens: [],
+      };
     }
 
     // Deploy drain gate: a `tale deploy` recreates the convex container in
@@ -333,6 +340,25 @@ export const chatWithAgentTurn = mutation({
         );
     }
 
+    const projectIdForMentions = args.projectId ?? meta.projectId;
+    const { mentions, unresolvedMentionTokens } = await resolveSurfaceMentions(
+      ctx,
+      {
+        organizationId: args.organizationId,
+        body: args.message.trim(),
+        projectId: projectIdForMentions,
+      },
+    );
+    await notifyChatMentions(ctx, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      threadTitle: meta.title ?? 'Chat',
+      mentions,
+      actorType: 'user',
+      actorId: authUser.userId,
+      projectId: projectIdForMentions,
+    });
+
     await ctx.scheduler.runAfter(
       0,
       internal.agents.chat_turn_generate.runChatTurnGeneration,
@@ -361,6 +387,10 @@ export const chatWithAgentTurn = mutation({
 
     // The client subscribes to the stream by threadId and ignores this return;
     // dedup is decided in the node action (saveMessage), so report false here.
-    return { messageAlreadyExists: false, streamId };
+    return {
+      messageAlreadyExists: false,
+      streamId,
+      unresolvedMentionTokens,
+    };
   },
 });
