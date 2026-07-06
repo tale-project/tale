@@ -444,3 +444,56 @@ describe('DataTable addAction contract', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('DataTable non-sticky wheel scroll', () => {
+  it('chains vertical wheel scroll from the table frame to a scrollable ancestor', () => {
+    const scrollParent = document.createElement('div');
+    scrollParent.style.height = '200px';
+    scrollParent.style.overflow = 'auto';
+    Object.defineProperty(scrollParent, 'scrollHeight', {
+      value: 800,
+      configurable: true,
+    });
+    Object.defineProperty(scrollParent, 'clientHeight', {
+      value: 200,
+      configurable: true,
+    });
+    let top = 0;
+    Object.defineProperty(scrollParent, 'scrollTop', {
+      get: () => top,
+      set: (value: number) => {
+        top = value;
+      },
+      configurable: true,
+    });
+
+    const inner = document.createElement('div');
+    inner.style.height = '800px';
+
+    scrollParent.appendChild(inner);
+    document.body.appendChild(scrollParent);
+
+    render(
+      <DataTable columns={columns} data={sampleRows} approxRowCount={3} />,
+      { container: inner },
+    );
+
+    const trap = inner.querySelector('.overflow-x-auto');
+    expect(trap).toBeInstanceOf(HTMLElement);
+    if (!(trap instanceof HTMLElement)) return;
+    Object.defineProperty(trap, 'scrollHeight', {
+      value: 400,
+      configurable: true,
+    });
+    Object.defineProperty(trap, 'clientHeight', {
+      value: 400,
+      configurable: true,
+    });
+
+    trap.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 48, bubbles: true, cancelable: true }),
+    );
+
+    expect(scrollParent.scrollTop).toBe(48);
+  });
+});
