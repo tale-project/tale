@@ -480,6 +480,11 @@ export const sandboxRunResultValidator = v.object({
   exitCode: v.optional(v.number()),
   stdoutPreview: v.optional(v.string()),
   stderrPreview: v.optional(v.string()),
+  /** Whole-run wall-clock, platform-measured — script mode: the session-exec
+   * run duration (installs + steps + harvest, `SessionExecResultShape`);
+   * agent mode: the run's wall-clock from its checkpoint `startedAt`, across
+   * segments. NOT the canonical per-exec execution time (runnerd's
+   * `exit.durationMs`). */
   durationMs: v.optional(v.number()),
   error: v.optional(v.string()),
   /** Structured refusal reason when the task-metrics admission gate rejected

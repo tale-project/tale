@@ -458,6 +458,10 @@ export class ExecManager {
         ringEmit({
           t: 'exit',
           exitCode: code,
+          // The canonical execution wall-clock (protocol.ts `exit.durationMs`):
+          // startedAtMs was taken immediately before spawn(), and finish() runs
+          // only once stdio is drained — nothing outside the process
+          // (scheduling, staging, harvest) can leak into the measurement.
           durationMs: Date.now() - startedAtMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
