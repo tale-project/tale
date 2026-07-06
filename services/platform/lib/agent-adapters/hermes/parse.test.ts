@@ -62,4 +62,26 @@ describe('HermesParser', () => {
       expect(toolUses.length).toBe(3);
     }
   });
+
+  it('emits no usage events (tale-hermes-run carries no token counts)', () => {
+    const events = parseChunked(text, 10_000);
+    expect(events.filter((e) => e.type === 'usage')).toEqual([]);
+  });
+
+  it("maps a turn-cap error to max-turns but not every error mentioning 'max'", () => {
+    const runEnd = (error: string) =>
+      new HermesParser().feed(
+        JSON.stringify({ type: 'run_end', status: 'error', error }) + '\n',
+      );
+
+    const capped = runEnd('Reached max iterations (90)').find(
+      (e) => e.type === 'result',
+    );
+    expect(capped).toMatchObject({ type: 'result', status: 'max-turns' });
+
+    const modelError = runEnd('max_tokens exceeded for this request').find(
+      (e) => e.type === 'result',
+    );
+    expect(modelError).toMatchObject({ type: 'result', status: 'error' });
+  });
 });

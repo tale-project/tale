@@ -19,9 +19,10 @@ import { LineReassembler, parseJsonLine } from '../jsonl';
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
-function num(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
-}
+
+/** A turn-cap error, not any error that merely mentions "max" (e.g.
+ * "max_tokens exceeded" is a model error, not an exhausted loop). */
+const MAX_TURNS_ERROR = /max[ _-]?(turn|iteration)/i;
 
 function mapRunStatus(
   status: string | undefined,
@@ -30,7 +31,7 @@ function mapRunStatus(
   if (status === 'ok' || status === 'success' || status === 'completed') {
     return 'completed';
   }
-  if (error?.toLowerCase().includes('max')) return 'max-turns';
+  if (error !== undefined && MAX_TURNS_ERROR.test(error)) return 'max-turns';
   return status ? 'error' : 'completed';
 }
 
@@ -119,13 +120,8 @@ export class HermesParser implements AgentEventParser {
       };
       if (ev.output !== undefined) out.output = ev.output;
       events.push(out);
-      if (num(ev.duration_ms) > 0) {
-        events.push({
-          type: 'usage',
-          inputTokens: 0,
-          outputTokens: 0,
-        });
-      }
+      // No usage event here: tale-hermes-run carries no per-call token counts,
+      // and a zero-token usage row would only pollute metering.
       return events;
     }
 
