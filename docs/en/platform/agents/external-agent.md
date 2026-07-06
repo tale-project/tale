@@ -39,7 +39,7 @@ That is also a shift in the trust boundary. In gateway-managed mode the sandbox 
 
 **Claude Code**, **Cursor**, and **Hermes Agent** are separate entries in the chat picker (or agents you configure with `agentKind` set accordingly).
 
-For **gateway-managed Claude Code or Hermes Agent**, the model comes from the agent's supported-models list in the **Providers** catalogue — pick it in the model selector. The shipped default is Claude Fable 5, and Fable capacity is rationed: a request its safety classifiers flag, an overloaded model, or exhausted Fable usage does not fail the turn — the session falls back automatically to the catalogue entry's fallback model, Claude Opus 4.8.
+For **gateway-managed Claude Code or Hermes Agent**, the model comes from the agent's supported-models list in the **Providers** catalogue — pick it in the model selector. Claude Code ships with Claude Fable 5 as its default, and Fable capacity is rationed: a request its safety classifiers flag, an overloaded model, or exhausted Fable usage does not fail the turn — the session falls back automatically to the catalogue entry's fallback model, Claude Opus 4.8. Hermes Agent ships with Claude Sonnet 4.6 and Claude Opus 4.8 and runs the whole turn on the model you picked — it has no automatic fallback.
 
 For **env-managed Cursor** (and BYO on any runtime), the Instructions **Models** editor accepts **runtime ids** from your account — run `agent models` inside a sandbox session to see what your subscription exposes. Leave the list empty to let the runtime pick its default (Auto). The chat model picker shows a read-only indicator — the configured id's short name, or **Default model** when the list is empty — rather than the catalogue dropdown.
 

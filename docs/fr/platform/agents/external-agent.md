@@ -27,7 +27,7 @@ GitHub est l'exception qui place aussi un jeton dans le bac à sable, parce que 
 
 La façon dont l'agent atteint son modèle est un choix propre à chaque agent, défini dans l'onglet **Instructions** de l'agent, sous **Identifiants**. Trois backends d'identifiants existent ; l'interface les nomme selon le runtime de l'agent.
 
-**Géré par la passerelle (Claude Code, géré)** est le mode par défaut pour Claude Code. La plateforme forge une clé virtuelle éphémère pour le tour, achemine l'agent par sa passerelle, applique les modèles autorisés de l'agent depuis le catalogue **Fournisseurs**, mesure l'utilisation et applique les plafonds de dépense de l'organisation. Le bac à sable ne détient jamais de vraie clé de fournisseur.
+**Géré par la passerelle (Claude Code et Hermes Agent, géré)** est le mode par défaut pour ces runtimes. La plateforme forge une clé virtuelle éphémère pour le tour, achemine l'agent par sa passerelle, applique les modèles autorisés de l'agent depuis le catalogue **Fournisseurs**, mesure l'utilisation et applique les plafonds de dépense de l'organisation. Le bac à sable ne détient jamais de vraie clé de fournisseur. Les tours Hermes gérés passent par une route de passerelle compatible OpenAI (`OPENAI_BASE_URL` plus la clé virtuelle de session dans le bac à sable).
 
 **Géré par l'environnement (Cursor, géré)** s'applique aux runtimes qui s'authentifient avec une clé API que tu stockes sur l'agent, pas via la passerelle. Ouvre la page **Environnement** de l'agent et définis `CURSOR_API_KEY` (ou la clé que le runtime déclare). Le modèle est un **identifiant runtime** que tu saisis dans la liste **Modèles** des Instructions — `composer-2.5`, par exemple — et non une entrée de catalogue. Ces tours ne sont **pas** mesurés dans l'Analyse d'utilisation ; la facturation relève de ton compte Cursor.
 
@@ -37,11 +37,13 @@ C'est aussi un déplacement de la frontière de confiance. En mode géré par la
 
 ## Moteurs et modèles
 
-**Claude Code** et **Cursor** sont des entrées distinctes dans le sélecteur de chat (ou des agents que tu configures avec `agentKind` défini en conséquence).
+**Claude Code**, **Cursor** et **Hermes Agent** sont des entrées distinctes dans le sélecteur de chat (ou des agents que tu configures avec `agentKind` défini en conséquence).
 
-Pour **Claude Code géré par la passerelle**, le modèle provient de la liste des modèles pris en charge de l'agent dans le catalogue **Fournisseurs** — choisis-le dans le sélecteur de modèle. Le défaut livré est Claude Fable 5, et la capacité de Fable est rationnée : une requête signalée par ses classificateurs de sécurité, un modèle surchargé ou un quota Fable épuisé ne fait pas échouer le tour — la session bascule automatiquement sur le modèle de repli défini dans l'entrée du catalogue, Claude Opus 4.8.
+Pour **Claude Code ou Hermes Agent géré par la passerelle**, le modèle provient de la liste des modèles pris en charge de l'agent dans le catalogue **Fournisseurs** — choisis-le dans le sélecteur de modèle. Claude Code est livré avec Claude Fable 5 par défaut, et la capacité de Fable est rationnée : une requête signalée par ses classificateurs de sécurité, un modèle surchargé ou un quota Fable épuisé ne fait pas échouer le tour — la session bascule automatiquement sur le modèle de repli défini dans l'entrée du catalogue, Claude Opus 4.8. Hermes Agent est livré avec Claude Sonnet 4.6 et Claude Opus 4.8 et exécute tout le tour sur le modèle choisi — il n'a pas de repli automatique.
 
 Pour **Cursor géré par l'environnement** (et BYO sur tout runtime), l'éditeur **Modèles** des Instructions accepte des **identifiants runtime** de ton compte — exécute `agent models` dans une session de bac à sable pour voir ce que ton abonnement expose. Laisse la liste vide pour que le runtime choisisse son défaut (Auto). Le sélecteur de modèle du chat affiche un indicateur en lecture seule — le nom court de l'identifiant configuré, ou **Modèle par défaut** quand la liste est vide — plutôt que le menu déroulant du catalogue.
+
+Un agent **BYO Hermes Agent** utilise les identifiants que tu stockes sous [Variables d'environnement et secrets](/fr/platform/member/environment) — le plus souvent `OPENROUTER_API_KEY`, `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY`, selon ton fournisseur. Définis le modèle sur un identifiant de style Hermes/OpenRouter (par exemple `openrouter:anthropic/claude-sonnet-4.6`).
 
 Un agent **BYO Claude Code** saisit des identifiants Anthropic bruts — `claude-opus-4-20250514`, par exemple — par ordre de priorité. Les agents pack livrés qui portent encore des références de catalogue sont traduits à l'exécution via le `nativeModelId` de chaque entrée ; les identifiants que tu as saisis toi-même passent inchangés.
 
@@ -49,7 +51,7 @@ Un agent **BYO Claude Code** saisit des identifiants Anthropic bruts — `claude
 
 Les tours d'agents externes peuvent être longs et appeler le modèle de nombreuses fois ; ils coûtent donc plus qu'une simple réponse de chat. Chaque tour géré s'exécute sur un budget par tour, et les [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) de l'organisation plafonnent les dépenses par utilisateur, par équipe ou par agent. L'utilisation est mesurée dans l'[Analyse d'utilisation](/fr/platform/admin/governance/usage-analytics) au même titre que tout autre agent, attribuée à l'agent externe pour que tu voies ce que coûtent ces exécutions.
 
-Cette comptabilité est une propriété du chemin **géré par la passerelle** — elle couvre donc les tours Claude Code gérés uniquement. Les agents gérés par l'environnement et BYO s'exécutent sur des identifiants hors passerelle : leurs tours ne sont pas mesurés dans l'Analyse d'utilisation et les plafonds de dépense de l'organisation ne s'appliquent pas ; le coût et les éventuelles limites de débit relèvent de ton compte de fournisseur.
+Cette comptabilité est une propriété du chemin **géré par la passerelle** — elle couvre donc les tours gérés de Claude Code et de Hermes Agent. Les agents gérés par l'environnement et BYO s'exécutent sur des identifiants hors passerelle : leurs tours ne sont pas mesurés dans l'Analyse d'utilisation et les plafonds de dépense de l'organisation ne s'appliquent pas ; le coût et les éventuelles limites de débit relèvent de ton compte de fournisseur.
 
 ## Où cela s'inscrit
 
