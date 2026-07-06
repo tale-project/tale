@@ -469,6 +469,18 @@ export const installWorkflow = action({
       contentHash: result.hash,
     });
 
+    await ctx.runMutation(
+      internal.workflows.provision_defaults_mutations
+        .provisionDeclaredWorkflowTriggers,
+      {
+        organizationId: args.organizationId,
+        workflowSlug: args.workflowSlug,
+        events: result.config.triggers?.events,
+        schedules: result.config.triggers?.schedules,
+        activate: true,
+      },
+    );
+
     return { hash: result.hash };
   },
 });
@@ -573,6 +585,17 @@ export const installAllWorkflows = action({
           workflowSlug: slug,
           installedBy,
           contentHash: result.hash,
+        },
+      );
+      await ctx.runMutation(
+        internal.workflows.provision_defaults_mutations
+          .provisionDeclaredWorkflowTriggers,
+        {
+          organizationId: args.organizationId,
+          workflowSlug: slug,
+          events: result.config.triggers?.events,
+          schedules: result.config.triggers?.schedules,
+          activate: true,
         },
       );
       installed.push(slug);

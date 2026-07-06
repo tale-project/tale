@@ -86,6 +86,11 @@ export const ssoTokensSchema = z.object({
   refreshToken: z.string().optional(),
   expiresAt: z.number().optional(),
   idToken: z.string().optional(),
+  /** Space-separated scopes actually granted by the IdP (`scope` in the token
+   *  response). Persisted on the account row so features that need a specific
+   *  grant (OneDrive's `Files.Read`) can tell a capable token from a bare
+   *  sign-in token. */
+  scope: z.string().optional(),
 });
 export type SsoTokens = z.infer<typeof ssoTokensSchema>;
 

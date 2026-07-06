@@ -2552,7 +2552,10 @@
       "deleteFolderFailed": "Échec de la suppression du dossier",
       "deleteFileFailed": "Une erreur inattendue s'est produite lors de la suppression du fichier.",
       "manageTeams": "Assigner une équipe",
-      "reindex": "Réindexer"
+      "reindex": "Réindexer",
+      "stopSync": "Arrêter la synchronisation",
+      "stopSyncDone": "Synchronisation arrêtée. Les fichiers importés restent dans ton espace de travail.",
+      "stopSyncFailed": "Échec de l'arrêt de la synchronisation"
     },
     "folder": {
       "newFolder": "Nouveau dossier",
@@ -6122,7 +6125,8 @@
             "s4": "Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de répertoire (locataire). L'URL de l'émetteur est https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Allez dans Certificats et secrets › Nouveau secret client et copiez la Valeur du secret (pas son ID).",
             "s6": "Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les champs ci-dessus.",
-            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur."
+            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur.",
+            "s8": "Pour la synchronisation de documents OneDrive/SharePoint, ajoute les autorisations Microsoft Graph Files.Read et Sites.Read.All sous Autorisations d'API et accorde le consentement administrateur. Si tu veux uniquement la connexion, retire ces deux scopes du champ Scopes ci-dessus."
           },
           "google": {
             "intro": "Créez un client OAuth dans la console Google Cloud, puis saisissez ses informations ci-dessous.",

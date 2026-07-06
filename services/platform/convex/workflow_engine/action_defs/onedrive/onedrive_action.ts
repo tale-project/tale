@@ -15,15 +15,16 @@ import { v } from 'convex/values';
 
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
-import type {
-  DocumentRecord,
-  DocumentMetadata,
-} from '../../../documents/types';
-import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
+import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../../../lib/validators/json';
+import {
+  syncOneConfig,
+  type SyncConfigItem,
+} from '../../../onedrive/run_config_sync';
+import { reconcileFolder } from '../../../onedrive/run_folder_reconcile';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 // Common field validators
@@ -34,6 +35,7 @@ const filesValidator = v.array(
     size: v.number(),
     mimeType: v.optional(v.string()),
     lastModified: v.optional(v.number()),
+    relativePath: v.optional(v.string()),
   }),
 );
 
@@ -46,7 +48,12 @@ type OneDriveActionParams =
   | { operation: 'get_user_token'; userId: string }
   | { operation: 'refresh_token'; accountId: string; refreshToken: string }
   | { operation: 'read_file'; itemId: string; token: string }
-  | { operation: 'list_folder_contents'; itemId: string; token: string }
+  | {
+      operation: 'list_folder_contents';
+      itemId: string;
+      token: string;
+      recursive?: boolean;
+    }
   | {
       operation: 'sync_folder_files';
       files: Array<{
@@ -55,10 +62,11 @@ type OneDriveActionParams =
         size: number;
         mimeType?: string;
         lastModified?: number;
+        relativePath?: string;
       }>;
       token: string;
       folderItemPath?: string;
-      configId?: string;
+      configId?: Id<'onedriveSyncConfigs'>;
       createdBy?: string;
     }
   | {
@@ -77,13 +85,24 @@ type OneDriveActionParams =
       lastSyncAt?: number;
       lastSyncStatus?: string;
       errorMessage?: string;
+    }
+  | { operation: 'list_active_configs' }
+  | {
+      operation: 'sync_one_config';
+      configId: Id<'onedriveSyncConfigs'>;
+      userId: string;
+      itemType: 'file' | 'folder';
+      itemId: string;
+      itemName: string;
+      itemPath?: string;
+      teamId?: string;
     };
 
 export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
   type: 'onedrive',
   title: 'OneDrive Operation',
   description:
-    'Execute OneDrive operations (get_user_token, refresh_token, read_file, list_folder_contents, sync_folder_files, upload_to_storage, update_sync_config). organizationId is automatically read from workflow context variables.',
+    'Execute OneDrive operations (get_user_token, refresh_token, read_file, list_folder_contents, sync_folder_files, list_active_configs, sync_one_config, upload_to_storage, update_sync_config). organizationId is automatically read from workflow context variables.',
   parametersValidator: v.union(
     // get_user_token: Get Microsoft Graph token for a user
     v.object({
@@ -107,6 +126,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       operation: v.literal('list_folder_contents'),
       itemId: v.string(),
       token: v.string(),
+      recursive: v.optional(v.boolean()),
     }),
     // sync_folder_files: Sync files from OneDrive folder to storage
     v.object({
@@ -135,6 +155,21 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       lastSyncAt: v.optional(v.number()),
       lastSyncStatus: v.optional(v.string()),
       errorMessage: v.optional(v.string()),
+    }),
+    // list_active_configs: List all active sync configs for the org (loop source)
+    v.object({
+      operation: v.literal('list_active_configs'),
+    }),
+    // sync_one_config: Reconcile a single sync config (one loop iteration)
+    v.object({
+      operation: v.literal('sync_one_config'),
+      configId: v.id('onedriveSyncConfigs'),
+      userId: v.string(),
+      itemType: v.union(v.literal('file'), v.literal('folder')),
+      itemId: v.string(),
+      itemName: v.string(),
+      itemPath: v.optional(v.string()),
+      teamId: v.optional(v.string()),
     }),
   ),
   async execute(ctx, params, variables) {
@@ -247,6 +282,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
           {
             itemId: params.itemId, // Required by validator
             token: params.token, // Required by validator
+            recursive: params.recursive,
           },
         );
 
@@ -266,129 +302,104 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             'sync_folder_files requires organizationId in workflow context',
           );
         }
+        if (!params.configId) {
+          throw new Error('sync_folder_files requires configId');
+        }
 
-        // Build a map of existing documents by OneDrive item id for this org
-        const existingByItemId = new Map<string, DocumentRecord>();
-        let cursor: string | null = null;
-        // Paginate through existing onedrive_sync documents
+        const config = await ctx.runQuery(
+          internal.onedrive.internal_queries.getSyncConfig,
+          { configId: params.configId },
+        );
+        if (!config || config.organizationId !== organizationId) {
+          throw new Error('Sync config not found');
+        }
+        if (config.status !== 'active') {
+          return { created: 0, updated: 0, skipped: 0, errorsCount: 0 };
+        }
 
-        while (true) {
-          const res: {
-            page: DocumentRecord[];
-            isDone: boolean;
-            continueCursor: string;
-          } = await ctx.runQuery(
-            internal.documents.internal_queries.queryDocuments,
+        // Adds/updates + prune share one implementation with the "sync all
+        // active configs" run (reconcileFolder).
+        return await reconcileFolder(ctx, {
+          organizationId,
+          configId: params.configId,
+          itemId: config.itemId,
+          itemName: config.itemName,
+          itemPath: config.itemPath,
+          userId: config.userId,
+          teamId: config.teamId,
+          files: params.files,
+          token: params.token,
+        });
+      }
+
+      case 'list_active_configs': {
+        if (!organizationId) {
+          throw new Error(
+            'list_active_configs requires organizationId in workflow context',
+          );
+        }
+        // Loop source: every active sync config for the org. The workflow's
+        // loop node iterates these so each config is a durable, retryable step.
+        const configs = await ctx.runQuery(
+          internal.onedrive.internal_queries.listActiveSyncConfigs,
+          { organizationId },
+        );
+        return { configs };
+      }
+
+      case 'sync_one_config': {
+        if (!organizationId) {
+          throw new Error(
+            'sync_one_config requires organizationId in workflow context',
+          );
+        }
+        const config: SyncConfigItem = {
+          configId: params.configId,
+          userId: params.userId,
+          itemType: params.itemType,
+          itemId: params.itemId,
+          itemName: params.itemName,
+          itemPath: params.itemPath,
+          teamId: params.teamId,
+        };
+        // Mark the config row with the outcome so the UI reflects per-config
+        // status; never throw, so one failing config can't abort the loop.
+        try {
+          const result = await syncOneConfig(ctx, { organizationId, config });
+          await ctx.runMutation(
+            internal.onedrive.internal_mutations.updateSyncConfig,
             {
+              configId: params.configId,
               organizationId,
-              sourceProvider: 'onedrive',
-              paginationOpts: { numItems: 100, cursor },
+              status: 'active',
+              lastSyncAt: Date.now(),
+              lastSyncStatus: 'success',
             },
           );
-          for (const doc of res.page) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata stored via v.any(); shape is DocumentMetadata written by our sync code
-            const meta = (doc.metadata ?? {}) as DocumentMetadata;
-            const key =
-              doc.externalItemId ?? meta.oneDriveItemId ?? meta.oneDriveId;
-            if (key) existingByItemId.set(key, doc);
-          }
-          if (res.isDone) break;
-          cursor = res.continueCursor || null;
+          return { status: 'success', ...result };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          await ctx.runMutation(
+            internal.onedrive.internal_mutations.updateSyncConfig,
+            {
+              configId: params.configId,
+              organizationId,
+              status: 'error',
+              lastSyncAt: Date.now(),
+              lastSyncStatus: 'failed',
+              errorMessage: message,
+            },
+          );
+          return {
+            status: 'error',
+            error: message,
+            created: 0,
+            skipped: 0,
+            deleted: 0,
+            errorsCount: 1,
+          };
         }
-
-        let created = 0;
-        let updated = 0;
-        let skipped = 0;
-        const errors: Array<{ itemId: string; error: string }> = [];
-
-        for (const f of params.files) {
-          // Required by validator
-          try {
-            const existing = existingByItemId.get(f.id);
-            const lastModified = f.lastModified;
-            const existingMeta = existing
-              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata stored via v.any(); shape is DocumentMetadata written by our sync code
-                ((existing.metadata ?? {}) as DocumentMetadata)
-              : undefined;
-            const prevModified = existingMeta?.sourceModifiedAt;
-
-            if (
-              existing &&
-              lastModified !== undefined &&
-              prevModified !== undefined &&
-              lastModified <= prevModified
-            ) {
-              skipped++;
-              continue;
-            }
-
-            // Read file from OneDrive
-            const readRes = await ctx.runAction(
-              internal.onedrive.internal_actions.readFileFromOneDrive,
-              { itemId: f.id, token: params.token }, // Required by validator
-            );
-            if (!readRes.success || !readRes.content) {
-              throw new Error(readRes.error || 'Failed to read file');
-            }
-
-            // Extract content after validation (TypeScript narrowing workaround)
-            const fileContent = readRes.content;
-            const fileMimeType = readRes.mimeType;
-
-            // Merge metadata
-            const baseMeta = existingMeta ?? {};
-            const metadata = toConvexJsonRecord({
-              ...baseMeta,
-              oneDriveItemId: f.id,
-              itemPath: params.folderItemPath,
-              syncConfigId: params.configId,
-              sourceProvider: 'onedrive',
-              sourceMode: 'auto',
-              syncedAt: Date.now(),
-              sourceModifiedAt: lastModified,
-              size: f.size,
-            });
-
-            // Upload or update
-            const uploadRes = await ctx.runAction(
-              internal.onedrive.internal_actions.uploadToStorage,
-              {
-                organizationId,
-                fileName: f.name,
-                fileData: fileContent,
-                contentType:
-                  fileMimeType || f.mimeType || 'application/octet-stream',
-                metadata,
-                documentIdToUpdate: existing?._id
-                  ? toId<'documents'>(existing._id)
-                  : undefined,
-                createdBy: params.createdBy,
-              },
-            );
-
-            if (!uploadRes.success) {
-              throw new Error(
-                uploadRes.error || 'Failed to upload/update file',
-              );
-            }
-
-            if (existing) updated++;
-            else created++;
-          } catch (e) {
-            errors.push({
-              itemId: f.id,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        }
-
-        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        return {
-          created,
-          updated,
-          skipped,
-          errorsCount: errors.length,
-        };
       }
 
       case 'update_sync_config': {

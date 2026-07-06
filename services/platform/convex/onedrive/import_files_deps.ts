@@ -45,7 +45,13 @@ export function createImportFilesDeps(
         internal.folders.internal_mutations.getOrCreateFolderPath,
         { organizationId: orgId, pathSegments, createdBy, teamId },
       )) ?? undefined,
-    saveFileMetadata: async (storageId, fileName, contentType, size) => {
+    saveFileMetadata: async (
+      storageId,
+      fileName,
+      contentType,
+      size,
+      documentId,
+    ) => {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.saveFileMetadata,
         {
@@ -54,6 +60,9 @@ export function createImportFilesDeps(
           fileName,
           contentType,
           size,
+          documentId,
+          // Index after link so uploadDocumentToRag sees folderPath + source.
+          scheduleRag: false,
           // Provenance is finalized by linkDocumentToFile from the document's
           // sourceProvider ('onedrive' / 'sharepoint').
           source: 'user',
@@ -65,6 +74,19 @@ export function createImportFilesDeps(
         internal.file_metadata.internal_mutations.linkDocumentToFile,
         { storageId, documentId },
       );
+    },
+    scheduleHubDocumentRagIndexing: async (documentId) => {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.scheduleHubDocumentRagIndexing,
+        { documentId },
+      );
+    },
+    upsertSyncConfig: async (target) => {
+      const result = await ctx.runMutation(
+        internal.onedrive.internal_mutations.upsertSyncConfig,
+        target,
+      );
+      return result.configId ?? null;
     },
   };
 }

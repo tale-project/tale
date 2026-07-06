@@ -3,7 +3,6 @@ export * from './get_user_token';
 export * from './refresh_token';
 export * from './read_file';
 export * from './list_folder_contents';
-export * from './create_sync_configs';
 export * from './upload_to_storage';
 export * from './upload_and_create_document';
 export * from './upload_and_create_document_deps';

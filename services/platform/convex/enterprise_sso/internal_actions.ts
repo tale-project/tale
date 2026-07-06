@@ -17,6 +17,7 @@ export const handleSsoLogin = internalAction({
     accessToken: v.string(),
     refreshToken: v.optional(v.string()),
     accessTokenExpiresAt: v.optional(v.number()),
+    scope: v.optional(v.string()),
     organizationId: v.string(),
   },
   returns: v.object({

@@ -20,6 +20,7 @@ export const findOrCreateSsoUser = internalMutation({
     accessToken: v.string(),
     refreshToken: v.optional(v.string()),
     accessTokenExpiresAt: v.optional(v.number()),
+    scope: v.optional(v.string()),
     organizationId: v.string(),
     role: platformRoleValidator,
     // When true (auto-assign roles from the IdP is on), re-apply the mapped role

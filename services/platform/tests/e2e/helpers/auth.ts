@@ -205,7 +205,11 @@ export async function waitForSeededOrg(
   // re-fires the action once scaffolding has landed, instead of staking the
   // whole suite's bootstrap on winning a cold-start race in one shot.
   const seededRow = page.getByText(SEEDED_AGENT_DISPLAY_NAME).first();
-  const ATTEMPTS = 4;
+  // CI cold boot (Convex pre-warm + first push) can exceed 90s before the stack
+  // is READY; org scaffold is scheduled immediately after create but still
+  // races the first agents-list fetch. Extra reload attempts beat extending
+  // VISIBLE, which would slow every assertion in the suite.
+  const ATTEMPTS = 8;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
       await expect(seededRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });

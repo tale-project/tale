@@ -13,6 +13,12 @@ To upload a document, open **Knowledge > Documents** and drop the file onto the 
 
 Binding the document to an agent is a separate step. Open the agent and add the document under its **Knowledge** tab; the next request the agent serves retrieves over the new document's chunks. A document with no bindings stays indexed but is invisible to every agent — useful when you want the document in the library but not yet in production.
 
+## Importing from Microsoft 365
+
+Documents can come from OneDrive or SharePoint instead of disk. Open **Knowledge > Documents > Upload documents > From Microsoft 365**, pick files or folders, and choose the import mode. **One-time import** brings the files in once; they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
+
+To stop syncing a folder, open the folder row's menu and click **Stop syncing**; the imported files stay in the workspace and stop updating. Deleting a synced folder also stops the sync. In both cases the files in OneDrive are untouched.
+
 ## What the indexing pipeline does
 
 Indexing happens in four stages, in order:

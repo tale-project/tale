@@ -2555,7 +2555,10 @@
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
       "manageTeams": "Assign team",
-      "reindex": "Reindex"
+      "reindex": "Reindex",
+      "stopSync": "Stop syncing",
+      "stopSyncDone": "Syncing stopped. The imported files stay in your workspace.",
+      "stopSyncFailed": "Failed to stop syncing"
     },
     "folder": {
       "newFolder": "New folder",
@@ -6389,7 +6392,8 @@
             "s4": "On the Overview page, copy the Application (client) ID and Directory (tenant) ID. The Issuer URL is https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Go to Certificates & secrets › New client secret and copy the secret Value (not the Secret ID).",
             "s6": "Enter the client ID, client secret, and issuer URL in the fields above.",
-            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent."
+            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent.",
+            "s8": "For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read and Sites.Read.All permissions under API permissions and grant admin consent. If you only want sign-in, remove the two scopes from the Scopes field above."
           },
           "google": {
             "intro": "Create an OAuth client in the Google Cloud Console, then paste its details below.",

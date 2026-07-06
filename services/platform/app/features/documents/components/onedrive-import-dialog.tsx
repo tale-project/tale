@@ -51,6 +51,8 @@ export function OneDriveImportDialog({
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportOneDriveFiles();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isBusy = isImporting || isSubmitting;
   const { mutateAsync: listOneDriveFiles } = useConvexAction(
     api.onedrive.actions.listFiles,
   );
@@ -142,7 +144,10 @@ export function OneDriveImportDialog({
           id: item.id,
           name: item.name,
           size: item.size,
-          relativePath: currentPath,
+          // Full path including the file name — the backend derives the
+          // destination folder chain by dropping the last segment, so a
+          // folder-prefix-only path would flatten the import to the root.
+          relativePath: currentPath ? `${currentPath}/${item.name}` : item.name,
           isDirectlySelected,
           ...(!isDirectlySelected &&
             selectedParentInfo && {
@@ -328,6 +333,7 @@ export function OneDriveImportDialog({
   };
 
   const handleImport = async () => {
+    setIsSubmitting(true);
     try {
       const selectedItemsArray = Array.from(selectedItems.values());
 
@@ -434,6 +440,8 @@ export function OneDriveImportDialog({
           error instanceof Error ? error.message : tCommon('errors.generic'),
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -498,6 +506,7 @@ export function OneDriveImportDialog({
         setSelectedItems(new Map());
       },
       onProceedToSettings: proceedToSettings,
+      t,
     });
 
     return (
@@ -506,7 +515,8 @@ export function OneDriveImportDialog({
         onOpenChange={props.onOpenChange ?? noop}
         title={t('microsoft365.title')}
         hideClose
-        className="max-w-5xl p-0 sm:p-0"
+        size="wide"
+        className="p-0 sm:p-0"
         customHeader={picker.customHeader}
       >
         {picker.content}
@@ -518,10 +528,12 @@ export function OneDriveImportDialog({
     const settings = OneDriveSettingsStage({
       selectedItemCount: selectedItems.size,
       importType,
-      isImporting,
+      isImporting: isBusy,
       teams: teams ?? undefined,
       isLoadingTeams,
       selectedTeamId: selectedTeamId_local,
+      t,
+      tCommon,
       onImportTypeChange: setImportType,
       onSelectTeam: handleSelectTeam,
       onBack: () => setStage('picker'),

@@ -13,6 +13,7 @@ import { internalAction } from '../_generated/server';
 import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { listFolderContents as listFolderContentsImpl } from './list_folder_contents';
 import { readFile as readFileImpl } from './read_file';
+import { resolveMicrosoftRefreshCredentials } from './refresh_credentials';
 import { refreshToken as refreshTokenImpl } from './refresh_token';
 import { uploadAndCreateDocument as uploadAndCreateDocumentImpl } from './upload_and_create_document';
 import { createUploadAndCreateDocDeps } from './upload_and_create_document_deps';
@@ -21,6 +22,7 @@ export const listFolderContents = internalAction({
   args: {
     itemId: v.string(),
     token: v.string(),
+    recursive: v.optional(v.boolean()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -32,6 +34,7 @@ export const listFolderContents = internalAction({
           size: v.number(),
           mimeType: v.optional(v.string()),
           lastModified: v.optional(v.number()),
+          relativePath: v.optional(v.string()),
         }),
       ),
     ),
@@ -77,7 +80,19 @@ export const refreshToken = internalAction({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const result = await refreshTokenImpl({ refreshToken: args.refreshToken });
+    const credentials = await resolveMicrosoftRefreshCredentials(
+      ctx,
+      args.accountId,
+    );
+    if (!credentials) {
+      console.error('refreshToken: Missing OAuth credentials');
+      return { success: false, error: 'Missing OAuth credentials' };
+    }
+
+    const result = await refreshTokenImpl({
+      refreshToken: args.refreshToken,
+      ...credentials,
+    });
 
     if (!result.success || !result.accessToken || !result.expiresAt) {
       return { success: false, error: result.error };
