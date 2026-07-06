@@ -16,6 +16,7 @@ import remarkGfm from 'remark-gfm';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -492,6 +493,7 @@ export function MessageInfoDialog({
   routedAgentName,
 }: MessageInfoDialogProps) {
   const { formatDate, locale } = useFormatDate();
+  const { serverEpochNow } = useClockOffset();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
   const { copied: idCopied, onClick: handleCopyId } = useCopyButton(messageId);
@@ -733,7 +735,7 @@ export function MessageInfoDialog({
           <Field label={t('messageInfo.timestamp')}>
             <Text as="div">{formatDate(timestamp, 'long')}</Text>
             <Text as="div" variant="muted" className="text-xs">
-              {formatRelativeTime(timestamp, locale)}
+              {formatRelativeTime(timestamp, locale, serverEpochNow())}
             </Text>
           </Field>
 
