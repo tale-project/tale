@@ -19,13 +19,22 @@ interface OpenCodeConfig {
   $schema: string;
   provider: Record<string, unknown>;
   model: string;
-  permission: string;
+  permission: Record<string, 'ask' | 'allow' | 'deny'>;
   share: string;
   autoupdate: boolean;
+  instructions?: string[];
   mcp?: Record<string, unknown>;
 }
 
 const TALE_PROVIDER = 'tale';
+
+/** Session-relative stage path (under the /user mount — the sessionStageFiles
+ * contract) of the per-exec instructions file that carries the composed
+ * systemPromptAppend. Per-exec (like TALE_STEER_DIR) so concurrent turns from
+ * other threads sharing the workspace never read each other's instructions. */
+function opencodeInstructionsStagePath(execId: string): string {
+  return `.runtime/tale/instructions/${execId}.md`;
+}
 
 /** Self-launch headless Playwright MCP (see claude-code/adapter.ts). */
 const PLAYWRIGHT_MCP_COMMAND = [
@@ -81,8 +90,36 @@ export class OpenCodeAdapter implements AgentAdapter {
         'OpenCode requires the managed gateway; authMode "byo" is not supported for OpenCode.',
       );
     }
+    // `spec.maxTurns` is deliberately ignored: `opencode run` has no turn-cap
+    // flag; runaway protection is the platform's exec timeout + action
+    // deadline (same posture as the Cursor adapter). `spec.fallbackModel` is
+    // ignored too — OpenCode has no availability-fallback chain (the
+    // `--fallback-model` concept is Claude Code's).
     const modelId = spec.model ?? 'default';
     const taleModel = `${TALE_PROVIDER}/${modelId}`;
+
+    // Permission policy (verified against OpenCode v1.17.3: a config-level
+    // permission object merges LAST over the built-in agent defaults, and
+    // within it the LAST matching key wins, so the tool denies below override
+    // the leading wildcard). The container is the safety boundary → allow
+    // every tool/edit/bash/external-dir action; no SSE permission prompts in
+    // run-mode. Denies:
+    //  - question: no answer path in our chat surface (mirrors Claude Code
+    //    denying AskUserQuestion) — the agent asks in prose instead.
+    //  - webfetch/websearch: OpenCode's NATIVE web tools are ungoverned (no
+    //    integration audit / untrusted-source wrapping / metering), so managed
+    //    runs force-disable them per the AgentRunSpec.nativeWebTools contract;
+    //    web access routes through a connected integration via the dispatch
+    //    bridge. `nativeWebTools === true` lifts that denial. (OpenCode has no
+    //    BYO mode — it throws above — so there is no BYO carve-out here.)
+    const permission: OpenCodeConfig['permission'] = {
+      '*': 'allow',
+      question: 'deny',
+      ...(spec.nativeWebTools !== true && {
+        webfetch: 'deny',
+        websearch: 'deny',
+      }),
+    };
 
     const config: OpenCodeConfig = {
       $schema: 'https://opencode.ai/config.json',
@@ -98,12 +135,23 @@ export class OpenCodeAdapter implements AgentAdapter {
         },
       },
       model: taleModel,
-      // The container is the safety boundary → auto-approve every tool/edit/
-      // bash/external-dir action; no SSE permission prompts in run-mode.
-      permission: 'allow',
+      permission,
       share: 'disabled',
       autoupdate: false,
     };
+
+    // systemPromptAppend (org systemInstructions + trust rules + skills
+    // guidance): OpenCode has no --append-system-prompt flag; its config
+    // `instructions` entries are FILE paths whose content is appended to the
+    // system prompt (absolute paths supported — verified v1.17.3
+    // session/instruction.ts). Stage the composed text as a per-exec file and
+    // reference it here; the runner writes `stagedFiles` before spawning.
+    const stagedFiles: SessionExecSpec['stagedFiles'] = [];
+    if (spec.systemPromptAppend) {
+      const stagePath = opencodeInstructionsStagePath(spec.execId ?? 'default');
+      stagedFiles.push({ path: stagePath, content: spec.systemPromptAppend });
+      config.instructions = [`/user/${stagePath}`];
+    }
 
     const mcpServers: Record<string, unknown> = {};
     if (spec.browserMcp !== false) {
@@ -120,9 +168,16 @@ export class OpenCodeAdapter implements AgentAdapter {
       mcpServers.integrations = {
         type: 'local',
         command: ['tale-integrations-mcp'],
-        env: {
+        // `environment`, not `env` — OpenCode's McpLocalConfig only knows
+        // `environment` (additionalProperties: false; verified v1.17.3), so an
+        // `env` key never reaches the bridge process. The session key rides
+        // {env:…} like the provider apiKey above (config may get logged);
+        // TALE_GATEWAY_TOKEN is set in the exec env below and OpenCode
+        // substitutes {env:VAR} from its process env when loading
+        // OPENCODE_CONFIG_CONTENT.
+        environment: {
           TALE_INTEGRATIONS_URL: spec.integrationsBaseUrl,
-          TALE_INTEGRATIONS_TOKEN: spec.gateway.token,
+          TALE_INTEGRATIONS_TOKEN: '{env:TALE_GATEWAY_TOKEN}',
         },
         enabled: true,
       };
@@ -133,7 +188,10 @@ export class OpenCodeAdapter implements AgentAdapter {
 
     const argv = ['opencode', 'run', '--format', 'json', '--dir', spec.workdir];
     if (spec.agentSessionId) argv.push('-s', spec.agentSessionId);
-    argv.push('-m', taleModel);
+    // Mirror Claude Code omitting --model when none resolves: config.model
+    // above is the default either way, so `-m` is only pushed for an explicit
+    // selection.
+    if (spec.model) argv.push('-m', taleModel);
     // Prompt as the trailing positional (argv element — no shell). Unlike the
     // SessionExecSpec stdin contract (Claude Code rides stdin), `opencode run`
     // only accepts the prompt as a positional `[message..]` argument — it has
@@ -146,7 +204,13 @@ export class OpenCodeAdapter implements AgentAdapter {
       TALE_GATEWAY_TOKEN: spec.gateway.token,
     };
 
-    return { argv, env, cwd: spec.workdir, stdinMode: 'close' };
+    return {
+      argv,
+      env,
+      cwd: spec.workdir,
+      stdinMode: 'close',
+      ...(stagedFiles.length > 0 && { stagedFiles }),
+    };
   }
 
   createParser(): AgentEventParser {

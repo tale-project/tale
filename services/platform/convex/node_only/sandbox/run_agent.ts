@@ -405,6 +405,25 @@ export async function runAgentInSessionImpl(
         // stages queued user messages into (claude_code adapter only).
         execId: args.execId,
       });
+  // Stage files the exec depends on (e.g. OpenCode's instructions file
+  // carrying systemPromptAppend) BEFORE spawning — the CLI reads them at
+  // startup. A skip fails the turn: a silently missing file would silently
+  // drop the input (the exact failure this staging exists to prevent).
+  if (exec?.stagedFiles !== undefined && exec.stagedFiles.length > 0) {
+    const stageResult = await sessionStageFiles(
+      args.sessionId,
+      exec.stagedFiles.map((file) => ({
+        path: file.path,
+        contentBase64: Buffer.from(file.content, 'utf8').toString('base64'),
+      })),
+    );
+    if (stageResult.skipped.length > 0) {
+      const detail = stageResult.skipped
+        .map((skip) => `${skip.path} (${skip.reason})`)
+        .join(', ');
+      throw new Error(`[run_agent] exec input staging failed: ${detail}`);
+    }
+  }
   // Fresh parser each (continuation) action. The re-attach resumes from lastSeq
   // (at most one line straddling the seam is skipped — harmless). Usage isn't
   // summed from per-message events here (cost comes from the VK budget), so the

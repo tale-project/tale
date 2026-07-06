@@ -424,12 +424,97 @@ describe('OpenCodeAdapter.buildExec', () => {
     });
     const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
     expect(config.mcp.integrations.command).toEqual(['tale-integrations-mcp']);
-    expect(config.mcp.integrations.env.TALE_INTEGRATIONS_URL).toBe(
+    // `environment`, not `env` — OpenCode's McpLocalConfig only knows
+    // `environment` (additionalProperties: false), so an `env` key never
+    // reaches the bridge process (the dead-bridge regression).
+    expect(config.mcp.integrations.env).toBeUndefined();
+    expect(config.mcp.integrations.environment.TALE_INTEGRATIONS_URL).toBe(
       'http://proxy/api/integrations',
     );
-    expect(config.mcp.integrations.env.TALE_INTEGRATIONS_TOKEN).toBe(
-      'sk-bf-test',
+    // The session key rides {env:…} (the exec env carries the raw token), so
+    // it never appears in the config JSON, which may get logged — same
+    // treatment as the provider apiKey.
+    expect(config.mcp.integrations.environment.TALE_INTEGRATIONS_TOKEN).toBe(
+      '{env:TALE_GATEWAY_TOKEN}',
     );
+    expect(env.OPENCODE_CONFIG_CONTENT).not.toContain('sk-bf-test');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+  });
+
+  it('stages systemPromptAppend as a per-exec instructions file referenced by the config', () => {
+    const { env, stagedFiles } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      execId: 'exec-123',
+      systemPromptAppend: 'Org instructions.\n\nTrust the container.',
+    });
+    // OpenCode has no --append-system-prompt: the composed append is staged as
+    // a file (path relative to /user — the sessionStageFiles contract) and the
+    // config `instructions` entry points at its absolute path, whose content
+    // OpenCode appends to the system prompt.
+    expect(stagedFiles).toEqual([
+      {
+        path: '.runtime/tale/instructions/exec-123.md',
+        content: 'Org instructions.\n\nTrust the container.',
+      },
+    ]);
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.instructions).toEqual([
+      '/user/.runtime/tale/instructions/exec-123.md',
+    ]);
+  });
+
+  it('omits instructions + staged files when no systemPromptAppend is composed', () => {
+    const { env, stagedFiles } = new OpenCodeAdapter().buildExec(opencodeBase);
+    expect(stagedFiles).toBeUndefined();
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.instructions).toBeUndefined();
+  });
+
+  it('denies native web tools + question on managed runs (governed default)', () => {
+    const { env } = new OpenCodeAdapter().buildExec(opencodeBase);
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    // Wildcard-allow first (the container is the boundary; no SSE prompts),
+    // then the denies — OpenCode's evaluator takes the LAST matching key, so
+    // order matters. question has no answer path in chat (mirrors Claude Code
+    // denying AskUserQuestion); webfetch/websearch are ungoverned native web
+    // tools — managed runs route web access through the integration bridge.
+    expect(config.permission).toEqual({
+      '*': 'allow',
+      question: 'deny',
+      webfetch: 'deny',
+      websearch: 'deny',
+    });
+    expect(Object.keys(config.permission)[0]).toBe('*');
+  });
+
+  it('lifts the web-tool denial (but not question) when nativeWebTools is true', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      nativeWebTools: true,
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.permission).toEqual({ '*': 'allow', question: 'deny' });
+  });
+
+  it('keeps the web-tool denial when nativeWebTools is explicitly false (only === true lifts it)', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      nativeWebTools: false,
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.permission.webfetch).toBe('deny');
+    expect(config.permission.websearch).toBe('deny');
+  });
+
+  it('omits -m when no model resolves (config.model stays the tale/default)', () => {
+    const { argv, env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      model: undefined,
+    });
+    expect(argv).not.toContain('-m');
+    expect(argv).not.toContain('tale/default');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.model).toBe('tale/default');
   });
 
   it('throws for BYO (managed-only runtime)', () => {
