@@ -51,22 +51,28 @@ export interface ImportFilesDependencies {
     siteId?: string,
     driveId?: string,
   ) => Promise<{ success: boolean; data?: FileMetadata; error?: string }>;
-  downloadFile: (
-    itemId: string,
-    token: string,
-    siteId?: string,
-    driveId?: string,
-  ) => Promise<{
+  /**
+   * Download the source file and land it in Convex storage in one step,
+   * returning only the storage id — the bytes never come back into the
+   * caller's heap. Backed by a streaming `'use node'` action so a large file
+   * (e.g. a 57 MB PDF) can't OOM the 64 MB workflow isolate the import runs in.
+   */
+  downloadToStorage: (args: {
+    itemId: string;
+    token: string;
+    siteId?: string;
+    driveId?: string;
+  }) => Promise<{
     success: boolean;
-    content?: ArrayBuffer;
+    storageId?: Id<'_storage'>;
     mimeType?: string;
+    size?: number;
     error?: string;
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
   }) => Promise<{ _id: Id<'documents'>; contentHash?: string } | null>;
-  storeFile: (blob: Blob) => Promise<Id<'_storage'>>;
   createDocument: (args: {
     organizationId: string;
     title: string;
@@ -201,25 +207,25 @@ export async function importFiles(
         continue;
       }
 
-      const downloadResult = await deps.downloadFile(
-        item.id,
-        args.token,
-        item.siteId,
-        item.driveId,
-      );
+      const stored = await deps.downloadToStorage({
+        itemId: item.id,
+        token: args.token,
+        siteId: item.siteId,
+        driveId: item.driveId,
+      });
 
-      if (!downloadResult.success || !downloadResult.content) {
-        throw new Error(downloadResult.error || 'Failed to download file');
+      if (!stored.success || !stored.storageId) {
+        throw new Error(stored.error || 'Failed to download file');
       }
 
-      const blob = new Blob([downloadResult.content], {
-        type: downloadResult.mimeType || 'application/octet-stream',
-      });
-      const storageId = await deps.storeFile(blob);
+      const storageId = stored.storageId;
       const contentType = resolveFileType(
         item.name,
-        downloadResult.mimeType || 'application/octet-stream',
+        stored.mimeType || 'application/octet-stream',
       );
+      // Prefer the transferred byte count; fall back to the listing size when
+      // the source omitted Content-Length.
+      const fileSize = stored.size ?? item.size;
 
       const storagePath = item.relativePath
         ? `${args.organizationId}/${item.relativePath}`
@@ -301,7 +307,7 @@ export async function importFiles(
         storageId,
         item.name,
         contentType,
-        blob.size,
+        fileSize,
         documentId,
       );
 

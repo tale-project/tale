@@ -1077,6 +1077,7 @@ import type * as onedrive_refresh_credentials from "../onedrive/refresh_credenti
 import type * as onedrive_refresh_token from "../onedrive/refresh_token.js";
 import type * as onedrive_run_config_sync from "../onedrive/run_config_sync.js";
 import type * as onedrive_run_folder_reconcile from "../onedrive/run_folder_reconcile.js";
+import type * as onedrive_stream_to_storage from "../onedrive/stream_to_storage.js";
 import type * as onedrive_types from "../onedrive/types.js";
 import type * as onedrive_update_sync_config from "../onedrive/update_sync_config.js";
 import type * as onedrive_upload_and_create_document from "../onedrive/upload_and_create_document.js";
@@ -2745,6 +2746,7 @@ declare const fullApi: ApiFromModules<{
   "onedrive/refresh_token": typeof onedrive_refresh_token;
   "onedrive/run_config_sync": typeof onedrive_run_config_sync;
   "onedrive/run_folder_reconcile": typeof onedrive_run_folder_reconcile;
+  "onedrive/stream_to_storage": typeof onedrive_stream_to_storage;
   "onedrive/types": typeof onedrive_types;
   "onedrive/update_sync_config": typeof onedrive_update_sync_config;
   "onedrive/upload_and_create_document": typeof onedrive_upload_and_create_document;

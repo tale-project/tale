@@ -15,6 +15,7 @@ import { listFolderContents as listFolderContentsImpl } from './list_folder_cont
 import { readFile as readFileImpl } from './read_file';
 import { resolveMicrosoftRefreshCredentials } from './refresh_credentials';
 import { refreshToken as refreshTokenImpl } from './refresh_token';
+import { streamItemToStorage as streamItemToStorageImpl } from './stream_to_storage';
 import { uploadAndCreateDocument as uploadAndCreateDocumentImpl } from './upload_and_create_document';
 import { createUploadAndCreateDocDeps } from './upload_and_create_document_deps';
 
@@ -140,6 +141,25 @@ export const downloadAndStoreFile = internalAction({
         );
       },
     });
+  },
+});
+
+export const streamItemToStorage = internalAction({
+  args: {
+    itemId: v.string(),
+    token: v.string(),
+    siteId: v.optional(v.string()),
+    driveId: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    storageId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return await streamItemToStorageImpl(ctx, args);
   },
 });
 

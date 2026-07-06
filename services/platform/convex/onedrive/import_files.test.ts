@@ -13,13 +13,13 @@ function makeDeps(overrides: Partial<ImportFilesDependencies> = {}) {
     getFileMetadata: vi
       .fn()
       .mockResolvedValue({ success: true, data: { hash: undefined } }),
-    downloadFile: vi.fn().mockResolvedValue({
+    downloadToStorage: vi.fn().mockResolvedValue({
       success: true,
-      content: new ArrayBuffer(8),
+      storageId: 'storage-1' as Id<'_storage'>,
       mimeType: 'text/plain',
+      size: 10,
     }),
     findDocumentByExternalId: vi.fn().mockResolvedValue(null),
-    storeFile: vi.fn().mockResolvedValue('storage-1' as Id<'_storage'>),
     createDocument,
     updateDocument: vi.fn().mockResolvedValue(undefined),
     getOrCreateFolderPath: vi
@@ -131,11 +131,69 @@ describe('importFiles sync configs', () => {
       'storage-1',
       'a.docx',
       'text/plain',
-      8,
+      10,
       'doc-1',
     );
     expect(deps.linkDocumentToFile).toHaveBeenCalledWith('storage-1', 'doc-1');
     expect(deps.scheduleHubDocumentRagIndexing).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('records the transferred byte size, falling back to the listing size', async () => {
+    // stored.size (from the download Content-Length) wins over the listing size.
+    const deps = makeDeps({
+      downloadToStorage: vi.fn().mockResolvedValue({
+        success: true,
+        storageId: 'storage-1' as Id<'_storage'>,
+        mimeType: 'text/plain',
+        size: 4096,
+      }),
+    });
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'one-time' },
+      deps,
+    );
+    expect(deps.saveFileMetadata).toHaveBeenCalledWith(
+      'storage-1',
+      'a.docx',
+      'text/plain',
+      4096,
+      'doc-1',
+    );
+
+    // When the source omits Content-Length, fall back to the listing size (10).
+    const depsNoSize = makeDeps({
+      downloadToStorage: vi.fn().mockResolvedValue({
+        success: true,
+        storageId: 'storage-1' as Id<'_storage'>,
+        mimeType: 'text/plain',
+      }),
+    });
+    await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'one-time' },
+      depsNoSize,
+    );
+    expect(depsNoSize.saveFileMetadata).toHaveBeenCalledWith(
+      'storage-1',
+      'a.docx',
+      'text/plain',
+      10,
+      'doc-1',
+    );
+  });
+
+  it('fails the item when the streamed download+store fails', async () => {
+    const deps = makeDeps({
+      downloadToStorage: vi
+        .fn()
+        .mockResolvedValue({ success: false, error: 'boom' }),
+    });
+    const result = await importFiles(
+      { ...baseArgs, items: folderItems, importType: 'one-time' },
+      deps,
+    );
+    expect(result.failedCount).toBe(1);
+    expect(result.results[0]).toMatchObject({ status: 'error', error: 'boom' });
+    expect(deps.createDocument).not.toHaveBeenCalled();
   });
 
   it('still queues indexing when content hash is unchanged', async () => {
@@ -158,6 +216,6 @@ describe('importFiles sync configs', () => {
     expect(deps.scheduleHubDocumentRagIndexing).toHaveBeenCalledWith(
       'doc-existing',
     );
-    expect(deps.downloadFile).not.toHaveBeenCalled();
+    expect(deps.downloadToStorage).not.toHaveBeenCalled();
   });
 });
