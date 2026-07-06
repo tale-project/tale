@@ -8,6 +8,9 @@ export interface FileMetadataResult {
     size?: number;
   };
   error?: string;
+  /** Graph returned 404 — the item no longer exists at the source (deleted or
+   *  trashed), as opposed to a transient / permission / throttle failure. */
+  notFound?: boolean;
 }
 
 export async function getFileMetadata(
@@ -36,6 +39,7 @@ export async function getFileMetadata(
       return {
         success: false,
         error: `Failed to get file metadata: ${response.status} ${errorText}`,
+        notFound: response.status === 404,
       };
     }
 

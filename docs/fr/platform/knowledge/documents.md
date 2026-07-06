@@ -17,7 +17,7 @@ Lier le document à un agent est une étape séparée. Ouvre l'agent et ajoute l
 
 Les documents peuvent venir de OneDrive ou SharePoint au lieu du disque. Ouvre **Connaissance > Documents > Téléverser des documents > Depuis Microsoft 365**, choisis des fichiers ou des dossiers, puis le mode d'importation. **Importation unique** apporte les fichiers une fois ; ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d'un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l'espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s'importe toujours une seule fois.
 
-Pour arrêter la synchronisation d'un dossier, ouvre le menu de la ligne du dossier et clique sur **Arrêter la synchronisation** ; les fichiers importés restent dans l'espace de travail et cessent d'être mis à jour. Supprimer un dossier synchronisé arrête aussi la synchronisation. Dans les deux cas, les fichiers dans OneDrive restent intacts.
+Pour arrêter la synchronisation — d'un dossier synchronisé entier ou d'un seul fichier synchronisé — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l'espace de travail et cessent d'être mis à jour. Supprimer un dossier synchronisé, ou un seul fichier synchronisé, arrête aussi sa synchronisation. Dans tous les cas, les fichiers dans OneDrive restent intacts.
 
 ## Ce que fait la pipeline d'indexation
 

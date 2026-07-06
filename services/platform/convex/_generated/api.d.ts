@@ -371,6 +371,7 @@ import type * as documents_extract_extension from "../documents/extract_extensio
 import type * as documents_find_document_by_external_id from "../documents/find_document_by_external_id.js";
 import type * as documents_find_document_by_file_id from "../documents/find_document_by_file_id.js";
 import type * as documents_find_document_by_title from "../documents/find_document_by_title.js";
+import type * as documents_find_documents_by_external_id from "../documents/find_documents_by_external_id.js";
 import type * as documents_generate_document from "../documents/generate_document.js";
 import type * as documents_generate_document_helpers from "../documents/generate_document_helpers.js";
 import type * as documents_generate_docx from "../documents/generate_docx.js";
@@ -1071,12 +1072,14 @@ import type * as onedrive_list_sharepoint_drives from "../onedrive/list_sharepoi
 import type * as onedrive_list_sharepoint_files from "../onedrive/list_sharepoint_files.js";
 import type * as onedrive_list_sharepoint_sites from "../onedrive/list_sharepoint_sites.js";
 import type * as onedrive_mutations from "../onedrive/mutations.js";
+import type * as onedrive_prune_synced_documents from "../onedrive/prune_synced_documents.js";
 import type * as onedrive_read_file from "../onedrive/read_file.js";
 import type * as onedrive_reconcile_folder_sync from "../onedrive/reconcile_folder_sync.js";
 import type * as onedrive_refresh_credentials from "../onedrive/refresh_credentials.js";
 import type * as onedrive_refresh_token from "../onedrive/refresh_token.js";
 import type * as onedrive_run_config_sync from "../onedrive/run_config_sync.js";
 import type * as onedrive_run_folder_reconcile from "../onedrive/run_folder_reconcile.js";
+import type * as onedrive_run_single_file_reconcile from "../onedrive/run_single_file_reconcile.js";
 import type * as onedrive_stream_to_storage from "../onedrive/stream_to_storage.js";
 import type * as onedrive_types from "../onedrive/types.js";
 import type * as onedrive_update_sync_config from "../onedrive/update_sync_config.js";
@@ -2040,6 +2043,7 @@ declare const fullApi: ApiFromModules<{
   "documents/find_document_by_external_id": typeof documents_find_document_by_external_id;
   "documents/find_document_by_file_id": typeof documents_find_document_by_file_id;
   "documents/find_document_by_title": typeof documents_find_document_by_title;
+  "documents/find_documents_by_external_id": typeof documents_find_documents_by_external_id;
   "documents/generate_document": typeof documents_generate_document;
   "documents/generate_document_helpers": typeof documents_generate_document_helpers;
   "documents/generate_docx": typeof documents_generate_docx;
@@ -2740,12 +2744,14 @@ declare const fullApi: ApiFromModules<{
   "onedrive/list_sharepoint_files": typeof onedrive_list_sharepoint_files;
   "onedrive/list_sharepoint_sites": typeof onedrive_list_sharepoint_sites;
   "onedrive/mutations": typeof onedrive_mutations;
+  "onedrive/prune_synced_documents": typeof onedrive_prune_synced_documents;
   "onedrive/read_file": typeof onedrive_read_file;
   "onedrive/reconcile_folder_sync": typeof onedrive_reconcile_folder_sync;
   "onedrive/refresh_credentials": typeof onedrive_refresh_credentials;
   "onedrive/refresh_token": typeof onedrive_refresh_token;
   "onedrive/run_config_sync": typeof onedrive_run_config_sync;
   "onedrive/run_folder_reconcile": typeof onedrive_run_folder_reconcile;
+  "onedrive/run_single_file_reconcile": typeof onedrive_run_single_file_reconcile;
   "onedrive/stream_to_storage": typeof onedrive_stream_to_storage;
   "onedrive/types": typeof onedrive_types;
   "onedrive/update_sync_config": typeof onedrive_update_sync_config;

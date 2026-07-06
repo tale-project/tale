@@ -9,8 +9,8 @@
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { reconcileFolder } from './run_folder_reconcile';
+import { reconcileSingleFile } from './run_single_file_reconcile';
 
 export interface SyncConfigItem {
   configId: string;
@@ -27,6 +27,9 @@ export interface SyncOneResult {
   skipped: number;
   deleted: number;
   errorsCount: number;
+  /** Single-file sync only: the source file was deleted at the origin (404),
+   *  so its mirror was removed and the config should be deactivated. */
+  sourceDeleted?: boolean;
 }
 
 /** Resolve a usable Graph token for a user, refreshing once if expired. */
@@ -91,33 +94,24 @@ export async function syncOneConfig(
     };
   }
 
-  // Single-file config: download and upsert one document.
-  const file = await ctx.runAction(
-    internal.onedrive.internal_actions.readFileFromOneDrive,
-    { itemId: config.itemId, token },
-  );
-  if (!file.success || !file.content) {
-    throw new Error(file.error ?? 'Failed to read file from OneDrive');
-  }
-  const uploaded = await ctx.runAction(
-    internal.onedrive.internal_actions.uploadToStorage,
-    {
-      organizationId,
-      fileName: config.itemName,
-      fileData: file.content,
-      contentType: file.mimeType ?? 'application/octet-stream',
-      metadata: toConvexJsonRecord({
-        oneDriveItemId: config.itemId,
-        itemPath: config.itemPath ?? '',
-        syncConfigId: config.configId,
-        sourceMode: 'auto',
-        syncedAt: new Date().toISOString(),
-      }),
-      createdBy: config.userId,
-    },
-  );
-  if (!uploaded.success) {
-    throw new Error(uploaded.error ?? 'Failed to upload file to storage');
-  }
-  return { created: 1, skipped: 0, deleted: 0, errorsCount: 0 };
+  // Single-file config: reconcile the one tracked file through the shared
+  // import pipeline (dedup by external id → update the existing doc in place)
+  // and collapse any duplicate rows a prior no-dedup version created for it.
+  const result = await reconcileSingleFile(ctx, {
+    organizationId,
+    configId: config.configId,
+    itemId: config.itemId,
+    itemName: config.itemName,
+    itemPath: config.itemPath,
+    userId: config.userId,
+    teamId: config.teamId,
+    token,
+  });
+  return {
+    created: result.created,
+    skipped: result.skipped,
+    deleted: result.deleted,
+    errorsCount: result.errorsCount,
+    sourceDeleted: result.sourceDeleted,
+  };
 }

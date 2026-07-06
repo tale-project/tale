@@ -17,7 +17,7 @@ Das Dokument an einen Agent zu binden ist ein separater Schritt. Öffne den Agen
 
 Dokumente können statt von der Festplatte auch aus OneDrive oder SharePoint kommen. Öffne **Wissen > Dokumente > Dokumente hochladen > Von Microsoft 365**, wähle Dateien oder Ordner und entscheide dich für einen Import-Modus. **Einmaliger Import** holt die Dateien einmal; sie verhalten sich wie Uploads von der Festplatte. **Synchronisierungsimport** hält die Auswahl synchron: neue Dateien im OneDrive-Ordner erscheinen bei einem späteren Sync-Lauf, geänderte Dateien werden neu indexiert, und an der Quelle gelöschte Dateien verschwinden aus dem Workspace. Beide Modi erhalten die Ordnerstruktur deiner Auswahl. Die Synchronisierung deckt persönliche OneDrive-Ordner ab — eine SharePoint-Auswahl importiert immer einmalig.
 
-Um die Synchronisierung eines Ordners zu beenden, öffne das Menü der Ordner-Zeile und klicke auf **Synchronisierung beenden**; die importierten Dateien bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners beendet die Synchronisierung. In beiden Fällen bleiben die Dateien in OneDrive unberührt.
+Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner oder einer einzelnen synchronisierten Datei — öffne das Menü der Zeile und klicke auf **Synchronisierung beenden**; die importierten Dokumente bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners oder einer einzelnen synchronisierten Datei beendet die Synchronisierung. In allen Fällen bleiben die Dateien in OneDrive unberührt.
 
 ## Was die Indexierungs-Pipeline tut
 

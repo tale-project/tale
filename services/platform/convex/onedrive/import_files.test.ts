@@ -181,6 +181,44 @@ describe('importFiles sync configs', () => {
     );
   });
 
+  it('fills the size from the Graph item metadata when the listing omits it', async () => {
+    // A recursive listing can omit `size` for a freshly copied/uploaded item,
+    // and the download may arrive without a Content-Length. The Graph
+    // item-metadata size then fills both the stored file size and the row's
+    // metadata.size so the hub never renders it as "—".
+    const deps = makeDeps({
+      getFileMetadata: vi.fn().mockResolvedValue({
+        success: true,
+        data: { hash: undefined, size: 2048 },
+      }),
+      downloadToStorage: vi.fn().mockResolvedValue({
+        success: true,
+        storageId: 'storage-1' as Id<'_storage'>,
+        mimeType: 'text/plain',
+        // no `size`: source omitted Content-Length
+      }),
+    });
+
+    const itemNoSize: ImportItem = {
+      ...folderItems[0],
+      size: undefined as unknown as number,
+    };
+    await importFiles(
+      { ...baseArgs, items: [itemNoSize], importType: 'sync' },
+      deps,
+    );
+
+    const metadata = vi.mocked(deps.createDocument).mock.calls[0][0].metadata;
+    expect(metadata.size).toBe(2048);
+    expect(deps.saveFileMetadata).toHaveBeenCalledWith(
+      'storage-1',
+      'a.docx',
+      'text/plain',
+      2048,
+      'doc-1',
+    );
+  });
+
   it('fails the item when the streamed download+store fails', async () => {
     const deps = makeDeps({
       downloadToStorage: vi

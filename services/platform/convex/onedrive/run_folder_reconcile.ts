@@ -11,10 +11,10 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import type { DocumentRecord, DocumentMetadata } from '../documents/types';
-import { toId } from '../lib/type_cast_helpers';
 import { importFiles } from './import_files';
 import { createImportFilesDeps } from './import_files_deps';
 import type { FileItem } from './list_folder_contents';
+import { scheduleSyncedDocumentDeletes } from './prune_synced_documents';
 import {
   buildSyncImportItems,
   selectDocumentsToPrune,
@@ -122,39 +122,17 @@ export async function reconcileFolder(
         )) ?? undefined)
       : undefined;
 
-  // Delete each orphan through the RAG-purging path so its vector index is
-  // dropped too — deleteDocumentById alone removes only the row + blob and
-  // would leave the OneDrive doc searchable in RAG. Mirrors the drive-reconcile
-  // path in document_action.ts: blob-bearing docs go via deleteDocumentFromRag
-  // (staggered 100ms to spare the scheduler + RAG service); metadata-only docs
-  // delete directly. The snapshot (expectedExternalItemId/expectedFileId) makes
-  // the delete abort if an interleaving re-upload re-bound the row.
-  for (let i = 0; i < toPrune.length; i++) {
-    const documentId = toPrune[i];
-    const ref = refById.get(documentId);
-    if (ref?.fileId) {
-      await ctx.scheduler.runAfter(
-        i * 100,
-        internal.documents.internal_actions.deleteDocumentFromRag,
-        {
-          documentId: toId<'documents'>(documentId),
-          expectedExternalItemId: ref.externalItemId,
-          expectedFileId: toId<'_storage'>(ref.fileId),
-          cleanupAncestorsUpTo,
-        },
-      );
-    } else {
-      await ctx.scheduler.runAfter(
-        i * 100,
-        internal.documents.internal_mutations.deleteDocumentById,
-        {
-          documentId: toId<'documents'>(documentId),
-          callerOrgId: args.organizationId,
-          cleanupAncestorsUpTo,
-        },
-      );
-    }
-  }
+  // Delete each orphan through the shared prune path (RAG-purging for
+  // blob-bearing docs, direct for metadata-only), which reaps the emptied
+  // ancestor folders up to the sync root.
+  const refsToPrune = toPrune
+    .map((documentId) => refById.get(documentId))
+    .filter((ref): ref is SyncedDocumentRef => ref !== undefined);
+  await scheduleSyncedDocumentDeletes(ctx, {
+    organizationId: args.organizationId,
+    refs: refsToPrune,
+    cleanupAncestorsUpTo,
+  });
 
   const errorsCount = importResult.results.filter(
     (r) => r.status === 'error',

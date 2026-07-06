@@ -223,9 +223,12 @@ export async function importFiles(
         item.name,
         stored.mimeType || 'application/octet-stream',
       );
-      // Prefer the transferred byte count; fall back to the listing size when
-      // the source omitted Content-Length.
-      const fileSize = stored.size ?? item.size;
+      // Size, most-reliable first: the transferred byte count, then the Graph
+      // item-metadata size (always present for a file), then the listing size.
+      // A recursive listing can omit `size` for a freshly copied/uploaded item
+      // (list_folder_contents forwards it verbatim); without this fallback the
+      // row's metadata.size stays undefined and the hub renders it as "—".
+      const fileSize = stored.size ?? metadataResult.data.size ?? item.size;
 
       const storagePath = item.relativePath
         ? `${args.organizationId}/${item.relativePath}`
@@ -240,7 +243,7 @@ export async function importFiles(
         itemPath: item.relativePath || '',
         sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
         storagePath,
-        size: item.size,
+        size: fileSize,
         ...(syncConfigId && { syncConfigId }),
         ...(item.selectedParentId && {
           selectedParentId: item.selectedParentId,

@@ -366,12 +366,15 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         // status; never throw, so one failing config can't abort the loop.
         try {
           const result = await syncOneConfig(ctx, { organizationId, config });
+          // A single-file sync whose source was deleted (404) removed its
+          // mirror and asks to stop — deactivate rather than keep it active
+          // and re-404 every run.
           await ctx.runMutation(
             internal.onedrive.internal_mutations.updateSyncConfig,
             {
               configId: params.configId,
               organizationId,
-              status: 'active',
+              status: result.sourceDeleted ? 'inactive' : 'active',
               lastSyncAt: Date.now(),
               lastSyncStatus: 'success',
             },

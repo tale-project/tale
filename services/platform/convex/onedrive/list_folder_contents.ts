@@ -98,7 +98,9 @@ function toFileItem(
   return {
     id: item.id,
     name: item.name,
-    size: item.size,
+    // Graph can omit `size` for a freshly copied/uploaded item; floor it to a
+    // real number like the picker (`list_files`) and SharePoint listers do.
+    size: item.size || 0,
     mimeType: item.file?.mimeType,
     lastModified: lastModifiedStr ? Date.parse(lastModifiedStr) : undefined,
     ...(pathPrefix !== undefined && {
