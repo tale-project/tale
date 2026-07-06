@@ -24,7 +24,10 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { getCredentialPolicy } from '../../lib/agent-adapters/credential-policy';
+import {
+  getCredentialPolicy,
+  usesGateway,
+} from '../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
 import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import type {
@@ -41,8 +44,10 @@ import {
 import { runGenerationCore } from '../lib/agent_chat/internal_actions';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
+import { resolveLanguageModelWithFallback } from '../providers/failover';
 import type { AutoRouteReason } from '../streaming/validators';
 import { applyModelOverride } from './config';
+import { resolveExternalAgentModelRefs } from './external_agent/resolve_external_agent_model';
 import { resolveAgentConfigInline } from './resolve_agent_config';
 
 /** Save a short assistant-role system notice so an async failure is visible. */
@@ -272,43 +277,41 @@ export const runChatTurnGeneration = internalAction({
       // catalog governance is bypassed whether or not it's set.
       const externalAgentKind: ProductAgentSlug =
         agentConfig.agentKind ?? 'claude-code';
+      const isExternalAgent = agentConfig.primaryBehavior === 'external-agent';
       const isEnvManagedExternal =
-        agentConfig.primaryBehavior === 'external-agent' &&
+        isExternalAgent &&
         agentConfig.authMode !== 'byo' &&
         getCredentialPolicy(externalAgentKind).managedSource === 'agent-env';
-
-      // External agents whose `supportedModels` are vendor-native CLI ids rather
-      // than platform catalog entries: BYO (raw provider passthrough, e.g. a
-      // Cursor byo run) and env-managed (vendor account owns the model list).
-      // For these the first entry is the model to run this turn.
-      const externalUsesVendorModels =
-        agentConfig.primaryBehavior === 'external-agent' &&
-        (agentConfig.authMode === 'byo' || isEnvManagedExternal);
+      const isGatewayManagedExternal =
+        isExternalAgent &&
+        agentConfig.authMode !== 'byo' &&
+        usesGateway(externalAgentKind, agentConfig.authMode);
 
       // External agents that don't draw from the platform model catalog bypass
       // default-model resolution and model-access RBAC:
-      //  - BYO: raw provider id (or empty = credential default), not a catalog entry.
-      //  - env-managed (e.g. Cursor): the vendor CLI's own model ids, governed by
-      //    the vendor account — never openrouter catalog governance.
-      //  - any external agent with no supportedModels (nothing to police).
+      //  - BYO: raw provider id (or empty = member default / credential default).
+      //  - env-managed (e.g. Cursor): the vendor CLI's own model ids.
+      // Gateway-managed Claude Code with an empty `supportedModels` still resolves
+      // through governance + platform defaults (dynamic, not a static pin).
       const skipsPlatformModelGovernance =
-        agentConfig.primaryBehavior === 'external-agent' &&
+        isExternalAgent &&
         (agentConfig.authMode === 'byo' ||
           isEnvManagedExternal ||
-          configResult.supportedModels.length === 0);
+          (configResult.supportedModels.length === 0 &&
+            !isGatewayManagedExternal));
 
-      // Vendor-model pin: the agent's first supportedModels entry is the vendor
-      // CLI model id for this turn, passed straight through as the turn's
-      // modelRef → the adapter's `--model`. Governance is skipped above, so
-      // nothing else assigns `model`; an empty list leaves it 'default' (the CLI
-      // then picks its own default). An explicit request modelId still wins.
+      // Env-managed vendor pin: first `supportedModels` entry is the CLI model id.
       if (
-        externalUsesVendorModels &&
+        isEnvManagedExternal &&
         !args.modelId &&
         !agentConfig.model &&
         configResult.supportedModels.length > 0
       ) {
         agentConfig.model = configResult.supportedModels[0];
+        agentConfig.fallbackModels =
+          configResult.supportedModels.length > 1
+            ? configResult.supportedModels.slice(1)
+            : undefined;
       }
 
       const [guardrails, governance] = await Promise.all([
@@ -348,8 +351,16 @@ export const runChatTurnGeneration = internalAction({
 
       // 5. Implicit model-access RBAC (no explicit modelId) — accessible set
       //    came back in the consolidated governance query above. Skipped for
-      //    BYO (no platform catalog to police).
-      if (!skipsPlatformModelGovernance && !args.modelId) {
+      //    BYO (no platform catalog to police) and for gateway-managed Claude
+      //    Code with an empty `supportedModels` (step 5b resolves + RBAC-checks
+      //    the governance/platform default instead).
+      const deferToExternalDynamicResolution =
+        isGatewayManagedExternal && configResult.supportedModels.length === 0;
+      if (
+        !skipsPlatformModelGovernance &&
+        !args.modelId &&
+        !deferToExternalDynamicResolution
+      ) {
         const accessibleSet = new Set(governance.accessibleModelIds);
         const accessibleRefs = configResult.supportedModels.filter((ref) =>
           accessibleSet.has(stripModelRefQualifier(ref)),
@@ -375,6 +386,98 @@ export const runChatTurnGeneration = internalAction({
         );
         agentConfig.fallbackModels =
           fallbacks.length > 0 ? fallbacks : undefined;
+      }
+
+      // 5b. External-agent dynamic model resolution (BYO defaults, gateway-managed
+      //     empty lists, vendor-model tails). Gateway-managed agents with an explicit
+      //     supportedModels list were handled in step 5 above.
+      if (isExternalAgent) {
+        const needsDynamicResolution =
+          agentConfig.authMode === 'byo' ||
+          isEnvManagedExternal ||
+          (isGatewayManagedExternal &&
+            configResult.supportedModels.length === 0);
+        if (needsDynamicResolution) {
+          let platformDefault: {
+            providerName: string;
+            modelId: string;
+          } | null = null;
+          if (
+            isGatewayManagedExternal &&
+            configResult.supportedModels.length === 0 &&
+            !governance.defaultModel &&
+            !args.modelId
+          ) {
+            try {
+              const resolved = await resolveLanguageModelWithFallback(ctx, {
+                tag: 'chat',
+                organizationId: args.organizationId,
+              });
+              platformDefault = {
+                providerName: resolved.modelData.providerName,
+                modelId: resolved.modelData.modelId,
+              };
+            } catch (err) {
+              console.warn(
+                '[runChatTurnGeneration] platform default model resolution skipped:',
+                err,
+              );
+            }
+          }
+
+          const explicitModelRef = args.modelId ?? agentConfig.model;
+          const resolvedModels = resolveExternalAgentModelRefs({
+            authMode: agentConfig.authMode,
+            gatewayManaged: isGatewayManagedExternal,
+            supportedModels: configResult.supportedModels,
+            ...(explicitModelRef !== undefined && {
+              explicitModelRef,
+            }),
+            governanceDefault: governance.defaultModel,
+            ...(platformDefault !== null && { platformDefault }),
+          });
+
+          if (
+            isGatewayManagedExternal &&
+            resolvedModels.primaryModelRef !== 'default' &&
+            !args.modelId
+          ) {
+            const plain = stripModelRefQualifier(
+              resolvedModels.primaryModelRef,
+            );
+            const access = await ctx.runQuery(
+              internal.governance.internal_queries.checkModelAccessInternal,
+              {
+                organizationId: args.organizationId,
+                userId: args.userId,
+                modelId: plain,
+              },
+            );
+            if (!access.allowed) {
+              await clearGen();
+              await notify(
+                access.reason ??
+                  "You do not have access to the organization's default model.",
+              );
+              return null;
+            }
+          }
+
+          agentConfig.model =
+            resolvedModels.primaryModelRef === 'default'
+              ? undefined
+              : resolvedModels.primaryModelRef;
+          agentConfig.fallbackModels =
+            resolvedModels.agentFallbackRefs.length > 0
+              ? resolvedModels.agentFallbackRefs
+              : undefined;
+        } else if (
+          isEnvManagedExternal &&
+          !agentConfig.fallbackModels &&
+          configResult.supportedModels.length > 1
+        ) {
+          agentConfig.fallbackModels = configResult.supportedModels.slice(1);
+        }
       }
 
       // 6. Guardrails input sanitize (chat_filter → PII → moderation_provider).

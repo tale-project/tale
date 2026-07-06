@@ -125,6 +125,27 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     ).toBe(true);
   });
 
+  it('accepts gateway-managed Claude Code with no supportedModels (dynamic defaults)', () => {
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Claude Code',
+        primaryBehavior: 'external-agent',
+        agentKind: 'claude-code',
+        authMode: 'managed',
+        supportedModels: [],
+      }).success,
+    ).toBe(true);
+    // Omitted agentKind defaults to claude-code at runtime.
+    expect(
+      agentJsonSchema.safeParse({
+        displayName: 'Claude Code',
+        primaryBehavior: 'external-agent',
+        authMode: 'managed',
+        supportedModels: [],
+      }).success,
+    ).toBe(true);
+  });
+
   it('accepts authMode managed/byo on an external-agent', () => {
     expect(
       agentJsonSchema.safeParse({ ...externalBase, authMode: 'managed' })

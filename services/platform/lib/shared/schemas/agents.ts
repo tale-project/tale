@@ -519,10 +519,17 @@ export const agentJsonSchema = z
     }
 
     // Every agent needs at least one model — EXCEPT a BYO external agent (optional
-    // raw passthrough) or Cursor (env-managed runtime; models are optional hints).
+    // raw passthrough), Cursor (env-managed runtime; models are optional hints),
+    // or gateway-managed Claude Code (dynamic governance/platform defaults).
+    const isGatewayManagedClaudeCode =
+      data.primaryBehavior === 'external-agent' &&
+      data.authMode === 'managed' &&
+      (data.agentKind === undefined || data.agentKind === 'claude-code');
     const isOptionalModelExternal =
       data.primaryBehavior === 'external-agent' &&
-      (data.authMode === 'byo' || data.agentKind === 'cursor');
+      (data.authMode === 'byo' ||
+        data.agentKind === 'cursor' ||
+        isGatewayManagedClaudeCode);
     if (!isOptionalModelExternal && data.supportedModels.length < 1) {
       ctx.addIssue({
         code: 'custom',
