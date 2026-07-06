@@ -39,6 +39,7 @@ import {
   useWorkflowHumanInputApproval,
 } from '@/app/features/chat/hooks/use-execution-status';
 import { mapExecutionError } from '@/app/features/operator/lib/map-execution-error';
+import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -66,8 +67,8 @@ interface WorkflowRunApprovalCardProps {
   className?: string;
 }
 
-function formatElapsed(startMs: number) {
-  const elapsed = Math.floor((Date.now() - startMs) / 1000);
+function formatElapsed(startMs: number, nowMs: number) {
+  const elapsed = Math.floor((nowMs - startMs) / 1000);
   if (elapsed < 60) return `${elapsed}s`;
   const minutes = Math.floor(elapsed / 60);
   if (minutes < 60) return `${minutes}m ${elapsed % 60}s`;
@@ -102,6 +103,7 @@ function WorkflowRunApprovalCardComponent({
   const { t: tHumanInput } = useT('humanInputRequest');
   const { t: tShared } = useT('common');
   const { user } = useAuth();
+  const { serverEpochNow } = useClockOffset();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,12 +144,15 @@ function WorkflowRunApprovalCardComponent({
 
   useEffect(() => {
     if (!isRunning || !executionStatus?.startedAt) return undefined;
-    setElapsed(formatElapsed(executionStatus.startedAt));
+    const startedAt = executionStatus.startedAt;
+    // `startedAt` is a server timestamp; measure "now" in the server frame so the
+    // elapsed never mixes clocks (client wall clock − server epoch).
+    setElapsed(formatElapsed(startedAt, serverEpochNow()));
     const interval = setInterval(() => {
-      setElapsed(formatElapsed(executionStatus.startedAt));
+      setElapsed(formatElapsed(startedAt, serverEpochNow()));
     }, 1000);
     return () => clearInterval(interval);
-  }, [isRunning, executionStatus?.startedAt]);
+  }, [isRunning, executionStatus?.startedAt, serverEpochNow]);
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

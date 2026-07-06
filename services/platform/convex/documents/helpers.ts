@@ -37,5 +37,6 @@ export * from './read_file_base64_from_storage';
 export * from './extract_extension';
 export * from './find_document_by_title';
 export * from './find_document_by_external_id';
+export * from './find_documents_by_external_id';
 export * from './find_document_by_file_id';
 export * from './update_document_internal';

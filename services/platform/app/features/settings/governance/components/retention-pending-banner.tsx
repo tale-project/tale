@@ -1,8 +1,9 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { Heading } from '@tale/ui/heading';
+import { Row } from '@tale/ui/layout';
 import { useAction } from 'convex/react';
 import { Clock } from 'lucide-react';
 
@@ -43,51 +44,57 @@ export function RetentionPendingBanner({ organizationId }: Props) {
   );
 
   return (
-    <Row
-      gap={3}
-      align="start"
-      className="border-warning bg-warning/10 rounded border p-3"
-    >
-      <Clock className="text-warning mt-0.5 h-4 w-4 shrink-0" />
-      <Stack gap={2} className="flex-1">
-        <Text className="text-sm font-medium">
-          {t(
-            'retentionPolicy.pendingChange.title',
-            'A retention reduction is pending.',
-          )}
-        </Text>
-        <Text className="text-muted-foreground text-xs">
-          {summary} —{' '}
-          {t(
-            'retentionPolicy.pendingChange.applyIn',
-            'applies in {days} day(s).',
-            { days: daysRemaining },
-          )}
-        </Text>
-      </Stack>
-      <Button
-        variant="ghost"
-        onClick={async () => {
-          try {
-            await cancel({
-              organizationId,
-              pendingId: _id,
-            });
-            toast({
-              title: t('toastSavedTitle'),
-              variant: 'success',
-            });
-          } catch (err) {
-            toast({
-              title: t('toastSaveFailedTitle'),
-              description: err instanceof Error ? err.message : String(err),
-              variant: 'destructive',
-            });
-          }
-        }}
-      >
-        {t('retentionPolicy.pendingChange.cancel', 'Cancel')}
-      </Button>
-    </Row>
+    <Alert variant="warning" icon={Clock}>
+      <div className="text-foreground flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Heading
+            level={5}
+            size="sm"
+            weight="medium"
+            tracking="tight"
+            className="leading-none"
+          >
+            {t(
+              'retentionPolicy.pendingChange.title',
+              'A retention reduction is pending.',
+            )}
+          </Heading>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {summary} —{' '}
+            {t(
+              'retentionPolicy.pendingChange.applyIn',
+              'applies in {days} day(s).',
+              { days: daysRemaining },
+            )}
+          </p>
+        </div>
+        <Row gap={2} wrap className="shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              try {
+                await cancel({
+                  organizationId,
+                  pendingId: _id,
+                });
+                toast({
+                  title: t('toastSavedTitle'),
+                  variant: 'success',
+                });
+              } catch (err) {
+                toast({
+                  title: t('toastSaveFailedTitle'),
+                  description: err instanceof Error ? err.message : String(err),
+                  variant: 'destructive',
+                });
+              }
+            }}
+          >
+            {t('retentionPolicy.pendingChange.cancel', 'Cancel')}
+          </Button>
+        </Row>
+      </div>
+    </Alert>
   );
 }

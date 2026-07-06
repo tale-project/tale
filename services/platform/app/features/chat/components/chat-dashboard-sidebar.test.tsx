@@ -33,10 +33,6 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   };
 });
 
-vi.mock('@/app/components/ui/navigation/navigation', () => ({
-  Navigation: () => <nav data-testid="dashboard-nav">nav</nav>,
-}));
-
 vi.mock('./chat-history-sidebar', () => ({
   ChatHistorySidebar: () => (
     <div data-testid="chat-history-sidebar">history</div>
@@ -55,10 +51,9 @@ vi.mock('@/app/hooks/use-prefers-reduced-motion', () => ({
 }));
 
 describe('ChatDashboardSidebar', () => {
-  it('renders nav rail and history panel landmark', () => {
+  it('renders the expandable history panel landmark', () => {
     render(<ChatDashboardSidebar organizationId="org-1" />);
 
-    expect(screen.getByTestId('dashboard-nav')).toBeInTheDocument();
     expect(screen.getByTestId('chat-history-sidebar')).toBeInTheDocument();
     expect(
       screen.getByRole('complementary', {

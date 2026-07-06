@@ -6,12 +6,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Outlet,
-  createFileRoute,
-  useLocation,
-  useNavigate,
-} from '@tanstack/react-router';
+import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
@@ -46,8 +41,6 @@ import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
-import { cn } from '@/lib/utils/cn';
-
 // Fire-and-forget warm of an action-backed config catalog into the SAME
 // TanStack Query cache entry the `useActionQuery` hooks read (matching key +
 // `staleTime: Infinity` + the `action(args)` queryFn), so the catalog loads
@@ -121,10 +114,6 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
-  const location = useLocation();
-  const isChatSurface = location.pathname.startsWith(
-    `/dashboard/${organizationId}/chat`,
-  );
   usePasswordExpiryGate(organizationId);
 
   // Theme the app to this org's branding. BrandingProvider sits above the
@@ -218,8 +207,18 @@ function DashboardLayout() {
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
   const status = memberContext?.status;
-  const currentRole =
+  const resolvedRole =
     memberContext?.status === 'ok' ? memberContext.role : null;
+  // Keep the last known role while the membership query refetches after a cache
+  // invalidation — otherwise hasRole drops to false for a frame and the rail
+  // swaps Navigation ↔ NavRailPlaceholder (visible flash on every click).
+  const currentRole =
+    resolvedRole ??
+    (isQueryLoading &&
+    memberContext === undefined &&
+    abilityRef.current?.role != null
+      ? abilityRef.current.role
+      : null);
 
   if (!abilityRef.current || abilityRef.current.role !== currentRole) {
     abilityRef.current = {
@@ -311,12 +310,7 @@ function DashboardLayout() {
                   </Row>
                 </header>
 
-                <div
-                  className={cn(
-                    'bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]',
-                    isChatSurface && 'md:hidden',
-                  )}
-                >
+                <div className="bg-background hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
                   {hasRole ? (
                     <Navigation organizationId={organizationId} />
                   ) : (

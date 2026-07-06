@@ -29,6 +29,18 @@ export type ChatItem =
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
 
+/** Sort rank for the message stream (see the sort in `useMergedChatItems`).
+ *  Real/streaming rows (1) order by the server `(order, stepOrder)`; the
+ *  optimistic pending user (2, no server order) follows them; the optimistic
+ *  assistant shell (3) is the in-flight response, always last. Keeping non-real
+ *  rows OUT of the numeric `(order, stepOrder)` compare is what makes the sort
+ *  clock-safe — no client timestamp is ever weighed against a server one. */
+function messageRank(m: ChatMessage): 1 | 2 | 3 {
+  if (m.isOptimisticShell) return 3;
+  if (m.order === undefined) return 2;
+  return 1;
+}
+
 interface UseMergedChatItemsParams {
   messages: ChatMessage[];
   integrationApprovals: IntegrationApproval[] | undefined;
@@ -234,12 +246,33 @@ export function useMergedChatItems({
       data: message,
     }));
 
-    // Sort messages chronologically
+    // Order by the SERVER's canonical `(order, stepOrder)` — never by a clock.
+    // Mixing a client-clock key (the optimistic user's send `timestamp`, or the
+    // agent SDK's CLIENT-stamped streaming-delta `_creationTime`) with a server
+    // `_creationTime` in one numeric compare is what let a streaming reply sort
+    // ABOVE its just-sent user row under prod skew, then snap back at finalize
+    // ("错位"). `messageRank` keeps non-real rows out of that compare:
+    //   1 real/streaming → (order, stepOrder); a prompt is (N,0), its reply steps
+    //     (N,1..k), the next turn (N+1,…). The streaming row shares its finalized
+    //     row's (order, stepOrder), so ordering is identical across finalize.
+    //   2 optimistic pending user (no server order) → after all real rows.
+    //   3 optimistic assistant shell → the in-flight response, always last.
     messageItems.sort((a, b) => {
       if (a.type !== 'message' || b.type !== 'message') return 0;
-      const aTime = a.data._creationTime ?? a.data.timestamp.getTime();
-      const bTime = b.data._creationTime ?? b.data.timestamp.getTime();
-      return aTime - bTime;
+      const ra = messageRank(a.data);
+      const rb = messageRank(b.data);
+      if (ra !== rb) return ra - rb;
+      if (ra === 1) {
+        if (a.data.order !== b.data.order) {
+          return (a.data.order ?? 0) - (b.data.order ?? 0);
+        }
+        return (a.data.stepOrder ?? 0) - (b.data.stepOrder ?? 0);
+      }
+      if (ra === 2) {
+        // Two optimistic pending users (rare) — keep send order, still client-only.
+        return a.data.timestamp.getTime() - b.data.timestamp.getTime();
+      }
+      return 0; // both shells — only ever one; keep stable.
     });
 
     // Inline human-input cards — ACTIVE ones too, so the card occupies one

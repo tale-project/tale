@@ -4,7 +4,6 @@
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { downloadFile } from './download_file';
 import { getFileMetadata } from './get_file_metadata';
 import type { ImportFilesDependencies } from './import_files';
 
@@ -19,8 +18,13 @@ export function createImportFilesDeps(
   return {
     getFileMetadata: (itemId, token, siteId, driveId) =>
       getFileMetadata(itemId, token, siteId, driveId),
-    downloadFile: (itemId, token, siteId, driveId) =>
-      downloadFile(itemId, token, siteId, driveId),
+    // Streams the file into storage inside a 'use node' action so the bytes
+    // never enter this (possibly 64 MB) isolate — see stream_to_storage.ts.
+    downloadToStorage: (streamArgs) =>
+      ctx.runAction(
+        internal.onedrive.internal_actions.streamItemToStorage,
+        streamArgs,
+      ),
     findDocumentByExternalId: async (findArgs) => {
       const doc = await ctx.runQuery(
         internal.documents.internal_queries.findDocumentByExternalId,
@@ -28,7 +32,6 @@ export function createImportFilesDeps(
       );
       return doc ? { _id: doc._id, contentHash: doc.contentHash } : null;
     },
-    storeFile: async (blob) => ctx.storage.store(blob),
     createDocument: async (createArgs) =>
       ctx.runMutation(
         internal.documents.internal_mutations.createDocument,
@@ -45,7 +48,13 @@ export function createImportFilesDeps(
         internal.folders.internal_mutations.getOrCreateFolderPath,
         { organizationId: orgId, pathSegments, createdBy, teamId },
       )) ?? undefined,
-    saveFileMetadata: async (storageId, fileName, contentType, size) => {
+    saveFileMetadata: async (
+      storageId,
+      fileName,
+      contentType,
+      size,
+      documentId,
+    ) => {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.saveFileMetadata,
         {
@@ -54,6 +63,9 @@ export function createImportFilesDeps(
           fileName,
           contentType,
           size,
+          documentId,
+          // Index after link so uploadDocumentToRag sees folderPath + source.
+          scheduleRag: false,
           // Provenance is finalized by linkDocumentToFile from the document's
           // sourceProvider ('onedrive' / 'sharepoint').
           source: 'user',
@@ -65,6 +77,19 @@ export function createImportFilesDeps(
         internal.file_metadata.internal_mutations.linkDocumentToFile,
         { storageId, documentId },
       );
+    },
+    scheduleHubDocumentRagIndexing: async (documentId) => {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.scheduleHubDocumentRagIndexing,
+        { documentId },
+      );
+    },
+    upsertSyncConfig: async (target) => {
+      const result = await ctx.runMutation(
+        internal.onedrive.internal_mutations.upsertSyncConfig,
+        target,
+      );
+      return result.configId ?? null;
     },
   };
 }

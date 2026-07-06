@@ -1,8 +1,12 @@
 import { v } from 'convex/values';
 
-import { isRagIndexableFile } from '../../lib/shared/file-types';
+import {
+  isRagIndexableFile,
+  resolveFileType,
+} from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { scheduleHubDocumentRagIndexing } from '../documents/schedule_hub_document_rag_indexing';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   RateLimitExceededError,
@@ -26,14 +30,29 @@ export const saveFileMetadata = internalMutation({
      * thread id so the soft-delete cascade + RAG thread-scope auth chain
      * work. Document Hub uploads omit this. */
     threadId: v.optional(v.string()),
+    /** When false, only marks the row queued — caller schedules
+     *  uploadDocumentToRag after the Hub document is linked. */
+    scheduleRag: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
+    const scheduleRag = args.scheduleRag ?? true;
     const existing = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
 
+    const resolvedContentType = resolveFileType(
+      args.fileName,
+      args.contentType,
+    );
+    const isAudio =
+      resolvedContentType.startsWith('audio/') ||
+      resolvedContentType.startsWith('video/');
+    const shouldIndex =
+      !isAudio && isRagIndexableFile(args.fileName, resolvedContentType);
+
     if (existing) {
+      const now = Date.now();
       const patchData: Record<string, unknown> = {
         fileName: args.fileName,
         contentType: args.contentType,
@@ -49,22 +68,63 @@ export const saveFileMetadata = internalMutation({
         patchData.uploadedBy = args.uploadedBy;
       }
       if (args.threadId !== undefined) patchData.threadId = args.threadId;
+
+      const needsRagRetry =
+        scheduleRag &&
+        shouldIndex &&
+        (existing.ragStatus === undefined || existing.ragStatus === 'failed');
+      const needsTranscribeRetry =
+        isAudio &&
+        (existing.transcriptionStatus === undefined ||
+          existing.transcriptionStatus === 'failed');
+
+      if (needsRagRetry) {
+        patchData.ragStatus = 'queued';
+        patchData.ragError = undefined;
+        patchData.ragProgress = undefined;
+        patchData.ragQueuedAt = now;
+      } else if (shouldIndex && !scheduleRag) {
+        patchData.ragStatus = 'queued';
+        patchData.ragError = undefined;
+        patchData.ragProgress = undefined;
+        patchData.ragQueuedAt = now;
+      }
+
+      if (needsTranscribeRetry) {
+        patchData.transcriptionStatus = 'queued';
+        patchData.transcriptionError = undefined;
+        patchData.transcriptionProgress = undefined;
+      }
+
       await ctx.db.patch(existing._id, patchData);
+
+      if (needsRagRetry) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.file_metadata.internal_actions.uploadFileToRag,
+          {
+            organizationId: args.organizationId,
+            storageId: args.storageId,
+            fileName: args.fileName,
+            contentType: args.contentType,
+          },
+        );
+      }
+      if (needsTranscribeRetry) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.file_metadata.transcribe_audio.transcribeAudio,
+          {
+            storageId: args.storageId,
+            fileName: args.fileName,
+            contentType: args.contentType,
+            organizationId: args.organizationId,
+          },
+        );
+      }
+
       return existing._id;
     }
-
-    // Audio AND video files go through the transcription pipeline (ffmpeg
-    // strips video via `-vn`, transcribes the audio track).
-    const isAudio =
-      args.contentType.startsWith('audio/') ||
-      args.contentType.startsWith('video/');
-
-    // Only queue formats the RAG service can actually index — anything
-    // else (legacy Office .doc/.xls/.ppt, misc text extensions) gets a
-    // deterministic HTTP 400 from RAG and a permanent "Index failed".
-    // Mirrors the public saveFileMetadata in mutations.ts.
-    const shouldIndex =
-      !isAudio && isRagIndexableFile(args.fileName, args.contentType);
 
     const id = await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
@@ -81,7 +141,7 @@ export const saveFileMetadata = internalMutation({
       ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
 
-    if (shouldIndex) {
+    if (shouldIndex && scheduleRag) {
       await ctx.scheduler.runAfter(
         0,
         internal.file_metadata.internal_actions.uploadFileToRag,
@@ -575,5 +635,18 @@ export const linkDocumentToFile = internalMutation({
       documentId: args.documentId,
       ...(source ? { source } : {}),
     });
+
+    // Legacy rows that never reached RAG (failed upload, or pre-link import
+    // without a scheduled job) get a second chance once the Hub link exists.
+    if (
+      !metadata.threadId &&
+      (metadata.ragStatus === undefined ||
+        metadata.ragStatus === 'failed' ||
+        metadata.ragStatus === 'queued')
+    ) {
+      await scheduleHubDocumentRagIndexing(ctx, {
+        documentId: args.documentId,
+      });
+    }
   },
 });

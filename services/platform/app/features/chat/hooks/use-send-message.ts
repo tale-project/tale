@@ -539,14 +539,20 @@ export function useSendMessage({
       // reasoning. Covers all three branches below uniformly.
       markScrollIntent();
       if (isArena) {
-        if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
+        const arenaThreadIdA = currentArena.arenaThreadIdA;
+        const arenaThreadIdB = currentArena.arenaThreadIdB;
+        if (arenaThreadIdA && arenaThreadIdB) {
           setPendingMessage({
             content: optimisticContent,
-            threadId: currentArena.arenaThreadIdA,
-            arenaThreadIdB: currentArena.arenaThreadIdB,
+            threadId: arenaThreadIdA,
+            arenaThreadIdB: arenaThreadIdB,
             attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
+          });
+          queueMicrotask(() => {
+            markSendPending(arenaThreadIdA);
+            markSendPending(arenaThreadIdB);
           });
         } else {
           // Thread A may exist (arenaThreadIdA set) but B needs creation,
@@ -554,11 +560,14 @@ export function useSendMessage({
           // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
             content: optimisticContent,
-            threadId: currentArena.arenaThreadIdA ?? 'pending',
+            threadId: arenaThreadIdA ?? 'pending',
             attachments: buildDisplayAttachments(),
             timestamp: pendingTimestamp,
             lastMessageKey,
           });
+          if (arenaThreadIdA) {
+            queueMicrotask(() => markSendPending(arenaThreadIdA));
+          }
         }
       } else {
         setPendingMessage({
@@ -568,6 +577,9 @@ export function useSendMessage({
           timestamp: pendingTimestamp,
           lastMessageKey,
         });
+        // Defer one microtask so the optimistic user (and shell) commit before
+        // `isSendPending` — prevents one frame of thinking on the prior turn.
+        if (threadId) queueMicrotask(() => markSendPending(threadId));
       }
 
       // Background bind. With `setPendingMessage` already rendered above,

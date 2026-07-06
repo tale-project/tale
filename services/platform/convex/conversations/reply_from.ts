@@ -45,3 +45,12 @@ export function resolveReplyFrom(
     ? inboundFrom
     : fallbackFrom;
 }
+
+/**
+ * From address for system notification email on the mailbox's send domain.
+ * Falls back to `baseFrom` when it has no `@` (misconfigured SMTP login).
+ */
+export function notificationFromAddress(baseFrom: string): string {
+  const domain = emailDomain(baseFrom);
+  return domain ? `notification@${domain}` : baseFrom;
+}

@@ -345,6 +345,13 @@ export const getThreadMeta = query({
       // sandbox session and --resume transcript are bound to it, so the
       // global (per-user) picker state must not re-route such a thread.
       agentSlug: v.union(v.string(), v.null()),
+      // Server wall-clock at query time (transaction time). The client derives a
+      // client↔server clock offset from this (see use-clock-offset) so live
+      // timers and relative-time never subtract a server epoch from a client
+      // `Date.now()`. Reactive — refreshes whenever this query re-runs, which it
+      // does while a thread generates; it does NOT self-tick between re-runs,
+      // which is exactly what a coarse offset needs.
+      serverNow: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -415,6 +422,7 @@ export const getThreadMeta = query({
           : null,
       externalAgentMode: metadata.externalAgentMode ?? null,
       agentSlug: metadata.agentSlug ?? null,
+      serverNow: Date.now(),
     };
   },
 });

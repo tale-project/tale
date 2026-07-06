@@ -976,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
       "title": "Téléverser des automatisations",
-      "description": "Importe des fichiers JSON de workflow, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme une automatisation distincte.",
+      "description": "Dépose des fichiers JSON de workflow ou une archive .zip. Chaque .json installe une automatisation distincte. Pour un dossier, utilise le lien sous la zone de dépôt.",
       "toastSuccess": "Automatisations importées"
     },
     "templates": {
@@ -2023,10 +2023,10 @@
       "supportedFormats": ".xlsx, .xls ou .csv",
       "pickADate": "Choisir une date",
       "dropFilesHere": "Dépose les fichiers ici pour téléverser",
-      "acceptHint": "Fichiers JSON, dossiers ou archives .zip",
-      "pickFiles": "Choisir des fichiers",
-      "pickFolder": "Choisir un dossier",
-      "pickZip": "Choisir un zip",
+      "dropOrClick": "Dépose des fichiers JSON ou .zip ici",
+      "acceptHint": "Fichiers JSON ou archives .zip",
+      "uploadFolderInstead": "Téléverser un dossier à la place",
+      "importBlocked": "Rien à importer. Corrige les fichiers invalides ci-dessus, ou modifie l'option d'écrasement en cas de conflit.",
       "summary": "{total} entrées · {saved} enregistrées · {queued} en attente",
       "conflictHeading": "{count, plural, one {# entrée existe déjà} other {# entrées existent déjà}}",
       "conflictHint": "Les entrées existantes seront écrasées. La version précédente est enregistrée dans l'historique. Décoche ci-dessous pour les ignorer à la place.",
@@ -2552,7 +2552,10 @@
       "deleteFolderFailed": "Échec de la suppression du dossier",
       "deleteFileFailed": "Une erreur inattendue s'est produite lors de la suppression du fichier.",
       "manageTeams": "Assigner une équipe",
-      "reindex": "Réindexer"
+      "reindex": "Réindexer",
+      "stopSync": "Arrêter la synchronisation",
+      "stopSyncDone": "Synchronisation arrêtée. Les fichiers importés restent dans ton espace de travail.",
+      "stopSyncFailed": "Échec de l'arrêt de la synchronisation"
     },
     "folder": {
       "newFolder": "Nouveau dossier",
@@ -5487,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Téléverser un fichier",
         "title": "Téléverser des agents",
-        "description": "Importe des fichiers JSON d'agent, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme un agent distinct.",
+        "description": "Dépose des fichiers JSON d'agent ou une archive .zip. Chaque .json installe un agent distinct. Pour un dossier, utilise le lien sous la zone de dépôt.",
         "toastSuccess": "Agents importés"
       },
       "general": {
@@ -5767,6 +5770,34 @@
         "name": "Skill",
         "description": "Description",
         "loadError": "Impossible de lire SKILL.md"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "Erreur de syntaxe YAML (ligne {line})",
+        "yamlSyntax": "Erreur de syntaxe YAML dans le frontmatter",
+        "missingFrontmatter": "Frontmatter YAML manquant",
+        "unclosedFrontmatter": "Frontmatter YAML non fermé",
+        "frontmatterTooLarge": "Frontmatter trop volumineux",
+        "invalidFrontmatter": "Frontmatter invalide",
+        "emptyFrontmatter": "Frontmatter vide",
+        "notFound": "SKILL.md introuvable",
+        "symlink": "SKILL.md est un lien symbolique",
+        "inaccessible": "Impossible de lire SKILL.md",
+        "generic": "Impossible de lire SKILL.md"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Remplace le bundle par un zip valide, ou supprime ce skill.",
+        "technicalDetails": "Détails techniques",
+        "title": {
+          "yamlSyntax": "Le frontmatter n'a pas pu être analysé",
+          "missingFrontmatter": "Frontmatter manquant",
+          "unclosedFrontmatter": "Frontmatter non fermé",
+          "invalidFrontmatter": "Frontmatter invalide",
+          "emptyFrontmatter": "Frontmatter vide",
+          "frontmatterTooLarge": "Frontmatter trop volumineux",
+          "symlink": "SKILL.md est un lien symbolique",
+          "inaccessible": "Impossible de lire ce skill",
+          "generic": "Ce skill n'a pas pu être chargé"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6123,7 +6154,8 @@
             "s4": "Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de répertoire (locataire). L'URL de l'émetteur est https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Allez dans Certificats et secrets › Nouveau secret client et copiez la Valeur du secret (pas son ID).",
             "s6": "Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les champs ci-dessus.",
-            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur."
+            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur.",
+            "s8": "Pour la synchronisation de documents OneDrive/SharePoint, ajoute les autorisations Microsoft Graph Files.Read et Sites.Read.All sous Autorisations d'API et accorde le consentement administrateur. Si tu veux uniquement la connexion, retire ces deux scopes du champ Scopes ci-dessus."
           },
           "google": {
             "intro": "Créez un client OAuth dans la console Google Cloud, puis saisissez ses informations ci-dessous.",

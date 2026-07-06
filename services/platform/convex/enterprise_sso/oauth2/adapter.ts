@@ -92,6 +92,7 @@ async function exchangeCodeForTokens(
       ? Date.now() + data.expires_in * 1000
       : undefined,
     idToken: data.id_token,
+    scope: typeof data.scope === 'string' ? data.scope : undefined,
   };
 }
 
