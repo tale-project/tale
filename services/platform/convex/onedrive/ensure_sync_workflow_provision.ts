@@ -38,39 +38,38 @@ export type SyncWorkflowProvisionResult = {
   /** `wfInstallations` row was absent before this run. */
   installationCreated: boolean;
   schedulesRequired: number;
+  /** Active org-level schedule rows for this automation (any cron). */
   schedulesActive: number;
   schedulesCreated: number;
   schedulesReactivated: number;
   eventsCreated: number;
-  /** Every declared schedule has an active row. */
+  /** The automation has at least one active schedule. */
   complete: boolean;
 };
 
-async function countActiveSchedulesForCrons(
+/**
+ * Org-level (project-less) schedule rows for this automation, regardless of
+ * cron or active state. The sync engine owns a single, retunable schedule, so
+ * provisioning keys on the automation — not on the builtin's exact cron: an
+ * operator who changes the interval must not get a second trigger bolted on.
+ */
+async function listAutomationSchedules(
   ctx: MutationCtx,
   organizationId: string,
   workflowSlug: string,
-  schedules: readonly DeclaredSchedule[],
-): Promise<number> {
-  let active = 0;
-  for (const declared of schedules) {
-    for await (const sched of ctx.db
-      .query('wfSchedules')
-      .withIndex('by_workflowSlug', (q) =>
-        q.eq('workflowSlug', workflowSlug),
-      )) {
-      if (
-        sched.organizationId === organizationId &&
-        sched.cronExpression === declared.cron &&
-        sched.projectId === undefined &&
-        sched.isActive
-      ) {
-        active += 1;
-        break;
-      }
+): Promise<Array<{ isActive: boolean }>> {
+  const rows: Array<{ isActive: boolean }> = [];
+  for await (const sched of ctx.db
+    .query('wfSchedules')
+    .withIndex('by_workflowSlug', (q) => q.eq('workflowSlug', workflowSlug))) {
+    if (
+      sched.organizationId === organizationId &&
+      sched.projectId === undefined
+    ) {
+      rows.push({ isActive: sched.isActive });
     }
   }
-  return active;
+  return rows;
 }
 
 /**
@@ -108,11 +107,23 @@ export async function compensateSyncWorkflowEngineProvision(
     contentHash: args.contentHash,
   });
 
+  // A schedule row already present for this automation — even one the operator
+  // retuned to a different interval, or paused — is authoritative. Only declare
+  // the builtin schedule when none exists yet; otherwise `activate: true` below
+  // just revives it. This is what stops a divergent builtin cron from being
+  // inserted as a second, concurrently-firing trigger.
+  const priorSchedules = await listAutomationSchedules(
+    ctx,
+    args.organizationId,
+    args.workflowSlug,
+  );
+  const declareSchedules = priorSchedules.length === 0 ? schedules : [];
+
   const triggers = await provisionDeclaredWorkflowTriggersImpl(ctx, {
     organizationId: args.organizationId,
     workflowSlug: args.workflowSlug,
     events: args.events,
-    schedules,
+    schedules: declareSchedules,
     activate: true,
   });
 
@@ -122,16 +133,12 @@ export async function compensateSyncWorkflowEngineProvision(
     contentHash: args.contentHash,
   });
 
-  const schedulesActive = await countActiveSchedulesForCrons(
-    ctx,
-    args.organizationId,
-    args.workflowSlug,
-    schedules,
-  );
+  const schedulesActive = (
+    await listAutomationSchedules(ctx, args.organizationId, args.workflowSlug)
+  ).filter((sched) => sched.isActive).length;
 
   const schedulesRequired = schedules.length;
-  const complete =
-    schedulesRequired === 0 || schedulesActive >= schedulesRequired;
+  const complete = schedulesRequired === 0 || schedulesActive >= 1;
 
   return {
     installationCreated: priorInstall === null,
