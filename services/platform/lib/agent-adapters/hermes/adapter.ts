@@ -19,6 +19,10 @@ const HERMES_SKILLS_STAGE_DIR = '.runtime/home/.hermes/skills' as const;
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'gateway',
+  // BYO Hermes talks to an OpenRouter-style backend (OPENROUTER_API_KEY), which
+  // speaks the catalog's vendor-prefixed ids (`anthropic/claude-sonnet-4.6`) —
+  // the Anthropic-native translation (`claude-sonnet-4-6`) is rejected there.
+  byoModelIdSource: 'catalog',
   supportsByo: true,
   supportsManaged: true,
 };

@@ -150,6 +150,8 @@ function withHouseRules(systemPromptAppend: string | undefined): string {
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'gateway',
+  // BYO talks to Anthropic's own API — request the catalog `nativeModelId`.
+  byoModelIdSource: 'vendor-native',
   supportsByo: true,
   supportsManaged: true,
 };
