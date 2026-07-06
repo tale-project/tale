@@ -10,8 +10,9 @@ the automated Playwright spec that already covers each case, and carries an
 These are manual / exploratory / accessibility passes — **not** the automated
 suites. Unit and component tests live in `services/*/`; the full-app Playwright
 suite lives in [`services/platform/tests/e2e/`](../../services/platform/tests/e2e/README.md).
-The `web` and `docs` services have their own smoke specs and are out of scope
-here.
+The `web` and `docs` services have their own guide sets in
+[`services/web/tests/manual/`](../../../web/tests/manual/README.md) and
+[`services/docs/tests/manual/`](../../../docs/tests/manual/README.md).
 
 ## How to use
 
