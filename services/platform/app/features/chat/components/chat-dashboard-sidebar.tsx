@@ -1,11 +1,10 @@
 'use client';
 
-import { Row, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Link, useLocation } from '@tanstack/react-router';
 import { m } from 'framer-motion';
 import { useCallback, useMemo } from 'react';
 
-import { Navigation } from '@/app/components/ui/navigation/navigation';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
@@ -166,8 +165,9 @@ export function ChatMobileSidebarSheet({
 }
 
 /**
- * Desktop unified left panel: icon nav rail plus an expandable chat-history
- * column. Collapsed state shows only the rail; expanded adds the history list.
+ * Desktop chat-history column beside the layout's shared nav rail. The icon
+ * rail lives once in {@link DashboardLayout}; this panel only expands/collapses
+ * the thread list so route transitions never mount a second Navigation.
  */
 export function ChatDashboardSidebar({
   organizationId,
@@ -183,30 +183,24 @@ export function ChatDashboardSidebar({
   return (
     <aside
       aria-label={t('unifiedSidebar.landmark')}
-      className="bg-background relative hidden h-full shrink-0 md:flex"
+      className="bg-background border-border relative hidden h-full shrink-0 border-r md:flex"
     >
-      <Row gap={0} align="stretch" className="border-border h-full border-r">
-        <div className="h-full w-[var(--nav-size)] shrink-0 px-2">
-          <Navigation organizationId={organizationId} />
-        </div>
-
-        <m.div
-          id="chat-history-panel"
-          initial={false}
-          animate={{ width: isHistoryOpen ? HISTORY_PANEL_WIDTH : 0 }}
-          transition={transition}
-          className="relative overflow-hidden"
-          aria-hidden={!isHistoryOpen}
+      <m.div
+        id="chat-history-panel"
+        initial={false}
+        animate={{ width: isHistoryOpen ? HISTORY_PANEL_WIDTH : 0 }}
+        transition={transition}
+        className="relative overflow-hidden"
+        aria-hidden={!isHistoryOpen}
+      >
+        <Stack
+          gap={0}
+          className="bg-background h-full overflow-hidden"
+          style={{ width: HISTORY_PANEL_WIDTH }}
         >
-          <Stack
-            gap={0}
-            className="border-border bg-background h-full overflow-hidden border-l"
-            style={{ width: HISTORY_PANEL_WIDTH }}
-          >
-            <ChatHistorySidebar organizationId={organizationId} />
-          </Stack>
-        </m.div>
-      </Row>
+          <ChatHistorySidebar organizationId={organizationId} />
+        </Stack>
+      </m.div>
     </aside>
   );
 }

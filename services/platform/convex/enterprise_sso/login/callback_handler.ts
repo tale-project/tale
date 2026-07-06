@@ -12,6 +12,7 @@ import {
 } from '../entra_id/error_codes';
 import { getAdapter } from '../registry';
 import { signCookieValue, verifySignedValue } from '../sign_cookie_value';
+import { recordSsoLoginFailure } from './login_audit';
 import { redirectWithError } from './redirect_with_error';
 
 const SESSION_COOKIE_NAME = 'better-auth.session_token';
@@ -47,6 +48,11 @@ export async function ssoCallbackHandler(
   // (unreachable from a browser), so error redirects must target the public
   // SITE_URL — refined to the state's own origin once the state is parsed.
   let publicOrigin = process.env.SITE_URL || new URL(req.url).origin;
+  // Hoisted so the catch can write a durable audit row attributing the failure
+  // to the right org/connection/user (populated as each is resolved below).
+  let resolvedOrganizationId: string | undefined;
+  let resolvedProviderId: string | undefined;
+  let attemptedEmail: string | undefined;
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
@@ -188,6 +194,8 @@ export async function ssoCallbackHandler(
     if (!config) {
       return redirectWithError(frontendOrigin, 'SSO configuration not found');
     }
+    resolvedOrganizationId = config.organizationId;
+    resolvedProviderId = config.providerId;
 
     const adapter = getAdapter(config.providerId);
     if (!adapter) {
@@ -236,6 +244,7 @@ export async function ssoCallbackHandler(
     });
 
     const userInfo = await adapter.getUserInfo(ssoConfig, tokens.accessToken);
+    attemptedEmail = userInfo.email;
 
     if (tokens.idToken) {
       const authContext = parseIdTokenAuthContext(tokens.idToken);
@@ -340,6 +349,14 @@ export async function ssoCallbackHandler(
     const message = error instanceof Error ? error.message : String(error);
     const errorCode = parseEntraErrorCode(message);
     const errorInfo = errorCode ? getEntraErrorInfo(errorCode) : undefined;
+    await recordSsoLoginFailure(ctx, {
+      organizationId: resolvedOrganizationId,
+      stage: 'callback',
+      errorMessage: message,
+      errorKey: errorInfo?.messageKey ?? 'sso.errors.serverError',
+      attemptedEmail,
+      providerId: resolvedProviderId,
+    });
     if (errorCode && errorInfo) {
       return redirectWithError(
         publicOrigin,
