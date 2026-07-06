@@ -17,6 +17,7 @@ import { stripModelRefQualifier } from '@/lib/shared/utils/model-ref';
 
 import { AgentRowActions } from '../components/agent-row-actions';
 import type { AgentTableItem } from '../components/agents-table';
+import { folderLabel } from '../utils/folder-label';
 
 interface AgentsTableConfig {
   columns: ColumnDef<AgentTableItem>[];
@@ -45,6 +46,10 @@ export function useAgentsTableConfig({
   showFolderPath = false,
 }: AgentsTableConfigOptions): AgentsTableConfig {
   const { t } = useT('settings');
+  // Folder rows show the same localized display name as the catalog's folder
+  // sections, never the raw path segment (#2348).
+  const { t: tCatalog } = useT('agentCatalog');
+  const { t: tTables } = useT('tables');
 
   const columns = useMemo<ColumnDef<AgentTableItem>[]>(
     () => [
@@ -68,7 +73,7 @@ export function useAgentsTableConfig({
                   <Folder className="text-muted-foreground size-4 shrink-0" />
                 )}
                 <Text as="span" variant="label" truncate>
-                  {row.original.name}
+                  {folderLabel(tCatalog, row.original.name)}
                 </Text>
                 {isApp && <Badge variant="slate">{t('agents.appBadge')}</Badge>}
                 <Badge variant="outline">{row.original.agentCount}</Badge>
@@ -128,7 +133,11 @@ export function useAgentsTableConfig({
       },
       {
         id: 'actions',
-        header: '',
+        // sr-only label, matching `createActionsColumn` — an empty header cell
+        // fails the axe `empty-table-header` audit.
+        header: () => (
+          <span className="sr-only">{tTables('headers.actions')}</span>
+        ),
         // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
         // every other table's actions column.
         size: ACTIONS_COLUMN_SIZE,
@@ -149,7 +158,15 @@ export function useAgentsTableConfig({
         },
       },
     ],
-    [t, organizationId, onDuplicated, onDeleted, showFolderPath],
+    [
+      t,
+      tCatalog,
+      tTables,
+      organizationId,
+      onDuplicated,
+      onDeleted,
+      showFolderPath,
+    ],
   );
 
   return {

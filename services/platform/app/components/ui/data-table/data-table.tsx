@@ -165,8 +165,14 @@ export interface DataTableProps<TData, TValue = unknown> {
     threshold?: number;
     /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
     entityLabel?: string;
-    /** Unfiltered total count. When different from data.length, shows "Showing X of Y {entity}". */
+    /** Unfiltered total count. When different from the shown count, shows "Showing X of Y {entity}". */
     totalCount?: number;
+    /**
+     * Entities the visible rows represent, when a row can aggregate several —
+     * a folder row stands in for its members, so the footer must count the
+     * entities behind it, not the row itself (#2348). Defaults to data.length.
+     */
+    displayedCount?: number;
   };
   /**
    * Approximate row count for the skeleton display.
@@ -1143,19 +1149,25 @@ export function DataTable<TData, TValue = unknown>({
     </div>
   );
 
+  // A row can aggregate several entities (a folder row stands in for its
+  // members), so the count shown must be the entities behind the visible rows,
+  // not the row count itself (#2348).
+  const shownEntityCount = infiniteScroll
+    ? (infiniteScroll.displayedCount ?? data.length)
+    : 0;
   const entityCountFooter = infiniteScroll &&
     infiniteScroll.entityLabel &&
     data.length > 0 && (
       <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block px-3 py-3 text-left text-xs">
         {infiniteScroll.totalCount !== undefined &&
-        infiniteScroll.totalCount !== data.length
+        infiniteScroll.totalCount !== shownEntityCount
           ? t('pagination.showingFiltered', {
-              filtered: data.length,
+              filtered: shownEntityCount,
               total: infiniteScroll.totalCount,
               entity: infiniteScroll.entityLabel,
             })
           : t('pagination.showingAll', {
-              count: data.length,
+              count: shownEntityCount,
               entity: infiniteScroll.entityLabel,
             })}
       </output>
