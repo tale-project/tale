@@ -8,15 +8,18 @@ import {
 } from '@tale/ui/search';
 import { Text } from '@tale/ui/text';
 import { Loader } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { KbMention } from '../hooks/use-kb-mentions';
+import { AnchoredMentionPopoverShell } from './anchored-mention-popover-shell';
 
 interface KbMentionPopoverProps {
+  anchorRef: RefObject<HTMLElement | null>;
+  open: boolean;
   results: SearchResult<KbMention>[];
   status: SearchStatus;
   /** The query typed after `@` — drives highlighting + empty-state copy. */
@@ -38,6 +41,8 @@ interface KbMentionPopoverProps {
  * textarea keeps focus the whole time (combobox pattern).
  */
 export function KbMentionPopover({
+  anchorRef,
+  open,
   results,
   status,
   query,
@@ -61,7 +66,7 @@ export function KbMentionPopover({
   const terms = query.trim() ? [query.trim()] : [];
 
   return (
-    <div className="border-border bg-popover text-popover-foreground absolute right-0 bottom-full left-0 z-50 mb-2 overflow-hidden rounded-xl border shadow-lg">
+    <AnchoredMentionPopoverShell anchorRef={anchorRef} open={open}>
       <div className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs font-medium">
         {t('kbMention.title')}
       </div>
@@ -144,6 +149,6 @@ export function KbMentionPopover({
           })}
         </ul>
       )}
-    </div>
+    </AnchoredMentionPopoverShell>
   );
 }

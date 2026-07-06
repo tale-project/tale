@@ -217,6 +217,32 @@ export function buildMessageSegments(
 }
 
 /**
+ * True when a segment renders its OWN live affordance (tool spinner, inline
+ * reasoning dots, or the trailing text typewriter). The bubble-level trailing
+ * `ThinkingDots` must hide only in that case — an intermediate text part still
+ * marked `streaming` but not `isLast` (a settled tool row follows it) has no
+ * visible affordance and must NOT suppress the trailing dots.
+ */
+export function hasVisibleActiveSegment(
+  segments: readonly MessageSegment[],
+  opts: { active: boolean; headerOwnsReasoning: boolean },
+): boolean {
+  if (!opts.active) return false;
+  return segments.some((s) => {
+    if (s.kind === 'tool') {
+      return s.state === 'input-streaming' || s.state === 'input-available';
+    }
+    if (s.kind === 'reasoning') {
+      return s.state === 'streaming' && !opts.headerOwnsReasoning;
+    }
+    if (s.kind === 'text') {
+      return s.isLast && s.state === 'streaming';
+    }
+    return false;
+  });
+}
+
+/**
  * The live activity of a streaming turn, localized by `activityLabel`. Only the
  * gap-shell `ThinkingIndicator` constructs it now (phase-based "Routing"/
  * "Thinking"): the in-bubble header renders a STABLE "Thinking" and lets the

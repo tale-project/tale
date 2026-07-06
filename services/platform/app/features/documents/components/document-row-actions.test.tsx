@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -44,6 +46,7 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
+  useCancelOneDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteFolder: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -62,6 +65,66 @@ describe('DocumentRowActions', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  describe('stop sync visibility', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+    };
+
+    it('offers stop-sync on a directly-selected single-file sync', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-1"
+          itemType="file"
+          name="Document 1.docx"
+          sourceMode="auto"
+          syncConfigId="cfg-file"
+          isDirectlySelected
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.getByText('documents.actions.stopSync'),
+      ).toBeInTheDocument();
+    });
+
+    it('hides stop-sync on a file synced as part of a folder', async () => {
+      // The file carries the folder config id; stopping it here would cancel
+      // the whole folder, so the file row must not offer it.
+      render(
+        <DocumentRowActions
+          documentId="doc-2"
+          itemType="file"
+          name="Document 1.docx"
+          sourceMode="auto"
+          syncConfigId="cfg-folder"
+          isDirectlySelected={false}
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.queryByText('documents.actions.stopSync'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('still offers stop-sync on a synced folder', async () => {
+      render(
+        <DocumentRowActions
+          documentId="folder-1"
+          itemType="folder"
+          name="Meetings"
+          syncConfigId="cfg-folder"
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.getByText('documents.actions.stopSync'),
+      ).toBeInTheDocument();
     });
   });
 });

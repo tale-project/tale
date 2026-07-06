@@ -86,6 +86,11 @@ export const ssoTokensSchema = z.object({
   refreshToken: z.string().optional(),
   expiresAt: z.number().optional(),
   idToken: z.string().optional(),
+  /** Space-separated scopes actually granted by the IdP (`scope` in the token
+   *  response). Persisted on the account row so features that need a specific
+   *  grant (OneDrive's `Files.Read`) can tell a capable token from a bare
+   *  sign-in token. */
+  scope: z.string().optional(),
 });
 export type SsoTokens = z.infer<typeof ssoTokensSchema>;
 
@@ -177,6 +182,7 @@ export const ssoConnectionViewSchema = z.object({
   enabled: z.boolean(),
   protocol: ssoProtocolSchema.nullable(),
   displayName: z.string().nullable(),
+  /** @deprecated No longer used for login routing; kept for existing configs. */
   domain: z.string().nullable(),
   oidc: oidcConfigViewSchema.nullable(),
   saml: samlConfigViewSchema.nullable(),
@@ -194,8 +200,7 @@ export const ssoConnectionViewSchema = z.object({
       authSecretSet: z.boolean(),
     })
     .optional(),
-  /** Another org on this deployment also has an enabled connection — without
-   *  an email domain this one is unroutable by address (form warns). */
+  /** @deprecated Multi-org sign-in now uses the org picker; kept for API compat. */
   otherOrgsEnabled: z.boolean().optional(),
 });
 export type SsoConnectionView = z.infer<typeof ssoConnectionViewSchema>;
@@ -257,7 +262,7 @@ export const ssoConnectionFileSchema = z.object({
   /** Set once a sign-in protocol is configured. */
   protocol: ssoProtocolSchema.optional(),
   displayName: z.string().default('Enterprise SSO'),
-  /** Optional email-domain routing (sign-in by domain). */
+  /** @deprecated No longer used for login routing; kept for existing connection.json files. */
   domain: z.string().optional(),
   oidc: oidcFileConfigSchema.optional(),
   saml: samlFileConfigSchema.optional(),

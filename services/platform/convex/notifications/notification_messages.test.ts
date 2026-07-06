@@ -4,8 +4,12 @@ import deMessages from '../../messages/de.json';
 import enMessages from '../../messages/en.json';
 import frMessages from '../../messages/fr.json';
 import {
+  ACTIONABLE_INBOX_KEYS,
   escapeSlackText,
+  INBOX_I18N,
   NOTIFICATIONS_I18N,
+  renderActionableEmailContent,
+  renderInboxMessage,
   renderNotificationMessage,
   SUPPORTED_NOTIFICATION_LOCALES,
 } from './notification_messages';
@@ -16,6 +20,26 @@ const BUNDLES = {
   fr: frMessages,
 } as const;
 
+function pickActionableInbox(
+  bundle: (typeof BUNDLES)[keyof typeof BUNDLES],
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const key of ACTIONABLE_INBOX_KEYS) {
+    if (key.startsWith('email.')) {
+      const subKey = key.slice('email.'.length);
+      result[key] =
+        bundle.inbox.email[subKey as keyof typeof bundle.inbox.email];
+    } else {
+      const value = bundle.inbox[key as keyof typeof bundle.inbox];
+      if (typeof value !== 'string') {
+        throw new Error(`Expected inbox.${key} to be a string`);
+      }
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 describe('notification_messages parity', () => {
   // The server-side copy MUST mirror the `notifications` namespace of the
   // client message bundles. This guard fails CI if a notification string is
@@ -24,6 +48,10 @@ describe('notification_messages parity', () => {
   for (const locale of SUPPORTED_NOTIFICATION_LOCALES) {
     it(`mirrors the ${locale} notifications namespace exactly`, () => {
       expect(NOTIFICATIONS_I18N[locale]).toEqual(BUNDLES[locale].notifications);
+    });
+
+    it(`mirrors the ${locale} actionable inbox keys exactly`, () => {
+      expect(INBOX_I18N[locale]).toEqual(pickActionableInbox(BUNDLES[locale]));
     });
   }
 });
@@ -72,6 +100,34 @@ describe('renderNotificationMessage', () => {
     expect(renderNotificationMessage('en', 'totally-made-up')).toBe(
       'totally-made-up',
     );
+  });
+});
+
+describe('renderInboxMessage', () => {
+  it('interpolates task assignment copy', () => {
+    expect(
+      renderInboxMessage('en', 'taskAssignedByBody', {
+        actor: 'Alex',
+        title: 'Ship it',
+      }),
+    ).toBe('Alex assigned you to "Ship it".');
+  });
+});
+
+describe('renderActionableEmailContent', () => {
+  it('includes a deep link and footer in plain text', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'taskAssignedBody',
+      params: { title: 'Ship it', projectId: 'proj_1' },
+      deepLink:
+        'https://app.example.com/dashboard/org_1/projects/proj_1/tasks?task=task_1',
+    });
+    expect(content.subject).toBe('Task assigned to you');
+    expect(content.text).toContain('You were assigned "Ship it".');
+    expect(content.text).toContain('Open in Tale: https://app.example.com');
+    expect(content.text).toContain('notifications enabled in Tale');
+    expect(content.html).toContain('href="https://app.example.com');
   });
 });
 

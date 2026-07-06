@@ -17,6 +17,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
+import { stopSyncForDeletedDocument } from '../onedrive/deactivate_sync_configs';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
 import { updateDocument as updateDocumentHelper } from './update_document';
@@ -98,6 +99,12 @@ export const deleteDocument = mutation({
       undefined,
       document.createdBy ?? undefined,
     );
+
+    // A directly-selected single-file OneDrive sync maps 1:1 to this document,
+    // so deleting it means "stop syncing it" — otherwise the next scheduled
+    // run re-imports the file the user just removed. No-op for manual uploads
+    // and folder-member docs.
+    await stopSyncForDeletedDocument(ctx, document);
 
     // Knowledge entries are backed by hub documents — deleting the backing
     // document from the Documents tab must not orphan the entry, so mark

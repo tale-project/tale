@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
+import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
 import { GmailIcon } from './gmail-icon';
 import { LocaleIcon } from './locale-icon';
@@ -10,6 +11,11 @@ import { ShopifyIcon } from './shopify-icon';
 import { WebsiteIcon } from './website-icon';
 
 const icons = [
+  {
+    name: 'ClaudeIcon',
+    component: ClaudeIcon,
+    description: 'Anthropic / Claude brand mark',
+  },
   {
     name: 'MicrosoftIcon',
     component: MicrosoftIcon,

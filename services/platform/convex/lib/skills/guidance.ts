@@ -36,9 +36,10 @@ export const WORKFLOW_SKILL_NAMES: readonly string[] = [
 ];
 
 const INTRO =
-  'Skills are named playbooks available in this session; invoke one with the ' +
-  'Skill tool the moment its trigger matches. For any coding task, work in ' +
-  'this order:';
+  'Skills are named playbooks available in this session — load or invoke the ' +
+  'one whose trigger matches (automatic discovery, slash invocation, or the ' +
+  'runtime-native skill affordance where one exists). For any coding task, work ' +
+  'in this order:';
 
 interface GuidanceStep {
   /** The step renders when ANY of these skills is available. */

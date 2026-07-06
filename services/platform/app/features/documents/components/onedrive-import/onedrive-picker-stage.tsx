@@ -5,6 +5,7 @@ import { Stack, HStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
+import type { TFunction } from 'i18next';
 import { Home } from 'lucide-react';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
@@ -57,6 +58,10 @@ interface OneDrivePickerStageProps {
   onSpDriveReset: () => void;
   onSpFolderBreadcrumbClick: (index: number) => void;
   onProceedToSettings: () => void;
+  /** `documents`-namespace translator, owned by the dialog. This stage is a
+   *  plain function (not a component), so it must not call hooks itself —
+   *  the picker↔settings switch would change the parent's hook count. */
+  t: TFunction;
 }
 
 export function OneDrivePickerStage({
@@ -93,9 +98,8 @@ export function OneDrivePickerStage({
   onSpDriveReset,
   onSpFolderBreadcrumbClick,
   onProceedToSettings,
+  t,
 }: OneDrivePickerStageProps) {
-  const { t } = useT('documents');
-
   return {
     customHeader: (
       <div className="border-border border-b">
@@ -175,21 +179,19 @@ export function OneDrivePickerStage({
               </Button>
             </HStack>
 
-            <div className="h-[500px] overflow-y-auto">
-              <OneDriveFileTable
-                items={filteredItems}
-                isLoading={loading}
-                isMicrosoftAccountError={isMicrosoftAccountError}
-                searchQuery={searchQuery}
-                selectedItems={selectedItems}
-                getSelectAllState={getSelectAllState}
-                handleSelectAllChange={handleSelectAllChange}
-                getCheckedState={getCheckedState}
-                handleCheckChange={handleCheckChange}
-                handleFolderClick={handleFolderClick}
-                buildItemPath={buildItemPath}
-              />
-            </div>
+            <OneDriveFileTable
+              items={filteredItems}
+              isLoading={loading}
+              isMicrosoftAccountError={isMicrosoftAccountError}
+              searchQuery={searchQuery}
+              selectedItems={selectedItems}
+              getSelectAllState={getSelectAllState}
+              handleSelectAllChange={handleSelectAllChange}
+              getCheckedState={getCheckedState}
+              handleCheckChange={handleCheckChange}
+              handleFolderClick={handleFolderClick}
+              buildItemPath={buildItemPath}
+            />
           </>
         )}
 
@@ -206,23 +208,19 @@ export function OneDrivePickerStage({
             />
 
             {!selectedSite && (
-              <div className="h-[500px] overflow-y-auto">
-                <SharePointSitesTable
-                  sites={sitesData || []}
-                  isLoading={loadingSites}
-                  onSiteClick={onSiteClick}
-                />
-              </div>
+              <SharePointSitesTable
+                sites={sitesData || []}
+                isLoading={loadingSites}
+                onSiteClick={onSiteClick}
+              />
             )}
 
             {selectedSite && !selectedDrive && (
-              <div className="h-[500px] overflow-y-auto">
-                <SharePointDrivesTable
-                  drives={drivesData || []}
-                  isLoading={loadingDrives}
-                  onDriveClick={onDriveClick}
-                />
-              </div>
+              <SharePointDrivesTable
+                drives={drivesData || []}
+                isLoading={loadingDrives}
+                onDriveClick={onDriveClick}
+              />
             )}
 
             {selectedSite && selectedDrive && (
@@ -242,21 +240,19 @@ export function OneDrivePickerStage({
                     {t('onedrive.importCount', { count: selectedItems.size })}
                   </Button>
                 </HStack>
-                <div className="h-[440px] overflow-y-auto">
-                  <OneDriveFileTable
-                    items={currentItems}
-                    isLoading={loadingSpFiles}
-                    isMicrosoftAccountError={false}
-                    searchQuery={searchQuery}
-                    selectedItems={selectedItems}
-                    getSelectAllState={getSelectAllState}
-                    handleSelectAllChange={handleSelectAllChange}
-                    getCheckedState={getCheckedState}
-                    handleCheckChange={handleCheckChange}
-                    handleFolderClick={onSpFolderClick}
-                    buildItemPath={buildItemPath}
-                  />
-                </div>
+                <OneDriveFileTable
+                  items={currentItems}
+                  isLoading={loadingSpFiles}
+                  isMicrosoftAccountError={false}
+                  searchQuery={searchQuery}
+                  selectedItems={selectedItems}
+                  getSelectAllState={getSelectAllState}
+                  handleSelectAllChange={handleSelectAllChange}
+                  getCheckedState={getCheckedState}
+                  handleCheckChange={handleCheckChange}
+                  handleFolderClick={onSpFolderClick}
+                  buildItemPath={buildItemPath}
+                />
               </>
             )}
           </>

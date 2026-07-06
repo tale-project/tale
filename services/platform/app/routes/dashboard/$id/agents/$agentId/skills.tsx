@@ -9,6 +9,7 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { SkillsTable } from '@/app/features/skills/components/skills-table';
 import { useListSkills } from '@/app/features/skills/hooks/queries';
+import { WORKFLOW_SKILL_NAMES } from '@/convex/lib/skills/guidance';
 import { useT } from '@/lib/i18n/client';
 import { MAX_SKILL_BINDINGS_PER_AGENT } from '@/lib/shared/schemas/agents';
 import { seo } from '@/lib/utils/seo';
@@ -25,42 +26,49 @@ function SkillsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
 
+  const isExternalAgent = config.primaryBehavior === 'external-agent';
+  const workflowSlugs = useMemo(
+    () => new Set<string>(WORKFLOW_SKILL_NAMES),
+    [],
+  );
+
   const selected = useMemo(
     () => config.skillBindings ?? [],
     [config.skillBindings],
   );
   const { skills, isLoading } = useListSkills(organizationId);
 
-  // Render-layer prune: stale slugs (bound to skills the org no longer has)
-  // are hidden from the binding UI without mutating `config.skillBindings`.
-  // Keeping the prune off the write path means opening this tab never marks
-  // the form dirty — only an actual user toggle does. Runtime
-  // `buildSkillContext` already intersects bindings with live org skills, so
-  // stale entries in the JSON have no functional effect until the user
-  // touches the form and the next save naturally cleans them up.
   const allowed = useMemo(
     () =>
       new Set(
         Array.isArray(skills)
-          ? skills.filter((s) => !('status' in s)).map((s) => s.slug)
+          ? skills
+              .filter((s) => !('status' in s))
+              .filter((s) => !isExternalAgent || !workflowSlugs.has(s.slug))
+              .map((s) => s.slug)
           : [],
       ),
-    [skills],
+    [skills, isExternalAgent, workflowSlugs],
   );
   const visibleSelected = useMemo(
     () => (isLoading ? selected : selected.filter((s) => allowed.has(s))),
     [isLoading, selected, allowed],
   );
 
+  const sectionDescription = isExternalAgent
+    ? t('agents.form.sectionSkillBindingsExternalDescription')
+    : t('agents.form.sectionSkillBindingsDescription');
+
   return (
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
         title={t('agents.form.sectionSkillBindings')}
-        description={t('agents.form.sectionSkillBindingsDescription')}
+        description={sectionDescription}
       />
       <SkillsTable
         organizationId={organizationId}
         hideActionMenu
+        excludeSlugs={isExternalAgent ? workflowSlugs : undefined}
         bindingMode={{
           selected: visibleSelected,
           onChange: (skillBindings) => updateConfig({ skillBindings }),
@@ -70,9 +78,13 @@ function SkillsTab() {
           description: (
             <VStack gap={2} align="center">
               <Text variant="muted">
-                {t('agents.form.skillBindingsNoSkillsInOrgDescription', {
-                  defaultValue: 'No skills exist in this organization yet.',
-                })}
+                {isExternalAgent
+                  ? t(
+                      'agents.form.skillBindingsExternalNoCustomSkillsDescription',
+                    )
+                  : t('agents.form.skillBindingsNoSkillsInOrgDescription', {
+                      defaultValue: 'No skills exist in this organization yet.',
+                    })}
               </Text>
               <Link
                 to="/dashboard/$id/settings/skills"

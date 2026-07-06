@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 
 import type {
-  HumanControlMetadata,
   KnowledgeWriteMetadata,
   PlanApprovalMetadata,
   WorkflowCreationMetadata,
@@ -21,7 +20,6 @@ import type {
 import {
   useActiveApprovals,
   type DocumentWriteApproval,
-  type HumanControlRequest,
   type HumanInputRequest,
   type IntegrationApproval,
   type IntegrationOperationMetadata,
@@ -43,7 +41,6 @@ export interface ThreadApprovals {
   documentWriteApprovals: DocumentWriteApproval[];
   knowledgeWriteApprovals: KnowledgeWriteApproval[];
   planApprovals: PlanApproval[];
-  humanControlRequests: HumanControlRequest[];
   isLoading: boolean;
 }
 
@@ -82,7 +79,6 @@ export function useThreadApprovals(
     const documentWriteApprovals: DocumentWriteApproval[] = [];
     const knowledgeWriteApprovals: KnowledgeWriteApproval[] = [];
     const planApprovals: PlanApproval[] = [];
-    const humanControlRequests: HumanControlRequest[] = [];
 
     if (approvals && threadId) {
       for (const a of approvals) {
@@ -199,16 +195,6 @@ export function useThreadApprovals(
               messageId: a.messageId,
             });
             break;
-          case 'external_agent_human_control':
-            humanControlRequests.push({
-              _id: toId<'approvals'>(a._id),
-              status: a.status,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
-              metadata: a.metadata as unknown as HumanControlMetadata,
-              _creationTime: a._creationTime,
-              messageId: a.messageId,
-            });
-            break;
           default:
             break;
         }
@@ -225,7 +211,6 @@ export function useThreadApprovals(
       documentWriteApprovals,
       knowledgeWriteApprovals,
       planApprovals,
-      humanControlRequests,
     };
     // `isLoading` is intentionally excluded from the deps below: it's a cheap
     // passthrough, so re-partitioning when it toggles would be wasted work.

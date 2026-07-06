@@ -33,7 +33,10 @@ import { readFile } from 'node:fs/promises';
 
 import { type Infer, v } from 'convex/values';
 
-import { usesGateway } from '../../../lib/agent-adapters/credential-policy';
+import {
+  usesGateway,
+  getSkillsStageDir,
+} from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import {
   formatModelRef,
@@ -65,6 +68,7 @@ import {
   isRetryableExecutionError,
   isRotatableApiError,
 } from './agent_run_outcome';
+import { stageBoundOrgSkills } from './bound_org_skills';
 import {
   type SessionStageFile,
   SessionDuplicateError,
@@ -1238,12 +1242,20 @@ export const runSandboxAgent = internalAction({
           await stageIntegrationSkills(ctx, {
             organizationId: args.organizationId,
             sessionId,
+            productKind,
             nativeWebTools: byo || nativeWebTools === true,
           });
-          await reconcileBuiltinSkills(ctx, { sessionId });
+          await reconcileBuiltinSkills(ctx, { sessionId, productKind });
+          await stageBoundOrgSkills(ctx, {
+            organizationId: args.organizationId,
+            sessionId,
+            skillBindings: agentConfig.skillBindings,
+            productKind,
+          });
           availableWorkflowSkills = await stageWorkflowSkills(ctx, {
             organizationId: args.organizationId,
             sessionId,
+            productKind,
           });
           workspaceIsTale = await workspaceIsTaleRepo(sessionId);
         } catch (skillErr) {
@@ -1341,7 +1353,7 @@ export const runSandboxAgent = internalAction({
       // CC's user-level skill dir); skipped on the Tale monorepo workspace and
       // when the agent's own instructions already carry the section.
       const skillsGuidance =
-        agentKind === 'claude-code' &&
+        getSkillsStageDir(productKind) !== null &&
         !workspaceIsTale &&
         !agentConfig.instructions?.includes(SKILLS_GUIDANCE_HEADING)
           ? buildSkillsGuidance(availableWorkflowSkills)

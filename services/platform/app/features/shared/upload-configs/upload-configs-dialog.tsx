@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   CircleSlash,
   File as FileIcon,
-  FolderUp,
   Loader2,
   Upload,
 } from 'lucide-react';
@@ -19,7 +18,6 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import {
   type ParsedEntry,
@@ -92,8 +90,6 @@ function UploadConfigsDialogContent({
 }: UploadConfigsDialogProps) {
   const { t } = useT('common');
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const filesInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -226,6 +222,39 @@ function UploadConfigsDialogContent({
 
   const importDisabled = isImporting || queuedCount === 0;
 
+  const showImportBlockedHint =
+    rows.length > 0 &&
+    queuedCount === 0 &&
+    !isImporting &&
+    !rows.every((r) => r.status === 'saved');
+
+  const footer = (
+    <>
+      {rows.length > 0 && (
+        <Text variant="caption" className="min-w-0">
+          {t('upload.summary', {
+            total: rows.length,
+            saved: savedCount,
+            queued: queuedCount,
+          })}
+        </Text>
+      )}
+      <div className="ml-auto flex gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleClose}
+          disabled={isImporting}
+        >
+          {t('actions.close')}
+        </Button>
+        <Button type="button" onClick={handleImport} disabled={importDisabled}>
+          {isImporting ? t('actions.importing') : t('actions.import')}
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <Dialog
       open={open}
@@ -235,6 +264,8 @@ function UploadConfigsDialogContent({
       title={title}
       description={description}
       size="lg"
+      footer={footer}
+      footerClassName="w-full flex-col-reverse sm:flex-row sm:items-center"
     >
       <Stack gap={4}>
         <FileUpload.Root>
@@ -244,81 +275,43 @@ function UploadConfigsDialogContent({
             multiple
             inputId="upload-configs-drop"
             className="border-border hover:border-border-hover relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors"
-            aria-label={t('upload.dropFilesHere')}
+            aria-label={t('upload.dropOrClick')}
           >
             <Upload className="text-muted-foreground size-8" />
-            <Text variant="muted" className="text-center">
-              {t('upload.dropFilesHere')}
-            </Text>
-            <Text variant="caption" className="text-center">
-              {t('upload.acceptHint')}
-            </Text>
+            <Stack gap={1} className="text-center">
+              <Text variant="label">{t('upload.dropOrClick')}</Text>
+              <Text variant="caption">{t('upload.acceptHint')}</Text>
+            </Stack>
           </FileUpload.DropZone>
         </FileUpload.Root>
 
-        <HStack gap={2} className="flex-wrap">
+        <HStack justify="center">
           <Button
             type="button"
-            variant="secondary"
-            className="gap-2"
-            onClick={() => filesInputRef.current?.click()}
+            variant="link"
+            size="sm"
             disabled={isImporting}
-          >
-            <FileIcon className="size-4" />
-            {t('upload.pickFiles')}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="gap-2"
             onClick={() => folderInputRef.current?.click()}
-            disabled={isImporting}
           >
-            <FolderUp className="size-4" />
-            {t('upload.pickFolder')}
+            {t('upload.uploadFolderInstead')}
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="gap-2"
-            onClick={() => zipInputRef.current?.click()}
-            disabled={isImporting}
-          >
-            <Upload className="size-4" />
-            {t('upload.pickZip')}
-          </Button>
+          <input
+            ref={folderInputRef}
+            type="file"
+            // The webkitdirectory attribute is non-standard but supported in
+            // Chromium, Safari, and recent Firefox; fall through to the file
+            // picker on browsers that ignore it.
+            {...({ webkitdirectory: '', directory: '' } as Record<
+              string,
+              string
+            >)}
+            multiple
+            className="hidden"
+            onChange={handleFilesInputChange}
+            aria-hidden="true"
+            tabIndex={-1}
+          />
         </HStack>
-
-        {/* Hidden inputs sized via ref so we can trigger native pickers per mode */}
-        <input
-          ref={filesInputRef}
-          type="file"
-          accept=".json,application/json"
-          multiple
-          className="hidden"
-          onChange={handleFilesInputChange}
-        />
-        <input
-          ref={folderInputRef}
-          type="file"
-          // The webkitdirectory attribute is non-standard but supported in
-          // Chromium, Safari, and recent Firefox; fall through to the file
-          // picker on browsers that ignore it.
-          {...({ webkitdirectory: '', directory: '' } as Record<
-            string,
-            string
-          >)}
-          multiple
-          className="hidden"
-          onChange={handleFilesInputChange}
-        />
-        <input
-          ref={zipInputRef}
-          type="file"
-          accept=".zip,application/zip"
-          className="hidden"
-          onChange={handleFilesInputChange}
-        />
 
         {conflictCount > 0 && (
           <div className="bg-warning/10 border-warning/40 flex items-start gap-3 rounded-md border p-3">
@@ -368,32 +361,11 @@ function UploadConfigsDialogContent({
           </div>
         )}
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Text variant="caption" className={cn(rows.length === 0 && 'hidden')}>
-            {t('upload.summary', {
-              total: rows.length,
-              saved: savedCount,
-              queued: queuedCount,
-            })}
+        {showImportBlockedHint && (
+          <Text variant="muted" className="text-center text-sm">
+            {t('upload.importBlocked')}
           </Text>
-          <HStack gap={2} className="sm:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleClose}
-              disabled={isImporting}
-            >
-              {t('actions.close')}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleImport}
-              disabled={importDisabled}
-            >
-              {isImporting ? t('actions.importing') : t('actions.import')}
-            </Button>
-          </HStack>
-        </div>
+        )}
       </Stack>
     </Dialog>
   );

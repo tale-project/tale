@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Trash2, Users } from 'lucide-react';
+import { CloudOff, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import {
@@ -15,7 +15,11 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useRetryRagIndexing } from '../hooks/actions';
-import { useDeleteDocument, useDeleteFolder } from '../hooks/mutations';
+import {
+  useCancelOneDriveSync,
+  useDeleteDocument,
+  useDeleteFolder,
+} from '../hooks/mutations';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
@@ -55,6 +59,8 @@ export function DocumentRowActions({
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
+  const { mutateAsync: cancelSync, isPending: isCancellingSync } =
+    useCancelOneDriveSync();
   const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
     useRetryRagIndexing();
   // Read-only consultation so the delete button can show "blocked by
@@ -144,6 +150,24 @@ export function DocumentRowActions({
     }
   }, [documentId, retryRagIndexing, tDocuments, isReindexing]);
 
+  const handleStopSync = useCallback(async () => {
+    if (!syncConfigId || isCancellingSync) return;
+    try {
+      await cancelSync({
+        configId: toId<'onedriveSyncConfigs'>(syncConfigId),
+      });
+      toast({
+        title: tDocuments('actions.stopSyncDone'),
+        variant: 'success',
+      });
+    } catch {
+      toast({
+        title: tDocuments('actions.stopSyncFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [cancelSync, syncConfigId, isCancellingSync, tDocuments]);
+
   const deleteLabel =
     itemType === 'folder' && syncConfigId
       ? tDocuments('actions.deleteSyncFolder')
@@ -167,6 +191,21 @@ export function DocumentRowActions({
         visible: canWrite && !parentFolderTeamId,
       },
       {
+        key: 'stopSync',
+        label: tDocuments('actions.stopSync'),
+        icon: CloudOff,
+        onClick: handleStopSync,
+        // A synced folder, or a single file the user picked to sync directly.
+        // A file synced as *part of* a folder carries that folder's config id,
+        // so stopping it from the file row would cancel the whole folder —
+        // those are stopped from the folder row instead.
+        visible:
+          canWrite &&
+          !!syncConfigId &&
+          (itemType === 'folder' || !!isDirectlySelected),
+        disabled: isCancellingSync,
+      },
+      {
         key: 'delete',
         label: isHeld
           ? tGovernance('legalHold.badges.blockedByHold')
@@ -184,13 +223,17 @@ export function DocumentRowActions({
       deleteLabel,
       handleDeleteClick,
       handleReindex,
+      handleStopSync,
       canWrite,
       canDelete,
       itemType,
       dialogs.open,
       isReindexing,
+      isCancellingSync,
       parentFolderTeamId,
       isHeld,
+      syncConfigId,
+      isDirectlySelected,
     ],
   );
 

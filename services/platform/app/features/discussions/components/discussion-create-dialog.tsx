@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -15,12 +15,14 @@ import {
   DEFAULT_DISCUSSION_CATEGORY,
   type DiscussionCategory,
 } from '@/lib/shared/constants/discussions';
+import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 import { cn } from '@/lib/utils/cn';
 
 import { ChatInput } from '../../chat/components/chat-input';
 import { useConvexFileUpload } from '../../chat/hooks/use-convex-file-upload';
 import type { FileAttachment } from '../../chat/types';
 import { useCreateDiscussion } from '../hooks/mutations';
+import { createActorMentionSource } from './actor-mention-source';
 
 interface DiscussionCreateDialogProps {
   open: boolean;
@@ -38,11 +40,13 @@ export function DiscussionCreateDialog({
   onCreated,
 }: DiscussionCreateDialogProps) {
   const { t } = useT('discussions');
+  const { t: tCommon } = useT('common');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<DiscussionCategory>(
     DEFAULT_DISCUSSION_CATEGORY,
   );
   const [body, setBody] = useState('');
+  const [titleError, setTitleError] = useState<string | undefined>();
   const [isCreating, setIsCreating] = useState(false);
 
   const {
@@ -54,16 +58,27 @@ export function DiscussionCreateDialog({
   } = useConvexFileUpload({ organizationId });
 
   const { mutateAsync: createDiscussion } = useCreateDiscussion();
+  const actorMentionSource = useMemo(
+    () => createActorMentionSource({ organizationId, projectId }),
+    [organizationId, projectId],
+  );
 
   const reset = () => {
     setTitle('');
     setCategory(DEFAULT_DISCUSSION_CATEGORY);
     setBody('');
+    setTitleError(undefined);
     clearAttachments();
   };
 
   const handleCreate = async (message: string, _att?: FileAttachment[]) => {
-    if (!title.trim() || !message.trim() || isCreating) return;
+    if (isCreating) return;
+    if (!title.trim()) {
+      setTitleError(t('create.titleRequired'));
+      return;
+    }
+    if (!message.trim()) return;
+    setTitleError(undefined);
     setIsCreating(true);
     try {
       const result = await createDiscussion({
@@ -73,6 +88,7 @@ export function DiscussionCreateDialog({
         message,
         category,
       });
+      toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
       reset();
       onCreated(result.threadId);
     } catch (error) {
@@ -97,8 +113,13 @@ export function DiscussionCreateDialog({
         <Input
           label={t('create.titleLabel')}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (titleError) setTitleError(undefined);
+          }}
           placeholder={t('create.titlePlaceholder')}
+          errorMessage={titleError}
+          required
           autoFocus
         />
         <div className="flex flex-col gap-1.5">
@@ -129,10 +150,9 @@ export function DiscussionCreateDialog({
             onChange={setBody}
             onSendMessage={handleCreate}
             isLoading={isCreating}
-            sendBlocked={!title.trim()}
-            sendBlockedReason={t('create.titleRequired')}
             organizationId={organizationId}
             projectId={String(projectId)}
+            actorMentionSource={actorMentionSource}
             attachments={attachments}
             uploadingFiles={uploadingFiles}
             uploadFiles={uploadFiles}

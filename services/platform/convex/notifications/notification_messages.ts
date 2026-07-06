@@ -41,8 +41,12 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Alerts and system updates will appear here when they arrive.',
     markAsRead: 'Mark as read',
     markAllAsRead: 'Mark all as read',
+    expand: 'Expand',
     filterUnread: 'Unread',
     filterAll: 'All',
+    sortLabel: 'Sort',
+    sortRecent: 'Most recent',
+    sortPriority: 'Priority',
     loadMore: 'Load more',
     loading: 'Loading…',
     accountLocked: 'Account temporarily locked: {email}',
@@ -101,8 +105,12 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.',
     markAsRead: 'Als gelesen markieren',
     markAllAsRead: 'Alle als gelesen markieren',
+    expand: 'Vergrößern',
     filterUnread: 'Ungelesen',
     filterAll: 'Alle',
+    sortLabel: 'Sortieren',
+    sortRecent: 'Neueste zuerst',
+    sortPriority: 'Priorität',
     loadMore: 'Mehr laden',
     loading: 'Lädt…',
     accountLocked: 'Konto vorübergehend gesperrt: {email}',
@@ -167,8 +175,12 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Les alertes et mises à jour système apparaîtront ici à mesure qu'elles arriveront.",
     markAsRead: 'Marquer comme lu',
     markAllAsRead: 'Tout marquer comme lu',
+    expand: 'Agrandir',
     filterUnread: 'Non lus',
     filterAll: 'Tous',
+    sortLabel: 'Trier',
+    sortRecent: 'Plus récentes',
+    sortPriority: 'Priorité',
     loadMore: 'Charger plus',
     loading: 'Chargement…',
     accountLocked: 'Compte temporairement verrouillé : {email}',
@@ -223,6 +235,84 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
   },
 };
 
+/**
+ * Actionable inbox keys mirrored for server-side email rendering. Kept honest by
+ * `notification_messages.test.ts` against the `inbox` namespace subset in
+ * messages/{en,de,fr}.json.
+ */
+export const ACTIONABLE_INBOX_KEYS = [
+  'taskAssigned',
+  'taskAssignedBody',
+  'taskAssignedByBody',
+  'mention',
+  'mentionBody',
+  'mentionByBody',
+  'taskReviewRequested',
+  'taskReviewRequestedBody',
+  'taskReviewRequestedBodyNoAgent',
+  'agentEscalation',
+  'agentEscalationBody',
+  'email.cta',
+  'email.footer',
+] as const;
+
+export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
+  en: {
+    taskAssigned: 'Task assigned to you',
+    taskAssignedBody: 'You were assigned "{title}".',
+    taskAssignedByBody: '{actor} assigned you to "{title}".',
+    mention: 'You were mentioned',
+    mentionBody: 'You were mentioned on "{title}".',
+    mentionByBody: '{actor} mentioned you on "{title}".',
+    taskReviewRequested: 'Review requested',
+    taskReviewRequestedBody:
+      '{agentSlug} finished "{taskTitle}" — approve or request changes.',
+    taskReviewRequestedBodyNoAgent:
+      'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
+    agentEscalation: 'Agent escalation',
+    agentEscalationBody: '{agent} escalated: {reason}',
+    'email.cta': 'Open in Tale',
+    'email.footer':
+      'You received this email because you have notifications enabled in Tale.',
+  },
+  de: {
+    taskAssigned: 'Aufgabe dir zugewiesen',
+    taskAssignedBody: 'Dir wurde "{title}" zugewiesen.',
+    taskAssignedByBody: '{actor} hat dir "{title}" zugewiesen.',
+    mention: 'Du wurdest erwähnt',
+    mentionBody: 'Du wurdest bei "{title}" erwähnt.',
+    mentionByBody: '{actor} hat dich in "{title}" erwähnt.',
+    taskReviewRequested: 'Review angefragt',
+    taskReviewRequestedBody:
+      '{agentSlug} hat "{taskTitle}" abgeschlossen — freigeben oder Änderungen anfordern.',
+    taskReviewRequestedBodyNoAgent:
+      'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
+    agentEscalation: 'Agenten-Eskalation',
+    agentEscalationBody: '{agent} hat eskaliert: {reason}',
+    'email.cta': 'In Tale öffnen',
+    'email.footer':
+      'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
+  },
+  fr: {
+    taskAssigned: 'Tâche assignée',
+    taskAssignedBody: "«\u00a0{title}\u00a0» t'a été assignée.",
+    taskAssignedByBody: "{actor} t'a assigné «\u00a0{title}\u00a0».",
+    mention: 'Tu as été mentionné',
+    mentionBody: 'Tu as été mentionné dans «\u00a0{title}\u00a0».',
+    mentionByBody: "{actor} t'a mentionné dans «\u00a0{title}\u00a0».",
+    taskReviewRequested: 'Revue demandée',
+    taskReviewRequestedBody:
+      '{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.',
+    taskReviewRequestedBodyNoAgent:
+      "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
+    agentEscalation: "Escalade d'agent",
+    agentEscalationBody: '{agent} a escaladé : {reason}',
+    'email.cta': 'Ouvrir dans Tale',
+    'email.footer':
+      'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',
+  },
+};
+
 /** Slack-only workflow-outcome strings (never shown in the in-app bell). */
 const WORKFLOW_I18N: Record<NotificationLocale, LocaleStrings> = {
   en: {
@@ -248,6 +338,70 @@ export function escapeSlackText(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Render an `inbox` namespace string for outbound email. Interpolated values are
+ * left as-is (proper nouns / task titles); the template's punctuation is preserved.
+ */
+export function renderInboxMessage(
+  locale: string,
+  key: string,
+  params?: Record<string, unknown>,
+): string {
+  const loc: NotificationLocale = isSupportedLocale(locale) ? locale : 'en';
+  const template = INBOX_I18N[loc][key] ?? INBOX_I18N.en[key];
+  if (template === undefined) {
+    console.warn(`[notification_messages] no inbox string for key "${key}"`);
+    return key;
+  }
+  return interpolateTemplate(template, params);
+}
+
+export function renderActionableEmailContent(
+  locale: string,
+  args: {
+    titleKey: string;
+    bodyKey: string;
+    params?: Record<string, unknown>;
+    deepLink: string | null;
+  },
+): { subject: string; text: string; html: string } {
+  const subject = renderInboxMessage(locale, args.titleKey, args.params);
+  const body = renderInboxMessage(locale, args.bodyKey, args.params);
+  const cta = renderInboxMessage(locale, 'email.cta');
+  const footer = renderInboxMessage(locale, 'email.footer');
+
+  let text = body;
+  if (args.deepLink) {
+    text += `\n\n${cta}: ${args.deepLink}`;
+  }
+  text += `\n\n${footer}`;
+
+  const bodyHtml = interpolateTemplate(
+    renderInboxMessage(locale, args.bodyKey, args.params),
+    args.params,
+    escapeHtml,
+  );
+  const ctaHtml = escapeHtml(cta);
+  const footerHtml = escapeHtml(footer);
+  const linkHtml = args.deepLink ? escapeHtml(args.deepLink) : null;
+
+  let html = `<p>${bodyHtml}</p>`;
+  if (linkHtml) {
+    html += `<p><a href="${linkHtml}">${ctaHtml}</a></p>`;
+  }
+  html += `<p style="color:#666;font-size:12px;">${footerHtml}</p>`;
+
+  return { subject, text, html };
 }
 
 /**

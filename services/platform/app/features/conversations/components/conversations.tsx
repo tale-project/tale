@@ -15,7 +15,7 @@ import {
   SendHorizontalIcon,
   ShieldXIcon,
 } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
@@ -39,6 +39,8 @@ interface ConversationsProps {
   status?: Conversation['status'];
   organizationId: string;
   search?: string;
+  /** Deep-link from notifications (`?conversation=`). */
+  initialConversationId?: string;
   paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   conversationCount: number | undefined;
   totalConversationCount: number | undefined;
@@ -81,15 +83,22 @@ export function Conversations({
   status,
   organizationId,
   search: initialSearch,
+  initialConversationId,
   paginatedResult,
   conversationCount,
   totalConversationCount,
 }: ConversationsProps) {
   const navigate = useNavigate();
 
-  const [selectedConversationId, setSelectedConversationId] = useState<
-    string | null
-  >(null);
+  const [selectedConversationId, setSelectedConversationId] = useState(
+    initialConversationId ?? null,
+  );
+
+  useEffect(() => {
+    if (initialConversationId) {
+      setSelectedConversationId(initialConversationId);
+    }
+  }, [initialConversationId]);
 
   // `searchQuery` is the single source of truth for the filter. It is seeded
   // once from the `?search=` URL param; thereafter the URL is kept in sync from

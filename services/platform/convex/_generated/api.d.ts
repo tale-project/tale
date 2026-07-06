@@ -9,6 +9,7 @@
  */
 
 import type * as accounts_helpers from "../accounts/helpers.js";
+import type * as accounts_microsoft_account from "../accounts/microsoft_account.js";
 import type * as accounts_queries from "../accounts/queries.js";
 import type * as accounts_types from "../accounts/types.js";
 import type * as accounts_validators from "../accounts/validators.js";
@@ -251,11 +252,14 @@ import type * as changelog_actions from "../changelog/actions.js";
 import type * as changelog_internal_actions from "../changelog/internal_actions.js";
 import type * as chat_filter_events_internal_mutations from "../chat_filter_events/internal_mutations.js";
 import type * as chat_filter_events_queries from "../chat_filter_events/queries.js";
+import type * as collab_attention from "../collab/attention.js";
 import type * as collab_internal_mutations from "../collab/internal_mutations.js";
 import type * as collab_notifications from "../collab/notifications.js";
 import type * as collab_notify from "../collab/notify.js";
+import type * as collab_notify_email from "../collab/notify_email.js";
 import type * as collab_notify_workforce from "../collab/notify_workforce.js";
 import type * as collab_preferences from "../collab/preferences.js";
+import type * as collab_resolve_surface_mentions from "../collab/resolve_surface_mentions.js";
 import type * as collab_subscriptions from "../collab/subscriptions.js";
 import type * as control_drain from "../control/drain.js";
 import type * as conversations_actions from "../conversations/actions.js";
@@ -367,6 +371,7 @@ import type * as documents_extract_extension from "../documents/extract_extensio
 import type * as documents_find_document_by_external_id from "../documents/find_document_by_external_id.js";
 import type * as documents_find_document_by_file_id from "../documents/find_document_by_file_id.js";
 import type * as documents_find_document_by_title from "../documents/find_document_by_title.js";
+import type * as documents_find_documents_by_external_id from "../documents/find_documents_by_external_id.js";
 import type * as documents_generate_document from "../documents/generate_document.js";
 import type * as documents_generate_document_helpers from "../documents/generate_document_helpers.js";
 import type * as documents_generate_docx from "../documents/generate_docx.js";
@@ -395,6 +400,7 @@ import type * as documents_queries from "../documents/queries.js";
 import type * as documents_query_documents from "../documents/query_documents.js";
 import type * as documents_read_file_base64_from_storage from "../documents/read_file_base64_from_storage.js";
 import type * as documents_rest_api from "../documents/rest_api.js";
+import type * as documents_schedule_hub_document_rag_indexing from "../documents/schedule_hub_document_rag_indexing.js";
 import type * as documents_search_documents_for_mention from "../documents/search_documents_for_mention.js";
 import type * as documents_team_fields from "../documents/team_fields.js";
 import type * as documents_transform_to_document_item from "../documents/transform_to_document_item.js";
@@ -428,6 +434,7 @@ import type * as enterprise_sso_internal_queries from "../enterprise_sso/interna
 import type * as enterprise_sso_login_authorize_handler from "../enterprise_sso/login/authorize_handler.js";
 import type * as enterprise_sso_login_callback_handler from "../enterprise_sso/login/callback_handler.js";
 import type * as enterprise_sso_login_discover_handler from "../enterprise_sso/login/discover_handler.js";
+import type * as enterprise_sso_login_login_audit from "../enterprise_sso/login/login_audit.js";
 import type * as enterprise_sso_login_redirect_with_error from "../enterprise_sso/login/redirect_with_error.js";
 import type * as enterprise_sso_login_set_session_handler from "../enterprise_sso/login/set_session_handler.js";
 import type * as enterprise_sso_oauth2_adapter from "../enterprise_sso/oauth2/adapter.js";
@@ -1002,6 +1009,7 @@ import type * as node_only_integration_sandbox_types from "../node_only/integrat
 import type * as node_only_sandbox_agent_message_parts from "../node_only/sandbox/agent_message_parts.js";
 import type * as node_only_sandbox_agent_run_outcome from "../node_only/sandbox/agent_run_outcome.js";
 import type * as node_only_sandbox_api_error_detection from "../node_only/sandbox/api_error_detection.js";
+import type * as node_only_sandbox_bound_org_skills from "../node_only/sandbox/bound_org_skills.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_integration_skills from "../node_only/sandbox/integration_skills.js";
@@ -1032,6 +1040,8 @@ import type * as node_only_sql_internal_actions from "../node_only/sql/internal_
 import type * as node_only_sql_types from "../node_only/sql/types.js";
 import type * as notifications_actor_name from "../notifications/actor_name.js";
 import type * as notifications_dispatch_notification from "../notifications/dispatch_notification.js";
+import type * as notifications_email_notification from "../notifications/email_notification.js";
+import type * as notifications_email_notification_queries from "../notifications/email_notification_queries.js";
 import type * as notifications_event_catalog from "../notifications/event_catalog.js";
 import type * as notifications_event_catalog_meta from "../notifications/event_catalog_meta.js";
 import type * as notifications_helpers from "../notifications/helpers.js";
@@ -1039,11 +1049,16 @@ import type * as notifications_mutations from "../notifications/mutations.js";
 import type * as notifications_notification_messages from "../notifications/notification_messages.js";
 import type * as notifications_notify_slack from "../notifications/notify_slack.js";
 import type * as notifications_queries from "../notifications/queries.js";
+import type * as notifications_send_actionable_email from "../notifications/send_actionable_email.js";
 import type * as oauth2 from "../oauth2.js";
 import type * as onedrive_actions from "../onedrive/actions.js";
-import type * as onedrive_create_sync_configs from "../onedrive/create_sync_configs.js";
+import type * as onedrive_deactivate_sync_configs from "../onedrive/deactivate_sync_configs.js";
+import type * as onedrive_derive_sync_targets from "../onedrive/derive_sync_targets.js";
 import type * as onedrive_download_and_store_file from "../onedrive/download_and_store_file.js";
 import type * as onedrive_download_file from "../onedrive/download_file.js";
+import type * as onedrive_ensure_sync_workflow from "../onedrive/ensure_sync_workflow.js";
+import type * as onedrive_ensure_sync_workflow_constants from "../onedrive/ensure_sync_workflow_constants.js";
+import type * as onedrive_ensure_sync_workflow_provision from "../onedrive/ensure_sync_workflow_provision.js";
 import type * as onedrive_get_file_metadata from "../onedrive/get_file_metadata.js";
 import type * as onedrive_get_user_token from "../onedrive/get_user_token.js";
 import type * as onedrive_helpers from "../onedrive/helpers.js";
@@ -1057,8 +1072,16 @@ import type * as onedrive_list_folder_contents from "../onedrive/list_folder_con
 import type * as onedrive_list_sharepoint_drives from "../onedrive/list_sharepoint_drives.js";
 import type * as onedrive_list_sharepoint_files from "../onedrive/list_sharepoint_files.js";
 import type * as onedrive_list_sharepoint_sites from "../onedrive/list_sharepoint_sites.js";
+import type * as onedrive_mutations from "../onedrive/mutations.js";
+import type * as onedrive_prune_synced_documents from "../onedrive/prune_synced_documents.js";
 import type * as onedrive_read_file from "../onedrive/read_file.js";
+import type * as onedrive_reconcile_folder_sync from "../onedrive/reconcile_folder_sync.js";
+import type * as onedrive_refresh_credentials from "../onedrive/refresh_credentials.js";
 import type * as onedrive_refresh_token from "../onedrive/refresh_token.js";
+import type * as onedrive_run_config_sync from "../onedrive/run_config_sync.js";
+import type * as onedrive_run_folder_reconcile from "../onedrive/run_folder_reconcile.js";
+import type * as onedrive_run_single_file_reconcile from "../onedrive/run_single_file_reconcile.js";
+import type * as onedrive_stream_to_storage from "../onedrive/stream_to_storage.js";
 import type * as onedrive_types from "../onedrive/types.js";
 import type * as onedrive_update_sync_config from "../onedrive/update_sync_config.js";
 import type * as onedrive_upload_and_create_document from "../onedrive/upload_and_create_document.js";
@@ -1659,6 +1682,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "accounts/helpers": typeof accounts_helpers;
+  "accounts/microsoft_account": typeof accounts_microsoft_account;
   "accounts/queries": typeof accounts_queries;
   "accounts/types": typeof accounts_types;
   "accounts/validators": typeof accounts_validators;
@@ -1901,11 +1925,14 @@ declare const fullApi: ApiFromModules<{
   "changelog/internal_actions": typeof changelog_internal_actions;
   "chat_filter_events/internal_mutations": typeof chat_filter_events_internal_mutations;
   "chat_filter_events/queries": typeof chat_filter_events_queries;
+  "collab/attention": typeof collab_attention;
   "collab/internal_mutations": typeof collab_internal_mutations;
   "collab/notifications": typeof collab_notifications;
   "collab/notify": typeof collab_notify;
+  "collab/notify_email": typeof collab_notify_email;
   "collab/notify_workforce": typeof collab_notify_workforce;
   "collab/preferences": typeof collab_preferences;
+  "collab/resolve_surface_mentions": typeof collab_resolve_surface_mentions;
   "collab/subscriptions": typeof collab_subscriptions;
   "control/drain": typeof control_drain;
   "conversations/actions": typeof conversations_actions;
@@ -2017,6 +2044,7 @@ declare const fullApi: ApiFromModules<{
   "documents/find_document_by_external_id": typeof documents_find_document_by_external_id;
   "documents/find_document_by_file_id": typeof documents_find_document_by_file_id;
   "documents/find_document_by_title": typeof documents_find_document_by_title;
+  "documents/find_documents_by_external_id": typeof documents_find_documents_by_external_id;
   "documents/generate_document": typeof documents_generate_document;
   "documents/generate_document_helpers": typeof documents_generate_document_helpers;
   "documents/generate_docx": typeof documents_generate_docx;
@@ -2045,6 +2073,7 @@ declare const fullApi: ApiFromModules<{
   "documents/query_documents": typeof documents_query_documents;
   "documents/read_file_base64_from_storage": typeof documents_read_file_base64_from_storage;
   "documents/rest_api": typeof documents_rest_api;
+  "documents/schedule_hub_document_rag_indexing": typeof documents_schedule_hub_document_rag_indexing;
   "documents/search_documents_for_mention": typeof documents_search_documents_for_mention;
   "documents/team_fields": typeof documents_team_fields;
   "documents/transform_to_document_item": typeof documents_transform_to_document_item;
@@ -2078,6 +2107,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/login/authorize_handler": typeof enterprise_sso_login_authorize_handler;
   "enterprise_sso/login/callback_handler": typeof enterprise_sso_login_callback_handler;
   "enterprise_sso/login/discover_handler": typeof enterprise_sso_login_discover_handler;
+  "enterprise_sso/login/login_audit": typeof enterprise_sso_login_login_audit;
   "enterprise_sso/login/redirect_with_error": typeof enterprise_sso_login_redirect_with_error;
   "enterprise_sso/login/set_session_handler": typeof enterprise_sso_login_set_session_handler;
   "enterprise_sso/oauth2/adapter": typeof enterprise_sso_oauth2_adapter;
@@ -2652,6 +2682,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/agent_message_parts": typeof node_only_sandbox_agent_message_parts;
   "node_only/sandbox/agent_run_outcome": typeof node_only_sandbox_agent_run_outcome;
   "node_only/sandbox/api_error_detection": typeof node_only_sandbox_api_error_detection;
+  "node_only/sandbox/bound_org_skills": typeof node_only_sandbox_bound_org_skills;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/integration_skills": typeof node_only_sandbox_integration_skills;
@@ -2682,6 +2713,8 @@ declare const fullApi: ApiFromModules<{
   "node_only/sql/types": typeof node_only_sql_types;
   "notifications/actor_name": typeof notifications_actor_name;
   "notifications/dispatch_notification": typeof notifications_dispatch_notification;
+  "notifications/email_notification": typeof notifications_email_notification;
+  "notifications/email_notification_queries": typeof notifications_email_notification_queries;
   "notifications/event_catalog": typeof notifications_event_catalog;
   "notifications/event_catalog_meta": typeof notifications_event_catalog_meta;
   "notifications/helpers": typeof notifications_helpers;
@@ -2689,11 +2722,16 @@ declare const fullApi: ApiFromModules<{
   "notifications/notification_messages": typeof notifications_notification_messages;
   "notifications/notify_slack": typeof notifications_notify_slack;
   "notifications/queries": typeof notifications_queries;
+  "notifications/send_actionable_email": typeof notifications_send_actionable_email;
   oauth2: typeof oauth2;
   "onedrive/actions": typeof onedrive_actions;
-  "onedrive/create_sync_configs": typeof onedrive_create_sync_configs;
+  "onedrive/deactivate_sync_configs": typeof onedrive_deactivate_sync_configs;
+  "onedrive/derive_sync_targets": typeof onedrive_derive_sync_targets;
   "onedrive/download_and_store_file": typeof onedrive_download_and_store_file;
   "onedrive/download_file": typeof onedrive_download_file;
+  "onedrive/ensure_sync_workflow": typeof onedrive_ensure_sync_workflow;
+  "onedrive/ensure_sync_workflow_constants": typeof onedrive_ensure_sync_workflow_constants;
+  "onedrive/ensure_sync_workflow_provision": typeof onedrive_ensure_sync_workflow_provision;
   "onedrive/get_file_metadata": typeof onedrive_get_file_metadata;
   "onedrive/get_user_token": typeof onedrive_get_user_token;
   "onedrive/helpers": typeof onedrive_helpers;
@@ -2707,8 +2745,16 @@ declare const fullApi: ApiFromModules<{
   "onedrive/list_sharepoint_drives": typeof onedrive_list_sharepoint_drives;
   "onedrive/list_sharepoint_files": typeof onedrive_list_sharepoint_files;
   "onedrive/list_sharepoint_sites": typeof onedrive_list_sharepoint_sites;
+  "onedrive/mutations": typeof onedrive_mutations;
+  "onedrive/prune_synced_documents": typeof onedrive_prune_synced_documents;
   "onedrive/read_file": typeof onedrive_read_file;
+  "onedrive/reconcile_folder_sync": typeof onedrive_reconcile_folder_sync;
+  "onedrive/refresh_credentials": typeof onedrive_refresh_credentials;
   "onedrive/refresh_token": typeof onedrive_refresh_token;
+  "onedrive/run_config_sync": typeof onedrive_run_config_sync;
+  "onedrive/run_folder_reconcile": typeof onedrive_run_folder_reconcile;
+  "onedrive/run_single_file_reconcile": typeof onedrive_run_single_file_reconcile;
+  "onedrive/stream_to_storage": typeof onedrive_stream_to_storage;
   "onedrive/types": typeof onedrive_types;
   "onedrive/update_sync_config": typeof onedrive_update_sync_config;
   "onedrive/upload_and_create_document": typeof onedrive_upload_and_create_document;

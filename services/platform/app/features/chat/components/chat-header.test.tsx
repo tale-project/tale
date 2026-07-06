@@ -38,6 +38,10 @@ vi.mock('./chat-history-sidebar', () => ({
   ChatHistorySidebar: () => <div data-testid="chat-history-sidebar" />,
 }));
 
+vi.mock('./chat-dashboard-sidebar', () => ({
+  ChatMobileSidebarSheet: () => null,
+}));
+
 // Stub the threads source so the header's SearchCommand doesn't reach Convex
 // (the source hook calls `useThreads`, which needs a ConvexProvider). The
 // returned state is driven by `sourceRef` so tests can vary results/status.

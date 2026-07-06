@@ -578,11 +578,10 @@
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
       "ssoTitle": "Mit SSO anmelden",
-      "ssoDescription": "Gib die E-Mail-Adresse deiner Organisation ein — sie bestimmt die passende Anmeldung.",
+      "ssoDescription": "Wähle deine Organisation, um mit SSO fortzufahren.",
+      "ssoOrgListLabel": "Organisationen",
       "ssoBackToLogin": "Zurück zur Anmeldung",
-      "ssoPickOrganization": "Oder wähle deine Organisation",
-      "ssoEmailRequired": "Gib die E-Mail-Adresse deiner Organisation ein, um mit SSO fortzufahren.",
-      "ssoEmailNoMatch": "Für diese E-Mail-Domäne ist Single Sign-On nicht eingerichtet. Prüfe die Adresse oder wende dich an deine Administration.",
+      "ssoNoOrganizations": "Keine Organisation für die Anmeldung verfügbar. Wende dich an deine Administration.",
       "continueWithPasskey": "Mit einem Passkey anmelden",
       "passkeyFailed": "Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es erneut oder nutze dein Passwort.",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
@@ -977,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Datei hochladen",
       "title": "Automatisierungen hochladen",
-      "description": "Importiere Workflow-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigene Automatisierung installiert.",
+      "description": "Lege Workflow-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert eine eigene Automatisierung. Für einen Ordner nutze den Link unter der Drop-Zone.",
       "toastSuccess": "Automatisierungen importiert"
     },
     "templates": {
@@ -1329,7 +1328,7 @@
       "noResults": "Keine Agents gefunden",
       "addAgent": "Katalog",
       "lockedExternal": "Dieser Chat läuft in einer Sandbox und behält seinen Agent — starte einen neuen Chat, um einen anderen zu verwenden.",
-      "lockedExternalLabel": "Agent: {{agent}} (für diesen Sandbox-Chat festgelegt)"
+      "lockedExternalLabel": "Agent: {agent} (für diesen Sandbox-Chat festgelegt)"
     },
     "modelSelector": {
       "label": "Modell auswählen",
@@ -1413,7 +1412,10 @@
     "hideSearch": "Suche ausblenden",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
-    "chatHistory": "Chatverlauf",
+    "unifiedSidebar": {
+      "title": "Menü",
+      "landmark": "Dashboard-Seitenleiste"
+    },
     "newProject": "Neues Projekt",
     "typeMessageHere": "Gib hier deine Nachricht ein...",
     "send": "Nachricht senden",
@@ -1776,19 +1778,6 @@
       "verdictRecorded": "Bewertung gespeichert",
       "verdictError": "Bewertung konnte nicht gespeichert werden"
     },
-    "humanControl": {
-      "cardTitle": "Der Agent braucht deine Hilfe im Browser",
-      "takeControl": "Kontrolle übernehmen",
-      "takeControlHint": "Übernimm die Kontrolle, um diesen Schritt im Live-Browser abzuschließen, und gib sie danach zurück.",
-      "controllingHint": "Du steuerst den Browser. Schließe den Schritt ab und gib die Kontrolle zurück, damit der Agent weitermacht.",
-      "returnControl": "Fertig — Kontrolle zurückgeben",
-      "errorAlreadyResolved": "Diese Übergabe wurde bereits abgeschlossen.",
-      "errorTurnRunning": "Der Agent läuft bereits wieder.",
-      "errorReturnFailed": "Die Kontrolle konnte nicht zurückgegeben werden. Bitte versuche es erneut.",
-      "statusReturned": "Kontrolle zurückgegeben — der Agent macht weiter.",
-      "statusSuperseded": "Durch eine neuere Anfrage ersetzt.",
-      "statusTimedOut": "Niemand hat übernommen — der Agent hat weitergemacht."
-    },
     "canvas": {
       "title": "Canvas",
       "error": "Diese Datei konnte nicht geladen werden.",
@@ -2034,10 +2023,10 @@
       "supportedFormats": ".xlsx,.xls oder.csv",
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen",
-      "acceptHint": "JSON-Dateien, Ordner oder.zip-Archive",
-      "pickFiles": "Dateien wählen",
-      "pickFolder": "Ordner wählen",
-      "pickZip": "ZIP wählen",
+      "dropOrClick": "Lege JSON-Dateien oder .zip hier ab",
+      "acceptHint": "JSON-Dateien oder .zip-Archive",
+      "uploadFolderInstead": "Stattdessen Ordner hochladen",
+      "importBlocked": "Nichts zum Importieren bereit. Behebe ungültige Dateien oben oder passe die Überschreiben-Einstellung bei Konflikten an.",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
       "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
       "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
@@ -2144,6 +2133,10 @@
       "noResults": "Keine Ergebnisse gefunden",
       "tryAdjusting": "Passe deine Suchkriterien an",
       "placeholder": "Suchen..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Erwähnung nicht erkannt",
+      "unresolvedDescription": "{tokens} passt zu niemandem in deiner Organisation — es wurde keine Benachrichtigung gesendet."
     },
     "errors": {
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -2559,7 +2552,10 @@
       "deleteFolderFailed": "Ordner konnte nicht gelöscht werden",
       "deleteFileFailed": "Beim Löschen der Datei ist ein unerwarteter Fehler aufgetreten.",
       "manageTeams": "Team zuweisen",
-      "reindex": "Neu indexieren"
+      "reindex": "Neu indexieren",
+      "stopSync": "Synchronisierung beenden",
+      "stopSyncDone": "Synchronisierung beendet. Die importierten Dateien bleiben in deinem Workspace.",
+      "stopSyncFailed": "Synchronisierung konnte nicht beendet werden"
     },
     "folder": {
       "newFolder": "Neuer Ordner",
@@ -4404,6 +4400,10 @@
       "title": "Personalisierung",
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken."
     },
+    "notificationPreferences": {
+      "title": "Benachrichtigungen",
+      "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
+    },
     "environment": {
       "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes eingespeist werden."
@@ -4583,6 +4583,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise-SSO"
   },
+  "notificationPreferences": {
+    "title": "Benachrichtigungen",
+    "description": "Wähle, welche Ereignisse in deiner Glocke erscheinen. Review-Anfragen bleiben immer an — das sind Sicherheitssignale.",
+    "deliveryTitle": "E-Mail-Zustellung",
+    "deliveryDescription": "Handlungsrelevante Alerts (Zuweisungen, Erwähnungen, Reviews, Eskalationen) können zusätzlich an deine Konto-E-Mail gehen, wenn die Organisation ein verbundenes Postfach hat.",
+    "saveFailed": "Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Handlungsrelevante Alerts per E-Mail",
+        "description": "Return-Loop-Benachrichtigungen an deine Konto-E-Mail senden — über das verbundene Gmail-, Outlook- oder SMTP-Postfach der Organisation."
+      },
+      "taskAssigned": {
+        "label": "Aufgabe mir zugewiesen",
+        "description": "Wenn dir eine Aufgabe zugewiesen wird."
+      },
+      "taskStatusChanged": {
+        "label": "Status geändert",
+        "description": "Wenn eine Aufgabe, der du folgst, den Status wechselt."
+      },
+      "taskCommented": {
+        "label": "Neuer Kommentar",
+        "description": "Wenn jemand eine Aufgabe kommentiert, der du folgst."
+      },
+      "mention": {
+        "label": "Erwähnungen",
+        "description": "Wenn dich jemand mit @ erwähnt."
+      },
+      "taskReview": {
+        "label": "Review-Anfragen",
+        "description": "Wenn Agenten-Arbeit auf dein Review wartet."
+      },
+      "escalation": {
+        "label": "Agenten-Eskalationen",
+        "description": "Wenn ein Agent eine Aufgabe an einen Menschen eskaliert."
+      },
+      "automationAlerts": {
+        "label": "Automatisierungs-Warnungen",
+        "description": "Fehler, Budget-Warnungen und offline gegangene Runtimes."
+      },
+      "digest": {
+        "label": "Zusammenfassung",
+        "description": "Regelmäßige Übersicht der Workforce-Aktivität."
+      },
+      "conversationMessages": {
+        "label": "Konversationsnachrichten",
+        "description": "Wenn eine Kundennachricht in Konversationen ankommt."
+      }
+    }
+  },
   "notifications": {
     "title": "Benachrichtigungen",
     "ariaUnread": "Ungelesen",
@@ -4592,8 +4641,12 @@
     "emptyAllDescription": "Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.",
     "markAsRead": "Als gelesen markieren",
     "markAllAsRead": "Alle als gelesen markieren",
+    "expand": "Vergrößern",
     "filterUnread": "Ungelesen",
     "filterAll": "Alle",
+    "sortLabel": "Sortieren",
+    "sortRecent": "Neueste zuerst",
+    "sortPriority": "Priorität",
     "loadMore": "Mehr laden",
     "loading": "Lädt…",
     "newNotifications": "Neue Benachrichtigungen",
@@ -5153,6 +5206,9 @@
       "personalization": {
         "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
       },
+      "notifications": {
+        "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
+      },
       "environment": {
         "description": "Umgebungsvariablen und Geheimnisse, die in deine Sandboxes eingespeist werden."
       },
@@ -5434,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Datei hochladen",
         "title": "Agents hochladen",
-        "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
+        "description": "Lege Agent-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert einen eigenen Agent. Für einen Ordner nutze den Link unter der Drop-Zone.",
         "toastSuccess": "Agents importiert"
       },
       "general": {
@@ -5481,6 +5537,8 @@
         "bindWorkflowsPlaceholder": "Workflows binden…",
         "sectionSkillBindings": "Gebundene Skills",
         "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
+        "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",
+        "skillBindingsExternalNoCustomSkillsDescription": "Noch keine zusätzlichen Org-Skills zum Binden — Workflow-Disziplinen laden trotzdem automatisch. Lege in den Skills-Einstellungen einen eigenen Skill an, wenn dieser Agent einen braucht.",
         "skillBindingsCounter": "{count}/{max} gebunden",
         "skillBindingsToggleAria": "{slug} binden",
         "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",
@@ -5711,6 +5769,34 @@
         "name": "Skill",
         "description": "Beschreibung",
         "loadError": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML-Syntaxfehler (Zeile {line})",
+        "yamlSyntax": "YAML-Syntaxfehler im Frontmatter",
+        "missingFrontmatter": "YAML-Frontmatter fehlt",
+        "unclosedFrontmatter": "YAML-Frontmatter nicht geschlossen",
+        "frontmatterTooLarge": "Frontmatter zu groß",
+        "invalidFrontmatter": "Ungültiges Frontmatter",
+        "emptyFrontmatter": "Leeres Frontmatter",
+        "notFound": "SKILL.md nicht gefunden",
+        "symlink": "SKILL.md ist ein Symlink",
+        "inaccessible": "SKILL.md konnte nicht gelesen werden",
+        "generic": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Ersetze das Bundle durch ein gültiges Zip oder lösche den Skill.",
+        "technicalDetails": "Technische Details",
+        "title": {
+          "yamlSyntax": "Frontmatter konnte nicht geparst werden",
+          "missingFrontmatter": "Frontmatter fehlt",
+          "unclosedFrontmatter": "Frontmatter ist nicht geschlossen",
+          "frontmatterTooLarge": "Frontmatter ist zu groß",
+          "invalidFrontmatter": "Frontmatter ist ungültig",
+          "emptyFrontmatter": "Frontmatter ist leer",
+          "symlink": "SKILL.md ist ein Symlink",
+          "inaccessible": "Skill konnte nicht gelesen werden",
+          "generic": "Skill konnte nicht geladen werden"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -5977,8 +6063,6 @@
           "saml": "SAML 2.0"
         },
         "displayNameLabel": "Anzeigename",
-        "domainLabel": "E-Mail-Domäne",
-        "domainHelp": "Optional – Benutzer mit dieser E-Mail-Domäne dieser Verbindung zuordnen.",
         "signInSection": "Anmeldung",
         "issuerLabel": "Issuer-URL",
         "authzEndpointLabel": "Autorisierungs-Endpunkt",
@@ -6052,10 +6136,6 @@
         },
         "redirectUrlLabel": "In Entra zu registrierende Weiterleitungs-URL",
         "redirectUrlHelp": "Registrieren Sie genau diese URL als \"Web\"-Weiterleitungs-URI in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011 fehl.",
-        "domainWarning": {
-          "title": "Keine E-Mail-Domäne gesetzt",
-          "description": "Mehrere Organisationen dieses Deployments nutzen SSO. Ohne E-Mail-Domäne kann die Anmeldung Mitglieder nicht per Adresse dieser Verbindung zuordnen — sie wird stattdessen öffentlich unter ihrem Anzeigenamen auf dem SSO-Bildschirm gelistet."
-        },
         "deploymentWarning": {
           "title": "Deployment für SSO nicht vollständig konfiguriert",
           "callbackMissing": "Die Weiterleitungs-URL ist leer, weil SITE_URL auf dem Server nicht gesetzt ist. Die SSO-Anmeldung schlägt fehl, bis dies konfiguriert ist.",
@@ -6073,7 +6153,8 @@
             "s4": "Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren Sie den Geheimnis-Wert (nicht die Geheimnis-ID).",
             "s6": "Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.",
-            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung."
+            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung.",
+            "s8": "Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld Scopes."
           },
           "google": {
             "intro": "Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen Sie die Daten unten ein.",
@@ -6948,8 +7029,14 @@
     "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
+    "conversationInboundMessage": "Neue Konversationsnachricht",
+    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne Konversationen, um zu antworten.",
     "agentEscalation": "Agenten-Eskalation",
-    "agentEscalationBody": "{agent} hat eskaliert: {reason}"
+    "agentEscalationBody": "{agent} hat eskaliert: {reason}",
+    "email": {
+      "cta": "In Tale öffnen",
+      "footer": "Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7056,6 +7143,9 @@
     },
     "board": {
       "noTasks": "Keine Aufgaben"
+    },
+    "filters": {
+      "waitingOnMe": "Wartet auf mich"
     },
     "detail": {
       "overview": "Übersicht",

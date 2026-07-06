@@ -29,3 +29,8 @@ export function getCredentialEnvKeys(
 ): readonly string[] {
   return getAgentAdapter(slug).credentialEnvKeys;
 }
+
+/** Session-relative user-level skills dir for staging, or null if unsupported. */
+export function getSkillsStageDir(slug: ProductAgentSlug): string | null {
+  return getAgentAdapter(slug).capabilities.skillsStageDir;
+}

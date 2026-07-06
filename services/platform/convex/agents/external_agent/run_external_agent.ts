@@ -28,6 +28,7 @@ import {
 import {
   getAgentCapabilities,
   getCredentialEnvKeys,
+  getSkillsStageDir,
   usesGateway,
 } from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
@@ -44,6 +45,7 @@ import { buildSkillsGuidance } from '../../lib/skills/guidance';
 import { toId } from '../../lib/type_cast_helpers';
 import type { AgentAssistantContent } from '../../node_only/sandbox/agent_message_parts';
 import { isRotatableApiError } from '../../node_only/sandbox/agent_run_outcome';
+import { stageBoundOrgSkills } from '../../node_only/sandbox/bound_org_skills';
 import { browserViewEnabled } from '../../node_only/sandbox/browser_view';
 import {
   SessionDuplicateError,
@@ -58,7 +60,6 @@ import {
 } from '../../node_only/sandbox/helpers/session_client';
 import {
   reconcileBuiltinSkills,
-  stageBrowserControlSkill,
   stageIntegrationSkills,
 } from '../../node_only/sandbox/integration_skills';
 import {
@@ -378,6 +379,9 @@ export const runExternalAgentTurn = internalAction({
      * (which integrations `integration({slug})` may invoke). Enforced
      * server-side by /api/integrations/execute; defaults to none-granted. */
     integrationBindings: v.optional(v.array(v.string())),
+    /** Org custom skills bound on the agent — staged into the sandbox each turn
+     * (workflow disciplines are auto-staged separately). */
+    skillBindings: v.optional(v.array(v.string())),
     /** Per-agent vision model (managed external agents) backing the image-read
      * polyfill hook when the agent's own model is text-only. Preferred over the
      * provider registry's `vision`-tagged default; ignored for BYO. */
@@ -902,28 +906,20 @@ export const runExternalAgentTurn = internalAction({
         await stageIntegrationSkills(ctx, {
           organizationId: args.organizationId,
           sessionId,
-          // The skill's web-access guidance must match the agent's actual tools:
-          // BYO is always native; managed is native only when opted in. Otherwise
-          // managed force-denies WebSearch/WebFetch (governed via integrations).
+          productKind,
           nativeWebTools: byo || args.nativeWebTools === true,
         });
-        // visual-aspect-analyzer ships baked into the sandbox-runtime image and
-        // is symlinked into the session skill dir by the entrypoint; here we
-        // only enforce repo precedence — drop a baked skill the workspace repo
-        // also defines.
-        await reconcileBuiltinSkills(ctx, { sessionId });
-        // browser-human-control is inline + tightly coupled to the live browser:
-        // stage it only on turns where the headed browser (browserCdp) is on,
-        // since that's when the request_human_control tool exists.
-        if (BROWSER_VIEW_ENABLED) {
-          await stageBrowserControlSkill(ctx, { sessionId });
-        }
-        // The workflow disciplines (implement-feature, fix-bug, …) seeded
-        // per-org from builtin-configs — staged so the guidance below only
-        // names skills that are truly present.
+        await reconcileBuiltinSkills(ctx, { sessionId, productKind });
+        await stageBoundOrgSkills(ctx, {
+          organizationId: args.organizationId,
+          sessionId,
+          skillBindings: args.skillBindings,
+          productKind,
+        });
         availableWorkflowSkills = await stageWorkflowSkills(ctx, {
           organizationId: args.organizationId,
           sessionId,
+          productKind,
         });
         workspaceIsTale = await workspaceIsTaleRepo(sessionId);
       } catch (skillErr) {
@@ -1106,7 +1102,7 @@ export const runExternalAgentTurn = internalAction({
         // skill dir. Skipped on the Tale monorepo workspace — its AGENTS.md
         // already carries the workflow and the house rules point at it.
         skillsGuidance:
-          productKind === 'claude-code' && !workspaceIsTale
+          getSkillsStageDir(productKind) !== null && !workspaceIsTale
             ? buildSkillsGuidance(availableWorkflowSkills)
             : undefined,
       });
@@ -1152,31 +1148,6 @@ export const runExternalAgentTurn = internalAction({
           authMode: byo ? 'byo' : 'managed',
           ...(args.nativeWebTools !== undefined && {
             nativeWebTools: args.nativeWebTools,
-          }),
-          // Raise the browser-handoff card the moment the agent calls
-          // request_human_control — mid-stream, not at turn end (a lingering
-          // session may not terminate for a while). Idempotent on the mutation
-          // side, so a later turn-end pass is a safe no-op. Autonomous runs have
-          // no human to take over, so the callback is never wired (the tool is
-          // also gated off in the adapter — this is defense-in-depth).
-          ...(args.interactionMode !== 'autonomous' && {
-            onHumanControlRequest: async (reason: string) => {
-              if (assistantMessageId === null) return;
-              await ctx.runMutation(
-                internal.approvals.internal_mutations.createHumanControlRequest,
-                {
-                  organizationId: args.organizationId,
-                  threadId: args.threadId,
-                  messageId: assistantMessageId,
-                  agentSlug: args.agentSlug ?? args.agentKind,
-                  modelRef: args.modelRef,
-                  reason,
-                  ...(args.userId !== undefined && {
-                    requestedBy: args.userId,
-                  }),
-                },
-              );
-            },
           }),
           ...(agentSessionId !== null && { agentSessionId }),
           ...(systemPromptAppend !== '' && { systemPromptAppend }),
