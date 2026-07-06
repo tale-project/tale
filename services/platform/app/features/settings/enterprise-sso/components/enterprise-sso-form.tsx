@@ -90,8 +90,12 @@ interface Props {
 }
 
 const DEFAULT_SCOPES: Record<UiProtocol, string> = {
+  // Files.Read + Sites.Read.All make OneDrive/SharePoint document sync work
+  // out of the box for Entra orgs (the SSO token doubles as the Graph token).
+  // Orgs that only want sign-in delete the two scopes here — the documents
+  // menu hides its Microsoft 365 entry when the granted scopes lack Files.Read.
   'entra-id':
-    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All',
+    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All',
   'generic-oidc': 'openid email profile',
   oauth2: 'email profile',
   saml: '',
@@ -527,7 +531,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           ? 'saml'
           : 'google';
   const guideStepCount: Record<string, number> = {
-    entra: 7,
+    entra: 8,
     google: 5,
     oauth2: 4,
     saml: 5,

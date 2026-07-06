@@ -8,7 +8,11 @@ import { cn } from '@/lib/utils/cn';
 import type { ThoughtStep } from '../../utils/thought-step-types';
 import { ReasoningStepRow, STEP_INDENT } from './step-rows';
 import { ThoughtHeader } from './thought-header';
-import { toSeconds, useThinkingTimer } from './use-thinking-timer';
+import {
+  toSeconds,
+  useThinkingTimer,
+  type ThinkingAnchor,
+} from './use-thinking-timer';
 
 interface MessageThoughtHeaderProps {
   isStreaming: boolean;
@@ -18,7 +22,7 @@ interface MessageThoughtHeaderProps {
   toolCount: number;
   skillCount: number;
   hasReasoning: boolean;
-  turnStartMs?: number;
+  anchor?: ThinkingAnchor;
   /** The turn's reasoning blocks, in chronological order. When present this
    *  header becomes the SINGLE thinking control: a chevron reveals all of them
    *  below (collapsed by default), so they're no longer rendered inline among
@@ -48,7 +52,7 @@ export function MessageThoughtHeader({
   toolCount,
   skillCount,
   hasReasoning,
-  turnStartMs,
+  anchor,
   reasoningSteps,
   className,
 }: MessageThoughtHeaderProps) {
@@ -57,10 +61,7 @@ export function MessageThoughtHeader({
   const [expanded, setExpanded] = useState(false);
   const active = isStreaming;
   const thinking = active && !hasAnswerStarted;
-  const { liveElapsedMs, liveDurationMs } = useThinkingTimer(
-    turnStartMs,
-    thinking,
-  );
+  const { liveElapsedMs, liveDurationMs } = useThinkingTimer(anchor, thinking);
 
   // Build the "·"-separated summary shown once the turn ends. Each segment is
   // included only when its value is known.

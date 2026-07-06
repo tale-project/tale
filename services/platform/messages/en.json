@@ -979,7 +979,7 @@
     "uploadDialog": {
       "menuItem": "Upload file",
       "title": "Upload automations",
-      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "description": "Drop workflow JSON files or a .zip archive. Each .json installs as a separate automation. To import a folder, use the link below the drop zone.",
       "toastSuccess": "Automations imported"
     },
     "templates": {
@@ -2026,10 +2026,10 @@
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload",
-      "acceptHint": "JSON files, folders, or .zip archives",
-      "pickFiles": "Choose files",
-      "pickFolder": "Choose folder",
-      "pickZip": "Choose zip",
+      "dropOrClick": "Drop JSON files or .zip here",
+      "acceptHint": "JSON files or .zip archives",
+      "uploadFolderInstead": "Upload a folder instead",
+      "importBlocked": "Nothing ready to import. Fix invalid files above, or adjust overwrite settings for conflicts.",
       "summary": "{total} entries · {saved} saved · {queued} pending",
       "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
       "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
@@ -2555,7 +2555,10 @@
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
       "manageTeams": "Assign team",
-      "reindex": "Reindex"
+      "reindex": "Reindex",
+      "stopSync": "Stop syncing",
+      "stopSyncDone": "Syncing stopped. The imported files stay in your workspace.",
+      "stopSyncFailed": "Failed to stop syncing"
     },
     "folder": {
       "newFolder": "New folder",
@@ -5754,7 +5757,7 @@
       "uploadDialog": {
         "menuItem": "Upload file",
         "title": "Upload agents",
-        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "description": "Drop agent JSON files or a .zip archive. Each .json installs as a separate agent. To import a folder, use the link below the drop zone.",
         "toastSuccess": "Agents imported"
       },
       "general": {
@@ -6034,6 +6037,34 @@
         "name": "Skill",
         "description": "Description",
         "loadError": "Failed to read SKILL.md"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML syntax error (line {line})",
+        "yamlSyntax": "YAML syntax error in frontmatter",
+        "missingFrontmatter": "Missing YAML frontmatter",
+        "unclosedFrontmatter": "Unclosed YAML frontmatter",
+        "frontmatterTooLarge": "Frontmatter too large",
+        "invalidFrontmatter": "Invalid frontmatter",
+        "emptyFrontmatter": "Empty frontmatter",
+        "notFound": "SKILL.md not found",
+        "symlink": "SKILL.md is a symlink",
+        "inaccessible": "Couldn't read SKILL.md",
+        "generic": "Failed to read SKILL.md"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
+        "technicalDetails": "Technical details",
+        "title": {
+          "yamlSyntax": "Frontmatter couldn't be parsed",
+          "missingFrontmatter": "Frontmatter is missing",
+          "unclosedFrontmatter": "Frontmatter isn't closed",
+          "frontmatterTooLarge": "Frontmatter is too large",
+          "invalidFrontmatter": "Frontmatter is invalid",
+          "emptyFrontmatter": "Frontmatter is empty",
+          "symlink": "SKILL.md is a symlink",
+          "inaccessible": "Couldn't read this skill",
+          "generic": "This skill couldn't be loaded"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6390,7 +6421,8 @@
             "s4": "On the Overview page, copy the Application (client) ID and Directory (tenant) ID. The Issuer URL is https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Go to Certificates & secrets › New client secret and copy the secret Value (not the Secret ID).",
             "s6": "Enter the client ID, client secret, and issuer URL in the fields above.",
-            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent."
+            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent.",
+            "s8": "For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read and Sites.Read.All permissions under API permissions and grant admin consent. If you only want sign-in, remove the two scopes from the Scopes field above."
           },
           "google": {
             "intro": "Create an OAuth client in the Google Cloud Console, then paste its details below.",

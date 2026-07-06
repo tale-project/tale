@@ -21,6 +21,8 @@ export interface ConfigurableAgentListItem {
   visibleInChat?: boolean;
   roleRestriction?: string;
   primaryBehavior?: string;
+  agentKind?: string;
+  composerMode?: { icon?: string; label?: string };
   /** Top-level folder (chat/workforce/github) — the catalog's visual section. */
   folder?: string;
   /**
@@ -86,6 +88,8 @@ export function toConfigurableAgent(
     visibleInChat: asBoolean(raw.visibleInChat),
     roleRestriction: asString(raw.roleRestriction),
     primaryBehavior: asString(raw.primaryBehavior),
+    agentKind: asString(raw.agentKind),
+    composerMode: asComposerMode(raw.composerMode),
     folder: asString(raw.folder),
     appSlug: asString(raw.appSlug),
     // i18n + metadata are free-form trees consumed downstream; pass them as-is
@@ -96,8 +100,17 @@ export function toConfigurableAgent(
   };
 }
 
+function asComposerMode(
+  value: unknown,
+): { icon?: string; label?: string } | undefined {
+  if (!isRecord(value)) return undefined;
+  const icon = asString(value.icon);
+  const label = asString(value.label);
+  if (!icon && !label) return undefined;
+  return { ...(icon ? { icon } : {}), ...(label ? { label } : {}) };
+}
+
 /**
- * The per-locale override map is an opaque tree at the `v.any()` boundary; its
  * consumer (`resolveAgentLocale`) reads each leaf defensively via `pickField`,
  * so validating only that it's a record is sufficient and avoids re-deriving
  * the full `AgentI18nOverrides` shape here.

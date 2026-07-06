@@ -29,20 +29,38 @@ vi.mock('../hooks/use-personalization-active', () => ({
 vi.mock('./message-bubble', () => ({
   MessageBubble: ({
     message,
+    thinkingShell,
   }: {
-    message: { content: string; role: string };
-  }) => <div data-testid={`message-${message.role}`}>{message.content}</div>,
+    message: {
+      content: string;
+      role: string;
+      isOptimisticShell?: boolean;
+      isStreaming?: boolean;
+    };
+    thinkingShell?: { phase: string };
+  }) => {
+    const showInBubbleThinking = Boolean(
+      message.isOptimisticShell ||
+      (thinkingShell &&
+        message.role === 'assistant' &&
+        !message.content &&
+        (message.isStreaming || message.isOptimisticShell)),
+    );
+    return (
+      <div data-testid={`message-${message.role}`}>
+        {message.content}
+        {showInBubbleThinking && <div data-testid="thinking" />}
+      </div>
+    );
+  },
 }));
 
 vi.mock('./thought-timeline', () => ({
   ThinkingIndicator: () => <div data-testid="thinking" />,
 }));
 
-// The post-send footer is a pure ThinkingIndicator placeholder (mocked above as
-// `thinking`); these tests probe WHETHER it renders at all under the gating
-// rules. A still-streaming assistant ABOVE the last user message means that
-// message is a mid-turn steer the running turn already owns, so the footer is
-// suppressed entirely (the bubble above carries the indicator).
+// In-bubble Thinking (optimistic shell + steer-owner bubble) — these tests
+// probe WHETHER the indicator renders under the gating rules.
 vi.mock('./approval-card-renderer', () => ({
   ApprovalCardRenderer: () => <div data-testid="approval-card" />,
 }));
@@ -93,6 +111,17 @@ const defaultProps = {
   containerRef: createRef<HTMLDivElement>(),
   activeApproval: null,
 };
+
+function optimisticShell(ts = 1): ChatMessage {
+  return createMessage({
+    id: `pending-assistant-${ts}`,
+    key: `pending-assistant-${ts}`,
+    role: 'assistant',
+    content: '',
+    isStreaming: true,
+    isOptimisticShell: true,
+  });
+}
 
 describe('ChatMessages', () => {
   describe('message visibility', () => {
@@ -179,6 +208,31 @@ describe('ChatMessages', () => {
       expect(screen.queryByTestId('message-assistant')).not.toBeInTheDocument();
     });
 
+    it('renders empty streaming assistant shells (steer owner)', () => {
+      const emptyStreaming = createMessage({
+        id: 'streaming-empty',
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+      });
+      const steerUser = createMessage({
+        id: 'u-steer',
+        role: 'user',
+        content: 'steer pick',
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(emptyStreaming), toItem(steerUser)]}
+        />,
+      );
+
+      expect(screen.getAllByTestId('message-assistant')).toHaveLength(1);
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
+    });
+
     it('renders aborted assistant messages even with empty content', () => {
       const abortedMsg = createMessage({
         id: 'aborted-msg',
@@ -193,25 +247,179 @@ describe('ChatMessages', () => {
     });
   });
 
-  describe('post-send footer (mid-turn steer)', () => {
+  describe('in-bubble thinking (mid-turn steer)', () => {
     const user1 = () =>
       createMessage({ id: 'u1', role: 'user', content: 'first question' });
     const user2 = () =>
       createMessage({ id: 'u2', role: 'user', content: 'queued steer' });
 
-    it('renders the live timeline for a normal send', () => {
+    it('does not flash thinking on the prior-turn assistant before the shell mounts', () => {
+      const prevA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'previous reply',
+      });
+      const newU = createMessage({
+        id: 'u2',
+        role: 'user',
+        content: 'are you ok',
+      });
+
       render(
-        <ChatMessages {...defaultProps} isLoading items={[toItem(user1())]} />,
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(prevA), toItem(newU)]}
+        />,
+      );
+
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+    });
+
+    it('keeps the prior-turn assistant key stable while the shell is mounted', () => {
+      const prevA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'previous reply',
+      });
+      const newU = createMessage({
+        id: 'u2',
+        role: 'user',
+        content: 'next question',
+      });
+      const items = [
+        toItem(user1()),
+        toItem(prevA),
+        toItem(newU),
+        toItem(optimisticShell()),
+      ];
+
+      const { container, rerender } = render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          isSendPending
+          items={items}
+        />,
+      );
+      // The stale-latch bug fired on the SECOND render: the ref set by the
+      // shell on render 1 was consumed by the prior-turn assistant (rendered
+      // first in list order) on render 2, flipping its key to the shell key.
+      // Fresh array identity so the memo wrapper doesn't skip the render.
+      rerender(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          isSendPending
+          items={[...items]}
+        />,
+      );
+
+      const keys = [...container.querySelectorAll('[data-message-key]')].map(
+        (el) => el.getAttribute('data-message-key'),
+      );
+      expect(keys.filter((k) => k === 'a1')).toHaveLength(1);
+      expect(
+        keys.filter((k) => k?.startsWith('pending-assistant-')),
+      ).toHaveLength(1);
+    });
+
+    it('hands the shell key to the real response bubble, not a prior assistant', () => {
+      const prevA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'previous reply',
+      });
+      const newU = createMessage({
+        id: 'u2',
+        role: 'user',
+        content: 'next question',
+      });
+      const shell = optimisticShell();
+      const itemsWithShell = [
+        toItem(user1()),
+        toItem(prevA),
+        toItem(newU),
+        toItem(shell),
+      ];
+
+      const { container, rerender } = render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          isSendPending
+          items={itemsWithShell}
+        />,
+      );
+      rerender(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          isSendPending
+          items={[...itemsWithShell]}
+        />,
+      );
+
+      const realA = createMessage({
+        id: 'a2',
+        role: 'assistant',
+        content: '',
+        isStreaming: true,
+      });
+      rerender(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(prevA), toItem(newU), toItem(realA)]}
+        />,
+      );
+
+      const keys = [...container.querySelectorAll('[data-message-key]')].map(
+        (el) => el.getAttribute('data-message-key'),
+      );
+      // The real response bubble inherits the shell key (no remount), and the
+      // prior-turn assistant keeps its own key.
+      expect(keys).toContain(shell.key);
+      expect(keys.filter((k) => k === 'a1')).toHaveLength(1);
+      expect(keys.filter((k) => k === 'a2')).toHaveLength(0);
+    });
+
+    it('does not flash thinking when isSendPending leads the optimistic user by one frame', () => {
+      const prevA = createMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: 'previous reply',
+      });
+
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          isSendPending
+          items={[toItem(user1()), toItem(prevA)]}
+        />,
+      );
+
+      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+    });
+
+    it('renders in-bubble thinking for a normal send (optimistic shell)', () => {
+      render(
+        <ChatMessages
+          {...defaultProps}
+          isLoading
+          items={[toItem(user1()), toItem(optimisticShell())]}
+        />,
       );
 
       expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
-    it('suppresses the live timeline when a streaming assistant sits above the last user message', () => {
+    it('shows thinking on the steer-owner bubble above the last user message', () => {
       const streamingA = createMessage({
         id: 'a1',
         role: 'assistant',
-        content: 'working on it…',
+        content: '',
         isStreaming: true,
       });
 
@@ -223,10 +431,10 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
-    it('suppresses for an EMPTY streaming shell above (not yet painted)', () => {
+    it('shows thinking on an EMPTY streaming shell above (steer owner)', () => {
       const emptyShell = createMessage({
         id: 'a1',
         role: 'assistant',
@@ -242,10 +450,10 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
-    it('does NOT suppress when the assistant above already completed', () => {
+    it('renders optimistic shell thinking when the assistant above already completed', () => {
       const doneA = createMessage({
         id: 'a1',
         role: 'assistant',
@@ -256,18 +464,23 @@ describe('ChatMessages', () => {
         <ChatMessages
           {...defaultProps}
           isLoading
-          items={[toItem(user1()), toItem(doneA), toItem(user2())]}
+          items={[
+            toItem(user1()),
+            toItem(doneA),
+            toItem(user2()),
+            toItem(optimisticShell()),
+          ]}
         />,
       );
 
       expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
-    it('suppresses across multiple queued steers (users in between are skipped)', () => {
+    it('steer-owner bubble carries thinking across multiple queued steers', () => {
       const streamingA = createMessage({
         id: 'a1',
         role: 'assistant',
-        content: 'working…',
+        content: '',
         isStreaming: true,
       });
       const user3 = createMessage({
@@ -289,15 +502,15 @@ describe('ChatMessages', () => {
         />,
       );
 
-      expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
+      expect(screen.getByTestId('thinking')).toBeInTheDocument();
     });
 
     // Anchored mode (external-agent turns): `liveAssistantMessageId` names the
     // op's CURRENT live segment bubble; the footer shows exactly while that
     // bubble has nothing to paint, regardless of where rows sit — no
     // positional flips, no blank-gap window.
-    describe('anchored live region (liveAssistantMessageId)', () => {
-      it('shows the footer while the anchored bubble is an empty shell — even above the last user message (the old blank gap)', () => {
+    describe('anchored live bubble (liveAssistantMessageId)', () => {
+      it('shows in-bubble thinking on the anchored empty shell — even above the last user message', () => {
         const emptyShell = createMessage({
           id: 'a-live',
           role: 'assistant',
@@ -317,7 +530,7 @@ describe('ChatMessages', () => {
         expect(screen.getByTestId('thinking')).toBeInTheDocument();
       });
 
-      it('hands off to the anchored bubble the moment it has content', () => {
+      it('hands off when the anchored bubble has content', () => {
         const liveBubble = createMessage({
           id: 'a-live',
           role: 'assistant',
@@ -337,7 +550,7 @@ describe('ChatMessages', () => {
         expect(screen.queryByTestId('thinking')).not.toBeInTheDocument();
       });
 
-      it('shows the footer when the anchored bubble has not arrived in the subscription yet', () => {
+      it('shows optimistic shell thinking when the anchored bubble has not arrived yet', () => {
         const sealed = createMessage({
           id: 'a-old',
           role: 'assistant',
@@ -349,14 +562,14 @@ describe('ChatMessages', () => {
             {...defaultProps}
             isLoading
             liveAssistantMessageId="a-live-not-yet-here"
-            items={[toItem(user1()), toItem(sealed)]}
+            items={[toItem(user1()), toItem(sealed), toItem(optimisticShell())]}
           />,
         );
 
         expect(screen.getByTestId('thinking')).toBeInTheDocument();
       });
 
-      it('ignores other renderable assistants — only the anchored bubble gates', () => {
+      it('ignores other renderable assistants — only the anchored bubble gates shell suppression', () => {
         // A sealed segment with content would satisfy the positional
         // `hasRenderableAssistantResponse` scan; anchored mode must keep the
         // footer up until the LIVE bubble itself paints.
@@ -385,7 +598,7 @@ describe('ChatMessages', () => {
       });
     });
 
-    it('unmounts the footer once the fresh post-seam bubble paints below the steer', () => {
+    it('unmounts in-bubble thinking once the fresh post-seam bubble paints below the steer', () => {
       const sealedA = createMessage({
         id: 'a1',
         role: 'assistant',

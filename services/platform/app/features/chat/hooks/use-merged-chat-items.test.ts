@@ -9,6 +9,7 @@ function makeMessage(
   id: string,
   creationTime: number,
   role: 'user' | 'assistant' = 'user',
+  opts?: { order?: number; stepOrder?: number },
 ): ChatMessage {
   return {
     id,
@@ -17,6 +18,8 @@ function makeMessage(
     role,
     timestamp: new Date(creationTime),
     _creationTime: creationTime,
+    ...(opts?.order !== undefined && { order: opts.order }),
+    ...(opts?.stepOrder !== undefined && { stepOrder: opts.stepOrder }),
   };
 }
 
@@ -120,6 +123,44 @@ describe('useMergedChatItems', () => {
       rerender({ ...emptyParams, messages: [m1] });
       expect(result.current.messages).not.toBe(first);
       expect(result.current.messages).toHaveLength(1);
+    });
+  });
+
+  describe('optimistic shell ordering', () => {
+    it('pins the optimistic shell after the real user row even when its send-time timestamp predates the row', () => {
+      // The optimistic assistant shell carries only a send-time `timestamp`
+      // (no server `_creationTime`), which is EARLIER than the just-arrived user
+      // row's server time. A naive chronological sort drops it BEFORE the user
+      // row for the frame before it promotes, re-parenting the Thinking bubble
+      // from the response area up into history — a visible remount/position
+      // flash. It is always the newest, in-flight item, so it must stay last.
+      const user = makeMessage('u1', 2000, 'user'); // server time 2000
+      const shell: ChatMessage = {
+        id: 'pending-assistant-1000',
+        key: 'pending-assistant-1000',
+        content: '',
+        role: 'assistant',
+        timestamp: new Date(1000), // send time — predates the user row
+        isStreaming: true,
+        isOptimisticShell: true,
+        // no `_creationTime` — the whole point
+      };
+      const { result } = renderHook(() =>
+        useMergedChatItems({ ...emptyParams, messages: [user, shell] }),
+      );
+      expect(result.current.messages.map(getMessageId)).toEqual([
+        'u1',
+        'pending-assistant-1000',
+      ]);
+    });
+
+    it('still sorts real messages chronologically (no shell present)', () => {
+      const a = makeMessage('a', 3000, 'assistant');
+      const u = makeMessage('u', 1000, 'user');
+      const { result } = renderHook(() =>
+        useMergedChatItems({ ...emptyParams, messages: [a, u] }),
+      );
+      expect(result.current.messages.map(getMessageId)).toEqual(['u', 'a']);
     });
   });
 
@@ -236,6 +277,89 @@ describe('useMergedChatItems', () => {
     );
     expect(getMessageId(result.current.messages[0])).toBe('m1');
     expect(getMessageId(result.current.messages[1])).toBe('m2');
+  });
+});
+
+describe('useMergedChatItems — clock-safe ordering (order, stepOrder)', () => {
+  it('keeps the user before its streaming reply even when the reply has an EARLIER (client-stamped) creationTime', () => {
+    // Prod skew: the agent SDK stamps a streaming delta's `_creationTime` on the
+    // CLIENT, so it can be earlier than the user row's SERVER `_creationTime`.
+    // A `_creationTime` sort would drop the reply ABOVE the user ("错位").
+    // `(order, stepOrder)` — user (5,0), reply (5,1) — is correct either clock.
+    const user = makeMessage('u', 2000, 'user', { order: 5, stepOrder: 0 });
+    const reply = makeMessage('a', 500, 'assistant', {
+      order: 5,
+      stepOrder: 1,
+    });
+    const { result } = renderHook(() =>
+      useMergedChatItems({ ...emptyParams, messages: [reply, user] }),
+    );
+    expect(result.current.messages.map(getMessageId)).toEqual(['u', 'a']);
+  });
+
+  it('does not reorder across the streaming→finalize transition', () => {
+    const user = makeMessage('u', 2000, 'user', { order: 5, stepOrder: 0 });
+    // Finalize: the reply's server `_creationTime` is now LATER than the user's —
+    // ordering must be identical to the streaming frame above (no snap).
+    const reply = makeMessage('a', 3000, 'assistant', {
+      order: 5,
+      stepOrder: 1,
+    });
+    const { result } = renderHook(() =>
+      useMergedChatItems({ ...emptyParams, messages: [user, reply] }),
+    );
+    expect(result.current.messages.map(getMessageId)).toEqual(['u', 'a']);
+  });
+
+  it('orders multiple turns by (order, stepOrder) regardless of input order', () => {
+    const msgs = [
+      makeMessage('a2', 10, 'assistant', { order: 5, stepOrder: 1 }),
+      makeMessage('u1', 20, 'user', { order: 4, stepOrder: 0 }),
+      makeMessage('u2', 30, 'user', { order: 5, stepOrder: 0 }),
+      makeMessage('a1', 40, 'assistant', { order: 4, stepOrder: 1 }),
+    ];
+    const { result } = renderHook(() =>
+      useMergedChatItems({ ...emptyParams, messages: msgs }),
+    );
+    expect(result.current.messages.map(getMessageId)).toEqual([
+      'u1',
+      'a1',
+      'u2',
+      'a2',
+    ]);
+  });
+
+  it('places an optimistic pending user (no server order) after all real rows, before the shell', () => {
+    const realUser = makeMessage('u1', 1000, 'user', {
+      order: 4,
+      stepOrder: 0,
+    });
+    const realReply = makeMessage('a1', 2000, 'assistant', {
+      order: 4,
+      stepOrder: 1,
+    });
+    const pendingUser = makeMessage('pending-9', 9000, 'user'); // no server order
+    const shell: ChatMessage = {
+      id: 'pending-assistant-9',
+      key: 'pending-assistant-9',
+      content: '',
+      role: 'assistant',
+      timestamp: new Date(9001),
+      isStreaming: true,
+      isOptimisticShell: true,
+    };
+    const { result } = renderHook(() =>
+      useMergedChatItems({
+        ...emptyParams,
+        messages: [shell, pendingUser, realReply, realUser],
+      }),
+    );
+    expect(result.current.messages.map(getMessageId)).toEqual([
+      'u1',
+      'a1',
+      'pending-9',
+      'pending-assistant-9',
+    ]);
   });
 });
 

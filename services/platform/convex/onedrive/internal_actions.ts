@@ -13,7 +13,9 @@ import { internalAction } from '../_generated/server';
 import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { listFolderContents as listFolderContentsImpl } from './list_folder_contents';
 import { readFile as readFileImpl } from './read_file';
+import { resolveMicrosoftRefreshCredentials } from './refresh_credentials';
 import { refreshToken as refreshTokenImpl } from './refresh_token';
+import { streamItemToStorage as streamItemToStorageImpl } from './stream_to_storage';
 import { uploadAndCreateDocument as uploadAndCreateDocumentImpl } from './upload_and_create_document';
 import { createUploadAndCreateDocDeps } from './upload_and_create_document_deps';
 
@@ -21,6 +23,7 @@ export const listFolderContents = internalAction({
   args: {
     itemId: v.string(),
     token: v.string(),
+    recursive: v.optional(v.boolean()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -32,6 +35,7 @@ export const listFolderContents = internalAction({
           size: v.number(),
           mimeType: v.optional(v.string()),
           lastModified: v.optional(v.number()),
+          relativePath: v.optional(v.string()),
         }),
       ),
     ),
@@ -77,7 +81,19 @@ export const refreshToken = internalAction({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const result = await refreshTokenImpl({ refreshToken: args.refreshToken });
+    const credentials = await resolveMicrosoftRefreshCredentials(
+      ctx,
+      args.accountId,
+    );
+    if (!credentials) {
+      console.error('refreshToken: Missing OAuth credentials');
+      return { success: false, error: 'Missing OAuth credentials' };
+    }
+
+    const result = await refreshTokenImpl({
+      refreshToken: args.refreshToken,
+      ...credentials,
+    });
 
     if (!result.success || !result.accessToken || !result.expiresAt) {
       return { success: false, error: result.error };
@@ -125,6 +141,25 @@ export const downloadAndStoreFile = internalAction({
         );
       },
     });
+  },
+});
+
+export const streamItemToStorage = internalAction({
+  args: {
+    itemId: v.string(),
+    token: v.string(),
+    siteId: v.optional(v.string()),
+    driveId: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    storageId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return await streamItemToStorageImpl(ctx, args);
   },
 });
 

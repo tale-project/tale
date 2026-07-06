@@ -35,6 +35,7 @@ import {
 } from '@/app/features/workspace/components/workspace-context';
 import { WorkspaceFilesProvider } from '@/app/features/workspace/components/workspace-files-context';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -353,19 +354,24 @@ function ChatLayout() {
 
   return (
     <ChatLayoutProvider organizationId={organizationId}>
-      <ArenaModeProvider>
-        <WorkspaceProvider>
-          <WorkspaceFilesProvider>
-            <LiveBrowserProvider>
-              <ChatPanelProvider>
-                <StreamingToolProvider>
-                  <ChatLayoutContent organizationId={organizationId} />
-                </StreamingToolProvider>
-              </ChatPanelProvider>
-            </LiveBrowserProvider>
-          </WorkspaceFilesProvider>
-        </WorkspaceProvider>
-      </ArenaModeProvider>
+      {/* Learns the client↔server clock offset from getThreadMeta.serverNow so
+          the sidebar's relative-time and the interface's thinking timer never
+          mix clocks. Wraps the whole chat surface (sidebar + interface). */}
+      <ClockOffsetProvider>
+        <ArenaModeProvider>
+          <WorkspaceProvider>
+            <WorkspaceFilesProvider>
+              <LiveBrowserProvider>
+                <ChatPanelProvider>
+                  <StreamingToolProvider>
+                    <ChatLayoutContent organizationId={organizationId} />
+                  </StreamingToolProvider>
+                </ChatPanelProvider>
+              </LiveBrowserProvider>
+            </WorkspaceFilesProvider>
+          </WorkspaceProvider>
+        </ArenaModeProvider>
+      </ClockOffsetProvider>
     </ChatLayoutProvider>
   );
 }

@@ -15,6 +15,10 @@ import { useT } from '@/lib/i18n/client';
 
 import { SkillRowActions } from '../components/skill-row-actions';
 import type { SkillRow } from '../components/skills-table';
+import {
+  resolveSkillLoadErrorPresentation,
+  skillLoadErrorSummaryKey,
+} from '../utils/skill-load-error';
 
 interface SkillsTableConfig {
   columns: ColumnDef<SkillRow>[];
@@ -120,8 +124,11 @@ export function useSkillsTableConfig({
               {row.original.name}
             </Text>
             {row.original.status ? (
-              <HStack gap={1} align="center">
-                <AlertTriangle className="text-destructive size-3.5" />
+              <HStack gap={1} align="start">
+                <AlertTriangle
+                  className="text-destructive mt-0.5 size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
                 <Text
                   as="span"
                   id={
@@ -130,12 +137,24 @@ export function useSkillsTableConfig({
                       : undefined
                   }
                   variant="caption"
-                  className="text-destructive"
+                  className="text-destructive line-clamp-2"
+                  title={row.original.message}
                 >
-                  {row.original.message ??
-                    t('skills.columns.loadError', {
-                      defaultValue: 'Failed to read SKILL.md',
-                    })}
+                  {(() => {
+                    const presentation = resolveSkillLoadErrorPresentation(
+                      row.original.status,
+                      row.original.message,
+                    );
+                    const key = skillLoadErrorSummaryKey(presentation);
+                    return presentation.line != null
+                      ? t(key, {
+                          line: presentation.line,
+                          defaultValue: 'YAML syntax error (line {line})',
+                        })
+                      : t(key, {
+                          defaultValue: 'Failed to read SKILL.md',
+                        });
+                  })()}
                 </Text>
               </HStack>
             ) : null}

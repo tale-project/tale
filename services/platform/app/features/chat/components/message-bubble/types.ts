@@ -30,4 +30,7 @@ export interface Message {
    *  thought-process timeline. Typed loosely to avoid coupling the message
    *  shape to the agent SDK's wide part union; the timeline narrows defensively. */
   parts?: readonly unknown[];
+  /** Client-only optimistic assistant shell — ThinkingIndicator lives in-bubble
+   *  from send until the real assistant row is visibly renderable. */
+  isOptimisticShell?: boolean;
 }

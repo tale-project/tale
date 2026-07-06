@@ -1,9 +1,9 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
-import { Pencil } from 'lucide-react';
+import { AlertTriangle, Pencil } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
@@ -91,14 +91,14 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
         }
       >
         {retentionDisabled && (
-          <div className="border-warning bg-warning/10 rounded border p-3">
-            <Text className="text-sm">
-              {t(
-                'retentionPolicy.envDisabled',
-                'Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.',
-              )}
-            </Text>
-          </div>
+          <Alert
+            variant="warning"
+            icon={AlertTriangle}
+            description={t(
+              'retentionPolicy.envDisabled',
+              'Retention is currently disabled by the operator (TALE_RETENTION_DISABLED=true). Cleanup will not run until the env flag is removed.',
+            )}
+          />
         )}
 
         <RetentionBoundsProposalBanner organizationId={organizationId} />

@@ -82,13 +82,13 @@ export function OneDriveFileTable({
         cell: ({ row }) => {
           const item = row.original;
           return (
-            <HStack gap={2}>
+            <HStack gap={2} className="min-w-0">
               <DocumentIcon fileName={item.name} isFolder={isFolder(item)} />
               {isFolder(item) ? (
                 <button
                   type="button"
                   title={item.name}
-                  className="text-foreground max-w-[25rem] cursor-pointer truncate text-base font-medium hover:text-blue-600"
+                  className="text-foreground min-w-0 flex-1 cursor-pointer truncate text-left text-base font-medium hover:text-blue-600"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleFolderClick(item);
@@ -99,7 +99,7 @@ export function OneDriveFileTable({
               ) : (
                 <span
                   title={item.name}
-                  className="text-foreground max-w-[25rem] truncate text-base font-medium"
+                  className="text-foreground min-w-0 flex-1 truncate text-base font-medium"
                 >
                   {item.name}
                 </span>
