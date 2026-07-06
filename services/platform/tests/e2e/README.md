@@ -117,4 +117,4 @@ State hygiene: each worker signs up a fresh `e2e-*@tale.test` user and creates a
 
 ## CI
 
-[`.github/workflows/e2e.yml`](../../../.github/workflows/e2e.yml) shards the platform suite across four runners on platform PRs (advisory during burn-in — `continue-on-error` on `pull_request`) and nightly (strict). The HTML report and traces upload as per-shard artifacts on failure.
+[`.github/workflows/e2e.yml`](../../../.github/workflows/e2e.yml) runs the platform suite strictly on PRs and nightly: a single `build` job produces the prod bundle once (or restores it from cache) and uploads it as a run artifact, then 16 shard jobs download it, boot their own hermetic stack, and run their test slice — no shard ever runs `bun run build`. The HTML report and traces upload as per-shard artifacts on failure.
