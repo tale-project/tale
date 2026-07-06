@@ -550,10 +550,13 @@ export function DataTable<TData, TValue = unknown>({
     !!dateRange ||
     !!filtersContent;
 
-  // Only render the toolbar row when there is search/filter chrome. A lone
-  // primary action without chrome belongs on SettingsSection.action — otherwise
-  // the button sits in an empty row between the section title and the table.
-  const hasHeader = hasToolbarChrome;
+  // Render the toolbar row when there is search/filter chrome — or when the
+  // caller passed a primary action with nowhere else to live. A lone primary
+  // action ideally belongs on SettingsSection.action, but hiding the toolbar
+  // for action-only tables silently removes their only create affordance
+  // (token sources, API keys, teams, automation triggers); hide it only once
+  // a table has been migrated off `addAction`/`actionMenu`.
+  const hasHeader = hasToolbarChrome || !!primaryAction;
 
   // Build the header content
   const headerContent = hasHeader ? (
