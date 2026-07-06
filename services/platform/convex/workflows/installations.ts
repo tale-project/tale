@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import { internalMutation, internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -35,6 +36,45 @@ export const getInstallationInternal = internalQuery({
   },
 });
 
+export async function upsertInstallationImpl(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    workflowSlug: string;
+    installedBy: string;
+    contentHash: string;
+    appSlug?: string;
+  },
+): Promise<Id<'wfInstallations'>> {
+  const existing = await ctx.db
+    .query('wfInstallations')
+    .withIndex('by_org_slug', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('workflowSlug', args.workflowSlug),
+    )
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      installedAt: Date.now(),
+      installedBy: args.installedBy,
+      contentHash: args.contentHash,
+      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+    });
+    return existing._id;
+  }
+
+  return await ctx.db.insert('wfInstallations', {
+    organizationId: args.organizationId,
+    workflowSlug: args.workflowSlug,
+    installedAt: Date.now(),
+    installedBy: args.installedBy,
+    contentHash: args.contentHash,
+    ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
+  });
+}
+
 export const upsertInstallation = internalMutation({
   args: {
     organizationId: v.string(),
@@ -45,35 +85,7 @@ export const upsertInstallation = internalMutation({
     appSlug: v.optional(v.string()),
   },
   returns: v.id('wfInstallations'),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query('wfInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('workflowSlug', args.workflowSlug),
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        installedAt: Date.now(),
-        installedBy: args.installedBy,
-        contentHash: args.contentHash,
-        ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
-      });
-      return existing._id;
-    }
-
-    return await ctx.db.insert('wfInstallations', {
-      organizationId: args.organizationId,
-      workflowSlug: args.workflowSlug,
-      installedAt: Date.now(),
-      installedBy: args.installedBy,
-      contentHash: args.contentHash,
-      ...(args.appSlug !== undefined ? { appSlug: args.appSlug } : {}),
-    });
-  },
+  handler: async (ctx, args) => upsertInstallationImpl(ctx, args),
 });
 
 export const deleteInstallation = internalMutation({

@@ -48,6 +48,17 @@ Le fichier de règles nomme trois règles que chaque éditeur applique pendant l
 
 Quand l'éditeur propose un changement, demande-lui de citer le fichier dans `.tale/reference/` sur lequel il s'est appuyé. S'il ne peut pas, régénère le miroir avec `tale update` et réessaie.
 
+## Cursor : plan config vs plan runtime
+
+Cursor apparaît dans Tale à deux endroits distincts — ne les confonds pas.
+
+| Plan        | Rôle                                                                                                                           | Où ça vit                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| **Config**  | Aide Cursor (ou tout éditeur IA) à éditer le JSON d'un projet Tale sur ta machine                                              | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — tout ce que `tale init` écrit                       |
+| **Runtime** | Lance la CLI Cursor Agent en mode headless dans un bac à sable isolé quand tu discutes avec l'agent externe **Cursor** intégré | Sélecteur de chat → **Cursor** ; JSON d'agent avec `primaryBehavior: "external-agent"` et `agentKind: "cursor"` |
+
+Le fichier de règles et le miroir de schéma sur cette page sont le **plan config** : ils guident un éditeur local pendant que tu modifies agents, workflows et intégrations. Le **plan runtime**, c'est un tour de bac à sable géré — `agent -p --output-format stream-json` avec ta `CURSOR_API_KEY`, progression normalisée dans le chat et reprise de session entre les relances. Credentials, modèles et facturation des tours runtime sont dans [External agents](/fr/platform/agents/external-agent), pas ici.
+
 ## Où cela s'inscrit
 
 Le développement assisté par IA est le chemin d'édition ; le déploiement est le chemin de publication. Une fois qu'une config passe la validation de l'éditeur, [`tale deploy`](/fr/self-hosted/install/cli-install) la rapproche de la plateforme — le même contrôle de schéma, cette fois comme barrière. Pour les fonctionnalités que l'éditeur n'atteint pas (le constructeur dans le produit, l'éditeur visuel de workflow), l'[onglet Platform](/fr/platform) est la surface canonique ; le chemin éditeur IA ici est pour les projets qui préfèrent la config-as-code.

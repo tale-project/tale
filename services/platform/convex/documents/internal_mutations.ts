@@ -6,6 +6,7 @@ import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors'
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { createDocument as createDocumentHelper } from './create_document';
+import { scheduleHubDocumentRagIndexing as scheduleHubDocumentRagIndexingImpl } from './schedule_hub_document_rag_indexing';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
 import { upsertDocumentByExternalId as upsertDocumentByExternalIdHelper } from './upsert_document_by_external_id';
 import { sourceProviderValidator } from './validators';
@@ -218,5 +219,15 @@ export const upsertDocumentByExternalId = internalMutation({
   }),
   handler: async (ctx, args) => {
     return await upsertDocumentByExternalIdHelper(ctx, args);
+  },
+});
+
+export const scheduleHubDocumentRagIndexing = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    return await scheduleHubDocumentRagIndexingImpl(ctx, args);
   },
 });

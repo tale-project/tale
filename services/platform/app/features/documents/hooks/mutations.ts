@@ -412,6 +412,10 @@ export function useDeleteFolder() {
   return useConvexMutation(api.folders.mutations.deleteFolder);
 }
 
+export function useCancelOneDriveSync() {
+  return useConvexMutation(api.onedrive.mutations.cancelSyncConfig);
+}
+
 export function useDeleteDocument() {
   return useConvexMutation(api.documents.mutations.deleteDocument, {
     // EntityDeleteDialog shows its own specific error toast.

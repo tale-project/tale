@@ -398,4 +398,35 @@ describe('DashboardLayout', () => {
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  it('keeps the live nav rail during a membership refetch with no placeholder flash', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: {
+        status: 'ok',
+        role: 'admin',
+        memberId: 'm1',
+        organizationId: 'org-1',
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    const { rerender } = render(<DashboardLayout />);
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
+    rerender(<DashboardLayout />);
+
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
 });

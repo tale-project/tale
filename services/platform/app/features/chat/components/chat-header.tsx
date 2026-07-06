@@ -19,7 +19,6 @@ import {
 import { useEffect, useState, useCallback, useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -28,7 +27,7 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { ChatHistorySidebar } from './chat-history-sidebar';
+import { ChatMobileSidebarSheet } from './chat-dashboard-sidebar';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
 import { createThreadsSearchSource } from './threads-search-source';
@@ -41,7 +40,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const navigate = useNavigate();
   const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const isMac = useIsMac();
@@ -93,18 +92,14 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     setIsSearchOpen((prev) => !prev);
   }, []);
 
-  const handleToggleHistory = useCallback(() => {
+  const handleToggleSidebar = useCallback(() => {
     const isMobile = window.matchMedia('(max-width: 767px)').matches;
     if (isMobile) {
-      setIsMobileHistoryOpen((prev) => !prev);
+      setIsMobileSidebarOpen((prev) => !prev);
     } else {
       setIsHistoryOpen(!isHistoryOpen);
     }
   }, [isHistoryOpen, setIsHistoryOpen]);
-
-  const handleChatSelect = useCallback(() => {
-    setIsMobileHistoryOpen(false);
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -118,12 +113,12 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
       if (isMod && !e.shiftKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
         e.stopPropagation();
-        handleToggleHistory();
+        handleToggleSidebar();
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, handleToggleSearch, handleToggleHistory]);
+  }, [isMac, handleToggleSearch, handleToggleSidebar]);
 
   // The per-thread voice toggle moved to the composer (next to dictation),
   // so the header dropdown now only carries the export action.
@@ -145,20 +140,11 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
 
   return (
     <>
-      <Sheet
-        open={isMobileHistoryOpen}
-        onOpenChange={setIsMobileHistoryOpen}
-        side="left"
-        title={tChat('chatHistory')}
-        className="w-[18rem] p-0 md:hidden"
-        hideClose
-      >
-        <ChatHistorySidebar
-          organizationId={organizationId}
-          onChatSelect={handleChatSelect}
-          className="h-full"
-        />
-      </Sheet>
+      <ChatMobileSidebarSheet
+        organizationId={organizationId}
+        open={isMobileSidebarOpen}
+        onOpenChange={setIsMobileSidebarOpen}
+      />
 
       <div className="border-border bg-background/95 hidden h-13 items-center border-b px-4 backdrop-blur-xs md:flex">
         <Tooltip
@@ -176,10 +162,12 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           <Button
             size="icon"
             variant="ghost"
-            onClick={handleToggleHistory}
+            onClick={handleToggleSidebar}
             aria-label={
               isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
             }
+            aria-expanded={isHistoryOpen}
+            aria-controls="chat-history-panel"
             // Negative margin pulls the icon's glyph to the header's content
             // edge so it lines up with page titles (which start at px-4), since
             // a ghost icon button carries its own p-2 inset. Same idiom as the
@@ -254,15 +242,16 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           <Button
             size="icon"
             variant="ghost"
-            onClick={handleToggleHistory}
-            title={
-              isMobileHistoryOpen ? tChat('hideHistory') : tChat('showHistory')
+            onClick={handleToggleSidebar}
+            aria-label={
+              isMobileSidebarOpen ? tChat('hideHistory') : tChat('showHistory')
             }
+            aria-expanded={isMobileSidebarOpen}
           >
             <MessagesSquare
               className={cn(
                 baseIconClasses,
-                isMobileHistoryOpen && 'text-accent-foreground',
+                isMobileSidebarOpen && 'text-accent-foreground',
               )}
             />
           </Button>

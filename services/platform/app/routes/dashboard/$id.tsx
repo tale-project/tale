@@ -41,7 +41,6 @@ import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
-
 // Fire-and-forget warm of an action-backed config catalog into the SAME
 // TanStack Query cache entry the `useActionQuery` hooks read (matching key +
 // `staleTime: Infinity` + the `action(args)` queryFn), so the catalog loads
@@ -208,8 +207,18 @@ function DashboardLayout() {
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
   const status = memberContext?.status;
-  const currentRole =
+  const resolvedRole =
     memberContext?.status === 'ok' ? memberContext.role : null;
+  // Keep the last known role while the membership query refetches after a cache
+  // invalidation — otherwise hasRole drops to false for a frame and the rail
+  // swaps Navigation ↔ NavRailPlaceholder (visible flash on every click).
+  const currentRole =
+    resolvedRole ??
+    (isQueryLoading &&
+    memberContext === undefined &&
+    abilityRef.current?.role != null
+      ? abilityRef.current.role
+      : null);
 
   if (!abilityRef.current || abilityRef.current.role !== currentRole) {
     abilityRef.current = {
@@ -427,9 +436,9 @@ export function DashboardShellFrame() {
       <div className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
         <Skeletonize loading>
           <Row gap={2} className="min-h-12">
-            {/* Leading action icons (chat history / search / new chat). */}
+            {/* Leading action icons (sidebar menu / search). */}
             <Row gap={0} align="stretch" className="flex-1">
-              {Array.from({ length: 3 }, (_, i) => (
+              {Array.from({ length: 2 }, (_, i) => (
                 // eslint-disable-next-line react/no-array-index-key
                 <Row key={i} gap={0} justify="center" className="p-2">
                   <SkeletonBox>

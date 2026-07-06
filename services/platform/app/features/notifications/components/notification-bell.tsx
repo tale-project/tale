@@ -3,8 +3,9 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Bell } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
+import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useUnreadNotificationCount } from '@/app/features/inbox/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -34,10 +35,17 @@ export function NotificationBell({
   label,
 }: NotificationBellProps) {
   const { t: tNav } = useT('navigation');
+  const { t: tNotifications } = useT('notifications');
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const myUnread = useUnreadNotificationCount(organizationId);
   const unreadCount = (unread ?? 0) + myUnread;
+
+  const handleExpand = useCallback(() => {
+    setOpen(false);
+    setExpanded(true);
+  }, []);
 
   const buttonNode = (
     <button
@@ -80,47 +88,67 @@ export function NotificationBell({
   // wraps the next, and the innermost child (the button) ends up with both
   // sets of event listeners + refs.
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <TooltipPrimitive.Provider delayDuration={300}>
-        <TooltipPrimitive.Root>
-          <PopoverPrimitive.Trigger asChild>
-            <TooltipPrimitive.Trigger asChild>
-              {buttonNode}
-            </TooltipPrimitive.Trigger>
-          </PopoverPrimitive.Trigger>
-          <TooltipPrimitive.Portal>
-            <TooltipPrimitive.Content
-              side="right"
-              sideOffset={8}
-              collisionPadding={8}
-              className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 data-[state=closed]:motion-safe:animate-out data-[state=closed]:motion-safe:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
-            >
-              {tNav('notifications')}
-            </TooltipPrimitive.Content>
-          </TooltipPrimitive.Portal>
-        </TooltipPrimitive.Root>
-      </TooltipPrimitive.Provider>
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align="end"
-          side="right"
-          sideOffset={8}
-          // Radix renders the popover content as `role="dialog"`; give it an
-          // accessible name so screen readers announce it as the
-          // "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).
-          aria-label={tNav('notifications')}
-          className={cn(
-            POPOVER_CONTENT_CLASSES,
-            'bg-card w-96 max-w-[calc(100vw-2rem)] p-0',
-          )}
+    <>
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+        <TooltipPrimitive.Provider delayDuration={300}>
+          <TooltipPrimitive.Root>
+            <PopoverPrimitive.Trigger asChild>
+              <TooltipPrimitive.Trigger asChild>
+                {buttonNode}
+              </TooltipPrimitive.Trigger>
+            </PopoverPrimitive.Trigger>
+            <TooltipPrimitive.Portal>
+              <TooltipPrimitive.Content
+                side="right"
+                sideOffset={8}
+                collisionPadding={8}
+                className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 data-[state=closed]:motion-safe:animate-out data-[state=closed]:motion-safe:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+              >
+                {tNav('notifications')}
+              </TooltipPrimitive.Content>
+            </TooltipPrimitive.Portal>
+          </TooltipPrimitive.Root>
+        </TooltipPrimitive.Provider>
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content
+            align="end"
+            side="right"
+            sideOffset={8}
+            // Radix renders the popover content as `role="dialog"`; give it an
+            // accessible name so screen readers announce it as the
+            // "Notifications" dialog rather than an unnamed one (WCAG 4.1.2).
+            aria-label={tNav('notifications')}
+            className={cn(
+              POPOVER_CONTENT_CLASSES,
+              'bg-card w-96 max-w-[calc(100vw-2rem)] p-0',
+            )}
+          >
+            <NotificationListPanel
+              onNavigate={() => setOpen(false)}
+              onExpand={handleExpand}
+              organizationId={organizationId}
+              className="h-[28rem]"
+            />
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
+      {/* Expanded view: the same panel in a large modal — the title lives in
+          the dialog header; the panel keeps its own tabs + mark-all controls. */}
+      {expanded && (
+        <Dialog
+          open={expanded}
+          onOpenChange={setExpanded}
+          title={tNotifications('title')}
+          size="wide"
+          className="md:h-[85dvh] md:max-h-[85dvh]"
         >
           <NotificationListPanel
-            onNavigate={() => setOpen(false)}
             organizationId={organizationId}
-            className="h-[28rem]"
+            layout="expanded"
+            className="-mx-2 -my-1 min-h-0 flex-1"
           />
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+        </Dialog>
+      )}
+    </>
   );
 }

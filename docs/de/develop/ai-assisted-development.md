@@ -48,6 +48,17 @@ Die Rules-Datei nennt drei Regeln, die jeder Editor beim Bearbeiten durchsetzt:
 
 Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/reference/` er zugrunde gelegt hat. Wenn er das nicht kann, erzeug den Spiegel mit `tale update` neu und versuch es nochmal.
 
+## Cursor: Config-Ebene vs. Runtime-Ebene
+
+Cursor taucht in Tale an zwei getrennten Stellen auf — verwechsle sie nicht.
+
+| Ebene       | Was sie tut                                                                                                                         | Wo sie lebt                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Config**  | Hilft Cursor (oder einem anderen AI-Editor), Tale-Projekt-JSON auf deinem Rechner zu bearbeiten                                     | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — alles, was `tale init` schreibt            |
+| **Runtime** | Führt die Cursor Agent CLI headless in einer isolierten Sandbox aus, wenn du mit dem eingebauten **Cursor**-External-Agent chattest | Chat-Picker → **Cursor**; Agent-JSON mit `primaryBehavior: "external-agent"` und `agentKind: "cursor"` |
+
+Rules-Datei und Schema-Spiegel auf dieser Seite sind die **Config-Ebene**: Sie steuern einen lokalen Editor, während du Agents, Workflows und Integrations änderst. Die **Runtime-Ebene** ist ein verwalteter Sandbox-Turn — `agent -p --output-format stream-json` mit deinem `CURSOR_API_KEY`, normalisierter Fortschritt im Chat und Session-Resume über Follow-ups. Credentials, Modelle und Abrechnung für Runtime-Turns stehen in [External agents](/de/platform/agents/external-agent), nicht hier.
+
 ## Wo das hingehört
 
 AI-gestützte Entwicklung ist der Bearbeitungspfad; Deployment ist der Veröffentlichungspfad. Sobald eine Config die Editor-Validierung passiert, gleicht [`tale deploy`](/de/self-hosted/install/cli-install) sie gegen die Plattform ab — derselbe Schema-Check, diesmal als Schranke. Für Features, die der Editor nicht erreicht (der In-Product-Builder, der visuelle Workflow-Editor), ist der [Platform-Reiter](/de/platform) die kanonische Oberfläche; der AI-Editor-Pfad hier ist für Projekte, die Config-as-Code bevorzugen.

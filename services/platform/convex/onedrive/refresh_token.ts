@@ -15,20 +15,18 @@ export interface RefreshTokenResult {
 
 /**
  * Refresh Microsoft OAuth token using refresh token.
- * Pure business logic - does not handle persistence.
+ * Pure business logic - does not handle persistence. The caller resolves the
+ * client credentials (org SSO connection vs deployment env) — see
+ * `refresh_credentials.ts`.
  */
 export async function refreshToken(args: {
   refreshToken: string;
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
 }): Promise<RefreshTokenResult> {
   try {
-    const tenantId = process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID;
-    const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
-    const clientSecret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
-
-    if (!tenantId || !clientId || !clientSecret) {
-      console.error('refreshToken: Missing OAuth credentials');
-      return { success: false, error: 'Missing OAuth credentials' };
-    }
+    const { tenantId, clientId, clientSecret } = args;
 
     const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 

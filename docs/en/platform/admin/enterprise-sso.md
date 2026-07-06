@@ -25,6 +25,7 @@ Open **Settings > Enterprise SSO**, pick a **Protocol**, and fill in only that p
 5. Open **Certificates & secrets > New client secret** and copy the secret **Value** (not the Secret ID).
 6. In Tale, choose **Microsoft Entra ID**, and enter the client ID, client secret, and issuer URL.
 7. For group-to-team sync, add the Microsoft Graph **GroupMember.Read.All** permission under **API permissions** and grant admin consent.
+8. For OneDrive and SharePoint document sync, add the Microsoft Graph **Files.Read** and **Sites.Read.All** permissions under **API permissions** and grant admin consent. A new connection requests both by default — the SSO token doubles as the Graph token, so members can import files right after signing in. If the organisation should only sign in, remove the two scopes from the **Scopes** field; the Microsoft 365 entry then stays hidden on the documents page.
 
 ## Google
 
@@ -55,9 +56,7 @@ Tale supports both IdP-initiated SAML (the IdP posts an assertion to the ACS URL
 
 ## Several organizations on one deployment
 
-A deployment can host more than one organization, each with its own connection. Sign-in routes by the **Email domain** field: set it on each connection (for example `example.com`), and members who enter their email on the login page reach their organization's IdP. With a single enabled connection the field is optional — sign-in falls back to that connection. With several, there is no fallback: a sign-in attempt that cannot be routed asks for the organization email address instead of guessing a connection.
-
-Connections **without** an email domain cannot be reached by address matching, so the SSO screen lists them by **Display name** for manual selection. That display name is visible to anyone on the login page — set an email domain on a connection to keep it off the list.
+A deployment can host more than one organization, each with its own connection. Click **Continue with SSO** on the login page, then pick your organization from the list — each entry shows the connection's **Display name**. That name is visible to anyone on the login page, so set a clear display name per connection in **Settings > Enterprise SSO**.
 
 ## Provisioning: roles and teams
 

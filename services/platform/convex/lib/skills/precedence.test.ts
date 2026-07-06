@@ -40,8 +40,7 @@ describe('selectStageableSkills', () => {
   // dir by the sandbox-runtime entrypoint; reconcileBuiltinSkills
   // (node_only/sandbox/integration_skills.ts) runs this same filter per turn and
   // removes the baked symlink for any name the repo also defines (`dropped`), so
-  // the repo's project-level skill wins. (browser-human-control uses the same
-  // filter inline via stageBrowserControlSkill.)
+  // the repo's project-level skill wins.
   it('keeps the visual-aspect-analyzer builtin when the repo has no skill of that name', () => {
     const tale: Skill[] = [{ name: 'visual-aspect-analyzer' }];
     const result = selectStageableSkills(

@@ -1,6 +1,7 @@
 import {
   Box,
   Building2,
+  Bell,
   Globe,
   IdCard,
   KeyRound,
@@ -55,6 +56,11 @@ export function useSettingsMenuGroups(
         key: 'personalization',
         icon: SlidersHorizontal,
         path: 'personalization',
+      },
+      {
+        key: 'notifications',
+        icon: Bell,
+        path: 'notifications',
       },
       {
         key: 'environment',

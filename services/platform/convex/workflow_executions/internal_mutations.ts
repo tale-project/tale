@@ -215,6 +215,7 @@ export const startWorkflowFromFileConfig = internalMutation({
     const executionId = await ctx.db.insert('wfExecutions', {
       organizationId: args.organizationId,
       wfDefinitionId: args.workflowSlug,
+      rootWfDefinitionId: args.workflowSlug,
       workflowSlug: args.workflowSlug,
       status: 'pending',
       currentStepSlug: '',
