@@ -11,7 +11,14 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpRight, Copy, RotateCw, Trash2, X } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Copy,
+  RotateCw,
+  Trash2,
+  X,
+  AlertTriangle,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,6 +38,10 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format-bytes';
 
+import {
+  resolveSkillLoadErrorPresentation,
+  skillLoadErrorDetailTitleKey,
+} from '../utils/skill-load-error';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import { SkillDeleteDialog } from './skill-delete-dialog';
@@ -145,15 +156,19 @@ export function SkillDetailPanel({
   ]);
 
   const skillDisplayName = skill?.meta.name ?? slug;
-  const errorMessage = data && !data.ok ? data.message : undefined;
+  const loadError = !isLoading && data && !data.ok ? data : null;
+  const errorMessage = loadError?.message;
+  const errorPresentation = loadError
+    ? resolveSkillLoadErrorPresentation(loadError.error, loadError.message)
+    : null;
   const description = skill?.meta.description ?? '';
   const body = skill?.body ?? '';
 
   // While loading, `skill` is null. Render the real detail tree with
   // placeholder values masked in place rather than swapping in a separate
-  // skeleton component. A genuine not-found state (loaded but no skill) keeps
-  // its own real alternate UI below.
-  const notFound = !isLoading && !skill;
+  // skeleton component. A load failure (missing or corrupt SKILL.md) keeps
+  // its own error UI below.
+  const showLoadError = Boolean(loadError);
   const assets = skill?.assets ?? [];
   const placeholderAssets: Array<{ path: string; size: number }> = isLoading
     ? Array.from({ length: 5 }, (_, idx) => ({
@@ -222,6 +237,25 @@ export function SkillDetailPanel({
                   {tCommon('actions.delete')}
                 </Button>
               </>
+            ) : loadError && !readOnly ? (
+              <>
+                <Button
+                  variant="ghost"
+                  icon={RotateCw}
+                  onClick={() => setReplaceDialogOpen(true)}
+                >
+                  {t('skills.actions.replaceBundle', {
+                    defaultValue: 'Replace bundle',
+                  })}
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon={Trash2}
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  {tCommon('actions.delete')}
+                </Button>
+              </>
             ) : null}
             {readOnly && manageLink ? (
               <Link
@@ -245,14 +279,39 @@ export function SkillDetailPanel({
           </HStack>
         </HStack>
 
-        {notFound ? (
+        {showLoadError && errorPresentation ? (
           <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
             <Stack gap={4}>
-              <Heading level={2}>
-                {t('skills.notFound', { defaultValue: 'Skill not found' })}
-              </Heading>
+              <HStack gap={3} align="start">
+                <AlertTriangle
+                  className="text-destructive mt-0.5 size-5 shrink-0"
+                  aria-hidden="true"
+                />
+                <Stack gap={2} className="min-w-0 flex-1">
+                  <Heading level={2}>
+                    {t(skillLoadErrorDetailTitleKey(errorPresentation), {
+                      defaultValue: 'Failed to read SKILL.md',
+                    })}
+                  </Heading>
+                  <Text variant="muted">
+                    {t('skills.loadErrorDetail.fixHint', {
+                      defaultValue:
+                        'Replace the bundle with a valid zip, or delete this skill.',
+                    })}
+                  </Text>
+                </Stack>
+              </HStack>
               {errorMessage ? (
-                <Text variant="muted">{errorMessage}</Text>
+                <Stack gap={2}>
+                  <Text variant="caption">
+                    {t('skills.loadErrorDetail.technicalDetails', {
+                      defaultValue: 'Technical details',
+                    })}
+                  </Text>
+                  <pre className="bg-muted text-muted-foreground max-h-48 overflow-auto rounded-md border p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                    {errorMessage}
+                  </pre>
+                </Stack>
               ) : null}
               <div>
                 <Button variant="secondary" onClick={() => onOpenChange(false)}>

@@ -1,8 +1,9 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { Heading } from '@tale/ui/heading';
+import { Row } from '@tale/ui/layout';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 
@@ -114,74 +115,90 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
   const hasDetails = diff.length > 0 || impactPreview.length > 0;
   const inFlight = apply.isPending || reject.isPending;
 
-  return (
-    <Stack gap={3} className="border-warning bg-warning/10 rounded border p-3">
-      <Row gap={3} align="start">
-        <ShieldAlert className="text-warning mt-0.5 h-4 w-4 shrink-0" />
-        <Stack gap={1} className="flex-1">
-          <Text className="text-sm font-medium">
-            {t(titleKey, titleFallback)}
-          </Text>
-          <Text className="text-muted-foreground text-xs">
-            {firstApply
-              ? t(
-                  'retentionPolicy.boundsProposal.firstApplyDescription',
-                  'No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.',
-                )
-              : t(
-                  'retentionPolicy.boundsProposal.summary',
-                  '{tightened} of {total} change(s) tighten retention. Review before applying.',
-                  { tightened: tighteningCount, total: totalCount },
-                )}
-          </Text>
-          {/*
-           * Show the diff preview inline on first-apply too — without
-           * it the operator is asked to approve a black-box change.
-           * Round-2 / M10.
-           */}
-        </Stack>
-      </Row>
+  const description = firstApply
+    ? t(
+        'retentionPolicy.boundsProposal.firstApplyDescription',
+        'No bounds have been applied for this organization yet. Review the operator config and Apply to start enforcing retention.',
+      )
+    : t(
+        'retentionPolicy.boundsProposal.summary',
+        '{tightened} of {total} change(s) tighten retention. Review before applying.',
+        { tightened: tighteningCount, total: totalCount },
+      );
 
-      <Row gap={2} align="stretch" wrap className="ml-7">
-        <Button variant="primary" onClick={handleApply} disabled={inFlight}>
-          {apply.isPending ? (
-            <>
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              {t('retentionPolicy.boundsProposal.applyingLabel', 'Applying…')}
-            </>
-          ) : (
-            t('retentionPolicy.boundsProposal.applyLabel', 'Apply')
-          )}
-        </Button>
-        {!firstApply && (
-          <Button
-            variant="secondary"
-            onClick={handleReject}
-            disabled={inFlight}
-          >
-            {reject.isPending ? (
-              <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                {t(
-                  'retentionPolicy.boundsProposal.rejectingLabel',
-                  'Rejecting…',
+  return (
+    <>
+      <Alert variant="warning" icon={ShieldAlert}>
+        <div className="text-foreground flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Heading
+              level={5}
+              size="sm"
+              weight="medium"
+              tracking="tight"
+              className="leading-none"
+            >
+              {t(titleKey, titleFallback)}
+            </Heading>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              {description}
+            </p>
+          </div>
+          <Row gap={2} wrap className="shrink-0">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={handleApply}
+              disabled={inFlight}
+            >
+              {apply.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  {t(
+                    'retentionPolicy.boundsProposal.applyingLabel',
+                    'Applying…',
+                  )}
+                </>
+              ) : (
+                t('retentionPolicy.boundsProposal.applyLabel', 'Apply')
+              )}
+            </Button>
+            {!firstApply && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleReject}
+                disabled={inFlight}
+              >
+                {reject.isPending ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    {t(
+                      'retentionPolicy.boundsProposal.rejectingLabel',
+                      'Rejecting…',
+                    )}
+                  </>
+                ) : (
+                  t('retentionPolicy.boundsProposal.rejectLabel', 'Reject')
                 )}
-              </>
-            ) : (
-              t('retentionPolicy.boundsProposal.rejectLabel', 'Reject')
+              </Button>
             )}
-          </Button>
-        )}
-        {hasDetails && (
-          <Button
-            variant="ghost"
-            onClick={() => setDrawerOpen(true)}
-            disabled={inFlight}
-          >
-            {t('retentionPolicy.boundsProposal.detailsLabel', 'View details')}
-          </Button>
-        )}
-      </Row>
+            {hasDetails && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDrawerOpen(true)}
+                disabled={inFlight}
+              >
+                {t(
+                  'retentionPolicy.boundsProposal.detailsLabel',
+                  'View details',
+                )}
+              </Button>
+            )}
+          </Row>
+        </div>
+      </Alert>
 
       {drawerOpen && (
         <Suspense fallback={null}>
@@ -193,6 +210,6 @@ export function RetentionBoundsProposalBanner({ organizationId }: Props) {
           />
         </Suspense>
       )}
-    </Stack>
+    </>
   );
 }

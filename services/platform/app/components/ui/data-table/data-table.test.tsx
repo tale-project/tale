@@ -277,7 +277,28 @@ describe('DataTable loading states', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders action menu during loading', () => {
+    it('renders action menu during loading when toolbar chrome is present', () => {
+      render(
+        <DataTable
+          columns={columns}
+          data={[]}
+          approxRowCount={undefined}
+          isLoading
+          search={{
+            value: '',
+            onChange: vi.fn(),
+            placeholder: 'Search items...',
+          }}
+          actionMenu={<button>Add Item</button>}
+        />,
+      );
+
+      expect(
+        screen.getByRole('button', { name: 'Add Item' }),
+      ).toBeInTheDocument();
+    });
+
+    it('does not render a toolbar row for action-only headers', () => {
       render(
         <DataTable
           columns={columns}
@@ -289,8 +310,8 @@ describe('DataTable loading states', () => {
       );
 
       expect(
-        screen.getByRole('button', { name: 'Add Item' }),
-      ).toBeInTheDocument();
+        screen.queryByRole('button', { name: 'Add Item' }),
+      ).not.toBeInTheDocument();
     });
 
     it('renders table border container during loading', () => {
@@ -317,6 +338,11 @@ describe('DataTable addAction contract', () => {
         columns={columns}
         data={sampleRows}
         approxRowCount={3}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,
     );
@@ -329,13 +355,18 @@ describe('DataTable addAction contract', () => {
     expect(btn).not.toHaveClass('text-xs');
   });
 
-  it('keeps the empty state button-less — only the header create button renders', () => {
+  it('keeps the empty state button-less when toolbar chrome carries the create action', () => {
     render(
       <DataTable
         columns={columns}
         data={[]}
         approxRowCount={0}
         emptyState={{ title: 'No customers' }}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,
     );
@@ -397,6 +428,11 @@ describe('DataTable addAction contract', () => {
         columns={columns}
         data={sampleRows}
         approxRowCount={3}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         actionMenu={<button>Bespoke</button>}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,

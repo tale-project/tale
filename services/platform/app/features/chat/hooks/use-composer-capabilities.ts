@@ -4,6 +4,7 @@ import {
   Globe,
   ImagePlus,
   Telescope,
+  Terminal,
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   bot: Bot,
   wrench: Wrench,
   image: ImagePlus,
+  terminal: Terminal,
   circle: Circle,
 };
 

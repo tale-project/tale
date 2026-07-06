@@ -1,12 +1,11 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Row } from '@tanstack/react-table';
-import { Ellipsis, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react';
+import { Ellipsis, Pencil, Server, Trash2, Zap } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
@@ -42,11 +41,16 @@ interface ProvidersTableProps {
    * detail page was collapsed into a drawer.
    */
   initialDetailProvider?: string;
+  /** Controlled open state for the add-provider panel (hoisted to SettingsSection). */
+  addDialogOpen?: boolean;
+  onAddDialogOpenChange?: (open: boolean) => void;
 }
 
 export function ProvidersTable({
   organizationId,
   initialDetailProvider,
+  addDialogOpen: controlledAddDialogOpen,
+  onAddDialogOpenChange,
 }: ProvidersTableProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
@@ -56,7 +60,9 @@ export function ProvidersTable({
   const { locale } = useLocale();
   const { providers: rawProviders, isLoading } =
     useListProviders(organizationId);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [internalAddDialogOpen, setInternalAddDialogOpen] = useState(false);
+  const addDialogOpen = controlledAddDialogOpen ?? internalAddDialogOpen;
+  const setAddDialogOpen = onAddDialogOpenChange ?? setInternalAddDialogOpen;
   const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<ProviderRow | null>(
     null,
@@ -171,12 +177,6 @@ export function ProvidersTable({
         stickyLayout={stickyLayout}
         getRowId={(row) => row.name}
         onRowClick={handleRowClick}
-        actionMenu={
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="mr-1.5 size-4" />
-            {t('providers.addProvider')}
-          </Button>
-        }
         emptyState={{
           icon: Server,
           title: tEmpty('providers.title'),

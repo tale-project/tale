@@ -976,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Datei hochladen",
       "title": "Automatisierungen hochladen",
-      "description": "Importiere Workflow-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigene Automatisierung installiert.",
+      "description": "Lege Workflow-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert eine eigene Automatisierung. Für einen Ordner nutze den Link unter der Drop-Zone.",
       "toastSuccess": "Automatisierungen importiert"
     },
     "templates": {
@@ -2023,10 +2023,10 @@
       "supportedFormats": ".xlsx,.xls oder.csv",
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen",
-      "acceptHint": "JSON-Dateien, Ordner oder.zip-Archive",
-      "pickFiles": "Dateien wählen",
-      "pickFolder": "Ordner wählen",
-      "pickZip": "ZIP wählen",
+      "dropOrClick": "Lege JSON-Dateien oder .zip hier ab",
+      "acceptHint": "JSON-Dateien oder .zip-Archive",
+      "uploadFolderInstead": "Stattdessen Ordner hochladen",
+      "importBlocked": "Nichts zum Importieren bereit. Behebe ungültige Dateien oben oder passe die Überschreiben-Einstellung bei Konflikten an.",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
       "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
       "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
@@ -5490,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Datei hochladen",
         "title": "Agents hochladen",
-        "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
+        "description": "Lege Agent-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert einen eigenen Agent. Für einen Ordner nutze den Link unter der Drop-Zone.",
         "toastSuccess": "Agents importiert"
       },
       "general": {
@@ -5769,6 +5769,34 @@
         "name": "Skill",
         "description": "Beschreibung",
         "loadError": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML-Syntaxfehler (Zeile {line})",
+        "yamlSyntax": "YAML-Syntaxfehler im Frontmatter",
+        "missingFrontmatter": "YAML-Frontmatter fehlt",
+        "unclosedFrontmatter": "YAML-Frontmatter nicht geschlossen",
+        "frontmatterTooLarge": "Frontmatter zu groß",
+        "invalidFrontmatter": "Ungültiges Frontmatter",
+        "emptyFrontmatter": "Leeres Frontmatter",
+        "notFound": "SKILL.md nicht gefunden",
+        "symlink": "SKILL.md ist ein Symlink",
+        "inaccessible": "SKILL.md konnte nicht gelesen werden",
+        "generic": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Ersetze das Bundle durch ein gültiges Zip oder lösche den Skill.",
+        "technicalDetails": "Technische Details",
+        "title": {
+          "yamlSyntax": "Frontmatter konnte nicht geparst werden",
+          "missingFrontmatter": "Frontmatter fehlt",
+          "unclosedFrontmatter": "Frontmatter ist nicht geschlossen",
+          "frontmatterTooLarge": "Frontmatter ist zu groß",
+          "invalidFrontmatter": "Frontmatter ist ungültig",
+          "emptyFrontmatter": "Frontmatter ist leer",
+          "symlink": "SKILL.md ist ein Symlink",
+          "inaccessible": "Skill konnte nicht gelesen werden",
+          "generic": "Skill konnte nicht geladen werden"
+        }
       },
       "form": {
         "slug": "Slug",

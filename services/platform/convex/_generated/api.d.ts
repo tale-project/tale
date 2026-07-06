@@ -434,6 +434,7 @@ import type * as enterprise_sso_internal_queries from "../enterprise_sso/interna
 import type * as enterprise_sso_login_authorize_handler from "../enterprise_sso/login/authorize_handler.js";
 import type * as enterprise_sso_login_callback_handler from "../enterprise_sso/login/callback_handler.js";
 import type * as enterprise_sso_login_discover_handler from "../enterprise_sso/login/discover_handler.js";
+import type * as enterprise_sso_login_login_audit from "../enterprise_sso/login/login_audit.js";
 import type * as enterprise_sso_login_redirect_with_error from "../enterprise_sso/login/redirect_with_error.js";
 import type * as enterprise_sso_login_set_session_handler from "../enterprise_sso/login/set_session_handler.js";
 import type * as enterprise_sso_oauth2_adapter from "../enterprise_sso/oauth2/adapter.js";
@@ -2106,6 +2107,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/login/authorize_handler": typeof enterprise_sso_login_authorize_handler;
   "enterprise_sso/login/callback_handler": typeof enterprise_sso_login_callback_handler;
   "enterprise_sso/login/discover_handler": typeof enterprise_sso_login_discover_handler;
+  "enterprise_sso/login/login_audit": typeof enterprise_sso_login_login_audit;
   "enterprise_sso/login/redirect_with_error": typeof enterprise_sso_login_redirect_with_error;
   "enterprise_sso/login/set_session_handler": typeof enterprise_sso_login_set_session_handler;
   "enterprise_sso/oauth2/adapter": typeof enterprise_sso_oauth2_adapter;
