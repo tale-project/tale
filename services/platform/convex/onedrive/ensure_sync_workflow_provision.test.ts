@@ -84,4 +84,66 @@ describe('ensureSyncWorkflowEngineProvision', () => {
     expect(compensated.schedulesActive).toBe(1);
     expect(compensated.complete).toBe(true);
   });
+
+  async function slugSchedules(t: T) {
+    return await t.run(async (ctx) => {
+      const rows: Array<{ cron: string; active: boolean }> = [];
+      for await (const sched of ctx.db
+        .query('wfSchedules')
+        .withIndex('by_workflowSlug', (q) => q.eq('workflowSlug', SLUG))) {
+        if (sched.organizationId === ORG) {
+          rows.push({ cron: sched.cronExpression, active: sched.isActive });
+        }
+      }
+      return rows;
+    });
+  }
+
+  async function retune(
+    t: T,
+    patch: { cronExpression: string; isActive?: boolean },
+  ) {
+    await t.run(async (ctx) => {
+      for await (const sched of ctx.db
+        .query('wfSchedules')
+        .withIndex('by_workflowSlug', (q) => q.eq('workflowSlug', SLUG))) {
+        if (sched.organizationId === ORG) {
+          await ctx.db.patch(sched._id, patch);
+        }
+      }
+    });
+  }
+
+  it('keeps an operator-retuned interval instead of adding the builtin cron', async () => {
+    const t = convexTest(schema, modules);
+    await runProvision(t);
+
+    // Operator retunes the interval (e.g. via the trigger editor) to every 2 min.
+    await retune(t, { cronExpression: '*/2 * * * *' });
+
+    const compensated = await runProvision(t);
+
+    expect(compensated.schedulesCreated).toBe(0);
+    expect(compensated.schedulesActive).toBe(1);
+    expect(compensated.complete).toBe(true);
+    expect(await slugSchedules(t)).toEqual([
+      { cron: '*/2 * * * *', active: true },
+    ]);
+  });
+
+  it('revives a paused, retuned schedule instead of adding the builtin cron', async () => {
+    const t = convexTest(schema, modules);
+    await runProvision(t);
+
+    await retune(t, { cronExpression: '*/2 * * * *', isActive: false });
+
+    const compensated = await runProvision(t);
+
+    expect(compensated.schedulesCreated).toBe(0);
+    expect(compensated.schedulesReactivated).toBe(1);
+    expect(compensated.schedulesActive).toBe(1);
+    expect(await slugSchedules(t)).toEqual([
+      { cron: '*/2 * * * *', active: true },
+    ]);
+  });
 });
