@@ -170,7 +170,13 @@ async function getUserInfo(
     externalId: data.id,
     email: data.mail || data.userPrincipalName,
     name: data.displayName || data.givenName || '',
-    jobTitle: data.jobTitle,
+    // Graph returns every `$select`ed field even when empty, so a user with no
+    // job title comes back as `jobTitle: null` (not an omitted key). Our
+    // `SsoUserInfo.jobTitle` is a non-nullable optional string and the
+    // downstream `handleSsoLogin` validator (`v.optional(v.string())`) rejects
+    // `null` — normalise null/"" to `undefined` here at the boundary so a
+    // title-less user can still sign in.
+    jobTitle: data.jobTitle || undefined,
   };
 }
 
