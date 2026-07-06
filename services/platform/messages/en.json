@@ -69,9 +69,6 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
-    "addMenu": {
-      "label": "Add app"
-    },
     "install": {
       "install": "Install",
       "installed": "Installed",
@@ -235,7 +232,6 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
-      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
@@ -6034,21 +6030,7 @@
       },
       "columns": {
         "name": "Skill",
-        "description": "Description",
-        "loadError": "Failed to read SKILL.md"
-      },
-      "loadError": {
-        "yamlSyntaxLine": "YAML syntax error (line {line})",
-        "yamlSyntax": "YAML syntax error in frontmatter",
-        "missingFrontmatter": "Missing YAML frontmatter",
-        "unclosedFrontmatter": "Unclosed YAML frontmatter",
-        "frontmatterTooLarge": "Frontmatter too large",
-        "invalidFrontmatter": "Invalid frontmatter",
-        "emptyFrontmatter": "Empty frontmatter",
-        "notFound": "SKILL.md not found",
-        "symlink": "SKILL.md is a symlink",
-        "inaccessible": "Couldn't read SKILL.md",
-        "generic": "Failed to read SKILL.md"
+        "description": "Description"
       },
       "loadErrorDetail": {
         "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
