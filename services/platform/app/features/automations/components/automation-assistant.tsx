@@ -36,6 +36,7 @@ function AutomationAssistantContent({
     isLoadingMore,
     isLoading,
     isSendPending,
+    generationStartMs,
     inputValue,
     setInputValue,
     attachments,
@@ -85,7 +86,10 @@ function AutomationAssistantContent({
           threadId={threadId ?? undefined}
           organizationId={organizationId}
         >
-          <ThreadMessageMetadataProvider threadId={threadId}>
+          <ThreadMessageMetadataProvider
+            threadId={threadId}
+            generationStartMs={generationStartMs}
+          >
             <ChatMessages
               items={items}
               threadId={threadId ?? undefined}
@@ -95,6 +99,7 @@ function AutomationAssistantContent({
               loadMore={loadMore}
               isLoading={isLoading}
               isSendPending={isSendPending}
+              generationStartMs={generationStartMs}
               lastUserMessageRef={lastUserMessageRef}
               containerRef={containerRef}
               activeApproval={activeApproval}

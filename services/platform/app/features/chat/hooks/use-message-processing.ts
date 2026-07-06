@@ -98,6 +98,9 @@ export interface ChatMessage {
    *  attribution. Consumed by multi-party views (Discussions) to resolve the
    *  per-message author; unused by 1:1 chat. */
   authorId?: string;
+  /** Client-only optimistic assistant shell shown from send until the real
+   *  assistant row is visible in the processed message list. */
+  isOptimisticShell?: boolean;
 }
 
 interface UseMessageProcessingResult {
@@ -138,6 +141,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.systemMessageDisplay === b.systemMessageDisplay &&
     a.systemMessageBody === b.systemMessageBody &&
     a.systemMessageTag === b.systemMessageTag &&
+    a.isOptimisticShell === b.isOptimisticShell &&
     sameParts(a.parts, b.parts) &&
     sameAttachments(a.attachments, b.attachments) &&
     sameFileParts(a.fileParts, b.fileParts)

@@ -237,6 +237,16 @@ export function useMergedChatItems({
     // Sort messages chronologically
     messageItems.sort((a, b) => {
       if (a.type !== 'message' || b.type !== 'message') return 0;
+      // The optimistic assistant shell is the in-flight response to the LAST
+      // user turn. It carries no server `_creationTime`, only its send-time
+      // `timestamp`, which predates the real user row's server time — so sorting
+      // it chronologically drops it BEFORE the just-arrived user row for the
+      // frame(s) before it promotes, re-parenting the Thinking bubble from the
+      // response area up into history (a visible remount/position flash). It is
+      // always the newest item, so pin it last regardless of its timestamp.
+      const aShell = !!a.data.isOptimisticShell;
+      const bShell = !!b.data.isOptimisticShell;
+      if (aShell !== bShell) return aShell ? 1 : -1;
       const aTime = a.data._creationTime ?? a.data.timestamp.getTime();
       const bTime = b.data._creationTime ?? b.data.timestamp.getTime();
       return aTime - bTime;

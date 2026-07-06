@@ -313,6 +313,21 @@ export function ChatInterface({
     activeMessage,
   } = useMessageProcessing(dataThreadId);
 
+  const sessionProgress = useSessionProgress(dataThreadId);
+  const isSendPending = useIsSendPending(dataThreadId);
+
+  // Thread metadata (generation status + turn-start anchor). Pulled above
+  // usePendingMessages so the shell survives clearSendPending on fast threads.
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
+    dataThreadId && organizationId
+      ? { threadId: dataThreadId, organizationId }
+      : 'skip',
+  );
+  const isGenerating = threadMeta?.isGenerating;
+  const agentLingering = sessionProgress?.agentIdleAt != null;
+  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
+
   // Bridge the active message's live `file_write` tool calls into the
   // StreamingToolContext for the canvas pane. See hook.
   useStreamingToolBridge(activeMessage);
@@ -324,6 +339,13 @@ export function ChatInterface({
   const pendingMergedMessages = usePendingMessages({
     threadId: dataThreadId,
     realMessages: rawMessages,
+    isSendPending,
+    isAgentActivelyWorking: agentActivelyWorking,
+    liveAssistantMessageId:
+      sessionProgress?.status === 'running'
+        ? (sessionProgress.assistantMessageId ?? null)
+        : null,
+    suppressOptimisticShell: !!pendingMessage?.editedMessageId,
   });
   const messages = isArenaMode ? rawMessages : pendingMergedMessages;
 
@@ -464,22 +486,7 @@ export function ChatInterface({
   const { requests: resolvedHumanInputRequests } =
     useResolvedHumanInputRequests(organizationId, dataThreadId);
 
-  // Thread metadata (generation status + the server turn-start anchor for the
-  // "Thinking · Ns" timer). Pulled up here so the queued-message filter below
-  // can run before useMergedChatItems splices in approvals. forkInfo/liveRoute
-  // below read the same `threadMeta`.
-  const { data: threadMeta } = useConvexQuery(
-    api.threads.queries.getThreadMeta,
-    dataThreadId && organizationId
-      ? { threadId: dataThreadId, organizationId }
-      : 'skip',
-  );
-  const isGenerating = threadMeta?.isGenerating;
-  // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —
-  // the authoritative anchor for the "Thinking · Ns" timer. Sharing ONE
-  // server clock across the gap shell and the in-bubble timeline is what keeps
-  // the timer from resetting at the routing→agent handoff and across the
-  // new-chat remount. Null on idle threads (gated server-side on isGenerating).
+  // generationStartMs — see agentActivelyWorking / threadMeta above.
   const generationStartMs = threadMeta?.generationStartTime ?? null;
 
   // A follow-up sent while a turn runs waits in the queue tray and enters the
@@ -492,8 +499,28 @@ export function ChatInterface({
   // includes the routing wait) for the first response. Completed bubbles latch
   // their own durations / use stored durationMs, so this only resets the
   // in-progress response's live timer.
+  // ONE client clock for the whole in-flight turn, latched at send (the
+  // optimistic bubble's timestamp) and used until the server's
+  // generationStartTime arrives. Every thinking timer (gap-shell
+  // ThinkingIndicator + in-bubble MessageThoughtHeader) anchors to this same
+  // value, so the indicator→header handoff can't restart the count at "1s":
+  // each component's useThinkingTimer otherwise falls back to its OWN
+  // mount-time clock, and on a thread's FIRST message the cold threadMeta
+  // subscription guarantees the server anchor is still missing at handoff.
+  // (Render-time ref mutation is idempotent — same pattern as the key latches
+  // in chat-messages.)
+  const clientTurnStartRef = useRef<number | null>(null);
+  const turnInFlight = isSendPending || agentActivelyWorking;
+  const clientTurnStartMs =
+    pendingMessage && !pendingMessage.editedMessageId
+      ? pendingMessage.timestamp.getTime()
+      : turnInFlight
+        ? clientTurnStartRef.current
+        : null;
+  clientTurnStartRef.current = clientTurnStartMs;
+
   const effectiveGenerationStartMs = useMemo(() => {
-    if (generationStartMs === null) return null;
+    if (generationStartMs === null) return clientTurnStartMs;
     let lastFollowUpMs: number | undefined;
     let currentTurnUserCount = 0;
     for (const msg of messages) {
@@ -509,7 +536,7 @@ export function ChatInterface({
     return currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
       ? lastFollowUpMs
       : generationStartMs;
-  }, [generationStartMs, messages]);
+  }, [generationStartMs, messages, clientTurnStartMs]);
 
   // Merge messages with approvals and human input requests
   const {
@@ -565,38 +592,6 @@ export function ChatInterface({
     const agent = agents?.find((a) => a.name === lr.agentSlug);
     return { agentName: agent?.displayName ?? lr.agentSlug, reason: lr.reason };
   }, [threadMeta?.liveRoute, agents]);
-
-  // Client-side optimistic flag — set on send click, released when the
-  // server subscription confirms or the send fails. Closes the ~200–550 ms
-  // gap between click and `chatWithAgent` completing `markGenerating`
-  // (Node action cold start + round trips). VISUAL state only.
-  const isSendPending = useIsSendPending(dataThreadId);
-
-  // The agent emitted its result but the process lingers on held-open stdin to
-  // receive more messages. The process is still alive (so the steer queue can
-  // still deliver), but the TURN is over — so this is NOT "working".
-  //
-  // Thread-based, and deliberately NOT gated on `isExternalAgentThread`: the
-  // lingering turn belongs to the THREAD, so the running-state must stay
-  // correct even when the user switches the composer to a DIFFERENT agent
-  // (e.g. a non-external one) while an external turn is still lingering —
-  // otherwise the Stop button / spinner / thinking dots would wrongly reappear.
-  // `useSessionProgress` returns null for threads with no sandbox op (normal
-  // chat), so this is simply false there.
-  const sessionProgress = useSessionProgress(dataThreadId);
-  const agentLingering = sessionProgress?.agentIdleAt != null;
-
-  // Canonical "Claude Code is actively working right now": a turn is in flight
-  // AND it is not merely lingering idle on held-open stdin after emitting its
-  // result. EVERY user-facing running-state indicator derives from this one
-  // rule — the composer spinner + Stop button (isLoading / onStopGenerating
-  // below), the message-stream thinking dots (ChatMessages `isLoading`), and
-  // the ambient Sandbox pill (sandbox-state-indicator, via the same
-  // `status === 'running' && agentIdleAt == null` test) — so the page always
-  // renders ONE consistent, real-time projection of the agent's state and the
-  // indicators can't drift (e.g. "finished" copy beside a live spinner). The
-  // lingering process is an instant-delivery mechanism, not "working".
-  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
 
   // VISUAL busy state: actively working, or the optimistic pre-confirm window.
   const isLoading = agentActivelyWorking || isSendPending;
@@ -1027,6 +1022,7 @@ export function ChatInterface({
         timestamp: new Date(),
         editedMessageId: editingMessage.id,
       });
+      if (dataThreadId) markSendPending(dataThreadId);
 
       // Close inline editor so the optimistic content is visible
       setEditingMessage(null);
@@ -1106,6 +1102,7 @@ export function ChatInterface({
         timestamp: new Date(),
         editedMessageId: userMessage.id,
       });
+      if (dataThreadId) markSendPending(dataThreadId);
       // Glide like a normal send (smooth — see ChatScroll.scrollIntentRef).
       scrollIntentRef.current = 'smooth';
 

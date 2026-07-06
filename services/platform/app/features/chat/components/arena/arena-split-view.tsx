@@ -30,6 +30,12 @@ import {
   useIsSendPending,
 } from '../../hooks/use-pending-send';
 import type { FileAttachment } from '../../types';
+import {
+  computeStreamingAssistantAboveLastUser,
+  createOptimisticAssistantShell,
+  hasVisibleAssistantAfterLastUser,
+  shouldSuppressOptimisticShell,
+} from '../../utils/pending-shell-utils';
 import { ChatMessages } from '../chat-messages';
 import { useArenaMode } from './arena-mode-context';
 import { ArenaVerdictBar } from './arena-verdict-bar';
@@ -68,54 +74,79 @@ function ArenaColumn({
     isLoadingMore,
   } = useMessageProcessing(threadId);
 
-  // --- Local optimistic message (independent per column) ---
-  // Pure derivation in useMemo — no useEffect, no state, no race conditions.
-  // Shows the optimistic message only when:
-  // 1. pendingContent exists (user just sent a message)
-  // 2. The real message hasn't arrived yet (no real message with the same content
-  //    at the tail of the list)
-  const messages: ChatMessage[] = useMemo(() => {
-    if (!pendingContent || !pendingTimestamp) return rawMessages;
-
-    // Check if the real message already arrived — compare content of the
-    // last user message. If it matches the pending content, skip optimistic.
-    const lastUserMsg = rawMessages.toReversed().find((m) => m.role === 'user');
-    if (lastUserMsg && lastUserMsg.content === pendingContent) {
-      return rawMessages;
-    }
-
-    const attachments: FileAttachment[] | undefined = pendingAttachments?.map(
-      (a) => ({
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PendingMessageAttachment.fileId is a Convex storage ID string
-        fileId: a.fileId as Id<'_storage'>,
-        fileName: a.fileName,
-        fileType: a.fileType,
-        fileSize: a.fileSize,
-      }),
-    );
-
-    const optimistic: ChatMessage = {
-      id: `pending-${pendingTimestamp.getTime()}`,
-      key: `pending-${pendingTimestamp.getTime()}`,
-      content: pendingContent,
-      role: 'user',
-      timestamp: pendingTimestamp,
-      attachments:
-        attachments && attachments.length > 0 ? attachments : undefined,
-    };
-    return [...rawMessages, optimistic];
-  }, [rawMessages, pendingContent, pendingAttachments, pendingTimestamp]);
-
   // Loading state: each column subscribes to its own generationStatus
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
     { threadId, organizationId },
   );
-  // Optimistic flag — closes the Node-action cold-start window so both
-  // columns show "Thinking" immediately on send instead of ~200–550 ms
-  // later when the server subscription catches up.
   const isSendPending = useIsSendPending(threadId);
   const columnLoading = (isGenerating ?? false) || isSendPending;
+
+  // --- Local optimistic user + assistant shell (independent per column) ---
+  const messages: ChatMessage[] = useMemo(() => {
+    let merged: ChatMessage[];
+
+    if (pendingContent && pendingTimestamp) {
+      const lastUserMsg = rawMessages
+        .toReversed()
+        .find((m) => m.role === 'user');
+      if (lastUserMsg && lastUserMsg.content === pendingContent) {
+        merged = rawMessages;
+      } else {
+        const attachments: FileAttachment[] | undefined =
+          pendingAttachments?.map((a) => ({
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PendingMessageAttachment.fileId is a Convex storage ID string
+            fileId: a.fileId as Id<'_storage'>,
+            fileName: a.fileName,
+            fileType: a.fileType,
+            fileSize: a.fileSize,
+          }));
+
+        const optimistic: ChatMessage = {
+          id: `pending-${pendingTimestamp.getTime()}`,
+          key: `pending-${pendingTimestamp.getTime()}`,
+          content: pendingContent,
+          role: 'user',
+          timestamp: pendingTimestamp,
+          attachments:
+            attachments && attachments.length > 0 ? attachments : undefined,
+        };
+        merged = [...rawMessages, optimistic];
+      }
+    } else {
+      merged = rawMessages;
+    }
+
+    if (
+      !columnLoading ||
+      hasVisibleAssistantAfterLastUser(merged, isSendPending)
+    ) {
+      return merged.filter((m) => !m.isOptimisticShell);
+    }
+
+    const streamingAbove = computeStreamingAssistantAboveLastUser(merged);
+    if (
+      shouldSuppressOptimisticShell({
+        streamingAssistantAboveLastUser: streamingAbove,
+        liveAssistantMessageId: null,
+        anchorBubbleExists: false,
+      })
+    ) {
+      return merged.filter((m) => !m.isOptimisticShell);
+    }
+
+    const shell = createOptimisticAssistantShell(
+      pendingTimestamp ?? new Date(),
+    );
+    return [...merged.filter((m) => !m.isOptimisticShell), shell];
+  }, [
+    rawMessages,
+    pendingContent,
+    pendingAttachments,
+    pendingTimestamp,
+    columnLoading,
+    isSendPending,
+  ]);
 
   // Hand off to the server signal as soon as it confirms, so a fast
   // response doesn't leave the spinner stuck behind the 8 s safety timeout.
@@ -239,6 +270,7 @@ function ArenaColumn({
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
             isLoading={columnLoading}
+            isSendPending={isSendPending}
             lastUserMessageRef={lastUserMessageRef}
             containerRef={containerRef}
             activeApproval={activeApproval}

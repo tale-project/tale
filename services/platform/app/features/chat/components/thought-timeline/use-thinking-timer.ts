@@ -32,8 +32,6 @@ export function useThinkingTimer(
 ): { liveElapsedMs: number | null; liveDurationMs: number | null } {
   const clientFallbackRef = useRef<number | null>(null);
   const prevThinkingRef = useRef(thinking);
-  const [liveElapsedMs, setLiveElapsedMs] = useState<number | null>(null);
-  const [liveDurationMs, setLiveDurationMs] = useState<number | null>(null);
 
   const resolveStart = useCallback(() => {
     if (typeof turnStartMs === 'number') return turnStartMs;
@@ -42,6 +40,19 @@ export function useThinkingTimer(
     }
     return clientFallbackRef.current;
   }, [turnStartMs]);
+
+  // Lazy initial value so a timer that MOUNTS mid-thinking paints the correct
+  // elapsed on its FIRST render. The in-bubble `MessageThoughtHeader` takes over
+  // from the pre-answer `ThinkingIndicator` the instant the first reasoning/tool
+  // step lands (~1s after send); with a plain `useState(null)` that fresh
+  // instance rendered one frame of "Thinking" with NO "· Ns" before its effect
+  // refilled the value — the whole timer read as snapping back to zero, a
+  // visible flicker at the handoff. Anchored to the SAME `turnStartMs` as the
+  // unmounted timer, so the value is continuous across the handoff, not reset.
+  const [liveElapsedMs, setLiveElapsedMs] = useState<number | null>(() =>
+    thinking ? Date.now() - resolveStart() : null,
+  );
+  const [liveDurationMs, setLiveDurationMs] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     if (prevThinkingRef.current && !thinking) {

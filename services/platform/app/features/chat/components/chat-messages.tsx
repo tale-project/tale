@@ -36,7 +36,6 @@ import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
 import { ModelFallbackNotice } from './model-fallback-notice';
-import { ThinkingIndicator } from './thought-timeline';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
@@ -46,6 +45,13 @@ interface ItemScans {
   lastUserMessageKey: string | null;
   streamingAssistantAboveLastUser: boolean;
   lastAssistantMessageKey: string | null;
+  /** Last assistant strictly AFTER the last user message — the in-flight turn
+   *  response slot. Used for thinkingShell gating so a prior-turn assistant
+   *  never inherits the indicator while the optimistic shell is mounting. */
+  lastAssistantAfterUserKey: string | null;
+  /** First assistant strictly AFTER the last user message — the shell/promotion
+   *  slot. Only this bubble may consume the shell→real key latch. */
+  firstAssistantAfterUserKey: string | null;
   precedingUserTextByKey: Map<string, string>;
   latestFailedAssistantKey: string | null;
   hasRenderableAssistantResponse: boolean;
@@ -368,7 +374,7 @@ export const ChatMessages = memo(function ChatMessages({
         d.isFailed ? 1 : 0
       }:${d.isAborted ? 1 : 0}:${d.content ? 1 : 0}:${
         hasThoughtSteps(d.parts) ? 1 : 0
-      }`;
+      }:${d.isOptimisticShell ? 1 : 0}`;
     }
     const cached = itemScansRef.current;
     if (cached && cached.sig === sig) return cached.value;
@@ -411,6 +417,26 @@ export const ChatMessages = memo(function ChatMessages({
       const item = items[i];
       if (item.type === 'message' && item.data.role === 'assistant') {
         lastAssistantMessageKey = item.data.key;
+        break;
+      }
+    }
+
+    let lastAssistantAfterUserKey: string | null = null;
+    if (lastUserIdx >= 0) {
+      for (let i = items.length - 1; i > lastUserIdx; i--) {
+        const item = items[i];
+        if (item.type === 'message' && item.data.role === 'assistant') {
+          lastAssistantAfterUserKey = item.data.key;
+          break;
+        }
+      }
+    }
+
+    let firstAssistantAfterUserKey: string | null = null;
+    for (let i = lastUserIdx + 1; i < items.length; i++) {
+      const item = items[i];
+      if (item.type === 'message' && item.data.role === 'assistant') {
+        firstAssistantAfterUserKey = item.data.key;
         break;
       }
     }
@@ -475,6 +501,8 @@ export const ChatMessages = memo(function ChatMessages({
       lastUserMessageKey,
       streamingAssistantAboveLastUser,
       lastAssistantMessageKey,
+      lastAssistantAfterUserKey,
+      firstAssistantAfterUserKey,
       precedingUserTextByKey,
       latestFailedAssistantKey,
       hasRenderableAssistantResponse,
@@ -487,12 +515,58 @@ export const ChatMessages = memo(function ChatMessages({
     lastUserMessageKey,
     streamingAssistantAboveLastUser,
     lastAssistantMessageKey,
+    lastAssistantAfterUserKey,
+    firstAssistantAfterUserKey,
     precedingUserTextByKey,
     latestFailedAssistantKey,
-    hasRenderableAssistantResponse,
   } = itemScans;
 
   const prevMinHeightRef = useRef('');
+  // Tracks the pending assistant shell key across the shell→real swap.
+  const prevPendingAssistantKeyRef = useRef<string | null>(null);
+
+  const inFlightThinkingShell = useMemo(():
+    | {
+        phase: 'routing' | 'thinking';
+        queued: boolean;
+        routedAgentName?: string;
+        routeReason?: RouteReason;
+        turnStartMs?: number;
+      }
+    | undefined => {
+    const turnShellActive = items.some(
+      (it) =>
+        it.type === 'message' &&
+        (it.data.isOptimisticShell ||
+          (it.data.role === 'assistant' &&
+            it.data.isStreaming &&
+            !it.data.content)),
+    );
+    const turnUserPending = lastUserMessageKey?.startsWith('pending-') ?? false;
+    // `isLoading` in chat-interface includes `isSendPending`, which can flip
+    // one frame before the optimistic user/shell mount. Never open the
+    // thinking shell on that frame alone — wait for a turn-local anchor.
+    const serverTurnActive = isLoading && !isSendPending;
+    if (!(serverTurnActive || turnShellActive || turnUserPending)) {
+      return undefined;
+    }
+    return {
+      phase: isAutoRoute && !liveRoute ? 'routing' : 'thinking',
+      queued: isQueued ?? false,
+      routedAgentName: liveRoute?.agentName,
+      routeReason: liveRoute?.reason,
+      turnStartMs: generationStartMs ?? undefined,
+    };
+  }, [
+    items,
+    lastUserMessageKey,
+    isLoading,
+    isSendPending,
+    isAutoRoute,
+    liveRoute,
+    isQueued,
+    generationStartMs,
+  ]);
   // Tracks the pending key so the last user message keeps a stable React key
   // across the pending→real swap (prevents DOM teardown/rebuild flicker).
   const prevPendingKeyRef = useRef<string | null>(null);
@@ -502,6 +576,15 @@ export const ChatMessages = memo(function ChatMessages({
   // dangling prevPendingKeyRef could bleed a thread-A key onto thread-B's last
   // user message. Reset on thread switch (below).
   const pendingToRealKeyRef = useRef(new Map<string, string>());
+  const pendingAssistantToRealKeyRef = useRef(new Map<string, string>());
+  const keyMapThreadRef = useRef(threadId);
+  if (keyMapThreadRef.current !== threadId) {
+    keyMapThreadRef.current = threadId;
+    prevPendingKeyRef.current = null;
+    prevPendingAssistantKeyRef.current = null;
+    pendingToRealKeyRef.current.clear();
+    pendingAssistantToRealKeyRef.current.clear();
+  }
 
   // Response-area slack gating (see resolveResponseSlackEnabled). This
   // component + useChatScroll persist across thread→thread switches, so we
@@ -652,7 +735,11 @@ export const ChatMessages = memo(function ChatMessages({
     return orders;
   }, [branches, activeBranchThreadId]);
 
-  const renderMessage = (item: ChatItem, isHistory: boolean) => {
+  const renderMessage = (
+    item: ChatItem,
+    isHistory: boolean,
+    itemIdx: number,
+  ) => {
     if (item.type !== 'message') {
       // Inline approval card (resolved human-input requests, merged into the
       // flow by useMergedChatItems). The data-message-key keeps load-more
@@ -754,13 +841,19 @@ export const ChatMessages = memo(function ChatMessages({
     // token, so we skip that scan for any message already shown via content.
     const shouldShow =
       message.role === 'user' ||
+      message.isOptimisticShell ||
       hasContent ||
       hasAttachments ||
       message.isAborted ||
-      hasThoughtSteps(message.parts);
+      hasThoughtSteps(message.parts) ||
+      (message.role === 'assistant' &&
+        message.isStreaming === true &&
+        !hasContent &&
+        !hasThoughtSteps(message.parts));
 
     if (!shouldShow) return null;
 
+    const isUserMessage = message.role === 'user';
     const isLastUserMessage = message.key === lastUserMessageKey;
 
     // Stable key across the pending→real swap so React updates in place (no DOM
@@ -772,7 +865,7 @@ export const ChatMessages = memo(function ChatMessages({
     let reactKey = message.key;
     if (!useVirtual) {
       if (isLastUserMessage) {
-        if (message.key.startsWith('pending-')) {
+        if (message.key.startsWith('pending-') && message.role === 'user') {
           prevPendingKeyRef.current = message.key;
         } else if (prevPendingKeyRef.current) {
           pendingToRealKeyRef.current.set(
@@ -782,10 +875,39 @@ export const ChatMessages = memo(function ChatMessages({
           prevPendingKeyRef.current = null;
         }
       }
-      reactKey = pendingToRealKeyRef.current.get(message.key) ?? message.key;
+      if (!isUserMessage) {
+        // Latch ONLY inside the current-turn response slot (strictly after the
+        // last user). The ref persists across renders, so without this gate a
+        // PRIOR turn's assistant — rendered before the shell but after the ref
+        // was set on the previous render — consumed the latch: its key flipped
+        // to the shell key (remount + duplicate React keys with the live shell
+        // = the flash), and the real handoff bubble then never inherited the
+        // shell key, so the ThinkingIndicator remounted and its timer reset.
+        if (itemIdx > lastUserIdx) {
+          if (message.isOptimisticShell) {
+            prevPendingAssistantKeyRef.current = message.key;
+          } else if (
+            prevPendingAssistantKeyRef.current &&
+            message.role === 'assistant' &&
+            message.key === firstAssistantAfterUserKey
+          ) {
+            pendingAssistantToRealKeyRef.current.set(
+              message.key,
+              prevPendingAssistantKeyRef.current,
+            );
+            prevPendingAssistantKeyRef.current = null;
+          }
+        }
+        // Lookup stays unconditional so a bubble latched in an earlier turn
+        // keeps its mapped key permanently once it scrolls into history.
+        reactKey =
+          pendingAssistantToRealKeyRef.current.get(message.key) ?? reactKey;
+      }
+      if (isUserMessage) {
+        reactKey = pendingToRealKeyRef.current.get(message.key) ?? reactKey;
+      }
     }
 
-    const isUserMessage = message.role === 'user';
     const hasBranches =
       isUserMessage &&
       message.order !== undefined &&
@@ -793,8 +915,52 @@ export const ChatMessages = memo(function ChatMessages({
 
     const isEditing = isUserMessage && message.id === editingMessageId;
 
+    const shellKeyForProposals = pendingAssistantToRealKeyRef.current.get(
+      message.key,
+    );
     const inlineProposals =
-      !isUserMessage && pendingMemoriesByMessageId.get(message.id);
+      !isUserMessage &&
+      (pendingMemoriesByMessageId.get(message.id) ??
+        (shellKeyForProposals
+          ? pendingMemoriesByMessageId.get(shellKeyForProposals)
+          : undefined));
+
+    const isInCurrentTurnResponse = lastUserIdx < 0 || itemIdx > lastUserIdx;
+
+    const isSteerOwnerBubble =
+      streamingAssistantAboveLastUser &&
+      message.role === 'assistant' &&
+      message.isStreaming === true &&
+      !hasContent &&
+      !hasThoughtSteps(message.parts);
+
+    const isLiveAnchorBubble =
+      liveAssistantMessageId != null && message.id === liveAssistantMessageId;
+
+    const turnUserPending = lastUserMessageKey?.startsWith('pending-') ?? false;
+    const hasOptimisticShellInItems = items.some(
+      (it) => it.type === 'message' && it.data.isOptimisticShell,
+    );
+    // While the optimistic user is still mounting (`isSendPending` without a
+    // pending-* last user), `lastAssistantAfterUserKey` still points at the
+    // PREVIOUS turn's assistant — the "Thinking · 1s above my message" flash.
+    // When a shell exists, only the shell (or steer owner) may show thinking.
+    const mayUseAfterUserAssistantKey =
+      !hasOptimisticShellInItems &&
+      !(isSendPending && !turnUserPending && !message.isOptimisticShell);
+
+    const isCurrentTurnAssistant =
+      isInCurrentTurnResponse &&
+      !isUserMessage &&
+      (message.isOptimisticShell ||
+        isLiveAnchorBubble ||
+        (mayUseAfterUserAssistantKey &&
+          message.key === lastAssistantAfterUserKey));
+
+    const thinkingShell =
+      inFlightThinkingShell && (isCurrentTurnAssistant || isSteerOwnerBubble)
+        ? inFlightThinkingShell
+        : undefined;
 
     return (
       <div
@@ -823,6 +989,7 @@ export const ChatMessages = memo(function ChatMessages({
         ) : (
           <>
             <MessageBubble
+              bubbleKey={reactKey}
               message={{
                 ...message,
                 role: isUserMessage ? 'user' : 'assistant',
@@ -831,7 +998,8 @@ export const ChatMessages = memo(function ChatMessages({
               organizationId={organizationId}
               precedingUserText={precedingUserTextByKey.get(message.key)}
               isFreshSinceMount={isFreshSinceMount(message.id)}
-              hideFeedback={hideFeedback}
+              hideFeedback={hideFeedback || !!message.isOptimisticShell}
+              thinkingShell={thinkingShell}
               onSendFollowUp={onSendFollowUp}
               onRetry={
                 message.isFailed && message.key === latestFailedAssistantKey
@@ -849,7 +1017,9 @@ export const ChatMessages = memo(function ChatMessages({
                   : false
               }
               isLastAssistantMessage={
-                !isUserMessage && message.key === lastAssistantMessageKey
+                !isUserMessage &&
+                !message.isOptimisticShell &&
+                message.key === lastAssistantMessageKey
               }
               toolbarExtra={
                 !hideBranchNavigator &&
@@ -932,7 +1102,7 @@ export const ChatMessages = memo(function ChatMessages({
     // and content-visibility would make off-screen-but-overscanned items
     // mis-measure.
     const isHistory = !useVirtual && lastUserIdx >= 0 && idx < lastUserIdx;
-    const rendered = renderMessage(item, isHistory);
+    const rendered = renderMessage(item, isHistory, idx);
     if (idx === forkDividerAfterIdx) {
       return (
         <div key={`divider-wrap-${idx}`}>
@@ -970,70 +1140,8 @@ export const ChatMessages = memo(function ChatMessages({
       </Row>
     ) : null;
 
-  // Post-send gap affordance: shown only until the assistant message appears
-  // with its in-bubble thought-process timeline. The ThinkingIndicator has no
-  // live region of its own (to avoid nested-live-region double-announce), so it
-  // must sit inside an aria-live wrapper to be announced.
-  // The optimistic user bubble (key `pending-…`) is set in the same commit as
-  // the send; on a brand-new thread `isLoading` only flips true a few hundred ms
-  // later (after the createThread/bind round-trips let `markSendPending` key the
-  // real threadId), so keying the indicator solely on `isLoading` renders the
-  // message first and the timeline a beat later. Drive it off the optimistic
-  // bubble too so both paint together. Once the real user message replaces the
-  // pending one, `isLoading` is already true, so the indicator never flickers.
-  const lastUserIsPendingOptimistic =
-    lastUserMessageKey?.startsWith('pending-') ?? false;
-  // External-agent turns: the session op names the CURRENT live segment
-  // bubble, so the indicator handoff is anchored to it — the footer shows
-  // exactly while that bubble has nothing to paint (or hasn't arrived in the
-  // subscription yet), and hands off the same commit it first paints. This
-  // replaces the positional scans for these turns: segment seams and steer
-  // picks move rows around, which made the positional gates flip the
-  // indicator between above/below the last user message (and go blank when
-  // an empty streaming shell suppressed both).
-  const liveAnchorRenderable = useMemo(() => {
-    if (liveAssistantMessageId == null) return false;
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i];
-      if (it.type !== 'message' || it.data.id !== liveAssistantMessageId) {
-        continue;
-      }
-      const d = it.data;
-      return (
-        !!d.content || hasThoughtSteps(d.parts) || !!d.isAborted || !!d.isFailed
-      );
-    }
-    return false;
-  }, [items, liveAssistantMessageId]);
-  const footerGateOpen =
-    liveAssistantMessageId != null
-      ? !liveAnchorRenderable
-      : !hasRenderableAssistantResponse &&
-        // A still-streaming assistant ABOVE the last user message means that
-        // user message is a mid-turn steer that the running turn already
-        // absorbed (a just-revealed `consumed` queue message), and the live
-        // activity is shown in that bubble above. Rendering a gap-shell below
-        // it would flash a misleading "Thinking · Ns" anchored to the FULL
-        // turn's start until the seam's reply bubble paints — so suppress it;
-        // the bubble above owns the indicator.
-        !streamingAssistantAboveLastUser;
-  const responseFooterLive =
-    (isLoading || lastUserIsPendingOptimistic) && footerGateOpen ? (
-      // Pre-first-token / gap placeholder for BOTH normal chat and external-agent
-      // (Claude Code / OpenCode) turns. The streaming assistant bubble is the
-      // single source of truth for tool/reasoning rows once it has any part
-      // (`hasRenderableAssistantResponse` above unmounts this footer the same
-      // commit the bubble first paints), so this only ever shows the bare
-      // thinking affordance during the gap — no second live-timeline render path.
-      <ThinkingIndicator
-        className="px-4 py-3"
-        phase={isAutoRoute && !liveRoute ? 'routing' : 'thinking'}
-        queued={isQueued ?? false}
-        routedAgentName={liveRoute?.agentName}
-        routeReason={liveRoute?.reason}
-        turnStartMs={generationStartMs ?? undefined}
-      />
-    ) : null;
+  // Post-send thinking lives inside the optimistic assistant shell (or the
+  // steer-owner / live-anchor empty streaming bubble) — no gap-shell footer.
   // Approval cards own internal live regions for their executing/error
   // sub-states (e.g. workflow-run-approval-card's role=status, the role=alert
   // error blocks). They must therefore render OUTSIDE any ancestor aria-live
@@ -1077,24 +1185,12 @@ export const ChatMessages = memo(function ChatMessages({
         </>
       }
       footer={
-        // The virtualized root log has NO aria-live (it would announce
-        // windowing churn), so the thinking affordance gets its own scoped
-        // polite region here. The region wrapper is ALWAYS mounted (only its
-        // content is conditional) so a later ThinkingIndicator insertion is
-        // a mutation of an already-registered region — content inserted in
-        // the same DOM mutation as its aria-live container announces
-        // unreliably across screen readers. ThinkingIndicator has no
-        // internal live region, so nothing nests. The approval card renders
-        // BARE (it owns internal sub-state live regions; see above). No
-        // parent `gap` — the live wrapper carries its own bottom padding
-        // only when populated, so an empty wrapper adds no phantom gap.
         <Stack gap={0} className="pb-2">
-          <div
-            aria-live="polite"
-            className={responseFooterLive ? 'pb-3' : undefined}
-          >
-            {responseFooterLive}
-          </div>
+          {(isLoading || isSendPending) && (
+            <div className="sr-only" role="status" aria-live="polite">
+              {t('thoughtProcess.thinking')}
+            </div>
+          )}
           {responseFooterStatic}
         </Stack>
       }
@@ -1135,9 +1231,6 @@ export const ChatMessages = memo(function ChatMessages({
           {afterItems.map((item, i) =>
             renderItemWithDivider(item, lastUserIdx + 1 + i),
           )}
-          {/* Non-virtualized path: the root already is role="log"
-              aria-live="polite", so both pieces render inside it as before. */}
-          {responseFooterLive}
           {responseFooterStatic}
         </Stack>
       </Stack>
