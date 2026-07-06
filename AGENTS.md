@@ -85,6 +85,7 @@ skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are pro
 | [`review-code`](.agents/skills/review-code/SKILL.md)               | reviewing a working diff — yours or a colleague's — before it merges                              |
 | [`review-pr`](.agents/skills/review-pr/SKILL.md)                   | reviewing a GitHub pull request end-to-end                                                        |
 | [`create-pr`](.agents/skills/create-pr/SKILL.md)                   | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                        |
+| [`create-issue`](.agents/skills/create-issue/SKILL.md)             | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels        |
 | [`test-code`](.agents/skills/test-code/SKILL.md)                   | writing tests, or proving behaviour by observing the real outcome                                 |
 | [`write-skill`](.agents/skills/write-skill/SKILL.md)               | adding, editing, or moving a skill                                                                |
 | [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing a docs page, or running the docs test suite                                       |
