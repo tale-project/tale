@@ -44,6 +44,7 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
+  useCancelOneDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteFolder: () => ({ mutate: vi.fn(), isPending: false }),
 }));
