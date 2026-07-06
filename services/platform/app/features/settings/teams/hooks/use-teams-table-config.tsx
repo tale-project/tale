@@ -93,7 +93,14 @@ export function useTeamsTableConfig(
   return {
     columns,
     searchPlaceholder: tSettings('teams.searchTeam'),
-    stickyLayout: true,
+    // Non-sticky (like skills/providers): this table renders under
+    // `SettingsPage` without `fitToContainer`, so there's no bounded-height
+    // ancestor to drive a sticky inner scroll container. With `stickyLayout`,
+    // that inner `overflow-auto`/`overscroll-contain` collapsed to content
+    // height and swallowed the wheel over the table — the page couldn't be
+    // scrolled from there (#2381, same trap fixed for skills in #2436). Let the
+    // settings page own the single vertical scroll instead.
+    stickyLayout: false,
     pageSize: 20,
     infiniteScroll: false,
   };
