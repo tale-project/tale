@@ -150,7 +150,9 @@ export async function createOrgViaWizard(page: Page): Promise<string> {
         exact: true,
       });
       try {
-        await expect(skipButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+        // Org create + default-workflow init can exceed FIRST_PAINT on a loaded
+        // CI shard before the provider step renders — use EXECUTION here.
+        await expect(skipButton).toBeVisible({ timeout: TIMEOUT.EXECUTION });
       } catch (err) {
         if (authFailure.last) {
           throw new Error(
