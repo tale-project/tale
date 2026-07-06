@@ -43,6 +43,7 @@ import {
   agentRequiredIntegrations,
   toConfigurableAgent,
 } from '../utils/agent-list-item';
+import { folderLabel } from '../utils/folder-label';
 import { AgentCatalogIcon } from './agent-catalog-icon';
 
 interface AgentCatalogProps {
@@ -78,21 +79,6 @@ type InstallStateRow = NonNullable<
 
 /** Number of placeholder cards rendered while the catalog roster loads. */
 const PLACEHOLDER_CARD_COUNT = 6;
-
-/**
- * Localized title for a folder section. Known folders have dedicated keys
- * (`agentCatalog.folders.workforce` …); unknown folders fall back to a
- * capitalized form of the raw value so a new department still renders a sane
- * label even before a translation exists. `defaultValue` keeps i18next from
- * surfacing a raw key while the localized string lands.
- */
-function folderLabel(t: TFunction, folder: string): string {
-  const fallback = folder
-    ? folder.charAt(0).toUpperCase() + folder.slice(1)
-    : t('folders.general', { defaultValue: 'General' });
-  if (!folder) return fallback;
-  return t(`folders.${folder}`, { defaultValue: fallback });
-}
 
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');

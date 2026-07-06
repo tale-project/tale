@@ -79,6 +79,13 @@ interface UseListPageOptions<TData> {
   /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
   entityLabel?: string;
   /**
+   * Entities a row represents in the footer count. A folder row aggregates
+   * its members, so counting rows would count the folder as one entity
+   * (#2348). Defaults to 1 per row; only affects the infinite-scroll entity
+   * footer.
+   */
+  countRow?: (row: TData) => number;
+  /**
    * Display mode for the table.
    * - `'infiniteScroll'` (default): renders an infinite-scroll list that loads more as the user scrolls.
    * - `'pagination'`: renders client-side pagination controls with next/previous navigation.
@@ -102,8 +109,10 @@ interface ListPageInfiniteScrollTableProps<TData> {
     isLoadingMore: boolean;
     isInitialLoading: boolean;
     entityLabel?: string;
-    /** Unfiltered total from rawData.length — differs from data.length when filters are active */
+    /** Unfiltered total from rawData — differs from the shown count when filters are active */
     totalCount?: number;
+    /** Entities the visible rows represent when rows aggregate (see `countRow`) */
+    displayedCount?: number;
   };
   approxRowCount?: number;
 }
@@ -153,6 +162,15 @@ function isControlledFilters(
   return 'configs' in filters;
 }
 
+/** Sums the entities the rows represent — 1 per row unless `countRow` says otherwise. */
+function countEntities<TData>(
+  rows: readonly TData[],
+  countRow?: (row: TData) => number,
+): number {
+  if (!countRow) return rows.length;
+  return rows.reduce((sum, row) => sum + countRow(row), 0);
+}
+
 // ---------------------------------------------------------------------------
 // Hook Implementation
 // ---------------------------------------------------------------------------
@@ -168,6 +186,7 @@ export function useListPage<TData>(
     getRowId,
     approxRowCount,
     entityLabel,
+    countRow,
     displayMode = 'infiniteScroll',
   } = options;
 
@@ -421,7 +440,13 @@ export function useListPage<TData>(
             ? dataSource.status === 'LoadingFirstPage'
             : dataSource.data === undefined,
         entityLabel,
-        totalCount: entityLabel ? rawData.length : undefined,
+        // In entity units when rows aggregate (countRow) — a folder row stands
+        // in for its members, so summing per-row counts keeps the footer's
+        // numerator and denominator in the unit the entity label names (#2348).
+        totalCount: entityLabel ? countEntities(rawData, countRow) : undefined,
+        displayedCount: countRow
+          ? countEntities(displayed, countRow)
+          : undefined,
       },
     },
     processedData: processed,
