@@ -232,7 +232,6 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen",
-      "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "failed": "Fehlgeschlagen",
@@ -5767,21 +5766,7 @@
       },
       "columns": {
         "name": "Skill",
-        "description": "Beschreibung",
-        "loadError": "SKILL.md konnte nicht gelesen werden"
-      },
-      "loadError": {
-        "yamlSyntaxLine": "YAML-Syntaxfehler (Zeile {line})",
-        "yamlSyntax": "YAML-Syntaxfehler im Frontmatter",
-        "missingFrontmatter": "YAML-Frontmatter fehlt",
-        "unclosedFrontmatter": "YAML-Frontmatter nicht geschlossen",
-        "frontmatterTooLarge": "Frontmatter zu groß",
-        "invalidFrontmatter": "Ungültiges Frontmatter",
-        "emptyFrontmatter": "Leeres Frontmatter",
-        "notFound": "SKILL.md nicht gefunden",
-        "symlink": "SKILL.md ist ein Symlink",
-        "inaccessible": "SKILL.md konnte nicht gelesen werden",
-        "generic": "SKILL.md konnte nicht gelesen werden"
+        "description": "Beschreibung"
       },
       "loadErrorDetail": {
         "fixHint": "Ersetze das Bundle durch ein gültiges Zip oder lösche den Skill.",
