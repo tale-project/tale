@@ -7,17 +7,17 @@ import { useCallback } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useDocxPreview } from '../hooks/use-document-preview';
+import { useOdtPreview } from '../hooks/use-document-preview';
 import { documentProseClasses } from './document-prose-classes';
 import { PreviewPane } from './preview-pane';
 
-interface DocumentPreviewDocxProps {
+interface DocumentPreviewOdtProps {
   url: string;
 }
 
-export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
+export function DocumentPreviewOdt({ url }: DocumentPreviewOdtProps) {
   const { t } = useT('documents');
-  const { data: html, isLoading, error } = useDocxPreview(url);
+  const { data: html, isLoading, error } = useOdtPreview(url);
 
   const htmlRef = useCallback(
     (el: HTMLDivElement | null) => {
