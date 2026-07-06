@@ -29,13 +29,33 @@ understanding changes mid-task. Skip it only for a trivial one-line change in a 
   how you'd catch the mistake. The insight is in what you _don't_ yet know — a note that only sounds
   confident hides the bug it should have surfaced.
 - **Where it goes.** Wherever your team records intent before work — a task/issue comment, the draft PR
-  description, or a scratch `notes/` file in your working area. It is a thinking artifact, not a
-  committed source file; keep it unless your project tracks notes.
+  description, or a scratch file in the global notes directory (see below). It is a thinking artifact,
+  not a committed source file; keep it unless your project tracks notes.
 - **Keep it short and honest.** A few lines per answer, not an essay. Write what's true now; update it
   when you learn more. A note that launders a guess into confidence is worse than none.
 - **Then act.** Only once the note's open questions are resolved (or asked) do you start the work — and
   the skill's own gates confirm you did: Gate A's first box, **Note**, checks this note exists; Gate B
   checks you finished what it planned.
+
+## Where scratch files go
+
+A note written to disk goes in one **global, user-local directory — never inside the repository**.
+A scratch file in the clone shows up in `git status`, is one `git add -A` away from being committed,
+and dies with the clone; the global directory survives branch switches and re-clones. Resolve the
+location in this order:
+
+1. `TALE_AGENT_NOTES_DIR` — an absolute path, if set. The explicit override for power users and CI.
+2. Otherwise the OS default:
+   - **Linux:** `$XDG_DATA_HOME/tale/agent-notes/` (or `~/.local/share/tale/agent-notes/` when
+     `XDG_DATA_HOME` is unset)
+   - **macOS:** `~/Library/Application Support/Tale/agent-notes/`
+   - **Windows:** `%APPDATA%\Tale\agent-notes\`
+
+Inside it, key notes by repository so parallel checkouts stay separated, and date the file:
+`<repo-slug>/<date>-<topic>.md` — e.g. `tale-project-tale/2026-07-06-fix-webhook-retry.md`. Create
+the directories on first use. **Never create a `notes/` directory (or any scratch file) under the
+repo root** — a task/issue comment or the draft PR description remain the alternatives when your
+team should see the note.
 
 ## Why a note, not just a thought
 
