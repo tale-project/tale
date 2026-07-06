@@ -25,7 +25,7 @@ const CREDENTIAL_POLICY: CredentialPolicy = {
 
 const CAPABILITIES: AgentCapabilities = {
   processLifecycle: 'one-shot',
-  promptTransport: 'argv-positional',
+  promptTransport: 'stdin-ndjson',
   mcpDelivery: 'inline-env',
   supportsPlanMode: false,
   supportsMidTurnSteering: false,
@@ -53,8 +53,6 @@ export class HermesAdapter implements AgentAdapter {
     const byo = spec.authMode === 'byo';
     const argv = [
       'tale-hermes-run',
-      '--prompt',
-      spec.prompt,
       '--workdir',
       spec.workdir,
       '--max-turns',
@@ -66,9 +64,6 @@ export class HermesAdapter implements AgentAdapter {
     }
     if (spec.model) {
       argv.push('--model', spec.model);
-    }
-    if (spec.systemPromptAppend) {
-      argv.push('--system-prompt', spec.systemPromptAppend);
     }
 
     const env: Record<string, string> = {
@@ -83,7 +78,22 @@ export class HermesAdapter implements AgentAdapter {
       env.TALE_GATEWAY_TOKEN = spec.gateway.token;
     }
 
-    return { argv, env, cwd: spec.workdir, stdinMode: 'close' };
+    // Prompt + system prompt travel as ONE JSON object on stdin, never argv:
+    // process lists leak argv, and a prompt starting with '-' would parse as
+    // a flag (tale-hermes-run is argparse-based). Close-mode stdin writes the
+    // payload and EOFs — the wrapper reads to EOF before starting the run.
+    const stdinPayload: Record<string, string> = { prompt: spec.prompt };
+    if (spec.systemPromptAppend) {
+      stdinPayload.system_prompt = spec.systemPromptAppend;
+    }
+
+    return {
+      argv,
+      env,
+      cwd: spec.workdir,
+      stdin: JSON.stringify(stdinPayload),
+      stdinMode: 'close',
+    };
   }
 
   createParser(): AgentEventParser {
