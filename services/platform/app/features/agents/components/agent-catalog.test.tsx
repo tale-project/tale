@@ -138,11 +138,12 @@ describe('AgentCatalog', () => {
     expect(screen.getByText('noResults.title')).toBeInTheDocument();
   });
 
-  it('shows no status badge for a not-yet-installed agent', () => {
+  it('exposes only the sr-only "available" status for a not-yet-installed agent', () => {
     render(<AgentCatalog organizationId="org-1" />);
     expect(screen.queryByText('status.enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('status.disabled')).not.toBeInTheDocument();
-    expect(screen.queryByText('status.available')).not.toBeInTheDocument();
+    // The icon's status dot is decorative; its text twin is sr-only.
+    expect(screen.getByText('status.available')).toHaveClass('sr-only');
     expect(screen.getByRole('button', { name: 'install' })).toBeInTheDocument();
   });
 

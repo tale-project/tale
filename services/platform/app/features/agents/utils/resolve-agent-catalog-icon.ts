@@ -99,7 +99,7 @@ export function resolveAgentCatalogIcon(agent: {
 
 /** Slug identifies the Claude Code chat product — not every claude-code runtime. */
 function isClaudeCodeProductSlug(slug: string): boolean {
-  const base = slug.includes('/') ? slug.split('/').pop()! : slug;
+  const base = slug.split('/').pop() ?? slug;
   return base === 'claude-code' || base.startsWith('claude-code-');
 }
 
