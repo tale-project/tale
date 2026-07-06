@@ -12,6 +12,7 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
+import { maskSecretPreview } from '@/convex/sandbox/user_env_constants';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
@@ -156,14 +157,20 @@ export function WebhooksSection({
         id: 'url',
         header: t('triggers.webhooks.columns.url'),
         cell: ({ row }) => {
-          const url = getWebhookUrl(row.original.token);
+          // The token is the sole bearer credential (see the create dialog's
+          // warning), so the table never renders it in plaintext: display the
+          // URL with the token masked (same low-leak preview affordance as the
+          // API-key UIs). The copy button still copies the full URL.
+          const maskedUrl = getWebhookUrl(
+            maskSecretPreview(row.original.token),
+          );
           return (
             <Row gap={2} className="min-w-0">
               <code
                 className="max-w-[300px] truncate font-mono text-sm"
-                title={url}
+                title={maskedUrl}
               >
-                {url}
+                {maskedUrl}
               </code>
               <Button
                 variant="ghost"
