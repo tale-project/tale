@@ -17,7 +17,7 @@ Binding the document to an agent is a separate step. Open the agent and add the 
 
 Documents can come from OneDrive or SharePoint instead of disk. Open **Knowledge > Documents > Upload documents > From Microsoft 365**, pick files or folders, and choose the import mode. **One-time import** brings the files in once; they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
 
-To stop syncing a folder, open the folder row's menu and click **Stop syncing**; the imported files stay in the workspace and stop updating. Deleting a synced folder also stops the sync. In both cases the files in OneDrive are untouched.
+To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder, or a single synced file, also stops its sync. In every case the originals in OneDrive are untouched.
 
 ## What the indexing pipeline does
 
