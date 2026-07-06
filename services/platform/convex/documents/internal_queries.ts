@@ -68,6 +68,20 @@ export const findDocumentByExternalId = internalQuery({
   },
 });
 
+/**
+ * Every document sharing one external item id — used by the single-file sync
+ * reconcile to collapse duplicate rows down to the one canonical doc.
+ */
+export const findDocumentsByExternalId = internalQuery({
+  args: {
+    organizationId: v.string(),
+    externalItemId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await DocumentsHelpers.findDocumentsByExternalId(ctx, args);
+  },
+});
+
 export const findDocumentByFileId = internalQuery({
   args: {
     organizationId: v.string(),
