@@ -195,7 +195,14 @@ export function DocumentRowActions({
         label: tDocuments('actions.stopSync'),
         icon: CloudOff,
         onClick: handleStopSync,
-        visible: canWrite && itemType === 'folder' && !!syncConfigId,
+        // A synced folder, or a single file the user picked to sync directly.
+        // A file synced as *part of* a folder carries that folder's config id,
+        // so stopping it from the file row would cancel the whole folder —
+        // those are stopped from the folder row instead.
+        visible:
+          canWrite &&
+          !!syncConfigId &&
+          (itemType === 'folder' || !!isDirectlySelected),
         disabled: isCancellingSync,
       },
       {
@@ -226,6 +233,7 @@ export function DocumentRowActions({
       parentFolderTeamId,
       isHeld,
       syncConfigId,
+      isDirectlySelected,
     ],
   );
 
