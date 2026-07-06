@@ -58,9 +58,10 @@ describe('usePendingMessages', () => {
       usePendingMessages({ threadId: 'thread-1', realMessages: [] }),
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current).toHaveLength(2);
     expect(result.current[0].content).toBe('Hi there');
     expect(result.current[0].role).toBe('user');
+    expect(result.current[1].isOptimisticShell).toBe(true);
     expect(result.current[0].timestamp).toBe(ts);
   });
 
@@ -90,7 +91,7 @@ describe('usePendingMessages', () => {
       usePendingMessages({ threadId: 'thread-1', realMessages: [] }),
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current).toHaveLength(2);
     expect(result.current[0].attachments).toHaveLength(2);
     expect(result.current[0].attachments?.[0]).toEqual(
       expect.objectContaining({
@@ -122,7 +123,7 @@ describe('usePendingMessages', () => {
       usePendingMessages({ threadId: 'thread-1', realMessages: [] }),
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current).toHaveLength(2);
     expect(result.current[0].attachments).toBeUndefined();
   });
 
@@ -146,7 +147,7 @@ describe('usePendingMessages', () => {
       usePendingMessages({ threadId: undefined, realMessages: [] }),
     );
 
-    expect(result.current).toHaveLength(1);
+    expect(result.current).toHaveLength(2);
     expect(result.current[0].content).toBe('New message');
     expect(result.current[0].attachments).toHaveLength(1);
   });
@@ -182,7 +183,7 @@ describe('usePendingMessages', () => {
       }),
     );
 
-    expect(result.current).toBe(existingMessages);
+    expect(result.current).toEqual(existingMessages);
   });
 
   it('does not show pending for mismatched threadId', () => {
@@ -209,7 +210,7 @@ describe('usePendingMessages', () => {
       }),
     );
 
-    expect(result.current).toBe(existingMessages);
+    expect(result.current).toEqual(existingMessages);
     expect(mockSetPendingMessage).not.toHaveBeenCalled();
   });
 
@@ -277,12 +278,13 @@ describe('usePendingMessages', () => {
         }),
       );
 
-      expect(result.current).toHaveLength(3);
+      expect(result.current).toHaveLength(4);
       expect(result.current[0]).toBe(existingMessages[0]);
       expect(result.current[1]).toBe(existingMessages[1]);
       expect(result.current[2].content).toBe('Follow up question');
       expect(result.current[2].role).toBe('user');
       expect(result.current[2].id).toBe(`pending-${ts.getTime()}`);
+      expect(result.current[3].isOptimisticShell).toBe(true);
     });
 
     it('removes optimistic when real message arrives (last key differs from lastMessageKey)', () => {
@@ -316,7 +318,7 @@ describe('usePendingMessages', () => {
         { initialProps: { realMessages: existingMessages } },
       );
 
-      expect(result.current).toHaveLength(3);
+      expect(result.current).toHaveLength(4);
 
       const updatedMessages: ChatMessage[] = [
         ...existingMessages,
@@ -365,9 +367,10 @@ describe('usePendingMessages', () => {
         { initialProps: { realMessages: existingMessages } },
       );
 
-      expect(result.current).toHaveLength(3);
+      expect(result.current).toHaveLength(4);
       expect(result.current[2].content).toBe('Follow up question');
       expect(result.current[2].id).toMatch(/^pending-/);
+      expect(result.current[3].isOptimisticShell).toBe(true);
 
       const updatedMessages: ChatMessage[] = [
         ...existingMessages,
@@ -388,6 +391,7 @@ describe('usePendingMessages', () => {
       expect(result.current.every((m) => !m.id.startsWith('pending-'))).toBe(
         true,
       );
+      expect(result.current.every((m) => !m.isOptimisticShell)).toBe(true);
     });
 
     it('pagination (loadMore prepends) does not clear optimistic (last key unchanged)', () => {
@@ -421,8 +425,9 @@ describe('usePendingMessages', () => {
         { initialProps: { realMessages: existingMessages } },
       );
 
-      expect(result.current).toHaveLength(3);
+      expect(result.current).toHaveLength(4);
       expect(result.current[2].content).toBe('New question');
+      expect(result.current[3].isOptimisticShell).toBe(true);
 
       const withOlderMessages: ChatMessage[] = [
         {
@@ -444,9 +449,10 @@ describe('usePendingMessages', () => {
 
       rerender({ realMessages: withOlderMessages });
 
-      expect(result.current).toHaveLength(5);
+      expect(result.current).toHaveLength(6);
       expect(result.current[4].content).toBe('New question');
       expect(result.current[4].id).toMatch(/^pending-/);
+      expect(result.current[5].isOptimisticShell).toBe(true);
       expect(mockSetPendingMessage).not.toHaveBeenCalled();
     });
 
@@ -475,7 +481,7 @@ describe('usePendingMessages', () => {
         }),
       );
 
-      expect(result.current).toBe(existingMessages);
+      expect(result.current).toEqual(existingMessages);
       expect(result.current).toHaveLength(1);
     });
 
@@ -521,9 +527,10 @@ describe('usePendingMessages', () => {
         { initialProps: { realMessages: [] as ChatMessage[] } },
       );
 
-      expect(result.current).toHaveLength(1);
+      expect(result.current).toHaveLength(2);
       expect(result.current[0].content).toBe('Brand new thread message');
       expect(result.current[0].role).toBe('user');
+      expect(result.current[1].isOptimisticShell).toBe(true);
 
       rerender({
         realMessages: [
@@ -569,8 +576,9 @@ describe('usePendingMessages', () => {
         usePendingMessages({ threadId: undefined, realMessages: [] }),
       );
 
-      expect(result.current).toHaveLength(1);
+      expect(result.current).toHaveLength(2);
       expect(result.current[0].content).toBe('Creating new thread');
+      expect(result.current[1].isOptimisticShell).toBe(true);
     });
 
     it('clears pending message via setPendingMessage(null) when real arrives', () => {
@@ -621,6 +629,318 @@ describe('usePendingMessages', () => {
 
       expect(mockSetPendingMessage).toHaveBeenCalledTimes(1);
       expect(mockSetPendingMessage).toHaveBeenCalledWith(null);
+    });
+  });
+
+  describe('optimistic assistant shell', () => {
+    it('appends assistant shell with pending user on existing thread', () => {
+      const ts = new Date('2024-01-01T00:01:00Z');
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Hi there!',
+          role: 'assistant',
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+      ];
+
+      mockPendingMessage.current = {
+        content: 'Follow up question',
+        threadId: 'thread-1',
+        timestamp: ts,
+        lastMessageKey: 'msg-2',
+      };
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: true,
+        }),
+      );
+
+      expect(result.current).toHaveLength(4);
+      expect(result.current[2].role).toBe('user');
+      expect(result.current[3].role).toBe('assistant');
+      expect(result.current[3].isOptimisticShell).toBe(true);
+      expect(result.current[3].isStreaming).toBe(true);
+    });
+
+    it('keeps shell alone on human-input resume (isSendPending, no pending user)', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: true,
+        }),
+      );
+
+      expect(result.current).toHaveLength(2);
+      expect(result.current[1].isOptimisticShell).toBe(true);
+    });
+
+    it('keeps shell after pending user clears while agent is still generating', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Follow up',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:02Z'),
+        },
+      ];
+
+      const { result, rerender } = renderHook(
+        (props: { isSendPending: boolean; isAgentActivelyWorking: boolean }) =>
+          usePendingMessages({
+            threadId: 'thread-1',
+            realMessages: existingMessages,
+            isSendPending: props.isSendPending,
+            isAgentActivelyWorking: props.isAgentActivelyWorking,
+          }),
+        {
+          initialProps: {
+            isSendPending: true,
+            isAgentActivelyWorking: false,
+          },
+        },
+      );
+
+      expect(result.current[2].isOptimisticShell).toBe(true);
+      const shellKey = result.current[2].key;
+
+      rerender({ isSendPending: false, isAgentActivelyWorking: true });
+
+      expect(result.current).toHaveLength(3);
+      expect(result.current[2].isOptimisticShell).toBe(true);
+      expect(result.current[2].key).toBe(shellKey);
+    });
+
+    it('promotes server row when isSendPending clears but generation continues', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Follow up',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:02Z'),
+        },
+        {
+          id: 'msg-3',
+          key: 'msg-3',
+          content: '',
+          role: 'assistant',
+          isStreaming: true,
+          timestamp: new Date('2024-01-01T00:00:03Z'),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: false,
+          isAgentActivelyWorking: true,
+        }),
+      );
+
+      expect(result.current).toHaveLength(3);
+      expect(result.current[2].id).toBe('msg-3');
+      expect(result.current[2].key).toMatch(/^pending-assistant-/);
+      expect(result.current[2].isOptimisticShell).toBe(true);
+    });
+
+    it('shows the completed answer (no shell resurrection) while isSendPending lingers', () => {
+      // A fast model can finish the whole turn between two isGenerating
+      // snapshots: the client never sees isGenerating=true, isSendPending
+      // stays up (8s safety timeout), and the answer row lands COMPLETE
+      // (isStreaming false + content). The old visibility rule
+      // (`!!content && !isSendPending`) denied that row, re-created the shell
+      // with a fresh `new Date()` key and promoted the finished answer under
+      // it — a full bubble remount observed as the end-of-turn flash.
+      const user: ChatMessage = {
+        id: 'msg-1',
+        key: 'msg-1',
+        content: 'Hello',
+        role: 'user',
+        timestamp: new Date('2024-01-01T00:00:00Z'),
+      };
+      const streamingAnswer: ChatMessage = {
+        id: 'msg-2',
+        key: 'msg-2',
+        content: 'Hel',
+        role: 'assistant',
+        isStreaming: true,
+        timestamp: new Date('2024-01-01T00:00:01Z'),
+      };
+      const completedAnswer: ChatMessage = {
+        ...streamingAnswer,
+        content: 'Hello! How can I help?',
+        isStreaming: false,
+      };
+
+      const { result, rerender } = renderHook(
+        (props: { realMessages: ChatMessage[] }) =>
+          usePendingMessages({
+            threadId: 'thread-1',
+            realMessages: props.realMessages,
+            isSendPending: true,
+          }),
+        { initialProps: { realMessages: [user] } },
+      );
+
+      expect(result.current[1].isOptimisticShell).toBe(true);
+
+      rerender({ realMessages: [user, streamingAnswer] });
+      expect(result.current[1].id).toBe('msg-2');
+      expect(result.current[1].isOptimisticShell).toBeFalsy();
+
+      rerender({ realMessages: [user, completedAnswer] });
+      expect(result.current).toHaveLength(2);
+      expect(result.current[1].id).toBe('msg-2');
+      expect(result.current[1].key).toBe('msg-2');
+      expect(result.current[1].isOptimisticShell).toBeFalsy();
+    });
+
+    it('clears shell when a visible assistant arrives after the last user', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Answer',
+          role: 'assistant',
+          isStreaming: true,
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: true,
+        }),
+      );
+
+      expect(result.current).toHaveLength(2);
+      expect(result.current.every((m) => !m.isOptimisticShell)).toBe(true);
+    });
+
+    it('promotes an empty streaming server row into the shell slot (no duplicate)', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: '',
+          role: 'assistant',
+          isStreaming: true,
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+      ];
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: true,
+        }),
+      );
+
+      expect(result.current).toHaveLength(2);
+      expect(result.current[1].id).toBe('msg-2');
+      expect(result.current[1].key).toMatch(/^pending-assistant-/);
+      expect(result.current[1].isOptimisticShell).toBe(true);
+    });
+
+    it('does not append shell when streaming assistant sits above last user', () => {
+      const ts = new Date('2024-01-01T00:01:00Z');
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: '',
+          role: 'assistant',
+          isStreaming: true,
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+        {
+          id: 'msg-3',
+          key: 'msg-3',
+          content: 'steer',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:02Z'),
+        },
+      ];
+
+      mockPendingMessage.current = {
+        content: 'steer',
+        threadId: 'thread-1',
+        timestamp: ts,
+        lastMessageKey: 'msg-2',
+      };
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+          isSendPending: true,
+        }),
+      );
+
+      expect(result.current.some((m) => m.isOptimisticShell)).toBe(false);
     });
   });
 });

@@ -46,6 +46,7 @@ import {
 import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
+import { useStreamBuffer } from '../hooks/use-stream-buffer';
 import {
   useVoiceModeEffective,
   useVoiceOutputChunker,
@@ -61,6 +62,7 @@ import {
   sameParts,
 } from '../utils/message-equality';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
+import type { RouteReason } from '../utils/route-reason';
 import { hasThoughtSteps } from '../utils/thought-predicates';
 import { BlockedNotice } from './blocked-notice';
 import { ChatErrorDisplay } from './chat-error-display';
@@ -79,7 +81,11 @@ import { MessageInfoDialog } from './message-info-dialog';
 import { MessageSegments } from './message-segments';
 import { SourceCards } from './source-cards';
 import { SteerStatusLine } from './steer-status';
-import { MessageThoughtHeader, ThinkingDots } from './thought-timeline';
+import {
+  MessageThoughtHeader,
+  ThinkingDots,
+  ThinkingIndicator,
+} from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -103,6 +109,8 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   onSavePrompt?: (messageId: string, content: string) => void;
   onUnsavePrompt?: (messageId: string) => void;
   isSavedPrompt?: boolean;
+  /** Stable list key from ChatMessages — survives pending→real id swaps. */
+  bubbleKey?: string;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
   /**
@@ -135,6 +143,14 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
    * signals "you". Undefined in 1:1 chat → no label, no layout change.
    */
   authorName?: string;
+  /** In-flight turn context for the optimistic shell and pre-answer gap. */
+  thinkingShell?: {
+    phase: 'routing' | 'thinking';
+    queued: boolean;
+    routedAgentName?: string;
+    routeReason?: RouteReason;
+    turnStartMs?: number;
+  };
 }
 
 function useMessageGallery(message: Message) {
@@ -204,6 +220,10 @@ function MessageBubbleComponent({
   isFreshSinceMount = false,
   isOwn,
   authorName,
+  thinkingShell,
+  // Consumed only by the React.memo comparator (stable identity across the
+  // shell→real swap); destructured so it stays out of restProps.
+  bubbleKey: _bubbleKey,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -224,8 +244,12 @@ function MessageBubbleComponent({
     // messages through (chat-messages.tsx coerces every non-user role
     // to 'assistant' for rendering, but the underlying `message.role`
     // is preserved here) and the chunker would synthesize system text
-    // intended for the model, not the user.
-    enabled: voiceMode.enabled && message.role === 'assistant',
+    // intended for the model, not the user. Skip optimistic shells —
+    // their ids are client-only placeholders.
+    enabled:
+      voiceMode.enabled &&
+      message.role === 'assistant' &&
+      !message.isOptimisticShell,
     messageId: message.id,
     threadId: message.threadId,
     organizationId,
@@ -547,6 +571,53 @@ function MessageBubbleComponent({
     messageSegments.hasReasoning ||
     messageSegments.toolCount > 0 ||
     messageSegments.skillCount > 0;
+
+  const needHandoffGate =
+    !isUser &&
+    !!isAssistantStreaming &&
+    !!displayContent &&
+    !hasThoughtSteps(stableParts) &&
+    !message.isOptimisticShell;
+  const { displayLength: handoffDisplayLength } = useStreamBuffer({
+    text: displayContent,
+    isStreaming: needHandoffGate,
+  });
+  const hasVisibleAnswer =
+    hasThoughtSteps(stableParts) ||
+    handoffDisplayLength > 0 ||
+    (!!message.fileParts?.length && !message.isOptimisticShell) ||
+    (!!message.attachments?.length && !message.isOptimisticShell);
+
+  const isEmptyStreamingSteerOwner =
+    !!isAssistantStreaming &&
+    !displayContent &&
+    !hasThoughtSteps(stableParts) &&
+    !message.isOptimisticShell &&
+    !message.isAborted &&
+    !message.isFailed;
+
+  const showPreAnswerThinking =
+    !isUser &&
+    !isBlocked &&
+    !hasActualThought &&
+    thinkingShell != null &&
+    (message.isOptimisticShell ||
+      isEmptyStreamingSteerOwner ||
+      (!!isAssistantStreaming &&
+        !!displayContent &&
+        !hasVisibleAnswer &&
+        !message.isOptimisticShell));
+
+  const preAnswerThinking = showPreAnswerThinking ? (
+    <ThinkingIndicator
+      key="pre-answer-thinking"
+      phase={thinkingShell.phase}
+      queued={thinkingShell.queued}
+      routedAgentName={thinkingShell.routedAgentName}
+      routeReason={thinkingShell.routeReason}
+      turnStartMs={thinkingShell.turnStartMs}
+    />
+  ) : null;
   // The header is the SINGLE thinking control: it owns the reasoning blocks (a
   // chevron reveals them all, in order) so they aren't repeated inline among the
   // answer/tool rows. The header renders exactly when `hasActualThought`; when
@@ -755,7 +826,8 @@ function MessageBubbleComponent({
             message.isAborted ||
             isBlocked ||
             showTimeline ||
-            showAuthorLabel) &&
+            showAuthorLabel ||
+            showPreAnswerThinking) &&
             'px-4 py-3',
         )}
       >
@@ -772,6 +844,7 @@ function MessageBubbleComponent({
             guardrails-blocked messages. The reasoning/tool DETAIL renders
             interleaved within the body below. Memoized so it doesn't re-render
             on every streamed token. */}
+        {preAnswerThinking}
         {thoughtHeader}
         {isBlocked && blockedReason ? (
           <BlockedNotice
@@ -1191,11 +1264,14 @@ export const MessageBubble = memo(
   MessageBubbleComponent,
   (prevProps, nextProps) => {
     return (
-      prevProps.message.id === nextProps.message.id &&
+      (prevProps.bubbleKey ?? prevProps.message.id) ===
+        (nextProps.bubbleKey ?? nextProps.message.id) &&
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
       prevProps.message.isAborted === nextProps.message.isAborted &&
       prevProps.message.isFailed === nextProps.message.isFailed &&
+      prevProps.message.isOptimisticShell ===
+        nextProps.message.isOptimisticShell &&
       sameAttachments(
         prevProps.message.attachments,
         nextProps.message.attachments,
@@ -1217,7 +1293,15 @@ export const MessageBubble = memo(
       prevProps.isLastAssistantMessage === nextProps.isLastAssistantMessage &&
       prevProps.isFreshSinceMount === nextProps.isFreshSinceMount &&
       prevProps.isOwn === nextProps.isOwn &&
-      prevProps.authorName === nextProps.authorName
+      prevProps.authorName === nextProps.authorName &&
+      prevProps.thinkingShell?.phase === nextProps.thinkingShell?.phase &&
+      prevProps.thinkingShell?.queued === nextProps.thinkingShell?.queued &&
+      prevProps.thinkingShell?.routedAgentName ===
+        nextProps.thinkingShell?.routedAgentName &&
+      prevProps.thinkingShell?.routeReason ===
+        nextProps.thinkingShell?.routeReason &&
+      prevProps.thinkingShell?.turnStartMs ===
+        nextProps.thinkingShell?.turnStartMs
     );
   },
 );

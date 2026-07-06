@@ -120,7 +120,14 @@ export function useAssistantChat({
   const messages = usePendingMessages({
     threadId: threadId ?? undefined,
     realMessages: rawMessages,
+    isSendPending: isPending,
   });
+
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
+    threadId && organizationId ? { threadId, organizationId } : 'skip',
+  );
+  const generationStartMs = threadMeta?.generationStartTime ?? null;
 
   const approvals = useThreadApprovals(organizationId, threadId ?? undefined);
   const { requests: resolvedHumanInputRequests } =
@@ -316,6 +323,7 @@ export function useAssistantChat({
     isLoadingMore,
     isLoading,
     isSendPending: isPending,
+    generationStartMs,
     inputValue,
     setInputValue,
     attachments,
