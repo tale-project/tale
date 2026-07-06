@@ -7,13 +7,17 @@ import type { RouteReason } from '../../utils/route-reason';
 import { activityLabel } from './activity-label';
 import { RoutingStepRow } from './step-rows';
 import { ThoughtHeader } from './thought-header';
-import { toSeconds, useThinkingTimer } from './use-thinking-timer';
+import {
+  toSeconds,
+  useThinkingTimer,
+  type ThinkingAnchor,
+} from './use-thinking-timer';
 
 /**
  * The post-send / resume gap affordance shown in the message list BEFORE the
  * assistant bubble exists. It renders the SAME `ThoughtHeader` strip the bubble
  * will render — same brain, same position, same ticking timer (anchored to the
- * shared server `turnStartMs`, so the clock continues seamlessly across the
+ * shared `anchor`, so the clock continues seamlessly across the
  * handoff) — plus the inline "Routed to X" chip once Auto routing resolves,
  * exactly as the bubble shows it via `MessageSegments`. Because the markup and
  * the timer are identical on both sides, the handoff has zero horizontal/
@@ -29,7 +33,7 @@ export function ThinkingIndicator({
   queued = false,
   routedAgentName,
   routeReason,
-  turnStartMs,
+  anchor,
 }: {
   className?: string;
   /** 'routing' while the Auto router is still deciding (no agent yet); 'thinking'
@@ -41,11 +45,11 @@ export function ThinkingIndicator({
   queued?: boolean;
   routedAgentName?: string;
   routeReason?: RouteReason;
-  turnStartMs?: number;
+  anchor?: ThinkingAnchor;
 }) {
   const { t } = useT('chat');
   // The gap is always a pre-answer "thinking" window, so the timer ticks.
-  const { liveElapsedMs } = useThinkingTimer(turnStartMs, true);
+  const { liveElapsedMs } = useThinkingTimer(anchor, true);
 
   // "Routing · Ns" while the router decides; "Thinking · Ns" once it has (or for
   // a pinned agent). Once resolved, chat-interface passes phase 'thinking' with

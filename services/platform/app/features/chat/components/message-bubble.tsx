@@ -86,6 +86,7 @@ import {
   ThinkingDots,
   ThinkingIndicator,
 } from './thought-timeline';
+import type { ThinkingAnchor } from './thought-timeline/use-thinking-timer';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -149,7 +150,7 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
     queued: boolean;
     routedAgentName?: string;
     routeReason?: RouteReason;
-    turnStartMs?: number;
+    anchor?: ThinkingAnchor;
   };
 }
 
@@ -343,11 +344,11 @@ function MessageBubbleComponent({
   // This also closes the brief window where a short answer has finished
   // streaming (isStreaming flipped false) but its metadata hasn't propagated.
   const threadLiveRoute = useThreadLiveRoute();
-  // The in-flight turn's server start, shared with the gap shell so the
-  // in-bubble timeline's live timer continues the SAME clock (no reset at the
-  // handoff). Null on idle threads / history bubbles — those read the persisted
-  // thinkingDurationMs instead.
-  const turnStartMs = useThreadGenerationStart() ?? undefined;
+  // The in-flight turn's thinking-timer anchor, shared with the gap shell so the
+  // in-bubble timeline's live timer continues the SAME client-frame clock (no
+  // reset/rewind at the handoff). Null on idle threads / history bubbles — those
+  // read the persisted thinkingDurationMs instead.
+  const anchor = useThreadGenerationStart() ?? undefined;
   const liveRouteForBubble =
     isAssistantStreaming || !metadata ? threadLiveRoute : null;
   // Latch the live route per-bubble: at turn-end the live route is cleared (its
@@ -615,7 +616,7 @@ function MessageBubbleComponent({
       queued={thinkingShell.queued}
       routedAgentName={thinkingShell.routedAgentName}
       routeReason={thinkingShell.routeReason}
-      turnStartMs={thinkingShell.turnStartMs}
+      anchor={thinkingShell.anchor}
     />
   ) : null;
   // The header is the SINGLE thinking control: it owns the reasoning blocks (a
@@ -651,7 +652,7 @@ function MessageBubbleComponent({
           toolCount={messageSegments.toolCount}
           skillCount={messageSegments.skillCount}
           hasReasoning={messageSegments.hasReasoning}
-          turnStartMs={turnStartMs}
+          anchor={anchor}
           reasoningSteps={reasoningSteps}
         />
       ) : null,
@@ -663,7 +664,7 @@ function MessageBubbleComponent({
       timeToFirstTokenMs,
       outputTokens,
       messageSegments,
-      turnStartMs,
+      anchor,
       reasoningSteps,
     ],
   );
@@ -1300,8 +1301,7 @@ export const MessageBubble = memo(
         nextProps.thinkingShell?.routedAgentName &&
       prevProps.thinkingShell?.routeReason ===
         nextProps.thinkingShell?.routeReason &&
-      prevProps.thinkingShell?.turnStartMs ===
-        nextProps.thinkingShell?.turnStartMs
+      prevProps.thinkingShell?.anchor === nextProps.thinkingShell?.anchor
     );
   },
 );

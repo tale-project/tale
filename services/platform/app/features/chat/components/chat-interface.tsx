@@ -15,6 +15,10 @@ import {
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { PageDropOverlay } from '@/app/components/ui/page-drop-overlay';
+import {
+  useClockOffset,
+  useReportServerNow,
+} from '@/app/hooks/use-clock-offset';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePageFileDrop } from '@/app/hooks/use-page-file-drop';
@@ -98,6 +102,7 @@ import {
 } from './queued-message-tray';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { SteerStatusProvider } from './steer-status';
+import type { ThinkingAnchor } from './thought-timeline/use-thinking-timer';
 import { WelcomeView } from './welcome-view';
 
 const SavePromptDialog = lazyComponent<
@@ -324,6 +329,13 @@ export function ChatInterface({
       ? { threadId: dataThreadId, organizationId }
       : 'skip',
   );
+  // Feed the server clock into the offset authority from the subscription we
+  // already hold (no extra query). Every downstream timer/relative-time then
+  // runs in one clock frame instead of mixing a client wall clock with server
+  // epochs. `toClientEpoch` is used below to convert the server turn-start
+  // anchor for the reload/history fallback.
+  useReportServerNow(threadMeta?.serverNow);
+  const { toClientEpoch } = useClockOffset();
   const isGenerating = threadMeta?.isGenerating;
   const agentLingering = sessionProgress?.agentIdleAt != null;
   const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
@@ -519,8 +531,12 @@ export function ChatInterface({
         : null;
   clientTurnStartRef.current = clientTurnStartMs;
 
-  const effectiveGenerationStartMs = useMemo(() => {
-    if (generationStartMs === null) return clientTurnStartMs;
+  // Server turn-start CONVERTED into the client clock frame — the reload/history
+  // fallback (used only when there is no in-session client anchor). Keeps the
+  // follow-up (persist-at-pick) re-anchor: the latest current-turn user message's
+  // server time once the turn has >=2 user messages, else the turn start.
+  const serverStartClientMs = useMemo(() => {
+    if (generationStartMs === null) return null;
     let lastFollowUpMs: number | undefined;
     let currentTurnUserCount = 0;
     for (const msg of messages) {
@@ -533,10 +549,33 @@ export function ChatInterface({
         lastFollowUpMs = msg._creationTime;
       }
     }
-    return currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
-      ? lastFollowUpMs
-      : generationStartMs;
-  }, [generationStartMs, messages, clientTurnStartMs]);
+    const rawServer =
+      currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
+        ? lastFollowUpMs
+        : generationStartMs;
+    return toClientEpoch(rawServer);
+  }, [generationStartMs, messages, toClientEpoch]);
+
+  // The thinking-timer anchor. PREFER the immutable client send time whenever it
+  // exists this session: it is present for the whole in-flight turn (latched
+  // above) and advances to a follow-up's send time, so the live timer NEVER
+  // swaps from a client epoch to a server epoch mid-turn — the cause of the
+  // "Thinking · Ns" rewind. The server value (already client-frame) is used only
+  // on reload/history. `reanchorKey` flips only on a deliberate re-anchor (new
+  // turn / follow-up), which the timer latches on; unrelated recomputes don't.
+  const thinkingAnchor = useMemo<ThinkingAnchor>(() => {
+    const reanchorKey =
+      clientTurnStartMs !== null
+        ? `c:${clientTurnStartMs}`
+        : serverStartClientMs !== null
+          ? `s:${serverStartClientMs}`
+          : 'none';
+    return {
+      clientStartMs: clientTurnStartMs,
+      serverStartClientMs,
+      reanchorKey,
+    };
+  }, [clientTurnStartMs, serverStartClientMs]);
 
   // Merge messages with approvals and human input requests
   const {
@@ -1278,7 +1317,7 @@ export function ChatInterface({
                 <ThreadMessageMetadataProvider
                   threadId={dataThreadId ?? null}
                   liveRoute={liveRoute ?? null}
-                  generationStartMs={effectiveGenerationStartMs}
+                  thinkingAnchor={thinkingAnchor}
                 >
                   <SteerStatusProvider
                     threadId={dataThreadId}
@@ -1295,7 +1334,7 @@ export function ChatInterface({
                       isSendPending={isSendPending}
                       isAutoRoute={isAutoRoute}
                       liveRoute={liveRoute}
-                      generationStartMs={effectiveGenerationStartMs}
+                      thinkingAnchor={thinkingAnchor}
                       isQueued={threadMeta?.isQueued ?? false}
                       liveAssistantMessageId={
                         sessionProgress?.status === 'running'

@@ -9,6 +9,7 @@ import { ChatMessages } from '@/app/features/chat/components/chat-messages';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { ThreadMessageMetadataProvider } from '@/app/features/chat/hooks/queries';
+import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssistantChat } from '../hooks/use-assistant-chat';
@@ -36,7 +37,7 @@ function AutomationAssistantContent({
     isLoadingMore,
     isLoading,
     isSendPending,
-    generationStartMs,
+    thinkingAnchor,
     inputValue,
     setInputValue,
     attachments,
@@ -88,7 +89,7 @@ function AutomationAssistantContent({
         >
           <ThreadMessageMetadataProvider
             threadId={threadId}
-            generationStartMs={generationStartMs}
+            thinkingAnchor={thinkingAnchor}
           >
             <ChatMessages
               items={items}
@@ -99,7 +100,7 @@ function AutomationAssistantContent({
               loadMore={loadMore}
               isLoading={isLoading}
               isSendPending={isSendPending}
-              generationStartMs={generationStartMs}
+              thinkingAnchor={thinkingAnchor}
               lastUserMessageRef={lastUserMessageRef}
               containerRef={containerRef}
               activeApproval={activeApproval}
@@ -145,9 +146,11 @@ export function AutomationAssistant(props: AutomationAssistantProps) {
   // live on separate routes, so they never mount simultaneously.
   return (
     <ChatLayoutProvider organizationId={props.organizationId}>
-      <FileUpload.Root>
-        <AutomationAssistantContent {...props} />
-      </FileUpload.Root>
+      <ClockOffsetProvider>
+        <FileUpload.Root>
+          <AutomationAssistantContent {...props} />
+        </FileUpload.Root>
+      </ClockOffsetProvider>
     </ChatLayoutProvider>
   );
 }
