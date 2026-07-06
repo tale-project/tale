@@ -150,6 +150,56 @@ await assertOk(
 await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
 await assertOk('hermes --version runs', 10001, 'hermes --version');
+// The wrapper's hermes-agent integration: ast-parse tale-hermes-run (also
+// proves it is valid Python), collect every kwarg it passes to AIAgent(...)
+// and agent.run_conversation(...), and assert the PINNED hermes-agent's real
+// signatures accept them — a version bump that renames/removes a kwarg fails
+// here instead of at the first real run. No model call, no key needed.
+{
+  const sigCheck = `
+import ast, inspect
+
+from run_agent import AIAgent
+
+src = open("/usr/local/bin/tale-hermes-run").read()
+tree = ast.parse(src)  # SyntaxError here = broken wrapper
+
+def kwargs_of(pred):
+    return {
+        kw.arg
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and pred(node.func)
+        for kw in node.keywords
+        if kw.arg is not None
+    }
+
+def accepts(sig, passed):
+    var_kw = any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+    )
+    return sorted(k for k in passed if k not in sig.parameters and not var_kw)
+
+ctor = kwargs_of(lambda f: isinstance(f, ast.Name) and f.id == "AIAgent")
+assert ctor, "no AIAgent(...) call found in tale-hermes-run"
+missing = accepts(inspect.signature(AIAgent.__init__), ctor)
+assert not missing, f"AIAgent.__init__ rejects wrapper kwargs: {missing}"
+
+run = kwargs_of(
+    lambda f: isinstance(f, ast.Attribute) and f.attr == "run_conversation"
+)
+assert run, "no run_conversation(...) call found in tale-hermes-run"
+missing = accepts(inspect.signature(AIAgent.run_conversation), run)
+assert not missing, f"run_conversation rejects wrapper kwargs: {missing}"
+
+print("HERMES_WRAPPER_SIGNATURE_OK")
+`;
+  await assertContains(
+    'tale-hermes-run kwargs match the pinned hermes-agent signatures',
+    10001,
+    'HERMES_WRAPPER_SIGNATURE_OK',
+    `python3 - <<'PYEOF'\n${sigCheck}\nPYEOF`,
+  );
+}
 await assertOk('agent on PATH', 10001, 'command -v agent');
 await assertOk('agent --version runs', 10001, 'agent --version');
 // HOME on the workspace volume must be writable for agent state.
