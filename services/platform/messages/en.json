@@ -581,11 +581,10 @@
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
       "ssoTitle": "Sign in with SSO",
-      "ssoDescription": "Enter your organization email address — it selects your organization's sign-in.",
+      "ssoDescription": "Choose your organization to continue with SSO.",
+      "ssoOrgListLabel": "Organizations",
       "ssoBackToLogin": "Back to log in",
-      "ssoPickOrganization": "Or choose your organization",
-      "ssoEmailRequired": "Enter your organization email address to continue with SSO.",
-      "ssoEmailNoMatch": "Single sign-on is not set up for this email domain. Check the address, or contact your administrator.",
+      "ssoNoOrganizations": "No organizations are available for sign-in. Contact your administrator.",
       "continueWithPasskey": "Sign in with a passkey",
       "passkeyFailed": "Passkey sign-in failed or was cancelled. Try again or use your password.",
       "wrongCredentials": "Wrong email or password",
@@ -980,7 +979,7 @@
     "uploadDialog": {
       "menuItem": "Upload file",
       "title": "Upload automations",
-      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "description": "Drop workflow JSON files or a .zip archive. Each .json installs as a separate automation. To import a folder, use the link below the drop zone.",
       "toastSuccess": "Automations imported"
     },
     "templates": {
@@ -1332,7 +1331,7 @@
       "noResults": "No agents found",
       "addAgent": "Catalog",
       "lockedExternal": "This chat runs in a sandbox and keeps its agent — start a new chat to use a different one.",
-      "lockedExternalLabel": "Agent: {{agent}} (pinned for this sandbox chat)"
+      "lockedExternalLabel": "Agent: {agent} (pinned for this sandbox chat)"
     },
     "modelSelector": {
       "label": "Select model",
@@ -1416,7 +1415,10 @@
     "hideSearch": "Hide search",
     "showHistory": "Show chats",
     "hideHistory": "Hide chats",
-    "chatHistory": "Chats",
+    "unifiedSidebar": {
+      "title": "Menu",
+      "landmark": "Dashboard sidebar"
+    },
     "newProject": "New project",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
@@ -1798,19 +1800,6 @@
       "verdictRecorded": "Verdict recorded",
       "verdictError": "Failed to record verdict"
     },
-    "humanControl": {
-      "cardTitle": "The agent needs your help in the browser",
-      "takeControl": "Take control",
-      "takeControlHint": "Take control to complete this step in the live browser, then hand it back.",
-      "controllingHint": "You're driving the browser. Finish the step, then return control to resume the agent.",
-      "returnControl": "Done — return control",
-      "errorAlreadyResolved": "This handoff was already resolved.",
-      "errorTurnRunning": "The agent is already running again.",
-      "errorReturnFailed": "Couldn't return control. Please try again.",
-      "statusReturned": "Control returned — the agent resumed.",
-      "statusSuperseded": "Replaced by a newer request.",
-      "statusTimedOut": "No one took control — the agent moved on."
-    },
     "canvas": {
       "title": "Canvas",
       "error": "Could not load this file.",
@@ -2037,10 +2026,10 @@
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload",
-      "acceptHint": "JSON files, folders, or .zip archives",
-      "pickFiles": "Choose files",
-      "pickFolder": "Choose folder",
-      "pickZip": "Choose zip",
+      "dropOrClick": "Drop JSON files or .zip here",
+      "acceptHint": "JSON files or .zip archives",
+      "uploadFolderInstead": "Upload a folder instead",
+      "importBlocked": "Nothing ready to import. Fix invalid files above, or adjust overwrite settings for conflicts.",
       "summary": "{total} entries · {saved} saved · {queued} pending",
       "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
       "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
@@ -2147,6 +2136,10 @@
       "noResults": "No results found",
       "tryAdjusting": "Try adjusting your search criteria",
       "placeholder": "Search..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention not recognized",
+      "unresolvedDescription": "{tokens} did not match anyone in your organization — no notification was sent."
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",
@@ -2562,7 +2555,10 @@
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
       "manageTeams": "Assign team",
-      "reindex": "Reindex"
+      "reindex": "Reindex",
+      "stopSync": "Stop syncing",
+      "stopSyncDone": "Syncing stopped. The imported files stay in your workspace.",
+      "stopSyncFailed": "Failed to stop syncing"
     },
     "folder": {
       "newFolder": "New folder",
@@ -4407,6 +4403,10 @@
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choose which events send you a notification."
+    },
     "environment": {
       "title": "Environment variables & secrets",
       "description": "Environment variables and secrets injected into your agent sandboxes."
@@ -4586,6 +4586,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choose which events appear in your bell inbox. Review requests always stay on — they are safety signals.",
+    "deliveryTitle": "Email delivery",
+    "deliveryDescription": "Actionable alerts (assignments, mentions, reviews, escalations) can also reach your inbox when this organization has a connected mailbox.",
+    "saveFailed": "Couldn't save your notification preferences.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Email me actionable alerts",
+        "description": "Send return-loop notifications to your account email via the organization's connected Gmail, Outlook, or SMTP mailbox."
+      },
+      "taskAssigned": {
+        "label": "Task assigned to me",
+        "description": "When a task is assigned to you."
+      },
+      "taskStatusChanged": {
+        "label": "Task status changed",
+        "description": "When a task you follow moves to a new status."
+      },
+      "taskCommented": {
+        "label": "New comment",
+        "description": "When someone comments on a task you follow."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "When someone @-mentions you."
+      },
+      "taskReview": {
+        "label": "Review requests",
+        "description": "When agent work is waiting for your review."
+      },
+      "escalation": {
+        "label": "Agent escalations",
+        "description": "When an agent escalates a task to a human."
+      },
+      "automationAlerts": {
+        "label": "Automation alerts",
+        "description": "Failures, budget warnings, and offline runtimes."
+      },
+      "digest": {
+        "label": "Digest",
+        "description": "Periodic summary of workforce activity."
+      },
+      "conversationMessages": {
+        "label": "Conversation messages",
+        "description": "When a customer message arrives in Conversations."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Unread",
@@ -4595,8 +4644,12 @@
     "emptyAllDescription": "Alerts and system updates will appear here when they arrive.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
+    "expand": "Expand",
     "filterUnread": "Unread",
     "filterAll": "All",
+    "sortLabel": "Sort",
+    "sortRecent": "Most recent",
+    "sortPriority": "Priority",
     "loadMore": "Load more",
     "loading": "Loading…",
     "newNotifications": "New notifications",
@@ -5420,6 +5473,9 @@
       "personalization": {
         "description": "How Tale adapts to you — memory, instructions, and voice."
       },
+      "notifications": {
+        "description": "Choose which events send you a notification."
+      },
       "environment": {
         "description": "Environment variables and secrets injected into your sandboxes."
       },
@@ -5701,7 +5757,7 @@
       "uploadDialog": {
         "menuItem": "Upload file",
         "title": "Upload agents",
-        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "description": "Drop agent JSON files or a .zip archive. Each .json installs as a separate agent. To import a folder, use the link below the drop zone.",
         "toastSuccess": "Agents imported"
       },
       "general": {
@@ -5748,6 +5804,8 @@
         "bindWorkflowsPlaceholder": "Bind workflows…",
         "sectionSkillBindings": "Bound skills",
         "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
+        "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",
+        "skillBindingsExternalNoCustomSkillsDescription": "No extra org skills to bind yet — workflow disciplines still load automatically. Create a custom skill in Skills settings if this agent needs one.",
         "skillBindingsCounter": "{count}/{max} bound",
         "skillBindingsToggleAria": "Bind {slug}",
         "skillBindingsAtCapReason": "Maximum {max} skills bound — unbind one to add another.",
@@ -5978,6 +6036,34 @@
         "name": "Skill",
         "description": "Description",
         "loadError": "Failed to read SKILL.md"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML syntax error (line {line})",
+        "yamlSyntax": "YAML syntax error in frontmatter",
+        "missingFrontmatter": "Missing YAML frontmatter",
+        "unclosedFrontmatter": "Unclosed YAML frontmatter",
+        "frontmatterTooLarge": "Frontmatter too large",
+        "invalidFrontmatter": "Invalid frontmatter",
+        "emptyFrontmatter": "Empty frontmatter",
+        "notFound": "SKILL.md not found",
+        "symlink": "SKILL.md is a symlink",
+        "inaccessible": "Couldn't read SKILL.md",
+        "generic": "Failed to read SKILL.md"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
+        "technicalDetails": "Technical details",
+        "title": {
+          "yamlSyntax": "Frontmatter couldn't be parsed",
+          "missingFrontmatter": "Frontmatter is missing",
+          "unclosedFrontmatter": "Frontmatter isn't closed",
+          "frontmatterTooLarge": "Frontmatter is too large",
+          "invalidFrontmatter": "Frontmatter is invalid",
+          "emptyFrontmatter": "Frontmatter is empty",
+          "symlink": "SKILL.md is a symlink",
+          "inaccessible": "Couldn't read this skill",
+          "generic": "This skill couldn't be loaded"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6244,8 +6330,6 @@
           "saml": "SAML 2.0"
         },
         "displayNameLabel": "Display name",
-        "domainLabel": "Email domain",
-        "domainHelp": "Optional — route users with this email domain to this connection.",
         "signInSection": "Sign-in",
         "issuerLabel": "Issuer URL",
         "authzEndpointLabel": "Authorization endpoint",
@@ -6319,10 +6403,6 @@
         },
         "redirectUrlLabel": "Redirect URL to register in Entra",
         "redirectUrlHelp": "Register this exact URL as a \"Web\" redirect URI in your app registration — it must byte-match (scheme, host, path, no trailing slash) or sign-in fails with AADSTS50011.",
-        "domainWarning": {
-          "title": "No email domain set",
-          "description": "Several organizations on this deployment use SSO. Without an email domain, sign-in cannot route members to this connection by address — it is instead listed publicly by its display name on the SSO screen."
-        },
         "deploymentWarning": {
           "title": "Deployment not fully configured for SSO",
           "callbackMissing": "The redirect URL is empty because SITE_URL is not set on the server. SSO sign-in will fail until it is configured.",
@@ -6340,7 +6420,8 @@
             "s4": "On the Overview page, copy the Application (client) ID and Directory (tenant) ID. The Issuer URL is https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Go to Certificates & secrets › New client secret and copy the secret Value (not the Secret ID).",
             "s6": "Enter the client ID, client secret, and issuer URL in the fields above.",
-            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent."
+            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent.",
+            "s8": "For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read and Sites.Read.All permissions under API permissions and grant admin consent. If you only want sign-in, remove the two scopes from the Scopes field above."
           },
           "google": {
             "intro": "Create an OAuth client in the Google Cloud Console, then paste its details below.",
@@ -7215,8 +7296,14 @@
     "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
+    "conversationInboundMessage": "New conversation message",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
     "agentEscalation": "Agent escalation",
-    "agentEscalationBody": "{agent} escalated: {reason}"
+    "agentEscalationBody": "{agent} escalated: {reason}",
+    "email": {
+      "cta": "Open in Tale",
+      "footer": "You received this email because you have notifications enabled in Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7323,6 +7410,9 @@
     },
     "board": {
       "noTasks": "No tasks"
+    },
+    "filters": {
+      "waitingOnMe": "Waiting on me"
     },
     "detail": {
       "overview": "Overview",

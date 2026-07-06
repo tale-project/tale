@@ -24,8 +24,9 @@ export async function initializeExecutionVariables(
 ): Promise<Record<string, unknown>> {
   // Determine wfDefinitionId: prefer wfDefinitionId, fallback to workflowSlug for inline workflows
   const wfDefinitionId = execution.wfDefinitionId ?? execution.workflowSlug;
-  // rootWfDefinitionId: root version of the workflow family (for tracking across versions)
-  const rootWfDefinitionId = execution.rootWfDefinitionId;
+  // File workflows have no version lineage row — slug is the stable family id.
+  const rootWfDefinitionId =
+    execution.rootWfDefinitionId ?? wfDefinitionId ?? execution.workflowSlug;
 
   const userId = execution.userId;
 
@@ -51,6 +52,9 @@ export async function initializeExecutionVariables(
     const inputRecord = isRecord(inputVars) ? inputVars : {};
     fullVariables = {
       input: inputRecord,
+      // Workflow config variables are namespaced under `config` — templates
+      // reference them as `{{config.backoffHours}}` (bare `{{backoffHours}}`
+      // is rejected by validateVariableReferencesKnownSources).
       config: workflowConfig?.config?.variables ?? {},
       organizationId: args.organizationId,
       userId,

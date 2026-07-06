@@ -10,6 +10,7 @@ import type {
   CredentialPolicy,
   SessionExecSpec,
 } from '../types';
+import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../types';
 import { DEFAULT_MAX_TURNS } from '../types';
 import { ClaudeCodeParser } from './parse';
 import { buildStdinUserMessage } from './stdin';
@@ -59,32 +60,36 @@ const PLAYWRIGHT_MCP_CDP_SERVER = {
   args: ['--cdp-endpoint', 'http://127.0.0.1:9222'],
 };
 
-/** Human-control bridge (browserCdp only). A dependency-free stdio shim that
- * exposes `request_human_control({reason})`. The tool makes NO network call —
- * the platform observes the tool_use in stream-json (run_agent) and raises a
- * take-control card + parks the turn. Only meaningful when the live headed
- * browser exists (browserCdp), since a human drives it via the x11vnc path. */
-const HUMAN_CONTROL_MCP_SERVER = {
-  command: 'tale-human-control-mcp',
-};
-
 /** Model families whose context window Claude Code expands to 1M when the model
  * string carries a trailing `[1m]` marker. Haiku is 200K-only and is left
  * untouched (it would just ignore the marker). */
 const CONTEXT_1M_FAMILIES = ['opus', 'sonnet', 'fable'] as const;
 
+/** True when the model id is a sandbox-LLM-gateway ref (`provider/model…`)
+ * rather than a vendor-native Claude Code id (`claude-*`). The `[1m]` window
+ * marker only applies to the latter — CC strips it via normalizeModelStringForAPI
+ * before the request, but gateway refs are passed through verbatim to the VK
+ * allowlist; appending `[1m]` breaks resolution and no completion reaches the
+ * gateway (#2396). */
+function isGatewayModelRef(model: string): boolean {
+  return model.includes('/');
+}
+
 /** Default the in-sandbox agent to the maximum (1M) context window. Claude Code
  * gates its 1M window on a `[1m]` suffix on the model string, and strips that
  * suffix via its own normalizeModelStringForAPI BEFORE the request — so the
  * gateway / single-model virtual-key allowlist only ever sees the bare model id
- * (appending it cannot 404 the VK). 1M carries no long-context premium on
- * current Opus, so it is on by default; an operator can force the 200K default
- * back with TALE_SANDBOX_CONTEXT_1M=0, and a model string that already encodes a
- * window (`…[1m]`) is left as-is. (Reasoning depth is the separate
- * CLAUDE_CODE_EFFORT_LEVEL knob — set as an overridable env floor in the sandbox
- * image, NOT here: a per-exec env value would override the user's session env.) */
+ * (appending it cannot 404 the VK). Gateway-routed refs (`openrouter/…`) skip
+ * the marker — CC does not strip it from slash-qualified ids. 1M carries no
+ * long-context premium on current Opus, so it is on by default; an operator
+ * can force the 200K default back with TALE_SANDBOX_CONTEXT_1M=0, and a model
+ * string that already encodes a window (`…[1m]`) is left as-is. (Reasoning depth
+ * is the separate CLAUDE_CODE_EFFORT_LEVEL knob — set as an overridable env
+ * floor in the sandbox image, NOT here: a per-exec env value would override the
+ * user's session env.) */
 function withMaxContext(model: string): string {
   if (process.env.TALE_SANDBOX_CONTEXT_1M === '0') return model;
+  if (isGatewayModelRef(model)) return model;
   const lower = model.toLowerCase();
   if (lower.includes('[1m]')) return model; // caller already chose a window
   if (!CONTEXT_1M_FAMILIES.some((family) => lower.includes(family))) {
@@ -158,6 +163,7 @@ const CAPABILITIES: AgentCapabilities = {
   supportsAttachmentDirs: true,
   supportsIntegrationsBridge: true,
   supportsVisionPolyfill: true,
+  skillsStageDir: CLAUDE_COMPAT_SKILLS_STAGE_DIR,
 };
 
 const CREDENTIAL_ENV_KEYS = [
@@ -260,13 +266,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
             args: [...browserServer.args, '--image-responses', 'omit'],
           }
         : browserServer;
-      // Human takeover only applies to the live headed browser (browserCdp) —
-      // that's the one a human can drive via x11vnc. The self-launched headless
-      // browser has no VNC surface, so the tool would be a dead end there.
-      // Autonomous runs have no human to take over, so the tool is never offered.
-      if (spec.browserCdp === true && spec.interactionMode !== 'autonomous') {
-        mcpServers.humanControl = HUMAN_CONTROL_MCP_SERVER;
-      }
     }
     if (spec.integrationsBaseUrl && spec.gateway) {
       // The integration-dispatch bridge — lets the agent use the org's connected

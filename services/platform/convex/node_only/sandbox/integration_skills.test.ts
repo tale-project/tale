@@ -5,8 +5,34 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
+import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../../../lib/agent-adapters/types';
+import { REPO_SKILL_DIRS } from './integration_skills';
+
+describe('REPO_SKILL_DIRS', () => {
+  it('covers every known project-level skill convention', () => {
+    expect(REPO_SKILL_DIRS).toEqual([
+      'workspace/.claude/skills',
+      'workspace/.codex/skills',
+      'workspace/.cursor/skills',
+      'workspace/.agents/skills',
+      'workspace/.opencode/skills',
+      'workspace/.pi/skills',
+    ]);
+  });
+});
+
 import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
 import { buildIntegrationSkillMd } from './integration_skills';
+
+describe('getSkillsStageDir', () => {
+  it('returns the Claude-compat dir for supported external runtimes', () => {
+    expect(getSkillsStageDir('claude-code')).toBe(
+      CLAUDE_COMPAT_SKILLS_STAGE_DIR,
+    );
+    expect(getSkillsStageDir('cursor')).toBe(CLAUDE_COMPAT_SKILLS_STAGE_DIR);
+  });
+});
 
 const tavily: IntegrationCatalogEntry = {
   slug: 'tavily',

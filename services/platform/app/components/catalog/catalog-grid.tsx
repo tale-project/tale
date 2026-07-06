@@ -5,6 +5,9 @@ import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+/** Dark-mode fill — matches elevated panels (`bg-card`, same as dropdowns). */
+const catalogCardSurfaceClass = 'dark:bg-card';
+
 /**
  * Shared catalog UI — one compact, equal-height card and the responsive grid
  * that lays them out. Used by every "browse and act" surface (the integrations,
@@ -94,10 +97,10 @@ export function CatalogCard({
         </div>
       </div>
       {meta ? (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">{meta}</div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>
       ) : null}
       {actions ? (
-        <div className="mt-auto flex w-full items-center gap-2 pt-4">
+        <div className="mt-auto flex items-center justify-end gap-2 pt-3">
           {actions}
         </div>
       ) : null}
@@ -110,7 +113,12 @@ export function CatalogCard({
         asChild
         interactive
         padding="md"
-        className={cn('h-full', active && 'ring-2 ring-primary', className)}
+        className={cn(
+          'h-full',
+          catalogCardSurfaceClass,
+          active && 'ring-2 ring-primary',
+          className,
+        )}
       >
         <button
           type="button"
@@ -130,6 +138,7 @@ export function CatalogCard({
       padding="md"
       className={cn(
         'flex h-full flex-col',
+        catalogCardSurfaceClass,
         active && 'ring-2 ring-primary',
         className,
       )}

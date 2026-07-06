@@ -6,6 +6,7 @@ import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
 import { signValue } from '../sign_cookie_value';
 import type { SsoPromptMode } from '../types';
+import { recordSsoLoginFailure } from './login_audit';
 import { redirectWithError } from './redirect_with_error';
 
 const VALID_PROMPTS: Record<string, SsoPromptMode> = {
@@ -39,9 +40,15 @@ export async function ssoAuthorizeHandler(
   // browser), so the redirect prefers the public SITE_URL.
   const normalizedOrigin = normalizeOrigin(new URL(req.url).origin);
   const publicOrigin = process.env.SITE_URL || normalizedOrigin;
+  // Hoisted so the catch can write a durable audit row for the failed attempt
+  // (populated as the login hint and connection are resolved below).
+  let resolvedOrganizationId: string | undefined;
+  let resolvedProviderId: string | undefined;
+  let attemptedEmail: string | undefined;
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
+    attemptedEmail = email ?? undefined;
     const organizationId = url.searchParams.get('organizationId') || undefined;
     const promptParam = url.searchParams.get('prompt');
     const seamlessParam = url.searchParams.get('seamless');
@@ -63,13 +70,14 @@ export async function ssoAuthorizeHandler(
     if (config === 'ambiguous') {
       // Several orgs have SSO enabled and this request carried no org context.
       // Never guess a connection (that sends the user to another org's IdP) —
-      // bounce to the login page and ask for the organization email, which
-      // routes via /api/sso/discover.
+      // bounce to the login page and ask the user to pick their organization.
       return redirectWithError(publicOrigin, 'sso.errors.multipleConnections');
     }
     if (!config) {
       return new Response('No SSO configuration found', { status: 404 });
     }
+    resolvedOrganizationId = config.organizationId;
+    resolvedProviderId = config.providerId;
 
     const adapter = getAdapter(config.providerId);
     if (!adapter) {
@@ -156,6 +164,14 @@ export async function ssoAuthorizeHandler(
     // A misconfigured issuer (extractTenantId throws) or any other unhandled
     // failure now lands readably on the login page instead of a raw 500 — the
     // real cause is logged above for the operator.
+    await recordSsoLoginFailure(ctx, {
+      organizationId: resolvedOrganizationId,
+      stage: 'authorize',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorKey: 'sso.errors.serverError',
+      attemptedEmail,
+      providerId: resolvedProviderId,
+    });
     return redirectWithError(publicOrigin, 'sso.errors.serverError');
   }
 }

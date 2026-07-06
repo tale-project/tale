@@ -21,6 +21,7 @@ type HandleSsoLoginArgs = {
   accessToken: string;
   refreshToken?: string;
   accessTokenExpiresAt?: number;
+  scope?: string;
   organizationId: string;
 };
 
@@ -77,6 +78,7 @@ export async function handleSsoLogin(
         accessToken: args.accessToken,
         refreshToken: args.refreshToken,
         accessTokenExpiresAt: args.accessTokenExpiresAt,
+        scope: args.scope,
         organizationId: args.organizationId,
         role,
         // IdP is authoritative for roles when auto-assign is on — keep an

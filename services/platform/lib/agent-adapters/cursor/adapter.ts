@@ -10,6 +10,7 @@ import type {
   CredentialPolicy,
   SessionExecSpec,
 } from '../types';
+import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../types';
 import { CursorParser } from './parse';
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
@@ -30,6 +31,8 @@ const CAPABILITIES: AgentCapabilities = {
   supportsAttachmentDirs: false,
   supportsIntegrationsBridge: false,
   supportsVisionPolyfill: false,
+  // Cursor scans ~/.claude/skills via compatibility (also native ~/.cursor/skills).
+  skillsStageDir: CLAUDE_COMPAT_SKILLS_STAGE_DIR,
 };
 
 const CREDENTIAL_ENV_KEYS = ['CURSOR_API_KEY'] as const;

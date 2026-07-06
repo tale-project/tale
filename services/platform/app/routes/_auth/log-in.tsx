@@ -18,6 +18,7 @@ import { Label } from '@/app/components/ui/forms/label';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { ConditionalAccessError } from '@/app/features/auth/components/conditional-access-error';
+import { SsoOrgPicker } from '@/app/features/auth/components/sso-org-picker';
 import {
   useHasAnyUsers,
   useIsSsoConfigured,
@@ -30,7 +31,6 @@ import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeInternalRedirect } from '@/lib/shared/utils/safe-redirect';
 import { seo } from '@/lib/utils/seo';
-import { getString, isRecord } from '@/lib/utils/type-utils';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
@@ -48,9 +48,8 @@ const searchSchema = z.object({
   error: z.string().optional().catch(undefined),
   error_code: z.string().optional().catch(undefined),
   recovery: z.string().optional().catch(undefined),
-  // `method=sso` renders the dedicated SSO step (organization email → routed
-  // to the org's IdP). Entered from the SSO button when several orgs have SSO
-  // enabled — an SSO user never touches the credential form.
+  // `method=sso` renders the dedicated SSO org-picker step. Entered from the
+  // SSO button when several orgs have SSO enabled.
   method: z.literal('sso').optional().catch(undefined),
 });
 
@@ -115,8 +114,6 @@ export function LogInPage() {
 
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
-  // Connections without an email domain can't be reached by email routing —
-  // the SSO step offers them as a manual choice instead.
   const { data: selectableOrgs } = useSsoSelectableOrgs();
 
   // When trusted headers auth is enabled, the reverse proxy has already
@@ -185,11 +182,6 @@ export function LogInPage() {
   });
 
   const [loginError, setLoginError] = useState<string | null>(null);
-  // The dedicated SSO step (`?method=sso`): its own email field — an SSO user
-  // never touches the credential form — plus inline guidance when the address
-  // is missing or no connection matches its domain.
-  const [ssoEmail, setSsoEmail] = useState('');
-  const [ssoEmailHint, setSsoEmailHint] = useState<string | null>(null);
   // Standing, count-free advisory shown on a failed credential attempt. We
   // deliberately never reveal attempts-remaining: a live counter would break
   // the uniform "wrong email or password" response and hand an attacker both
@@ -317,95 +309,40 @@ export function LogInPage() {
     }
   };
 
-  // Discover the org by email domain (#2082) and hand the browser to the IdP.
-  // Returns false when several connections exist and none matches — the
-  // authorize endpoint would refuse to guess, so the caller asks for a
-  // correction instead of round-tripping into a bounce.
+  // Single-connection deployments only: hand the browser to the IdP. Multi-org
+  // deployments step into the org picker instead — never guess a connection.
   const redirectToSso = useCallback(
-    async (email: string): Promise<boolean> => {
+    async (email: string): Promise<void> => {
       const siteUrl = getEnv('SITE_URL');
       const basePath = getEnv('BASE_PATH');
       const base = `${siteUrl}${basePath}/http_api/api/sso`;
-      const multiple = ssoConfig?.multiple === true;
+      const protocol = ssoConfig?.providerType === 'saml' ? 'saml' : 'oidc';
 
-      let organizationId: string | undefined;
-      let protocol: string =
-        ssoConfig?.providerType === 'saml' ? 'saml' : 'oidc';
-      if (email) {
-        try {
-          const res = await fetch(`${base}/discover`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-          });
-          if (res.ok) {
-            const data: unknown = await res.json();
-            if (isRecord(data) && data.ssoEnabled === true) {
-              const orgId = getString(data, 'organizationId');
-              const proto = getString(data, 'protocol');
-              if (orgId) {
-                organizationId = orgId;
-                if (proto) protocol = proto;
-              }
-            }
-          }
-        } catch (error) {
-          console.warn(
-            '[sso] discovery failed; using default connection',
-            error,
-          );
-        }
-        if (multiple && !organizationId) return false;
-      }
-
-      // SAML uses SP-initiated redirect (AuthnRequest); OIDC/OAuth2 use the
-      // authorization-code flow via /authorize.
       if (protocol === 'saml') {
-        const samlUrl = new URL(`${base}/saml/login`);
-        if (organizationId) samlUrl.searchParams.set('org', organizationId);
-        window.location.href = samlUrl.toString();
-        return true;
+        window.location.href = `${base}/saml/login`;
+        return;
       }
       const authorizeUrl = new URL(`${base}/authorize`);
       authorizeUrl.searchParams.set('redirect_uri', `${base}/callback`);
-      if (email) authorizeUrl.searchParams.set('email', email);
-      if (organizationId) {
-        authorizeUrl.searchParams.set('organizationId', organizationId);
-      }
+      const trimmed = email.trim();
+      if (trimmed) authorizeUrl.searchParams.set('email', trimmed);
       window.location.href = authorizeUrl.toString();
-      return true;
     },
-    [ssoConfig?.providerType, ssoConfig?.multiple],
+    [ssoConfig?.providerType],
   );
 
   const handleSsoLogin = useCallback(async () => {
-    // With several orgs' connections enabled the organization email is the
-    // routing key — step into the dedicated SSO screen that asks for it. An
-    // SSO user never fills the credential form, so its email is not consulted.
     if (ssoConfig?.multiple === true) {
-      setSsoEmailHint(null);
       void navigate({
         to: '/log-in',
         search: (prev) => ({ ...prev, method: 'sso' }),
       });
       return;
     }
-    // Single connection: straight to the IdP, as before.
     await redirectToSso(form.getValues('email').trim());
   }, [ssoConfig?.multiple, navigate, redirectToSso, form]);
 
-  const handleSsoStepContinue = useCallback(async () => {
-    const email = ssoEmail.trim();
-    if (!email) {
-      setSsoEmailHint(t('login.ssoEmailRequired'));
-      return;
-    }
-    const routed = await redirectToSso(email);
-    if (!routed) setSsoEmailHint(t('login.ssoEmailNoMatch'));
-  }, [ssoEmail, redirectToSso, t]);
-
-  // Manual pick from the domain-less list: the org is explicit, so skip
-  // discovery and pin it straight on the sign-in URL.
+  // Org pick on the multi-org SSO step: pin the connection on the sign-in URL.
   const handleSsoOrgPick = useCallback(
     (organizationId: string, protocol: string) => {
       const siteUrl = getEnv('SITE_URL');
@@ -473,95 +410,22 @@ export function LogInPage() {
     return null;
   }
 
-  // Dedicated SSO step: only the organization email — it routes the sign-in
-  // to the right org's IdP. The credential form never appears here.
+  // Dedicated SSO step: pick the organization, then redirect to its IdP.
   if (method === 'sso') {
     return (
       <AuthFormLayout title={t('login.ssoTitle')}>
-        <Stack gap={6}>
-          <p className="text-muted-foreground text-center text-sm">
-            {t('login.ssoDescription')}
-          </p>
-          <FormSection>
-            <Form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleSsoStepContinue();
-              }}
+        <FormSection description={t('login.ssoDescription')}>
+          {selectableOrgs && selectableOrgs.length > 0 ? (
+            <SsoOrgPicker orgs={selectableOrgs} onPick={handleSsoOrgPick} />
+          ) : (
+            <p
+              role="alert"
+              className="text-muted-foreground text-center text-sm"
             >
-              <Input
-                id="sso-email"
-                type="email"
-                label={t('email')}
-                placeholder={t('emailPlaceholder')}
-                autoComplete="email"
-                className="shadow-xs"
-                value={ssoEmail}
-                onChange={(event) => {
-                  setSsoEmail(event.target.value);
-                  setSsoEmailHint(null);
-                }}
-              />
-              {ssoEmailHint && (
-                <p
-                  role="alert"
-                  aria-live="polite"
-                  className="text-destructive -mt-2.5 flex items-start gap-1.5 text-sm font-medium"
-                >
-                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {ssoEmailHint}
-                </p>
-              )}
-              <Button type="submit" fullWidth>
-                <span className="mr-3 inline-flex size-4">
-                  <MicrosoftIcon />
-                </span>
-                {t('login.continueWithSso')}
-              </Button>
-            </Form>
-          </FormSection>
-          {/* Connections without an email domain can never match an address —
-              offer them as an explicit choice instead of a dead end. */}
-          {selectableOrgs && selectableOrgs.length > 0 && (
-            <>
-              <div className="flex items-center gap-3" aria-hidden="true">
-                <span className="bg-border h-px flex-1" />
-                <span className="text-muted-foreground text-xs">
-                  {t('login.ssoPickOrganization')}
-                </span>
-                <span className="bg-border h-px flex-1" />
-              </div>
-              <Stack gap={3}>
-                {selectableOrgs.map((org) => (
-                  <Button
-                    key={org.organizationId}
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    onClick={() =>
-                      handleSsoOrgPick(org.organizationId, org.protocol)
-                    }
-                  >
-                    {org.displayName}
-                  </Button>
-                ))}
-              </Stack>
-            </>
+              {t('login.ssoNoOrganizations')}
+            </p>
           )}
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => {
-              setSsoEmailHint(null);
-              void navigate({
-                to: '/log-in',
-                search: (prev) => ({ ...prev, method: undefined }),
-              });
-            }}
-          >
-            {t('login.ssoBackToLogin')}
-          </Button>
-        </Stack>
+        </FormSection>
       </AuthFormLayout>
     );
   }

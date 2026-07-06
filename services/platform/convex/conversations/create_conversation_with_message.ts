@@ -11,6 +11,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import { emitEvent } from '../workflows/triggers/emit_event';
 import { createConversation } from './create_conversation';
 import type { CreateConversationArgs } from './types';
 
@@ -150,6 +151,16 @@ export async function createConversationWithMessage(
       sender: args.initialMessage.sender,
     },
   });
+
+  const message = await ctx.db.get(messageId);
+  const updatedConversation = await ctx.db.get(conversationId);
+  if (message && updatedConversation) {
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'conversation.message_received',
+      eventData: { conversation: updatedConversation, message },
+    });
+  }
 
   return {
     success: true,

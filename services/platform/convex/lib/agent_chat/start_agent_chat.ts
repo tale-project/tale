@@ -675,6 +675,7 @@ export async function startAgentChat(
         // The agent's integration allowlist becomes the session's dispatch grant
         // set (scope.integrationGrants), enforced by /api/integrations/execute.
         integrationBindings: enforcedConfig.integrationBindings ?? [],
+        skillBindings: enforcedConfig.skillBindings ?? [],
         // Chat attachments → staged into the sandbox + referenced by path in the
         // prompt (run_external_agent). Org-ownership already verified above.
         ...(actionAttachments !== undefined &&

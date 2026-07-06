@@ -15,6 +15,10 @@ import {
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { PageDropOverlay } from '@/app/components/ui/page-drop-overlay';
+import {
+  useClockOffset,
+  useReportServerNow,
+} from '@/app/hooks/use-clock-offset';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePageFileDrop } from '@/app/hooks/use-page-file-drop';
@@ -88,7 +92,6 @@ import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatMessagesSkeleton } from './chat-messages-skeleton';
 import { EditingBanner, imageRefToAttachment } from './editing-banner';
 import { useEffectiveEditingImage } from './editing-banner';
-import { HumanControlCard } from './human-control-card';
 import {
   ProviderSettingsToastAction,
   useCanManageProviders,
@@ -99,6 +102,7 @@ import {
 } from './queued-message-tray';
 import { SelectionQuoteButton } from './selection-quote-button';
 import { SteerStatusProvider } from './steer-status';
+import type { ThinkingAnchor } from './thought-timeline/use-thinking-timer';
 import { WelcomeView } from './welcome-view';
 
 const SavePromptDialog = lazyComponent<
@@ -314,6 +318,28 @@ export function ChatInterface({
     activeMessage,
   } = useMessageProcessing(dataThreadId);
 
+  const sessionProgress = useSessionProgress(dataThreadId);
+  const isSendPending = useIsSendPending(dataThreadId);
+
+  // Thread metadata (generation status + turn-start anchor). Pulled above
+  // usePendingMessages so the shell survives clearSendPending on fast threads.
+  const { data: threadMeta } = useConvexQuery(
+    api.threads.queries.getThreadMeta,
+    dataThreadId && organizationId
+      ? { threadId: dataThreadId, organizationId }
+      : 'skip',
+  );
+  // Feed the server clock into the offset authority from the subscription we
+  // already hold (no extra query). Every downstream timer/relative-time then
+  // runs in one clock frame instead of mixing a client wall clock with server
+  // epochs. `toClientEpoch` is used below to convert the server turn-start
+  // anchor for the reload/history fallback.
+  useReportServerNow(threadMeta?.serverNow);
+  const { toClientEpoch } = useClockOffset();
+  const isGenerating = threadMeta?.isGenerating;
+  const agentLingering = sessionProgress?.agentIdleAt != null;
+  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
+
   // Bridge the active message's live `file_write` tool calls into the
   // StreamingToolContext for the canvas pane. See hook.
   useStreamingToolBridge(activeMessage);
@@ -325,6 +351,13 @@ export function ChatInterface({
   const pendingMergedMessages = usePendingMessages({
     threadId: dataThreadId,
     realMessages: rawMessages,
+    isSendPending,
+    isAgentActivelyWorking: agentActivelyWorking,
+    liveAssistantMessageId:
+      sessionProgress?.status === 'running'
+        ? (sessionProgress.assistantMessageId ?? null)
+        : null,
+    suppressOptimisticShell: !!pendingMessage?.editedMessageId,
   });
   const messages = isArenaMode ? rawMessages : pendingMergedMessages;
 
@@ -457,7 +490,6 @@ export function ChatInterface({
     documentWriteApprovals,
     knowledgeWriteApprovals,
     planApprovals,
-    humanControlRequests,
   } = useThreadApprovals(organizationId, dataThreadId);
 
   // Resolved human-input requests — rendered inline in the history with the
@@ -466,22 +498,7 @@ export function ChatInterface({
   const { requests: resolvedHumanInputRequests } =
     useResolvedHumanInputRequests(organizationId, dataThreadId);
 
-  // Thread metadata (generation status + the server turn-start anchor for the
-  // "Thinking · Ns" timer). Pulled up here so the queued-message filter below
-  // can run before useMergedChatItems splices in approvals. forkInfo/liveRoute
-  // below read the same `threadMeta`.
-  const { data: threadMeta } = useConvexQuery(
-    api.threads.queries.getThreadMeta,
-    dataThreadId && organizationId
-      ? { threadId: dataThreadId, organizationId }
-      : 'skip',
-  );
-  const isGenerating = threadMeta?.isGenerating;
-  // The in-flight turn's server start (markGenerating, BEFORE Auto routing) —
-  // the authoritative anchor for the "Thinking · Ns" timer. Sharing ONE
-  // server clock across the gap shell and the in-bubble timeline is what keeps
-  // the timer from resetting at the routing→agent handoff and across the
-  // new-chat remount. Null on idle threads (gated server-side on isGenerating).
+  // generationStartMs — see agentActivelyWorking / threadMeta above.
   const generationStartMs = threadMeta?.generationStartTime ?? null;
 
   // A follow-up sent while a turn runs waits in the queue tray and enters the
@@ -494,7 +511,31 @@ export function ChatInterface({
   // includes the routing wait) for the first response. Completed bubbles latch
   // their own durations / use stored durationMs, so this only resets the
   // in-progress response's live timer.
-  const effectiveGenerationStartMs = useMemo(() => {
+  // ONE client clock for the whole in-flight turn, latched at send (the
+  // optimistic bubble's timestamp) and used until the server's
+  // generationStartTime arrives. Every thinking timer (gap-shell
+  // ThinkingIndicator + in-bubble MessageThoughtHeader) anchors to this same
+  // value, so the indicator→header handoff can't restart the count at "1s":
+  // each component's useThinkingTimer otherwise falls back to its OWN
+  // mount-time clock, and on a thread's FIRST message the cold threadMeta
+  // subscription guarantees the server anchor is still missing at handoff.
+  // (Render-time ref mutation is idempotent — same pattern as the key latches
+  // in chat-messages.)
+  const clientTurnStartRef = useRef<number | null>(null);
+  const turnInFlight = isSendPending || agentActivelyWorking;
+  const clientTurnStartMs =
+    pendingMessage && !pendingMessage.editedMessageId
+      ? pendingMessage.timestamp.getTime()
+      : turnInFlight
+        ? clientTurnStartRef.current
+        : null;
+  clientTurnStartRef.current = clientTurnStartMs;
+
+  // Server turn-start CONVERTED into the client clock frame — the reload/history
+  // fallback (used only when there is no in-session client anchor). Keeps the
+  // follow-up (persist-at-pick) re-anchor: the latest current-turn user message's
+  // server time once the turn has >=2 user messages, else the turn start.
+  const serverStartClientMs = useMemo(() => {
     if (generationStartMs === null) return null;
     let lastFollowUpMs: number | undefined;
     let currentTurnUserCount = 0;
@@ -508,10 +549,33 @@ export function ChatInterface({
         lastFollowUpMs = msg._creationTime;
       }
     }
-    return currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
-      ? lastFollowUpMs
-      : generationStartMs;
-  }, [generationStartMs, messages]);
+    const rawServer =
+      currentTurnUserCount >= 2 && lastFollowUpMs !== undefined
+        ? lastFollowUpMs
+        : generationStartMs;
+    return toClientEpoch(rawServer);
+  }, [generationStartMs, messages, toClientEpoch]);
+
+  // The thinking-timer anchor. PREFER the immutable client send time whenever it
+  // exists this session: it is present for the whole in-flight turn (latched
+  // above) and advances to a follow-up's send time, so the live timer NEVER
+  // swaps from a client epoch to a server epoch mid-turn — the cause of the
+  // "Thinking · Ns" rewind. The server value (already client-frame) is used only
+  // on reload/history. `reanchorKey` flips only on a deliberate re-anchor (new
+  // turn / follow-up), which the timer latches on; unrelated recomputes don't.
+  const thinkingAnchor = useMemo<ThinkingAnchor>(() => {
+    const reanchorKey =
+      clientTurnStartMs !== null
+        ? `c:${clientTurnStartMs}`
+        : serverStartClientMs !== null
+          ? `s:${serverStartClientMs}`
+          : 'none';
+    return {
+      clientStartMs: clientTurnStartMs,
+      serverStartClientMs,
+      reanchorKey,
+    };
+  }, [clientTurnStartMs, serverStartClientMs]);
 
   // Merge messages with approvals and human input requests
   const {
@@ -534,16 +598,6 @@ export function ChatInterface({
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
-
-  // External-agent browser handoff: while the agent is parked waiting for a
-  // human to drive the live browser, REPLACE the composer with the take-control
-  // card (the agent is stopped — typing does nothing useful). At most one is
-  // pending at a time (createHumanControlRequest supersedes older ones). Not
-  // anchored to a message: it lives in the composer slot, so a long thread that
-  // has paginated the requesting message out still shows it.
-  const pendingHumanControl = humanControlRequests.find(
-    (r) => r.status === 'pending' || r.status === 'executing',
-  );
 
   // Whole-page drag & drop: a file dropped ANYWHERE in the chat (not just the
   // composer's drop zone) attaches to the message being composed. Gate it
@@ -577,38 +631,6 @@ export function ChatInterface({
     const agent = agents?.find((a) => a.name === lr.agentSlug);
     return { agentName: agent?.displayName ?? lr.agentSlug, reason: lr.reason };
   }, [threadMeta?.liveRoute, agents]);
-
-  // Client-side optimistic flag — set on send click, released when the
-  // server subscription confirms or the send fails. Closes the ~200–550 ms
-  // gap between click and `chatWithAgent` completing `markGenerating`
-  // (Node action cold start + round trips). VISUAL state only.
-  const isSendPending = useIsSendPending(dataThreadId);
-
-  // The agent emitted its result but the process lingers on held-open stdin to
-  // receive more messages. The process is still alive (so the steer queue can
-  // still deliver), but the TURN is over — so this is NOT "working".
-  //
-  // Thread-based, and deliberately NOT gated on `isExternalAgentThread`: the
-  // lingering turn belongs to the THREAD, so the running-state must stay
-  // correct even when the user switches the composer to a DIFFERENT agent
-  // (e.g. a non-external one) while an external turn is still lingering —
-  // otherwise the Stop button / spinner / thinking dots would wrongly reappear.
-  // `useSessionProgress` returns null for threads with no sandbox op (normal
-  // chat), so this is simply false there.
-  const sessionProgress = useSessionProgress(dataThreadId);
-  const agentLingering = sessionProgress?.agentIdleAt != null;
-
-  // Canonical "Claude Code is actively working right now": a turn is in flight
-  // AND it is not merely lingering idle on held-open stdin after emitting its
-  // result. EVERY user-facing running-state indicator derives from this one
-  // rule — the composer spinner + Stop button (isLoading / onStopGenerating
-  // below), the message-stream thinking dots (ChatMessages `isLoading`), and
-  // the ambient Sandbox pill (sandbox-state-indicator, via the same
-  // `status === 'running' && agentIdleAt == null` test) — so the page always
-  // renders ONE consistent, real-time projection of the agent's state and the
-  // indicators can't drift (e.g. "finished" copy beside a live spinner). The
-  // lingering process is an instant-delivery mechanism, not "working".
-  const agentActivelyWorking = (isGenerating ?? false) && !agentLingering;
 
   // VISUAL busy state: actively working, or the optimistic pre-confirm window.
   const isLoading = agentActivelyWorking || isSendPending;
@@ -1039,6 +1061,7 @@ export function ChatInterface({
         timestamp: new Date(),
         editedMessageId: editingMessage.id,
       });
+      if (dataThreadId) markSendPending(dataThreadId);
 
       // Close inline editor so the optimistic content is visible
       setEditingMessage(null);
@@ -1118,6 +1141,7 @@ export function ChatInterface({
         timestamp: new Date(),
         editedMessageId: userMessage.id,
       });
+      if (dataThreadId) markSendPending(dataThreadId);
       // Glide like a normal send (smooth — see ChatScroll.scrollIntentRef).
       scrollIntentRef.current = 'smooth';
 
@@ -1293,7 +1317,7 @@ export function ChatInterface({
                 <ThreadMessageMetadataProvider
                   threadId={dataThreadId ?? null}
                   liveRoute={liveRoute ?? null}
-                  generationStartMs={effectiveGenerationStartMs}
+                  thinkingAnchor={thinkingAnchor}
                 >
                   <SteerStatusProvider
                     threadId={dataThreadId}
@@ -1310,7 +1334,7 @@ export function ChatInterface({
                       isSendPending={isSendPending}
                       isAutoRoute={isAutoRoute}
                       liveRoute={liveRoute}
-                      generationStartMs={effectiveGenerationStartMs}
+                      thinkingAnchor={thinkingAnchor}
                       isQueued={threadMeta?.isQueued ?? false}
                       liveAssistantMessageId={
                         sessionProgress?.status === 'running'
@@ -1420,97 +1444,86 @@ export function ChatInterface({
                   />
                 </div>
               )}
-              {pendingHumanControl ? (
-                <div className="mx-auto w-full max-w-(--chat-max-width) pb-3">
-                  <HumanControlCard
-                    approvalId={pendingHumanControl._id}
-                    organizationId={organizationId}
-                    status={pendingHumanControl.status}
-                    metadata={pendingHumanControl.metadata}
-                  />
-                </div>
-              ) : (
-                <ChatInput
-                  className="mx-auto w-full max-w-(--chat-max-width)"
-                  placeholder={
-                    queueModeActive
-                      ? agentLingering
-                        ? t('queue.placeholderIdle')
-                        : t('queue.placeholder')
-                      : isImageGenAgent
-                        ? activeEditingImage && currentModelSupportsEdit
-                          ? t('imageEdit.placeholder')
-                          : t('imageEdit.placeholderCreate')
-                        : t('placeholder')
-                  }
-                  value={inputValue}
-                  onChange={setInputValue}
-                  onSendMessage={handleSendMessage}
-                  onStopGenerating={
-                    agentActivelyWorking ? stopGenerating : undefined
-                  }
-                  isLoading={isLoading}
-                  queueModeActive={queueModeActive}
-                  disabled={hasNoAgents || hasActiveApproval}
-                  disabledReason={
-                    hasNoAgents
-                      ? 'no-agents'
-                      : hasActiveApproval
-                        ? 'pending-approval'
-                        : undefined
-                  }
-                  organizationId={organizationId}
-                  projectId={currentProjectId}
-                  threadId={dataThreadId}
-                  onComposerActivate={prewarmChatCache}
-                  attachments={attachments}
-                  uploadingFiles={uploadingFiles}
-                  uploadFiles={uploadFiles}
-                  cancelUpload={cancelUpload}
-                  removeAttachment={removeAttachment}
-                  clearAttachments={clearAttachments}
-                  fileUploadDisabled={fileUploadDisabled}
-                  isIndexing={isIndexing}
-                  indexingStatuses={indexingStatuses}
-                  isTranscribing={isTranscribing || isTranscriptionQueryLoading}
-                  transcriptionStatuses={transcriptionStatuses}
-                  hasFailedAudioJobs={hasFailedAudioJobs}
-                  retryAudioTranscription={retryAttachmentTranscription}
-                  videoLinkJobs={videoLinkJobs}
-                  isProcessingVideo={isProcessingVideo}
-                  hasFailedVideoJobs={hasFailedVideoJobs}
-                  ingestVideoUrlsFromText={ingestVideoUrlsFromText}
-                  cancelVideoJob={cancelVideoJob}
-                  retryVideoJob={retryVideoJob}
-                  sendBlocked={
-                    budgetExceeded ||
-                    imageEditBlocked ||
-                    activeModelMissingApiKey ||
-                    noProviderHasApiKey
-                  }
-                  sendBlockedReason={
-                    budgetExceeded
-                      ? t('budgetExceededDefault')
-                      : imageEditBlocked
-                        ? t('imageEdit.modelCannotEdit')
-                        : activeModelMissingApiKey
-                          ? t('modelSelector.noApiKey')
-                          : noProviderHasApiKey
-                            ? t('modelSelector.noProviderKey')
-                            : undefined
-                  }
-                  sendBlockedAction={sendBlockedAction}
-                  sendBlockedDescription={sendBlockedDescription}
-                  onSavePrompt={(content) =>
-                    setSavePromptData({ messageId: '', content })
-                  }
-                  onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
-                  kbMentions={kbMentions}
-                  addKbMention={addKbMention}
-                  removeKbMention={removeKbMention}
-                  clearKbMentions={clearKbMentions}
-                />
-              )}
+              <ChatInput
+                className="mx-auto w-full max-w-(--chat-max-width)"
+                placeholder={
+                  queueModeActive
+                    ? agentLingering
+                      ? t('queue.placeholderIdle')
+                      : t('queue.placeholder')
+                    : isImageGenAgent
+                      ? activeEditingImage && currentModelSupportsEdit
+                        ? t('imageEdit.placeholder')
+                        : t('imageEdit.placeholderCreate')
+                      : t('placeholder')
+                }
+                value={inputValue}
+                onChange={setInputValue}
+                onSendMessage={handleSendMessage}
+                onStopGenerating={
+                  agentActivelyWorking ? stopGenerating : undefined
+                }
+                isLoading={isLoading}
+                queueModeActive={queueModeActive}
+                disabled={hasNoAgents || hasActiveApproval}
+                disabledReason={
+                  hasNoAgents
+                    ? 'no-agents'
+                    : hasActiveApproval
+                      ? 'pending-approval'
+                      : undefined
+                }
+                organizationId={organizationId}
+                projectId={currentProjectId}
+                threadId={dataThreadId}
+                onComposerActivate={prewarmChatCache}
+                attachments={attachments}
+                uploadingFiles={uploadingFiles}
+                uploadFiles={uploadFiles}
+                cancelUpload={cancelUpload}
+                removeAttachment={removeAttachment}
+                clearAttachments={clearAttachments}
+                fileUploadDisabled={fileUploadDisabled}
+                isIndexing={isIndexing}
+                indexingStatuses={indexingStatuses}
+                isTranscribing={isTranscribing || isTranscriptionQueryLoading}
+                transcriptionStatuses={transcriptionStatuses}
+                hasFailedAudioJobs={hasFailedAudioJobs}
+                retryAudioTranscription={retryAttachmentTranscription}
+                videoLinkJobs={videoLinkJobs}
+                isProcessingVideo={isProcessingVideo}
+                hasFailedVideoJobs={hasFailedVideoJobs}
+                ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+                cancelVideoJob={cancelVideoJob}
+                retryVideoJob={retryVideoJob}
+                sendBlocked={
+                  budgetExceeded ||
+                  imageEditBlocked ||
+                  activeModelMissingApiKey ||
+                  noProviderHasApiKey
+                }
+                sendBlockedReason={
+                  budgetExceeded
+                    ? t('budgetExceededDefault')
+                    : imageEditBlocked
+                      ? t('imageEdit.modelCannotEdit')
+                      : activeModelMissingApiKey
+                        ? t('modelSelector.noApiKey')
+                        : noProviderHasApiKey
+                          ? t('modelSelector.noProviderKey')
+                          : undefined
+                }
+                sendBlockedAction={sendBlockedAction}
+                sendBlockedDescription={sendBlockedDescription}
+                onSavePrompt={(content) =>
+                  setSavePromptData({ messageId: '', content })
+                }
+                onOpenPromptLibrary={() => setPromptLibraryOpen(true)}
+                kbMentions={kbMentions}
+                addKbMention={addKbMention}
+                removeKbMention={removeKbMention}
+                clearKbMentions={clearKbMentions}
+              />
             </div>
           </FileUpload.Root>
         )}

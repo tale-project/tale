@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addedMentions,
   extractMentions,
+  findUnresolvedMentionTokens,
   parseMentionTokens,
   resolveMentions,
   type MentionDirectoryEntry,
@@ -91,6 +92,20 @@ describe('resolveMentions (permissiveAgents)', () => {
 
   it('stays strict when permissiveAgents is off', () => {
     expect(resolveMentions(['marketing-bot'], directory, false)).toEqual([]);
+  });
+});
+
+describe('findUnresolvedMentionTokens', () => {
+  it('returns tokens that did not resolve against the directory', () => {
+    expect(
+      findUnresolvedMentionTokens('@alice and @nobody', directory, false),
+    ).toEqual(['nobody']);
+  });
+
+  it('returns empty when permissiveAgents treats unknowns as agents', () => {
+    expect(
+      findUnresolvedMentionTokens('@unknown-bot', directory, true),
+    ).toEqual([]);
   });
 });
 

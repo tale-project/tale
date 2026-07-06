@@ -104,7 +104,7 @@ describe('updateDocumentInternal reindex gate', () => {
     });
   });
 
-  it('does NOT reindex when the current blob is not completed', async () => {
+  it('schedules first-time indexing when content changes on a queued blob', async () => {
     const { ctx, scheduled, patches } = createMockCtx(
       { ...baseDoc },
       { ragStatus: 'queued' },
@@ -116,8 +116,37 @@ describe('updateDocumentInternal reindex gate', () => {
       fileId: 's2' as never,
     });
 
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toEqual({ documentId: 'd1' });
+    expect(patches).toHaveLength(1);
+  });
+
+  it('does NOT index while a blob is actively running', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'running' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+    });
+
     expect(scheduled).toHaveLength(0);
-    expect(patches).toHaveLength(1); // patch still happens
+  });
+
+  it('schedules first-time indexing when content changes on a never-indexed doc', async () => {
+    const { ctx, scheduled } = createMockCtx({ ...baseDoc }, null);
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+    });
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toEqual({ documentId: 'd1' });
   });
 
   it('does NOT reindex a legacy completed doc with no fileMetadata row (migration window)', async () => {

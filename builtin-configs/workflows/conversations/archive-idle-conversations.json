@@ -51,8 +51,8 @@
         "parameters": {
           "operation": "find_unprocessed",
           "tableName": "conversations",
-          "backoffHours": "{{backoffHours}}",
-          "filterExpression": "status == \"closed\" && metadata.resolved_at && daysAgo(metadata.resolved_at) > {{staleDays}}"
+          "backoffHours": "{{config.backoffHours}}",
+          "filterExpression": "status == \"closed\" && metadata.resolved_at && daysAgo(metadata.resolved_at) > {{config.staleDays}}"
         }
       },
       "nextSteps": {
@@ -131,7 +131,7 @@
             "action": "archived",
             "resolvedAt": "{{resolvedAt}}",
             "archivedAt": "{{now}}",
-            "staleDays": "{{staleDays}}"
+            "staleDays": "{{config.staleDays}}"
           }
         }
       },

@@ -10,6 +10,7 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { queueActionableEmail } from './notify_email';
 
 type WorkforceNotificationType =
   | 'task_review_requested'
@@ -62,6 +63,17 @@ async function insertWorkforceNotification(
     actorId: args.actorId,
     read: false,
     createdAt: Date.now(),
+  });
+  await queueActionableEmail(ctx, {
+    userId: args.userId,
+    organizationId: args.organizationId,
+    type: args.type,
+    titleKey: args.titleKey,
+    bodyKey: args.bodyKey,
+    params: args.params,
+    resourceType: args.resourceType,
+    resourceId: args.resourceId,
+    taskId: args.taskId,
   });
 }
 

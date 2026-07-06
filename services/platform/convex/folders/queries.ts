@@ -39,7 +39,32 @@ export const listFolders = query({
       folders.push(folder);
     }
 
-    return folders;
+    // A folder backed by an active OneDrive sync config carries the config
+    // id so the UI can offer "stop syncing" and warn on delete. Configs
+    // store the hub path (itemPath), so map path → config once per page.
+    const configIdByPath = new Map<string, string>();
+    for await (const config of ctx.db
+      .query('onedriveSyncConfigs')
+      .withIndex('by_organizationId_and_status', (qb) =>
+        qb.eq('organizationId', args.organizationId).eq('status', 'active'),
+      )) {
+      if (config.itemPath) configIdByPath.set(config.itemPath, config._id);
+    }
+
+    const basePath =
+      configIdByPath.size > 0 && args.parentId
+        ? await buildFolderPath(ctx, args.parentId)
+        : undefined;
+
+    return folders.map(
+      (folder): Doc<'folders'> & { syncConfigId: string | undefined } => {
+        const path = basePath ? `${basePath}/${folder.name}` : folder.name;
+        return Object.assign(folder, {
+          syncConfigId:
+            configIdByPath.size > 0 ? configIdByPath.get(path) : undefined,
+        });
+      },
+    );
   },
 });
 

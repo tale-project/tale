@@ -19,6 +19,9 @@ type FindOrCreateSsoUserArgs = {
   accessToken: string;
   refreshToken?: string;
   accessTokenExpiresAt?: number;
+  /** Space-separated scopes granted with the access token (when the IdP
+   *  reports them) — lets Graph-backed features check for a specific grant. */
+  scope?: string;
   organizationId: string;
   role: PlatformRole;
   /**
@@ -104,6 +107,7 @@ export async function findOrCreateSsoUser(
             accessToken: args.accessToken,
             refreshToken: args.refreshToken ?? null,
             accessTokenExpiresAt: args.accessTokenExpiresAt ?? null,
+            scope: args.scope ?? null,
             createdAt: now,
             updatedAt: now,
           },
@@ -120,6 +124,7 @@ export async function findOrCreateSsoUser(
             accessToken: args.accessToken,
             refreshToken: args.refreshToken ?? null,
             accessTokenExpiresAt: args.accessTokenExpiresAt ?? null,
+            scope: args.scope ?? null,
             updatedAt: Date.now(),
           },
         },
@@ -241,6 +246,7 @@ export async function findOrCreateSsoUser(
         accessToken: args.accessToken,
         refreshToken: args.refreshToken ?? null,
         accessTokenExpiresAt: args.accessTokenExpiresAt ?? null,
+        scope: args.scope ?? null,
         createdAt: now,
         updatedAt: now,
       },
