@@ -526,15 +526,19 @@ export function DataTable<TData, TValue = unknown>({
     ) : null);
 
   // Empty states are intentionally button-less (icon + title + description only):
-  // the create affordance lives in the table header, not the empty body.
+  // the create affordance lives in the toolbar (with search/filters) or in a
+  // parent SettingsSection.action when the list has no toolbar chrome.
 
-  // Determine if we should render header
-  const hasHeader =
-    search ||
-    (filters && filters.length > 0) ||
-    dateRange ||
-    primaryAction ||
-    filtersContent;
+  const hasToolbarChrome =
+    !!search ||
+    !!(filters && filters.length > 0) ||
+    !!dateRange ||
+    !!filtersContent;
+
+  // Only render the toolbar row when there is search/filter chrome. A lone
+  // primary action without chrome belongs on SettingsSection.action — otherwise
+  // the button sits in an empty row between the section title and the table.
+  const hasHeader = hasToolbarChrome;
 
   // Build the header content
   const headerContent = hasHeader ? (

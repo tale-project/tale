@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { ProvidersTable } from '@/app/features/settings/providers/components/providers-table';
-import { useT } from '@/lib/i18n/client';
+import { ProvidersSettingsSection } from '@/app/features/settings/providers/components/providers-settings-section';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/providers/$providerName',
@@ -13,8 +11,6 @@ export const Route = createFileRoute(
 
 function ProviderDetailRoute() {
   const { id, providerName } = Route.useParams();
-  const { t: tNav } = useT('navigation');
-  const { t: tSettings } = useT('settings');
   // The provider detail page was collapsed into a right-side drawer opened
   // from the providers list — but the deep-link URL is preserved. Render the
   // list page with the drawer auto-opened for the requested provider so
@@ -24,15 +20,10 @@ function ProviderDetailRoute() {
   // none when the layout-route skeleton hands off to this view).
   return (
     <SettingsPage>
-      <SettingsSection
-        title={tNav('providers')}
-        description={tSettings('menu.providers.description')}
-      >
-        <ProvidersTable
-          organizationId={id}
-          initialDetailProvider={providerName}
-        />
-      </SettingsSection>
+      <ProvidersSettingsSection
+        organizationId={id}
+        initialDetailProvider={providerName}
+      />
     </SettingsPage>
   );
 }
