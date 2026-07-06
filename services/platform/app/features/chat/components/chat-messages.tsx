@@ -36,6 +36,7 @@ import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
 import { ModelFallbackNotice } from './model-fallback-notice';
+import type { ThinkingAnchor } from './thought-timeline/use-thinking-timer';
 import { VirtualizedChatMessageList } from './virtualized-chat-message-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
@@ -198,10 +199,11 @@ interface ChatMessagesProps {
    *  the thread's transient `liveRoute`), so the gap shell can show "Routed to X"
    *  as soon as the router decides instead of waiting for turn completion. */
   liveRoute?: { agentName: string; reason: RouteReason };
-  /** The in-flight turn's server start (`generationStartTime`), anchoring the
-   *  gap-shell "Thinking · Ns" timer to the same clock the in-bubble timeline
-   *  uses — so it neither resets at the handoff nor across the new-chat remount. */
-  generationStartMs?: number | null;
+  /** The in-flight turn's thinking-timer anchor (client-frame start + reload
+   *  fallback + re-anchor key), anchoring the gap-shell "Thinking · Ns" timer to
+   *  the same client-frame clock the in-bubble timeline uses — so it neither
+   *  resets at the handoff nor across the new-chat remount, and never rewinds. */
+  thinkingAnchor?: ThinkingAnchor | null;
   /** Park-on-capacity: the in-flight turn is waiting for a free sandbox slot, so
    *  the gap-shell shows "Queued for capacity" instead of "Thinking". */
   isQueued?: boolean;
@@ -268,7 +270,7 @@ export const ChatMessages = memo(function ChatMessages({
   isSendPending,
   isAutoRoute,
   liveRoute,
-  generationStartMs,
+  thinkingAnchor,
   isQueued,
   liveAssistantMessageId,
   lastUserMessageRef,
@@ -531,7 +533,7 @@ export const ChatMessages = memo(function ChatMessages({
         queued: boolean;
         routedAgentName?: string;
         routeReason?: RouteReason;
-        turnStartMs?: number;
+        anchor?: ThinkingAnchor;
       }
     | undefined => {
     const turnShellActive = items.some(
@@ -555,7 +557,7 @@ export const ChatMessages = memo(function ChatMessages({
       queued: isQueued ?? false,
       routedAgentName: liveRoute?.agentName,
       routeReason: liveRoute?.reason,
-      turnStartMs: generationStartMs ?? undefined,
+      anchor: thinkingAnchor ?? undefined,
     };
   }, [
     items,
@@ -565,7 +567,7 @@ export const ChatMessages = memo(function ChatMessages({
     isAutoRoute,
     liveRoute,
     isQueued,
-    generationStartMs,
+    thinkingAnchor,
   ]);
   // Tracks the pending key so the last user message keeps a stable React key
   // across the pending→real swap (prevents DOM teardown/rebuild flicker).

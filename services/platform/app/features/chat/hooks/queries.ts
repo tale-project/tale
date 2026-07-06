@@ -33,6 +33,7 @@ import type {
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import type { ThinkingAnchor } from '../components/thought-timeline/use-thinking-timer';
 import type { RouteReason } from '../utils/route-reason';
 
 export interface Thread {
@@ -934,13 +935,13 @@ export function useThreadLiveRoute(): ThreadLiveRoute | null {
   return useContext(ThreadLiveRouteContext);
 }
 
-/** The in-flight turn's server start (`generationStartTime`, stamped at
- *  markGenerating BEFORE Auto routing). The authoritative anchor for the live
- *  "Thinking · Ns" timer — identical across the gap-shell→bubble handoff and
- *  the new-chat remount, so the timer never resets. `null` on idle threads. */
-const ThreadGenerationStartContext = createContext<number | null>(null);
+/** The in-flight turn's thinking-timer anchor (client-frame start + reload
+ *  fallback + re-anchor key; see `ThinkingAnchor`). Shared by the gap shell and
+ *  the in-bubble header so the timer is identical across the handoff and the
+ *  new-chat remount, and never rewinds. `null` on idle threads. */
+const ThreadGenerationStartContext = createContext<ThinkingAnchor | null>(null);
 
-export function useThreadGenerationStart(): number | null {
+export function useThreadGenerationStart(): ThinkingAnchor | null {
   return useContext(ThreadGenerationStartContext);
 }
 
@@ -980,17 +981,18 @@ function useThreadMessageMetadata(
 export function ThreadMessageMetadataProvider({
   threadId,
   liveRoute = null,
-  generationStartMs = null,
+  thinkingAnchor = null,
   children,
 }: {
   threadId: string | null;
   /** The in-flight turn's resolved Auto route (slug→display-name mapped by the
    *  caller), exposed to streaming bubbles via `useThreadLiveRoute`. */
   liveRoute?: ThreadLiveRoute | null;
-  /** The in-flight turn's server start, exposed to bubbles via
+  /** The in-flight turn's thinking-timer anchor, exposed to bubbles via
    *  `useThreadGenerationStart` so the in-bubble timeline anchors its live timer
-   *  to the same clock as the gap shell (no reset across the handoff). */
-  generationStartMs?: number | null;
+   *  to the same client-frame clock as the gap shell (no reset/rewind across the
+   *  handoff). */
+  thinkingAnchor?: ThinkingAnchor | null;
   children: ReactNode;
 }) {
   const value = useThreadMessageMetadata(threadId);
@@ -1004,7 +1006,7 @@ export function ThreadMessageMetadataProvider({
       { value: liveRoute },
       createElement(
         ThreadGenerationStartContext.Provider,
-        { value: generationStartMs },
+        { value: thinkingAnchor },
         children,
       ),
     ),

@@ -78,6 +78,12 @@ export interface ChatMessage {
   fileParts?: FilePart[];
   _creationTime?: number;
   order?: number;
+  /** Position of this row WITHIN its prompt group (the SDK's `stepOrder`): a
+   *  user prompt is `(order, 0)`, its assistant reply steps `(order, 1..k)`.
+   *  `(order, stepOrder)` is the server's canonical, clock-free ordering — used
+   *  by useMergedChatItems so a streaming reply can't transiently sort above its
+   *  user row under clock skew. Undefined on optimistic/pending rows. */
+  stepOrder?: number;
   isStreaming?: boolean;
   /** One-cycle isStreaming carry-over for a message that landed terminal WITH
    *  text after being observed streaming-and-empty: kept streaming so
@@ -133,6 +139,7 @@ function chatMessageRenderEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.content === b.content &&
     a._creationTime === b._creationTime &&
     a.order === b.order &&
+    a.stepOrder === b.stepOrder &&
     a.isStreaming === b.isStreaming &&
     a.isFinalReveal === b.isFinalReveal &&
     a.isAborted === b.isAborted &&
@@ -505,6 +512,7 @@ export function useMessageProcessing(
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
           order: m.order,
+          stepOrder: m.stepOrder,
           isStreaming,
           isFinalReveal,
           isAborted:

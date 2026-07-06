@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { ThinkingAnchor } from '@/app/features/chat/components/thought-timeline/use-thinking-timer';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import {
   useCreateThread,
@@ -15,6 +16,10 @@ import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-it
 import { useMessageProcessing } from '@/app/features/chat/hooks/use-message-processing';
 import { usePendingMessages } from '@/app/features/chat/hooks/use-pending-messages';
 import { useThreadApprovals } from '@/app/features/chat/hooks/use-thread-approvals';
+import {
+  useClockOffset,
+  useReportServerNow,
+} from '@/app/hooks/use-clock-offset';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -91,7 +96,7 @@ export function useAssistantChat({
   const [threadId, setThreadId] = useState<string | null>(null);
   const isSendingRef = useRef(false);
 
-  const { setPendingMessage } = useChatLayout();
+  const { pendingMessage, setPendingMessage } = useChatLayout();
 
   const assistantAgentSlug = 'workflow-assistant';
 
@@ -128,6 +133,36 @@ export function useAssistantChat({
     threadId && organizationId ? { threadId, organizationId } : 'skip',
   );
   const generationStartMs = threadMeta?.generationStartTime ?? null;
+
+  // Thinking-timer anchor (same clock-safe contract as the main chat): prefer
+  // the immutable client send time so the live timer never swaps client→server
+  // mid-turn; the server start (converted to the client frame) is the reload
+  // fallback. Feeds the offset authority from the serverNow this query carries.
+  useReportServerNow(threadMeta?.serverNow);
+  const { toClientEpoch } = useClockOffset();
+  const clientTurnStartRef = useRef<number | null>(null);
+  const clientTurnStartMs =
+    pendingMessage && !pendingMessage.editedMessageId
+      ? pendingMessage.timestamp.getTime()
+      : isPending
+        ? clientTurnStartRef.current
+        : null;
+  clientTurnStartRef.current = clientTurnStartMs;
+  const serverStartClientMs =
+    generationStartMs === null ? null : toClientEpoch(generationStartMs);
+  const thinkingAnchor = useMemo<ThinkingAnchor>(() => {
+    const reanchorKey =
+      clientTurnStartMs !== null
+        ? `c:${clientTurnStartMs}`
+        : serverStartClientMs !== null
+          ? `s:${serverStartClientMs}`
+          : 'none';
+    return {
+      clientStartMs: clientTurnStartMs,
+      serverStartClientMs,
+      reanchorKey,
+    };
+  }, [clientTurnStartMs, serverStartClientMs]);
 
   const approvals = useThreadApprovals(organizationId, threadId ?? undefined);
   const { requests: resolvedHumanInputRequests } =
@@ -323,7 +358,7 @@ export function useAssistantChat({
     isLoadingMore,
     isLoading,
     isSendPending: isPending,
-    generationStartMs,
+    thinkingAnchor,
     inputValue,
     setInputValue,
     attachments,
