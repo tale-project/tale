@@ -35,6 +35,24 @@ describe('SettingsToggleRow', () => {
       );
       expect(screen.getByRole('switch')).toBeDisabled();
     });
+
+    it('keeps the switch beside a single-line label at every breakpoint (#2383)', () => {
+      const { container } = render(
+        <SettingsToggleRow
+          label="A long toggle label that must not push the switch"
+          description="Detail that wraps below the label instead"
+          checked={false}
+        />,
+      );
+      // Always one row — no stacked column on mobile that drops the switch
+      // below the text.
+      const row = container.firstElementChild as HTMLElement;
+      expect(row.className).toContain('justify-between');
+      expect(row.className).not.toContain('flex-col');
+      // The label truncates to one line; detail belongs in the description.
+      const label = screen.getByText(/must not push the switch/i);
+      expect(label.className).toContain('truncate');
+    });
   });
 
   describe('interaction', () => {
