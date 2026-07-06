@@ -6,7 +6,10 @@ import { Image } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { mimeToExtension } from '@/lib/shared/file-types';
+import {
+  getDocumentPreviewKind,
+  mimeToExtension,
+} from '@/lib/shared/file-types';
 import { getFileExtension } from '@/lib/utils/document-helpers';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
@@ -29,6 +32,15 @@ const DocumentPreviewDocx = lazyComponent(
   () =>
     import('./document-preview-docx').then((m) => ({
       default: m.DocumentPreviewDocx,
+    })),
+  {
+    loading: () => <PreviewPaneSkeleton />,
+  },
+);
+const DocumentPreviewOdt = lazyComponent(
+  () =>
+    import('./document-preview-odt').then((m) => ({
+      default: m.DocumentPreviewOdt,
     })),
   {
     loading: () => <PreviewPaneSkeleton />,
@@ -62,18 +74,6 @@ const DocumentPreviewImage = lazyComponent(
   },
 );
 
-const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
-  'JPG',
-  'JPEG',
-  'PNG',
-  'GIF',
-  'WEBP',
-  'SVG',
-  'BMP',
-  'ICO',
-  'AVIF',
-]);
-
 export interface DocumentPreviewProps {
   url: string;
   fileName?: string;
@@ -97,19 +97,27 @@ export function DocumentPreview({
     return getFileExtension(fileName || url);
   }, [fileName, url, mimeType]);
 
-  if (extension === 'PDF') {
+  // Binary formats route via the shared extension → renderer map so the
+  // upload-accept and preview-support lists share one definition (#2380).
+  const previewKind = getDocumentPreviewKind(extension);
+
+  if (previewKind === 'pdf') {
     return <DocumentPreviewPDF url={url} />;
   }
 
-  if (extension === 'DOCX' || extension === 'DOC') {
+  if (previewKind === 'docx') {
     return <DocumentPreviewDocx url={url} />;
   }
 
-  if (extension === 'XLSX' || extension === 'XLS') {
+  if (previewKind === 'odt') {
+    return <DocumentPreviewOdt url={url} />;
+  }
+
+  if (previewKind === 'xlsx') {
     return <DocumentPreviewXlsx url={url} />;
   }
 
-  if (IMAGE_EXTENSIONS.has(extension)) {
+  if (previewKind === 'image') {
     return <DocumentPreviewImage url={url} fileName={fileName} />;
   }
 
