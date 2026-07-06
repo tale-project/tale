@@ -15,6 +15,9 @@ import { CursorParser } from './parse';
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'agent-env',
+  // Moot in practice: Cursor models are raw runtime ids (`composer-2.5`) that
+  // match no catalog entry, so BYO always passes the ref through unchanged.
+  byoModelIdSource: 'vendor-native',
   supportsByo: true,
   // The Cursor CLI takes only --api-key / CURSOR_API_KEY and has no
   // OpenAI-compatible base-URL override, so it cannot route through the platform
