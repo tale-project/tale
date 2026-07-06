@@ -123,6 +123,44 @@ describe('useMergedChatItems', () => {
     });
   });
 
+  describe('optimistic shell ordering', () => {
+    it('pins the optimistic shell after the real user row even when its send-time timestamp predates the row', () => {
+      // The optimistic assistant shell carries only a send-time `timestamp`
+      // (no server `_creationTime`), which is EARLIER than the just-arrived user
+      // row's server time. A naive chronological sort drops it BEFORE the user
+      // row for the frame before it promotes, re-parenting the Thinking bubble
+      // from the response area up into history — a visible remount/position
+      // flash. It is always the newest, in-flight item, so it must stay last.
+      const user = makeMessage('u1', 2000, 'user'); // server time 2000
+      const shell: ChatMessage = {
+        id: 'pending-assistant-1000',
+        key: 'pending-assistant-1000',
+        content: '',
+        role: 'assistant',
+        timestamp: new Date(1000), // send time — predates the user row
+        isStreaming: true,
+        isOptimisticShell: true,
+        // no `_creationTime` — the whole point
+      };
+      const { result } = renderHook(() =>
+        useMergedChatItems({ ...emptyParams, messages: [user, shell] }),
+      );
+      expect(result.current.messages.map(getMessageId)).toEqual([
+        'u1',
+        'pending-assistant-1000',
+      ]);
+    });
+
+    it('still sorts real messages chronologically (no shell present)', () => {
+      const a = makeMessage('a', 3000, 'assistant');
+      const u = makeMessage('u', 1000, 'user');
+      const { result } = renderHook(() =>
+        useMergedChatItems({ ...emptyParams, messages: [a, u] }),
+      );
+      expect(result.current.messages.map(getMessageId)).toEqual(['u', 'a']);
+    });
+  });
+
   it('extracts a single pending approval as activeApproval', () => {
     const msgs = [makeMessage('m1', 1000)];
     const approvals = [makeApproval('a1', 'pending', 'm1', 1500)];
