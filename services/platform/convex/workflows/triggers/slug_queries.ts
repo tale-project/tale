@@ -1,9 +1,62 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../../_generated/dataModel';
-import { query } from '../../_generated/server';
+import type { QueryCtx } from '../../_generated/server';
+import { internalQuery, query } from '../../_generated/server';
 import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../../lib/rls/organization/get_organization_member';
+
+async function countTriggerActivity(
+  ctx: QueryCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<{
+  hasActiveTrigger: boolean;
+  totalTriggers: number;
+  activeTriggers: number;
+}> {
+  let totalTriggers = 0;
+  let activeTriggers = 0;
+
+  const tables = [
+    'wfSchedules',
+    'wfWebhooks',
+    'wfEventSubscriptions',
+    'wfApiKeys',
+  ] as const;
+
+  for (const table of tables) {
+    for await (const row of ctx.db
+      .query(table)
+      .withIndex('by_workflowSlug', (q) =>
+        q.eq('workflowSlug', workflowSlug),
+      )) {
+      if (row.organizationId !== organizationId) continue;
+      totalTriggers += 1;
+      if (row.isActive) activeTriggers += 1;
+    }
+  }
+
+  return {
+    hasActiveTrigger: activeTriggers > 0,
+    totalTriggers,
+    activeTriggers,
+  };
+}
+
+export const getTriggerActivityBySlugInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+  },
+  returns: v.object({
+    hasActiveTrigger: v.boolean(),
+    totalTriggers: v.number(),
+    activeTriggers: v.number(),
+  }),
+  handler: async (ctx, args) =>
+    countTriggerActivity(ctx, args.organizationId, args.workflowSlug),
+});
 
 export const getSchedulesBySlug = query({
   args: {
@@ -119,33 +172,7 @@ export const getTriggerActivityBySlug = query({
       name: authUser.name,
     });
 
-    let totalTriggers = 0;
-    let activeTriggers = 0;
-
-    const tables = [
-      'wfSchedules',
-      'wfWebhooks',
-      'wfEventSubscriptions',
-      'wfApiKeys',
-    ] as const;
-
-    for (const table of tables) {
-      for await (const row of ctx.db
-        .query(table)
-        .withIndex('by_workflowSlug', (q) =>
-          q.eq('workflowSlug', args.workflowSlug),
-        )) {
-        if (row.organizationId !== args.organizationId) continue;
-        totalTriggers += 1;
-        if (row.isActive) activeTriggers += 1;
-      }
-    }
-
-    return {
-      hasActiveTrigger: activeTriggers > 0,
-      totalTriggers,
-      activeTriggers,
-    };
+    return countTriggerActivity(ctx, args.organizationId, args.workflowSlug);
   },
 });
 

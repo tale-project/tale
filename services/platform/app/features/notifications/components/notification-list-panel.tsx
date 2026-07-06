@@ -1,8 +1,16 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
-import { CheckCheck, ChevronLeft, Inbox, Loader2 } from 'lucide-react';
+import {
+  ArrowDownUp,
+  CheckCheck,
+  ChevronLeft,
+  Inbox,
+  Loader2,
+  Maximize2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -15,6 +23,7 @@ import {
 } from '@/app/features/inbox/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { isActionableNotificationType } from '@/lib/shared/attention';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -37,10 +46,17 @@ import { ReviewActions } from './review-actions';
 
 interface NotificationListPanelProps {
   organizationId: string;
-  /** Override the panel height. Defaults to `24rem`. */
+  /** Override the panel height. Defaults to `24rem` in compact layout. */
   className?: string;
+  /**
+   * `compact` — bell popover / dropdown embed. `expanded` — full-page view
+   * (same panel, more vertical space; title lives in the page header).
+   */
+  layout?: 'compact' | 'expanded';
   /** Called after a row navigates (deep link) so the host popover can close. */
   onNavigate?: () => void;
+  /** Compact layout only — opens the full-page notifications view. */
+  onExpand?: () => void;
   /**
    * When provided, renders a back-chevron button in the header (left of the
    * title) that invokes this callback. Used by the profile-dropdown integration
@@ -74,10 +90,15 @@ function stripNsPrefix(key: string): string {
 export function NotificationListPanel({
   organizationId,
   className,
+  layout = 'compact',
   onNavigate,
+  onExpand,
   onBack,
 }: NotificationListPanelProps) {
   const [filter, setFilter] = useState<NotificationsFilter>('unread');
+  // `priority` floats actionable notifications (reviews, mentions, assignments,
+  // escalations) to the top; `recent` keeps the server's created-desc order.
+  const [sort, setSort] = useState<'recent' | 'priority'>('recent');
   const [hiddenIds, setHiddenIds] = useState(new Set<string>());
   const { t } = useT('notifications');
   const { t: tInbox } = useT('inbox');
@@ -223,26 +244,69 @@ export function NotificationListPanel({
       ),
     [myNotifications, hiddenIds, filter],
   );
-  // One chronologically sorted stream across BOTH sources (#2377): an old
-  // personal item must never outrank a newer org alert. The per-source visual
-  // distinction stays an icon/namespace concern, not a positional one.
-  const mergedItems = useMemo(
-    () => mergeNotificationsByRecency(myItems, items),
-    [myItems, items],
-  );
+  // One chronologically sorted stream across BOTH sources (#2377); optional
+  // priority sort floats actionable personal rows to the top.
+  const mergedItems = useMemo(() => {
+    const merged = mergeNotificationsByRecency(myItems, items);
+    if (sort !== 'priority') return merged;
+    return [...merged].sort((a, b) => {
+      const aPriority =
+        a.kind === 'personal' && isActionableNotificationType(a.item.type)
+          ? 1
+          : 0;
+      const bPriority =
+        b.kind === 'personal' && isActionableNotificationType(b.item.type)
+          ? 1
+          : 0;
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      return b.item.createdAt - a.item.createdAt;
+    });
+  }, [myItems, items, sort]);
   const unreadCount = (unread ?? 0) + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
   // click advances every stream that still has more.
   const canLoadMore = status === 'CanLoadMore' || myStatus === 'CanLoadMore';
   const isLoadingMore = status === 'LoadingMore' || myStatus === 'LoadingMore';
+  const hasVisibleItems = items.length > 0 || myItems.length > 0;
+  // Pagination is server-side over the full stream (read + unread); the Unread
+  // tab filters client-side. When you're caught up (`unreadCount === 0`) the
+  // remaining pages are only read history — "Load more" would not surface
+  // anything visible and contradicts the empty state.
+  const showLoadMore =
+    (canLoadMore || isLoadingMore) &&
+    (hasVisibleItems || filter === 'all' || unreadCount > 0);
   const handleLoadMore = useCallback(() => {
     if (status === 'CanLoadMore') loadMore(LOAD_MORE_NUM_ITEMS);
     if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
   }, [status, loadMore, myStatus, loadMoreMy]);
 
+  const sortButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon={ArrowDownUp}
+      aria-pressed={sort === 'priority'}
+      aria-label={`${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`}
+      onClick={() =>
+        setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'))
+      }
+    >
+      {sort === 'priority' ? t('sortPriority') : t('sortRecent')}
+    </Button>
+  );
+
+  const showHeaderRow =
+    onBack != null || layout === 'compact' || unreadCount > 0;
+
   return (
-    <div className={cn('flex h-[24rem] flex-col', className)}>
+    <div
+      className={cn(
+        'flex flex-col',
+        layout === 'compact' ? 'h-[24rem]' : 'min-h-0 flex-1',
+        className,
+      )}
+    >
       <div
         className="sr-only"
         role="status"
@@ -251,54 +315,75 @@ export function NotificationListPanel({
       >
         {arrivalAnnouncement}
       </div>
-      <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                aria-label={tCommon('actions.back')}
-                className="hover:bg-muted -ml-1.5 flex size-6 items-center justify-center rounded-md transition-colors"
-              >
-                <ChevronLeft className="text-muted-foreground size-4" />
-              </button>
-            )}
-            <span className="text-sm font-semibold">{t('title')}</span>
+      <div className="border-border flex flex-col gap-2.5 border-b px-4 py-3">
+        {showHeaderRow && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label={tCommon('actions.back')}
+                  className="hover:bg-muted -ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md transition-colors"
+                >
+                  <ChevronLeft className="text-muted-foreground size-4" />
+                </button>
+              )}
+              {layout === 'compact' && (
+                <span className="truncate text-sm font-semibold">
+                  {t('title')}
+                </span>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {layout === 'compact' && onExpand && (
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  icon={Maximize2}
+                  aria-label={t('expand')}
+                  onClick={onExpand}
+                />
+              )}
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={markAllRead.isPending || markAllMyRead.isPending}
+                  onClick={handleMarkAllRead}
+                >
+                  {t('markAllAsRead')}
+                </Button>
+              )}
+            </div>
           </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              disabled={markAllRead.isPending || markAllMyRead.isPending}
-              onClick={handleMarkAllRead}
-            >
-              {t('markAllAsRead')}
-            </Button>
-          )}
+        )}
+        <div className="flex items-center gap-2">
+          <Tabs
+            value={filter}
+            onValueChange={(v) => {
+              if (v === 'unread' || v === 'all') handleFilterChange(v);
+            }}
+            // The host popover surface is itself `dark:bg-muted`, so the pill
+            // track's default `bg-muted` vanishes into the panel in dark mode.
+            // Recess the track to the base surface so the segmented control
+            // reads as a proper well with the active pill raised on top.
+            listClassName="dark:bg-bg-base"
+            items={[
+              {
+                value: 'unread',
+                label:
+                  unreadCount > 0
+                    ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                    : t('filterUnread'),
+              },
+              { value: 'all', label: t('filterAll') },
+            ]}
+          />
+          {sortButton}
         </div>
-        <Tabs
-          value={filter}
-          onValueChange={(v) => {
-            if (v === 'unread' || v === 'all') handleFilterChange(v);
-          }}
-          // The host popover surface is itself `dark:bg-muted`, so the pill
-          // track's default `bg-muted` vanishes into the panel in dark mode.
-          // Recess the track to the base surface so the segmented control
-          // reads as a proper well with the active pill raised on top.
-          listClassName="dark:bg-bg-base"
-          items={[
-            {
-              value: 'unread',
-              label:
-                unreadCount > 0
-                  ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
-                  : t('filterUnread'),
-            },
-            { value: 'all', label: t('filterAll') },
-          ]}
-        />
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {items.length === 0 && myItems.length === 0 ? (
           status === 'LoadingFirstPage' || myStatus === 'LoadingFirstPage' ? (
             // Short-lived async load — a centered spinner + label reads
@@ -307,7 +392,7 @@ export function NotificationListPanel({
             <div
               role="status"
               aria-live="polite"
-              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+              className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center"
             >
               <Loader2
                 aria-hidden="true"
@@ -316,7 +401,7 @@ export function NotificationListPanel({
               <p className="text-xs">{t('loading')}</p>
             </div>
           ) : (
-            <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
               {filter === 'unread' ? (
                 <CheckCheck className="size-8" aria-hidden="true" />
               ) : (
@@ -356,8 +441,6 @@ export function NotificationListPanel({
                     title={tInbox(n.titleKey)}
                     body={tInbox(
                       n.bodyKey,
-                      // `params` is the i18n interpolation map (stored as
-                      // v.any()); narrow to what t() accepts.
                       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
                       params as Record<string, string | number>,
                     )}
@@ -406,7 +489,7 @@ export function NotificationListPanel({
             })}
           </ul>
         )}
-        {(canLoadMore || isLoadingMore) && (
+        {showLoadMore && (
           <div className="border-border border-t p-2">
             <Button
               variant="ghost"

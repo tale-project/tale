@@ -2,6 +2,7 @@
 
 import { v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import {
   importFiles as importFilesImpl,
@@ -68,6 +69,19 @@ export const importFiles = action({
         skippedCount: 0,
         error: tokenResult.error,
       };
+    }
+
+    if (args.importType === 'sync') {
+      const engine = await ctx.runAction(
+        internal.onedrive.ensure_sync_workflow.ensureSyncWorkflowEngine,
+        { organizationId: args.organizationId },
+      );
+      if (!engine.success) {
+        console.warn('[onedrive import] sync workflow engine not ready', {
+          organizationId: args.organizationId,
+          error: engine.error,
+        });
+      }
     }
 
     return await importFilesImpl(

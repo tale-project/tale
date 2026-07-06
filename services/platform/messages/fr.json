@@ -976,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
       "title": "Téléverser des automatisations",
-      "description": "Importe des fichiers JSON de workflow, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme une automatisation distincte.",
+      "description": "Dépose des fichiers JSON de workflow ou une archive .zip. Chaque .json installe une automatisation distincte. Pour un dossier, utilise le lien sous la zone de dépôt.",
       "toastSuccess": "Automatisations importées"
     },
     "templates": {
@@ -2023,10 +2023,10 @@
       "supportedFormats": ".xlsx, .xls ou .csv",
       "pickADate": "Choisir une date",
       "dropFilesHere": "Dépose les fichiers ici pour téléverser",
-      "acceptHint": "Fichiers JSON, dossiers ou archives .zip",
-      "pickFiles": "Choisir des fichiers",
-      "pickFolder": "Choisir un dossier",
-      "pickZip": "Choisir un zip",
+      "dropOrClick": "Dépose des fichiers JSON ou .zip ici",
+      "acceptHint": "Fichiers JSON ou archives .zip",
+      "uploadFolderInstead": "Téléverser un dossier à la place",
+      "importBlocked": "Rien à importer. Corrige les fichiers invalides ci-dessus, ou modifie l'option d'écrasement en cas de conflit.",
       "summary": "{total} entrées · {saved} enregistrées · {queued} en attente",
       "conflictHeading": "{count, plural, one {# entrée existe déjà} other {# entrées existent déjà}}",
       "conflictHint": "Les entrées existantes seront écrasées. La version précédente est enregistrée dans l'historique. Décoche ci-dessous pour les ignorer à la place.",
@@ -2133,6 +2133,10 @@
       "noResults": "Aucun résultat trouvé",
       "tryAdjusting": "Essaie d'ajuster tes critères de recherche",
       "placeholder": "Rechercher..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention non reconnue",
+      "unresolvedDescription": "{tokens} ne correspond à personne dans ta organisation — aucune notification n'a été envoyée."
     },
     "errors": {
       "generic": "Une erreur s'est produite. Merci de réessayer.",
@@ -2548,7 +2552,10 @@
       "deleteFolderFailed": "Échec de la suppression du dossier",
       "deleteFileFailed": "Une erreur inattendue s'est produite lors de la suppression du fichier.",
       "manageTeams": "Assigner une équipe",
-      "reindex": "Réindexer"
+      "reindex": "Réindexer",
+      "stopSync": "Arrêter la synchronisation",
+      "stopSyncDone": "Synchronisation arrêtée. Les fichiers importés restent dans ton espace de travail.",
+      "stopSyncFailed": "Échec de l'arrêt de la synchronisation"
     },
     "folder": {
       "newFolder": "Nouveau dossier",
@@ -4393,6 +4400,10 @@
       "title": "Personnalisation",
       "description": "Aide l'assistant à se souvenir de choses sur toi d'une conversation à l'autre."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choisis les événements qui t'envoient une notification."
+    },
     "environment": {
       "title": "Variables d'environnement et secrets",
       "description": "Variables d'environnement et secrets injectés dans tes sandboxes d'agent."
@@ -4572,6 +4583,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "SSO d'entreprise"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choisis les événements qui apparaissent dans ta cloche. Les demandes de review restent toujours actives — ce sont des signaux de sécurité.",
+    "deliveryTitle": "Envoi par e-mail",
+    "deliveryDescription": "Les alertes actionnables (assignations, mentions, reviews, escalades) peuvent aussi arriver sur ton e-mail de compte quand l'organisation a une boîte connectée.",
+    "saveFailed": "Impossible d'enregistrer tes préférences de notification.",
+    "fields": {
+      "actionableEmail": {
+        "label": "M'envoyer les alertes actionnables par e-mail",
+        "description": "Envoie les notifications de retour sur ton e-mail de compte via la boîte Gmail, Outlook ou SMTP connectée de l'organisation."
+      },
+      "taskAssigned": {
+        "label": "Tâche qui m'est assignée",
+        "description": "Quand une tâche t'est assignée."
+      },
+      "taskStatusChanged": {
+        "label": "Changement de statut",
+        "description": "Quand une tâche que tu suis change de statut."
+      },
+      "taskCommented": {
+        "label": "Nouveau commentaire",
+        "description": "Quand quelqu'un commente une tâche que tu suis."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "Quand quelqu'un te mentionne avec @."
+      },
+      "taskReview": {
+        "label": "Demandes de review",
+        "description": "Quand le travail d'un agent attend ta review."
+      },
+      "escalation": {
+        "label": "Escalades d'agent",
+        "description": "Quand un agent escalade une tâche vers un humain."
+      },
+      "automationAlerts": {
+        "label": "Alertes d'automatisation",
+        "description": "Échecs, avertissements de budget et runtimes hors ligne."
+      },
+      "digest": {
+        "label": "Résumé",
+        "description": "Résumé périodique de l'activité de la workforce."
+      },
+      "conversationMessages": {
+        "label": "Messages de conversation",
+        "description": "Quand un message client arrive dans Conversations."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Non lu",
@@ -4581,8 +4641,12 @@
     "emptyAllDescription": "Les alertes et mises à jour système apparaîtront ici à mesure qu'elles arriveront.",
     "markAsRead": "Marquer comme lu",
     "markAllAsRead": "Tout marquer comme lu",
+    "expand": "Agrandir",
     "filterUnread": "Non lus",
     "filterAll": "Tous",
+    "sortLabel": "Trier",
+    "sortRecent": "Plus récentes",
+    "sortPriority": "Priorité",
     "loadMore": "Charger plus",
     "loading": "Chargement…",
     "newNotifications": "Nouvelles notifications",
@@ -5142,6 +5206,9 @@
       "personalization": {
         "description": "Comment Tale s'adapte à toi — mémoire, instructions et voix."
       },
+      "notifications": {
+        "description": "Choisis les événements qui t'envoient une notification."
+      },
       "environment": {
         "description": "Variables d'environnement et secrets injectés dans tes sandboxes."
       },
@@ -5423,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Téléverser un fichier",
         "title": "Téléverser des agents",
-        "description": "Importe des fichiers JSON d'agent, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme un agent distinct.",
+        "description": "Dépose des fichiers JSON d'agent ou une archive .zip. Chaque .json installe un agent distinct. Pour un dossier, utilise le lien sous la zone de dépôt.",
         "toastSuccess": "Agents importés"
       },
       "general": {
@@ -5702,6 +5769,34 @@
         "name": "Skill",
         "description": "Description",
         "loadError": "Impossible de lire SKILL.md"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "Erreur de syntaxe YAML (ligne {line})",
+        "yamlSyntax": "Erreur de syntaxe YAML dans le frontmatter",
+        "missingFrontmatter": "Frontmatter YAML manquant",
+        "unclosedFrontmatter": "Frontmatter YAML non fermé",
+        "frontmatterTooLarge": "Frontmatter trop volumineux",
+        "invalidFrontmatter": "Frontmatter invalide",
+        "emptyFrontmatter": "Frontmatter vide",
+        "notFound": "SKILL.md introuvable",
+        "symlink": "SKILL.md est un lien symbolique",
+        "inaccessible": "Impossible de lire SKILL.md",
+        "generic": "Impossible de lire SKILL.md"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Remplace le bundle par un zip valide, ou supprime ce skill.",
+        "technicalDetails": "Détails techniques",
+        "title": {
+          "yamlSyntax": "Le frontmatter n'a pas pu être analysé",
+          "missingFrontmatter": "Frontmatter manquant",
+          "unclosedFrontmatter": "Frontmatter non fermé",
+          "invalidFrontmatter": "Frontmatter invalide",
+          "emptyFrontmatter": "Frontmatter vide",
+          "frontmatterTooLarge": "Frontmatter trop volumineux",
+          "symlink": "SKILL.md est un lien symbolique",
+          "inaccessible": "Impossible de lire ce skill",
+          "generic": "Ce skill n'a pas pu être chargé"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6058,7 +6153,8 @@
             "s4": "Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de répertoire (locataire). L'URL de l'émetteur est https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Allez dans Certificats et secrets › Nouveau secret client et copiez la Valeur du secret (pas son ID).",
             "s6": "Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les champs ci-dessus.",
-            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur."
+            "s7": "Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft Graph GroupMember.Read.All sous Autorisations d'API et accordez le consentement administrateur.",
+            "s8": "Pour la synchronisation de documents OneDrive/SharePoint, ajoute les autorisations Microsoft Graph Files.Read et Sites.Read.All sous Autorisations d'API et accorde le consentement administrateur. Si tu veux uniquement la connexion, retire ces deux scopes du champ Scopes ci-dessus."
           },
           "google": {
             "intro": "Créez un client OAuth dans la console Google Cloud, puis saisissez ses informations ci-dessous.",
@@ -6901,17 +6997,17 @@
   },
   "inbox": {
     "taskAssigned": "Tâche assignée",
-    "taskAssignedBody": "«Â {title}Â » t'a été assignée.",
+    "taskAssignedBody": "« {title} » t'a été assignée.",
     "taskStatusChanged": "Statut de tâche modifié",
     "taskStatusChangedBody": "«Â {title}Â » est passée de {from} à {to}.",
     "taskCommented": "Nouveau commentaire",
     "taskCommentedBody": "Nouveau commentaire sur «Â {title}Â ».",
     "mention": "Tu as été mentionné",
-    "mentionBody": "Tu as été mentionné dans «Â {title}Â ».",
-    "taskAssignedByBody": "{actor} t'a assigné «Â {title}Â ».",
+    "mentionBody": "Tu as été mentionné dans « {title} ».",
+    "taskAssignedByBody": "{actor} t'a assigné « {title} ».",
     "taskStatusChangedByBody": "{actor} a fait passer «Â {title}Â » de {from} à {to}.",
     "taskCommentedByBody": "{actor} a commenté «Â {title}Â ».",
-    "mentionByBody": "{actor} t'a mentionné dans «Â {title}Â ».",
+    "mentionByBody": "{actor} t'a mentionné dans « {title} ».",
     "taskReviewRequested": "Revue demandée",
     "taskReviewRequestedBody": "{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.",
     "taskReviewRequestedBodyNoAgent": "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
@@ -6933,8 +7029,14 @@
     "humanInputEscalatedBody": "Un workflow attend une saisie humaine depuis {ageHours} heures.",
     "workforceDigest": "Synthèse quotidienne de la workforce",
     "workforceDigestBody": "{created} créées · {completed} terminées · {runs} exécutions d'agents ({failed} en échec) · {pendingReviews} en attente de revue · {queued} en file · {breakers} en pause.",
+    "conversationInboundMessage": "Nouveau message de conversation",
+    "conversationInboundMessageBody": "De {sender} : « {subject} » — ouvre Conversations pour répondre.",
     "agentEscalation": "Escalade d'agent",
-    "agentEscalationBody": "{agent} a escaladé : {reason}"
+    "agentEscalationBody": "{agent} a escaladé : {reason}",
+    "email": {
+      "cta": "Ouvrir dans Tale",
+      "footer": "Tu reçois cet e-mail parce que tu as activé les notifications dans Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7041,6 +7143,9 @@
     },
     "board": {
       "noTasks": "Aucune tâche"
+    },
+    "filters": {
+      "waitingOnMe": "En attente de moi"
     },
     "detail": {
       "overview": "Aperçu",
@@ -8216,146 +8321,5 @@
     "saveError": "Impossible d'enregistrer l'environnement",
     "badKey": "« {key} » n'est pas un nom de variable valide (lettres, chiffres, tiret bas ; ne doit pas commencer par un chiffre).",
     "dupKey": "Nom de variable en double — chaque NOM doit être unique."
-  },
-  "agents": {
-    "navigation": {
-      "general": "Général",
-      "instructionsModel": "Instructions et modèles",
-      "tools": "Outils",
-      "skills": "Skills",
-      "knowledge": "Base de connaissances",
-      "webhook": "Webhooks",
-      "conversationStarters": "Amorces",
-      "history": "Historique",
-      "metrics": "Performance",
-      "environment": "Environnement"
-    },
-    "form": {
-      "sectionGeneral": "Général",
-      "sectionGeneralDescription": "Informations de base sur l'agent",
-      "sectionInstructions": "Instructions",
-      "sectionInstructionsDescription": "Définis le comportement et la personnalité de l'agent",
-      "templateVariablesLabel": "Variables de modèle disponibles",
-      "templateVariablesDescription": "Utilise ces variables dans tes instructions — elles seront résolues à l'exécution.",
-      "sectionModel": "Modèles",
-      "sectionModelDescription": "Configure les modèles IA pour cet agent. Le premier modèle est le modèle principal utilisé pour la génération. Les modèles supplémentaires servent de modèles de secours ordonnés — si le modèle principal est indisponible, l'agent essaie automatiquement le modèle suivant dans la liste.",
-      "sectionTools": "Outils",
-      "sectionToolsDescription": "Sélectionne les outils que cet agent peut utiliser",
-      "sectionToolsExternalDescription": "Les agents externes s'exécutent dans un bac à sable et n'utilisent que les intégrations liées. Les outils de la plateforme et les workflows ne s'appliquent pas.",
-      "sectionIntegrationBindings": "Intégrations liées",
-      "sectionIntegrationBindingsDescription": "Lie des intégrations spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de l'intégration.",
-      "noIntegrationsAvailable": "Aucune intégration active disponible.",
-      "sectionWorkflowBindings": "Flux de travail liés",
-      "sectionWorkflowBindingsDescription": "Lie des flux de travail spécifiques en tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier l'ID du flux de travail.",
-      "noWorkflowsAvailable": "Aucun flux de travail actif disponible.",
-      "bindIntegrationsPlaceholder": "Lier des intégrations…",
-      "bindWorkflowsPlaceholder": "Lier des flux de travail…",
-      "sectionSkillBindings": "Skills liés",
-      "sectionSkillBindingsDescription": "Skills que l'agent peut lire à l'exécution. Laisser vide pour un agent sans skills — pas de repli implicite sur une visibilité à l'échelle de l'organisation.",
-      "sectionSkillBindingsExternalDescription": "Les disciplines workflow (fix-bug, write-notes, etc.) se chargent automatiquement dans le sandbox — lie ici uniquement des skills org supplémentaires. Chaque skill lié est injecté dans la session à chaque tour.",
-      "skillBindingsExternalNoCustomSkillsDescription": "Aucun skill org supplémentaire à lier pour l'instant — les disciplines workflow se chargent quand même automatiquement. Crée un skill personnalisé dans les paramètres Skills si cet agent en a besoin.",
-      "skillBindingsCounter": "{count}/{max} liés",
-      "skillBindingsToggleAria": "Lier {slug}",
-      "skillBindingsAtCapReason": "Maximum {max} skills liés — délie-en un pour en ajouter un autre.",
-      "skillBindingsNoSkillsInOrgDescription": "Aucun skill n'existe encore dans cette organisation.",
-      "skillBindingsNoSkillsInOrgCta": "En créer un dans les paramètres Skills",
-      "sectionKnowledge": "Base de connaissances",
-      "sectionKnowledgeDescription": "Configure l'accès à la base de connaissances",
-      "knowledgeHint": "La base de connaissances recherche dans les documents téléversés dans ton organisation.",
-      "knowledgeHintLink": "Gérer les documents",
-      "sectionAccess": "Accès",
-      "sectionAccessDescription": "Contrôle quelles équipes peuvent utiliser cet agent",
-      "name": "Nom",
-      "namePlaceholder": "mon-agent",
-      "nameHelp": "Identifiant unique — lettres minuscules, chiffres, tirets et underscores.",
-      "nameTooltip": "Un identifiant unique et compatible URL, utilisé dans les liens et l'API. Non modifiable ensuite.",
-      "namePatternError": "Doit commencer par une lettre ou un chiffre et ne contenir que des lettres minuscules, des chiffres, des tirets et des underscores.",
-      "displayName": "Nom d'affichage",
-      "displayNameTooltip": "Le nom convivial que les autres voient dans le chat. Modifiable à tout moment.",
-      "displayNamePlaceholder": "Mon Agent",
-      "displayNameDuplicateWarning": "Un autre agent utilise déjà ce nom affiché. Le slug reste unique, mais le nom en double peut prêter à confusion dans le chat et les listes.",
-      "description": "Description",
-      "descriptionPlaceholder": "Que fait cet agent ?",
-      "systemInstructions": "Instructions système",
-      "systemInstructionsPlaceholder": "Tu es un assistant utile qui...",
-      "team": "Équipe",
-      "teamHelp": "Assigne cet agent à une équipe. Laisse vide pour un accès à toute l'organisation.",
-      "teamNone": "Toute l'organisation",
-      "teamUpdateSuccess": "Équipe de l'agent mise à jour",
-      "teamUpdateFailed": "Échec de la mise à jour de l'équipe de l'agent",
-      "sharedWithTeams": "Partager avec des équipes supplémentaires",
-      "sharedWithTeamsHelp": "Les membres des équipes partagées peuvent utiliser cet agent mais ne peuvent pas le modifier.",
-      "noSharedTeams": "Non partagé",
-      "sharingUpdateSuccess": "Partage de l'agent mis à jour",
-      "sharingUpdateFailed": "Échec de la mise à jour du partage de l'agent",
-      "noTeamsHint": "Crée des équipes pour contrôler quels groupes peuvent utiliser cet agent.",
-      "noTeamsCreateLink": "Aller aux paramètres d'équipe",
-      "copyPrompt": "Copier le prompt",
-      "sectionStructuredResponses": "Réponses structurées",
-      "sectionStructuredResponsesDescription": "Configure si l'agent peut utiliser des marqueurs de réponse structurée (conclusion, points clés, détails, etc.) pour formater les réponses substantielles",
-      "structuredResponsesEnabled": "Activer les marqueurs de réponse structurée",
-      "structuredResponsesEnabledHelp": "Lorsqu'il est activé, l'agent peut utiliser des marqueurs comme [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] pour structurer les réponses longues. Ceux-ci sont affichés sous forme de sections enrichies dans le chat. Lorsqu'il est désactivé, l'agent répond uniquement en texte brut.",
-      "addModel": "Ajouter un modèle",
-      "searchModels": "Rechercher des modèles…",
-      "noModelsFound": "Aucun modèle trouvé",
-      "removeModel": "Retirer",
-      "embeddingModelWarning": "Modèle d'embedding uniquement — non utilisable pour le chat",
-      "viaProvider": "via {provider}",
-      "modelSelector": {
-        "moveUp": "Déplacer le modèle vers le haut",
-        "moveDown": "Déplacer le modèle vers le bas",
-        "dragHandle": "Glisser pour réorganiser le modèle"
-      },
-      "structuredResponsesInjectedPrompt": "Les instructions suivantes seront automatiquement ajoutées au prompt système :",
-      "browsePrompts": "Parcourir les prompts",
-      "systemInstructionsCharCount": "{count, plural, one {# caractère} other {# caractères}}",
-      "byo": {
-        "sectionTitle": "Identifiants",
-        "sectionDescription": "Comment cet agent s'authentifie auprès de son fournisseur de modèle.",
-        "managedLabel": "Géré (passerelle de la plateforme)",
-        "managedDescription": "Passer par la passerelle de la plateforme avec une clé virtuelle générée. La sélection du modèle, la facturation et la gouvernance de l'usage restent du côté de la plateforme.",
-        "byoLabel": "Apporte tes propres identifiants (BYO)",
-        "byoDescription": "Contourner la passerelle et utiliser les identifiants que tu as définis dans Environnement et secrets, avec un passthrough direct du modèle.",
-        "modelSectionDescription": "Identifiants de modèle bruts du fournisseur, transmis tels quels. Le premier modèle est le modèle principal ; les autres sont des modèles de repli.",
-        "modelLabel": "Identifiant de modèle du fournisseur",
-        "modelPlaceholder": "ex. claude-opus-4-20250514",
-        "modelNote": "BYO passe par tes propres identifiants définis dans Environnement et secrets — la sélection du modèle, la facturation et la gouvernance de l'usage basculent vers tes identifiants ; la plateforme ne fournit que l'environnement d'exécution."
-      },
-      "agentType": {
-        "sectionTitle": "Type d'agent",
-        "sectionDescription": "Comment cet agent s'exécute. Les agents internes utilisent la boucle d'outils de la plateforme ; les agents externes exécutent un agent de code dans un bac à sable.",
-        "internalLabel": "Agent interne",
-        "internalDescription": "S'exécute sur la plateforme avec les outils de chat, les connaissances et les workflows.",
-        "externalLabel": "Agent externe",
-        "externalDescription": "Exécute Claude Code ou Cursor dans un bac à sable isolé, en utilisant les intégrations liées.",
-        "imageLabel": "Génération d'images",
-        "imageDescription": "Achemine le message directement vers un modèle d'image.",
-        "switchTitle": "Changer le type d'agent ?",
-        "switchToExternalDescription": "L'agent s'exécutera désormais dans un bac à sable et ses outils de plateforme et workflows seront effacés. Les intégrations liées sont conservées.",
-        "switchToChatDescription": "L'agent utilisera désormais la boucle d'outils de la plateforme et ses paramètres d'exécution externe et d'identifiants seront effacés.",
-        "switchToImageDescription": "L'agent passera à la génération d'images et ses outils, workflows, intégrations et paramètres d'exécution externe seront effacés.",
-        "noModelWarning": "Cet agent n'a aucun modèle — ajoutes-en un dans l'onglet Instructions avant d'enregistrer, sinon l'enregistrement échouera.",
-        "switchConfirm": "Changer le type"
-      },
-      "agentKind": {
-        "label": "Exécution externe",
-        "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
-        "claudeCode": "Claude Code",
-        "cursor": "Cursor"
-      },
-      "webTools": {
-        "sectionTitle": "Outils web",
-        "sectionDescription": "Comment cet agent accède au web.",
-        "nativeLabel": "Utiliser la recherche et la récupération web natives",
-        "nativeDescription": "Laisse l'agent utiliser directement les outils WebSearch et WebFetch intégrés à son runtime — idéal quand le modèle les prend en charge (par ex. OpenRouter). Désactivé, les outils web natifs sont bloqués et l'accès web doit passer par une intégration de recherche connectée (audité et facturé)."
-      },
-      "vision": {
-        "sectionTitle": "Modèle de vision",
-        "sectionDescription": "Quand le modèle propre à cet agent ne peut pas voir les images, chaque image qu'il lit est automatiquement transcrite par ce modèle de vision — via la passerelle, si bien qu'aucune clé de fournisseur n'entre dans le bac à sable. Utilisé uniquement pour les modèles purement textuels.",
-        "label": "Modèle de vision pour lire les images",
-        "autoLabel": "Utiliser la valeur par défaut de l'org",
-        "autoDescription": "Revenir au modèle de vision par défaut du fournisseur."
-      }
-    }
   }
 }

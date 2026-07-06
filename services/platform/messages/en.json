@@ -69,6 +69,9 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
+    "addMenu": {
+      "label": "Add app"
+    },
     "install": {
       "install": "Install",
       "installed": "Installed",
@@ -232,6 +235,7 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
+      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
@@ -975,7 +979,7 @@
     "uploadDialog": {
       "menuItem": "Upload file",
       "title": "Upload automations",
-      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "description": "Drop workflow JSON files or a .zip archive. Each .json installs as a separate automation. To import a folder, use the link below the drop zone.",
       "toastSuccess": "Automations imported"
     },
     "templates": {
@@ -2022,10 +2026,10 @@
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload",
-      "acceptHint": "JSON files, folders, or .zip archives",
-      "pickFiles": "Choose files",
-      "pickFolder": "Choose folder",
-      "pickZip": "Choose zip",
+      "dropOrClick": "Drop JSON files or .zip here",
+      "acceptHint": "JSON files or .zip archives",
+      "uploadFolderInstead": "Upload a folder instead",
+      "importBlocked": "Nothing ready to import. Fix invalid files above, or adjust overwrite settings for conflicts.",
       "summary": "{total} entries · {saved} saved · {queued} pending",
       "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
       "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
@@ -2132,6 +2136,10 @@
       "noResults": "No results found",
       "tryAdjusting": "Try adjusting your search criteria",
       "placeholder": "Search..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Mention not recognized",
+      "unresolvedDescription": "{tokens} did not match anyone in your organization — no notification was sent."
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",
@@ -2547,7 +2555,10 @@
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
       "manageTeams": "Assign team",
-      "reindex": "Reindex"
+      "reindex": "Reindex",
+      "stopSync": "Stop syncing",
+      "stopSyncDone": "Syncing stopped. The imported files stay in your workspace.",
+      "stopSyncFailed": "Failed to stop syncing"
     },
     "folder": {
       "newFolder": "New folder",
@@ -4392,6 +4403,10 @@
       "title": "Personalization",
       "description": "Help the assistant remember things about you across chats."
     },
+    "notificationPreferences": {
+      "title": "Notifications",
+      "description": "Choose which events send you a notification."
+    },
     "environment": {
       "title": "Environment variables & secrets",
       "description": "Environment variables and secrets injected into your agent sandboxes."
@@ -4571,6 +4586,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise SSO"
   },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Choose which events appear in your bell inbox. Review requests always stay on — they are safety signals.",
+    "deliveryTitle": "Email delivery",
+    "deliveryDescription": "Actionable alerts (assignments, mentions, reviews, escalations) can also reach your inbox when this organization has a connected mailbox.",
+    "saveFailed": "Couldn't save your notification preferences.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Email me actionable alerts",
+        "description": "Send return-loop notifications to your account email via the organization's connected Gmail, Outlook, or SMTP mailbox."
+      },
+      "taskAssigned": {
+        "label": "Task assigned to me",
+        "description": "When a task is assigned to you."
+      },
+      "taskStatusChanged": {
+        "label": "Task status changed",
+        "description": "When a task you follow moves to a new status."
+      },
+      "taskCommented": {
+        "label": "New comment",
+        "description": "When someone comments on a task you follow."
+      },
+      "mention": {
+        "label": "Mentions",
+        "description": "When someone @-mentions you."
+      },
+      "taskReview": {
+        "label": "Review requests",
+        "description": "When agent work is waiting for your review."
+      },
+      "escalation": {
+        "label": "Agent escalations",
+        "description": "When an agent escalates a task to a human."
+      },
+      "automationAlerts": {
+        "label": "Automation alerts",
+        "description": "Failures, budget warnings, and offline runtimes."
+      },
+      "digest": {
+        "label": "Digest",
+        "description": "Periodic summary of workforce activity."
+      },
+      "conversationMessages": {
+        "label": "Conversation messages",
+        "description": "When a customer message arrives in Conversations."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "ariaUnread": "Unread",
@@ -4580,8 +4644,12 @@
     "emptyAllDescription": "Alerts and system updates will appear here when they arrive.",
     "markAsRead": "Mark as read",
     "markAllAsRead": "Mark all as read",
+    "expand": "Expand",
     "filterUnread": "Unread",
     "filterAll": "All",
+    "sortLabel": "Sort",
+    "sortRecent": "Most recent",
+    "sortPriority": "Priority",
     "loadMore": "Load more",
     "loading": "Loading…",
     "newNotifications": "New notifications",
@@ -5405,6 +5473,9 @@
       "personalization": {
         "description": "How Tale adapts to you — memory, instructions, and voice."
       },
+      "notifications": {
+        "description": "Choose which events send you a notification."
+      },
       "environment": {
         "description": "Environment variables and secrets injected into your sandboxes."
       },
@@ -5686,7 +5757,7 @@
       "uploadDialog": {
         "menuItem": "Upload file",
         "title": "Upload agents",
-        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "description": "Drop agent JSON files or a .zip archive. Each .json installs as a separate agent. To import a folder, use the link below the drop zone.",
         "toastSuccess": "Agents imported"
       },
       "general": {
@@ -5965,6 +6036,34 @@
         "name": "Skill",
         "description": "Description",
         "loadError": "Failed to read SKILL.md"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML syntax error (line {line})",
+        "yamlSyntax": "YAML syntax error in frontmatter",
+        "missingFrontmatter": "Missing YAML frontmatter",
+        "unclosedFrontmatter": "Unclosed YAML frontmatter",
+        "frontmatterTooLarge": "Frontmatter too large",
+        "invalidFrontmatter": "Invalid frontmatter",
+        "emptyFrontmatter": "Empty frontmatter",
+        "notFound": "SKILL.md not found",
+        "symlink": "SKILL.md is a symlink",
+        "inaccessible": "Couldn't read SKILL.md",
+        "generic": "Failed to read SKILL.md"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
+        "technicalDetails": "Technical details",
+        "title": {
+          "yamlSyntax": "Frontmatter couldn't be parsed",
+          "missingFrontmatter": "Frontmatter is missing",
+          "unclosedFrontmatter": "Frontmatter isn't closed",
+          "frontmatterTooLarge": "Frontmatter is too large",
+          "invalidFrontmatter": "Frontmatter is invalid",
+          "emptyFrontmatter": "Frontmatter is empty",
+          "symlink": "SKILL.md is a symlink",
+          "inaccessible": "Couldn't read this skill",
+          "generic": "This skill couldn't be loaded"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6321,7 +6420,8 @@
             "s4": "On the Overview page, copy the Application (client) ID and Directory (tenant) ID. The Issuer URL is https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Go to Certificates & secrets › New client secret and copy the secret Value (not the Secret ID).",
             "s6": "Enter the client ID, client secret, and issuer URL in the fields above.",
-            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent."
+            "s7": "For group→team sync, add the Microsoft Graph GroupMember.Read.All permission under API permissions and grant admin consent.",
+            "s8": "For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read and Sites.Read.All permissions under API permissions and grant admin consent. If you only want sign-in, remove the two scopes from the Scopes field above."
           },
           "google": {
             "intro": "Create an OAuth client in the Google Cloud Console, then paste its details below.",
@@ -7196,8 +7296,14 @@
     "humanInputEscalatedBody": "A workflow has been waiting on human input for {ageHours} hours.",
     "workforceDigest": "Daily workforce digest",
     "workforceDigestBody": "{created} created · {completed} completed · {runs} agent runs ({failed} failed) · {pendingReviews} awaiting review · {queued} queued · {breakers} paused.",
+    "conversationInboundMessage": "New conversation message",
+    "conversationInboundMessageBody": "From {sender}: \"{subject}\" — open Conversations to reply.",
     "agentEscalation": "Agent escalation",
-    "agentEscalationBody": "{agent} escalated: {reason}"
+    "agentEscalationBody": "{agent} escalated: {reason}",
+    "email": {
+      "cta": "Open in Tale",
+      "footer": "You received this email because you have notifications enabled in Tale."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7304,6 +7410,9 @@
     },
     "board": {
       "noTasks": "No tasks"
+    },
+    "filters": {
+      "waitingOnMe": "Waiting on me"
     },
     "detail": {
       "overview": "Overview",
@@ -8215,146 +8324,5 @@
     "saveError": "Couldn't save environment",
     "badKey": "\"{key}\" isn't a valid env var name (letters, digits, underscore; not starting with a digit).",
     "dupKey": "Duplicate variable name — each NAME must be unique."
-  },
-  "agents": {
-    "navigation": {
-      "general": "General",
-      "instructionsModel": "Instructions & models",
-      "tools": "Tools",
-      "skills": "Skills",
-      "knowledge": "Knowledge",
-      "webhook": "Webhooks",
-      "conversationStarters": "Starters",
-      "history": "History",
-      "metrics": "Performance",
-      "environment": "Environment"
-    },
-    "form": {
-      "sectionGeneral": "General",
-      "sectionGeneralDescription": "Basic information about the agent",
-      "sectionInstructions": "Instructions",
-      "sectionInstructionsDescription": "Define the agent's behavior and personality",
-      "templateVariablesLabel": "Available template variables",
-      "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
-      "sectionModel": "Models",
-      "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
-      "sectionTools": "Tools",
-      "sectionToolsDescription": "Select which tools this agent can use",
-      "sectionToolsExternalDescription": "External agents run in a sandbox and only use bound integrations. Platform tools and workflows don't apply.",
-      "sectionIntegrationBindings": "Bound integrations",
-      "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
-      "noIntegrationsAvailable": "No active integrations available.",
-      "sectionWorkflowBindings": "Bound workflows",
-      "sectionWorkflowBindingsDescription": "Bind specific workflows as dedicated tools. The agent won't need to specify the workflow ID.",
-      "noWorkflowsAvailable": "No active workflows available.",
-      "bindIntegrationsPlaceholder": "Bind integrations…",
-      "bindWorkflowsPlaceholder": "Bind workflows…",
-      "sectionSkillBindings": "Bound skills",
-      "sectionSkillBindingsDescription": "Skills the agent can read at runtime. Leave empty for an agent with no skills — there is no implicit fallback to org-wide visibility.",
-      "sectionSkillBindingsExternalDescription": "Workflow disciplines (fix-bug, write-notes, and the rest) load automatically in the sandbox — bind only extra org skills here. Each bound skill is staged into the agent session each turn.",
-      "skillBindingsExternalNoCustomSkillsDescription": "No extra org skills to bind yet — workflow disciplines still load automatically. Create a custom skill in Skills settings if this agent needs one.",
-      "skillBindingsCounter": "{count}/{max} bound",
-      "skillBindingsToggleAria": "Bind {slug}",
-      "skillBindingsAtCapReason": "Maximum {max} skills bound — unbind one to add another.",
-      "skillBindingsNoSkillsInOrgDescription": "No skills exist in this organization yet.",
-      "skillBindingsNoSkillsInOrgCta": "Create one in Skills settings",
-      "sectionKnowledge": "Knowledge",
-      "sectionKnowledgeDescription": "Configure access to the knowledge base",
-      "knowledgeHint": "The knowledge base searches documents uploaded to your organization.",
-      "knowledgeHintLink": "Manage documents",
-      "sectionAccess": "Access",
-      "sectionAccessDescription": "Control which teams can use this agent",
-      "name": "Name",
-      "namePlaceholder": "my-agent",
-      "nameHelp": "Unique id — lowercase letters, numbers, hyphens, and underscores.",
-      "nameTooltip": "A unique, URL-safe id used in links and the API. You can't change it later.",
-      "namePatternError": "Must start with a letter or number and use only lowercase letters, numbers, hyphens, and underscores.",
-      "displayName": "Display name",
-      "displayNameTooltip": "The friendly name people see in chat. Change it anytime.",
-      "displayNamePlaceholder": "My Agent",
-      "displayNameDuplicateWarning": "Another agent already uses this display name. The slug stays unique, but the duplicate name can be ambiguous in chat and lists.",
-      "description": "Description",
-      "descriptionPlaceholder": "What does this agent do?",
-      "systemInstructions": "System instructions",
-      "systemInstructionsPlaceholder": "You are a helpful assistant that...",
-      "team": "Team",
-      "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
-      "teamNone": "Organization-wide",
-      "teamUpdateSuccess": "Agent team updated",
-      "teamUpdateFailed": "Failed to update agent team",
-      "sharedWithTeams": "Share with additional teams",
-      "sharedWithTeamsHelp": "Members of shared teams can use this agent but cannot edit it.",
-      "noSharedTeams": "Not shared",
-      "sharingUpdateSuccess": "Agent sharing updated",
-      "sharingUpdateFailed": "Failed to update agent sharing",
-      "noTeamsHint": "Create teams to control which groups can use this agent.",
-      "noTeamsCreateLink": "Go to team settings",
-      "copyPrompt": "Copy prompt",
-      "sectionStructuredResponses": "Structured responses",
-      "sectionStructuredResponsesDescription": "Configure whether the agent can use structured response markers (conclusion, key points, details, etc.) to format substantial answers",
-      "structuredResponsesEnabled": "Enable structured response markers",
-      "structuredResponsesEnabledHelp": "When enabled, the agent can use markers like [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] to structure long responses. These are rendered as rich UI sections in the chat. When disabled, the agent responds with plain text only.",
-      "addModel": "Add model",
-      "searchModels": "Search models…",
-      "noModelsFound": "No models found",
-      "removeModel": "Remove",
-      "embeddingModelWarning": "Embedding-only model — not usable for chat",
-      "viaProvider": "via {provider}",
-      "modelSelector": {
-        "moveUp": "Move model up",
-        "moveDown": "Move model down",
-        "dragHandle": "Drag to reorder model"
-      },
-      "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
-      "browsePrompts": "Browse prompts",
-      "systemInstructionsCharCount": "{count, plural, one {# character} other {# characters}}",
-      "byo": {
-        "sectionTitle": "Credentials",
-        "sectionDescription": "How this agent authenticates to its model provider.",
-        "managedLabel": "Managed (platform gateway)",
-        "managedDescription": "Route through the platform gateway with a minted virtual key. Model selection, billing, and usage governance stay with the platform.",
-        "byoLabel": "Bring your own credentials (BYO)",
-        "byoDescription": "Bypass the gateway and use the credentials you set in Environment & Secrets, with a raw model passthrough.",
-        "modelSectionDescription": "Raw provider model ids passed through verbatim. The first model is the primary; the rest are fallbacks.",
-        "modelLabel": "Provider model id",
-        "modelPlaceholder": "e.g. claude-opus-4-20250514",
-        "modelNote": "BYO routes through your own credentials set in Environment & Secrets — model selection, billing, and usage governance move to your credentials; the platform only provides the runtime."
-      },
-      "agentType": {
-        "sectionTitle": "Agent type",
-        "sectionDescription": "How this agent runs. Internal agents run on the platform tool loop; external agents run a coding agent in a sandbox.",
-        "internalLabel": "Internal agent",
-        "internalDescription": "Runs on the platform with chat tools, knowledge, and workflows.",
-        "externalLabel": "External agent",
-        "externalDescription": "Runs Claude Code or Cursor in an isolated sandbox, using bound integrations.",
-        "imageLabel": "Image generation",
-        "imageDescription": "Routes the message straight to an image model.",
-        "switchTitle": "Change agent type?",
-        "switchToExternalDescription": "This will switch the agent to run in a sandbox and clear its platform tools and workflows. Bound integrations are kept.",
-        "switchToChatDescription": "This will switch the agent to run on the platform tool loop and clear its external runtime and credential settings.",
-        "switchToImageDescription": "This will switch the agent to image generation and clear its tools, workflows, integrations, and external runtime settings.",
-        "noModelWarning": "This agent has no model set — add one on the Instructions tab before saving, or the save will fail.",
-        "switchConfirm": "Change type"
-      },
-      "agentKind": {
-        "label": "External runtime",
-        "description": "Which coding agent runs this agent's turns in the sandbox.",
-        "claudeCode": "Claude Code",
-        "cursor": "Cursor"
-      },
-      "webTools": {
-        "sectionTitle": "Web tools",
-        "sectionDescription": "How this agent accesses the web.",
-        "nativeLabel": "Use native web search and fetch",
-        "nativeDescription": "Let the agent use its runtime's built-in WebSearch and WebFetch tools directly — best when the model supports them (e.g. OpenRouter). When off, the native web tools are disabled and web access must go through a connected search integration (audited and metered)."
-      },
-      "vision": {
-        "sectionTitle": "Vision model",
-        "sectionDescription": "When this agent's own model can't see images, any image it reads is automatically transcribed by this vision model — through the gateway, so no provider key enters the sandbox. Only used for text-only models.",
-        "label": "Vision model for reading images",
-        "autoLabel": "Use org default",
-        "autoDescription": "Fall back to the provider's vision default model."
-      }
-    }
   }
 }

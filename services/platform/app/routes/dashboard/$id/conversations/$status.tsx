@@ -30,6 +30,7 @@ const conversationStatusMap: Record<ValidStatus, ConversationStatus> = {
 
 const searchSchema = z.object({
   search: z.string().optional(),
+  conversation: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
@@ -67,7 +68,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { search } = Route.useSearch();
+  const { search, conversation } = Route.useSearch();
 
   const mappedStatus =
     (isValidStatus(status) ? conversationStatusMap[status] : undefined) ??
@@ -100,6 +101,7 @@ function ConversationsStatusPage() {
       status={mappedStatus}
       organizationId={organizationId}
       search={search && search.length > 0 ? search : undefined}
+      initialConversationId={conversation}
       paginatedResult={paginatedResult}
       conversationCount={conversationCount}
       totalConversationCount={totalConversationCount}

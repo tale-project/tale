@@ -3,6 +3,7 @@ import { describe, it } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
+import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
 import { GmailIcon } from './gmail-icon';
 import { LocaleIcon } from './locale-icon';
@@ -14,6 +15,7 @@ import { ShopifyIcon } from './shopify-icon';
 import { WebsiteIcon } from './website-icon';
 
 const icons = [
+  { name: 'ClaudeIcon', Component: ClaudeIcon },
   { name: 'EnterKeyIcon', Component: EnterKeyIcon },
   { name: 'GmailIcon', Component: GmailIcon },
   { name: 'LocaleIcon', Component: LocaleIcon },

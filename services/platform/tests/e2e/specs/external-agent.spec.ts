@@ -283,13 +283,15 @@ test.describe('external agent (Cursor)', () => {
 
     await expect(
       page.getByRole('link', {
-        name: t('agents.navigation.skills'),
+        name: t('settings.agents.navigation.skills'),
         exact: true,
       }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     await expect(
-      page.getByText(t('agents.form.sectionSkillBindingsExternalDescription')),
+      page.getByText(
+        t('settings.agents.form.sectionSkillBindingsExternalDescription'),
+      ),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
     await expect(page.getByText('fix-bug', { exact: true })).toHaveCount(0);

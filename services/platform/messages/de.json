@@ -232,6 +232,7 @@
       "colStatus": "Status",
       "colStarted": "Gestartet",
       "watchLive": "Live ansehen",
+      "backToApp": "Zurück zur App",
       "queuedForCapacity": "Wartet auf Kapazität",
       "queuedForCapacityHint": "Wartet auf einen freien Sandbox-Platz. Startet automatisch, sobald Kapazität frei wird.",
       "failed": "Fehlgeschlagen",
@@ -975,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Datei hochladen",
       "title": "Automatisierungen hochladen",
-      "description": "Importiere Workflow-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigene Automatisierung installiert.",
+      "description": "Lege Workflow-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert eine eigene Automatisierung. Für einen Ordner nutze den Link unter der Drop-Zone.",
       "toastSuccess": "Automatisierungen importiert"
     },
     "templates": {
@@ -2022,10 +2023,10 @@
       "supportedFormats": ".xlsx,.xls oder.csv",
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen",
-      "acceptHint": "JSON-Dateien, Ordner oder.zip-Archive",
-      "pickFiles": "Dateien wählen",
-      "pickFolder": "Ordner wählen",
-      "pickZip": "ZIP wählen",
+      "dropOrClick": "Lege JSON-Dateien oder .zip hier ab",
+      "acceptHint": "JSON-Dateien oder .zip-Archive",
+      "uploadFolderInstead": "Stattdessen Ordner hochladen",
+      "importBlocked": "Nichts zum Importieren bereit. Behebe ungültige Dateien oben oder passe die Überschreiben-Einstellung bei Konflikten an.",
       "summary": "{total} Einträge · {saved} gespeichert · {queued} ausstehend",
       "conflictHeading": "{count, plural, one {# Eintrag existiert bereits} other {# Einträge existieren bereits}}",
       "conflictHint": "Bestehende Einträge werden überschrieben. Die vorherige Version wird in der Historie gesichert. Häkchen entfernen, um sie stattdessen zu überspringen.",
@@ -2132,6 +2133,10 @@
       "noResults": "Keine Ergebnisse gefunden",
       "tryAdjusting": "Passe deine Suchkriterien an",
       "placeholder": "Suchen..."
+    },
+    "mentions": {
+      "unresolvedTitle": "Erwähnung nicht erkannt",
+      "unresolvedDescription": "{tokens} passt zu niemandem in deiner Organisation — es wurde keine Benachrichtigung gesendet."
     },
     "errors": {
       "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -2547,7 +2552,10 @@
       "deleteFolderFailed": "Ordner konnte nicht gelöscht werden",
       "deleteFileFailed": "Beim Löschen der Datei ist ein unerwarteter Fehler aufgetreten.",
       "manageTeams": "Team zuweisen",
-      "reindex": "Neu indexieren"
+      "reindex": "Neu indexieren",
+      "stopSync": "Synchronisierung beenden",
+      "stopSyncDone": "Synchronisierung beendet. Die importierten Dateien bleiben in deinem Workspace.",
+      "stopSyncFailed": "Synchronisierung konnte nicht beendet werden"
     },
     "folder": {
       "newFolder": "Neuer Ordner",
@@ -4392,6 +4400,10 @@
       "title": "Personalisierung",
       "description": "Hilf dem Assistenten, sich Dinge über dich chat-übergreifend zu merken."
     },
+    "notificationPreferences": {
+      "title": "Benachrichtigungen",
+      "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
+    },
     "environment": {
       "title": "Umgebungsvariablen & Geheimnisse",
       "description": "Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes eingespeist werden."
@@ -4571,6 +4583,55 @@
     "sandboxes": "Sandboxes",
     "enterpriseSso": "Enterprise-SSO"
   },
+  "notificationPreferences": {
+    "title": "Benachrichtigungen",
+    "description": "Wähle, welche Ereignisse in deiner Glocke erscheinen. Review-Anfragen bleiben immer an — das sind Sicherheitssignale.",
+    "deliveryTitle": "E-Mail-Zustellung",
+    "deliveryDescription": "Handlungsrelevante Alerts (Zuweisungen, Erwähnungen, Reviews, Eskalationen) können zusätzlich an deine Konto-E-Mail gehen, wenn die Organisation ein verbundenes Postfach hat.",
+    "saveFailed": "Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden.",
+    "fields": {
+      "actionableEmail": {
+        "label": "Handlungsrelevante Alerts per E-Mail",
+        "description": "Return-Loop-Benachrichtigungen an deine Konto-E-Mail senden — über das verbundene Gmail-, Outlook- oder SMTP-Postfach der Organisation."
+      },
+      "taskAssigned": {
+        "label": "Aufgabe mir zugewiesen",
+        "description": "Wenn dir eine Aufgabe zugewiesen wird."
+      },
+      "taskStatusChanged": {
+        "label": "Status geändert",
+        "description": "Wenn eine Aufgabe, der du folgst, den Status wechselt."
+      },
+      "taskCommented": {
+        "label": "Neuer Kommentar",
+        "description": "Wenn jemand eine Aufgabe kommentiert, der du folgst."
+      },
+      "mention": {
+        "label": "Erwähnungen",
+        "description": "Wenn dich jemand mit @ erwähnt."
+      },
+      "taskReview": {
+        "label": "Review-Anfragen",
+        "description": "Wenn Agenten-Arbeit auf dein Review wartet."
+      },
+      "escalation": {
+        "label": "Agenten-Eskalationen",
+        "description": "Wenn ein Agent eine Aufgabe an einen Menschen eskaliert."
+      },
+      "automationAlerts": {
+        "label": "Automatisierungs-Warnungen",
+        "description": "Fehler, Budget-Warnungen und offline gegangene Runtimes."
+      },
+      "digest": {
+        "label": "Zusammenfassung",
+        "description": "Regelmäßige Übersicht der Workforce-Aktivität."
+      },
+      "conversationMessages": {
+        "label": "Konversationsnachrichten",
+        "description": "Wenn eine Kundennachricht in Konversationen ankommt."
+      }
+    }
+  },
   "notifications": {
     "title": "Benachrichtigungen",
     "ariaUnread": "Ungelesen",
@@ -4580,8 +4641,12 @@
     "emptyAllDescription": "Hinweise und System-Updates erscheinen hier, sobald sie eintreffen.",
     "markAsRead": "Als gelesen markieren",
     "markAllAsRead": "Alle als gelesen markieren",
+    "expand": "Vergrößern",
     "filterUnread": "Ungelesen",
     "filterAll": "Alle",
+    "sortLabel": "Sortieren",
+    "sortRecent": "Neueste zuerst",
+    "sortPriority": "Priorität",
     "loadMore": "Mehr laden",
     "loading": "Lädt…",
     "newNotifications": "Neue Benachrichtigungen",
@@ -5141,6 +5206,9 @@
       "personalization": {
         "description": "Wie Tale sich an dich anpasst — Gedächtnis, Instruktionen und Stimme."
       },
+      "notifications": {
+        "description": "Wähle, welche Ereignisse dir eine Benachrichtigung schicken."
+      },
       "environment": {
         "description": "Umgebungsvariablen und Geheimnisse, die in deine Sandboxes eingespeist werden."
       },
@@ -5422,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Datei hochladen",
         "title": "Agents hochladen",
-        "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
+        "description": "Lege Agent-JSON-Dateien oder ein .zip-Archiv ab. Jede .json installiert einen eigenen Agent. Für einen Ordner nutze den Link unter der Drop-Zone.",
         "toastSuccess": "Agents importiert"
       },
       "general": {
@@ -5701,6 +5769,34 @@
         "name": "Skill",
         "description": "Beschreibung",
         "loadError": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadError": {
+        "yamlSyntaxLine": "YAML-Syntaxfehler (Zeile {line})",
+        "yamlSyntax": "YAML-Syntaxfehler im Frontmatter",
+        "missingFrontmatter": "YAML-Frontmatter fehlt",
+        "unclosedFrontmatter": "YAML-Frontmatter nicht geschlossen",
+        "frontmatterTooLarge": "Frontmatter zu groß",
+        "invalidFrontmatter": "Ungültiges Frontmatter",
+        "emptyFrontmatter": "Leeres Frontmatter",
+        "notFound": "SKILL.md nicht gefunden",
+        "symlink": "SKILL.md ist ein Symlink",
+        "inaccessible": "SKILL.md konnte nicht gelesen werden",
+        "generic": "SKILL.md konnte nicht gelesen werden"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Ersetze das Bundle durch ein gültiges Zip oder lösche den Skill.",
+        "technicalDetails": "Technische Details",
+        "title": {
+          "yamlSyntax": "Frontmatter konnte nicht geparst werden",
+          "missingFrontmatter": "Frontmatter fehlt",
+          "unclosedFrontmatter": "Frontmatter ist nicht geschlossen",
+          "frontmatterTooLarge": "Frontmatter ist zu groß",
+          "invalidFrontmatter": "Frontmatter ist ungültig",
+          "emptyFrontmatter": "Frontmatter ist leer",
+          "symlink": "SKILL.md ist ein Symlink",
+          "inaccessible": "Skill konnte nicht gelesen werden",
+          "generic": "Skill konnte nicht geladen werden"
+        }
       },
       "form": {
         "slug": "Slug",
@@ -6057,7 +6153,8 @@
             "s4": "Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet https://login.microsoftonline.com/{tenant-id}/v2.0.",
             "s5": "Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren Sie den Geheimnis-Wert (nicht die Geheimnis-ID).",
             "s6": "Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.",
-            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung."
+            "s7": "Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und erteilen Sie die Administratorzustimmung.",
+            "s8": "Für die OneDrive-/SharePoint-Dokumentensynchronisation füge unter API-Berechtigungen die Microsoft-Graph-Berechtigungen Files.Read und Sites.Read.All hinzu und erteile die Administratorzustimmung. Willst du nur die Anmeldung, entferne die beiden Scopes oben aus dem Feld Scopes."
           },
           "google": {
             "intro": "Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen Sie die Daten unten ein.",
@@ -6932,8 +7029,14 @@
     "humanInputEscalatedBody": "Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.",
     "workforceDigest": "Tägliche Workforce-Übersicht",
     "workforceDigestBody": "{created} erstellt · {completed} abgeschlossen · {runs} Agenten-Läufe ({failed} fehlgeschlagen) · {pendingReviews} warten auf Review · {queued} in Warteschlange · {breakers} pausiert.",
+    "conversationInboundMessage": "Neue Konversationsnachricht",
+    "conversationInboundMessageBody": "Von {sender}: \"{subject}\" — öffne Konversationen, um zu antworten.",
     "agentEscalation": "Agenten-Eskalation",
-    "agentEscalationBody": "{agent} hat eskaliert: {reason}"
+    "agentEscalationBody": "{agent} hat eskaliert: {reason}",
+    "email": {
+      "cta": "In Tale öffnen",
+      "footer": "Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast."
+    }
   },
   "projectSecrets": {
     "title": "Secrets",
@@ -7040,6 +7143,9 @@
     },
     "board": {
       "noTasks": "Keine Aufgaben"
+    },
+    "filters": {
+      "waitingOnMe": "Wartet auf mich"
     },
     "detail": {
       "overview": "Übersicht",
@@ -8215,146 +8321,5 @@
     "saveError": "Umgebung konnte nicht gespeichert werden",
     "badKey": "„{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).",
     "dupKey": "Doppelter Variablenname — jeder NAME muss eindeutig sein."
-  },
-  "agents": {
-    "navigation": {
-      "general": "Allgemein",
-      "instructionsModel": "Anweisungen & Modelle",
-      "tools": "Tools",
-      "skills": "Skills",
-      "knowledge": "Wissen",
-      "webhook": "Webhook",
-      "conversationStarters": "Gesprächseinstiege",
-      "history": "Verlauf",
-      "metrics": "Leistung",
-      "environment": "Umgebung"
-    },
-    "form": {
-      "sectionGeneral": "Allgemein",
-      "sectionGeneralDescription": "Grundlegende Informationen über den Agent",
-      "sectionInstructions": "Anweisungen",
-      "sectionInstructionsDescription": "Verhalten und Persönlichkeit des Agents definieren",
-      "templateVariablesLabel": "Verfügbare Vorlagenvariablen",
-      "templateVariablesDescription": "Verwende diese Variablen in deinen Anweisungen – sie werden zur Laufzeit aufgelöst.",
-      "sectionModel": "Modelle",
-      "sectionModelDescription": "Konfiguriere die KI-Modelle für diesen Agent. Das erste Modell ist das primäre Modell für die Generierung. Zusätzliche Modelle dienen als geordnete Fallbacks — wenn das primäre Modell nicht verfügbar ist, versucht der Agent automatisch das nächste Modell in der Liste.",
-      "sectionTools": "Tools",
-      "sectionToolsDescription": "Auswählen, welche Tools dieser Agent verwenden kann",
-      "sectionToolsExternalDescription": "Externe Agenten laufen in einer Sandbox und nutzen nur gebundene Integrationen. Plattform-Tools und Workflows gelten hier nicht.",
-      "sectionIntegrationBindings": "Gebundene Integrationen",
-      "sectionIntegrationBindingsDescription": "Bestimmte Integrationen als dedizierte Tools binden. Der Agent muss den Integrationsnamen nicht angeben.",
-      "noIntegrationsAvailable": "Keine aktiven Integrationen verfügbar.",
-      "sectionWorkflowBindings": "Gebundene Workflows",
-      "sectionWorkflowBindingsDescription": "Bestimmte Workflows als dedizierte Tools binden. Der Agent muss die Workflow-ID nicht angeben.",
-      "noWorkflowsAvailable": "Keine aktiven Workflows verfügbar.",
-      "bindIntegrationsPlaceholder": "Integrationen binden…",
-      "bindWorkflowsPlaceholder": "Workflows binden…",
-      "sectionSkillBindings": "Gebundene Skills",
-      "sectionSkillBindingsDescription": "Skills, die der Agent zur Laufzeit lesen kann. Leer lassen für einen Agent ohne Skills — es gibt keinen impliziten Fallback auf organisationsweite Sichtbarkeit.",
-      "sectionSkillBindingsExternalDescription": "Workflow-Disziplinen (fix-bug, write-notes usw.) landen automatisch in der Sandbox — binde hier nur zusätzliche Org-Skills. Jede Bindung wird pro Turn in die Agent-Session gestaged.",
-      "skillBindingsExternalNoCustomSkillsDescription": "Noch keine zusätzlichen Org-Skills zum Binden — Workflow-Disziplinen laden trotzdem automatisch. Lege in den Skills-Einstellungen einen eigenen Skill an, wenn dieser Agent einen braucht.",
-      "skillBindingsCounter": "{count}/{max} gebunden",
-      "skillBindingsToggleAria": "{slug} binden",
-      "skillBindingsAtCapReason": "Maximal {max} Skills gebunden — löse eine Bindung, um eine andere hinzuzufügen.",
-      "skillBindingsNoSkillsInOrgDescription": "In dieser Organisation existieren noch keine Skills.",
-      "skillBindingsNoSkillsInOrgCta": "In den Skills-Einstellungen anlegen",
-      "sectionKnowledge": "Wissen",
-      "sectionKnowledgeDescription": "Zugriff auf die Wissensdatenbank konfigurieren",
-      "knowledgeHint": "Die Wissensdatenbank durchsucht Dokumente, die in deine Organisation hochgeladen wurden.",
-      "knowledgeHintLink": "Dokumente verwalten",
-      "sectionAccess": "Zugriff",
-      "sectionAccessDescription": "Steuern, welche Teams diesen Agent verwenden können",
-      "name": "Name",
-      "namePlaceholder": "mein-agent",
-      "nameHelp": "Eindeutige ID — nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche.",
-      "nameTooltip": "Eine eindeutige, URL-sichere ID für Links und die API. Später nicht änderbar.",
-      "namePatternError": "Muss mit einem Buchstaben oder einer Zahl beginnen und darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten.",
-      "displayName": "Anzeigename",
-      "displayNameTooltip": "Der freundliche Name, den andere im Chat sehen. Jederzeit änderbar.",
-      "displayNamePlaceholder": "Mein Agent",
-      "displayNameDuplicateWarning": "Ein anderer Agent verwendet diesen Anzeigenamen bereits. Der Slug bleibt eindeutig, aber der doppelte Name kann im Chat und in Listen mehrdeutig sein.",
-      "description": "Beschreibung",
-      "descriptionPlaceholder": "Was macht dieser Agent?",
-      "systemInstructions": "Systemanweisungen",
-      "systemInstructionsPlaceholder": "Du bist ein hilfreicher Assistent, der...",
-      "team": "Team",
-      "teamHelp": "Diesen Agent einem Team zuweisen. Leer lassen für organisationsweiten Zugriff.",
-      "teamNone": "Organisationsweit",
-      "teamUpdateSuccess": "Agent-Team aktualisiert",
-      "teamUpdateFailed": "Agent-Team konnte nicht aktualisiert werden",
-      "sharedWithTeams": "Mit weiteren Teams teilen",
-      "sharedWithTeamsHelp": "Mitglieder geteilter Teams können diesen Agent verwenden, aber nicht bearbeiten.",
-      "noSharedTeams": "Nicht geteilt",
-      "sharingUpdateSuccess": "Agent-Freigabe aktualisiert",
-      "sharingUpdateFailed": "Agent-Freigabe konnte nicht aktualisiert werden",
-      "noTeamsHint": "Erstelle Teams, um zu steuern, welche Gruppen diesen Agent verwenden können.",
-      "noTeamsCreateLink": "Zu den Team-Einstellungen",
-      "copyPrompt": "Prompt kopieren",
-      "sectionStructuredResponses": "Strukturierte Antworten",
-      "sectionStructuredResponsesDescription": "Konfigurieren, ob der Agent strukturierte Antwortmarker (Fazit, Kernpunkte, Details usw.) verwenden kann, um ausführliche Antworten zu formatieren",
-      "structuredResponsesEnabled": "Strukturierte Antwortmarker aktivieren",
-      "structuredResponsesEnabledHelp": "Wenn aktiviert, kann der Agent Marker wie [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] verwenden, um lange Antworten zu strukturieren. Diese werden als Rich-UI-Abschnitte im Chat dargestellt. Wenn deaktiviert, antwortet der Agent nur mit einfachem Text.",
-      "addModel": "Modell hinzufügen",
-      "searchModels": "Modelle suchen…",
-      "noModelsFound": "Keine Modelle gefunden",
-      "removeModel": "Entfernen",
-      "embeddingModelWarning": "Nur Embedding-Modell — nicht für Chat nutzbar",
-      "viaProvider": "über {provider}",
-      "modelSelector": {
-        "moveUp": "Modell nach oben verschieben",
-        "moveDown": "Modell nach unten verschieben",
-        "dragHandle": "Ziehen zum Neuordnen des Modells"
-      },
-      "structuredResponsesInjectedPrompt": "Die folgenden Anweisungen werden automatisch an den System-Prompt angehängt:",
-      "browsePrompts": "Prompts durchsuchen",
-      "systemInstructionsCharCount": "{count, plural, one {# Zeichen} other {# Zeichen}}",
-      "byo": {
-        "sectionTitle": "Anmeldedaten",
-        "sectionDescription": "Wie sich dieser Agent beim Modellanbieter authentifiziert.",
-        "managedLabel": "Verwaltet (Plattform-Gateway)",
-        "managedDescription": "Über das Plattform-Gateway mit einem erzeugten virtuellen Schlüssel leiten. Modellauswahl, Abrechnung und Nutzungssteuerung bleiben bei der Plattform.",
-        "byoLabel": "Eigene Anmeldedaten (BYO)",
-        "byoDescription": "Das Gateway umgehen und die unter Umgebung & Geheimnisse hinterlegten Anmeldedaten mit direkter Modellweitergabe verwenden.",
-        "modelSectionDescription": "Rohe Anbieter-Modell-IDs, die unverändert weitergegeben werden. Das erste Modell ist das primäre; die übrigen sind Ausweichmodelle.",
-        "modelLabel": "Anbieter-Modell-ID",
-        "modelPlaceholder": "z. B. claude-opus-4-20250514",
-        "modelNote": "BYO leitet über deine eigenen Anmeldedaten unter Umgebung & Geheimnisse — Modellauswahl, Abrechnung und Nutzungssteuerung gehen auf deine Anmeldedaten über; die Plattform stellt nur die Laufzeitumgebung bereit."
-      },
-      "agentType": {
-        "sectionTitle": "Agententyp",
-        "sectionDescription": "Wie dieser Agent läuft. Interne Agenten laufen über die Tool-Schleife der Plattform; externe Agenten führen einen Coding-Agenten in einer Sandbox aus.",
-        "internalLabel": "Interner Agent",
-        "internalDescription": "Läuft auf der Plattform mit Chat-Tools, Wissen und Workflows.",
-        "externalLabel": "Externer Agent",
-        "externalDescription": "Führt Claude Code oder Cursor in einer isolierten Sandbox aus und nutzt gebundene Integrationen.",
-        "imageLabel": "Bildgenerierung",
-        "imageDescription": "Leitet die Nachricht direkt an ein Bildmodell weiter.",
-        "switchTitle": "Agententyp ändern?",
-        "switchToExternalDescription": "Dadurch läuft der Agent künftig in einer Sandbox; seine Plattform-Tools und Workflows werden entfernt. Gebundene Integrationen bleiben erhalten.",
-        "switchToChatDescription": "Dadurch läuft der Agent künftig über die Tool-Schleife der Plattform; seine externe Laufzeit- und Anmeldedaten-Einstellungen werden entfernt.",
-        "switchToImageDescription": "Dadurch wird der Agent auf Bildgenerierung umgestellt; seine Tools, Workflows, Integrationen und externen Laufzeiteinstellungen werden entfernt.",
-        "noModelWarning": "Dieser Agent hat kein Modell — füge vor dem Speichern eines auf dem Tab Anweisungen hinzu, sonst schlägt das Speichern fehl.",
-        "switchConfirm": "Typ ändern"
-      },
-      "agentKind": {
-        "label": "Externe Laufzeit",
-        "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
-        "claudeCode": "Claude Code",
-        "cursor": "Cursor"
-      },
-      "webTools": {
-        "sectionTitle": "Web-Tools",
-        "sectionDescription": "Wie dieser Agent auf das Web zugreift.",
-        "nativeLabel": "Native Websuche und -abruf verwenden",
-        "nativeDescription": "Lass den Agenten die in seiner Laufzeit integrierten WebSearch- und WebFetch-Tools direkt nutzen — am besten, wenn das Modell sie unterstützt (z. B. OpenRouter). Wenn deaktiviert, sind die nativen Web-Tools gesperrt und der Webzugriff muss über eine verbundene Such-Integration laufen (auditiert und abgerechnet)."
-      },
-      "vision": {
-        "sectionTitle": "Vision-Modell",
-        "sectionDescription": "Wenn das eigene Modell dieses Agenten keine Bilder sehen kann, wird jedes gelesene Bild automatisch von diesem Vision-Modell transkribiert — über das Gateway, sodass kein Anbieterschlüssel in die Sandbox gelangt. Wird nur für reine Textmodelle verwendet.",
-        "label": "Vision-Modell zum Lesen von Bildern",
-        "autoLabel": "Org-Standard verwenden",
-        "autoDescription": "Auf das Standard-Vision-Modell des Anbieters zurückfallen."
-      }
-    }
   }
 }
