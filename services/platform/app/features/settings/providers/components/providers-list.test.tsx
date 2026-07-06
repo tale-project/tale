@@ -94,6 +94,9 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
+
+import { ProviderDetailDrawer } from './provider-detail-drawer';
 import { ProvidersSettingsSection } from './providers-settings-section';
 
 function renderList(initialDetailProvider?: string) {
