@@ -35,7 +35,13 @@ const MIGRATE_TIMEOUT_EXIT = 124;
  * stdout is the action's output alone; `|| true` keeps a zero-match grep
  * from poisoning `pipefail` (the real signal is the run's exit code).
  */
-const MIGRATE_SCRIPT = `set -eo pipefail
+// The first line is a bash comment that acts as the bundle sentinel for
+// scripts/check-bundle.ts. It exists ONLY inside this template literal —
+// never repeat it in a comment or another string, or the post-build
+// binary check can pass while the script itself regressed to a runtime
+// fs read (which `bun --compile` does not bundle).
+const MIGRATE_SCRIPT = `# tale-bundle-sentinel:migrate-script-v1
+set -eo pipefail
 source /app/env.sh
 env_normalize_common
 ensure_instance_secret
