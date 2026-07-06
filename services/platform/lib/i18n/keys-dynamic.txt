@@ -288,3 +288,10 @@ jobCard.statusCancelled
 # handlers but under a namespace the client-source scanner can't resolve.
 auth.sso.errors.serverError
 auth.sso.errors.multipleConnections
+
+# Skill load-error detail titles: skill-load-error.ts maps machine error codes
+# (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /
+# `skills.notFound` keys in a plain object, resolved later via the `settings`
+# scope — an enum-driven dispatch the regex scanner can't follow.
+settings.skills.loadErrorDetail
+settings.skills.notFound
