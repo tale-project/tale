@@ -8,6 +8,7 @@
  */
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import type { DocumentRecord, DocumentMetadata } from '../documents/types';
 import { toId } from '../lib/type_cast_helpers';
@@ -90,6 +91,7 @@ export async function reconcileFolder(
           doc.externalItemId ?? meta.oneDriveItemId ?? meta.oneDriveId,
         syncConfigId: meta.syncConfigId,
         sourceMode: meta.sourceMode,
+        fileId: doc.fileId,
       });
     }
     if (res.isDone) break;
@@ -101,14 +103,57 @@ export async function reconcileFolder(
     new Set(args.files.map((f) => f.id)),
     existingDocs,
   );
-  for (const documentId of toPrune) {
-    await ctx.runMutation(
-      internal.documents.internal_mutations.deleteDocumentById,
-      {
-        documentId: toId<'documents'>(documentId),
-        callerOrgId: args.organizationId,
-      },
-    );
+  const refById = new Map(existingDocs.map((doc) => [doc.documentId, doc]));
+
+  // Resolve the sync target root so each prune can reap the now-empty
+  // subfolders it leaves behind (a subdir deleted at the source), stopping
+  // at — and never deleting — the synced root itself. Mirrors the
+  // drive-reconcile path in document_action.ts. The root path is the same
+  // one `buildSyncImportItems` roots documents at. Read-only lookup: a
+  // missing root means no synced docs (nor folders) exist to reap.
+  const rootSegments = (args.itemPath || args.itemName)
+    .split('/')
+    .filter((s) => s.trim().length > 0);
+  const cleanupAncestorsUpTo: Id<'folders'> | undefined =
+    toPrune.length > 0 && rootSegments.length > 0
+      ? ((await ctx.runQuery(
+          internal.folders.internal_queries.findFolderByPath,
+          { organizationId: args.organizationId, pathSegments: rootSegments },
+        )) ?? undefined)
+      : undefined;
+
+  // Delete each orphan through the RAG-purging path so its vector index is
+  // dropped too — deleteDocumentById alone removes only the row + blob and
+  // would leave the OneDrive doc searchable in RAG. Mirrors the drive-reconcile
+  // path in document_action.ts: blob-bearing docs go via deleteDocumentFromRag
+  // (staggered 100ms to spare the scheduler + RAG service); metadata-only docs
+  // delete directly. The snapshot (expectedExternalItemId/expectedFileId) makes
+  // the delete abort if an interleaving re-upload re-bound the row.
+  for (let i = 0; i < toPrune.length; i++) {
+    const documentId = toPrune[i];
+    const ref = refById.get(documentId);
+    if (ref?.fileId) {
+      await ctx.scheduler.runAfter(
+        i * 100,
+        internal.documents.internal_actions.deleteDocumentFromRag,
+        {
+          documentId: toId<'documents'>(documentId),
+          expectedExternalItemId: ref.externalItemId,
+          expectedFileId: toId<'_storage'>(ref.fileId),
+          cleanupAncestorsUpTo,
+        },
+      );
+    } else {
+      await ctx.scheduler.runAfter(
+        i * 100,
+        internal.documents.internal_mutations.deleteDocumentById,
+        {
+          documentId: toId<'documents'>(documentId),
+          callerOrgId: args.organizationId,
+          cleanupAncestorsUpTo,
+        },
+      );
+    }
   }
 
   const errorsCount = importResult.results.filter(

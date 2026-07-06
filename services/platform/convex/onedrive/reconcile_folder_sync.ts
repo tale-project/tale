@@ -46,6 +46,10 @@ export interface SyncedDocumentRef {
   externalItemId?: string;
   syncConfigId?: string;
   sourceMode?: string;
+  /** Storage id of the doc's blob, if any — a pruned doc with a blob is
+   * routed through the RAG-purging delete so its vector index is dropped
+   * too; a metadata-only doc is deleted directly. */
+  fileId?: string;
 }
 
 /**
