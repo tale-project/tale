@@ -1,74 +1,13 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
-import { z } from 'zod';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AccessDenied } from '@/app/components/layout/access-denied';
-import {
-  WorkflowMetricsPage,
-  type PeriodDays,
-} from '@/app/features/automations/metrics/metrics-page';
-import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
-import { useT } from '@/lib/i18n/client';
-import { seo } from '@/lib/utils/seo';
-
-export const searchSchema = z.object({
-  // The router parses a bare `?period=90` as the JSON number 90, which fails a
-  // plain string enum and crashes the page (issue #2024). Coerce to a string
-  // first, then fall back to the default window for any out-of-range value so a
-  // shared/bookmarked URL never renders the error boundary.
-  period: z.coerce
-    .string()
-    .pipe(z.enum(['7', '30', '90']))
-    .catch('30')
-    .optional(),
-});
-
+// Automation metrics moved under Settings → Metrics. Kept as a redirect so
+// existing links / bookmarks (including ?period=) keep working.
 export const Route = createFileRoute('/dashboard/$id/automations/metrics')({
-  head: () => ({
-    meta: seo('automations'),
-  }),
-  validateSearch: searchSchema,
-  component: AutomationsMetricsPage,
+  loader: ({ params, location }) => {
+    throw redirect({
+      to: '/dashboard/$id/settings/metrics/automations',
+      params: { id: params.id },
+      search: location.search,
+    });
+  },
 });
-
-function AutomationsMetricsPage() {
-  const { id: organizationId } = Route.useParams();
-  const { period } = Route.useSearch();
-  const navigate = useNavigate();
-  const { t } = useT('accessDenied');
-
-  const ability = useAbility();
-  const abilityLoading = useAbilityLoading();
-
-  const periodDays: PeriodDays = period === '7' ? 7 : period === '90' ? 90 : 30;
-
-  const handleChangePeriod = useCallback(
-    (next: PeriodDays) => {
-      const periodParam: '7' | '30' | '90' =
-        next === 7 ? '7' : next === 90 ? '90' : '30';
-      void navigate({
-        to: '/dashboard/$id/automations/metrics',
-        params: { id: organizationId },
-        search: { period: periodParam },
-        replace: true,
-      });
-    },
-    [navigate, organizationId],
-  );
-
-  if (abilityLoading) {
-    return <div className="p-4" />;
-  }
-
-  if (ability.cannot('read', 'wfDefinitions')) {
-    return <AccessDenied message={t('automations')} />;
-  }
-
-  return (
-    <WorkflowMetricsPage
-      organizationId={organizationId}
-      periodDays={periodDays}
-      onChangePeriod={handleChangePeriod}
-    />
-  );
-}

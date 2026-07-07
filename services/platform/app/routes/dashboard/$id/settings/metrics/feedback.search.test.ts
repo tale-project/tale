@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { searchSchema } from './feedback';
+import { feedbackMetricsSearchSchema as searchSchema } from '@/app/features/analytics/feedback/feedback-metrics-search';
 
-// Regression coverage for #2034: a shared/bookmarked
-// `/dashboard/$id/settings/governance/feedback?period=90` (or `?comments=1`)
-// URL is parsed by the router as the JSON number 90/1, which must not crash the
-// route via SearchParamError.
-describe('governance feedback searchSchema', () => {
+// Regression coverage for #2034 on the consolidated metrics route.
+describe('metrics feedback searchSchema', () => {
   it('coerces numeric period values to the string enum', () => {
     expect(searchSchema.parse({ period: 90 }).period).toBe('90');
     expect(searchSchema.parse({ period: 30 }).period).toBe('30');

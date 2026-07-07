@@ -77,11 +77,6 @@ function AgentsLayout() {
         href: `/dashboard/${organizationId}/agents/catalog`,
         matchMode: 'exact',
       },
-      {
-        label: t('agents.tabs.metrics'),
-        href: `/dashboard/${organizationId}/agents/metrics`,
-        matchMode: 'exact',
-      },
     ],
     [t, tCatalog, organizationId],
   );

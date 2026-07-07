@@ -129,6 +129,8 @@ interface ProjectMetricsPageProps {
   projectId: Id<'projects'>;
   periodDays: PeriodDays;
   onChangePeriod: (period: PeriodDays) => void;
+  /** When false, omit the back link to the tasks list (e.g. Settings → Metrics). */
+  showBackLink?: boolean;
 }
 
 /**
@@ -144,6 +146,7 @@ export function ProjectMetricsPage({
   projectId,
   periodDays,
   onChangePeriod,
+  showBackLink = true,
 }: ProjectMetricsPageProps) {
   const { t } = useT('tasks');
 
@@ -253,16 +256,16 @@ export function ProjectMetricsPage({
   return (
     <ContentArea gap={6} className="py-4">
       <Skeletonize loading={isLoading} className="flex flex-col gap-4">
-        {/* Metrics is a sub-view of Tasks (no tab of its own), so lead with a
-            back link to the tasks list — otherwise there's no way back. */}
-        <Link
-          to="/dashboard/$id/projects/$projectId/tasks"
-          params={{ id: organizationId, projectId }}
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
-        >
-          <ChevronLeft className="size-4" aria-hidden="true" />
-          {t('title')}
-        </Link>
+        {showBackLink ? (
+          <Link
+            to="/dashboard/$id/projects/$projectId/tasks"
+            params={{ id: organizationId, projectId }}
+            className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+            {t('title')}
+          </Link>
+        ) : null}
         <MetricsLayout
           title={t('metrics.title')}
           description={t('metrics.description')}

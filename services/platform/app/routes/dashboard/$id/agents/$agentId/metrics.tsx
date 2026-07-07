@@ -16,8 +16,8 @@ import {
   TrendBarChart,
   type ChartSeries,
 } from '@/app/components/metrics/charts';
+import { MetricSelect } from '@/app/components/metrics/metric-select';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
-import { Select } from '@/app/components/ui/forms/select';
 import type { PeriodDays } from '@/app/features/agents/workforce/workforce-dashboard';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -235,18 +235,17 @@ function AgentMetricsTab() {
         title={t('scorecard.title')}
         description={t('scorecard.subtitle', { days: periodDays })}
         toolbar={
-          <div className="w-44">
-            <Select
-              aria-label={t('period.label')}
-              options={periodOptions}
-              value={String(periodDays)}
-              onValueChange={(v) => {
-                const next = Number(v);
-                if (next === 7 || next === 30 || next === 90)
-                  handleChangePeriod(next);
-              }}
-            />
-          </div>
+          <MetricSelect
+            aria-label={t('period.label')}
+            options={periodOptions}
+            value={String(periodDays)}
+            onValueChange={(v) => {
+              const next = Number(v);
+              if (next === 7 || next === 30 || next === 90)
+                handleChangePeriod(next);
+            }}
+            widthClassName="w-44"
+          />
         }
       >
         <StatCardGrid cols={2}>

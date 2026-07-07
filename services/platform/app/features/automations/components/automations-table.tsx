@@ -348,7 +348,7 @@ export function AutomationsTable({
         />
         <div className="flex items-center gap-2">
           <LinkButton
-            href="/dashboard/$id/automations/metrics"
+            href="/dashboard/$id/settings/metrics/automations"
             params={{ id: organizationId }}
             variant="secondary"
             icon={BarChart3}

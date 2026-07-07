@@ -725,8 +725,7 @@
     "appBadge": "App",
     "tabs": {
       "list": "Liste",
-      "catalog": "Katalog",
-      "metrics": "Metriken"
+      "catalog": "Katalog"
     },
     "catalog": {
       "installed": "Automatisierung installiert"
@@ -4591,6 +4590,7 @@
     "apiRest": "REST",
     "branding": "Branding",
     "governance": "Richtlinien",
+    "metrics": "Metriken",
     "personalization": "Personalisierung",
     "environment": "Umgebung",
     "account": "Konto",
@@ -5274,6 +5274,9 @@
       "governance": {
         "description": "Richtlinien, Sicherheit, Audit-Logs und Datenaufbewahrung."
       },
+      "metrics": {
+        "description": "Organisationsweite KPIs für Nutzung, Feedback, Automationen, Workforce und Projekte."
+      },
       "sandboxes": {
         "description": "Always-on Remote-Agent-Sandboxes verwalten."
       },
@@ -5466,8 +5469,7 @@
     "agents": {
       "title": "Agenten",
       "tabs": {
-        "list": "Liste",
-        "metrics": "Metriken"
+        "list": "Liste"
       },
       "entityLabel": "Agenten",
       "tableCaption": "Installierte Agents",
@@ -8248,6 +8250,25 @@
     "empty": {
       "title": "Keine Katalog-Agenten",
       "description": "Für diese Organisation wurden keine installierbaren Agenten gefunden."
+    }
+  },
+  "metrics": {
+    "title": "Metriken",
+    "groups": {
+      "usage": "Nutzung",
+      "feedback": "Feedback",
+      "automations": "Automationen",
+      "workforce": "Workforce",
+      "projects": "Projekte"
+    },
+    "workforce": {
+      "title": "Workforce-Metriken"
+    },
+    "projects": {
+      "selectLabel": "Projekt",
+      "selectPlaceholder": "Projekt auswählen…",
+      "emptyTitle": "Projekt auswählen",
+      "emptyDescription": "Wählen Sie ein Projekt, um dessen Task-Metriken anzuzeigen."
     }
   },
   "workforce": {

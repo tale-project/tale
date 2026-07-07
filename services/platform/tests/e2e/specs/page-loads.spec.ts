@@ -59,30 +59,37 @@ function routeCases(): readonly RouteCase[] {
           .first(),
     },
     {
-      // Agents → Metrics dashboard. The section title is an <h2> (the route's
-      // <h1> is the adaptive-header "Agents" layout title, dual-rendered for
-      // desktop/mobile — so the single-render section header is the stable,
-      // unambiguous anchor). Charts paint behind their own loaders.
-      key: 'agents-metrics',
-      path: (id) => `/dashboard/${id}/agents/metrics`,
+      // Settings → Metrics → Workforce. The section title is an <h2>.
+      key: 'metrics-workforce',
+      path: (id) => `/dashboard/${id}/settings/metrics/workforce`,
       anchor: (page) =>
         page
           .getByRole('heading', {
-            name: t('settings.agents.tabs.metrics'),
+            name: t('metrics.workforce.title'),
             level: 2,
           })
           .first(),
     },
     {
-      // WorkflowMetricsPage title block — an <h2> section header (same h1/h2
-      // split as agents-metrics above). Owner has `write wfDefinitions`, so the
-      // AccessDenied branch never renders.
-      key: 'automations-metrics',
-      path: (id) => `/dashboard/${id}/automations/metrics`,
+      // Settings → Metrics → Automations. WorkflowMetricsPage title block.
+      key: 'metrics-automations',
+      path: (id) => `/dashboard/${id}/settings/metrics/automations`,
       anchor: (page) =>
         page
           .getByRole('heading', {
             name: t('automations.metrics.title'),
+            level: 2,
+          })
+          .first(),
+    },
+    {
+      // Legacy agents metrics URL redirects to settings metrics workforce.
+      key: 'agents-metrics-redirect',
+      path: (id) => `/dashboard/${id}/agents/metrics`,
+      anchor: (page) =>
+        page
+          .getByRole('heading', {
+            name: t('metrics.workforce.title'),
             level: 2,
           })
           .first(),

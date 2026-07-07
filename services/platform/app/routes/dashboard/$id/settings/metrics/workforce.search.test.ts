@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { searchSchema } from './metrics';
+import { metricsPeriodSearchSchema as searchSchema } from '@/app/components/metrics/metrics-period';
 
-// Regression coverage for #1987: a shared/bookmarked
-// `/agents/metrics?period=90` URL is parsed by the router as the JSON
-// number 90, which must not crash the route via SearchParamError.
-describe('agents metrics searchSchema', () => {
+describe('metrics workforce searchSchema', () => {
   it('coerces numeric period values to the string enum', () => {
     expect(searchSchema.parse({ period: 90 }).period).toBe('90');
     expect(searchSchema.parse({ period: 30 }).period).toBe('30');

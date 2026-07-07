@@ -29,11 +29,6 @@ export function AutomationsListNavigation({
       href: `/dashboard/${organizationId}/automations/catalog`,
       matchMode: 'exact',
     },
-    {
-      label: t('tabs.metrics'),
-      href: `/dashboard/${organizationId}/automations/metrics`,
-      matchMode: 'exact',
-    },
   ];
 
   return (

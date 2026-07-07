@@ -80,16 +80,23 @@ import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashb
 import { Route as DashboardIdKnowledgeKnowledgeEntriesRouteImport } from './routes/dashboard/$id/_knowledge/knowledge-entries';
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents';
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers';
+import { Route as DashboardIdSettingsMetricsRouteRouteImport } from './routes/dashboard/$id/settings/metrics/route';
 import { Route as DashboardIdSettingsGovernanceRouteRouteImport } from './routes/dashboard/$id/settings/governance/route';
 import { Route as DashboardIdSettingsApiRouteRouteImport } from './routes/dashboard/$id/settings/api/route';
 import { Route as DashboardIdSettingsSkillsIndexRouteImport } from './routes/dashboard/$id/settings/skills/index';
 import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index';
+import { Route as DashboardIdSettingsMetricsIndexRouteImport } from './routes/dashboard/$id/settings/metrics/index';
 import { Route as DashboardIdSettingsGovernanceIndexRouteImport } from './routes/dashboard/$id/settings/governance/index';
 import { Route as DashboardIdSettingsApiIndexRouteImport } from './routes/dashboard/$id/settings/api/index';
 import { Route as DashboardIdProjectsProjectIdIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/index';
 import { Route as DashboardIdAppsAppSlugIndexRouteImport } from './routes/dashboard/$id/apps/$appSlug/index';
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index';
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName';
+import { Route as DashboardIdSettingsMetricsWorkforceRouteImport } from './routes/dashboard/$id/settings/metrics/workforce';
+import { Route as DashboardIdSettingsMetricsUsageRouteImport } from './routes/dashboard/$id/settings/metrics/usage';
+import { Route as DashboardIdSettingsMetricsProjectsRouteImport } from './routes/dashboard/$id/settings/metrics/projects';
+import { Route as DashboardIdSettingsMetricsFeedbackRouteImport } from './routes/dashboard/$id/settings/metrics/feedback';
+import { Route as DashboardIdSettingsMetricsAutomationsRouteImport } from './routes/dashboard/$id/settings/metrics/automations';
 import { Route as DashboardIdSettingsGovernanceUsageRouteImport } from './routes/dashboard/$id/settings/governance/usage';
 import { Route as DashboardIdSettingsGovernanceTrashRouteImport } from './routes/dashboard/$id/settings/governance/trash';
 import { Route as DashboardIdSettingsGovernanceSecurityMonitoringRouteImport } from './routes/dashboard/$id/settings/governance/security-monitoring';
@@ -527,6 +534,12 @@ const DashboardIdKnowledgeCustomersRoute =
     path: '/customers',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any);
+const DashboardIdSettingsMetricsRouteRoute =
+  DashboardIdSettingsMetricsRouteRouteImport.update({
+    id: '/metrics',
+    path: '/metrics',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any);
 const DashboardIdSettingsGovernanceRouteRoute =
   DashboardIdSettingsGovernanceRouteRouteImport.update({
     id: '/governance',
@@ -550,6 +563,12 @@ const DashboardIdSettingsProvidersIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
+  } as any);
+const DashboardIdSettingsMetricsIndexRoute =
+  DashboardIdSettingsMetricsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
   } as any);
 const DashboardIdSettingsGovernanceIndexRoute =
   DashboardIdSettingsGovernanceIndexRouteImport.update({
@@ -586,6 +605,36 @@ const DashboardIdSettingsProvidersProviderNameRoute =
     id: '/$providerName',
     path: '/$providerName',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
+  } as any);
+const DashboardIdSettingsMetricsWorkforceRoute =
+  DashboardIdSettingsMetricsWorkforceRouteImport.update({
+    id: '/workforce',
+    path: '/workforce',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
+  } as any);
+const DashboardIdSettingsMetricsUsageRoute =
+  DashboardIdSettingsMetricsUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
+  } as any);
+const DashboardIdSettingsMetricsProjectsRoute =
+  DashboardIdSettingsMetricsProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
+  } as any);
+const DashboardIdSettingsMetricsFeedbackRoute =
+  DashboardIdSettingsMetricsFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
+  } as any);
+const DashboardIdSettingsMetricsAutomationsRoute =
+  DashboardIdSettingsMetricsAutomationsRouteImport.update({
+    id: '/automations',
+    path: '/automations',
+    getParentRoute: () => DashboardIdSettingsMetricsRouteRoute,
   } as any);
 const DashboardIdSettingsGovernanceUsageRoute =
   DashboardIdSettingsGovernanceUsageRouteImport.update({
@@ -880,6 +929,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/api': typeof DashboardIdSettingsApiRouteRouteWithChildren;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  '/dashboard/$id/settings/metrics': typeof DashboardIdSettingsMetricsRouteRouteWithChildren;
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute;
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute;
   '/dashboard/$id/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
@@ -961,12 +1011,18 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
+  '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
+  '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
+  '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
+  '/dashboard/$id/settings/metrics/workforce': typeof DashboardIdSettingsMetricsWorkforceRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/apps/$appSlug/': typeof DashboardIdAppsAppSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/api/': typeof DashboardIdSettingsApiIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/metrics/': typeof DashboardIdSettingsMetricsIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/apps/$appSlug/runs/$executionId': typeof DashboardIdAppsAppSlugRunsExecutionIdRoute;
@@ -1072,12 +1128,18 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
+  '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
+  '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
+  '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
+  '/dashboard/$id/settings/metrics/workforce': typeof DashboardIdSettingsMetricsWorkforceRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/apps/$appSlug': typeof DashboardIdAppsAppSlugIndexRoute;
   '/dashboard/$id/projects/$projectId': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/api': typeof DashboardIdSettingsApiIndexRoute;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/metrics': typeof DashboardIdSettingsMetricsIndexRoute;
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/apps/$appSlug/runs/$executionId': typeof DashboardIdAppsAppSlugRunsExecutionIdRoute;
@@ -1118,6 +1180,7 @@ export interface FileRoutesById {
   '/dashboard/$id/': typeof DashboardIdIndexRoute;
   '/dashboard/$id/settings/api': typeof DashboardIdSettingsApiRouteRouteWithChildren;
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  '/dashboard/$id/settings/metrics': typeof DashboardIdSettingsMetricsRouteRouteWithChildren;
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute;
   '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute;
   '/dashboard/$id/_knowledge/knowledge-entries': typeof DashboardIdKnowledgeKnowledgeEntriesRoute;
@@ -1199,12 +1262,18 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance/security-monitoring': typeof DashboardIdSettingsGovernanceSecurityMonitoringRoute;
   '/dashboard/$id/settings/governance/trash': typeof DashboardIdSettingsGovernanceTrashRoute;
   '/dashboard/$id/settings/governance/usage': typeof DashboardIdSettingsGovernanceUsageRoute;
+  '/dashboard/$id/settings/metrics/automations': typeof DashboardIdSettingsMetricsAutomationsRoute;
+  '/dashboard/$id/settings/metrics/feedback': typeof DashboardIdSettingsMetricsFeedbackRoute;
+  '/dashboard/$id/settings/metrics/projects': typeof DashboardIdSettingsMetricsProjectsRoute;
+  '/dashboard/$id/settings/metrics/usage': typeof DashboardIdSettingsMetricsUsageRoute;
+  '/dashboard/$id/settings/metrics/workforce': typeof DashboardIdSettingsMetricsWorkforceRoute;
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute;
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute;
   '/dashboard/$id/apps/$appSlug/': typeof DashboardIdAppsAppSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/': typeof DashboardIdProjectsProjectIdIndexRoute;
   '/dashboard/$id/settings/api/': typeof DashboardIdSettingsApiIndexRoute;
   '/dashboard/$id/settings/governance/': typeof DashboardIdSettingsGovernanceIndexRoute;
+  '/dashboard/$id/settings/metrics/': typeof DashboardIdSettingsMetricsIndexRoute;
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute;
   '/dashboard/$id/settings/skills/': typeof DashboardIdSettingsSkillsIndexRoute;
   '/dashboard/$id/apps/$appSlug/runs/$executionId': typeof DashboardIdAppsAppSlugRunsExecutionIdRoute;
@@ -1245,6 +1314,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/api'
     | '/dashboard/$id/settings/governance'
+    | '/dashboard/$id/settings/metrics'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/knowledge-entries'
@@ -1326,12 +1396,18 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
+    | '/dashboard/$id/settings/metrics/automations'
+    | '/dashboard/$id/settings/metrics/feedback'
+    | '/dashboard/$id/settings/metrics/projects'
+    | '/dashboard/$id/settings/metrics/usage'
+    | '/dashboard/$id/settings/metrics/workforce'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/apps/$appSlug/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/api/'
     | '/dashboard/$id/settings/governance/'
+    | '/dashboard/$id/settings/metrics/'
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/apps/$appSlug/runs/$executionId'
@@ -1437,12 +1513,18 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
+    | '/dashboard/$id/settings/metrics/automations'
+    | '/dashboard/$id/settings/metrics/feedback'
+    | '/dashboard/$id/settings/metrics/projects'
+    | '/dashboard/$id/settings/metrics/usage'
+    | '/dashboard/$id/settings/metrics/workforce'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/apps/$appSlug'
     | '/dashboard/$id/projects/$projectId'
     | '/dashboard/$id/settings/api'
     | '/dashboard/$id/settings/governance'
+    | '/dashboard/$id/settings/metrics'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/skills'
     | '/dashboard/$id/apps/$appSlug/runs/$executionId'
@@ -1482,6 +1564,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/'
     | '/dashboard/$id/settings/api'
     | '/dashboard/$id/settings/governance'
+    | '/dashboard/$id/settings/metrics'
     | '/dashboard/$id/_knowledge/customers'
     | '/dashboard/$id/_knowledge/documents'
     | '/dashboard/$id/_knowledge/knowledge-entries'
@@ -1563,12 +1646,18 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance/security-monitoring'
     | '/dashboard/$id/settings/governance/trash'
     | '/dashboard/$id/settings/governance/usage'
+    | '/dashboard/$id/settings/metrics/automations'
+    | '/dashboard/$id/settings/metrics/feedback'
+    | '/dashboard/$id/settings/metrics/projects'
+    | '/dashboard/$id/settings/metrics/usage'
+    | '/dashboard/$id/settings/metrics/workforce'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/apps/$appSlug/'
     | '/dashboard/$id/projects/$projectId/'
     | '/dashboard/$id/settings/api/'
     | '/dashboard/$id/settings/governance/'
+    | '/dashboard/$id/settings/metrics/'
     | '/dashboard/$id/settings/providers/'
     | '/dashboard/$id/settings/skills/'
     | '/dashboard/$id/apps/$appSlug/runs/$executionId'
@@ -2091,6 +2180,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport;
       parentRoute: typeof DashboardIdKnowledgeRoute;
     };
+    '/dashboard/$id/settings/metrics': {
+      id: '/dashboard/$id/settings/metrics';
+      path: '/metrics';
+      fullPath: '/dashboard/$id/settings/metrics';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsRouteRouteImport;
+      parentRoute: typeof DashboardIdSettingsRoute;
+    };
     '/dashboard/$id/settings/governance': {
       id: '/dashboard/$id/settings/governance';
       path: '/governance';
@@ -2118,6 +2214,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/settings/providers/';
       preLoaderRoute: typeof DashboardIdSettingsProvidersIndexRouteImport;
       parentRoute: typeof DashboardIdSettingsProvidersRoute;
+    };
+    '/dashboard/$id/settings/metrics/': {
+      id: '/dashboard/$id/settings/metrics/';
+      path: '/';
+      fullPath: '/dashboard/$id/settings/metrics/';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsIndexRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
     };
     '/dashboard/$id/settings/governance/': {
       id: '/dashboard/$id/settings/governance/';
@@ -2160,6 +2263,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/settings/providers/$providerName';
       preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport;
       parentRoute: typeof DashboardIdSettingsProvidersRoute;
+    };
+    '/dashboard/$id/settings/metrics/workforce': {
+      id: '/dashboard/$id/settings/metrics/workforce';
+      path: '/workforce';
+      fullPath: '/dashboard/$id/settings/metrics/workforce';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsWorkforceRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
+    };
+    '/dashboard/$id/settings/metrics/usage': {
+      id: '/dashboard/$id/settings/metrics/usage';
+      path: '/usage';
+      fullPath: '/dashboard/$id/settings/metrics/usage';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsUsageRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
+    };
+    '/dashboard/$id/settings/metrics/projects': {
+      id: '/dashboard/$id/settings/metrics/projects';
+      path: '/projects';
+      fullPath: '/dashboard/$id/settings/metrics/projects';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsProjectsRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
+    };
+    '/dashboard/$id/settings/metrics/feedback': {
+      id: '/dashboard/$id/settings/metrics/feedback';
+      path: '/feedback';
+      fullPath: '/dashboard/$id/settings/metrics/feedback';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsFeedbackRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
+    };
+    '/dashboard/$id/settings/metrics/automations': {
+      id: '/dashboard/$id/settings/metrics/automations';
+      path: '/automations';
+      fullPath: '/dashboard/$id/settings/metrics/automations';
+      preLoaderRoute: typeof DashboardIdSettingsMetricsAutomationsRouteImport;
+      parentRoute: typeof DashboardIdSettingsMetricsRouteRoute;
     };
     '/dashboard/$id/settings/governance/usage': {
       id: '/dashboard/$id/settings/governance/usage';
@@ -2752,6 +2890,34 @@ const DashboardIdSettingsGovernanceRouteRouteWithChildren =
     DashboardIdSettingsGovernanceRouteRouteChildren,
   );
 
+interface DashboardIdSettingsMetricsRouteRouteChildren {
+  DashboardIdSettingsMetricsAutomationsRoute: typeof DashboardIdSettingsMetricsAutomationsRoute;
+  DashboardIdSettingsMetricsFeedbackRoute: typeof DashboardIdSettingsMetricsFeedbackRoute;
+  DashboardIdSettingsMetricsProjectsRoute: typeof DashboardIdSettingsMetricsProjectsRoute;
+  DashboardIdSettingsMetricsUsageRoute: typeof DashboardIdSettingsMetricsUsageRoute;
+  DashboardIdSettingsMetricsWorkforceRoute: typeof DashboardIdSettingsMetricsWorkforceRoute;
+  DashboardIdSettingsMetricsIndexRoute: typeof DashboardIdSettingsMetricsIndexRoute;
+}
+
+const DashboardIdSettingsMetricsRouteRouteChildren: DashboardIdSettingsMetricsRouteRouteChildren =
+  {
+    DashboardIdSettingsMetricsAutomationsRoute:
+      DashboardIdSettingsMetricsAutomationsRoute,
+    DashboardIdSettingsMetricsFeedbackRoute:
+      DashboardIdSettingsMetricsFeedbackRoute,
+    DashboardIdSettingsMetricsProjectsRoute:
+      DashboardIdSettingsMetricsProjectsRoute,
+    DashboardIdSettingsMetricsUsageRoute: DashboardIdSettingsMetricsUsageRoute,
+    DashboardIdSettingsMetricsWorkforceRoute:
+      DashboardIdSettingsMetricsWorkforceRoute,
+    DashboardIdSettingsMetricsIndexRoute: DashboardIdSettingsMetricsIndexRoute,
+  };
+
+const DashboardIdSettingsMetricsRouteRouteWithChildren =
+  DashboardIdSettingsMetricsRouteRoute._addFileChildren(
+    DashboardIdSettingsMetricsRouteRouteChildren,
+  );
+
 interface DashboardIdSettingsProvidersRouteChildren {
   DashboardIdSettingsProvidersProviderNameRoute: typeof DashboardIdSettingsProvidersProviderNameRoute;
   DashboardIdSettingsProvidersIndexRoute: typeof DashboardIdSettingsProvidersIndexRoute;
@@ -2787,6 +2953,7 @@ const DashboardIdSettingsSkillsRouteWithChildren =
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsApiRouteRoute: typeof DashboardIdSettingsApiRouteRouteWithChildren;
   DashboardIdSettingsGovernanceRouteRoute: typeof DashboardIdSettingsGovernanceRouteRouteWithChildren;
+  DashboardIdSettingsMetricsRouteRoute: typeof DashboardIdSettingsMetricsRouteRouteWithChildren;
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute;
   DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute;
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute;
@@ -2817,6 +2984,8 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
     DashboardIdSettingsApiRouteRouteWithChildren,
   DashboardIdSettingsGovernanceRouteRoute:
     DashboardIdSettingsGovernanceRouteRouteWithChildren,
+  DashboardIdSettingsMetricsRouteRoute:
+    DashboardIdSettingsMetricsRouteRouteWithChildren,
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
   DashboardIdSettingsAgentsRoute: DashboardIdSettingsAgentsRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAbility } from '@/app/hooks/use-ability';
 import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
+import { METRICS_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/metrics/-nav-items';
 import { useT } from '@/lib/i18n/client';
 import type { AppAction, AppSubject } from '@/lib/permissions/ability';
 import { cn } from '@/lib/utils/cn';
@@ -70,6 +71,7 @@ export function SettingsRail({
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
   const { t: tGov } = useT('governance');
+  const { t: tMetrics } = useT('metrics');
   const ability = useAbility();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -150,6 +152,16 @@ export function SettingsRail({
         })),
       },
       {
+        kind: 'group',
+        labelKey: 'metrics',
+        path: 'metrics',
+        can: ['read', 'orgSettings'],
+        children: METRICS_NAV_ITEMS.map((item) => ({
+          slug: item.slug,
+          label: tMetrics(`groups.${item.labelKey}`),
+        })),
+      },
+      {
         kind: 'leaf',
         labelKey: 'enterpriseSso',
         path: 'enterprise-sso',
@@ -183,7 +195,7 @@ export function SettingsRail({
       { key: 'organization', labelKey: 'organization', items: organization },
       { key: 'development', labelKey: 'development', items: development },
     ];
-  }, [showAccountTab, tNav, tGov]);
+  }, [showAccountTab, tNav, tGov, tMetrics]);
 
   const isLeafActive = (item: RailLeaf): boolean => {
     const href = `${base}/${item.path}`;

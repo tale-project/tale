@@ -29,6 +29,8 @@ import { UsersTable } from './users-table';
 
 export interface UsageMetricsPageProps {
   organizationId: string;
+  periodDays?: 7 | 30 | 90;
+  onChangePeriod?: (period: 7 | 30 | 90) => void;
 }
 
 type UsageMetricsData =
@@ -223,10 +225,15 @@ export function UsageMetricsPageView({
 // plain view in `<Skeletonize>` so the same tree renders the skeleton while
 // the metrics load (no separate skeleton file to drift from the real layout).
 // =============================================================================
-export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
+export function UsageMetricsPage({
+  organizationId,
+  periodDays: periodDaysProp,
+  onChangePeriod,
+}: UsageMetricsPageProps) {
   const { t } = useT('analytics');
 
-  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
+  const [internalPeriodDays, setInternalPeriodDays] = useState<7 | 30 | 90>(30);
+  const periodDays = periodDaysProp ?? internalPeriodDays;
   const [granularity, setGranularity] = useState<UsageGranularity>('daily');
   const [metric, setMetric] = useState<UsageMetric>('tokens');
   const [agentSlug, setAgentSlug] = useState<string | undefined>(undefined);
@@ -246,11 +253,16 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
     { enabled: !!organizationId },
   );
 
-  const handlePeriod = useCallback((v: string) => {
-    if (v === '7') setPeriodDays(7);
-    else if (v === '90') setPeriodDays(90);
-    else setPeriodDays(30);
-  }, []);
+  const handlePeriod = useCallback(
+    (v: string) => {
+      let next: 7 | 30 | 90 = 30;
+      if (v === '7') next = 7;
+      else if (v === '90') next = 90;
+      if (onChangePeriod) onChangePeriod(next);
+      else setInternalPeriodDays(next);
+    },
+    [onChangePeriod],
+  );
   const handleGranularity = useCallback((v: string) => {
     if (v === 'daily' || v === 'weekly' || v === 'monthly') {
       setGranularity(v);

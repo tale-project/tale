@@ -2,14 +2,12 @@ import {
   AlertOctagon,
   Brain,
   ClipboardList,
-  MessagesSquare,
   Scale,
   ScrollText,
   Shield,
   ShieldAlert,
   Terminal,
   Trash2,
-  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,11 +18,9 @@ const GOVERNANCE_GROUPS = [
   'security-monitoring',
   'guardrails',
   'logs',
-  'usage',
   'legal-hold',
   'data-subject-requests',
   'trash',
-  'feedback',
 ] as const;
 type GovernanceGroup = (typeof GOVERNANCE_GROUPS)[number];
 
@@ -37,11 +33,9 @@ interface GovernanceNavItem {
     | 'securityAndMonitoring'
     | 'guardrails'
     | 'logs'
-    | 'usage'
     | 'legalHold'
     | 'dataSubjectRequests'
-    | 'trash'
-    | 'feedback';
+    | 'trash';
   icon: LucideIcon;
 }
 
@@ -61,7 +55,6 @@ export const GOVERNANCE_NAV_ITEMS: GovernanceNavItem[] = [
   },
   { slug: 'guardrails', labelKey: 'guardrails', icon: Shield },
   { slug: 'logs', labelKey: 'logs', icon: ScrollText },
-  { slug: 'usage', labelKey: 'usage', icon: TrendingUp },
   { slug: 'legal-hold', labelKey: 'legalHold', icon: AlertOctagon },
   {
     slug: 'data-subject-requests',
@@ -69,5 +62,4 @@ export const GOVERNANCE_NAV_ITEMS: GovernanceNavItem[] = [
     icon: ClipboardList,
   },
   { slug: 'trash', labelKey: 'trash', icon: Trash2 },
-  { slug: 'feedback', labelKey: 'feedback', icon: MessagesSquare },
 ];

@@ -725,8 +725,7 @@
     "appBadge": "App",
     "tabs": {
       "list": "List",
-      "catalog": "Catalog",
-      "metrics": "Metrics"
+      "catalog": "Catalog"
     },
     "catalog": {
       "installed": "Automation installed"
@@ -4591,6 +4590,7 @@
     "apiRest": "REST",
     "branding": "Branding",
     "governance": "Governance",
+    "metrics": "Metrics",
     "personalization": "Preferences",
     "environment": "Environment",
     "account": "Account",
@@ -5538,6 +5538,9 @@
       "governance": {
         "description": "Policies, security, audit logs, and data retention."
       },
+      "metrics": {
+        "description": "Organization-wide KPIs for usage, feedback, automations, workforce, and projects."
+      },
       "sandboxes": {
         "description": "Manage always-on remote agent sandboxes."
       },
@@ -5730,8 +5733,7 @@
     "agents": {
       "title": "Agents",
       "tabs": {
-        "list": "List",
-        "metrics": "Metrics"
+        "list": "List"
       },
       "entityLabel": "agents",
       "tableCaption": "Installed agents",
@@ -8248,6 +8250,25 @@
     "empty": {
       "title": "No catalog agents",
       "description": "No installable agents were found for this organization."
+    }
+  },
+  "metrics": {
+    "title": "Metrics",
+    "groups": {
+      "usage": "Usage",
+      "feedback": "Feedback",
+      "automations": "Automations",
+      "workforce": "Workforce",
+      "projects": "Projects"
+    },
+    "workforce": {
+      "title": "Workforce Metrics"
+    },
+    "projects": {
+      "selectLabel": "Project",
+      "selectPlaceholder": "Select a project…",
+      "emptyTitle": "Select a project",
+      "emptyDescription": "Choose a project to view its task metrics."
     }
   },
   "workforce": {
