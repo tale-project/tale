@@ -5385,6 +5385,7 @@
       "nameRequired": "Le nom de l'organisation est requis",
       "localeDescription": "La langue principale de ton organisation.",
       "organizationId": "ID de l'organisation",
+      "organizationIdDescription": "L'identifiant unique de ton organisation.",
       "membersSectionTitle": "Membres",
       "membersDescription": "Personnes ayant accès à cette organisation.",
       "membersEntityLabel": "membres",
