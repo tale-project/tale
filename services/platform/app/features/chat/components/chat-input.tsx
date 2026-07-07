@@ -76,6 +76,7 @@ import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
 import { SandboxStateIndicator } from './sandbox-state-indicator';
+import { SandboxWorkdirChip } from './sandbox-workdir-chip';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
@@ -1323,6 +1324,11 @@ export function ChatInput({
                       threadId={threadId}
                     />
                     <ExternalAgentModeToggle
+                      threadId={threadId}
+                      organizationId={organizationId}
+                      disabled={attachDisabled}
+                    />
+                    <SandboxWorkdirChip
                       threadId={threadId}
                       organizationId={organizationId}
                       disabled={attachDisabled}

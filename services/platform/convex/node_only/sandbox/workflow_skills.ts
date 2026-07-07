@@ -10,6 +10,7 @@ import { readFile, readdir } from 'node:fs/promises';
 
 import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import { sandboxWorkdirSessionPath } from '../../../lib/shared/sandbox-workdir';
 import type { ActionCtx } from '../../_generated/server';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { WORKFLOW_SKILL_NAMES } from '../../lib/skills/guidance';
@@ -64,9 +65,14 @@ export function isTaleRepoWorkspace(
   return dirs.has('.agents') && dirs.has('builtin-configs');
 }
 
-export async function workspaceIsTaleRepo(sessionId: string): Promise<boolean> {
+export async function workspaceIsTaleRepo(
+  sessionId: string,
+  workdirRel?: string,
+): Promise<boolean> {
   try {
-    return isTaleRepoWorkspace(await sessionListFiles(sessionId, 'workspace'));
+    return isTaleRepoWorkspace(
+      await sessionListFiles(sessionId, sandboxWorkdirSessionPath(workdirRel)),
+    );
   } catch (err) {
     console.warn(
       '[workflow-skills] workspace listing failed (assuming product workspace):',
@@ -82,6 +88,8 @@ export async function stageWorkflowSkills(
     organizationId: string;
     sessionId: string;
     productKind: ProductAgentSlug;
+    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
+    workdirRel?: string;
   },
 ): Promise<Set<string>> {
   if (process.env.TALE_SANDBOX_WORKFLOW_SKILLS === '0') return new Set();
@@ -105,7 +113,10 @@ export async function stageWorkflowSkills(
       );
       return new Set();
     }
-    const repoOwned = await repoOwnedSkillNames(args.sessionId);
+    const repoOwned = await repoOwnedSkillNames(
+      args.sessionId,
+      args.workdirRel,
+    );
     const stagedEntries = await sessionListFiles(
       args.sessionId,
       skillsStageDir,

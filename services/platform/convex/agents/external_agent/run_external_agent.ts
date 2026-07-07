@@ -35,6 +35,12 @@ import {
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import { resolveProductAgentKind } from '../../../lib/agent-adapters/events';
 import {
+  SANDBOX_WORKSPACE_ABS_ROOT,
+  isValidSandboxWorkdir,
+  resolveSandboxWorkdirAbs,
+  sandboxWorkdirSessionPath,
+} from '../../../lib/shared/sandbox-workdir';
+import {
   formatModelRef,
   parseModelRef,
 } from '../../../lib/shared/utils/model-ref';
@@ -57,6 +63,7 @@ import {
   sessionDestroy,
   sessionEnvPatch,
   sessionIsAlive,
+  sessionListFiles,
   sessionSetPinned,
   sessionStageFiles,
 } from '../../node_only/sandbox/helpers/session_client';
@@ -931,6 +938,48 @@ export const runExternalAgentTurn = internalAction({
         }
       }
 
+      // 2b-pre. Thread-scoped working directory (composer chip;
+      // `threadMetadata.sandboxWorkdir`): the CLI process starts here each
+      // turn, so a repo checked out under the workspace exposes its own
+      // CLAUDE.md / project skills to the agent. Fail-open to the workspace
+      // root — an invalid or not-yet-cloned path degrades the turn to today's
+      // behaviour instead of failing it (the chip probes existence at save
+      // time and documents this fallback).
+      let workdirRel: string | undefined;
+      try {
+        const threadMeta = await ctx.runQuery(
+          internal.threads.internal_queries.getThreadMetadata,
+          { threadId: args.threadId },
+        );
+        const requested = threadMeta?.sandboxWorkdir;
+        if (requested !== undefined && requested !== '') {
+          if (!isValidSandboxWorkdir(requested)) {
+            console.warn(
+              '[runExternalAgentTurn] invalid sandboxWorkdir — running at workspace root:',
+              { threadId: args.threadId, requested },
+            );
+          } else if (
+            (await sessionListFiles(
+              sessionId,
+              sandboxWorkdirSessionPath(requested),
+            )) === null
+          ) {
+            // null ⇒ spawner 404: the directory doesn't exist (yet).
+            console.warn(
+              '[runExternalAgentTurn] sandboxWorkdir missing in workspace — running at workspace root:',
+              { threadId: args.threadId, requested },
+            );
+          } else {
+            workdirRel = requested;
+          }
+        }
+      } catch (workdirErr) {
+        console.warn(
+          '[runExternalAgentTurn] sandboxWorkdir resolution failed — running at workspace root:',
+          workdirErr,
+        );
+      }
+
       // 2b. Materialize the org's integrations as CC-native skills so the agent
       // knows what's available + how to call the dispatch tool (readiness-
       // independent text; connection state comes from the tool result). Staged
@@ -939,7 +988,9 @@ export const runExternalAgentTurn = internalAction({
       // Feeds the skills-guidance section of the system-prompt append: the
       // workflow skills the agent can actually load this turn + whether the
       // workspace is Tale's own monorepo (whose AGENTS.md already carries the
-      // workflow, so the generated section is skipped there).
+      // workflow, so the generated section is skipped there). The repo-skill
+      // precedence scan follows the thread workdir — that's where the agent's
+      // runtime will discover project skills.
       let availableWorkflowSkills: ReadonlySet<string> = new Set<string>();
       let workspaceIsTale = false;
       try {
@@ -948,20 +999,27 @@ export const runExternalAgentTurn = internalAction({
           sessionId,
           productKind,
           nativeWebTools: byo || args.nativeWebTools === true,
+          ...(workdirRel !== undefined && { workdirRel }),
         });
-        await reconcileBuiltinSkills(ctx, { sessionId, productKind });
+        await reconcileBuiltinSkills(ctx, {
+          sessionId,
+          productKind,
+          ...(workdirRel !== undefined && { workdirRel }),
+        });
         await stageBoundOrgSkills(ctx, {
           organizationId: args.organizationId,
           sessionId,
           skillBindings: args.skillBindings,
           productKind,
+          ...(workdirRel !== undefined && { workdirRel }),
         });
         availableWorkflowSkills = await stageWorkflowSkills(ctx, {
           organizationId: args.organizationId,
           sessionId,
           productKind,
+          ...(workdirRel !== undefined && { workdirRel }),
         });
-        workspaceIsTale = await workspaceIsTaleRepo(sessionId);
+        workspaceIsTale = await workspaceIsTaleRepo(sessionId, workdirRel);
       } catch (skillErr) {
         console.warn(
           '[runExternalAgentTurn] integration skill staging failed (continuing):',
@@ -1147,6 +1205,14 @@ export const runExternalAgentTurn = internalAction({
             : undefined,
       });
 
+      // When the thread runs in a workspace subdir, the workspace root rides
+      // along as an additional readable dir so root-level files and sibling
+      // checkouts stay reachable from the agent's narrowed cwd.
+      const agentAdditionalDirs =
+        workdirRel !== undefined
+          ? [...attachmentDirs, SANDBOX_WORKSPACE_ABS_ROOT]
+          : attachmentDirs;
+
       // Both attempts share ONE absolute action deadline — a fresh window for
       // the retry could cross the 30-min action ceiling, whose hard kill
       // skips the catch entirely.
@@ -1160,7 +1226,12 @@ export const runExternalAgentTurn = internalAction({
           execId: id,
           agentSlug: args.agentKind,
           prompt: promptForRun,
-          ...(attachmentDirs.length > 0 && { additionalDirs: attachmentDirs }),
+          ...(workdirRel !== undefined && {
+            workdir: resolveSandboxWorkdirAbs(workdirRel),
+          }),
+          ...(agentAdditionalDirs.length > 0 && {
+            additionalDirs: agentAdditionalDirs,
+          }),
           // Live browser view (operator flag, default off): attach Playwright
           // MCP over CDP to the session's headed Chromium so it can be mirrored
           // read-only. Only set when on so the adapter's headless self-launch

@@ -80,6 +80,8 @@ export async function stageBoundOrgSkills(
     sessionId: string;
     skillBindings: readonly string[] | undefined;
     productKind: ProductAgentSlug;
+    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
+    workdirRel?: string;
   },
 ): Promise<void> {
   const skillsStageDir = getSkillsStageDir(args.productKind);
@@ -120,7 +122,7 @@ export async function stageBoundOrgSkills(
   const orgSlugs = new Set(Array.isArray(listed) ? listed : []);
   const candidates = customSlugs.filter((s) => orgSlugs.has(s));
 
-  const repoOwned = await repoOwnedSkillNames(args.sessionId);
+  const repoOwned = await repoOwnedSkillNames(args.sessionId, args.workdirRel);
   const { kept } = selectStageableSkills(candidates, (slug) => slug, repoOwned);
   if (kept.length === 0) return;
 

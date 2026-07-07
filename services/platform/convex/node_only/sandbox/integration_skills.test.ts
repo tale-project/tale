@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
 import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../../../lib/agent-adapters/types';
-import { REPO_SKILL_DIRS } from './integration_skills';
+import { repoSkillScanDirs } from './integration_skills';
 
-describe('REPO_SKILL_DIRS', () => {
-  it('covers every known project-level skill convention', () => {
-    expect(REPO_SKILL_DIRS).toEqual([
+describe('repoSkillScanDirs', () => {
+  it('covers every known project-level skill convention at the workspace root', () => {
+    expect(repoSkillScanDirs()).toEqual([
       'workspace/.claude/skills',
       'workspace/.codex/skills',
       'workspace/.cursor/skills',
@@ -19,6 +19,20 @@ describe('REPO_SKILL_DIRS', () => {
       'workspace/.opencode/skills',
       'workspace/.pi/skills',
     ]);
+  });
+
+  it('follows the thread sandbox workdir when set (nested paths included)', () => {
+    expect(repoSkillScanDirs('tale')).toEqual([
+      'workspace/tale/.claude/skills',
+      'workspace/tale/.codex/skills',
+      'workspace/tale/.cursor/skills',
+      'workspace/tale/.agents/skills',
+      'workspace/tale/.opencode/skills',
+      'workspace/tale/.pi/skills',
+    ]);
+    expect(repoSkillScanDirs('apps/web')).toContain(
+      'workspace/apps/web/.claude/skills',
+    );
   });
 });
 
