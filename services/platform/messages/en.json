@@ -5559,7 +5559,26 @@
       "deleteTitle": "Delete token source",
       "deleteConfirm": "Delete the token source “{name}”? Agents bound to it will lose their credential pool.",
       "secretConfigured": "Secret configured",
-      "secretReplace": "Replace secret"
+      "secretReplace": "Replace secret",
+      "sectionIdentity": "Identity",
+      "sectionConnection": "Connection",
+      "sectionMapping": "Response mapping",
+      "sectionBinding": "Binding",
+      "test": "Test broker",
+      "testing": "Testing…",
+      "testFailed": "Couldn't test the broker",
+      "testSummary": "{usable} of {total} tokens usable (HTTP {status}).",
+      "testNoUsable": "No usable tokens among {total} items (HTTP {status}) — check the mapping fields.",
+      "testMissingTokenField": "{count} items have no value in the token field.",
+      "testInactive": "{count} tokens filtered out by the status fields.",
+      "testExpired": "{count} tokens are expired or about to expire.",
+      "testNextExpiry": "Next token expiry: {date}",
+      "testErrorSecretMissing": "Enter the broker secret to run the test.",
+      "testErrorRequestFailed": "The broker request failed ({kind}).",
+      "testErrorHttp": "The broker returned HTTP {status}.",
+      "testErrorNonJson": "The broker returned a response that isn't JSON.",
+      "testErrorPathInvalid": "The tokens path is not valid JSONPath — it must start with $.",
+      "testErrorPathMiss": "The tokens path didn't match an array in the broker's response."
     },
     "account": {
       "profile": {

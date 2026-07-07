@@ -26,7 +26,14 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
 
-const { saveMock } = vi.hoisted(() => ({ saveMock: vi.fn() }));
+vi.mock('@/app/hooks/use-format-date', () => ({
+  useFormatDate: () => ({ formatDate: () => 'formatted-date' }),
+}));
+
+const { saveMock, testMock } = vi.hoisted(() => ({
+  saveMock: vi.fn(),
+  testMock: vi.fn(),
+}));
 
 vi.mock('@/app/hooks/use-action-query', () => ({
   // The list query is enabled; the form-sheet detail query is disabled in
@@ -52,9 +59,19 @@ vi.mock('@/app/hooks/use-action-query', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: saveMock, isPending: false }),
-}));
+vi.mock('@/app/hooks/use-convex-action', async () => {
+  const { getFunctionName } = await import('convex/server');
+  return {
+    // Route by the Convex function name so the save and test-broker actions
+    // get distinct mocks (`api.*` refs are proxies — no reference equality).
+    useConvexAction: (ref: Parameters<typeof getFunctionName>[0]) => ({
+      mutateAsync: getFunctionName(ref).includes('testTokenSource')
+        ? testMock
+        : saveMock,
+      isPending: false,
+    }),
+  };
+});
 
 vi.mock('@/app/hooks/use-list-page', () => ({
   useListPage: () => ({ tableProps: {} }),
@@ -90,6 +107,107 @@ describe('TokenSourcesManager', () => {
     ).toBeInTheDocument();
 
     await checkAccessibility(baseElement);
+  });
+
+  it('groups the form into labelled sections (#2395)', async () => {
+    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    );
+    await screen.findByRole('combobox', { name: /tokenSources\.method/i });
+
+    for (const section of [
+      'sectionIdentity',
+      'sectionConnection',
+      'sectionMapping',
+      'sectionBinding',
+    ]) {
+      expect(
+        screen.getByRole('group', {
+          name: new RegExp(`tokenSources\\.${section}`, 'i'),
+        }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it('runs the test-broker probe and shows the mapping preview (#2395)', async () => {
+    testMock.mockResolvedValueOnce({
+      ok: true,
+      httpStatus: 200,
+      itemCount: 5,
+      usableCount: 3,
+      missingTokenField: 0,
+      inactiveCount: 2,
+      expiredCount: 0,
+      nextExpiryMs: 1_700_000_000_000,
+    });
+
+    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    );
+    await user.type(
+      await screen.findByRole('textbox', { name: /tokenSources\.endpoint/i }),
+      'https://broker.example.com/api/tokens',
+    );
+    await user.click(
+      screen.getByRole('button', { name: /tokenSources\.test$/i }),
+    );
+
+    // The probe gets the draft config (never a raw form dump) …
+    expect(testMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        config: expect.objectContaining({
+          endpoint: 'https://broker.example.com/api/tokens',
+          responseMapping: expect.objectContaining({
+            tokensPath: '$.tokens',
+            tokenField: 'access_token',
+          }),
+        }),
+      }),
+    );
+
+    // … and the summary plus the per-filter drop reasons render inline.
+    expect(
+      await screen.findByText(/tokenSources\.testSummary/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/tokenSources\.testInactive/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/tokenSources\.testNextExpiry/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/tokenSources\.testMissingTokenField/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('surfaces a broker failure from the probe as an inline error (#2395)', async () => {
+    testMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'http_error',
+      httpStatus: 401,
+    });
+
+    const { user } = render(<TokenSourcesManager organizationId="org-1" />);
+    await user.click(
+      screen.getByRole('button', { name: /tokenSources\.new/i }),
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /tokenSources\.test$/i }),
+    );
+
+    expect(
+      await screen.findByText(/tokenSources\.testErrorHttp/i),
+    ).toBeInTheDocument();
+
+    // Editing any field clears the stale result.
+    await user.type(
+      screen.getByRole('textbox', { name: /tokenSources\.endpoint/i }),
+      'x',
+    );
+    expect(
+      screen.queryByText(/tokenSources\.testErrorHttp/i),
+    ).not.toBeInTheDocument();
   });
 
   it('maps server field errors inline and never leaks the raw ConvexError (#2350)', async () => {

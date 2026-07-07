@@ -15,13 +15,14 @@ Une source n'est que de la config — elle stocke _comment_ joindre le courtier 
 
 ## Ajouter une source
 
-Clique sur **Nouvelle source de jetons** et remplis le panneau latéral. Les champs se rangent en trois groupes :
+Clique sur **Nouvelle source de jetons** et remplis le panneau latéral. Le formulaire est organisé en quatre sections :
 
-- **Identité** — un `Identifiant` (en minuscules, stable ; il nomme le fichier de config et le secret), un nom affiché, et l'**URL du point de terminaison** du courtier avec sa **Méthode HTTP**.
-- **Authentification du courtier** — comment Tale s'authentifie _auprès du courtier_ : aucune, un jeton Bearer, ou un en-tête personnalisé. Pour Bearer ou en-tête tu saisis le secret du courtier. Le secret est en écriture seule — il n'est jamais renvoyé au navigateur, donc à la modification le champ apparaît vide et le laisser vide conserve la valeur stockée.
-- **Associe la réponse** du courtier — comment lire le JSON du courtier. Le **Chemin des jetons** est un JSONPath vers le tableau de jetons (ex. `$.tokens`) ; le **Champ du jeton** nomme la propriété qui porte chaque jeton. Les **Champ de statut (facultatif)** / **Valeur de statut actif (facultatif)** filtrent les jetons inactifs, et le **Champ d'expiration (facultatif)** (un timestamp ISO ou des secondes/ms epoch) écarte ceux déjà expirés avant que le pool soit utilisé.
+- **Identité** — un `Identifiant` (en minuscules, stable ; il nomme le fichier de config et le secret) et un nom affiché.
+- **Connexion** — l'**URL du point de terminaison** du courtier avec sa **Méthode HTTP**, et comment Tale s'authentifie _auprès du courtier_ : aucune, un jeton Bearer, ou un en-tête personnalisé. Pour Bearer ou en-tête tu saisis le secret du courtier. Le secret est en écriture seule — il n'est jamais renvoyé au navigateur, donc à la modification le champ apparaît vide et le laisser vide conserve la valeur stockée.
+- **Correspondance de la réponse** — comment lire le JSON du courtier. Le **Chemin des jetons** est un JSONPath vers le tableau de jetons (ex. `$.tokens`) ; le **Champ du jeton** nomme la propriété qui porte chaque jeton. Les **Champ de statut (facultatif)** / **Valeur de statut actif (facultatif)** filtrent les jetons inactifs, et le **Champ d'expiration (facultatif)** (un timestamp ISO ou des secondes/ms epoch) écarte ceux déjà expirés avant que le pool soit utilisé.
+- **Liaison** — la **Variable d'environnement cible** sous laquelle le jeton est injecté et la **Stratégie de sélection** : **Aléatoire** (le défaut, choisit uniformément par run) ou **Première** (déterministe).
 
-Enfin choisis la **Variable d'environnement cible** sous laquelle le jeton est injecté et la **Stratégie de sélection** — **Aléatoire** (le défaut, choisit uniformément par run) ou **Première** (déterministe). Enregistrer valide la config, l'écrit, et rend la source immédiatement sélectionnable dans l'onglet Environnement de l'agent.
+Avant d'enregistrer, appuie sur **Tester le courtier** dans la section Correspondance de la réponse : Tale interroge le courtier côté serveur avec la config en cours et prévisualise la correspondance — combien de jetons utilisables les chemins produisent, combien d'éléments ont été écartés comme inactifs, expirés ou sans champ de jeton, et la prochaine expiration. Un JSONPath erroné apparaît ainsi dans le formulaire plutôt qu'au moment du run de l'agent. Enregistrer valide la config, l'écrit, et rend la source immédiatement sélectionnable dans l'onglet Environnement de l'agent.
 
 ## Lier une source à un agent
 

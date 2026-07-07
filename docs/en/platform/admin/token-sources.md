@@ -15,13 +15,14 @@ A source is config only — it stores _how_ to reach the broker and _how_ to rea
 
 ## Adding a source
 
-Click **New token source** and fill the side panel. The fields fall into three groups:
+Click **New token source** and fill the side panel. The form is grouped into four sections:
 
-- **Identity** — a `slug` (lowercase, stable; it names the config file and the secret), a display name, and the broker **endpoint** with its HTTP method.
-- **Broker auth** — how Tale authenticates _to the broker_: none, a bearer token, or a custom header. For bearer or header you enter the broker secret. The secret is write-only — it is never returned to the browser, so on edit the field shows blank and leaving it blank keeps the stored value.
+- **Identity** — a `slug` (lowercase, stable; it names the config file and the secret) and a display name.
+- **Connection** — the broker **endpoint** with its HTTP method, and how Tale authenticates _to the broker_: none, a bearer token, or a custom header. For bearer or header you enter the broker secret. The secret is write-only — it is never returned to the browser, so on edit the field shows blank and leaving it blank keeps the stored value.
 - **Response mapping** — how to read the broker's JSON. `Tokens path` is a JSONPath to the array of tokens (e.g. `$.tokens`); `Token field` names the property holding each token. The optional `Status field` / `Status active value` filter out inactive tokens, and `Expiry field` (an ISO timestamp or epoch seconds/ms) drops already-expired ones before the pool is used.
+- **Binding** — the **target environment variable** the token is injected under and the **selection strategy**: `random` (the default, picks uniformly per run) or `first` (deterministic).
 
-Finally pick the **target environment variable** the token is injected under and the **selection strategy** — `random` (the default, picks uniformly per run) or `first` (deterministic). Saving validates the config, writes it, and makes the source immediately selectable on the agent Environment tab.
+Before saving, press **Test broker** in the Response mapping section: Tale fetches the broker server-side with the draft config and previews the mapping — how many usable tokens the paths yield, how many items were dropped as inactive, expired, or missing the token field, and the next expiry — so a wrong JSONPath surfaces in the form instead of at agent runtime. Saving validates the config, writes it, and makes the source immediately selectable on the agent Environment tab.
 
 ## Binding a source to an agent
 

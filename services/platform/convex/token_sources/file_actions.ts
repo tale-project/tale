@@ -17,18 +17,45 @@ import {
   readdirSafe,
   serializeJson,
 } from '../lib/file_io';
+import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import { JsonPathError } from '../lib/json/json_path';
 import {
   encryptJsonWithSops,
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
 import {
+  buildAuthHeaders,
+  diagnoseTokenMapping,
+} from '../node_only/sandbox/token_pool_select';
+import {
   loadTokenSource,
+  loadTokenSourceSecret,
   resolveTokenSourceFilePath,
   resolveTokenSourceSecretsPath,
   resolveTokenSourcesDir,
   tokenSourceSecretExists,
 } from './file_utils';
+
+/**
+ * Zod-parse a draft token-source config at the action boundary, mapping a
+ * ZodError to the `VALIDATION_ERROR` ConvexError shape the form sheet maps to
+ * inline per-field messages (#2350). Shared by save and test-broker.
+ */
+function parseTokenSourceConfig(raw: unknown): TokenSource {
+  try {
+    return tokenSourceSchema.parse(raw);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid token source configuration',
+        fieldErrors: err.flatten().fieldErrors,
+      });
+    }
+    throw err;
+  }
+}
 
 /**
  * List the org's configured token sources (summary fields) — drives both the
@@ -131,19 +158,7 @@ export const saveTokenSource = action({
       args.organizationId,
     );
 
-    let config: TokenSource;
-    try {
-      config = tokenSourceSchema.parse(args.config);
-    } catch (err) {
-      if (err instanceof ZodError) {
-        throw new ConvexError({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid token source configuration',
-          fieldErrors: err.flatten().fieldErrors,
-        });
-      }
-      throw err;
-    }
+    const config = parseTokenSourceConfig(args.config);
 
     await atomicWrite(
       resolveTokenSourceFilePath(orgSlug, config.slug),
@@ -174,6 +189,161 @@ export const saveTokenSource = action({
     }
 
     return { slug: config.slug };
+  },
+});
+
+/** Outcome of a `testTokenSource` probe — counts and failure classes only. */
+export type TestTokenSourceResult =
+  | {
+      ok: true;
+      httpStatus: number;
+      itemCount: number;
+      usableCount: number;
+      missingTokenField: number;
+      inactiveCount: number;
+      expiredCount: number;
+      nextExpiryMs?: number;
+    }
+  | {
+      ok: false;
+      error:
+        | 'secret_missing'
+        | 'request_failed'
+        | 'http_error'
+        | 'non_json'
+        | 'tokens_path_invalid'
+        | 'tokens_path_miss';
+      httpStatus?: number;
+      detail?: string;
+    };
+
+/**
+ * Probe a DRAFT token-source config from the form sheet before it is saved:
+ * fetch the broker server-side (same `safeFetch` + auth-header path the
+ * runtime pool fetcher uses) and run the JSONPath response mapping, returning
+ * pool counts, per-filter drop reasons, and the soonest expiry — so a
+ * misconfigured mapping is caught in the form, not at agent runtime.
+ *
+ * Returns only counts and sanitized failure classes: never the broker
+ * response, the tokens, or the secret. The secret used is the draft one when
+ * provided, else the stored sidecar / `secretEnv` env-ref (edit mode).
+ */
+export const testTokenSource = action({
+  args: {
+    organizationId: v.string(),
+    config: v.any(),
+    secret: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      ok: v.literal(true),
+      httpStatus: v.number(),
+      itemCount: v.number(),
+      usableCount: v.number(),
+      missingTokenField: v.number(),
+      inactiveCount: v.number(),
+      expiredCount: v.number(),
+      nextExpiryMs: v.optional(v.number()),
+    }),
+    v.object({
+      ok: v.literal(false),
+      error: v.union(
+        v.literal('secret_missing'),
+        v.literal('request_failed'),
+        v.literal('http_error'),
+        v.literal('non_json'),
+        v.literal('tokens_path_invalid'),
+        v.literal('tokens_path_miss'),
+      ),
+      httpStatus: v.optional(v.number()),
+      detail: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args): Promise<TestTokenSourceResult> => {
+    const { orgSlug } = await requireOrgMembershipById(
+      ctx,
+      args.organizationId,
+    );
+
+    const config = parseTokenSourceConfig(args.config);
+
+    // The broker auth secret: prefer the value typed into the form's secret
+    // field, then the stored encrypted sidecar (edit without re-entering),
+    // then the operator-set env-ref — the same order a saved source resolves.
+    let authSecret: string | undefined;
+    if (config.auth.method !== 'none') {
+      authSecret =
+        args.secret !== undefined && args.secret.length > 0
+          ? args.secret
+          : ((await loadTokenSourceSecret(orgSlug, config.slug)) ??
+            (config.auth.secretEnv !== undefined
+              ? process.env[config.auth.secretEnv]
+              : undefined));
+      if (authSecret === undefined || authSecret.length === 0) {
+        return { ok: false, error: 'secret_missing' };
+      }
+    }
+
+    let res;
+    try {
+      res = await safeFetch(config.endpoint, {
+        method: config.method,
+        headers: buildAuthHeaders(config.auth, authSecret),
+        timeoutMs: config.timeoutMs,
+        maxResponseBytes: config.maxResponseBytes,
+      });
+    } catch (err) {
+      // Never echo the broker URL / response — only the failure class.
+      const kind = err instanceof SafeFetchError ? err.kind : 'network_error';
+      return { ok: false, error: 'request_failed', detail: kind };
+    }
+    if (res.status < 200 || res.status >= 300) {
+      return { ok: false, error: 'http_error', httpStatus: res.status };
+    }
+
+    let json: unknown;
+    try {
+      json = JSON.parse(res.body);
+    } catch {
+      return { ok: false, error: 'non_json', httpStatus: res.status };
+    }
+
+    let diag;
+    try {
+      diag = diagnoseTokenMapping(
+        json,
+        config.responseMapping,
+        Date.now(),
+        config.expirySkewMs,
+      );
+    } catch (err) {
+      // A tokensPath not starting with `$` — the schema only checks length,
+      // so surface it as a mapping problem instead of a 500.
+      if (err instanceof JsonPathError) {
+        return {
+          ok: false,
+          error: 'tokens_path_invalid',
+          httpStatus: res.status,
+        };
+      }
+      throw err;
+    }
+    if (!diag.pathFound) {
+      return { ok: false, error: 'tokens_path_miss', httpStatus: res.status };
+    }
+
+    return {
+      ok: true,
+      httpStatus: res.status,
+      itemCount: diag.itemCount,
+      usableCount: diag.usableTokens.length,
+      missingTokenField: diag.missingTokenField,
+      inactiveCount: diag.inactiveCount,
+      expiredCount: diag.expiredCount,
+      ...(diag.nextExpiryMs !== undefined && {
+        nextExpiryMs: diag.nextExpiryMs,
+      }),
+    };
   },
 });
 
