@@ -15,6 +15,7 @@ import {
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { MIN_SUBMIT_DELAY_MS, type SubmitRequest } from '@/lib/forms/schemas';
 import { submitForm } from '@/lib/forms/submit-client';
+import { formSubmitErrorMessage } from '@/lib/forms/submit-errors';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
@@ -78,9 +79,7 @@ export function FormCard<T extends BasePayload>({
     } as SubmitRequest);
 
     if (!result.ok) {
-      setServerError(
-        result.status === 429 ? t('errors.rateLimited') : t('errors.generic'),
-      );
+      setServerError(formSubmitErrorMessage(result.status, t));
       return;
     }
     setSubmitted(true);

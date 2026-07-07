@@ -476,6 +476,7 @@
     "errors": {
       "generic": "Quelque chose s'est mal passé. Réessaie.",
       "rateLimited": "Trop d'envois. Patiente un instant et réessaie.",
+      "serverUnavailable": "Nous n'avons pas pu envoyer ton message pour le moment. Réessaie dans quelques minutes.",
       "tooFast": "Un instant — vérifie tes informations avant d'envoyer."
     },
     "success": {

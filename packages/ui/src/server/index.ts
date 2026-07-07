@@ -110,6 +110,13 @@ export interface ReactServerOptions {
    */
   securityHeaders?: SecurityHeadersConfig;
   /**
+   * Optional override for `/api/health`. Return a `Response` to replace the
+   * default `{ status, version }` payload (e.g. web adds `checks.forms` and
+   * may return 503 when required env is missing). Return `null` to use the
+   * built-in handler (shutting-down probe + `{ status: 'ok', version }`).
+   */
+  buildHealthResponse?: (ctx: { shuttingDown: boolean }) => Response | null;
+  /**
    * Service-specific routes evaluated BEFORE static file serving and locale
    * negotiation. Return `null` (or `undefined`) to fall through to the
    * default pipeline. Use for service-only API endpoints (e.g. web's
@@ -216,6 +223,7 @@ export function startReactServer(opts: ReactServerOptions): void {
     redirectPrefix = '',
     shutdownMarkerPath,
     securityHeaders,
+    buildHealthResponse,
     extraRoutes,
     artifacts,
   } = opts;
@@ -285,11 +293,16 @@ export function startReactServer(opts: ReactServerOptions): void {
           : response;
 
       if (url.pathname === '/api/health') {
-        if (shutdownMarkerPath && existsSync(shutdownMarkerPath)) {
+        const shuttingDown = Boolean(
+          shutdownMarkerPath && existsSync(shutdownMarkerPath),
+        );
+        if (shuttingDown) {
           return finalize(
             Response.json({ status: 'shutting_down' }, { status: 503 }),
           );
         }
+        const customHealth = buildHealthResponse?.({ shuttingDown });
+        if (customHealth) return finalize(customHealth);
         return finalize(
           Response.json({
             status: 'ok',
