@@ -7920,6 +7920,7 @@
       "ragStatusCompleted": "Indexé",
       "ragStatusFailed": "Échec",
       "detachAction": "Retirer du projet",
+      "detachConfirm": "Retirer ce fichier du projet ? Il sera déplacé vers « Connaissances » et deviendra visible par toute l'organisation.",
       "previewAction": "Aperçu du fichier",
       "detachSuccess": "Document retiré du projet",
       "detachError": "Impossible de retirer le document",

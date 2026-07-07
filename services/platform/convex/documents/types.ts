@@ -68,6 +68,12 @@ export interface CreateDocumentArgs {
   externalItemId?: string;
   contentHash?: string;
   teamId?: string;
+  /**
+   * Project scope, set at insert so a project upload never exists as an
+   * org-wide row, even transiently (issue #2546). Mutually exclusive with
+   * `teamId` — see `documents/schema.ts`.
+   */
+  projectId?: Id<'projects'>;
   createdBy?: string;
   folderId?: Id<'folders'>;
   folderPath?: string;

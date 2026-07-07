@@ -15,6 +15,15 @@ export async function createDocument(
   ctx: MutationCtx,
   args: CreateDocumentArgs,
 ): Promise<CreateDocumentResult> {
+  // A document carries `teamId` OR `projectId`, never both — the same
+  // invariant `attachDocumentToProject` enforces (documents/schema.ts).
+  if (args.projectId && args.teamId) {
+    throw new ConvexError({
+      code: 'DOCUMENT_SCOPE_CONFLICT',
+      message: 'A document cannot be both project- and team-scoped',
+    });
+  }
+
   if (args.folderId) {
     const folder = await ctx.db.get(args.folderId);
     if (!folder || folder.organizationId !== args.organizationId) {
@@ -46,6 +55,7 @@ export async function createDocument(
     externalItemId: args.externalItemId,
     contentHash: args.contentHash,
     ...teamFields,
+    projectId: args.projectId,
     sourceCreatedAt: args.sourceCreatedAt,
     sourceModifiedAt: args.sourceModifiedAt,
     createdBy: args.createdBy,

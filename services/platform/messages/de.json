@@ -7919,6 +7919,7 @@
       "ragStatusCompleted": "Indexiert",
       "ragStatusFailed": "Fehlgeschlagen",
       "detachAction": "Aus Projekt entfernen",
+      "detachConfirm": "Diese Datei aus dem Projekt entfernen? Sie wird nach „Wissen“ verschoben und ist dann für alle in der Organisation sichtbar.",
       "previewAction": "Datei anzeigen",
       "detachSuccess": "Dokument aus Projekt entfernt",
       "detachError": "Dokument konnte nicht entfernt werden",

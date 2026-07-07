@@ -10,6 +10,7 @@ import {
 } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { markEntryChainDeleted } from '../knowledge_entries/helpers';
@@ -18,6 +19,11 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { hasTeamAccess } from '../lib/team_access';
 import { stopSyncForDeletedDocument } from '../onedrive/deactivate_sync_configs';
+import { checkProjectAccess } from '../projects/access';
+import {
+  PROJECT_AUDIT_ACTIONS,
+  PROJECT_RESOURCE_TYPE,
+} from '../projects/audit_actions';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
 import { updateDocument as updateDocumentHelper } from './update_document';
@@ -143,6 +149,10 @@ export const createDocumentFromUpload = mutation({
     teamId: v.optional(v.string()),
     folderId: v.optional(v.id('folders')),
     fileSize: v.optional(v.number()),
+    // Scope the document to a project at insert. The former two-step flow
+    // (org-wide create, then attachDocumentToProject) left the file in the
+    // org-wide hub whenever the attach half failed (issue #2546).
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({
     success: v.boolean(),
@@ -157,7 +167,50 @@ export const createDocumentFromUpload = mutation({
       });
     }
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      args.organizationId,
+      authUser,
+    );
+
+    // Project-scoped upload: validate the target project before anything is
+    // written so a rejected upload leaves no stranded rows behind. Mirrors
+    // `assertWritable` in convex/projects/mutations.ts.
+    const project = args.projectId ? await ctx.db.get(args.projectId) : null;
+    if (args.projectId) {
+      if (args.teamId || args.folderId) {
+        throw new ConvexError({
+          code: 'DOCUMENT_SCOPE_CONFLICT',
+          message: 'A project document cannot also carry a team or folder',
+        });
+      }
+      if (!project) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: 'Project not found',
+        });
+      }
+      if (project.organizationId !== args.organizationId) {
+        throw new ConvexError({
+          code: 'ORG_FORBIDDEN',
+          message: 'Project belongs to a different organization',
+        });
+      }
+      const teamIds = await getUserTeamIds(ctx, authUser.userId);
+      const access = checkProjectAccess(project, teamIds, member.role);
+      if (!access.canRead) {
+        throw new ConvexError({
+          code: 'PROJECT_FORBIDDEN',
+          message: 'You do not have access to this project',
+        });
+      }
+      if (!access.canEdit) {
+        throw new ConvexError({
+          code: 'RBAC_FORBIDDEN',
+          message: 'You do not have permission to add files to this project',
+        });
+      }
+    }
 
     const resolvedContentType = resolveFileType(
       args.fileName,
@@ -234,6 +287,7 @@ export const createDocumentFromUpload = mutation({
       contentHash: args.contentHash,
       sourceProvider: 'upload',
       teamId: effectiveTeamId,
+      projectId: args.projectId,
       metadata: args.metadata,
       createdBy: authUser.userId,
       folderId: args.folderId,
@@ -247,6 +301,28 @@ export const createDocumentFromUpload = mutation({
           documentId: result.documentId,
         },
       );
+    }
+
+    if (project) {
+      // Same trail `attachDocumentToProject` writes, so a create-in-project
+      // upload is auditable as a file-attach scope transition.
+      await ctx.db.patch(project._id, { updatedAt: Date.now() });
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: userId,
+        actorEmail: authUser.email,
+        actorType: 'user',
+        action: PROJECT_AUDIT_ACTIONS.fileAttached,
+        category: 'data',
+        resourceType: PROJECT_RESOURCE_TYPE,
+        resourceId: String(project._id),
+        resourceName: project.name,
+        metadata: {
+          documentId: String(result.documentId),
+          previousTeamId: null,
+        },
+        status: 'success',
+      });
     }
 
     return {

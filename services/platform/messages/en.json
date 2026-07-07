@@ -5300,6 +5300,7 @@
       "ragStatusCompleted": "Indexed",
       "ragStatusFailed": "Failed",
       "detachAction": "Remove from project",
+      "detachConfirm": "Remove this file from the project? It moves to Knowledge and becomes visible to everyone in the organization.",
       "previewAction": "Preview file",
       "detachSuccess": "Document removed from project",
       "detachError": "Couldn't remove document",
