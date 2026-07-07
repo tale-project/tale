@@ -142,7 +142,7 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
         // carries it — without it the gate degrades to a raw JSON dump.
         return {
           operation: 'request_review',
-          taskId: String(params.taskId),
+          taskId: params.taskId,
           ...result,
         };
       }

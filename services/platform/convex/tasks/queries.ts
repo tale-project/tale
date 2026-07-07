@@ -252,10 +252,11 @@ export const listTasksByProjectPaginated = query({
     );
     return {
       ...result,
-      page: result.page.map((task) => ({
-        ...task,
-        pendingReview: pendingByTask.has(String(task._id)),
-      })),
+      page: result.page.map((task) =>
+        Object.assign(task, {
+          pendingReview: pendingByTask.has(String(task._id)),
+        }),
+      ),
     };
   },
 });
