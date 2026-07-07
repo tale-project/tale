@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 
+import { workflowListKey } from '@/app/features/workflows/hooks/file-queries';
 import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
 
@@ -62,5 +63,56 @@ export async function resolvesToAutomation(
   } catch (err) {
     console.error('Failed to resolve automation slug for legacy redirect', err);
     return true;
+  }
+}
+
+/** Whether `slug` names an existing workflow file for this org. */
+export function workflowSlugMatches(
+  workflows: readonly unknown[] | undefined,
+  slug: string,
+): boolean {
+  return (workflows ?? []).some(
+    (w) =>
+      w !== null &&
+      typeof w === 'object' &&
+      'slug' in w &&
+      (w as { slug: unknown }).slug === slug,
+  );
+}
+
+/**
+ * Whether `slug` names an existing workflow — the second gate of the D3
+ * legacy-bookmark fallback: an unresolved automation slug only redirects to
+ * the standalone workflow route when that workflow actually EXISTS (a
+ * pre-rename workflow bookmark); a slug that is neither renders the
+ * automation not-found surface instead of a workflow one. Errors (and the
+ * unauthenticated cold load) resolve `false` — never redirect on uncertainty.
+ *
+ * Warms the same cache entry `useListWorkflows(organizationId, 'all')` reads.
+ */
+export async function resolvesToWorkflow(
+  context: RouterContext,
+  organizationId: string,
+  slug: string,
+): Promise<boolean> {
+  const isAuthenticated = !!context.queryClient.getQueryData(
+    convexQuery(api.users.queries.getCurrentUser, {}).queryKey,
+  );
+  if (!isAuthenticated) return false;
+  try {
+    const workflows = await context.queryClient.fetchQuery({
+      queryKey: workflowListKey(organizationId, 'all'),
+      queryFn: () =>
+        context.convexQueryClient.convexClient.action(
+          api.workflows.file_actions.listWorkflows,
+          { organizationId, filter: 'all' },
+        ),
+      staleTime: Infinity,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listWorkflows returns v.any(); this only reads `.slug`
+    return workflowSlugMatches(workflows as unknown[], slug);
+  } catch (err) {
+    console.error('Failed to resolve workflow slug for legacy redirect', err);
+    return false;
   }
 }
