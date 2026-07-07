@@ -52,6 +52,9 @@ import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claud
 import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
 import { migration as normalizeAuthUserEmails } from '../versions/v0_3_3/01_normalize_auth_user_emails';
 import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_3_3/01_normalize_auth_user_emails/meta';
+// `node` file-rewrite migration — only its meta lives here (handler in
+// registry.node.ts).
+import { meta as brandingSingleAccentColorMeta } from '../versions/v0_3_4/01_branding_single_accent_color/meta';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 
 /**
@@ -86,6 +89,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   claudeCodeFableDefaultMeta,
   agentKindOpencodeMeta,
   normalizeAuthUserEmailsMeta,
+  brandingSingleAccentColorMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */

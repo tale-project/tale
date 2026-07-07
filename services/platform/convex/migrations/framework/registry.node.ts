@@ -12,6 +12,7 @@ import { migration as runCodeExport } from '../versions/v0_2_87/02_run_code_poli
 import { migration as modelSyncExport } from '../versions/v0_2_87/03_model_sync_db_to_json';
 import { migration as claudeCodeFableDefault } from '../versions/v0_2_89/03_claude_code_fable_default';
 import { migration as agentKindOpencodeToClaudeCode } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code';
+import { migration as brandingSingleAccentColor } from '../versions/v0_3_4/01_branding_single_accent_color';
 import type { NodeMigration } from './types';
 
 /** Runnable `node` migrations, keyed by `meta.id`. */
@@ -22,4 +23,5 @@ export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
   [modelSyncExport.meta.id]: modelSyncExport,
   [claudeCodeFableDefault.meta.id]: claudeCodeFableDefault,
   [agentKindOpencodeToClaudeCode.meta.id]: agentKindOpencodeToClaudeCode,
+  [brandingSingleAccentColor.meta.id]: brandingSingleAccentColor,
 };
