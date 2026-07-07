@@ -176,23 +176,6 @@
       }
     },
     {
-      "stepSlug": "advise_failed_rollback",
-      "name": "Advisor failed — roll back to To do",
-      "stepType": "action",
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "todo",
-          "comment": "[automated] The advisor could not produce a plan for this issue: {{steps.advise.output.data.error || steps.advise.output.data.summary || 'no output'}} — returned to To do."
-        }
-      },
-      "nextSteps": {
-        "success": "done"
-      }
-    },
-    {
       "stepSlug": "advise_gate",
       "name": "Does the plan need a human?",
       "stepType": "condition",
@@ -296,28 +279,6 @@
       }
     },
     {
-      "stepSlug": "plan_review_exhausted",
-      "name": "Plan review rounds exhausted — park for a human",
-      "stepType": "action",
-      "ui": {
-        "stage": "deliver",
-        "render": "status",
-        "labelKey": "issueDesk.markInReview"
-      },
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "in_review",
-          "comment": "[automated] The plan is still ambiguous after {{config.maxReworkLoops}} human review rounds — a human should take over from here.\n\n{{steps.advise.output.data.summary}}"
-        }
-      },
-      "nextSteps": {
-        "success": "done"
-      }
-    },
-    {
       "stepSlug": "assign_implementer",
       "name": "Assign to the implementer",
       "stepType": "action",
@@ -377,23 +338,6 @@
       }
     },
     {
-      "stepSlug": "execute_failed_rollback",
-      "name": "Implementer failed — roll back to To do",
-      "stepType": "action",
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "todo",
-          "comment": "[automated] The implementer could not resolve this issue: {{steps.execute.output.data.error || steps.execute.output.data.summary || 'no output'}} — returned to To do."
-        }
-      },
-      "nextSteps": {
-        "success": "done"
-      }
-    },
-    {
       "stepSlug": "grade",
       "name": "Reviewer grades the change & comments on the PR",
       "stepType": "sandbox",
@@ -433,28 +377,6 @@
       "nextSteps": {
         "true": "judge",
         "false": "grade_failed_park"
-      }
-    },
-    {
-      "stepSlug": "grade_failed_park",
-      "name": "Reviewer failed — park for a human",
-      "stepType": "action",
-      "ui": {
-        "stage": "deliver",
-        "render": "status",
-        "labelKey": "issueDesk.markInReview"
-      },
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "in_review",
-          "comment": "[automated] The reviewer could not grade the change: {{steps.grade.output.data.error || steps.grade.output.data.summary || 'no output'}} — the pull request is left open with the latest implementation; a human should review it. Moving to In review."
-        }
-      },
-      "nextSteps": {
-        "success": "done"
       }
     },
     {
@@ -559,28 +481,6 @@
       }
     },
     {
-      "stepSlug": "replan_exhausted",
-      "name": "Replan limit reached — park for a human",
-      "stepType": "action",
-      "ui": {
-        "stage": "deliver",
-        "render": "status",
-        "labelKey": "issueDesk.markInReview"
-      },
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "in_review",
-          "comment": "[automated] The desk reached its replan limit ({{config.maxReworkLoops}} replans; used {{variables.replanCount}}) — the judge keeps ruling the approach unsound. The latest attempt and review feedback are on the pull request — a human should take it over from here. Moving to In review."
-        }
-      },
-      "nextSteps": {
-        "success": "done"
-      }
-    },
-    {
       "stepSlug": "judge_pass",
       "name": "Mergeable?",
       "stepType": "condition",
@@ -591,28 +491,6 @@
       "nextSteps": {
         "true": "park_approved",
         "false": "bump_rework"
-      }
-    },
-    {
-      "stepSlug": "park_approved",
-      "name": "Approved — park for human merge",
-      "stepType": "action",
-      "ui": {
-        "stage": "deliver",
-        "render": "status",
-        "labelKey": "issueDesk.markInReview"
-      },
-      "config": {
-        "type": "task",
-        "parameters": {
-          "operation": "update_status",
-          "taskId": "{{input.task._id}}",
-          "status": "in_review",
-          "comment": "[automated] 🎯 The desk reviewed and approved this change — the pull request is ready for a human to merge. Rework loops: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.{{(variables.reworkCount || 0) == 0 ? ' First-pass approval.' : ''}}"
-        }
-      },
-      "nextSteps": {
-        "success": "done"
       }
     },
     {
@@ -645,6 +523,128 @@
       "nextSteps": {
         "true": "execute",
         "false": "loops_exhausted"
+      }
+    },
+    {
+      "stepSlug": "advise_failed_rollback",
+      "name": "Advisor failed — roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo",
+          "comment": "[automated] The advisor could not produce a plan for this issue: {{steps.advise.output.data.error || steps.advise.output.data.summary || 'no output'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "execute_failed_rollback",
+      "name": "Implementer failed — roll back to To do",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "todo",
+          "comment": "[automated] The implementer could not resolve this issue: {{steps.execute.output.data.error || steps.execute.output.data.summary || 'no output'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "plan_review_exhausted",
+      "name": "Plan review rounds exhausted — park for a human",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "status",
+        "labelKey": "issueDesk.markInReview"
+      },
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review",
+          "comment": "[automated] The plan is still ambiguous after {{config.maxReworkLoops}} human review rounds — a human should take over from here.\n\n{{steps.advise.output.data.summary}}"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "grade_failed_park",
+      "name": "Reviewer failed — park for a human",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "status",
+        "labelKey": "issueDesk.markInReview"
+      },
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review",
+          "comment": "[automated] The reviewer could not grade the change: {{steps.grade.output.data.error || steps.grade.output.data.summary || 'no output'}} — the pull request is left open with the latest implementation; a human should review it. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "replan_exhausted",
+      "name": "Replan limit reached — park for a human",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "status",
+        "labelKey": "issueDesk.markInReview"
+      },
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review",
+          "comment": "[automated] The desk reached its replan limit ({{config.maxReworkLoops}} replans; used {{variables.replanCount}}) — the judge keeps ruling the approach unsound. The latest attempt and review feedback are on the pull request — a human should take it over from here. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "done"
+      }
+    },
+    {
+      "stepSlug": "park_approved",
+      "name": "Approved — park for human merge",
+      "stepType": "action",
+      "ui": {
+        "stage": "deliver",
+        "render": "status",
+        "labelKey": "issueDesk.markInReview"
+      },
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "update_status",
+          "taskId": "{{input.task._id}}",
+          "status": "in_review",
+          "comment": "[automated] 🎯 The desk reviewed and approved this change — the pull request is ready for a human to merge. Rework loops: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.{{(variables.reworkCount || 0) == 0 ? ' First-pass approval.' : ''}}"
+        }
+      },
+      "nextSteps": {
+        "success": "done"
       }
     },
     {
