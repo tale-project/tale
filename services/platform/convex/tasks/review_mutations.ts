@@ -58,6 +58,16 @@ function readResponse(
   return response as unknown as TaskReviewResponse;
 }
 
+/** The review round an approval was minted for; rows predating the round key
+ * (or with malformed metadata) read as round 0. Exported for unit tests. */
+export function approvalRound(
+  approval: Pick<Doc<'approvals'>, 'metadata'>,
+): number {
+  const metadata: unknown = approval.metadata;
+  if (!isRecord(metadata)) return 0;
+  return typeof metadata.round === 'number' ? metadata.round : 0;
+}
+
 /**
  * Resolve who should review: the task creator when human, else the project
  * creator (agent- and app-created tasks must still land on a human desk).
@@ -77,6 +87,12 @@ export const createTaskReviewRequest = internalMutation({
     taskId: v.id('tasks'),
     wfExecutionId: v.id('wfExecutions'),
     stepSlug: v.string(),
+    /** Review ROUND, folded into the idempotency key. A workflow that loops
+     *  back to the SAME gate step (replan → still ambiguous) passes a bumped
+     *  round to mint a FRESH request — without it the recorded round-0
+     *  decision would replay forever, so v1 duplicated the whole step per
+     *  round. Absent ⇒ 0 (backward compatible with pre-round approvals). */
+    round: v.optional(v.number()),
     question: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
   },
@@ -94,8 +110,10 @@ export const createTaskReviewRequest = internalMutation({
       throw new ConvexError({ code: 'TASK_NOT_FOUND' });
     }
 
-    // Idempotency: one approval per (execution, step). Resume re-executes
-    // the step; finding the responded row IS the resume payload.
+    // Idempotency: one approval per (execution, step, round). Resume
+    // re-executes the step; finding the responded row IS the resume payload.
+    // A loop that re-enters the gate bumps `round` for a fresh request.
+    const round = args.round ?? 0;
     for await (const approval of ctx.db
       .query('approvals')
       .withIndex('by_resource', (q) =>
@@ -105,7 +123,8 @@ export const createTaskReviewRequest = internalMutation({
       )) {
       if (
         approval.wfExecutionId !== args.wfExecutionId ||
-        approval.stepSlug !== args.stepSlug
+        approval.stepSlug !== args.stepSlug ||
+        approvalRound(approval) !== round
       ) {
         continue;
       }
@@ -137,6 +156,7 @@ export const createTaskReviewRequest = internalMutation({
         projectId: String(task.projectId),
         agentSlug: args.agentSlug ?? null,
         requestedFor: reviewer ?? null,
+        round,
         question:
           args.question ?? `Agent work on "${task.title}" is ready for review.`,
       },
