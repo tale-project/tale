@@ -29,7 +29,12 @@ const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 // Which external agent runtime handles an `external-agent` turn. The turn runs
 // in a sandbox session driven by @/lib/agent-adapters; the platform never runs
 // its own tool loop for these.
-const agentKindLiterals = ['claude-code', 'cursor', 'hermes'] as const;
+const agentKindLiterals = [
+  'claude-code',
+  'cursor',
+  'hermes',
+  'gemini',
+] as const;
 const agentKindSchema = z.enum(agentKindLiterals);
 
 const composerModeSchema = z.object({

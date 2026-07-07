@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CursorAdapter } from './cursor/adapter';
+import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import type { AgentRunSpec } from './types';
 
@@ -34,6 +35,29 @@ describe('HermesAdapter.buildExec', () => {
     );
     expect(env.OPENAI_API_KEY).toBe('sk-bf-test');
     expect(env.HERMES_HOME).toBe('/user/.runtime/home/.hermes');
+  });
+});
+
+describe('GeminiCliAdapter.buildExec', () => {
+  it('builds tale-gemini-run with GenAI-route gateway env', () => {
+    const geminiBase = {
+      prompt: 'Fix issue #1',
+      model: 'openrouter/google/gemini-3.1-pro-preview',
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
+      workdir: '/user/workspace',
+    } satisfies AgentRunSpec;
+    const { argv, env, stdin } = new GeminiCliAdapter().buildExec(geminiBase);
+    expect(argv[0]).toBe('tale-gemini-run');
+    expect(env.GOOGLE_GEMINI_BASE_URL).toBe(
+      'http://sandbox-llm-gateway:8080/genai',
+    );
+    expect(env.GEMINI_API_KEY).toBe('sk-bf-test');
+    // The prompt rides stdin (JSON payload), never argv.
+    expect(argv).not.toContain('Fix issue #1');
+    expect(JSON.parse(stdin ?? '{}')).toMatchObject({ prompt: 'Fix issue #1' });
   });
 });
 
