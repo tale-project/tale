@@ -26,6 +26,7 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
+import { collectPendingReviewsByTask } from './pending_reviews';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
@@ -235,8 +236,27 @@ export const listTasksByProjectPaginated = query({
     includeArchived: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await loadAccessibleProject(ctx, args.projectId, args.organizationId);
-    return await listTasksByProjectPaginatedHelper(ctx, args);
+    const { project } = await loadAccessibleProject(
+      ctx,
+      args.projectId,
+      args.organizationId,
+    );
+    const result = await listTasksByProjectPaginatedHelper(ctx, args);
+    // Stamp each row with its review-gate state so row-driven view actions can
+    // gate on it (`when: "pendingReview"`) — one bounded scan per page, shared
+    // with the board's ops indicators.
+    const pendingByTask = await collectPendingReviewsByTask(
+      ctx,
+      project.organizationId,
+      args.projectId,
+    );
+    return {
+      ...result,
+      page: result.page.map((task) => ({
+        ...task,
+        pendingReview: pendingByTask.has(String(task._id)),
+      })),
+    };
   },
 });
 
@@ -571,27 +591,18 @@ export const getTaskOpsIndicators = query({
     }
 
     // Pending reviews are rare org-wide, so the org-level pending scan
-    // filtered to this project stays tiny.
-    const pendingReviews: Array<{
-      taskId: Id<'tasks'>;
-      approvalId: Id<'approvals'>;
-    }> = [];
-    for await (const approval of ctx.db
-      .query('approvals')
-      .withIndex('by_org_status_resourceType', (q) =>
-        q
-          .eq('organizationId', project.organizationId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'task_review'),
-      )) {
-      const metadata: unknown = approval.metadata;
-      if (!isRecord(metadata)) continue;
-      if (metadata.projectId !== String(args.projectId)) continue;
+    // filtered to this project stays tiny (shared with the paginated list's
+    // per-row `pendingReview` stamp).
+    const pendingByTask = await collectPendingReviewsByTask(
+      ctx,
+      project.organizationId,
+      args.projectId,
+    );
+    const pendingReviews = [...pendingByTask].map(([taskId, approvalId]) => ({
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- task_review approvals store String(taskId) as resourceId
-      const taskId = approval.resourceId as Id<'tasks'>;
-      pendingReviews.push({ taskId, approvalId: approval._id });
-      if (pendingReviews.length >= TASK_OPS_INDICATOR_CAP) break;
-    }
+      taskId: taskId as Id<'tasks'>,
+      approvalId,
+    }));
 
     return { runningTaskIds, pendingReviews };
   },

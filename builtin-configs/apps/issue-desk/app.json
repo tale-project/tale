@@ -1,18 +1,30 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues (bound to tasks by the github sync) flow through a fixed process — an implementer agent resolves the issue in the platform sandbox, tests it, and opens a PR (or, when one already resolves the issue, updates that existing PR and closes redundant duplicates instead of opening a new one); a reviewer agent re-tests and comments; a toolless LLM judge decides merge-readiness, looping back to the implementer until approved (bounded by a configurable rework limit, after which it escalates to a human), then a human merges. The whole app is data — a workflow + agents + views + a localized catalog — composed on the platform skeleton with no per-vertical system code.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk. GitHub issues flow through a shared sandbox with four phases — Advise, Execute, Grade, Dream — then a human merges.",
   "icon": "ticket",
   "scope": "project",
   "messageNamespace": "issueDesk",
   "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
-  "agents": ["desk-implementer", "desk-reviewer"],
+  "agents": [
+    "desk-advisor",
+    "desk-implementer",
+    "desk-reviewer",
+    "desk-dreamer"
+  ],
   "roles": {
+    "advisor": "issue-desk/desk-advisor",
     "implementer": "issue-desk/desk-implementer",
-    "reviewer": "issue-desk/desk-reviewer"
+    "reviewer": "issue-desk/desk-reviewer",
+    "dreamer": "issue-desk/desk-dreamer"
   },
   "capabilities": {
     "workflows": ["issue-desk/desk-process", "issue-desk/reconcile"],
-    "roles": ["issue-desk/desk-implementer", "issue-desk/desk-reviewer"],
+    "roles": [
+      "issue-desk/desk-advisor",
+      "issue-desk/desk-implementer",
+      "issue-desk/desk-reviewer",
+      "issue-desk/desk-dreamer"
+    ],
     "functions": [
       { "path": "tasks/queries:listTasksByProjectPaginated", "mode": "query" },
       {

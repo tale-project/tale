@@ -1,6 +1,10 @@
 import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
+import {
+  normalizeSandboxWorkdir,
+  sandboxWorkdirError,
+} from '../../lib/shared/sandbox-workdir';
 import { components, internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import {
@@ -519,6 +523,53 @@ export const setExternalAgentMode = mutation({
 
     if (metadata) {
       await ctx.db.patch(metadata._id, { externalAgentMode: args.mode });
+    }
+    return null;
+  },
+});
+
+export const setSandboxWorkdir = mutation({
+  args: {
+    threadId: v.string(),
+    /** Workspace-relative directory; empty string clears back to the root. */
+    workdir: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await getAuthUserIdentity(ctx);
+    if (!identity) {
+      throw new ConvexError({
+        code: 'UNAUTHENTICATED',
+        message: 'Unauthenticated',
+      });
+    }
+
+    // Cross-tenant gate, same rationale as setExternalAgentMode: the row is
+    // looked up by threadId and is otherwise blind to caller identity.
+    await assertThreadAccess(ctx, args.threadId, identity);
+
+    // Server-side validation is the real workspace-confinement boundary —
+    // runnerd accepts any existing dir under /user, so a `..` segment here
+    // would legally escape the workspace. The chip validates too, but only
+    // as UX.
+    const workdir = normalizeSandboxWorkdir(args.workdir);
+    const reason = sandboxWorkdirError(workdir);
+    if (reason !== null) {
+      throw new ConvexError({
+        code: 'INVALID_WORKDIR',
+        message: `Invalid working directory (${reason})`,
+      });
+    }
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, {
+        sandboxWorkdir: workdir === '' ? undefined : workdir,
+      });
     }
     return null;
   },

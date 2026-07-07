@@ -178,7 +178,8 @@
       "start": "Starten",
       "markDone": "Als erledigt markieren",
       "merge": "Pull Request mergen",
-      "all": "Alle"
+      "all": "Alle",
+      "review": "Prüfen"
     },
     "agents": {
       "none": "Keine Agenten konfiguriert.",
@@ -282,7 +283,9 @@
     "review": {
       "gate": "Warten auf Freigabe",
       "form": "Eingabe erforderlich",
-      "choice": "Option wählen"
+      "choice": "Option wählen",
+      "approved": "Genehmigt",
+      "changesRequested": "Änderungen angefordert"
     },
     "action": {
       "open": "Öffnen",
@@ -1464,6 +1467,22 @@
       "planTooltip": "Planungsmodus: Der Agent erkundet nur lesend und schlägt dir einen Plan zur Genehmigung vor",
       "actTooltip": "Ausführungsmodus: Der Agent setzt deine Anweisungen direkt um",
       "toggleFailed": "Modus konnte nicht gewechselt werden"
+    },
+    "workdir": {
+      "label": "Arbeitsverzeichnis",
+      "chipTooltip": "Hier startet der Agent bei jeder Nachricht. Zeig auf einen Repo-Ordner im Arbeitsbereich, damit der Agent dessen eigene Anweisungen und Skills nutzt.",
+      "rootLabel": "workspace",
+      "placeholder": "z. B. tale",
+      "helper": "Relativ zum Stammverzeichnis des Arbeitsbereichs. Gilt ab deiner nächsten Nachricht; solange der Ordner noch nicht existiert, läuft der Agent im Stammverzeichnis.",
+      "save": "Speichern",
+      "reset": "Auf Stammverzeichnis zurücksetzen",
+      "missingWarning": "Diesen Ordner gibt es im Arbeitsbereich noch nicht — bis er angelegt ist, läuft der Agent im Stammverzeichnis des Arbeitsbereichs.",
+      "saveFailed": "Arbeitsverzeichnis konnte nicht geändert werden",
+      "errors": {
+        "absolute": "Gib einen Pfad relativ zum Arbeitsbereich an, keinen absoluten",
+        "tooLong": "Dieser Pfad ist zu lang",
+        "badSegment": "Nur Buchstaben, Ziffern, Punkte, Binde- und Unterstriche — Segmente aus zwei Punkten (..) sind nicht erlaubt"
+      }
     },
     "sandbox": {
       "label": "Sandbox",

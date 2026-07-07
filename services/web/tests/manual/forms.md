@@ -39,7 +39,7 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
 | Case(s)          | Status         | e2e spec                                                                |
 | ---------------- | -------------- | ----------------------------------------------------------------------- |
 | F1 (render only) | 🔶 partial     | `smoke.spec.ts` (`/contact` shows a form + the **Get in touch** button) |
-| F2–F6, B1–B9     | ⛔ manual-only | — (no spec drives a submit; the endpoint itself has no test)            |
+| F2–F6, B1–B10    | ⛔ manual-only | — (no spec drives a submit; the endpoint itself has no test)            |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
@@ -67,6 +67,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | B7  | Oversize payload    | curl a body > 4 KiB (e.g. a 5000-char `message`)                                                                                       | HTTP **413** `Payload too large`; via the UI the 2000-char Zod cap yields **Too long** first                                                                                                                                                                  |
 | B8  | Malformed JSON      | `curl -X POST {base}/api/forms/submit -d 'not json'`                                                                                   | HTTP **400** `Invalid JSON`; a schema-invalid JSON body returns **400** `Validation failed`; `GET` returns **405**                                                                                                                                            |
 | B9  | Dev server (mode C) | Valid submit against `bun run dev`                                                                                                     | The generic error **Something went wrong. Try again.** (`forms.errors.generic`) — the endpoint only exists in `server.ts`; environment, not a bug                                                                                                             |
+| B10 | Webhook unset (503) | Mode B with `WEB_DISCORD_WEBHOOK_URL` empty: submit a valid contact form after ≥ 3 s                                                   | HTTP **503**; `role="alert"` shows **We couldn't send your message right now. Please try again in a few minutes.** (`forms.errors.serverUnavailable`). With `WEB_FORMS_REQUIRED=true`, `GET /api/health` also returns **503** and `checks.forms.ok: false`    |
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -85,16 +86,16 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Issues Found
 
-| #   | Test ID | Route / URL                              | Severity (crit/high/med/low) | Description                                                                                                                                                                                                                                                                         | Screenshot |
-| --- | ------- | ---------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 1   | F6      | `POST https://tale.dev/api/forms/submit` | crit                         | Production returns HTTP **503** `{"ok":false,"error":"Service not configured"}` (2026-07-06 honeypot probe) — `WEB_DISCORD_WEBHOOK_URL` is unset, so **every** contact and demo submission fails with the generic error. This is the original tale.dev contact-form 503, still live | —          |
-| 2   | F5      | `/de/contact`, `/fr/contact`             | low                          | The privacy-policy checkbox link is a hard `<a href="/legal/privacy-policy">` — on localized forms it leaves the locale tree (English legal page) and bypasses the SPA router                                                                                                       | —          |
+| #   | Test ID | Route / URL                              | Severity (crit/high/med/low) | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Screenshot |
+| --- | ------- | ---------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | F6      | `POST https://tale.dev/api/forms/submit` | crit                         | Production returns HTTP **503** `{"ok":false,"error":"Service not configured"}` (2026-07-06 honeypot probe) — `WEB_DISCORD_WEBHOOK_URL` is unset, so **every** contact and demo submission fails. The UI shows **We couldn't send your message right now. Please try again in a few minutes.** (`forms.errors.serverUnavailable`), not the generic error. Set `WEB_DISCORD_WEBHOOK_URL` + `WEB_FORMS_REQUIRED=true` in the deployment; `/api/health` should report `checks.forms.ok: true` after fix | —          |
+| 2   | F5      | `/de/contact`, `/fr/contact`             | low                          | The privacy-policy checkbox link is a hard `<a href="/legal/privacy-policy">` — on localized forms it leaves the locale tree (English legal page) and bypasses the SPA router                                                                                                                                                                                                                                                                                                                        | —          |
 
 ## Test summary
 
 ```
 Area: Forms (web)
-Functional: ___/6   Boundary: ___/9   A11y: ___/4   Perf: ___/1
+Functional: ___/6   Boundary: ___/10   A11y: ___/4   Perf: ___/1
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

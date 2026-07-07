@@ -178,7 +178,8 @@
       "start": "Start",
       "markDone": "Mark done",
       "merge": "Merge pull request",
-      "all": "All"
+      "all": "All",
+      "review": "Review"
     },
     "agents": {
       "none": "No agents configured.",
@@ -282,7 +283,9 @@
     "review": {
       "gate": "Awaiting approval",
       "form": "Input required",
-      "choice": "Choose an option"
+      "choice": "Choose an option",
+      "approved": "Approved",
+      "changesRequested": "Changes requested"
     },
     "action": {
       "open": "Open",
@@ -1464,6 +1467,22 @@
       "planTooltip": "Plan mode: the agent explores read-only and proposes a plan for your approval",
       "actTooltip": "Act mode: the agent executes directly",
       "toggleFailed": "Couldn't switch mode"
+    },
+    "workdir": {
+      "label": "Working directory",
+      "chipTooltip": "Where the agent starts each turn. Point it at a repo folder inside the workspace and the agent picks up that repo's own instructions and skills.",
+      "rootLabel": "workspace",
+      "placeholder": "e.g. tale",
+      "helper": "Relative to the workspace root. Applies from your next message; while the folder doesn't exist yet, the agent runs at the workspace root.",
+      "save": "Save",
+      "reset": "Reset to root",
+      "missingWarning": "That folder doesn't exist in the workspace yet — the agent runs at the workspace root until it's created.",
+      "saveFailed": "Couldn't update the working directory",
+      "errors": {
+        "absolute": "Use a path relative to the workspace, not an absolute one",
+        "tooLong": "That path is too long",
+        "badSegment": "Only letters, digits, dots, dashes and underscores — \"..\" segments aren't allowed"
+      }
     },
     "sandbox": {
       "label": "Sandbox",

@@ -41,7 +41,7 @@ import {
   resolveColumnLabels,
   usePackLabelString,
 } from '../../runtime/app-runtime';
-import { type BoundActionSpec } from './bound-button';
+import { type RowActionSpec } from './bound-button';
 import { DataTable } from './data-table';
 import { Section } from './section';
 import { SubjectRerunAction } from './subject-rerun-action';
@@ -63,7 +63,7 @@ export interface CollectionProps {
   columns?: string[];
   /** Header text per column key — each a `$label:` pack reference or literal. */
   columnLabels?: Record<string, string>;
-  actions?: BoundActionSpec[];
+  actions?: RowActionSpec[];
   /** When set, rows expand to show their workflow run inline (the execution
    *  "about" this subject). Generic — any domain list opts in. */
   subjectType?: string;
@@ -178,7 +178,7 @@ function CollectionTable({
   rows: Record<string, unknown>[];
   columns?: string[];
   resolvedColumnLabels?: Record<string, string>;
-  actions?: BoundActionSpec[];
+  actions?: RowActionSpec[];
   subjectType?: string;
   subjectIdField: string;
   maxRows?: number;

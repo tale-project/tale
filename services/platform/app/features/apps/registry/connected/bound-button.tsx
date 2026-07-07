@@ -27,6 +27,8 @@ export interface BoundActionSpec {
   /** `<dir>/<file>:<export>` reference path (must be in capabilities.functions). */
   path: string;
   mode: FunctionMode;
+  /** Effect-only actions never carry a path (the `RowActionSpec` discriminant). */
+  effect?: never;
   /** Args with templates: whole-string `$orgId` / `$selected` / `$selected.<field>`;
    *  embedded `$tpl:…{field}…` (row interpolation) / `$label:<key>` (localized
    *  pack template interpolated over the row). */
@@ -47,6 +49,32 @@ export interface BoundActionSpec {
    *  rows that carry no persistent signal, e.g. "Create task" on an issue). */
   doneLabelKey?: string;
   doneLabel?: string;
+}
+
+/**
+ * A row action that only applies a client EFFECT (e.g. open the row's detail
+ * overlay) — no Convex function call. Same availability gating (`when`) and
+ * labeling as a bound action; discriminated from `BoundActionSpec` by the
+ * absent `path`. Effect templates resolve against the row (`$selected.*`).
+ */
+export interface EffectActionSpec {
+  label?: string;
+  labelKey?: string;
+  /** Availability predicate over the bound item (when_predicate grammar). */
+  when?: string;
+  variant?: 'primary' | 'secondary' | 'destructive' | 'ghost';
+  effect: ActionEffect;
+  path?: never;
+}
+
+/** What a connected table row renders per action: call a function, or apply an effect. */
+export type RowActionSpec = BoundActionSpec | EffectActionSpec;
+
+/** Discriminate an effect-only action (no function reference to bind). */
+export function isEffectAction(
+  action: RowActionSpec,
+): action is EffectActionSpec {
+  return action.path === undefined;
 }
 
 /**
@@ -130,6 +158,42 @@ export function BoundButton({
         }
         void run();
       }}
+    >
+      {label}
+    </Button>
+  );
+}
+
+/**
+ * The effect-only sibling of `BoundButton`: same gating and labeling, but the
+ * click applies a declarative effect against the row instead of calling a
+ * function — e.g. a "Review" action that opens the task's detail overlay where
+ * the pending review card lives. A separate component (not a BoundButton
+ * branch) so neither calls hooks conditionally.
+ */
+export function EffectButton({
+  action,
+  item,
+  size = 'sm',
+}: {
+  action: EffectActionSpec;
+  item?: Record<string, unknown>;
+  size?: 'sm' | 'default';
+}) {
+  const { t } = useT('apps');
+  const applyEffect = useActionEffect();
+
+  if (item && action.when && !evaluateWhen(action.when, item)) return null;
+
+  const label = action.labelKey
+    ? t(action.labelKey, { defaultValue: action.label ?? action.effect.kind })
+    : (action.label ?? action.effect.kind);
+
+  return (
+    <Button
+      size={size}
+      variant={action.variant ?? 'secondary'}
+      onClick={() => applyEffect(action.effect, undefined, item)}
     >
       {label}
     </Button>

@@ -12,6 +12,7 @@
 import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
 import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../../../lib/agent-adapters/types';
+import { sandboxWorkdirSessionPath } from '../../../lib/shared/sandbox-workdir';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
@@ -124,23 +125,36 @@ ${SLUG_APPENDIX[entry.slug] ?? ''}`;
 }
 
 /**
- * Workspace-relative dirs where a checked-out repo declares its OWN skills.
+ * Repo-root-relative dirs where a checked-out repo declares its OWN skills.
  * Union of all known runtime conventions — repo wins on name collision.
  */
-export const REPO_SKILL_DIRS = [
-  'workspace/.claude/skills',
-  'workspace/.codex/skills',
-  'workspace/.cursor/skills',
-  'workspace/.agents/skills',
-  'workspace/.opencode/skills',
-  'workspace/.pi/skills',
+const REPO_SKILL_DIR_NAMES = [
+  '.claude/skills',
+  '.codex/skills',
+  '.cursor/skills',
+  '.agents/skills',
+  '.opencode/skills',
+  '.pi/skills',
 ] as const;
+
+/**
+ * Session-relative dirs to scan for repo-owned skills. The repo root follows
+ * the thread's sandbox workdir (`threadMetadata.sandboxWorkdir`): the agent's
+ * runtime discovers project skills from its cwd, so precedence must scan the
+ * same place — scanning only the workspace root would re-stage a skill the
+ * repo already provides and hand the agent two conflicting copies.
+ */
+export function repoSkillScanDirs(workdirRel?: string): string[] {
+  const base = sandboxWorkdirSessionPath(workdirRel);
+  return REPO_SKILL_DIR_NAMES.map((dir) => `${base}/${dir}`);
+}
 
 export async function repoOwnedSkillNames(
   sessionId: string,
+  workdirRel?: string,
 ): Promise<Set<string>> {
   const names = new Set<string>();
-  for (const dir of REPO_SKILL_DIRS) {
+  for (const dir of repoSkillScanDirs(workdirRel)) {
     try {
       const entries = await sessionListFiles(sessionId, dir);
       for (const entry of entries ?? []) {
@@ -164,6 +178,8 @@ export async function stageIntegrationSkills(
     sessionId: string;
     productKind: ProductAgentSlug;
     nativeWebTools: boolean;
+    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
+    workdirRel?: string;
   },
 ): Promise<void> {
   const skillsStageDir = getSkillsStageDir(args.productKind);
@@ -195,7 +211,7 @@ export async function stageIntegrationSkills(
 
   if (catalog.length === 0) return;
 
-  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  const repoSkills = await repoOwnedSkillNames(args.sessionId, args.workdirRel);
   const { kept, dropped } = selectStageableSkills(
     catalog,
     (entry) => `${INTEGRATION_SKILL_PREFIX}${entry.slug}`,
@@ -227,13 +243,18 @@ export async function stageIntegrationSkills(
 
 export async function reconcileBuiltinSkills(
   ctx: ActionCtx,
-  args: { sessionId: string; productKind: ProductAgentSlug },
+  args: {
+    sessionId: string;
+    productKind: ProductAgentSlug;
+    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
+    workdirRel?: string;
+  },
 ): Promise<void> {
   void ctx;
   const skillsStageDir = getSkillsStageDir(args.productKind);
   if (!skillsStageDir) return;
 
-  const repoSkills = await repoOwnedSkillNames(args.sessionId);
+  const repoSkills = await repoOwnedSkillNames(args.sessionId, args.workdirRel);
   const baked = [...BAKED_BUILTIN_SKILL_NAMES].map((name) => ({ name }));
   const { dropped } = selectStageableSkills(
     baked,

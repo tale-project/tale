@@ -6,8 +6,8 @@ the mock LLM, CI sharding). This file is the contract for adding a flow without
 reintroducing the flakiness the suite was rebuilt to remove.
 
 This is the **automated** suite. The human/AI-driven manual playbooks live in
-[`services/platform/tests/manual/`](../tests/manual/README.md) and are executed in a real
-browser via the [`qa-browser`](../../../.agents/qa-browser/AGENTS.md) skill.
+[`services/platform/tests/manual/`](../manual/README.md) and are executed in a real
+browser per the [`browse-web`](../../../../.agents/skills/browse-web/SKILL.md) skill.
 When a manual case earns automation, bring it here under these rules.
 
 ## Non-negotiables

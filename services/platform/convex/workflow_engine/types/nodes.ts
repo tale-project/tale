@@ -402,11 +402,19 @@ const sandboxInputValidator = v.object({
   ),
 });
 
+const sandboxSessionScopeValidator = v.union(
+  v.literal('step'),
+  v.literal('workflow'),
+);
+
 const sandboxRunValidator = v.union(
   // ephemeral agent run
   v.object({
     agent: v.string(),
     instructions: v.optional(v.string()),
+    /** When `workflow`, reuse one sandbox workspace for every step in the
+     * execution that opts in — torn down at workflow completion. Default `step`. */
+    sessionScope: v.optional(sandboxSessionScopeValidator),
     budget: v.object({
       maxCents: v.number(),
       maxWallClockMs: v.number(),

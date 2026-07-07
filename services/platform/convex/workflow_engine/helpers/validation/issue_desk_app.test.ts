@@ -62,11 +62,16 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     // app-owned IDENTITY is the COMPOSITE slug `<app>/<name>`, used wherever an
     // agent is resolved at runtime — the roles map, workflow steps, env keys.
     expect(manifest.agents).toContain('desk-implementer');
+    expect(manifest.agents).toContain('desk-advisor');
+    expect(manifest.agents).toContain('desk-dreamer');
     expect(manifest.roles?.implementer).toBe('issue-desk/desk-implementer');
+    expect(manifest.roles?.advisor).toBe('issue-desk/desk-advisor');
     expect(manifest.capabilities?.roles).toEqual(
       expect.arrayContaining([
         'issue-desk/desk-implementer',
         'issue-desk/desk-reviewer',
+        'issue-desk/desk-advisor',
+        'issue-desk/desk-dreamer',
       ]),
     );
     const fnPaths = manifest.capabilities?.functions?.map((f) => f.path) ?? [];
@@ -268,7 +273,12 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
   });
 
   it('the role agents are valid external-agent + BYO sandbox configs', () => {
-    for (const slug of ['desk-implementer', 'desk-reviewer']) {
+    for (const slug of [
+      'desk-advisor',
+      'desk-implementer',
+      'desk-reviewer',
+      'desk-dreamer',
+    ]) {
       const cfg = agentJsonSchema.parse(readJson(`agents/${slug}.json`));
       // Every desk agent runs as Claude Code in a sandbox on the user's own
       // credentials.
@@ -283,29 +293,178 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     }
   });
 
-  it('the agent steps run named agents in the platform sandbox (sandbox/run.agent)', () => {
+  it('the sandbox steps share one workflow session and cover four phases', () => {
     expect(workflow.success).toBe(true);
     if (!workflow.success) return;
     const steps = workflow.data.steps as Array<Record<string, unknown>>;
-    for (const slug of ['implement', 'review']) {
+    for (const slug of ['advise', 'execute', 'grade', 'dream_pass']) {
       const step = steps.find((s) => s.stepSlug === slug);
       expect(step?.stepType, `${slug} stepType`).toBe('sandbox');
       const run = (
         step?.config as {
-          run?: { agent?: string; budget?: { maxCents?: number } };
+          run?: {
+            agent?: string;
+            sessionScope?: string;
+            budget?: { maxCents?: number };
+          };
         }
       )?.run;
       expect(typeof run?.agent, `${slug} run.agent is a string`).toBe('string');
+      expect(run?.sessionScope, `${slug} sessionScope`).toBe('workflow');
       expect(run?.budget?.maxCents ?? 0, `${slug} budget`).toBeGreaterThan(0);
     }
-    // The roles the steps template against resolve to the app-scoped composite.
     const vars = workflow.data.config?.variables as
       | { roles?: Record<string, string> }
       | undefined;
-    expect(vars?.roles?.implementer).toBe('issue-desk/desk-implementer');
+    expect(vars?.roles?.advisor).toBe('issue-desk/desk-advisor');
+    expect(vars?.roles?.dreamer).toBe('issue-desk/desk-dreamer');
   });
 
-  it('the review->implement rework loop is bounded by a configurable counter', () => {
+  it('NEEDS_HUMAN pauses for in-workflow plan review instead of ending at to_review', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
+
+    const adviseGate = bySlug('advise_gate') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(adviseGate.nextSteps?.true).toBe('human_needed_comment');
+
+    const humanComment = bySlug('human_needed_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(humanComment.nextSteps?.success).toBe('plan_review_pick');
+    expect(humanComment.nextSteps?.success).not.toBe('to_review');
+
+    const planReview = bySlug('request_plan_review') as {
+      stepType?: string;
+      ui?: { render?: string; labelKey?: string };
+      config?: { type?: string; parameters?: { operation?: string } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(planReview.stepType).toBe('action');
+    expect(planReview.config?.type).toBe('approval');
+    expect(planReview.config?.parameters?.operation).toBe('request_review');
+    expect(planReview.ui?.render).toBe('review');
+    expect(planReview.ui?.labelKey).toBe('issueDesk.planReview');
+    expect(planReview.nextSteps?.success).toBe('plan_review_decide');
+
+    const decide = bySlug('plan_review_decide') as {
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(decide.config?.expression).toContain("'approve'");
+    // Round-aware: only THIS round's gate decides — a stale approve recorded on
+    // an earlier round must never auto-pass a later NEEDS_HUMAN cycle.
+    expect(decide.config?.expression).toContain('variables.planReviewRound');
+    expect(decide.nextSteps?.true).toBe('plan_approved_comment');
+    expect(decide.nextSteps?.false).toBe('capture_plan_feedback');
+
+    // BOTH outcomes advance the round counter, so a later NEEDS_HUMAN cycle
+    // always reaches a FRESH approval gate (the request is idempotent per
+    // (execution, step) — re-running a responded slug replays its decision).
+    const approved = bySlug('plan_approved_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(approved.nextSteps?.success).toBe('bump_plan_round_approved');
+    const bumpApproved = bySlug('bump_plan_round_approved') as {
+      config?: { parameters?: { variables?: Array<{ name?: string }> } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(bumpApproved.config?.parameters?.variables?.[0]?.name).toBe(
+      'planReviewRound',
+    );
+    expect(bumpApproved.nextSteps?.success).toBe('assign_implementer');
+
+    const feedback = bySlug('plan_feedback_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(feedback.nextSteps?.success).toBe('bump_plan_review_round');
+
+    const bumpPlanReview = bySlug('bump_plan_review_round') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(bumpPlanReview.nextSteps?.success).toBe('assign_advisor');
+  });
+
+  it('a failed advisor run rolls back instead of executing without a plan', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
+
+    const advise = bySlug('advise') as { nextSteps?: Record<string, string> };
+    expect(advise.nextSteps?.success).toBe('advise_check');
+
+    const check = bySlug('advise_check') as {
+      stepType?: string;
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(check.stepType).toBe('condition');
+    expect(check.config?.expression).toContain(
+      'steps.advise.output.data.ok == true',
+    );
+    expect(check.nextSteps?.true).toBe('advise_gate');
+    expect(check.nextSteps?.false).toBe('advise_failed_comment');
+
+    const failed = bySlug('advise_failed_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(failed.nextSteps?.success).toBe('rollback');
+  });
+
+  it('a failed grade run parks for a human instead of judging an empty grade', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
+
+    const grade = bySlug('grade') as { nextSteps?: Record<string, string> };
+    expect(grade.nextSteps?.success).toBe('grade_check');
+
+    const check = bySlug('grade_check') as {
+      stepType?: string;
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(check.stepType).toBe('condition');
+    expect(check.config?.expression).toContain(
+      'steps.grade.output.data.ok == true',
+    );
+    expect(check.nextSteps?.true).toBe('judge');
+    expect(check.nextSteps?.false).toBe('grade_failed_comment');
+
+    const failed = bySlug('grade_failed_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(failed.nextSteps?.success).toBe('to_review');
+  });
+
+  it('plan-review round gates read the variables namespace with an unseeded-safe guard', () => {
+    expect(workflow.success).toBe(true);
+    if (!workflow.success) return;
+    const steps = workflow.data.steps as Array<Record<string, unknown>>;
+    const bySlug = (slug: string) => steps.find((s) => s.stepSlug === slug);
+    // `variables.*` entries exist only after a set_variables step wrote them —
+    // config.variables seeds `config.*`, NOT `variables.*` — so every read
+    // that can run before the first bump must guard with `|| 0`, or the first
+    // NEEDS_HUMAN would fall straight through to the exhausted path.
+    for (const slug of [
+      'plan_review_pick',
+      'plan_review_pick_2',
+      'plan_review_decide',
+    ]) {
+      const step = bySlug(slug) as { config?: { expression?: string } };
+      expect(
+        step.config?.expression,
+        `${slug} guards planReviewRound`,
+      ).toContain('(variables.planReviewRound || 0)');
+    }
+  });
+
+  it('the review->execute rework loop is bounded and wrong_approach replans', () => {
     expect(workflow.success).toBe(true);
     if (!workflow.success) return;
     const steps = workflow.data.steps as Array<Record<string, unknown>>;
@@ -318,12 +477,38 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(typeof vars?.maxReworkLoops).toBe('number');
     expect(vars?.maxReworkLoops as number).toBeGreaterThan(0);
 
-    // The judge's "needs work" branch must NOT loop straight back to the
-    // implementer — it routes through the counter so it can't run forever.
-    const judge = bySlug('judge_decision') as {
+    // The wrong_approach replan loop is bounded like the rework loop — a judge
+    // that keeps ruling wrong_approach must escalate, not loop until timeout.
+    const judgeWrong = bySlug('judge_wrong_approach') as {
       nextSteps?: Record<string, string>;
     };
-    expect(judge.nextSteps?.false).toBe('bump_rework');
+    expect(judgeWrong.nextSteps?.true).toBe('dream_wrong');
+    const dreamWrong = bySlug('dream_wrong') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(dreamWrong.nextSteps?.success).toBe('bump_replan');
+    const bumpReplan = bySlug('bump_replan') as {
+      config?: { parameters?: { variables?: Array<{ name?: string }> } };
+      nextSteps?: Record<string, string>;
+    };
+    expect(bumpReplan.config?.parameters?.variables?.[0]?.name).toBe(
+      'replanCount',
+    );
+    expect(bumpReplan.nextSteps?.success).toBe('replan_gate');
+    const replanGate = bySlug('replan_gate') as {
+      stepType?: string;
+      config?: { expression?: string };
+      nextSteps?: Record<string, string>;
+    };
+    expect(replanGate.stepType).toBe('condition');
+    expect(replanGate.config?.expression).toContain('variables.replanCount');
+    expect(replanGate.config?.expression).toContain('config.maxReworkLoops');
+    expect(replanGate.nextSteps?.true).toBe('assign_advisor');
+    expect(replanGate.nextSteps?.false).toBe('replan_exhausted_comment');
+    const replanExhausted = bySlug('replan_exhausted_comment') as {
+      nextSteps?: Record<string, string>;
+    };
+    expect(replanExhausted.nextSteps?.success).toBe('to_review');
 
     // bump_rework increments reworkCount via set_variables.
     const bump = bySlug('bump_rework') as {
@@ -349,7 +534,7 @@ describe('issue-desk demo app (data) validates against the skeleton', () => {
     expect(gate.stepType).toBe('condition');
     expect(gate.config?.expression).toContain('variables.reworkCount');
     expect(gate.config?.expression).toContain('config.maxReworkLoops');
-    expect(gate.nextSteps?.true).toBe('implement');
+    expect(gate.nextSteps?.true).toBe('execute');
     expect(gate.nextSteps?.false).toBe('loops_exhausted');
 
     // The escalation path comments on the task, then parks it for a human

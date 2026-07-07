@@ -11,6 +11,7 @@
 #
 # Environment variables (see services/web/.env.example):
 #   WEB_DISCORD_WEBHOOK_URL   Discord webhook URL for /api/forms/submit.
+#   WEB_FORMS_REQUIRED        When true, /api/health returns 503 if the webhook is unset.
 #   PORT, HOSTNAME            Server bind config (defaults 3001 / 0.0.0.0).
 #
 # Image:

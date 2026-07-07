@@ -4,6 +4,9 @@ import {
   sessionIdForThread,
   sessionIdForUser,
   userOwnerId,
+  sessionIdForWorkflowExecution,
+  sessionIdForWorkflowRun,
+  resolveWorkflowSandboxSession,
 } from './session_naming';
 
 // Mirrors the spawner's sessionId validator (services/sandbox/src/wire.ts).
@@ -52,5 +55,40 @@ describe('sessionIdForThread', () => {
     const id = sessionIdForThread('m5788x3q38cfm45j5rx2zqdtq188e2e8');
     expect(id).toMatch(ID_ALPHABET_RE);
     expect(id.startsWith('thr-')).toBe(true);
+  });
+});
+
+describe('workflow-scoped sandbox sessions', () => {
+  const EXEC = 'm5788x3q38cfm45j5rx2zqdtq188e2e8';
+
+  it('sessionIdForWorkflowExecution is stable and distinct from step ids', () => {
+    const wf = sessionIdForWorkflowExecution(EXEC);
+    const step = sessionIdForWorkflowRun(EXEC, 'advise');
+    expect(wf).toMatch(ID_ALPHABET_RE);
+    expect(wf).not.toBe(step);
+    expect(sessionIdForWorkflowExecution(EXEC)).toBe(
+      sessionIdForWorkflowExecution(EXEC),
+    );
+  });
+
+  it('never collides with a step literally named "workflow"', () => {
+    const resolved = resolveWorkflowSandboxSession({
+      executionId: EXEC,
+      stepSlug: 'workflow',
+      sessionScope: 'step',
+    });
+    expect(resolved.sessionId).not.toBe(sessionIdForWorkflowExecution(EXEC));
+    expect(resolved.ownerId).not.toBe(`${EXEC}:@workflow`);
+  });
+
+  it('resolveWorkflowSandboxSession maps workflow scope to shared owner', () => {
+    const resolved = resolveWorkflowSandboxSession({
+      executionId: EXEC,
+      stepSlug: 'grade',
+      sessionScope: 'workflow',
+    });
+    expect(resolved.ownerId).toBe(`${EXEC}:@workflow`);
+    expect(resolved.checkpointKey).toContain('::grade');
+    expect(resolved.sessionScope).toBe('workflow');
   });
 });

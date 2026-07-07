@@ -476,6 +476,7 @@
     "errors": {
       "generic": "Something went wrong. Try again.",
       "rateLimited": "Too many submissions. Wait a moment, then try again.",
+      "serverUnavailable": "We couldn't send your message right now. Please try again in a few minutes.",
       "tooFast": "Hold on — review your details before submitting."
     },
     "success": {

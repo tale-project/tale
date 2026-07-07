@@ -1,8 +1,11 @@
 {
   "issueDesk.assign": "Tri et affectation",
+  "issueDesk.advise": "Planifier le correctif",
+  "issueDesk.planReview": "Examiner le plan",
   "issueDesk.implement": "Implémenter le correctif",
   "issueDesk.verify": "Lancer les tests",
   "issueDesk.review": "Vérifier et corriger",
+  "issueDesk.dream": "Capturer les leçons",
   "issueDesk.judge": "Décision de merge",
   "issueDesk.markInReview": "Marquer comme en revue",
   "issueDesk.verdictReady": "Prêt à merger",
