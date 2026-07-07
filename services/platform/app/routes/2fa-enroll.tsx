@@ -73,7 +73,8 @@ function downloadBackupCodes(codes: string[]) {
   URL.revokeObjectURL(url);
 }
 
-function TwoFactorEnrollPage() {
+// Exported for tests (mirrors `LogInPage` in `_auth/log-in.tsx`).
+export function TwoFactorEnrollPage() {
   const { t } = useT('twoFactor');
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();

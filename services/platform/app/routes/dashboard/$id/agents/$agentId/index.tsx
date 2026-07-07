@@ -335,7 +335,9 @@ function GeneralTab() {
         label:
           slug === 'cursor'
             ? t('agents.form.agentKind.cursor')
-            : t('agents.form.agentKind.claudeCode'),
+            : slug === 'hermes'
+              ? t('agents.form.agentKind.hermes')
+              : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -365,7 +367,9 @@ function GeneralTab() {
 
   const handleAgentKindChange = useCallback(
     (value: string) => {
-      if (value !== 'claude-code' && value !== 'cursor') return;
+      if (value !== 'claude-code' && value !== 'cursor' && value !== 'hermes') {
+        return;
+      }
       // Cursor is BYO only (its CLI can't route through the platform gateway):
       // force byo and drop any platform catalog model refs, which mean nothing
       // to a raw Cursor model passthrough.

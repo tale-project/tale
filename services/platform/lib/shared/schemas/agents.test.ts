@@ -93,6 +93,12 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         authMode: 'byo',
       }).success,
     ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'hermes',
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects cursor external-agent with managed authMode (Cursor is BYO only)', () => {

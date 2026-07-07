@@ -112,6 +112,16 @@ export type RunnerdExecEvent = (
   | {
       t: 'exit';
       exitCode: number;
+      /**
+       * CANONICAL execution wall-clock: measured by the daemon itself, from
+       * immediately before `spawn()` (the `start` event's `startedAtMs`) to
+       * the child's exit with all stdio drained. Excludes everything outside
+       * the process — container/Pod scheduling, image pull, session startup,
+       * endpoint resolution, input staging, output harvest — so it is
+       * identical on the docker and kubernetes backends, which host the same
+       * daemon. Consumers (the spawner's `SessionExecResponse.durationMs`,
+       * usage analytics) forward this value verbatim.
+       */
       durationMs: number;
       truncated: { stdout: boolean; stderr: boolean };
       timedOut: boolean;

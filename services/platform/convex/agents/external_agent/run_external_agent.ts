@@ -28,6 +28,7 @@ import {
 import {
   getAgentCapabilities,
   getCredentialEnvKeys,
+  getCredentialPolicy,
   getSkillsStageDir,
   usesGateway,
 } from '../../../lib/agent-adapters/credential-policy';
@@ -357,7 +358,11 @@ export const runExternalAgentTurn = internalAction({
     modelRef: v.string(),
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
-    agentKind: v.union(v.literal('claude-code'), v.literal('cursor')),
+    agentKind: v.union(
+      v.literal('claude-code'),
+      v.literal('cursor'),
+      v.literal('hermes'),
+    ),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
      * uses the user-injected sandbox credentials. The per-agent authMode is the
      * sole control; there is no separate org-level gate. */
@@ -471,12 +476,17 @@ export const runExternalAgentTurn = internalAction({
       const agentFallbackRefs = args.fallbackModelRefs ?? [];
       let fallbackModelRef: string | undefined; // catalog tale ref for the VK allowlist
       let fallbackModel: string | undefined; // gateway model id the chain requests
-      // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
-      // defaults) names the model by its GATEWAY id, which the vendor's own
-      // API does not know — the catalog entry's `nativeModelId` is what a
-      // direct-to-vendor session must request instead. A raw id the user typed
-      // matches no catalog entry and passes through unchanged (no override).
+      // BYO ids (config-driven): a catalog-shaped modelRef (the shipped
+      // defaults) names the model by its GATEWAY id, which the runtime's own
+      // backend does not know. Which translation the backend needs is
+      // per-adapter (`credentialPolicy.byoModelIdSource`): the vendor-native
+      // `nativeModelId` for a direct-to-vendor runtime (Claude Code →
+      // Anthropic), the catalog id itself for an OpenRouter-style backend
+      // (Hermes → OpenRouter). Both ride to exec_model, which picks by
+      // dialect. A raw id the user typed matches no catalog entry and passes
+      // through unchanged (no override).
       let byoNativeModel: string | undefined;
+      let byoCatalogModel: string | undefined;
       if (args.modelRef && args.modelRef !== 'default') {
         try {
           const parsed = parseModelRef(args.modelRef);
@@ -492,6 +502,7 @@ export const runExternalAgentTurn = internalAction({
           );
           if (byo) {
             byoNativeModel = agentEntry?.nativeModelId;
+            byoCatalogModel = agentEntry?.id;
           }
           if (
             gatewayRun &&
@@ -1152,17 +1163,20 @@ export const runExternalAgentTurn = internalAction({
           ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
           // GATEWAY-managed: the canonical gateway routing so the request hits
           // the SAME gateway record the VK is bound to — must match
-          // mintVirtualKey's resolver. BYO: the catalog's vendor-native id
-          // (gateway ids don't exist on the vendor's API), else the raw ref.
-          // ENV-managed (e.g. Cursor): the raw ref — its backend only knows
-          // native ids. 'default'/empty → omit so the runtime uses its own
-          // default (routing 'default' through the gateway mapper mints the
-          // invalid `default__default/default`). Matrix in exec_model.ts.
+          // mintVirtualKey's resolver. BYO: the id the runtime's backend
+          // speaks (gateway ids don't exist there) — vendor-native or catalog
+          // per the adapter's dialect — else the raw ref. ENV-managed (e.g.
+          // Cursor): the raw ref — its backend only knows native ids.
+          // 'default'/empty → omit so the runtime uses its own default
+          // (routing 'default' through the gateway mapper mints the invalid
+          // `default__default/default`). Matrix in exec_model.ts.
           model: resolveExternalAgentExecModel({
             byo,
             gatewayRun,
             modelRef: args.modelRef,
+            byoModelIdSource: getCredentialPolicy(productKind).byoModelIdSource,
             byoNativeModel,
+            byoCatalogModel,
             toGatewayModel: (ref) =>
               resolveGatewayRoutingFromRef(ref).gatewayModel,
           }),

@@ -93,6 +93,32 @@ describe('ExecManager', () => {
     expect(exit?.seq).toBe(maxSeq);
   });
 
+  test('exit durationMs is the runner-measured process wall-clock (spawn → drained exit)', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const beforeMs = Date.now();
+    await mgr.run(
+      { ...base, execId: 'dur1', shell: 'sleep 0.12', cwd: ROOT },
+      emit,
+    );
+    const afterMs = Date.now();
+    const start = events.find(
+      (e): e is Extract<RunnerdExecEvent, { t: 'start' }> => e.t === 'start',
+    );
+    const exit = events.find(
+      (e): e is Extract<RunnerdExecEvent, { t: 'exit' }> => e.t === 'exit',
+    );
+    if (!start || !exit) throw new Error('missing start/exit event');
+    // The clock starts at spawn time, inside the run() window.
+    expect(start.startedAtMs).toBeGreaterThanOrEqual(beforeMs);
+    expect(start.startedAtMs).toBeLessThanOrEqual(afterMs);
+    // The measurement covers the child's own runtime (a 120ms sleep; allow
+    // Date.now() granularity slack) and never exceeds the outer wall-clock —
+    // i.e. it contains NO out-of-process phase (staging, harvest, scheduling).
+    expect(exit.durationMs).toBeGreaterThanOrEqual(110);
+    expect(exit.durationMs).toBeLessThanOrEqual(afterMs - start.startedAtMs);
+  });
+
   test('shell form runs via bash -lc, propagates non-zero exit', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
