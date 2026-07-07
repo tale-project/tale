@@ -54,20 +54,16 @@ function orgMountSources(
  *  For each org source, emits one mount per domain dir that actually exists:
  *  `./<relBase>/<slug>/<domain>:<containerBase>/<slug>/<domain>{ro}`. The
  *  container path is always `/app/data/<slug>/<domain>` regardless of where
- *  the host dir lives. Missing per-domain dirs are skipped silently; a
- *  workspace with no org sources at all logs a single warning. */
+ *  the host dir lives. Missing per-domain dirs are skipped silently. The
+ *  caller discovers the sources once and warns once when there are none —
+ *  this runs per service, so warning here would repeat per invocation
+ *  (R31-P2-b). */
 function existingHostMounts(
+  sources: { slug: string; relBase: string }[],
   projectDir: string,
   containerBase: string,
   suffix = '',
 ): string[] {
-  const sources = orgMountSources(projectDir);
-  if (sources.length === 0) {
-    logger.warn(
-      `No org config found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
-    );
-    return [];
-  }
   const mounts: string[] = [];
   for (const { slug, relBase } of sources) {
     for (const domain of ORG_DOMAIN_DIRS) {
@@ -92,6 +88,15 @@ export function generateDevCompose(
 ): string {
   const projectDir = options.projectDir ?? process.cwd();
 
+  // Discovered once and shared by every service that bind-mounts org config
+  // (convex + platform), so an empty workspace warns exactly once.
+  const orgSources = orgMountSources(projectDir);
+  if (orgSources.length === 0) {
+    logger.warn(
+      `No org config found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
+    );
+  }
+
   // Convex service owns the /app/data volume in Phase 2.
   const convex = createConvexService(config);
   convex.container_name = `${getProjectId()}-convex`;
@@ -100,7 +105,7 @@ export function generateDevCompose(
     // Dev overrides: live bind-mount tale-init-populated dirs so edits on
     // the host are visible to the Convex actions that read them. Only
     // emitted when the directory actually exists on disk.
-    ...existingHostMounts(projectDir, '/app/data'),
+    ...existingHostMounts(orgSources, projectDir, '/app/data'),
     'caddy-data:/caddy-data:ro',
   ];
   convex.depends_on = { db: { condition: 'service_healthy' } };
@@ -120,7 +125,7 @@ export function generateDevCompose(
   platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
     'convex-data:/app/data:ro',
-    ...existingHostMounts(projectDir, '/app/data', ':ro'),
+    ...existingHostMounts(orgSources, projectDir, '/app/data', ':ro'),
   ];
   // TALE_CONFIG_DIR is the only file-config path platform needs to push to
   // Convex (sub-dirs are derived in convex/*/file_utils.ts). Platform also

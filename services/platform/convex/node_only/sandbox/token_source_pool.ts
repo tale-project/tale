@@ -11,10 +11,7 @@
 
 import { v } from 'convex/values';
 
-import type {
-  TokenSource,
-  TokenSourceAuth,
-} from '../../../lib/shared/schemas/token_sources';
+import type { TokenSource } from '../../../lib/shared/schemas/token_sources';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { safeFetch, SafeFetchError } from '../../lib/http/safe_fetch';
@@ -22,19 +19,11 @@ import {
   loadTokenSource,
   loadTokenSourceSecret,
 } from '../../token_sources/file_utils';
-import { mapTokens, TokenSourceError } from './token_pool_select';
-
-function buildAuthHeaders(
-  auth: TokenSourceAuth,
-  secret: string | undefined,
-): Record<string, string> {
-  if (auth.method === 'none') return {};
-  if (secret === undefined || secret === '') {
-    throw new TokenSourceError('broker auth secret is not configured');
-  }
-  if (auth.method === 'bearer') return { authorization: `Bearer ${secret}` };
-  return { [auth.headerName]: secret };
-}
+import {
+  buildAuthHeaders,
+  mapTokens,
+  TokenSourceError,
+} from './token_pool_select';
 
 /**
  * Fetch the broker, map + filter the response, and return the usable token

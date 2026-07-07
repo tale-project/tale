@@ -47,7 +47,6 @@ interface BrandingData {
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
-  brandColor?: string;
   accentColor?: string;
   logoFilename?: string;
   faviconLightFilename?: string;
@@ -93,7 +92,6 @@ export function BrandingForm({
 
   const data = useMemo<BrandingFormData>(
     () => ({
-      brandColor: branding?.brandColor ?? '',
       accentColor: branding?.accentColor ?? '',
       logoFilename: branding?.logoFilename ?? '',
       faviconLightFilename: branding?.faviconLightFilename ?? '',
@@ -106,7 +104,6 @@ export function BrandingForm({
     async (values: BrandingFormData) => {
       try {
         const config = {
-          brandColor: values.brandColor || undefined,
           accentColor: values.accentColor || undefined,
           logoFilename: values.logoFilename || undefined,
           faviconLightFilename: values.faviconLightFilename || undefined,
@@ -171,12 +168,10 @@ export function BrandingForm({
       appName: branding?.appName,
       logoUrl: logoPreviewUrl ?? branding?.logoUrl,
       faviconUrl: faviconPreviewUrl ?? branding?.faviconLightUrl,
-      brandColor: watchedValues.brandColor || undefined,
       accentColor: watchedValues.accentColor || undefined,
     });
   }, [
     branding?.appName,
-    watchedValues.brandColor,
     watchedValues.accentColor,
     branding?.logoUrl,
     branding?.faviconLightUrl,
@@ -236,7 +231,6 @@ export function BrandingForm({
   // edits — clearing is a destructive, server-mutating action.
   const handleClearBranding = useCallback(async () => {
     const opts = { shouldDirty: true };
-    setValue('brandColor', '', opts);
     setValue('accentColor', '', opts);
     setValue('logoFilename', '', opts);
     setValue('faviconLightFilename', '', opts);
@@ -254,7 +248,6 @@ export function BrandingForm({
   }, [organizationId, setValue, deleteImage]);
 
   const hasAnyBranding =
-    !!branding?.brandColor ||
     !!branding?.accentColor ||
     !!branding?.logoUrl ||
     !!branding?.faviconLightUrl ||
@@ -340,20 +333,8 @@ export function BrandingForm({
 
           {/* Controlled via RHF `Controller` so dirty tracking is automatic —
               the field registers itself and `field.onChange` marks it dirty,
-              so there's no `setValue(..., { shouldDirty })` to forget. */}
-          <Controller
-            control={control}
-            name="brandColor"
-            render={({ field }) => (
-              <ColorPickerInput
-                id="branding-brand-color"
-                value={field.value ?? ''}
-                onChange={field.onChange}
-                label={t('branding.brandColor')}
-              />
-            )}
-          />
-
+              so there's no `setValue(..., { shouldDirty })` to forget. The one
+              accent color drives the whole derived palette (#1960). */}
           <Controller
             control={control}
             name="accentColor"

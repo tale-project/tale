@@ -31,6 +31,7 @@ describe('getSkillsStageDir', () => {
       CLAUDE_COMPAT_SKILLS_STAGE_DIR,
     );
     expect(getSkillsStageDir('cursor')).toBe(CLAUDE_COMPAT_SKILLS_STAGE_DIR);
+    expect(getSkillsStageDir('opencode')).toBe(CLAUDE_COMPAT_SKILLS_STAGE_DIR);
   });
 });
 

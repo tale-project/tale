@@ -11,6 +11,16 @@ const FIXTURE = join(
   '../fixtures/opencode/issue-to-pr.jsonl',
 );
 
+// Sanitized capture of a REAL `opencode run --format json` turn (OpenCode
+// v1.17.3, the sandbox-image pin) driven with the adapter's exact emitted
+// OPENCODE_CONFIG_CONTENT against a mock OpenAI-compatible gateway — ids
+// neutralized, payload shapes verbatim (timestamps, part envelopes, the
+// step-finish tokens/cost block).
+const REAL_TURN_FIXTURE = join(
+  import.meta.dirname,
+  '../fixtures/opencode/simple-turn.jsonl',
+);
+
 function parseChunked(text: string, chunkSize: number): AgentEvent[] {
   const parser = new OpenCodeParser();
   const events: AgentEvent[] = [];
@@ -67,6 +77,31 @@ describe('OpenCodeParser', () => {
     expect(
       result?.type === 'result' ? result.usageTotals?.costEstimateUsd : 0,
     ).toBe(0.0061);
+  });
+
+  it('parses a real captured v1.17.3 turn (run-started → text → result)', () => {
+    const real = readFileSync(REAL_TURN_FIXTURE, 'utf8');
+    for (const size of [1, 7, 10_000]) {
+      const events = parseChunked(real, size);
+      const started = events.filter((e) => e.type === 'run-started');
+      expect(started).toHaveLength(1);
+      expect(started[0]).toMatchObject({
+        agent: 'opencode',
+        agentSessionId: 'ses_0c666f713ffeSANITIZED0001',
+      });
+      expect(
+        events
+          .filter((e) => e.type === 'text')
+          .map((e) => (e.type === 'text' ? e.text : '')),
+      ).toEqual(['Mock turn complete: 2 + 2 = 4.']);
+      // Terminal step_finish (reason "stop") → completed result carrying the
+      // resume handle.
+      const result = events.find((e) => e.type === 'result');
+      expect(result).toMatchObject({
+        status: 'completed',
+        agentSessionId: 'ses_0c666f713ffeSANITIZED0001',
+      });
+    }
   });
 
   it('is robust to mid-line chunk splits', () => {

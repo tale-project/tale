@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import pkg from '../../../package.json';
 import { compareVersions } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
+import { warnOnOrphanedConvexData } from '../docker/detect-legacy-convex-data';
 import { requireProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
 import { writeProject } from '../project/write-project';
@@ -57,6 +58,12 @@ export interface RunUpdateDeps {
   spawnFileSync: (childArgs: string[]) => number;
   /** Run the file-sync phase in-process (no binary change). */
   syncProjectFiles: (opts: RunUpdateOptions) => Promise<void>;
+  /**
+   * Best-effort pre-0.3.2 volume-layout warning (P1-8, #1755): flags
+   * orphaned `platform-data` volumes before the operator deploys onto a
+   * fresh empty `convex-data` volume. Never throws.
+   */
+  warnOnOrphanedConvexData: (projectDir: string) => Promise<void>;
 }
 
 const defaultDeps: RunUpdateDeps = {
@@ -90,6 +97,7 @@ const defaultDeps: RunUpdateDeps = {
     return result.exitCode ?? 1;
   },
   syncProjectFiles,
+  warnOnOrphanedConvexData,
 };
 
 /** Sync the project files to the running binary's embedded templates. */
@@ -142,6 +150,11 @@ export async function runUpdate(
   logger.info(`CLI version:       ${deps.currentVersion}`);
   logger.info(`Workspace version: ${prev}`);
   logger.info(`Target version:    ${target}`);
+
+  // Surface an orphaned pre-0.3.2 data volume BEFORE the operator moves on
+  // to `tale deploy` — deploying without the manual copy brings the
+  // instance up empty (P1-8, #1755). Best-effort; never blocks the update.
+  await deps.warnOnOrphanedConvexData(projectDir);
 
   if (!opts.version && skipped.length > 0) {
     logger.warn(

@@ -10,15 +10,24 @@
 export const PRODUCT_AGENT_SLUGS = [
   'claude-code',
   'cursor',
+  'opencode',
   'hermes',
   'gemini',
 ] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
 
-/** Archived runtime — parser fixtures only; not in product registry. */
-export type LegacyAgentSlug = 'opencode';
+export type AgentSlug = ProductAgentSlug;
 
-export type AgentSlug = ProductAgentSlug | LegacyAgentSlug;
+/** Map a stored/config agentKind to the product registry slug. */
+export function resolveProductAgentKind(
+  agentKind: string | undefined,
+): ProductAgentSlug {
+  if (agentKind === 'cursor') return 'cursor';
+  if (agentKind === 'opencode') return 'opencode';
+  if (agentKind === 'hermes') return 'hermes';
+  if (agentKind === 'gemini') return 'gemini';
+  return 'claude-code';
+}
 
 export type AgentResultStatus =
   | 'completed'

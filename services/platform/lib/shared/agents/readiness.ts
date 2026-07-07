@@ -3,6 +3,7 @@ import {
   getCredentialPolicy,
 } from '../../agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../agent-adapters/events';
+import { resolveProductAgentKind } from '../../agent-adapters/events';
 /**
  * Pure classifier for an agent's setup dependencies — what must be configured
  * before the agent can run. Mirrors the integration-availability model
@@ -154,7 +155,7 @@ function configuredMismatchedKeys(
  * `<messageNamespace>.readiness.mismatch.<code>` — no platform i18n here.
  */
 export function detectCredentialRuntimeMismatch(args: {
-  agentKind?: 'claude-code' | 'cursor' | 'hermes' | 'gemini';
+  agentKind?: 'claude-code' | 'cursor' | 'opencode' | 'hermes' | 'gemini';
   setKeys: ReadonlySet<string>;
   needsEnv: boolean;
   /** Keys the saved runtime expects (from `resolveEffectiveRequiredEnv`). */
@@ -198,19 +199,12 @@ export function detectCredentialRuntimeMismatch(args: {
  * time, not stale `metadata.requires.env` left over after an agentKind switch.
  */
 export function resolveEffectiveRequiredEnv(args: {
-  agentKind?: 'claude-code' | 'cursor' | 'hermes' | 'gemini';
+  agentKind?: 'claude-code' | 'cursor' | 'opencode' | 'hermes' | 'gemini';
   needs: Pick<AgentReadinessNeeds, 'needsEnv' | 'mode' | 'requiredEnv'>;
 }): RequiredEnvKey[] {
   if (!args.needs.needsEnv) return [];
 
-  const productKind: ProductAgentSlug =
-    args.agentKind === 'cursor'
-      ? 'cursor'
-      : args.agentKind === 'hermes'
-        ? 'hermes'
-        : args.agentKind === 'gemini'
-          ? 'gemini'
-          : 'claude-code';
+  const productKind: ProductAgentSlug = resolveProductAgentKind(args.agentKind);
   const metadataByKey = new Map(
     args.needs.requiredEnv.map((e) => [e.key, e] as const),
   );

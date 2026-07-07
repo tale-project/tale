@@ -29,6 +29,7 @@ function makeDeps(overrides: Partial<RunUpdateDeps> = {}): RunUpdateDeps {
     rollbackInstall: mock(async () => {}),
     spawnFileSync: mock((_args: string[]) => 0),
     syncProjectFiles: mock(async () => {}),
+    warnOnOrphanedConvexData: mock(async () => {}),
     ...overrides,
   };
 }
@@ -87,6 +88,12 @@ describe('runUpdate', () => {
     expect(deps.requireProject).not.toHaveBeenCalled();
     expect(deps.resolveRelease).not.toHaveBeenCalled();
     expect(deps.installBinary).not.toHaveBeenCalled();
+  });
+
+  test('checks for orphaned pre-0.3.2 data volumes before updating', async () => {
+    const deps = makeDeps();
+    await runUpdate({}, deps);
+    expect(deps.warnOnOrphanedConvexData).toHaveBeenCalledWith('/project');
   });
 
   test('pinned version: targets that release exactly', async () => {

@@ -52,8 +52,13 @@ export function nextConfigForBehavior(
         workflows: undefined,
         agentKind,
         // Cursor is BYO only — the Cursor CLI can't route through the platform
-        // gateway. Pin authMode so the re-entered config passes the schema.
-        ...(agentKind === 'cursor' ? { authMode: 'byo' as const } : {}),
+        // gateway. OpenCode is managed-only. Pin authMode so the re-entered
+        // config passes the schema.
+        ...(agentKind === 'cursor'
+          ? { authMode: 'byo' as const }
+          : agentKind === 'opencode'
+            ? { authMode: 'managed' as const }
+            : {}),
       };
     }
     case 'image-generation':

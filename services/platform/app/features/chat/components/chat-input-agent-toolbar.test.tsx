@@ -12,6 +12,10 @@ import { ChatInput } from './chat-input';
 vi.mock('../context/chat-layout-context', () => ({
   useChatLayout: () => ({ quotedText: null, setQuotedText: vi.fn() }),
 }));
+// The mention picker's empty-state actions navigate; no RouterProvider here.
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
+}));
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: () => ({ policyEnabled: false, allowedExtensions: [] }),
 }));

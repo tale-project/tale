@@ -32,6 +32,7 @@ const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 const agentKindLiterals = [
   'claude-code',
   'cursor',
+  'opencode',
   'hermes',
   'gemini',
 ] as const;
@@ -482,6 +483,21 @@ export const agentJsonSchema = z
         path: ['authMode'],
         message:
           'Cursor supports BYO only — set authMode to "byo". The Cursor CLI cannot route through the platform gateway (no OpenAI-compatible base-URL override), so managed mode is unavailable.',
+      });
+    }
+
+    // OpenCode runs managed-only: its provider config points at the gateway and
+    // authenticates with the session virtual key. BYO is unsupported.
+    if (
+      data.primaryBehavior === 'external-agent' &&
+      data.agentKind === 'opencode' &&
+      data.authMode === 'byo'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authMode'],
+        message:
+          'OpenCode supports managed mode only — authMode "byo" is not supported. OpenCode authenticates through the platform gateway with a session virtual key.',
       });
     }
 

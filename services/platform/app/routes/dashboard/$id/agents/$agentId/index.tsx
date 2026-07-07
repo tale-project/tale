@@ -335,11 +335,13 @@ function GeneralTab() {
         label:
           slug === 'cursor'
             ? t('agents.form.agentKind.cursor')
-            : slug === 'hermes'
-              ? t('agents.form.agentKind.hermes')
-              : slug === 'gemini'
-                ? t('agents.form.agentKind.gemini')
-                : t('agents.form.agentKind.claudeCode'),
+            : slug === 'opencode'
+              ? t('agents.form.agentKind.opencode')
+              : slug === 'hermes'
+                ? t('agents.form.agentKind.hermes')
+                : slug === 'gemini'
+                  ? t('agents.form.agentKind.gemini')
+                  : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -372,6 +374,7 @@ function GeneralTab() {
       if (
         value !== 'claude-code' &&
         value !== 'cursor' &&
+        value !== 'opencode' &&
         value !== 'hermes' &&
         value !== 'gemini'
       ) {
@@ -385,6 +388,15 @@ function GeneralTab() {
           agentKind: 'cursor',
           authMode: 'byo',
           supportedModels: [],
+        });
+        return;
+      }
+      // OpenCode is managed-only — clear BYO and restore managed auth when
+      // switching from Cursor.
+      if (value === 'opencode') {
+        updateConfig({
+          agentKind: 'opencode',
+          authMode: 'managed',
         });
         return;
       }

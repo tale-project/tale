@@ -172,7 +172,7 @@ test.describe('settings depth — API keys', () => {
 });
 
 test.describe('settings depth — branding', () => {
-  test('sets the brand color, persists across reload, and restores', async ({
+  test('sets the accent color, persists across reload, and restores', async ({
     page,
     org,
   }) => {
@@ -184,20 +184,21 @@ test.describe('settings depth — branding', () => {
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
     // The app name is no longer an editable field — the chrome follows the
-    // organization's name. The brand color is the form's editable text field.
-    // `${label} hex value` is the composed aria-label of the brand-color text
-    // input (a non-i18n composition the control builds from its label prop).
-    const brandColorField = page.getByLabel(
-      `${t('settings.branding.brandColor')} hex value`,
+    // organization's name. The single accent color (#1960) is the form's
+    // editable text field. `${label} hex value` is the composed aria-label of
+    // the color text input (a non-i18n composition the control builds from
+    // its label prop).
+    const accentColorField = page.getByLabel(
+      `${t('settings.branding.accentColor')} hex value`,
     );
-    await expect(brandColorField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(brandColorField).toBeEnabled();
+    await expect(accentColorField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(accentColorField).toBeEnabled();
 
-    // A fresh org has no branding file, so the brand color starts empty.
-    const originalBrandColor = await brandColorField.inputValue();
+    // A fresh org has no branding file, so the accent color starts empty.
+    const originalAccentColor = await accentColorField.inputValue();
 
-    const newBrandColorHex = '123456'; // 6 hex digits; the control prepends `#`.
-    await brandColorField.fill(newBrandColorHex);
+    const newAccentColorHex = '123456'; // 6 hex digits; the control prepends `#`.
+    await accentColorField.fill(newAccentColorHex);
 
     const save = visibleSaveButton(page);
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
@@ -209,22 +210,22 @@ test.describe('settings depth — branding', () => {
     await expect(
       page.getByText(t('toast.success.brandingUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await reloadAndSettle(page, brandColorField);
-    await expect(brandColorField).toHaveValue(/123456/i, {
+    await reloadAndSettle(page, accentColorField);
+    await expect(accentColorField).toHaveValue(/123456/i, {
       timeout: TIMEOUT.PERSIST,
     });
 
-    // Restore. The brand color is optional, so an empty value is a valid saved
-    // state — the restore always round-trips end-to-end.
-    await brandColorField.fill(originalBrandColor.replace('#', ''));
+    // Restore. The accent color is optional, so an empty value is a valid
+    // saved state — the restore always round-trips end-to-end.
+    await accentColorField.fill(originalAccentColor.replace('#', ''));
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
     await expect(
       page.getByText(t('toast.success.brandingUpdated.title')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await reloadAndSettle(page, brandColorField);
-    await expect(brandColorField).toHaveValue(originalBrandColor, {
+    await reloadAndSettle(page, accentColorField);
+    await expect(accentColorField).toHaveValue(originalAccentColor, {
       timeout: TIMEOUT.PERSIST,
     });
   });

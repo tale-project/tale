@@ -37,7 +37,10 @@ import {
   usesGateway,
   getSkillsStageDir,
 } from '../../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../../lib/agent-adapters/events';
 import {
   formatModelRef,
   parseModelRef,
@@ -821,8 +824,7 @@ export const runSandboxAgent = internalAction({
     }
     const agentConfig = delegate.agentConfig;
     const agentKind = agentConfig.agentKind ?? 'claude-code';
-    const productKind: ProductAgentSlug =
-      agentKind === 'cursor' ? 'cursor' : 'claude-code';
+    const productKind: ProductAgentSlug = resolveProductAgentKind(agentKind);
     const byo = agentConfig.authMode === 'byo';
     const gatewayRun = usesGateway(productKind, agentConfig.authMode);
     // Native web tools: the raw per-agent opt-in (managed agents deny WebSearch/

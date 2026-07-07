@@ -28,7 +28,10 @@ import {
   getCredentialPolicy,
   usesGateway,
 } from '../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../lib/agent-adapters/events';
 import { AUTO_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import type {
   ResponseReasoningSeed,
@@ -275,8 +278,9 @@ export const runChatTurnGeneration = internalAction({
       // `supportedModels` is a runtime HINT, not a catalog allowlist: the first
       // entry is the model to run this turn (empty ⇒ let the CLI pick), and
       // catalog governance is bypassed whether or not it's set.
-      const externalAgentKind: ProductAgentSlug =
-        agentConfig.agentKind ?? 'claude-code';
+      const externalAgentKind: ProductAgentSlug = resolveProductAgentKind(
+        agentConfig.agentKind,
+      );
       const isExternalAgent = agentConfig.primaryBehavior === 'external-agent';
       const isEnvManagedExternal =
         isExternalAgent &&

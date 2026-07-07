@@ -29,6 +29,21 @@ claude -p --output-format stream-json --input-format stream-json \
   --max-turns 40 < prompt.txt > /tmp/claude-run.jsonl
 ```
 
+## OpenCode
+
+Inject the adapter's config via env (managed-only runtime — point the gateway
+baseURL at a real gateway or a local OpenAI-compatible mock; the token rides
+`{env:TALE_GATEWAY_TOKEN}`):
+
+```bash
+OPENCODE_CONFIG_CONTENT="$(cat config.json)" TALE_GATEWAY_TOKEN=… \
+  opencode run --format json --dir /user/workspace \
+  "Fix issue #1 and open a PR" > /tmp/opencode-run.jsonl
+```
+
+`fixtures/opencode/simple-turn.jsonl` was captured this way from the pinned
+v1.17.3 CLI against a local mock gateway.
+
 ## Gemini CLI
 
 Headless prompt rides stdin; force the API-key auth type via a system settings

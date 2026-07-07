@@ -112,6 +112,13 @@ export interface SessionExecSpec {
    * the drain closes it (EOF) once the turn's result event arrives and no
    * background tasks or queued messages remain. Default 'close'. */
   stdinMode?: 'close' | 'hold';
+  /** Files the exec depends on, written into the session (sessionStageFiles —
+   * `path` is relative to the /user mount) BEFORE the process is spawned. For
+   * inputs the runtime's CLI has no flag for — e.g. OpenCode's system-prompt
+   * append rides a config-referenced `instructions` file. The runner MUST fail
+   * the turn when staging fails: a silently missing file would silently drop
+   * the input. */
+  stagedFiles?: Array<{ path: string; content: string }>;
 }
 
 export interface CredentialPolicy {
