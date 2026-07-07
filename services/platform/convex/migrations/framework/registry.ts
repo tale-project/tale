@@ -50,8 +50,8 @@ import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_
 import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
 import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
-import { migration as normalizeAuthUserEmails } from '../versions/v0_2_91/01_normalize_auth_user_emails';
-import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_2_91/01_normalize_auth_user_emails/meta';
+import { migration as normalizeAuthUserEmails } from '../versions/v0_3_3/01_normalize_auth_user_emails';
+import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_3_3/01_normalize_auth_user_emails/meta';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 
 /**

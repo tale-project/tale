@@ -5,30 +5,18 @@ const findPlatformContainerMock = mock();
 const loggerWarnMock = mock();
 const loggerInfoMock = mock();
 
+// Capture real exports before mock.module replaces the module for this process.
+const realConvexRun = await import('../docker/convex-run');
+
 mock.module('../docker/find-platform-container', () => ({
   findPlatformContainer: findPlatformContainerMock,
 }));
-// Keep the pure helpers faithful (drain-convex relies on their contract); only
-// the docker-touching `runConvexAdmin` is stubbed.
+// Partial mock: stub only `runConvexAdmin` so later test files still see the
+// real banner/JSON helpers (Bun on Windows keeps mock.module global per run).
 mock.module('../docker/convex-run', () => ({
+  ...realConvexRun,
   runConvexAdmin: runConvexAdminMock,
   redactAdminKey: (s: string) => s,
-  parseTrailingJson: (
-    stdout: string,
-    isT: (value: unknown) => boolean,
-  ): unknown => {
-    const lines = stdout.trim().split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i].trimStart().startsWith('{')) continue;
-      try {
-        const parsed: unknown = JSON.parse(lines.slice(i).join('\n'));
-        if (isT(parsed)) return parsed;
-      } catch {
-        /* try earlier */
-      }
-    }
-    return null;
-  },
 }));
 mock.module('../../utils/logger', () => ({
   info: loggerInfoMock,

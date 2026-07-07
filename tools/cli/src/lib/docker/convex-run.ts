@@ -21,6 +21,55 @@ import { findPlatformContainer } from './find-platform-container';
 const DEFAULT_TIMEOUT_S = 120;
 
 /**
+ * `grep -v` patterns for stripping `bunx convex run` decorative banners from
+ * captured stdout. **Must anchor** `Open`/`Enter`/`Paste`/`Steps:` to line
+ * start — unanchored they match migration JSON (e.g. "Enterprise", "OpenRouter")
+ * and corrupt the payload before JSON.parse.
+ */
+export const CONVEX_RUN_BANNER_GREP_V =
+  '^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|^Steps:\\|^Open\\|^Enter\\|^Paste';
+
+const BANNER_LINE_RE =
+  /^(?:Admin key|📋|✅ Admin|━|🌐|Steps:|Open|Enter|Paste)|^$/;
+
+/** Strip known `bunx convex run` banner lines (mirrors {@link CONVEX_RUN_BANNER_GREP_V}). */
+export function stripConvexBannerLines(stdout: string): string {
+  return stdout
+    .split('\n')
+    .filter((line) => !BANNER_LINE_RE.test(line))
+    .join('\n');
+}
+
+/**
+ * Parse JSON returned by `bunx convex run` from mixed stdout. Strips banners
+ * first, then tries the full string and slices from the first `[` or `{`.
+ */
+export function parseConvexRunJson<T>(stdout: string): T | null {
+  const trimmed = stripConvexBannerLines(stdout).trim();
+  if (!trimmed) return null;
+
+  const attempts: string[] = [trimmed];
+  const startArr = trimmed.indexOf('[');
+  const startObj = trimmed.indexOf('{');
+  for (const start of [startArr, startObj]
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b)) {
+    const slice = trimmed.slice(start);
+    if (!attempts.includes(slice)) attempts.push(slice);
+  }
+
+  for (const candidate of attempts) {
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caller declares contract
+      return JSON.parse(candidate) as T;
+    } catch {
+      // try next slice
+    }
+  }
+  return null;
+}
+
+/**
  * Re-derive `ADMIN_KEY` inline from `env.sh`'s helpers (NOT
  * `generate-admin-key.sh`, which echoes a dashboard banner that would leak the
  * key into stdout). `2>&1` merges stderr so a function-not-found / auth error is
