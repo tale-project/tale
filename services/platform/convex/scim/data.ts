@@ -10,6 +10,7 @@ import type { GenericQueryCtx } from 'convex/server';
 
 import { components } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
+import { findUserByNormalizedEmail as findUserByNormalizedEmailShared } from '../lib/auth/find_user_by_normalized_email';
 import type {
   BetterAuthMember,
   BetterAuthUser,
@@ -82,9 +83,7 @@ export async function findUserByEmail(
   ctx: ScimReadCtx,
   email: string,
 ): Promise<BetterAuthUser | undefined> {
-  return findOne<BetterAuthUser>(ctx, 'user', [
-    { field: 'email', value: email, operator: 'eq' },
-  ]);
+  return findUserByNormalizedEmailShared(ctx, email);
 }
 
 export async function findUserById(

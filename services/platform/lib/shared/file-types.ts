@@ -742,7 +742,7 @@ export function mimeToExtension(mime: string): string | undefined {
  * formats. Text-based files are decided separately via `isTextBasedFile`
  * (extension + MIME + known filenames), so they are not listed here.
  */
-export type DocumentPreviewKind = 'pdf' | 'docx' | 'odt' | 'xlsx' | 'image';
+type DocumentPreviewKind = 'pdf' | 'docx' | 'odt' | 'xlsx' | 'image';
 
 /**
  * Extension (lowercase, no dot) → preview renderer. The single source of

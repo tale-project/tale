@@ -50,7 +50,9 @@ import { migration as threadFilesAbsPaths } from '../versions/v0_2_89/02_thread_
 import { meta as threadFilesAbsPathsMeta } from '../versions/v0_2_89/02_thread_files_absolute_paths/meta';
 import { meta as claudeCodeFableDefaultMeta } from '../versions/v0_2_89/03_claude_code_fable_default/meta';
 import { meta as agentKindOpencodeMeta } from '../versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta';
-import type { DbMigration, MigrationMeta } from './types';
+import { migration as normalizeAuthUserEmails } from '../versions/v0_2_91/01_normalize_auth_user_emails';
+import { meta as normalizeAuthUserEmailsMeta } from '../versions/v0_2_91/01_normalize_auth_user_emails/meta';
+import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 
 /**
  * Every migration's metadata, in registration order. Ordering for execution is
@@ -83,6 +85,7 @@ export const ALL_META: readonly MigrationMeta[] = [
   threadFilesAbsPathsMeta,
   claudeCodeFableDefaultMeta,
   agentKindOpencodeMeta,
+  normalizeAuthUserEmailsMeta,
 ];
 
 /** Runnable `db` migrations, keyed by `meta.id`. */
@@ -94,4 +97,11 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   [appConfigToBindings.meta.id]: appConfigToBindings,
   [appSchedulesPerProject.meta.id]: appSchedulesPerProject,
   [threadFilesAbsPaths.meta.id]: threadFilesAbsPaths,
+};
+
+/** Runnable `component` migrations, keyed by `meta.id`. */
+export const COMPONENT_MIGRATIONS: Readonly<
+  Record<string, ComponentMigration>
+> = {
+  [normalizeAuthUserEmails.meta.id]: normalizeAuthUserEmails,
 };

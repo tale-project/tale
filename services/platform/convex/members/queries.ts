@@ -4,6 +4,7 @@ import type { MemberRole } from '../../lib/shared/schemas/organizations';
 import { components } from '../_generated/api';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
+import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
 import {
   getAuthUserIdentity,
   getOrganizationMember,
@@ -249,13 +250,8 @@ export const getUserIdByEmail = query({
       return null;
     }
 
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: 'email', value: args.email, operator: 'eq' }],
-    });
-
-    return result?.page?.[0]?._id ?? null;
+    const user = await findUserByNormalizedEmail(ctx, args.email);
+    return user?._id ?? null;
   },
 });
 
