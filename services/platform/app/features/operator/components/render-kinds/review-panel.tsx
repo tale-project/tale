@@ -64,7 +64,28 @@ export function ReviewPanel({ part }: { part: RenderPart }) {
     );
   }
 
-  // Single (cardinality one) — a workflow step's review gate.
+  // Single (cardinality one) — a workflow step's review gate. A RESPONDED gate
+  // renders its outcome (the resume re-execution persists the decision):
+  // TaskReviewCard finds no pending review then and would render an empty body.
+  const decision = pickString(out, 'decision');
+  if (decision !== undefined) {
+    const approved = decision === 'approve';
+    const feedback = pickString(out, 'feedback');
+    return (
+      <VStack gap={2}>
+        <HStack gap={2} className="items-center">
+          <Badge variant={approved ? 'green' : 'yellow'}>
+            {t(approved ? 'review.approved' : 'review.changesRequested')}
+          </Badge>
+        </HStack>
+        {feedback !== undefined && feedback.trim() !== '' && (
+          <Text as="div" variant="muted" className="whitespace-pre-wrap">
+            {feedback}
+          </Text>
+        )}
+      </VStack>
+    );
+  }
   const taskId = pickString(out, 'taskId');
   if (taskId) {
     return <TaskReviewCard taskId={toId<'tasks'>(taskId)} />;

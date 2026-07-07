@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  dedupeSpineLanes,
   isStepVisible,
   stepTreatment,
+  type SpineLaneInput,
   type StepTreatment,
 } from './step_display';
 
 describe('stepTreatment', () => {
-  // The issue-desk workflow's 9 steps — the ground-truth truth table both the
-  // friendly map and the run view must agree on. Spine = implement → review →
-  // judge (gate) → to_review; everything else collapses out.
+  // The issue-desk v2 workflow's representative steps — the ground-truth table
+  // both the friendly map and the run view must agree on. Spine = advise →
+  // execute → grade → judge (gate) → to_review; plumbing collapses out.
   const deskSteps: {
     slug: string;
     stepType: string;
@@ -20,24 +22,36 @@ describe('stepTreatment', () => {
     { slug: 'start', stepType: 'start', hasUi: false, expected: 'hidden' },
     { slug: 'ack', stepType: 'action', hasUi: false, expected: 'hidden' },
     {
-      slug: 'implement',
+      slug: 'advise',
       stepType: 'sandbox',
       hasUi: true,
       expected: 'normal',
     },
     {
-      slug: 'impl_check',
+      slug: 'advise_gate',
       stepType: 'condition',
       hasUi: false,
       expected: 'hidden',
     },
     {
-      slug: 'impl_failed',
+      slug: 'execute',
+      stepType: 'sandbox',
+      hasUi: true,
+      expected: 'normal',
+    },
+    {
+      slug: 'execute_check',
+      stepType: 'condition',
+      hasUi: false,
+      expected: 'hidden',
+    },
+    {
+      slug: 'execute_failed',
       stepType: 'action',
       hasUi: false,
       expected: 'hidden',
     },
-    { slug: 'review', stepType: 'sandbox', hasUi: true, expected: 'normal' },
+    { slug: 'grade', stepType: 'sandbox', hasUi: true, expected: 'normal' },
     {
       slug: 'judge',
       stepType: 'llm',
@@ -46,7 +60,7 @@ describe('stepTreatment', () => {
       expected: 'gate',
     },
     {
-      slug: 'judge_decision',
+      slug: 'judge_pass',
       stepType: 'condition',
       hasUi: false,
       expected: 'hidden',
@@ -73,7 +87,7 @@ describe('stepTreatment', () => {
     });
   }
 
-  it('hides only 6 of the 9 desk steps, leaving the 4-step spine', () => {
+  it('hides plumbing steps, leaving the five-step operator spine', () => {
     const visible = deskSteps.filter((s) =>
       isStepVisible({
         stepType: s.stepType,
@@ -82,8 +96,9 @@ describe('stepTreatment', () => {
       }),
     );
     expect(visible.map((s) => s.slug)).toEqual([
-      'implement',
-      'review',
+      'advise',
+      'execute',
+      'grade',
       'judge',
       'to_review',
     ]);
@@ -101,5 +116,70 @@ describe('stepTreatment', () => {
 
   it('an unannotated non-plumbing step (e.g. sandbox) shows normally', () => {
     expect(stepTreatment({ stepType: 'sandbox', hasUi: false })).toBe('normal');
+  });
+});
+
+describe('dedupeSpineLanes', () => {
+  // The issue-desk v2 pattern: two review-gate variants share one labelKey,
+  // three dream variants share another; the work steps are singletons.
+  const lane = (labelKey: string | undefined, hasRun: boolean) =>
+    ({ ...(labelKey !== undefined && { labelKey }), hasRun }) as SpineLaneInput;
+  const desk = (ran: string[]) => {
+    const slugs = [
+      ['advise', 'issueDesk.advise'],
+      ['request_plan_review', 'issueDesk.planReview'],
+      ['request_plan_re_review', 'issueDesk.planReview'],
+      ['execute', 'issueDesk.implement'],
+      ['grade', 'issueDesk.review'],
+      ['dream_wrong', 'issueDesk.dream'],
+      ['dream_pass', 'issueDesk.dream'],
+      ['dream_rework', 'issueDesk.dream'],
+    ] as const;
+    return {
+      slugs: slugs.map(([slug]) => slug),
+      lanes: slugs.map(([slug, key]) => lane(key, ran.includes(slug))),
+    };
+  };
+
+  it('collapses un-run branch variants to one upcoming placeholder each', () => {
+    const { slugs, lanes } = desk(['advise']);
+    const kept = dedupeSpineLanes(lanes).map((i) => slugs[i]);
+    expect(kept).toEqual([
+      'advise',
+      'request_plan_review',
+      'execute',
+      'grade',
+      'dream_wrong',
+    ]);
+  });
+
+  it('a ran variant replaces the placeholder and hides its siblings', () => {
+    const { slugs, lanes } = desk(['advise', 'request_plan_review']);
+    const kept = dedupeSpineLanes(lanes).map((i) => slugs[i]);
+    expect(kept).toContain('request_plan_review');
+    expect(kept).not.toContain('request_plan_re_review');
+    // The dream lane still shows exactly one upcoming placeholder.
+    expect(kept.filter((s) => s.startsWith('dream'))).toEqual(['dream_wrong']);
+  });
+
+  it('keeps every variant the run actually touched (two review rounds)', () => {
+    const { slugs, lanes } = desk([
+      'request_plan_review',
+      'request_plan_re_review',
+      'dream_pass',
+    ]);
+    const kept = dedupeSpineLanes(lanes).map((i) => slugs[i]);
+    expect(kept).toContain('request_plan_review');
+    expect(kept).toContain('request_plan_re_review');
+    expect(kept.filter((s) => s.startsWith('dream'))).toEqual(['dream_pass']);
+  });
+
+  it('never groups steps without a labelKey', () => {
+    const kept = dedupeSpineLanes([
+      lane(undefined, false),
+      lane(undefined, false),
+      lane(undefined, true),
+    ]);
+    expect(kept).toEqual([0, 1, 2]);
   });
 });

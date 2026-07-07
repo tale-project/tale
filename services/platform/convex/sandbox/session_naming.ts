@@ -79,3 +79,67 @@ export function sessionIdForRender(renderKey: string): string {
   const suffix = fnv1a64Hex(renderKey);
   return `rnd-${suffix}`.slice(0, 64);
 }
+
+/** Sandbox session scope for workflow `sandbox` steps. */
+export type SandboxSessionScope = 'step' | 'workflow';
+
+/** Deterministic spawner session id for a WORKFLOW-SCOPED sandbox — one shared
+ * workspace per workflow execution, reused across steps that opt into
+ * `sessionScope: "workflow"`. Torn down when the execution completes. The `@`
+ * in the hash input keeps it disjoint from every `sessionIdForWorkflowRun`
+ * derivation: step slugs can never contain `@` (STEP_SLUG_PATTERN), so a step
+ * literally named `workflow` cannot collide with the shared session. */
+export function sessionIdForWorkflowExecution(executionId: string): string {
+  const suffix = fnv1a64Hex(`${executionId}:@workflow`);
+  return `wf-${executionId.slice(0, 24)}-${suffix}`.slice(0, 64);
+}
+
+/** Composite owner key for a workflow-scoped sandbox (sandboxSessions
+ * `ownerId`). Stays inside the `${executionId}:` range that
+ * `listWorkflowRunSessionsForExecution` sweeps; the `@` keeps it disjoint
+ * from every `${executionId}:<stepSlug>` step owner (slugs never contain `@`). */
+export function workflowExecutionOwnerId(executionId: string): string {
+  return `${executionId}:@workflow`;
+}
+
+/** Per-step durable checkpoint key. Workflow-scoped sessions share one spawner
+ * sessionId but each step keeps its own checkpoint row. */
+export function agentCheckpointKey(
+  spawnerSessionId: string,
+  stepSlug: string,
+  sessionScope: SandboxSessionScope = 'step',
+): string {
+  return sessionScope === 'workflow'
+    ? `${spawnerSessionId}::${stepSlug}`
+    : spawnerSessionId;
+}
+
+/** Resolve spawner session id, admission owner id, and checkpoint key. */
+export function resolveWorkflowSandboxSession(args: {
+  executionId: string;
+  stepSlug: string;
+  sessionScope?: SandboxSessionScope;
+}): {
+  sessionId: string;
+  ownerId: string;
+  checkpointKey: string;
+  sessionScope: SandboxSessionScope;
+} {
+  const sessionScope = args.sessionScope ?? 'step';
+  if (sessionScope === 'workflow') {
+    const sessionId = sessionIdForWorkflowExecution(args.executionId);
+    return {
+      sessionId,
+      ownerId: workflowExecutionOwnerId(args.executionId),
+      checkpointKey: agentCheckpointKey(sessionId, args.stepSlug, 'workflow'),
+      sessionScope,
+    };
+  }
+  const sessionId = sessionIdForWorkflowRun(args.executionId, args.stepSlug);
+  return {
+    sessionId,
+    ownerId: workflowRunOwnerId(args.executionId, args.stepSlug),
+    checkpointKey: sessionId,
+    sessionScope,
+  };
+}

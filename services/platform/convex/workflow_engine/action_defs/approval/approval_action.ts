@@ -137,7 +137,14 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
             agentSlug: params.agentSlug,
           },
         );
-        return { operation: 'request_review', ...result };
+        // `taskId` rides along for the run view: the `review` render kind
+        // mounts the interactive TaskReviewCard only when the step output
+        // carries it — without it the gate degrades to a raw JSON dump.
+        return {
+          operation: 'request_review',
+          taskId: String(params.taskId),
+          ...result,
+        };
       }
 
       case 'sweep_pending': {

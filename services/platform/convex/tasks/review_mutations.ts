@@ -17,6 +17,7 @@ import type { WorkflowId } from '@convex-dev/workflow';
 import { ConvexError, v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
+import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import {
   internalMutation,
@@ -149,6 +150,18 @@ export const createTaskReviewRequest = internalMutation({
         agentSlug: args.agentSlug,
       });
     }
+
+    // A FRESH review request means the execution is about to pause on a human
+    // — hibernate its workflow-scoped sandbox (if any) so the paused run frees
+    // its per-org workflow session slot instead of pinning capacity for the
+    // whole wait; the resume path re-admits and re-creates in place. Scheduled
+    // (not inline) so it fires only when this request commits; runs only on
+    // the insert path — the responded-replay path above never pauses.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.sandbox.session_mutations.hibernateWorkflowScopedSession,
+      { executionId: String(args.wfExecutionId) },
+    );
 
     return { approvalId, pending: true, responded: false };
   },

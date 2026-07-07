@@ -178,7 +178,8 @@
       "start": "Démarrer",
       "markDone": "Marquer comme terminé",
       "merge": "Merger la pull request",
-      "all": "Tous"
+      "all": "Tous",
+      "review": "Examiner"
     },
     "agents": {
       "none": "Aucun agent configuré.",
@@ -282,7 +283,9 @@
     "review": {
       "gate": "En attente d'approbation",
       "form": "Saisie requise",
-      "choice": "Choisir une option"
+      "choice": "Choisir une option",
+      "approved": "Approuvé",
+      "changesRequested": "Modifications demandées"
     },
     "action": {
       "open": "Ouvrir",
