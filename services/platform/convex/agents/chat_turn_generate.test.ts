@@ -11,6 +11,7 @@ vi.mock('../_generated/server', () => ({
 
 const STARTCHAT = 'mock-startChat';
 const GOVERNANCE = 'mock-resolveGenerationGovernance';
+const CHECK_MODEL_ACCESS = 'mock-checkModelAccessInternal';
 const CLEARGEN = 'mock-clearGenerationStatus';
 const SET_THREAD_AGENT_SLUG = 'mock-setThreadAgentSlug';
 const AUTO_ROUTE = 'mock-resolveAutoRoute';
@@ -23,7 +24,10 @@ vi.mock('../_generated/api', () => ({
       auto_route: { resolveAutoRoute: AUTO_ROUTE },
     },
     governance: {
-      internal_queries: { resolveGenerationGovernance: GOVERNANCE },
+      internal_queries: {
+        resolveGenerationGovernance: GOVERNANCE,
+        checkModelAccessInternal: CHECK_MODEL_ACCESS,
+      },
     },
     threads: {
       internal_mutations: {
@@ -67,6 +71,12 @@ const mockResolveAgentConfigInline = vi.fn();
 vi.mock('./resolve_agent_config', () => ({
   resolveAgentConfigInline: (...a: unknown[]) =>
     mockResolveAgentConfigInline(...a),
+}));
+
+const mockResolveLanguageModelWithFallback = vi.fn();
+vi.mock('../providers/failover', () => ({
+  resolveLanguageModelWithFallback: (...a: unknown[]) =>
+    mockResolveLanguageModelWithFallback(...a),
 }));
 
 const { runChatTurnGeneration } = await import('./chat_turn_generate');
@@ -123,6 +133,9 @@ describe('runChatTurnGeneration', () => {
     });
     mockLoadGuardrailsSnapshot.mockResolvedValue({ chatFilter: null });
     mockSanitizeMessage.mockResolvedValue({ text: 'SCRUBBED' });
+    mockResolveLanguageModelWithFallback.mockResolvedValue({
+      modelData: { providerName: 'openrouter', modelId: 'gpt-4o' },
+    });
   });
 
   it('sanitizes the user message before persisting it via startChat', async () => {
@@ -419,6 +432,117 @@ describe('runChatTurnGeneration', () => {
         agentSlug: 'cursor',
         agentConfig: expect.objectContaining({
           model: 'claude-opus-4-8-thinking-high',
+        }),
+      }),
+    );
+  });
+
+  it('resolves gateway-managed Claude Code with empty supportedModels via governance default (step 5b, not step 5 abort)', async () => {
+    mockResolveAgentConfigInline.mockResolvedValue({
+      config: {
+        primaryBehavior: 'external-agent',
+        authMode: 'managed',
+        agentKind: 'claude-code',
+      },
+      supportedModels: [],
+      orgLocale: 'en',
+    });
+    const ctx = createCtx({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+      generationArgs: undefined,
+    });
+    ctx.runQuery.mockImplementation((ref: string) => {
+      if (ref === GOVERNANCE) {
+        return Promise.resolve({
+          defaultModel: {
+            modelId: 'anthropic/claude-sonnet-4.6',
+            providerName: 'openrouter',
+          },
+          // Empty accessible set would abort step 5 — must not reach it.
+          accessibleModelIds: [],
+          explicitAccess: null,
+          role: 'member',
+          teamIds: [],
+        });
+      }
+      if (ref === CHECK_MODEL_ACCESS) {
+        return Promise.resolve({ allowed: true });
+      }
+      return Promise.resolve(null);
+    });
+
+    await generationHandler(
+      ctx as never,
+      { ...BASE_ARGS, agentSlug: 'claude-code' } as never,
+    );
+
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      CLEARGEN,
+      expect.anything(),
+    );
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      STARTCHAT,
+      expect.objectContaining({
+        agentSlug: 'claude-code',
+        agentConfig: expect.objectContaining({
+          model: 'openrouter:anthropic/claude-sonnet-4.6',
+        }),
+      }),
+    );
+    expect(ctx.runQuery).toHaveBeenCalledWith(
+      CHECK_MODEL_ACCESS,
+      expect.objectContaining({
+        modelId: 'anthropic/claude-sonnet-4.6',
+      }),
+    );
+  });
+
+  it('resolves BYO external agent with empty supportedModels to member governance default', async () => {
+    mockResolveAgentConfigInline.mockResolvedValue({
+      config: {
+        primaryBehavior: 'external-agent',
+        authMode: 'byo',
+        agentKind: 'claude-code',
+      },
+      supportedModels: [],
+      orgLocale: 'en',
+    });
+    const ctx = createCtx({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+      generationArgs: undefined,
+    });
+    ctx.runQuery.mockImplementation((ref: string) => {
+      if (ref === GOVERNANCE) {
+        return Promise.resolve({
+          defaultModel: {
+            modelId: 'anthropic/claude-sonnet-4.6',
+            providerName: 'openrouter',
+          },
+          accessibleModelIds: ['anthropic/claude-sonnet-4.6'],
+          explicitAccess: null,
+          role: 'member',
+          teamIds: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    await generationHandler(
+      ctx as never,
+      { ...BASE_ARGS, agentSlug: 'claude-code' } as never,
+    );
+
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      CLEARGEN,
+      expect.anything(),
+    );
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      STARTCHAT,
+      expect.objectContaining({
+        agentConfig: expect.objectContaining({
+          model: 'openrouter:anthropic/claude-sonnet-4.6',
         }),
       }),
     );

@@ -14,9 +14,10 @@ export const SKILLS_GUIDANCE_HEADING = '## Working with skills';
 /**
  * The workflow skills stageable into a session, in guidance order. This is
  * the staging allowlist for workflow_skills.ts; every entry must exist under
- * builtin-configs/skills/<name>/ (guarded by guidance.test.ts). review-pr is
- * staged but not a numbered step — reviewing someone else's PR is not part of
- * the do-work loop the guidance encodes.
+ * builtin-configs/skills/<name>/ (guarded by guidance.test.ts). review-pr and
+ * create-issue are staged but not numbered steps — reviewing someone else's PR
+ * and filing an issue are situational, not part of the do-work loop the
+ * guidance encodes.
  */
 export const WORKFLOW_SKILL_NAMES: readonly string[] = [
   'write-notes',
@@ -32,6 +33,7 @@ export const WORKFLOW_SKILL_NAMES: readonly string[] = [
   'review-code',
   'review-pr',
   'create-pr',
+  'create-issue',
   'test-code',
 ];
 

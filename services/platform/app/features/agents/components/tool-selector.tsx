@@ -1,13 +1,39 @@
 'use client';
 
-import { Stack } from '@tale/ui/layout';
+import { Badge } from '@tale/ui/badge';
+import { Card } from '@tale/ui/card';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Row, Stack } from '@tale/ui/layout';
+import { rankTokens, scoreText } from '@tale/ui/search';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useCallback, useMemo } from 'react';
+import type { TFunction } from 'i18next';
+import {
+  BookOpen,
+  Bot,
+  ChartColumn,
+  Compass,
+  Folder,
+  Globe,
+  Inbox,
+  ListTodo,
+  MessageCircle,
+  Package,
+  Plug,
+  SearchX,
+  Truck,
+  Users,
+  Workflow,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { toolDisplayName } from '@/app/features/chat/utils/format-tool-detail';
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
@@ -45,7 +71,8 @@ interface ToolSelectorProps {
 // `settings.agents.tools.categories.*` labels; every tool name in
 // `TOOL_NAMES` lives in exactly one bucket so nothing falls through to the
 // uncategorized "system" tail at runtime. Tool labels themselves come from the
-// shared `toolDisplayName` map.
+// shared `toolDisplayName` map; the one-line descriptions live under
+// `settings.agents.tools.descriptions.*`.
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   customers: ['customer_read', 'customer_write'],
   products: ['product_read', 'product_write'],
@@ -102,6 +129,26 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   ],
 };
 
+// One Lucide glyph per category so a group reads at a glance (app design rule:
+// Lucide only). Uncategorized runtime tools land in "system" → Wrench.
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  customers: Users,
+  products: Package,
+  vendors: Truck,
+  websites: Globe,
+  conversations: Inbox,
+  discussions: MessageCircle,
+  knowledge: BookOpen,
+  tasksProjects: ListTodo,
+  agents: Bot,
+  workflows: Workflow,
+  integrations: Plug,
+  analytics: ChartColumn,
+  web: Compass,
+  files: Folder,
+  system: Wrench,
+};
+
 function categorizeTools(toolNames: string[]) {
   const categorized = new Map<string, string[]>();
   const assigned = new Set();
@@ -139,13 +186,16 @@ export function ToolSelector({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   // Tool labels live in the shared `chat.tools.*` namespace (one vocabulary for
-  // the chat timeline and this picker); category labels stay in `settings`.
+  // the chat timeline and this picker); category labels and the one-line tool
+  // descriptions stay in `settings`.
   const { t: tTools } = useT('chat');
   const { tools, isLoading } = useAvailableTools();
   const { integrations, isLoading: integrationsLoading } =
     useAvailableIntegrations(organizationId);
   const { workflows, isLoading: workflowsLoading } =
     useAvailableWorkflows(organizationId);
+
+  const [query, setQuery] = useState('');
 
   const selectedSet = useMemo(() => new Set(value), [value]);
 
@@ -171,6 +221,39 @@ export function ToolSelector({
     () => categorizeTools(availableToolNames),
     [availableToolNames],
   );
+
+  // A tool without registered copy degrades to "no description" instead of
+  // leaking the raw key (a future tool can land before its translations).
+  const toolDescription = useCallback(
+    (name: string): string | undefined => {
+      const text = t(`agents.tools.descriptions.${name}`, {
+        defaultValue: '',
+      });
+      return text === '' ? undefined : text;
+    },
+    [t],
+  );
+
+  const tokens = useMemo(() => rankTokens(query), [query]);
+
+  // Search matches a tool's localized label, its description, its raw name
+  // (what power users know), and its category label — the same AND-token model
+  // as the global search (`scoreText` doubles as the filter).
+  const filteredCategories = useMemo(() => {
+    const result: Array<[string, string[]]> = [];
+    for (const [category, toolNames] of categorized.entries()) {
+      const categoryLabel = t(`agents.tools.categories.${category}`);
+      const matched = toolNames.filter(
+        (name) =>
+          scoreText(
+            `${toolDisplayName(tTools, name)} ${toolDescription(name) ?? ''} ${name} ${categoryLabel}`,
+            tokens,
+          ) > 0,
+      );
+      if (matched.length > 0) result.push([category, matched]);
+    }
+    return result;
+  }, [categorized, tokens, t, tTools, toolDescription]);
 
   const bindingsSections = (
     <Stack gap={4}>
@@ -198,15 +281,18 @@ export function ToolSelector({
   );
 
   // While the catalog loads there are no real categories, so render the real
-  // CheckboxGroup structure with placeholder rows; `Checkbox` self-masks under
-  // `<Skeletonize loading>`. Static category labels stay real text.
+  // card structure with placeholder rows; `Checkbox` and `Badge` self-mask
+  // under `<Skeletonize loading>`. Static category labels stay real text.
   const displayCategories: Array<[string, string[]]> = isLoading
     ? [
         ['customers', ['__p_customers_0', '__p_customers_1']],
         ['knowledge', ['__p_knowledge_0', '__p_knowledge_1']],
         ['workflows', ['__p_workflows_0', '__p_workflows_1']],
       ]
-    : Array.from(categorized.entries());
+    : filteredCategories;
+
+  const noMatches =
+    !isLoading && query !== '' && filteredCategories.length === 0;
 
   // External agents hide the platform-tools catalog, so the integration
   // bindings below shouldn't wait on the tools query they never read.
@@ -219,33 +305,128 @@ export function ToolSelector({
     >
       <fieldset disabled={disabled}>
         <Stack gap={4}>
-          {showPlatformTools &&
-            displayCategories.map(([category, toolNames]) => (
-              <CheckboxGroup
-                key={category}
-                label={t(`agents.tools.categories.${category}`)}
-                options={toolNames.map((name) => ({
-                  value: name,
-                  label: isLoading
-                    ? 'Tool name'
-                    : toolDisplayName(tTools, name),
-                  disabled: isLoading,
-                }))}
-                value={
-                  isLoading
-                    ? []
-                    : toolNames.filter((name) => selectedSet.has(name))
-                }
-                onValueChange={(values) =>
-                  handleCategoryChange(toolNames, values)
-                }
+          {showPlatformTools && (
+            <Stack gap={4}>
+              <SearchInput
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('agents.tools.searchPlaceholder')}
+                disabled={isLoading}
               />
-            ))}
+              {noMatches ? (
+                <Card padding="md">
+                  <EmptyState
+                    icon={SearchX}
+                    title={tCommon('search.noResults')}
+                    description={tCommon('search.tryAdjusting')}
+                  />
+                </Card>
+              ) : (
+                <div className="grid items-start gap-4 md:grid-cols-2">
+                  {displayCategories.map(([category, toolNames]) => (
+                    <ToolCategoryCard
+                      key={category}
+                      category={category}
+                      toolNames={toolNames}
+                      selectedSet={selectedSet}
+                      isLoading={isLoading}
+                      onCategoryChange={handleCategoryChange}
+                      toolDescription={toolDescription}
+                      t={t}
+                      tTools={tTools}
+                    />
+                  ))}
+                </div>
+              )}
+            </Stack>
+          )}
 
           {(!showPlatformTools || !isLoading) && bindingsSections}
         </Stack>
       </fieldset>
     </Skeletonize>
+  );
+}
+
+function ToolCategoryCard({
+  category,
+  toolNames,
+  selectedSet,
+  isLoading,
+  onCategoryChange,
+  toolDescription,
+  t,
+  tTools,
+}: {
+  category: string;
+  toolNames: string[];
+  selectedSet: Set<string>;
+  isLoading: boolean;
+  onCategoryChange: (categoryTools: string[], newValues: string[]) => void;
+  toolDescription: (name: string) => string | undefined;
+  t: TFunction;
+  tTools: TFunction;
+}) {
+  const label = t(`agents.tools.categories.${category}`);
+  const Icon = CATEGORY_ICONS[category] ?? Wrench;
+
+  const enabledValues = isLoading
+    ? []
+    : toolNames.filter((name) => selectedSet.has(name));
+  const enabled = enabledValues.length;
+  const total = toolNames.length;
+  const allSelected = !isLoading && total > 0 && enabled === total;
+  const someSelected = enabled > 0 && !allSelected;
+
+  return (
+    <Card padding="md">
+      <Stack gap={3}>
+        <Row gap={2} align="center" justify="between">
+          <Row gap={2} align="center" className="min-w-0">
+            <Icon
+              className="text-muted-foreground size-4 shrink-0"
+              aria-hidden="true"
+            />
+            {/* Parent checkbox: the category label doubles as enable-all for
+                the tools this card currently SHOWS — under an active search
+                filter it only ever toggles the visible rows, never hidden
+                ones. */}
+            <Checkbox
+              label={label}
+              checked={
+                allSelected ? true : someSelected ? 'indeterminate' : false
+              }
+              onCheckedChange={(checked) =>
+                onCategoryChange(
+                  toolNames,
+                  checked === true ? [...toolNames] : [],
+                )
+              }
+              disabled={isLoading}
+            />
+          </Row>
+          <Badge
+            aria-label={t('agents.tools.enabledCountLabel', {
+              enabled,
+              total,
+            })}
+          >
+            {t('agents.tools.enabledCount', { enabled, total })}
+          </Badge>
+        </Row>
+        <CheckboxGroup
+          columns={1}
+          options={toolNames.map((name) => ({
+            value: name,
+            label: isLoading ? 'Tool name' : toolDisplayName(tTools, name),
+            description: isLoading ? undefined : toolDescription(name),
+            disabled: isLoading,
+          }))}
+          value={enabledValues}
+          onValueChange={(values) => onCategoryChange(toolNames, values)}
+        />
+      </Stack>
+    </Card>
   );
 }
 

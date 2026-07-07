@@ -125,6 +125,15 @@ export interface CredentialPolicy {
   /** Managed-mode credential source. BYO always injects env credentials.
    * Only meaningful when `supportsManaged` is true. */
   managedSource: 'gateway' | 'agent-env';
+  /** Which model-id dialect the runtime's BYO backend speaks for a
+   * catalog-shaped ref. 'vendor-native': the credential talks to the model
+   * vendor's own API (Claude Code + ANTHROPIC_API_KEY) — request the catalog
+   * entry's `nativeModelId` (`claude-sonnet-4-6`). 'catalog': the credential
+   * talks to an OpenRouter-style aggregator that speaks the catalog's own
+   * vendor-prefixed ids (Hermes + OPENROUTER_API_KEY) — request the catalog id
+   * itself (`anthropic/claude-sonnet-4.6`); the vendor-native translation is
+   * an id the aggregator rejects. */
+  byoModelIdSource: 'vendor-native' | 'catalog';
   supportsByo: boolean;
   /** Whether the runtime can run in managed mode at all. False for runtimes
    * whose CLI cannot route through the platform LLM gateway — e.g. Cursor, whose

@@ -107,10 +107,12 @@ describe('AutomationsTable', () => {
   });
 
   describe('count footer', () => {
-    // Regression for #2094: a folder collapses its child workflows into one
-    // row, so the footer must not count those hidden children against the
-    // visible folder rows ("Showing 1 of 15 automations").
-    it('counts visible rows, not grouped child workflows, in the folder view', () => {
+    // Regression for #2094 + #2348: a folder collapses its child workflows
+    // into one row. The footer counts automations — the unit the entity label
+    // names — so it must neither mix units ("Showing 1 of 15 automations",
+    // #2094) nor count the folder row itself as one automation ("Showing all
+    // 1 automations", the sibling class fixed for agents in #2348).
+    it('counts grouped workflows, not folder rows, in the folder view', () => {
       mockWorkflows.current = Array.from({ length: 15 }, (_, i) => ({
         slug: `projects/workflow-${i}`,
         name: `Workflow ${i}`,
@@ -121,9 +123,14 @@ describe('AutomationsTable', () => {
       render(<AutomationsTable organizationId="test-org-id" />);
 
       // One folder row ("projects") stands in for all 15 child workflows.
-      expect(screen.getByText('Showing all 1 automations')).toBeInTheDocument();
+      expect(
+        screen.getByText('Showing all 15 automations'),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText('Showing 1 of 15 automations'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Showing all 1 automations'),
       ).not.toBeInTheDocument();
     });
 

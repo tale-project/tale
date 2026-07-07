@@ -56,6 +56,9 @@ const PLAYWRIGHT_MCP_CDP_COMMAND = [
 
 const CREDENTIAL_POLICY: CredentialPolicy = {
   managedSource: 'gateway',
+  // Managed-only (supportsByo: false), so this never drives a real BYO run;
+  // 'vendor-native' is the inert default.
+  byoModelIdSource: 'vendor-native',
   supportsByo: false,
   supportsManaged: true,
 };

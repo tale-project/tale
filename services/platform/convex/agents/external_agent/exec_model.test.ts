@@ -85,4 +85,34 @@ describe('resolveExternalAgentExecModel', () => {
       }),
     ).toBe('my-custom-model');
   });
+
+  it("REGRESSION GUARD: BYO hermes ('catalog' dialect) requests the OpenRouter id, never the vendor-native one", () => {
+    // Hermes BYO authenticates with OPENROUTER_API_KEY, and OpenRouter speaks
+    // the catalog's vendor-prefixed ids. The slug-agnostic resolution used to
+    // return the Anthropic-native `claude-sonnet-4-6`, which OpenRouter
+    // rejects — the turn died on the first model call.
+    expect(
+      resolveExternalAgentExecModel({
+        byo: true,
+        gatewayRun: false,
+        modelRef: 'openrouter:anthropic/claude-sonnet-4.6',
+        byoModelIdSource: 'catalog',
+        byoNativeModel: 'claude-sonnet-4-6',
+        byoCatalogModel: 'anthropic/claude-sonnet-4.6',
+        toGatewayModel,
+      }),
+    ).toBe('anthropic/claude-sonnet-4.6');
+  });
+
+  it("BYO 'catalog' dialect: a raw user-typed id (no catalog match) passes through unchanged", () => {
+    expect(
+      resolveExternalAgentExecModel({
+        byo: true,
+        gatewayRun: false,
+        modelRef: 'nousresearch/hermes-4-405b',
+        byoModelIdSource: 'catalog',
+        toGatewayModel,
+      }),
+    ).toBe('nousresearch/hermes-4-405b');
+  });
 });

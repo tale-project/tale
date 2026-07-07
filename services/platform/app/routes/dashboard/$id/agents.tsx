@@ -17,6 +17,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { folderLabel } from '@/app/features/agents/utils/folder-label';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -113,14 +114,17 @@ function AgentsLayout() {
                         <span key={path} className="flex items-center gap-1">
                           <ChevronRight className="text-muted-foreground size-4 shrink-0" />
                           {isLast ? (
-                            <span>{segment}</span>
+                            // Localized folder display name, matching the
+                            // list's folder rows and the catalog sections —
+                            // never the raw path segment (#2348).
+                            <span>{folderLabel(tCatalog, segment)}</span>
                           ) : (
                             <button
                               type="button"
                               onClick={() => goToFolder(path)}
                               className="text-muted-foreground hover:text-foreground transition-colors"
                             >
-                              {segment}
+                              {folderLabel(tCatalog, segment)}
                             </button>
                           )}
                         </span>

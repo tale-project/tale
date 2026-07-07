@@ -284,6 +284,10 @@ export function AgentsTable({
     },
     getRowId: (row) => (row.type === 'agent' ? row.name : `folder:${row.path}`),
     entityLabel: tSettings('agents.entityLabel'),
+    // The footer counts agents, and a folder row stands in for every agent
+    // nested under it — counting rows would count the folder itself as one
+    // agent while hiding its members (#2348).
+    countRow: (row) => (row.type === 'folder' ? row.agentCount : 1),
   });
 
   return (

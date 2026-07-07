@@ -480,7 +480,7 @@ const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /** Allowed extensions for document uploads (fallback when MIME is unreliable) */
-const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
+export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'pdf',
   'doc',
   'docx',
@@ -731,6 +731,54 @@ export function isAllowedDocumentUpload(
 export function mimeToExtension(mime: string): string | undefined {
   const base = mime.split(';')[0].trim().toLowerCase();
   return MIME_TO_EXTENSION[base];
+}
+
+// ---------------------------------------------------------------------------
+// Document preview capability
+// ---------------------------------------------------------------------------
+
+/**
+ * Renderers the document preview (`DocumentPreview`) can route to for binary
+ * formats. Text-based files are decided separately via `isTextBasedFile`
+ * (extension + MIME + known filenames), so they are not listed here.
+ */
+type DocumentPreviewKind = 'pdf' | 'docx' | 'odt' | 'xlsx' | 'image';
+
+/**
+ * Extension (lowercase, no dot) → preview renderer. The single source of
+ * truth for which binary formats the preview supports — `DocumentPreview`
+ * routes off this map, and `file-types.test.ts` checks it against
+ * {@link DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS} so the upload-accept and
+ * preview-support lists cannot drift apart silently (issue #2380).
+ */
+const PREVIEW_KIND_BY_EXTENSION: Readonly<Record<string, DocumentPreviewKind>> =
+  {
+    pdf: 'pdf',
+    doc: 'docx',
+    docx: 'docx',
+    odt: 'odt',
+    xls: 'xlsx',
+    xlsx: 'xlsx',
+    jpg: 'image',
+    jpeg: 'image',
+    png: 'image',
+    gif: 'image',
+    webp: 'image',
+    svg: 'image',
+    bmp: 'image',
+    ico: 'image',
+    avif: 'image',
+  };
+
+/**
+ * The preview renderer for a file extension (any case, no dot), or
+ * `undefined` when no dedicated renderer exists — callers fall back to the
+ * text preview via `isTextBasedFile`, then to the "not available" state.
+ */
+export function getDocumentPreviewKind(
+  extension: string,
+): DocumentPreviewKind | undefined {
+  return PREVIEW_KIND_BY_EXTENSION[extension.toLowerCase()];
 }
 
 // ---------------------------------------------------------------------------

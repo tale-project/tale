@@ -110,6 +110,7 @@ const serializableAgentConfigValidator = v.object({
       v.literal('claude-code'),
       v.literal('cursor'),
       v.literal('opencode'),
+      v.literal('hermes'),
     ),
   ),
   instructions: v.string(),

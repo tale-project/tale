@@ -582,6 +582,8 @@ export class SessionRoutes {
             result = {
               status: 'failed',
               exitCode: null,
+              // Sentinel: the process never ran, so there is no runnerd
+              // measurement to forward (wire.ts `durationMs` contract).
               durationMs: 0,
               stdoutBase64: '',
               stderrBase64: '',
@@ -622,6 +624,8 @@ export class SessionRoutes {
           send('result', {
             status: 'failed',
             exitCode: null,
+            // Sentinel: the terminal `exit` line was lost with the container,
+            // so there is no measurement to forward (wire.ts contract).
             durationMs: 0,
             stdoutBase64: concatBase64(stdoutChunks),
             stderrBase64: concatBase64(stderrChunks),
@@ -1056,6 +1060,8 @@ function forwardExecEvent(
       send('result', {
         status: 'failed',
         exitCode: null,
+        // Sentinel: the process never ran, so there is no runnerd
+        // measurement to forward (wire.ts `durationMs` contract).
         durationMs: 0,
         stdoutBase64: '',
         stderrBase64: '',

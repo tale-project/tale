@@ -50,6 +50,14 @@ export interface SessionExecResultShape {
   exitCode: number | null;
   stdoutPreview: string;
   stderrPreview: string;
+  /**
+   * End-to-end run wall-clock measured PLATFORM-SIDE around the whole
+   * `runAndHarvestInSession` call: package installs + every step exec + the
+   * `/user/output` harvest. NOT the canonical per-exec execution time — that
+   * is runnerd's `exit.durationMs` (spawn → exit inside the container; see
+   * the sandbox wire `SessionExecResponse.durationMs`), which this run
+   * aggregates over several execs and extends with harvest I/O.
+   */
   durationMs: number;
   files: Array<{
     path: string;

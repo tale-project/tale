@@ -185,7 +185,7 @@ export interface ChatAgent {
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
   /** Which external agent CLI backs an 'external-agent' behavior. Gates
    * CLI-specific UI like the plan/act composer toggle (claude-code only). */
-  agentKind?: 'claude-code' | 'cursor' | 'opencode';
+  agentKind?: 'claude-code' | 'cursor' | 'opencode' | 'hermes';
   /** Credential mode for an 'external-agent'. 'byo' bypasses the platform
    * gateway/catalog (raw model, user-supplied credentials) — the model picker
    * shows a calm BYO indicator instead of the catalog/no-models warning. */

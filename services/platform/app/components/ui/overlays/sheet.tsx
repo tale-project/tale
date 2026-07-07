@@ -214,6 +214,12 @@ export function Sheet({
           className={cn(sheetVariants({ side, size }), widthClass, className)}
           style={widthStyle}
           onOpenAutoFocus={onOpenAutoFocus}
+          // Without a description, opt out of Radix's default
+          // `aria-describedby` (which would otherwise point at a
+          // `Description` id that is never rendered — a dangling ARIA
+          // reference Radix warns about in dev). Mirrors the `Dialog`
+          // primitive's handling in `dialog.tsx`.
+          {...(description ? {} : { 'aria-describedby': undefined })}
         >
           <DialogPrimitive.Title className="sr-only">
             {title}

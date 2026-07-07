@@ -4,6 +4,7 @@
 
 import { components } from '../../../_generated/api';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
+import { normalizeAuthEmail } from '../../auth/normalize_auth_email';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { UnauthorizedError } from '../errors';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
@@ -110,7 +111,13 @@ export async function getOrganizationMember(
     const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'user',
       paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: 'email', value: authUser.email, operator: 'eq' }],
+      where: [
+        {
+          field: 'email',
+          value: normalizeAuthEmail(authUser.email),
+          operator: 'eq',
+        },
+      ],
     });
     const userByEmail = userRes?.page?.[0];
     if (userByEmail?._id) {

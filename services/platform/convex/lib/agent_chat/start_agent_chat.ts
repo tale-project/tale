@@ -664,6 +664,10 @@ export async function startAgentChat(
         ...(enforcedConfig.visionModel !== undefined && {
           visionModel: enforcedConfig.visionModel,
         }),
+        ...(enforcedConfig.fallbackModels !== undefined &&
+          enforcedConfig.fallbackModels.length > 0 && {
+            fallbackModelRefs: enforcedConfig.fallbackModels,
+          }),
         // Single mode-resolution point: every turn entry (composer send, queue
         // drain, plan approval) re-enters here and reads the thread's sticky
         // plan/act posture fresh.

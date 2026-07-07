@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { isTextBasedFile } from '../utils/text-file-types';
 import {
   detectMediaMime,
+  DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
   extractExtension,
+  getDocumentPreviewKind,
   isAllowedDocumentUpload,
   isRagIndexableFile,
   mimeToExtension,
@@ -428,5 +431,28 @@ describe('isRagIndexableFile', () => {
     // Extension wins over MIME — a .doc reported as text/plain is still
     // a .doc to RAG's extension gate.
     expect(isRagIndexableFile('legacy.doc', 'text/plain')).toBe(false);
+  });
+});
+
+describe('upload-accept / preview-support parity (#2380)', () => {
+  // Formats the upload dialog accepts that knowingly have no preview
+  // renderer yet. Shrink this list when a renderer is added; never grow it
+  // silently — a newly accepted format must ship with a preview (or be
+  // deliberately added here).
+  const KNOWN_UNPREVIEWABLE = new Set(['ppt', 'pptx']);
+
+  it('every accepted upload extension is previewable or a known exception', () => {
+    const unpreviewable = [...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS].filter(
+      (ext) =>
+        getDocumentPreviewKind(ext) === undefined &&
+        !isTextBasedFile(`file.${ext}`),
+    );
+    expect(new Set(unpreviewable)).toEqual(KNOWN_UNPREVIEWABLE);
+  });
+
+  it('odt is accepted and routes to the odt renderer', () => {
+    expect(DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS.has('odt')).toBe(true);
+    expect(getDocumentPreviewKind('odt')).toBe('odt');
+    expect(getDocumentPreviewKind('ODT')).toBe('odt');
   });
 });

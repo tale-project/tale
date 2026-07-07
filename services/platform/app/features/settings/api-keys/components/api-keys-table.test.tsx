@@ -1,4 +1,4 @@
-import { describe, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -23,7 +23,7 @@ vi.mock('../hooks/use-api-keys-table-config', () => ({
       },
     ],
     searchPlaceholder: 'Search keys...',
-    stickyLayout: true,
+    stickyLayout: false,
     pageSize: 20,
     infiniteScroll: false,
   }),
@@ -50,6 +50,20 @@ function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
 }
 
 describe('ApiKeysTable', () => {
+  // Regression for #2381: rendered under `SettingsPage` (no bounded-height
+  // ancestor) the table must let the settings page own the vertical scroll. It
+  // must NOT emit the sticky-layout inner scroll container (`overscroll-contain`
+  // + `overflow-auto`), which collapses to content height and swallows the
+  // wheel over the table. The non-sticky frame uses `overflow-x-auto` instead.
+  it('does not render the sticky wheel-trap scroll container', () => {
+    const { container } = render(
+      <ApiKeysTable apiKeys={[makeApiKey()]} organizationId="org-1" />,
+    );
+
+    expect(container.querySelector('.overscroll-contain')).toBeNull();
+    expect(container.querySelector('.overflow-x-auto')).not.toBeNull();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with keys', async () => {
       const { container } = render(
