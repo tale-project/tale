@@ -370,6 +370,159 @@ describe('webdav tree_mutations.copyResource (convex-test)', () => {
   });
 });
 
+// WebDAV is a hub-only surface (#2545): project-scoped documents
+// (documents.projectId set) must behave as not-found for every caller —
+// never overwritten by a colliding PUT, never deleted/moved/copied.
+describe('webdav tree_mutations project-scope gate (convex-test)', () => {
+  async function seedProjectDoc(t: TestCtx, title: string) {
+    return await t.run(async (ctx) => {
+      const projectId = await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Secret Project',
+        createdBy: USER,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const storageId = await ctx.storage.store(new Blob(['project bytes']));
+      const docId = await ctx.db.insert('documents', {
+        organizationId: ORG,
+        title,
+        projectId,
+        fileId: storageId,
+        lifecycleStatus: 'active',
+      });
+      return { projectId, docId, storageId };
+    });
+  }
+
+  it('a PUT colliding with a project file creates an independent hub doc and leaves the project blob untouched', async () => {
+    const t = convexTest(schema, modules);
+    const { docId, storageId } = await seedProjectDoc(t, 'spec.pdf');
+
+    const putStorageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(['hub bytes'], { type: 'application/pdf' })),
+    );
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.ingestPutBlob,
+      {
+        organizationId: ORG,
+        pathSegments: ['spec.pdf'],
+        storageId: putStorageId,
+        contentType: 'application/pdf',
+        size: 9,
+        userId: USER,
+      },
+    );
+
+    // New hub row, not a bind to the project row...
+    expect(result.created).toBe(true);
+    expect(result.documentId).not.toBe(docId);
+    // ...and the project doc's row + blob are untouched.
+    const projectDoc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(projectDoc?.fileId).toBe(storageId);
+    expect(projectDoc?.lifecycleStatus).toBe('active');
+    const blobStillStored = await t.run(async (ctx) => {
+      const blob = await ctx.storage.get(storageId);
+      return blob !== null;
+    });
+    expect(blobStillStored).toBe(true);
+  });
+
+  it('softDeleteDocument refuses a project doc as NOT_FOUND and leaves it active', async () => {
+    const t = convexTest(schema, modules);
+    const { docId } = await seedProjectDoc(t, 'spec.pdf');
+
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.softDeleteDocument, {
+        organizationId: ORG,
+        documentId: docId,
+      }),
+      'NOT_FOUND',
+    );
+    const doc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(doc?.lifecycleStatus).toBe('active');
+  });
+
+  it('moveResource refuses a project doc source as NOT_FOUND and leaves the row unchanged', async () => {
+    const t = convexTest(schema, modules);
+    const { docId } = await seedProjectDoc(t, 'spec.pdf');
+
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.moveResource, {
+        organizationId: ORG,
+        src: { kind: 'document', id: docId },
+        srcSegments: ['spec.pdf'],
+        destParentSegments: [],
+        destName: 'renamed.pdf',
+        overwrite: false,
+        userId: USER,
+      }),
+      'NOT_FOUND',
+    );
+    const doc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(doc?.title).toBe('spec.pdf');
+  });
+
+  it('copyResource refuses a project doc source as NOT_FOUND', async () => {
+    const t = convexTest(schema, modules);
+    const { docId } = await seedProjectDoc(t, 'spec.pdf');
+
+    await expectCode(
+      t.mutation(internal.webdav.tree_mutations.copyResource, {
+        organizationId: ORG,
+        src: { kind: 'document', id: docId },
+        destParentSegments: [],
+        destName: 'copy.pdf',
+        overwrite: false,
+        userId: USER,
+      }),
+      'NOT_FOUND',
+    );
+    const copies = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('documents').collect();
+      return rows.filter((r) => r.title === 'copy.pdf');
+    });
+    expect(copies).toHaveLength(0);
+  });
+
+  it('a MOVE whose destination name collides with a project file never trashes the project doc', async () => {
+    const t = convexTest(schema, modules);
+    const { docId } = await seedProjectDoc(t, 'spec.pdf');
+    const hubId = await t.run(async (ctx) =>
+      ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'draft.pdf',
+        lifecycleStatus: 'active',
+      }),
+    );
+
+    // Overwrite:true against an invisible project doc must not resolve it as
+    // the collision target — the project row stays active.
+    const result = await t.mutation(
+      internal.webdav.tree_mutations.moveResource,
+      {
+        organizationId: ORG,
+        src: { kind: 'document', id: hubId },
+        srcSegments: ['draft.pdf'],
+        destParentSegments: [],
+        destName: 'spec.pdf',
+        overwrite: true,
+        userId: USER,
+      },
+    );
+    expect(result.created).toBe(true); // no visible collision
+    const projectDoc = await t.run(async (ctx) => ctx.db.get(docId));
+    expect(projectDoc?.lifecycleStatus).toBe('active');
+  });
+
+  it('MKCOL is not blocked by an invisible project doc of the same name', async () => {
+    const t = convexTest(schema, modules);
+    await seedProjectDoc(t, 'reports');
+    const { folderId } = await mkcol(t, [], 'reports');
+    expect(folderId).toBeTruthy();
+  });
+});
+
 describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
   it('trashes every descendant document and removes the folder rows', async () => {
     const t = convexTest(schema, modules);

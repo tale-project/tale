@@ -3,7 +3,9 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { internalQuery } from '../_generated/server';
+import { isProjectScopedDocument } from '../documents/access';
 import { findFolderByPath } from '../folders/find_folder_by_path';
+import { isWebdavVisibleDocument } from './visibility';
 
 // Cap children returned for a single PROPFIND. RFC 4918 doesn't paginate
 // — clients expect one 207 multistatus per request — so we truncate to
@@ -83,9 +85,12 @@ export const listCollection = internalQuery({
         .order('asc')
         .take(MAX_CHILDREN_PER_PROPFIND + 1);
       const truncated = taken.length > MAX_CHILDREN_PER_PROPFIND;
-      const slice = truncated
-        ? taken.slice(0, MAX_CHILDREN_PER_PROPFIND)
-        : taken;
+      // WebDAV is hub-only (#2545): a trashed project file stays invisible
+      // here too — surfacing it in .trash would let any org member restore
+      // or copy it back out of its project scope.
+      const slice = (
+        truncated ? taken.slice(0, MAX_CHILDREN_PER_PROPFIND) : taken
+      ).filter((d) => !isProjectScopedDocument(d));
       return {
         folders: [],
         // Join fileMetadata so Depth:1 children carry size + contentType,
@@ -127,9 +132,9 @@ export const listCollection = internalQuery({
       .order('asc')
       .take(MAX_CHILDREN_PER_PROPFIND + 1);
     const docsHitReadCap = rawDocs.length > MAX_CHILDREN_PER_PROPFIND;
-    const docs = rawDocs.filter(
-      (d) => (d.lifecycleStatus ?? 'active') === 'active',
-    );
+    // Visibility = active AND not project-scoped (#2545): project files are
+    // hard-scoped to their project and must never list as hub documents.
+    const docs = rawDocs.filter((d) => isWebdavVisibleDocument(d));
 
     // Cap the COMBINED count at MAX_CHILDREN_PER_PROPFIND. Folders win the cap
     // since collections are usually fewer and clients lean on them for tree
@@ -182,6 +187,9 @@ export const getDocumentProps = internalQuery({
   async handler(ctx, args) {
     const doc = await ctx.db.get(args.documentId);
     if (!doc || doc.organizationId !== args.organizationId) return null;
+    // Defense-in-depth: resolvePath never yields a project-scoped document,
+    // but a stale/forged id must not leak project props either (#2545).
+    if (isProjectScopedDocument(doc)) return null;
     return await joinDocumentMetadata(ctx, doc);
   },
 });
@@ -255,7 +263,10 @@ async function resolvePathInner(
     // un-GET-able). Title is required to be non-empty here (segments[0] is
     // a path segment), so docs with an undefined title never matched the
     // prior `(title ?? '') === segment` check either.
-    const match = await ctx.db
+    // .collect() over the exact-title matches (few — same-name trashed docs)
+    // so an invisible project doc can't shadow, or leak as, the trash entry
+    // (#2545 hub-only rule).
+    const trashMatches = await ctx.db
       .query('documents')
       .withIndex('by_org_lifecycle_title', (q) =>
         q
@@ -263,7 +274,8 @@ async function resolvePathInner(
           .eq('lifecycleStatus', 'trashed')
           .eq('title', segments[0]),
       )
-      .first();
+      .collect();
+    const match = trashMatches.find((d) => !isProjectScopedDocument(d));
     if (match) {
       return { kind: 'document', documentId: match._id, exists: true };
     }
@@ -367,9 +379,7 @@ async function resolveLeafDocument(
         .eq('folderId', folderId),
     )
     .collect();
-  const exact = titleMatches.find(
-    (d) => (d.lifecycleStatus ?? 'active') === 'active',
-  );
+  const exact = titleMatches.find((d) => isWebdavVisibleDocument(d));
   if (exact) return exact._id;
 
   // `<title>_<docId>` disambiguation. The docId is the final `_`-delimited
@@ -387,7 +397,7 @@ async function resolveLeafDocument(
         doc &&
         doc.organizationId === organizationId &&
         (doc.folderId ?? undefined) === folderId &&
-        (doc.lifecycleStatus ?? 'active') === 'active' &&
+        isWebdavVisibleDocument(doc) &&
         (doc.title ?? '') === titlePrefix
       ) {
         return doc._id;
