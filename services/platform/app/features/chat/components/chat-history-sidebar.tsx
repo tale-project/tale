@@ -212,7 +212,8 @@ export function ChatHistorySidebar({
     loadMore: loadMoreArchived,
   } = useArchivedThreads({ teamId: selectedTeamId, organizationId });
 
-  const { projects } = useProjects(organizationId);
+  const { projects, isLoading: isLoadingProjects } =
+    useProjects(organizationId);
 
   const { approvals } = useActiveApprovals(organizationId);
 
@@ -486,7 +487,10 @@ export function ChatHistorySidebar({
     [setCollapsedProjects],
   );
 
-  const showSkeleton = !isMounted || isLoadingFirstPage;
+  // Wait for BOTH async sections (chat threads first page + project folders)
+  // before swapping the skeleton for real content — dismissing on threads
+  // alone lets project rows pop in after first paint (layout shift, #2544).
+  const showSkeleton = !isMounted || isLoadingFirstPage || isLoadingProjects;
   const isEmpty = (chats?.length ?? 0) === 0;
 
   // Defined once and reused by both the empty-state and populated headers so
