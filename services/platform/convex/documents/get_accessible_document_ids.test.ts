@@ -79,6 +79,25 @@ describe('getAccessibleDocumentIds', () => {
     expect(ids).toEqual([]);
   });
 
+  it('excludes project-scoped documents even for team members', async () => {
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const ctx = createMockCtx([
+      { _id: 'doc1', ragInfo: { status: 'completed' } },
+      {
+        _id: 'doc2',
+        ragInfo: { status: 'completed' },
+        projectId: 'proj-1',
+      },
+    ]);
+
+    const ids = await getAccessibleDocumentIds(ctx, {
+      organizationId: 'org1',
+      userId: 'user1',
+    });
+
+    expect(ids).toEqual(['doc1']);
+  });
+
   it('includes documents regardless of ragInfo status', async () => {
     mockGetUserTeamIds.mockResolvedValue([]);
     const ctx = createMockCtx([

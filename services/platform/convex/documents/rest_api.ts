@@ -45,7 +45,15 @@ export const listDocuments = withRestAuth('rest:api', async (rc, request) => {
     },
   );
 
-  return jsonOk(result);
+  // REST is a Knowledge Hub surface: project-scoped documents are managed
+  // through the project UI/APIs and are not addressable here. Filtered
+  // post-pagination (the shared internal query also feeds the OneDrive
+  // prune scan, which must keep seeing project-attached synced docs), so a
+  // page may run short of `limit` — same trade as the in-app listings.
+  return jsonOk({
+    ...result,
+    page: result.page.filter((doc) => doc.projectId == null),
+  });
 });
 
 export const createDocument = withRestAuth('rest:api', async (rc, request) => {
@@ -122,6 +130,12 @@ export const getDocument = withRestAuth('rest:api', async (rc, request) => {
     return jsonError('Document not found', 404);
   }
 
+  // Project files are not addressable via the hub REST API (opaque 404 —
+  // don't reveal that an inaccessible document exists).
+  if (document.projectId != null) {
+    return jsonError('Document not found', 404);
+  }
+
   return jsonOk(document);
 });
 
@@ -134,6 +148,20 @@ export const patchDocument = withRestAuth('rest:api', async (rc, request) => {
   }
 
   const body = await request.json();
+
+  // Project files are not editable via the hub REST API. Opaque 404, same
+  // as GET — the shared internal mutation stays open for sync/workflow
+  // callers, so the gate lives at this surface.
+  const existing = await rc.ctx.runQuery(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    {
+      documentId: toId<'documents'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
+  );
+  if (!existing || existing.projectId != null) {
+    return jsonError('Document not found', 404);
+  }
 
   await rc.ctx.runMutation(
     internal.documents.internal_mutations.updateDocument,
@@ -160,6 +188,19 @@ export const deleteDocument = withRestAuth('rest:api', async (rc, request) => {
 
   if (!id) {
     return jsonError('Missing document ID', 400);
+  }
+
+  // Project files are not deletable via the hub REST API (opaque 404; the
+  // shared internal mutation stays open for retention/erasure callers).
+  const existing = await rc.ctx.runQuery(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    {
+      documentId: toId<'documents'>(id),
+      callerOrgId: rc.org.organizationId,
+    },
+  );
+  if (!existing || existing.projectId != null) {
+    return jsonError('Document not found', 404);
   }
 
   await rc.ctx.runMutation(

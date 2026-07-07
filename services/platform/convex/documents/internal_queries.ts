@@ -176,6 +176,7 @@ export const listIndexedForAgent = internalQuery({
     includeTeamKnowledge: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeFileIds: v.optional(v.array(v.string())),
+    agentProjectIds: v.optional(v.array(v.string())),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },

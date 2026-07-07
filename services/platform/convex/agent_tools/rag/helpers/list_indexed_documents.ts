@@ -29,6 +29,7 @@ export async function listIndexedDocuments(
         includeTeamKnowledge: extended.includeTeamKnowledge,
         includeOrgKnowledge: extended.includeOrgKnowledge,
         knowledgeFileIds: extended.knowledgeFileIds,
+        agentProjectIds: extended.agentProjectIds,
         limit: args.limit,
         cursor: args.cursor,
       },

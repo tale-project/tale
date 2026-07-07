@@ -140,6 +140,33 @@ describe('listDocumentsPaginated', () => {
     expect(result.page.map((d) => d.id)).toEqual(['d_1', 'd_2']);
   });
 
+  it('filters out project-scoped documents even for team members', async () => {
+    const docs = [
+      {
+        _id: 'd_1',
+        _creationTime: 1000,
+        title: 'Hub doc',
+        organizationId: 'org_1',
+      },
+      {
+        _id: 'd_2',
+        _creationTime: 1001,
+        title: 'Project file',
+        organizationId: 'org_1',
+        projectId: 'proj_1',
+      },
+    ];
+    const { ctx } = createMockQueryBuilder(docs);
+
+    const result = await listDocumentsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      userTeamIds: ['team_a'],
+    });
+
+    expect(result.page.map((d) => d.id)).toEqual(['d_1']);
+  });
+
   it('allows all documents when no team restrictions', async () => {
     const docs = [
       {

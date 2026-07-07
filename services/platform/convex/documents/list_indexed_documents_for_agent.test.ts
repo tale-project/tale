@@ -7,6 +7,7 @@ interface MockDoc {
   fileId?: string;
   title?: string;
   teamId?: string;
+  projectId?: string;
   sourceModifiedAt?: number;
   indexed?: boolean;
 }
@@ -94,6 +95,52 @@ describe('listIndexedDocumentsForAgent', () => {
       name: 'Guide.docx',
       sourceModifiedAt: 1700100000000,
     });
+  });
+
+  it('never lists project-scoped documents in the org-wide bucket', async () => {
+    const ctx = createMockCtx([
+      { _id: 'doc1', fileId: 'file1', title: 'Hub doc' },
+      {
+        _id: 'doc2',
+        fileId: 'file2',
+        title: 'Project file',
+        projectId: 'proj-1',
+      },
+    ]);
+
+    const result = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+    });
+
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0].name).toBe('Hub doc');
+  });
+
+  it('lists project documents only under a matching project scope', async () => {
+    const ctx = createMockCtx([
+      {
+        _id: 'doc1',
+        fileId: 'file1',
+        title: 'Project file',
+        projectId: 'proj-1',
+      },
+      {
+        _id: 'doc2',
+        fileId: 'file2',
+        title: 'Other project file',
+        projectId: 'proj-2',
+      },
+    ]);
+
+    const result = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: false,
+      agentProjectIds: ['proj-1'],
+    });
+
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0].name).toBe('Project file');
   });
 
   it('filters by team scoping', async () => {

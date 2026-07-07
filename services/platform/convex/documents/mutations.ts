@@ -24,6 +24,7 @@ import {
   PROJECT_AUDIT_ACTIONS,
   PROJECT_RESOURCE_TYPE,
 } from '../projects/audit_actions';
+import { checkProjectDocumentAccess, isProjectScopedDocument } from './access';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
 import { updateDocument as updateDocumentHelper } from './update_document';
@@ -61,6 +62,20 @@ export const updateDocument = mutation({
 
     await getOrganizationMember(ctx, document.organizationId, authUser);
 
+    // Project files: org membership alone is not enough — require edit
+    // access to the owning project (the same standard as attach/detach).
+    // Team assignment on a project doc is rejected inside the helper
+    // (projectId/teamId mutual exclusivity).
+    if (isProjectScopedDocument(document)) {
+      const access = await checkProjectDocumentAccess(ctx, document, {
+        userId: authUser.userId,
+        organizationId: document.organizationId,
+      });
+      if (!access?.canEdit) {
+        throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      }
+    }
+
     await updateDocumentHelper(ctx, {
       ...args,
       teamIds: args.teamIds,
@@ -92,6 +107,18 @@ export const deleteDocument = mutation({
     }
 
     await getOrganizationMember(ctx, document.organizationId, authUser);
+
+    // Project files: deletion requires edit access to the owning project
+    // (mirrors the update gate above and the attach/detach standard).
+    if (isProjectScopedDocument(document)) {
+      const access = await checkProjectDocumentAccess(ctx, document, {
+        userId: authUser.userId,
+        organizationId: document.organizationId,
+      });
+      if (!access?.canEdit) {
+        throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      }
+    }
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).

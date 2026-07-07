@@ -26,97 +26,16 @@ import {
   DEFAULT_CHAT_AGENT_SLUG,
 } from '../../lib/shared/constants/agents';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import { mutation, type MutationCtx } from '../_generated/server';
+import { mutation } from '../_generated/server';
 import { notifyChatMentions } from '../collab/notify';
 import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
 import { isDrainingNow } from '../control/drain';
-import { isActiveDocument } from '../documents/_helpers';
 import { userContextValidator } from '../lib/agent_response/validators';
-import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { hasTeamAccess } from '../lib/team_access';
 import { persistentStreaming } from '../streaming/helpers';
 import { cancelGeneration } from '../threads/cancel_generation';
 import { normalizeMessageKey } from './auto_route_helpers';
-
-/** Hard cap on `@`-mentioned knowledge-base documents per turn. Mirrored by
- *  the composer (`MAX_KB_MENTIONS` in use-kb-mentions.ts). */
-const MAX_KB_REFERENCES = 5;
-
-/** Branded-Id variant of `KbReferencedFile` (kb_reference_block.ts) for the
- *  scheduled-action payload. */
-interface ResolvedKbReference {
-  documentId: Id<'documents'>;
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-}
-
-/**
- * Resolve + authorize the composer's `@`-mentioned documents synchronously so
- * an invalid reference fails the send with a client-visible ConvexError
- * instead of a mid-generation surprise. Each reference must be: same org,
- * active, team-accessible to the sender, blob-backed, and RAG-indexed —
- * the same gate the picker query applies, re-checked server-side.
- *
- * Bounded work on the Track-B fast path: ≤ MAX_KB_REFERENCES point reads plus
- * one team lookup.
- */
-async function resolveReferencedFiles(
-  ctx: MutationCtx,
-  args: {
-    organizationId: string;
-    userId: string;
-    referencedDocumentIds: Id<'documents'>[];
-  },
-): Promise<ResolvedKbReference[]> {
-  if (args.referencedDocumentIds.length > MAX_KB_REFERENCES) {
-    throw new ConvexError({ code: 'KB_REF_INVALID' });
-  }
-  const userTeamIds = await getUserTeamIds(ctx, args.userId);
-  // Org-wide sentinel mirrors get_accessible_document_ids.ts.
-  const teamSet = new Set([`org_${args.organizationId}`, ...userTeamIds]);
-
-  const resolved: ResolvedKbReference[] = [];
-  const seen = new Set<string>();
-  for (const documentId of args.referencedDocumentIds) {
-    if (seen.has(documentId)) continue;
-    seen.add(documentId);
-
-    const doc = await ctx.db.get(documentId);
-    // One opaque code for every failure mode so the error doesn't reveal
-    // whether an inaccessible document exists.
-    if (
-      !doc ||
-      doc.organizationId !== args.organizationId ||
-      !isActiveDocument(doc) ||
-      !hasTeamAccess(doc, teamSet)
-    ) {
-      throw new ConvexError({ code: 'KB_REF_INVALID' });
-    }
-    const fileId = doc.fileId;
-    if (!fileId) {
-      throw new ConvexError({ code: 'KB_REF_INVALID' });
-    }
-    const fm = await ctx.db
-      .query('fileMetadata')
-      .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
-      .first();
-    if (!fm || fm.ragStatus !== 'completed') {
-      throw new ConvexError({ code: 'KB_REF_INVALID' });
-    }
-    resolved.push({
-      documentId,
-      fileId,
-      fileName: doc.title?.trim() || fm.fileName,
-      fileType: doc.mimeType ?? fm.contentType,
-      fileSize: fm.size,
-    });
-  }
-  return resolved;
-}
+import { resolveReferencedFiles } from './resolve_referenced_files';
 
 export const chatWithAgentTurn = mutation({
   args: {
@@ -174,6 +93,33 @@ export const chatWithAgentTurn = mutation({
       throw new ConvexError({ code: 'UNAUTHENTICATED' });
     }
 
+    // Projects: validate access BEFORE the prewarm branch (a denial throws
+    // synchronously and the client shows a PROJECT_* toast — same UX as
+    // before Track B). Prewarm forwards projectId to the generation action,
+    // whose startChat persists the thread↔project binding — an unvalidated
+    // prewarm must never bind a caller's thread to a project they can't
+    // access. The PROJECT_MISMATCH check stays below (needs thread meta).
+    if (args.projectId) {
+      const projectAccess = await ctx.runQuery(
+        internal.projects.internal_queries.assertProjectAccessForChat,
+        {
+          projectId: args.projectId,
+          organizationId: args.organizationId,
+          userId: authUser.userId,
+        },
+      );
+      if (!projectAccess.allowed) {
+        throw new ConvexError({
+          code:
+            projectAccess.reason === 'not_found'
+              ? 'PROJECT_NOT_FOUND'
+              : projectAccess.reason === 'org_mismatch'
+                ? 'PROJECT_ORG_MISMATCH'
+                : 'PROJECT_FORBIDDEN',
+        });
+      }
+    }
+
     // Cache pre-warm: invisible. Skip markGenerating / stream / supersede /
     // project persist entirely — just schedule the throwaway priming
     // generation. Don't spend a routing classifier on a prewarm (the real turn
@@ -224,48 +170,10 @@ export const chatWithAgentTurn = mutation({
       throw new ConvexError({ code: 'BACKEND_DRAINING' });
     }
 
-    // Projects: validate access here (DB query) so a denial throws
-    // synchronously and the client shows a PROJECT_* toast (same UX as before
-    // Track B). The thread↔project persist + PROJECT_MISMATCH check stay in
-    // startChat (reached via the node action).
-    if (args.projectId) {
-      const projectAccess = await ctx.runQuery(
-        internal.projects.internal_queries.assertProjectAccessForChat,
-        {
-          projectId: args.projectId,
-          organizationId: args.organizationId,
-          userId: authUser.userId,
-        },
-      );
-      if (!projectAccess.allowed) {
-        throw new ConvexError({
-          code:
-            projectAccess.reason === 'not_found'
-              ? 'PROJECT_NOT_FOUND'
-              : projectAccess.reason === 'org_mismatch'
-                ? 'PROJECT_ORG_MISMATCH'
-                : 'PROJECT_FORBIDDEN',
-        });
-      }
-    }
-
-    // Resolve + authorize `@`-mentioned knowledge-base documents BEFORE any
-    // state is committed, so a stale/inaccessible reference throws
-    // synchronously (client toast) and never leaves the thread generating.
-    const referencedFiles =
-      args.referencedDocumentIds && args.referencedDocumentIds.length > 0
-        ? await resolveReferencedFiles(ctx, {
-            organizationId: args.organizationId,
-            userId: authUser.userId,
-            referencedDocumentIds: args.referencedDocumentIds,
-          })
-        : undefined;
-
-    // markGenerating inline (mirrors threads/internal_mutations:markGenerating)
-    // — commit the spinner state + allocate the stream synchronously so the
-    // subscription lights up with minimal delay. For Auto mode the resolved
-    // agent isn't known yet (routing happens in the node action), so the slug
-    // is patched there.
+    // Thread metadata is read BEFORE resolving `@`-references: the reference
+    // gate needs the thread's project scope (a project file is pinable only
+    // inside its own project's chat). Also used further down for
+    // markGenerating (mirrors threads/internal_mutations:markGenerating).
     const meta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
@@ -285,6 +193,21 @@ export const chatWithAgentTurn = mutation({
     if (args.projectId && meta.projectId && meta.projectId !== args.projectId) {
       throw new ConvexError({ code: 'PROJECT_MISMATCH' });
     }
+
+    // Resolve + authorize `@`-mentioned knowledge-base documents BEFORE any
+    // state is committed, so a stale/inaccessible reference throws
+    // synchronously (client toast) and never leaves the thread generating.
+    // The thread's persisted project wins; args.projectId covers the first
+    // send into a not-yet-persisted project thread (access-validated above).
+    const referencedFiles =
+      args.referencedDocumentIds && args.referencedDocumentIds.length > 0
+        ? await resolveReferencedFiles(ctx, {
+            organizationId: args.organizationId,
+            userId: authUser.userId,
+            referencedDocumentIds: args.referencedDocumentIds,
+            threadProjectId: meta.projectId ?? args.projectId,
+          })
+        : undefined;
 
     // Supersede an in-flight generation: if this thread is already generating,
     // cancel the running turn (aborts its SDK stream → the running action's

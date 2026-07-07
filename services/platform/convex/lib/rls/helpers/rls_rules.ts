@@ -7,6 +7,7 @@ import type { Rules } from 'convex-helpers/server/rowLevelSecurity';
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { DataModel } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
+import { hasKnowledgeHubDocumentAccess } from '../../../documents/access';
 import { getUserTeamIds } from '../../get_user_teams';
 import { hasTeamAccess } from '../../team_access';
 import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
@@ -91,12 +92,18 @@ export async function rlsRules(
       },
     },
 
-    // Documents - organization-scoped with team-based access control
+    // Documents - organization-scoped with team-based access control.
+    // Project-scoped documents (projectId set) are denied outright: they are
+    // not Knowledge Hub rows, and their read/edit paths go through the
+    // project mutations' own guards (documents/access.ts), never through
+    // RLS-wrapped db access. Defense-in-depth for future wrapped callers.
     documents: {
       read: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
+        if (!hasKnowledgeHubDocumentAccess(doc, await resolveTeamIds())) {
+          return false;
+        }
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -105,7 +112,9 @@ export async function rlsRules(
       modify: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
+        if (!hasKnowledgeHubDocumentAccess(doc, await resolveTeamIds())) {
+          return false;
+        }
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -114,7 +123,9 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, doc) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        if (!hasTeamAccess(doc, await resolveTeamIds())) return false;
+        if (!hasKnowledgeHubDocumentAccess(doc, await resolveTeamIds())) {
+          return false;
+        }
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );

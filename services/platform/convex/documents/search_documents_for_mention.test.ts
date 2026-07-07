@@ -215,6 +215,46 @@ describe('searchDocumentsForMention', () => {
     ]);
   });
 
+  it('never offers project-scoped documents, even to team members', async () => {
+    const { ctx } = createCtx(
+      [
+        { ...baseDoc, _id: 'd_hub', title: 'Doc hub', fileId: 'f_1' },
+        {
+          ...baseDoc,
+          _id: 'd_project',
+          title: 'Doc project',
+          fileId: 'f_2',
+          projectId: 'proj_1',
+        },
+      ],
+      {
+        f_1: {
+          fileName: 'hub.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          ragStatus: 'completed',
+        },
+        f_2: {
+          fileName: 'project.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          ragStatus: 'completed',
+        },
+      },
+    );
+
+    const results = await searchDocumentsForMention(
+      ctx as unknown as QueryCtx,
+      {
+        organizationId: 'org_1',
+        term: 'doc',
+        userTeamIds: ['team_a'],
+      },
+    );
+
+    expect(results.map((r) => r.documentId)).toEqual(['d_hub']);
+  });
+
   it('returns newest docs on an empty query and falls back to the blob file name when the title is empty', async () => {
     const { ctx } = createCtx(
       [

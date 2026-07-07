@@ -194,6 +194,7 @@ import type * as agents_provision_defaults_mutations from "../agents/provision_d
 import type * as agents_queries from "../agents/queries.js";
 import type * as agents_recover_stuck_chat_turns from "../agents/recover_stuck_chat_turns.js";
 import type * as agents_resolve_agent_config from "../agents/resolve_agent_config.js";
+import type * as agents_resolve_referenced_files from "../agents/resolve_referenced_files.js";
 import type * as agents_resolve_role_to_agent from "../agents/resolve_role_to_agent.js";
 import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_run_agent_on_discussion from "../agents/run_agent_on_discussion.js";
@@ -1884,6 +1885,7 @@ declare const fullApi: ApiFromModules<{
   "agents/queries": typeof agents_queries;
   "agents/recover_stuck_chat_turns": typeof agents_recover_stuck_chat_turns;
   "agents/resolve_agent_config": typeof agents_resolve_agent_config;
+  "agents/resolve_referenced_files": typeof agents_resolve_referenced_files;
   "agents/resolve_role_to_agent": typeof agents_resolve_role_to_agent;
   "agents/rest_api": typeof agents_rest_api;
   "agents/run_agent_on_discussion": typeof agents_run_agent_on_discussion;

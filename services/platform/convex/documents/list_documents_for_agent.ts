@@ -17,6 +17,7 @@ import {
 } from '../lib/fuzzy_match';
 import { hasTeamAccess } from '../lib/team_access';
 import { isActiveDocument } from './_helpers';
+import { hasKnowledgeHubDocumentAccess } from './access';
 
 const MAX_SCAN = 10_000;
 const DEFAULT_LIMIT = 20;
@@ -139,7 +140,7 @@ export async function listDocumentsForAgent(
     // Team filter
     if (args.teamId) {
       if (doc.teamId !== args.teamId) continue;
-    } else if (!hasTeamAccess(doc, teamIdSet)) {
+    } else if (!hasKnowledgeHubDocumentAccess(doc, teamIdSet)) {
       continue;
     }
 
