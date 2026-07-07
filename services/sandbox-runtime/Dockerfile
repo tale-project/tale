@@ -29,6 +29,7 @@ ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
 ARG GEMINI_CLI_VERSION=0.49.0
+ARG CODEX_VERSION=0.142.5
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -301,6 +302,13 @@ RUN npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION
     && gemini --version
 COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
 RUN chmod +x /usr/local/bin/tale-gemini-run
+
+# OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
+# adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
+# the CLI's native JSONL is the parse contract.
+RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
+    && npm cache clean --force \
+    && codex --version
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in

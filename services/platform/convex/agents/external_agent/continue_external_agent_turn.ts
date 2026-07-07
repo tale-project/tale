@@ -45,6 +45,7 @@ export const continueExternalAgentTurn = internalAction({
       v.literal('opencode'),
       v.literal('hermes'),
       v.literal('gemini'),
+      v.literal('codex'),
     ),
     agentSlug: v.optional(v.string()),
     modelRef: v.string(),

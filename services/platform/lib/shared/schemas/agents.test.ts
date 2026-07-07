@@ -112,6 +112,20 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         authMode: 'byo',
       }).success,
     ).toBe(true);
+    // Codex supports both credential modes (managed gateway + BYO OpenAI).
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'codex',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'codex',
+        authMode: 'byo',
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts external-agent with agentKind opencode (managed-only)', () => {
@@ -276,7 +290,7 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
 
   it('rejects an invalid agentKind', () => {
     expect(
-      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'codex' })
+      agentJsonSchema.safeParse({ ...externalBase, agentKind: 'aider' })
         .success,
     ).toBe(false);
   });

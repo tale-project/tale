@@ -5678,7 +5678,8 @@
           "cursor": "Cursor",
           "opencode": "OpenCode",
           "hermes": "Hermes Agent",
-          "gemini": "Gemini CLI"
+          "gemini": "Gemini CLI",
+          "codex": "Codex"
         },
         "webTools": {
           "sectionTitle": "Outils web",

@@ -112,6 +112,7 @@ const serializableAgentConfigValidator = v.object({
       v.literal('opencode'),
       v.literal('hermes'),
       v.literal('gemini'),
+      v.literal('codex'),
     ),
   ),
   instructions: v.string(),

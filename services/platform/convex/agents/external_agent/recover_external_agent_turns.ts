@@ -49,7 +49,10 @@ const RECOVERY_STALE_MS = Number(
 );
 const RECOVERY_SWEEP_LIMIT = 50;
 
-/** Coerce a stored session-op agentKind (may include legacy values) to a product slug. */
+/** Coerce a stored session-op agentKind (may include legacy values) to a
+ * product slug. Membership check, not a per-slug ternary: recovery must
+ * re-attach with the op's OWN adapter — coercing an unlisted kind (Hermes,
+ * Codex) to claude-code would resume the turn under the wrong runtime. */
 function storedProductAgentKind(kind: string | undefined): ProductAgentSlug {
   return resolveProductAgentKind(kind);
 }

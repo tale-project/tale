@@ -43,7 +43,13 @@ export interface TurnContext {
   sessionId: string;
   execId: string;
   threadId: string;
-  agentKind: 'claude-code' | 'cursor' | 'opencode' | 'hermes' | 'gemini';
+  agentKind:
+    | 'claude-code'
+    | 'cursor'
+    | 'opencode'
+    | 'hermes'
+    | 'gemini'
+    | 'codex';
   agentSlug?: string;
   modelRef: string;
   userId?: string;

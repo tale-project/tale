@@ -18,8 +18,9 @@ const ANTHROPIC_GATEWAY_SESSION_KEYS = [
   'TALE_GATEWAY_TOKEN',
 ] as const;
 
-/** Hermes gateway / OpenAI-compat keys that may linger after a runtime switch. */
-const HERMES_GATEWAY_SESSION_KEYS = [
+/** OpenAI-compat gateway keys (Hermes / Codex) that may linger after a
+ * runtime switch. */
+const OPENAI_COMPAT_GATEWAY_SESSION_KEYS = [
   'OPENAI_BASE_URL',
   'OPENAI_API_KEY',
   'OPENROUTER_API_KEY',
@@ -46,7 +47,7 @@ export function collectScrubCredentialEnvKeys(
   }
   if (!gatewayRun || byo) {
     for (const k of ANTHROPIC_GATEWAY_SESSION_KEYS) keys.add(k);
-    for (const k of HERMES_GATEWAY_SESSION_KEYS) keys.add(k);
+    for (const k of OPENAI_COMPAT_GATEWAY_SESSION_KEYS) keys.add(k);
     for (const k of GEMINI_GATEWAY_SESSION_KEYS) keys.add(k);
   }
   return [...keys];

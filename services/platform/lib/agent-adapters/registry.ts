@@ -3,6 +3,7 @@
 // here (and extending PRODUCT_AGENT_SLUGS in events.ts).
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
+import { CodexAdapter } from './codex/adapter';
 import { CursorAdapter } from './cursor/adapter';
 import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
 import { GeminiCliAdapter } from './gemini-cli/adapter';
@@ -16,6 +17,7 @@ const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   opencode: new OpenCodeAdapter(),
   hermes: new HermesAdapter(),
   gemini: new GeminiCliAdapter(),
+  codex: new CodexAdapter(),
 };
 
 export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {

@@ -41,7 +41,10 @@ export const deliverSteerMessages = internalAction({
       internal.sandbox.session_queries.getRunningAgentRunByThread,
       { threadId: args.threadId },
     );
-    // Mid-turn steering applies only to runtimes that support it.
+    // Mid-turn steering applies only to runtimes that support it. Membership
+    // check, not a per-slug ternary: coercing an unknown kind to claude-code
+    // (supportsMidTurnSteering) would stage steer files no hook ever consumes
+    // for one-shot runtimes like Hermes or Codex.
     const agentKind: ProductAgentSlug = resolveProductAgentKind(
       target?.agentKind,
     );
