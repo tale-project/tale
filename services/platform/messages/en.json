@@ -5920,6 +5920,7 @@
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
+          "opencode": "OpenCode",
           "hermes": "Hermes Agent"
         },
         "webTools": {

@@ -24,7 +24,10 @@
 import { v } from 'convex/values';
 
 import { getAgentCapabilities } from '../../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../../lib/agent-adapters/events';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { sessionStageFiles } from './helpers/session_client';
@@ -39,8 +42,9 @@ export const deliverSteerMessages = internalAction({
       { threadId: args.threadId },
     );
     // Mid-turn steering applies only to runtimes that support it.
-    const agentKind: ProductAgentSlug =
-      target?.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+    const agentKind: ProductAgentSlug = resolveProductAgentKind(
+      target?.agentKind,
+    );
     if (!target || !getAgentCapabilities(agentKind).supportsMidTurnSteering) {
       return null;
     }

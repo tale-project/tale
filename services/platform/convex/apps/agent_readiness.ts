@@ -1,7 +1,10 @@
 import { v } from 'convex/values';
 
 import { getCredentialPolicy } from '../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../lib/agent-adapters/events';
 import {
   type ClassifiableAgent,
   classifyAgentReadiness,
@@ -38,7 +41,7 @@ interface AppAgentRow {
   displayName?: string;
   status?: string;
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
-  agentKind?: 'claude-code' | 'cursor' | 'hermes';
+  agentKind?: 'claude-code' | 'cursor' | 'opencode' | 'hermes';
   authMode?: 'managed' | 'byo';
   supportedModels?: string[];
   metadata?: {
@@ -65,8 +68,9 @@ export const getAppAgentReadiness = action({
     );
 
     const classified = agents.map((row) => {
-      const productKind: ProductAgentSlug =
-        row.agentKind === 'cursor' ? 'cursor' : 'claude-code';
+      const productKind: ProductAgentSlug = resolveProductAgentKind(
+        row.agentKind,
+      );
       const credentialManagedSource =
         row.primaryBehavior === 'external-agent' && row.authMode !== 'byo'
           ? getCredentialPolicy(productKind).managedSource

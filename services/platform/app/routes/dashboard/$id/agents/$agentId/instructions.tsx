@@ -33,6 +33,7 @@ import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolv
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { getCredentialPolicy } from '@/lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '@/lib/agent-adapters/events';
+import { resolveProductAgentKind } from '@/lib/agent-adapters/events';
 import { useT } from '@/lib/i18n/client';
 import { getVariantBadgeLabel } from '@/lib/shared/utils/expand-model-variants';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
@@ -442,12 +443,9 @@ function InstructionsTab() {
   // passthrough.
   const isExternalAgent = config.primaryBehavior === 'external-agent';
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
-  const productAgentKind: ProductAgentSlug =
-    config.agentKind === 'cursor'
-      ? 'cursor'
-      : config.agentKind === 'hermes'
-        ? 'hermes'
-        : 'claude-code';
+  const productAgentKind: ProductAgentSlug = resolveProductAgentKind(
+    config.agentKind,
+  );
   const credentialPolicy = getCredentialPolicy(productAgentKind);
   // Runtimes that can't reach the platform gateway (e.g. Cursor) are BYO only —
   // there is no managed choice, so force byo and hide the selector.

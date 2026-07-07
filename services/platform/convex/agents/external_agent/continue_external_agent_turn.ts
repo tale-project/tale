@@ -42,6 +42,7 @@ export const continueExternalAgentTurn = internalAction({
     agentKind: v.union(
       v.literal('claude-code'),
       v.literal('cursor'),
+      v.literal('opencode'),
       v.literal('hermes'),
     ),
     agentSlug: v.optional(v.string()),
