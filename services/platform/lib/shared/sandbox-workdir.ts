@@ -13,7 +13,7 @@
 
 export const SANDBOX_WORKSPACE_ABS_ROOT = '/user/workspace';
 
-export const SANDBOX_WORKDIR_MAX_LENGTH = 256;
+const SANDBOX_WORKDIR_MAX_LENGTH = 256;
 
 /** One path segment: no separators, no whitespace, no control chars. */
 const WORKDIR_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
