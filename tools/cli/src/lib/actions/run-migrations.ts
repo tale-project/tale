@@ -16,6 +16,7 @@
  */
 
 import * as logger from '../../utils/logger';
+import { CONVEX_RUN_BANNER_GREP_V } from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 import { redactAdminKey } from './reseed-all-orgs';
@@ -47,7 +48,7 @@ env_normalize_common
 ensure_instance_secret
 ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 cd /app
-STRIP='^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste'
+STRIP='${CONVEX_RUN_BANNER_GREP_V}'
 HOME=/home/app timeout ${MIGRATE_TIMEOUT_S} bunx convex run \\
   provisioning:provisionAll \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\

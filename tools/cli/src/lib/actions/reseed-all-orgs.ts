@@ -23,6 +23,7 @@
 
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
+import { CONVEX_RUN_BANNER_GREP_V } from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 
@@ -80,7 +81,7 @@ HOME=/home/app timeout ${RESEED_TIMEOUT_S} bunx convex run \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
   --no-push 2>&1 \\
-  | { grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste" || true; }
+  | { grep -v "${CONVEX_RUN_BANNER_GREP_V}" || true; }
 `;
 
 /**

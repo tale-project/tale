@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CursorAdapter } from './cursor/adapter';
+import { HermesAdapter } from './hermes/adapter';
 import type { AgentRunSpec } from './types';
 
 const base = {
@@ -14,6 +15,27 @@ const base = {
   gateway: { baseUrl: 'http://sandbox-llm-gateway:8080', token: 'sk-bf-test' },
   workdir: '/user/workspace',
 } satisfies AgentRunSpec;
+
+describe('HermesAdapter.buildExec', () => {
+  it('builds tale-hermes-run with OpenAI-compatible gateway env', () => {
+    const hermesBase = {
+      prompt: 'Fix issue #1',
+      model: 'openrouter:anthropic/claude-sonnet-4.6',
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
+      workdir: '/user/workspace',
+    } satisfies AgentRunSpec;
+    const { argv, env } = new HermesAdapter().buildExec(hermesBase);
+    expect(argv[0]).toBe('tale-hermes-run');
+    expect(env.OPENAI_BASE_URL).toBe(
+      'http://sandbox-llm-gateway:8080/openai/v1',
+    );
+    expect(env.OPENAI_API_KEY).toBe('sk-bf-test');
+    expect(env.HERMES_HOME).toBe('/user/.runtime/home/.hermes');
+  });
+});
 
 describe('ClaudeCodeAdapter.buildExec', () => {
   it('builds the headless stream-json invocation with gateway env', () => {
