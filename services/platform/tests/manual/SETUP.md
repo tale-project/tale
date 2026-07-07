@@ -11,9 +11,12 @@ through a browser. They are distinct from the automated Playwright suite
 
 ## 1. Start the stack
 
-Two modes. Pick by what you're testing.
+Three modes. Pick by who's running and what's under test.
 
-### A. Deterministic, offline (recommended for chat / AI-driven runs)
+### A. Deterministic, offline (mock gateway)
+
+**For:** any run — human or AI — that needs deterministic, offline assertions:
+canned replies are byte-stable, no keys, no cost.
 
 Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
@@ -57,6 +60,10 @@ in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 
 ### B. Full local dev (real provider, full feature set)
 
+**For:** developers manually verifying in-progress working-tree code — host hot
+reload (Vite HMR + the Convex watcher) against the real stack. Guides mark
+cases that need live credentials as "mode B" rows.
+
 ```bash
 bun run dev          # repo root: turbo dev for platform + backing services (excludes web/docs)
 # or, platform only, skipping the Docker backing services:
@@ -67,13 +74,47 @@ Then configure a model provider in **Settings → Providers** (an OpenRouter key
 so the AI can respond. Without a provider, chat and tool tests fail with a
 provider error — that's environment, not a chat bug; note the distinction.
 
-The app serves at **http://localhost:3000**. Wait for the log-in page to render
-before continuing. Override the host with `E2E_BASE_URL` if needed.
+In modes A and B the app serves at **http://localhost:3000**. Wait for the
+log-in page to render before continuing. Override the host with `E2E_BASE_URL`
+if needed.
+
+### C. Containerized stack with a seeded login (`docker:dev`)
+
+**For:** unattended AI-tester sessions — one command, a deterministic login,
+and a versioned build as the system under test; nothing to click through
+before testing starts.
+
+```bash
+bun run docker:dev        # repo root; requires Docker; first run builds images
+bun run docker:dev:down   # tear down when finished
+```
+
+- The app serves through the Caddy proxy at **https://localhost** (self-signed
+  cert — run `docker exec tale-proxy caddy trust`, or ignore HTTPS errors in
+  the driving browser; `save-auth-state.ts` below already does).
+- **Readiness**: `curl -skf https://localhost/api/health` returns
+  `{"status":"ok"}` once the platform is up.
+- **Seeded login**: the entrypoint creates **`dev@tale.test` /
+  `TaleDev!Passw0rd`** owning a "Dev Workspace" org on every boot (idempotent;
+  default-on via `TALE_DEV_SEED_USER=1` in `compose.dev.yml`, loopback-only by
+  design — [`lib/utils/dev-seed-config.ts`](../../lib/utils/dev-seed-config.ts)).
+  Skip the wizard and sign in at `/log-in`.
+- **Real chat needs one env var in the shell that invokes `docker:dev`**:
+  `TALE_PROVIDER_KEY_OPENROUTER=<key>`. The invoker's environment is forwarded
+  into the platform container
+  ([`scripts/docker-dev-env-override.ts`](../../../../scripts/docker-dev-env-override.ts))
+  and pushed into the Convex deployment env, where the builtin OpenRouter
+  provider reads it (`secretsEnv` in
+  [`builtin-configs/providers/openrouter.json`](../../../../builtin-configs/providers/openrouter.json)).
+  This is **operator prep, not a tester step** — a tester session starts with
+  the environment already configured, so "No API key configured" during a run
+  is a reportable defect, not an environment note.
 
 ## 2. Sign in
 
-A fresh database has no users, so the **first** account is created one of two
-ways:
+On mode C the seeded `dev@tale.test` account already exists — sign in at
+`/log-in` and skip the rest of this section. On modes A and B a fresh database
+has no users, so the **first** account is created one of two ways:
 
 - **First-run wizard** — open `/setup` and complete it (owner account →
   workspace → optional provider). Only reachable while no user exists.
@@ -87,9 +128,18 @@ the create-org wizard (name → **Next** → **Skip** the provider step → **Go
 dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
-mints an authenticated owner + org and writes a Playwright `storageState` file so
-the browser starts signed in (see the [test-code](../../.agents/skills/test-code/SKILL.md)
-skill). Otherwise sign in at `/log-in` with an existing local account.
+writes a Playwright `storageState` file so the browser starts signed in (see the
+[test-code](../../.agents/skills/test-code/SKILL.md) skill). By default it mints
+a fresh owner + org (modes A/B); set `QA_AUTH_EMAIL` / `QA_AUTH_PASSWORD` to
+sign in as an existing account instead — e.g. the mode C seeded login:
+
+```bash
+E2E_BASE_URL=https://localhost \
+  QA_AUTH_EMAIL=dev@tale.test QA_AUTH_PASSWORD='TaleDev!Passw0rd' \
+  bun services/platform/tests/manual/scripts/save-auth-state.ts
+```
+
+Otherwise sign in at `/log-in` with an existing local account.
 
 `{org}` throughout the guides is the 16+ character organization id in the
 dashboard URL (`/dashboard/AbCd…/chat`).

@@ -19,9 +19,15 @@ The `web` and `docs` services have their own guide sets in
 1. Bring the stack up and sign in once via [SETUP.md](SETUP.md), then run its
    smoke checklist (every page loads).
 2. Run guides in dependency order: **auth first**, then the rest.
-3. For each defect, add a row to that guide's **Issues Found** table (test id,
+3. Judge behaviour against the user docs: the pages under
+   [`docs/en/platform/`](../../../../docs/en/platform/) are the behaviour
+   reference (the oracle). Where a guide states no expected value, the area's
+   docs page decides — a mismatch between the running app and its documented
+   behaviour is a reportable defect (of one or the other), never a judgment
+   call to resolve silently.
+4. For each defect, add a row to that guide's **Issues Found** table (test id,
    route, severity, description, screenshot).
-4. Finish with [accessibility.md](accessibility.md), [responsive.md](responsive.md),
+5. Finish with [accessibility.md](accessibility.md), [responsive.md](responsive.md),
    and [performance.md](performance.md) as cross-cutting sweeps.
 
 An AI agent can run a whole guide by loading it and driving the app through the

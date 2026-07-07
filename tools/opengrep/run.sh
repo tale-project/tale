@@ -81,12 +81,6 @@ if [ -f "${ignore_file}" ]; then
   done <"${ignore_file}"
 fi
 
-# Optional SARIF output for the GitHub Security tab (CI sets this).
-sarif_args=()
-if [ -n "${OPENGREP_SARIF_OUTPUT:-}" ]; then
-  sarif_args+=("--sarif-output=${OPENGREP_SARIF_OUTPUT}")
-fi
-
 # Rule set. The vendored custom rules in config.yml always run (deterministic,
 # zero-network, fast). The broad registry packs add OWASP / CWE / language /
 # secrets coverage) from a pinned vendored snapshot, no network. Pre-commit
@@ -123,14 +117,24 @@ scan_args=(
   --error
   --disable-version-check
 )
-if [ "${#sarif_args[@]}" -gt 0 ]; then
-  scan_args+=("${sarif_args[@]}")
-fi
 if [ "${#exclude_rule_args[@]}" -gt 0 ]; then
   scan_args+=("${exclude_rule_args[@]}")
 fi
 if [ "${#exclude_args[@]}" -gt 0 ]; then
   scan_args+=("${exclude_args[@]}")
 fi
-scan_args+=("${targets[@]}")
-exec "${bin}" scan "${scan_args[@]}"
+
+# SARIF for the GitHub Security tab (CI sets OPENGREP_SARIF_OUTPUT) is a
+# separate, NON-blocking pass: with --sarif-output the engine also counts
+# nosemgrep-suppressed findings toward --error's exit code (observed on
+# v1.22.0 and v1.25.0), so a shared scan would fail the gate on findings that
+# are suppressed by design. The SARIF itself marks them with `suppressions`,
+# which the Security tab renders correctly. Report first, so the tab is fed
+# even when the blocking gate fails below.
+if [ -n "${OPENGREP_SARIF_OUTPUT:-}" ]; then
+  "${bin}" scan "${scan_args[@]}" "--sarif-output=${OPENGREP_SARIF_OUTPUT}" \
+    "${targets[@]}" >/dev/null 2>&1 || true
+fi
+
+# The blocking gate: any unsuppressed finding exits non-zero.
+exec "${bin}" scan "${scan_args[@]}" "${targets[@]}"
