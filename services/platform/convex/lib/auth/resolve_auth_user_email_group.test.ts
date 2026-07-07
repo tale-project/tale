@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BetterAuthMember, BetterAuthUser } from '../../members/types';
+import type { BetterAuthUser } from '../../members/types';
 import {
   createBetterAuthMemoryStore,
   createBetterAuthTestCtx,
@@ -122,7 +122,7 @@ describe('resolveAuthUserEmailGroup', () => {
       name: 'Falco Test-Tenant',
     });
 
-    const members = [...store.members.values()] as BetterAuthMember[];
+    const members = [...store.members.values()];
     expect(members.filter((m) => m.organizationId === ORG)).toHaveLength(1);
     expect(members[0]?.userId).toBe('signup');
     expect(members[0]?.role).toBe('admin');

@@ -138,9 +138,8 @@ export function listTeamMembers(store: BetterAuthMemoryStore): MemoryRow[] {
 }
 
 export function listUsers(store: BetterAuthMemoryStore): BetterAuthUser[] {
-  // Test seeds always write full Better Auth user rows.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- memory store rows are seeded as BetterAuthUser
-  return [...store.users.values()] as BetterAuthUser[];
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test store rows are seeded as BetterAuthUser
+  return [...store.users.values()] as unknown as BetterAuthUser[];
 }
 
 export function handleBetterAuthFindMany(
@@ -249,14 +248,17 @@ export function createBetterAuthTestCtx(
     },
     runMutation: async (ref, args) => {
       if (ref === ADAPTER.create) {
-        return handleBetterAuthCreate(store, args);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test ctx only receives adapter args
+        return handleBetterAuthCreate(store, args as CreateArgs);
       }
       if (ref === ADAPTER.updateMany) {
-        handleBetterAuthUpdateMany(store, args);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test ctx only receives adapter args
+        handleBetterAuthUpdateMany(store, args as UpdateManyArgs);
         return null;
       }
       if (ref === ADAPTER.deleteOne) {
-        handleBetterAuthDeleteOne(store, args);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test ctx only receives adapter args
+        handleBetterAuthDeleteOne(store, args as DeleteOneArgs);
         return null;
       }
       throw new Error(`Unexpected runMutation ref: ${String(ref)}`);
