@@ -7,13 +7,18 @@ import { compareVersions } from '@/lib/compare-versions';
 import { getEnv } from '@/lib/env';
 
 // `candidate` strictly newer than `baseline`. Missing baseline means
-// "never acknowledged" → treat anything as newer. Parse failures fall
-// back to "newer" so a malformed stored value doesn't lock the dot off.
+// "never acknowledged" → treat anything as newer. Identical strings are
+// never newer, whatever their format — this keeps non-semver builds
+// (e.g. TALE_VERSION=dev under docker:dev) quiet once their version is
+// recorded instead of re-toasting on every render (#2552). Parse
+// failures on *differing* values fall back to "newer" so a malformed
+// stored value doesn't lock the dot off.
 function isNewer(
   candidate: string,
   baseline: string | undefined | null,
 ): boolean {
   if (!baseline) return true;
+  if (candidate === baseline) return false;
   try {
     return compareVersions(candidate, baseline) > 0;
   } catch (err) {
