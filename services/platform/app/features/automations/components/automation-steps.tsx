@@ -23,7 +23,7 @@ import { parseDebugWaitingFor } from '@/convex/workflow_engine/helpers/engine/de
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomationLayout } from '../hooks/use-automation-layout';
-import { type StepDef } from '../utils/step-icons';
+import { getStepMinimapStroke, type StepDef } from '../utils/step-icons';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
@@ -84,22 +84,12 @@ const MINIMAP_STYLES = `
   .react-flow__minimap-mask { fill: hsl(var(--muted) / 0.6) !important; }
 `;
 
+// Stroke each minimap node in its step type's accent hue via theme-token
+// variables (never hex) — applied as an inline style, so it wins over
+// xyflow's stylesheet defaults regardless of CSS order.
 function minimapNodeStrokeColor(node: Node): string {
   const stepType = node.data?.stepType;
-  switch (stepType) {
-    case 'start':
-      return '#3b82f6';
-    case 'llm':
-      return '#a855f7';
-    case 'condition':
-      return '#f59e0b';
-    case 'loop':
-      return '#06b6d4';
-    case 'action':
-      return '#f97316';
-    default:
-      return '#71717a';
-  }
+  return getStepMinimapStroke(typeof stepType === 'string' ? stepType : '');
 }
 
 function AutomationStepsInner({
