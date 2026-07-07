@@ -5943,7 +5943,8 @@
           "hermes": "Hermes Agent",
           "gemini": "Gemini CLI",
           "codex": "Codex",
-          "pi": "Pi"
+          "pi": "Pi",
+          "openclaw": "OpenClaw"
         },
         "webTools": {
           "sectionTitle": "Web tools",

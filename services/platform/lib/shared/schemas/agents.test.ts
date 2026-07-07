@@ -139,6 +139,19 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         authMode: 'byo',
       }).success,
     ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'openclaw',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'openclaw',
+        authMode: 'byo',
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts external-agent with agentKind opencode (managed-only)', () => {

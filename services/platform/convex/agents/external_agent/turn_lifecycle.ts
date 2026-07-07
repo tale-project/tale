@@ -50,7 +50,8 @@ export interface TurnContext {
     | 'hermes'
     | 'gemini'
     | 'codex'
-    | 'pi';
+    | 'pi'
+    | 'openclaw';
   agentSlug?: string;
   modelRef: string;
   userId?: string;

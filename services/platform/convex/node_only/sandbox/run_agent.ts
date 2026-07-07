@@ -160,7 +160,8 @@ export interface RunAgentInSessionArgs {
     | 'hermes'
     | 'gemini'
     | 'codex'
-    | 'pi';
+    | 'pi'
+    | 'openclaw';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
@@ -1564,6 +1565,7 @@ export const runAgentInSession = internalAction({
       v.literal('gemini'),
       v.literal('codex'),
       v.literal('pi'),
+      v.literal('openclaw'),
     ),
     prompt: v.string(),
     model: v.optional(v.string()),

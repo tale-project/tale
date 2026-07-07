@@ -34,7 +34,8 @@ let mockLockedAgent: {
     | 'hermes'
     | 'gemini'
     | 'codex'
-    | 'pi';
+    | 'pi'
+    | 'openclaw';
 } | null = null;
 let mockAgents: MockChatAgent[] = [
   {
