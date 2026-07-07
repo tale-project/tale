@@ -6376,6 +6376,7 @@
         "clientSecretKeep": "Leave blank to keep the current secret.",
         "scopesLabel": "Scopes",
         "pkceLabel": "Use PKCE",
+        "pkceDescription": "Sends a proof-key challenge with each authorization request — recommended whenever the IdP supports it.",
         "idpEntityIdLabel": "IdP entity ID",
         "idpSsoUrlLabel": "IdP sign-on URL",
         "idpCertLabel": "IdP signing certificate (PEM)",
@@ -6390,8 +6391,10 @@
           "editor": "Editor",
           "member": "Member"
         },
-        "autoRoleLabel": "Auto-assign roles from the IdP",
-        "autoTeamLabel": "Sync IdP groups to teams",
+        "autoRoleLabel": "Auto-assign roles",
+        "autoRoleDescription": "Assigns platform roles from the IdP's groups, app roles, or claims at sign-in.",
+        "autoTeamLabel": "Sync groups to teams",
+        "autoTeamDescription": "Creates and updates teams from the IdP's group memberships at sign-in.",
         "excludeGroupsLabel": "Exclude groups",
         "excludeGroupsHelp": "Comma-separated group names to skip during team sync.",
         "scim": {

@@ -2,7 +2,6 @@
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -22,8 +21,6 @@ export function EnterpriseSsoSettings({
 }: {
   organizationId: string;
 }) {
-  const { t } = useT('settings');
-  const { t: tNav } = useT('navigation');
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -35,14 +32,11 @@ export function EnterpriseSsoSettings({
     return <AccessDenied message={tAccessDenied('enterpriseSso')} />;
   }
 
+  // The form owns the page's `SettingsSection`s (title/description included)
+  // so the section rhythm matches the other settings pages.
   return (
     <SettingsPage>
-      <SettingsSection
-        title={tNav('enterpriseSso')}
-        description={t('integrations.enterpriseSso.description')}
-      >
-        <EnterpriseSsoForm organizationId={organizationId} config={config} />
-      </SettingsSection>
+      <EnterpriseSsoForm organizationId={organizationId} config={config} />
     </SettingsPage>
   );
 }
