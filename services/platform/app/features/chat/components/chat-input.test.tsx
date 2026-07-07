@@ -1,17 +1,17 @@
-import { type SearchSource } from '@tale/ui/search';
 import { forwardRef, useState, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { type ActorMentionData } from './actor-mention-popover';
+import type { MentionActorOption } from '../../tasks/lib/mention-actor-options';
+import type { KbMention } from '../hooks/use-kb-mentions';
 import { ChatInput } from './chat-input';
 
 // ChatInput pulls in the whole composer toolbar (agent/model pickers,
-// dictation, governance footer) plus several Convex-backed hooks. This test
-// exercises only the `@`-mention keyboard handling, so the heavy children and
-// data hooks are stubbed to no-ops — the same tier-down approach as
-// composer-mode-menu.test.tsx.
+// dictation, governance footer) plus several Convex-backed hooks. These tests
+// exercise only the `@`-mention machinery and the send gate, so the heavy
+// children and data hooks are stubbed to no-ops — the same tier-down approach
+// as composer-mode-menu.test.tsx.
 vi.mock('../context/chat-layout-context', () => ({
   useChatLayout: () => ({ quotedText: null, setQuotedText: vi.fn() }),
 }));
@@ -31,10 +31,21 @@ vi.mock('./dictation-button', () => ({
 vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => null,
 }));
+// The empty-state action rows navigate ("Invite teammates", "Upload
+// documents"); there is no RouterProvider in these tests.
+const mockNavigate = vi.fn();
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
+}));
 // The KB source is instantiated unconditionally (fixed hook order) and reaches
-// Convex — stub it to an idle no-op source; this test drives the actor picker.
+// Convex — replace it with a source that serves this mutable state (idle by
+// default; the cross-section test flips it to a canned result).
+let documentsSourceState: {
+  results: { id: string; title: string; subtitle?: string; data: KbMention }[];
+  status: 'idle' | 'loading' | 'ready';
+} = { results: [], status: 'idle' };
 vi.mock('./documents-mention-source', () => ({
-  createDocumentsMentionSource: () => () => ({ results: [], status: 'idle' }),
+  createDocumentsMentionSource: () => () => documentsSourceState,
 }));
 // FileUpload.DropZone reads a Root context that ChatInput's caller supplies in
 // production; render it (and its overlay) as plain passthroughs here.
@@ -45,6 +56,18 @@ vi.mock('@/app/components/ui/forms/file-upload', () => ({
     Overlay: () => null,
   },
 }));
+// The mention popover portals through the anchored shell (needs layout
+// measurements JSDOM doesn't do) — render its children inline instead.
+vi.mock('./anchored-mention-popover-shell', () => ({
+  AnchoredMentionPopoverShell: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children?: ReactNode;
+  }) =>
+    open ? <div data-testid="mention-popover-shell">{children}</div> : null,
+}));
 
 // The send-gate tests below assert a blocked Enter toasts instead of sending.
 const mockToast = vi.fn();
@@ -52,16 +75,34 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-// Actor source that never matches — reproduces the "No matches" empty state.
-const emptyActorSource: SearchSource<ActorMentionData> = () => ({
-  results: [],
-  status: 'ready',
-});
+const actorOptions: MentionActorOption[] = [
+  {
+    type: 'user',
+    id: 'user-1',
+    name: 'Alice Smith',
+    email: 'alice@example.com',
+    handle: 'alice',
+  },
+  { type: 'agent', id: 'helper-bot', name: 'Helper Bot', handle: 'helper-bot' },
+];
+
+const kbDocument: KbMention = {
+  documentId: 'doc_1' as KbMention['documentId'],
+  fileId: 'file_1' as KbMention['fileId'],
+  title: 'Quarterly Report',
+  fileType: 'application/pdf',
+  fileSize: 100,
+};
 
 function Harness({
   onSendMessage,
+  actorMentionOptions,
+  addKbMention,
 }: {
   onSendMessage: (message: string) => void;
+  actorMentionOptions?: MentionActorOption[];
+  /** Wiring this also wires the rest of the KB contract (documents section). */
+  addKbMention?: (mention: KbMention) => boolean;
 }) {
   const [value, setValue] = useState('');
   return (
@@ -75,16 +116,22 @@ function Harness({
       uploadFiles={vi.fn()}
       removeAttachment={vi.fn()}
       clearAttachments={() => []}
-      actorMentionSource={emptyActorSource}
+      actorMentionOptions={actorMentionOptions}
+      kbMentions={addKbMention ? [] : undefined}
+      addKbMention={addKbMention}
+      removeKbMention={addKbMention ? vi.fn() : undefined}
+      clearKbMentions={addKbMention ? () => [] : undefined}
       variant="assistant"
     />
   );
 }
 
-describe('ChatInput @-mention keyboard handling', () => {
+describe('ChatInput @-mention picker', () => {
   it('swallows Enter on the "No matches" empty picker instead of sending', async () => {
     const onSendMessage = vi.fn();
-    const { user } = render(<Harness onSendMessage={onSendMessage} />);
+    const { user } = render(
+      <Harness onSendMessage={onSendMessage} actorMentionOptions={[]} />,
+    );
 
     const textarea = screen.getByRole('textbox');
     await user.click(textarea);
@@ -102,6 +149,122 @@ describe('ChatInput @-mention keyboard handling', () => {
     await user.keyboard('{Enter}');
     expect(onSendMessage).toHaveBeenCalledTimes(1);
     expect(onSendMessage).toHaveBeenCalledWith('@zzzz', undefined, undefined);
+  });
+
+  it('inserts @handle on actor select and renders a removable chip', async () => {
+    const onSendMessage = vi.fn();
+    const { user } = render(
+      <Harness
+        onSendMessage={onSendMessage}
+        actorMentionOptions={actorOptions}
+      />,
+    );
+
+    const textarea = screen.getByRole('textbox');
+    await user.click(textarea);
+    await user.type(textarea, '@ali');
+
+    // Alice matches; Enter accepts the highlighted option.
+    expect(
+      screen.getByRole('option', { name: /Alice Smith/ }),
+    ).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    expect(textarea).toHaveValue('@alice ');
+
+    // The accepted mention is confirmed with a chip…
+    const removeChip = screen.getByRole('button', {
+      name: 'Remove mention of Alice Smith',
+    });
+    // …whose removal strips the handle from the text again.
+    await user.click(removeChip);
+    expect(textarea).toHaveValue('');
+    expect(
+      screen.queryByRole('button', { name: 'Remove mention of Alice Smith' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('groups actors into Agents and Teammates sections', async () => {
+    const { user } = render(
+      <Harness onSendMessage={vi.fn()} actorMentionOptions={actorOptions} />,
+    );
+
+    await user.click(screen.getByRole('textbox'));
+    await user.type(screen.getByRole('textbox'), '@');
+
+    expect(screen.getByText('Agents')).toBeInTheDocument();
+    expect(screen.getByText('Teammates')).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Helper Bot/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Alice Smith/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers actionable empty states reachable by keyboard', async () => {
+    mockNavigate.mockClear();
+    const onSendMessage = vi.fn();
+    const { user } = render(
+      <Harness onSendMessage={onSendMessage} actorMentionOptions={[]} />,
+    );
+
+    const textarea = screen.getByRole('textbox');
+    await user.click(textarea);
+    await user.type(textarea, '@');
+
+    // Each empty section explains itself and offers the next step.
+    expect(
+      screen.getByText('No agents in this project yet'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('No teammates to mention yet')).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'Browse agents' }),
+    ).toBeInTheDocument();
+
+    // The action rows are options in the same keyboard navigation.
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/settings/people',
+      params: { id: 'org-1' },
+    });
+    // Activating an action never inserts or sends anything.
+    expect(onSendMessage).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue('@');
+  });
+
+  it('navigates across sections and pins a document chip via addKbMention', async () => {
+    documentsSourceState = {
+      results: [{ id: 'doc_1', title: kbDocument.title, data: kbDocument }],
+      status: 'ready',
+    };
+    try {
+      const addKbMention = vi.fn(() => true);
+      const { user } = render(
+        <Harness
+          onSendMessage={vi.fn()}
+          actorMentionOptions={actorOptions}
+          addKbMention={addKbMention}
+        />,
+      );
+
+      const textarea = screen.getByRole('textbox');
+      await user.click(textarea);
+      await user.type(textarea, '@');
+
+      // One picker, all three sections.
+      expect(screen.getByText('Agents')).toBeInTheDocument();
+      expect(screen.getByText('Teammates')).toBeInTheDocument();
+      expect(screen.getByText('Documents')).toBeInTheDocument();
+
+      // Flat order: Helper Bot (agent), Alice (teammate), the document.
+      await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+      expect(addKbMention).toHaveBeenCalledWith(
+        expect.objectContaining({ documentId: 'doc_1' }),
+      );
+      expect(textarea).toHaveValue('@Quarterly Report ');
+    } finally {
+      documentsSourceState = { results: [], status: 'idle' };
+    }
   });
 });
 

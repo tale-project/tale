@@ -147,11 +147,16 @@ export function adjustColorForTheme(
 
   let lightness = l;
   let candidate = hex;
-  while (lightness > 0 && lightness < 100) {
-    lightness = Math.min(
+  for (;;) {
+    // Step first, then test the clamp — a walk may START at a boundary (pure
+    // black on the dark theme, pure white on the light one) and must still
+    // move inward rather than return the invisible original untouched.
+    const next = Math.min(
       100,
       Math.max(0, lightness + direction * LIGHTNESS_STEP),
     );
+    if (next === lightness) break; // clamped at the endpoint
+    lightness = next;
     candidate = hslToHex(h, s, lightness);
     if (contrastRatio(candidate, background) >= minContrast) {
       return candidate;
@@ -161,4 +166,93 @@ export function adjustColorForTheme(
   // Threshold unreachable (e.g. fully saturated mid-tone); return the
   // best-contrast endpoint we walked to rather than the original.
   return candidate;
+}
+
+/**
+ * The two foreground inks a branded surface can carry — the same values the
+ * design system uses for `--color-accent-fg` in globals.css (light/dark).
+ */
+export const ACCENT_INK_DARK = '#030712';
+export const ACCENT_INK_LIGHT = '#ffffff';
+
+/** WCAG AA contrast for normal text — the target for ink on the accent. */
+const MIN_FG_CONTRAST = 4.5;
+/** WCAG 1.4.11 non-text contrast — the floor for the accent vs. the page. */
+const MIN_BG_CONTRAST = 3;
+
+/**
+ * The whole branded palette derived from one accent color, per theme. Hex
+ * values feed the canonical `@tale/ui` tokens (`--color-accent-*`); the
+ * space-separated HSL strings feed the legacy tokens (`--primary*`, `--ring`).
+ */
+interface AccentPalette {
+  /** The theme-adjusted accent surface (hex). */
+  base: string;
+  /** Ink on top of `base` — `ACCENT_INK_DARK` or `ACCENT_INK_LIGHT` (hex). */
+  fg: string;
+  /** `base` as CSS-variable HSL (for `--primary` / `--ring`). */
+  baseHsl: string;
+  /** `fg` as CSS-variable HSL (for `--primary-foreground`). */
+  fgHsl: string;
+  /** A low-emphasis shade of the accent hue (for `--primary-muted`). */
+  mutedHsl: string;
+}
+
+/**
+ * Normalize ONE picked accent color into a coherent, WCAG-legible palette for
+ * the given theme (#1960). Any input — even a "bad" color — comes out usable:
+ *
+ * 1. `base` starts from {@link adjustColorForTheme}, so it clears the 3:1
+ *    non-text floor against the theme background where reachable.
+ * 2. `fg` is whichever ink (near-black / white) has the HIGHER real contrast
+ *    ratio on `base` — not a crude lightness guess. The better ink always
+ *    clears ≈4.3:1 on any color; when it still falls short of the 4.5:1 AA
+ *    text target, `base`'s lightness is nudged away from the ink until the
+ *    target is met — stopping early rather than dropping below the 3:1
+ *    background floor.
+ * 3. `mutedHsl` keeps the accent hue at half saturation with the same
+ *    lightness the default `--primary-muted` grays use per theme, so muted
+ *    text stays muted but on-brand.
+ */
+export function deriveAccentPalette(
+  hex: string,
+  theme: 'light' | 'dark',
+): AccentPalette {
+  const background = THEME_BACKGROUND[theme];
+  let base = adjustColorForTheme(hex, theme);
+
+  const fg =
+    contrastRatio(base, ACCENT_INK_DARK) >=
+    contrastRatio(base, ACCENT_INK_LIGHT)
+      ? ACCENT_INK_DARK
+      : ACCENT_INK_LIGHT;
+
+  // Dark ink wants a lighter surface; white ink wants a darker one.
+  const direction = fg === ACCENT_INK_DARK ? 1 : -1;
+  const { h, s, l } = hexToHslParts(base);
+  let lightness = l;
+  while (
+    contrastRatio(base, fg) < MIN_FG_CONTRAST &&
+    lightness > 0 &&
+    lightness < 100
+  ) {
+    lightness = Math.min(
+      100,
+      Math.max(0, lightness + direction * LIGHTNESS_STEP),
+    );
+    const candidate = hslToHex(h, s, lightness);
+    // Never trade the background floor for the text target — keep the best
+    // base that satisfies both constraints as far as they're compatible.
+    if (contrastRatio(candidate, background) < MIN_BG_CONTRAST) break;
+    base = candidate;
+  }
+
+  const mutedLightness = theme === 'dark' ? 75 : 60;
+  return {
+    base,
+    fg,
+    baseHsl: hexToHsl(base),
+    fgHsl: hexToHsl(fg),
+    mutedHsl: `${h} ${Math.round(s / 2)}% ${mutedLightness}%`,
+  };
 }

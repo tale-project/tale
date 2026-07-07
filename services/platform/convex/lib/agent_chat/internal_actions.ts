@@ -109,7 +109,9 @@ const serializableAgentConfigValidator = v.object({
     v.union(
       v.literal('claude-code'),
       v.literal('cursor'),
+      v.literal('opencode'),
       v.literal('hermes'),
+      v.literal('gemini'),
       v.literal('codex'),
     ),
   ),

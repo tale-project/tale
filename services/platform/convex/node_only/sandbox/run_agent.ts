@@ -153,13 +153,19 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'cursor' | 'hermes' | 'codex';
+  agentSlug:
+    | 'claude-code'
+    | 'cursor'
+    | 'opencode'
+    | 'hermes'
+    | 'gemini'
+    | 'codex';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
    * `fallbackModelId`); forwarded to the adapter's fallback wiring. */
   fallbackModel?: string;
-  /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
+  /** Resume handle from a prior run (Claude session_id / Cursor chat id / OpenCode sessionID). */
   agentSessionId?: string;
   maxTurns?: number;
   browserMcp?: boolean;
@@ -405,6 +411,25 @@ export async function runAgentInSessionImpl(
         // stages queued user messages into (claude_code adapter only).
         execId: args.execId,
       });
+  // Stage files the exec depends on (e.g. OpenCode's instructions file
+  // carrying systemPromptAppend) BEFORE spawning — the CLI reads them at
+  // startup. A skip fails the turn: a silently missing file would silently
+  // drop the input (the exact failure this staging exists to prevent).
+  if (exec?.stagedFiles !== undefined && exec.stagedFiles.length > 0) {
+    const stageResult = await sessionStageFiles(
+      args.sessionId,
+      exec.stagedFiles.map((file) => ({
+        path: file.path,
+        contentBase64: Buffer.from(file.content, 'utf8').toString('base64'),
+      })),
+    );
+    if (stageResult.skipped.length > 0) {
+      const detail = stageResult.skipped
+        .map((skip) => `${skip.path} (${skip.reason})`)
+        .join(', ');
+      throw new Error(`[run_agent] exec input staging failed: ${detail}`);
+    }
+  }
   // Fresh parser each (continuation) action. The re-attach resumes from lastSeq
   // (at most one line straddling the seam is skipped — harmless). Usage isn't
   // summed from per-message events here (cost comes from the VK budget), so the
@@ -1533,12 +1558,14 @@ export const runAgentInSession = internalAction({
     agentSlug: v.union(
       v.literal('claude-code'),
       v.literal('cursor'),
+      v.literal('opencode'),
       v.literal('hermes'),
+      v.literal('gemini'),
       v.literal('codex'),
     ),
     prompt: v.string(),
     model: v.optional(v.string()),
-    /** Resume handle from a prior run (Claude session_id / Cursor chat id). */
+    /** Resume handle from a prior run (Claude session_id / Cursor chat id / OpenCode sessionID). */
     agentSessionId: v.optional(v.string()),
     maxTurns: v.optional(v.number()),
     browserMcp: v.optional(v.boolean()),

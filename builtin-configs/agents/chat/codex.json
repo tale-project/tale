@@ -4,7 +4,7 @@
   "composerMode": {
     "icon": "terminal",
     "label": "Codex",
-    "order": 43,
+    "order": 44,
     "tooltip": "Run OpenAI Codex in an isolated sandbox and chat with it directly"
   },
   "i18n": {

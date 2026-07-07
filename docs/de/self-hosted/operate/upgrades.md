@@ -99,6 +99,39 @@ Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, s
 
 Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger macht und du seine Migrationen schon zurückgenommen hast —, nagle das Ziel mit `tale update --version <version>` fest. Das Kommando warnt, wenn das Ziel älter als die laufende Version ist, und erinnert dich, zuerst die Daten-Migrationen zurückzunehmen.
 
+## Upgrade von 0.3.1 oder älter
+
+Instanzen auf Version 0.3.1 oder älter halten die Daten des Convex-Backends im Docker-Volume `platform-data`. Neuere Versionen betreiben Convex als eigenen Service mit eigenem `convex-data`-Volume — und die automatische Kopie, die frühe Releases für diesen Umzug mitbrachten, ist nicht mehr im CLI. Springst du direkt über diese Grenze, legt `tale deploy` ein **leeres** `convex-data`-Volume an: Die Instanz kommt leer hoch, während jedes Byte deiner Daten unangetastet im alten `platform-data`-Volume liegt. Gelöscht wird nichts — aber die Daten ziehen nicht von selbst um, und `tale update` warnt, wenn es diese Konstellation erkennt.
+
+Docker kennt kein natives Volume-Rename, der Umzug ist also eine Kopie durch einen Helfer-Container. Führ ihn vor `tale deploy` aus — mit gestopptem Stack, damit nichts das Volume offen hält:
+
+```bash
+# 1. Das Legacy-Volume finden — <project> ist die `id` in tale.json.
+docker volume ls | grep platform-data
+# Installationen älter als 0.2.33 nutzten das feste Präfix `tale_`
+# statt `<project>_`; das Ziel unten nutzt weiterhin `<project>_`.
+
+# 2. Den laufenden Stack stoppen.
+docker compose -p <project> down
+
+# 3. Ziel-Volume anlegen und die Daten hinüberkopieren.
+docker volume create <project>_convex-data
+docker run --rm \
+  -v <project>_platform-data:/from:ro \
+  -v <project>_convex-data:/to \
+  alpine sh -c "cd /from && cp -a . /to"
+
+# 4. Stack rollen, dann prüfen, dass deine Daten da sind.
+tale deploy
+
+# 5. Erst nach dem Prüfen das alte Volume freigeben.
+docker volume rm <project>_platform-data
+```
+
+Ein Dev-Workspace spiegelt denselben Umzug unter dem `-dev`-Scope: `<project>-dev_platform-data` → `<project>-dev_convex-data`, mit `docker compose -p <project>-dev down` als Stopp-Schritt.
+
+Hast du schon deployt und eine leere Instanz bekommen, sind deine Daten weiterhin sicher in `platform-data`. Stoppe den Stack, entferne das frisch angelegte leere Volume mit `docker volume rm <project>_convex-data`, führ dann die Kopie oben aus und deploye erneut.
+
 ## Wo das hingehört
 
 Der Upgrade-Flow knüpft jede andere Operate-Seite an — Backups sind das, was ein gescheitertes Upgrade wiederherstellbar macht, Observability ist das, was dir sagt, dass die neue Farbe healthy ist, Hardening ist das, was du nach einer Major-Version neu durchgehst. Setzt du das CLI zum ersten Mal auf, deckt [Tale-CLI installieren](/de/self-hosted/install/cli-install) das workstationseitige Setup ab; nimmst du den Pager mitten im Rollout auf, nennt [Troubleshooting](/de/self-hosted/operate/observability/troubleshooting) die Symptome.

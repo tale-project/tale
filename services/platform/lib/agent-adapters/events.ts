@@ -10,26 +10,34 @@
 export const PRODUCT_AGENT_SLUGS = [
   'claude-code',
   'cursor',
+  'opencode',
   'hermes',
+  'gemini',
   'codex',
 ] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
 
 /** Narrow an untyped/stored agent-kind string to a product slug. Callers that
- * coerce stored values (session ops, steer targets) MUST use this instead of
- * per-slug ternaries — a hand-rolled `=== 'cursor' ? … : 'claude-code'` chain
- * silently misroutes every runtime added after it was written. */
-export function isProductAgentSlug(v: unknown): v is ProductAgentSlug {
+ * coerce stored values (session ops, steer targets) MUST go through
+ * `resolveProductAgentKind` (which wraps this) instead of per-slug ternaries —
+ * a hand-rolled `=== 'cursor' ? … : 'claude-code'` chain silently misroutes
+ * every runtime added after it was written. */
+function isProductAgentSlug(v: unknown): v is ProductAgentSlug {
   return (
     typeof v === 'string' &&
     (PRODUCT_AGENT_SLUGS as readonly string[]).includes(v)
   );
 }
 
-/** Archived runtime — parser fixtures only; not in product registry. */
-export type LegacyAgentSlug = 'opencode';
+export type AgentSlug = ProductAgentSlug;
 
-export type AgentSlug = ProductAgentSlug | LegacyAgentSlug;
+/** Map a stored/config agentKind to the product registry slug. */
+export function resolveProductAgentKind(
+  agentKind: string | undefined,
+): ProductAgentSlug {
+  if (isProductAgentSlug(agentKind)) return agentKind;
+  return 'claude-code';
+}
 
 export type AgentResultStatus =
   | 'completed'

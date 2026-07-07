@@ -115,4 +115,21 @@ describe('resolveExternalAgentExecModel', () => {
       }),
     ).toBe('nousresearch/hermes-4-405b');
   });
+
+  it("BYO gemini ('vendor-native' dialect) requests the Google-native id for a catalog-shaped ref", () => {
+    // Gemini BYO authenticates with GEMINI_API_KEY against Google's own API,
+    // which knows `gemini-3.1-pro-preview` — not the shipped catalog ref's
+    // gateway spelling. Guards the catalog entries' `nativeModelId`.
+    expect(
+      resolveExternalAgentExecModel({
+        byo: true,
+        gatewayRun: false,
+        modelRef: 'openrouter:google/gemini-3.1-pro-preview',
+        byoModelIdSource: 'vendor-native',
+        byoNativeModel: 'gemini-3.1-pro-preview',
+        byoCatalogModel: 'google/gemini-3.1-pro-preview',
+        toGatewayModel,
+      }),
+    ).toBe('gemini-3.1-pro-preview');
+  });
 });

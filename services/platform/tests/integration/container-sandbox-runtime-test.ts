@@ -124,6 +124,12 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-hermes-run',
 );
+await assertOk('gemini on PATH', 10001, 'command -v gemini');
+await assertOk(
+  'tale-gemini-run wrapper present',
+  10001,
+  'test -x /usr/local/bin/tale-gemini-run',
+);
 await assertOk('gh on PATH', 10001, 'command -v gh');
 await assertOk(
   'git/ripgrep/fd present',
@@ -200,6 +206,54 @@ print("HERMES_WRAPPER_SIGNATURE_OK")
     10001,
     'HERMES_WRAPPER_SIGNATURE_OK',
     `python3 - <<'PYEOF'\n${sigCheck}\nPYEOF`,
+  );
+}
+await assertOk('gemini --version runs', 10001, 'gemini --version');
+// The wrapper's gemini-cli integration: ast-parse tale-gemini-run (also
+// proves it is valid Python), collect every long flag it passes on the
+// `gemini` command line, and assert the PINNED CLI's real --help lists each
+// one — a version bump that renames/removes a flag fails here instead of at
+// the first real run. No model call, no key needed.
+{
+  const flagCheck = `
+import ast, subprocess
+
+src = open("/usr/local/bin/tale-gemini-run").read()
+tree = ast.parse(src)  # SyntaxError here = broken wrapper
+
+flags = {
+    el.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.List)
+    for el in node.elts
+    if isinstance(el, ast.Constant)
+    and isinstance(el.value, str)
+    and el.value.startswith("--")
+}
+flags |= {
+    el.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.AugAssign)
+    for el in ast.walk(node.value)
+    if isinstance(el, ast.Constant)
+    and isinstance(el.value, str)
+    and el.value.startswith("--")
+}
+assert "--output-format" in flags, f"wrapper gemini flags not found: {flags}"
+
+help_text = subprocess.run(
+    ["gemini", "--help"], capture_output=True, text=True, check=True
+).stdout
+missing = sorted(f for f in flags if f not in help_text)
+assert not missing, f"pinned gemini-cli --help lacks wrapper flags: {missing}"
+
+print("GEMINI_WRAPPER_FLAGS_OK")
+`;
+  await assertContains(
+    'tale-gemini-run flags match the pinned gemini-cli --help',
+    10001,
+    'GEMINI_WRAPPER_FLAGS_OK',
+    `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }
 await assertOk('agent on PATH', 10001, 'command -v agent');

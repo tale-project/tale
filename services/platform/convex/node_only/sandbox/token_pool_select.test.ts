@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { TokenSourceResponseMapping } from '../../../lib/shared/schemas/token_sources';
-import { mapTokens, parseExpiryMs, pickToken } from './token_pool_select';
+import {
+  diagnoseTokenMapping,
+  mapTokens,
+  parseExpiryMs,
+  pickToken,
+} from './token_pool_select';
 
 const NOW = 1_700_000_000_000; // fixed "now" in ms
 const HOUR = 3_600_000;
@@ -99,6 +104,79 @@ describe('mapTokens', () => {
       ],
     };
     expect(mapTokens(json, COOLAI_MAPPING, NOW, 0)).toEqual(['good']);
+  });
+});
+
+describe('diagnoseTokenMapping', () => {
+  it('classifies every drop reason and reports the soonest usable expiry', () => {
+    const json = {
+      tokens: [
+        {
+          access_token: 'ok-late',
+          status: 'active',
+          expires_at: NOW + 3 * HOUR,
+        },
+        {
+          access_token: 'ok-soon',
+          status: 'active',
+          expires_at: NOW + 2 * HOUR,
+        },
+        { access_token: 'revoked', status: 'inactive', expires_at: NOW + HOUR },
+        { access_token: 'expired', status: 'active', expires_at: NOW - HOUR },
+        { status: 'active' }, // no token field
+        'not-an-object', // not a record → counts as missing token field
+      ],
+    };
+    expect(diagnoseTokenMapping(json, COOLAI_MAPPING, NOW, 0)).toEqual({
+      pathFound: true,
+      itemCount: 6,
+      usableTokens: ['ok-late', 'ok-soon'],
+      missingTokenField: 2,
+      inactiveCount: 1,
+      expiredCount: 1,
+      nextExpiryMs: NOW + 2 * HOUR,
+    });
+  });
+
+  it('reports a path miss when tokensPath resolves to nothing or a non-array', () => {
+    const miss = diagnoseTokenMapping({}, COOLAI_MAPPING, NOW, 0);
+    expect(miss.pathFound).toBe(false);
+    expect(miss.itemCount).toBe(0);
+    expect(miss.usableTokens).toEqual([]);
+    expect(
+      diagnoseTokenMapping({ tokens: 'nope' }, COOLAI_MAPPING, NOW, 0)
+        .pathFound,
+    ).toBe(false);
+  });
+
+  it('omits nextExpiryMs when no expiry field is configured or parseable', () => {
+    const mapping: TokenSourceResponseMapping = {
+      tokensPath: '$.tokens',
+      tokenField: 'access_token',
+    };
+    const diag = diagnoseTokenMapping(
+      { tokens: [{ access_token: 'x' }] },
+      mapping,
+      NOW,
+      0,
+    );
+    expect(diag.usableTokens).toEqual(['x']);
+    expect(diag.nextExpiryMs).toBeUndefined();
+  });
+
+  it('counts skew-window drops as expired (mapTokens parity)', () => {
+    const json = {
+      tokens: [
+        { access_token: 'ok', status: 'active', expires_at: NOW + 2 * HOUR },
+        { access_token: 'soon', status: 'active', expires_at: NOW + 120_000 },
+      ],
+    };
+    const diag = diagnoseTokenMapping(json, COOLAI_MAPPING, NOW, 300_000);
+    expect(diag.usableTokens).toEqual(['ok']);
+    expect(diag.expiredCount).toBe(1);
+    expect(mapTokens(json, COOLAI_MAPPING, NOW, 300_000)).toEqual(
+      diag.usableTokens,
+    );
   });
 });
 

@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Tale sandbox wrapper for Gemini CLI — stages per-exec config, then runs
+`gemini --output-format stream-json` (NDJSON on stdout, passed through).
+
+The platform adapter (gemini-cli/adapter.ts) sends ONE JSON object on stdin:
+  {"prompt": ..., "system_prompt"?: ..., "settings"?: {...}}
+and gemini-cli/parse.ts normalizes the CLI's stream-json stdout into
+AgentEvent[]. The wrapper exists because two inputs have no CLI flag and must
+be ON DISK before the CLI starts (verified @google/gemini-cli 0.49.0):
+
+  - settings (auth-type pin, tools.exclude, mcpServers, maxSessionTurns) —
+    staged to a private per-exec file and pointed at via
+    GEMINI_CLI_SYSTEM_SETTINGS_PATH (system scope wins over any repo
+    .gemini/settings.json).
+  - the system-prompt APPEND — staged as a per-exec context file under
+    ~/.gemini/ and added to `context.fileName` alongside GEMINI.md, so it is
+    appended to the model context without replacing the CLI's core system
+    prompt (GEMINI_SYSTEM_MD would replace it). The per-exec filename keeps
+    concurrent execs sharing this HOME from reading each other's append.
+
+The prompt itself rides the child's stdin — Gemini CLI's native headless
+prompt source — never argv (process lists leak argv, and a leading-dash
+prompt would parse as a flag).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+
+
+def emit(event: dict) -> None:
+    """One NDJSON line on stdout, in the CLI's own stream-json dialect so the
+    platform parser handles wrapper failures like CLI failures."""
+    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def fail(message: str, code: int = 1) -> int:
+    emit({"type": "error", "severity": "error", "message": message})
+    emit(
+        {
+            "type": "result",
+            "status": "error",
+            "error": {"type": "wrapper", "message": message},
+        }
+    )
+    return code
+
+
+def read_stdin_payload() -> dict | None:
+    try:
+        payload = json.loads(sys.stdin.read())
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Gemini CLI for Tale sandbox")
+    parser.add_argument("--workdir", default="/user/workspace")
+    parser.add_argument("--model")
+    parser.add_argument("--resume")
+    parser.add_argument("--include-directories", action="append", default=[])
+    args = parser.parse_args()
+
+    payload = read_stdin_payload()
+    if payload is None:
+        return fail(
+            'stdin must carry {"prompt": ..., "system_prompt"?: ..., "settings"?: ...} as JSON'
+        )
+    prompt = payload["prompt"]
+    system_prompt = payload.get("system_prompt")
+    if not isinstance(system_prompt, str) or not system_prompt.strip():
+        system_prompt = None
+    settings = payload.get("settings")
+    if not isinstance(settings, dict):
+        settings = {}
+
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    gemini_dir = os.path.join(home, ".gemini")
+    context_path = None
+    stage_dir = None
+    try:
+        if system_prompt is not None:
+            # Per-exec context file: ~/.gemini/<name> is a global context path
+            # for every name in context.fileName (verified 0.49.0
+            # memoryDiscovery). Keep GEMINI.md first so the working repo's own
+            # context files still load.
+            os.makedirs(gemini_dir, exist_ok=True)
+            context_name = f"tale-context-{uuid.uuid4().hex}.md"
+            context_path = os.path.join(gemini_dir, context_name)
+            with open(context_path, "w", encoding="utf-8") as f:
+                f.write(system_prompt)
+            settings.setdefault("context", {})
+            if isinstance(settings["context"], dict):
+                settings["context"]["fileName"] = ["GEMINI.md", context_name]
+
+        stage_dir = tempfile.mkdtemp(prefix="tale-gemini-")
+        settings_path = os.path.join(stage_dir, "settings.json")
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f)
+
+        env = dict(os.environ)
+        env["GEMINI_CLI_SYSTEM_SETTINGS_PATH"] = settings_path
+
+        # --approval-mode yolo: fully autonomous — the container is the safety
+        # boundary. --skip-trust: headless folder-trust gate would otherwise
+        # silently downgrade yolo to interactive approvals (verified 0.49.0).
+        cmd = [
+            "gemini",
+            "--output-format",
+            "stream-json",
+            "--approval-mode",
+            "yolo",
+            "--skip-trust",
+        ]
+        if args.model:
+            cmd += ["--model", args.model]
+        if args.resume:
+            cmd += ["--resume", args.resume]
+        for directory in args.include_directories:
+            cmd += ["--include-directories", directory]
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=args.workdir,
+            env=env,
+            stdin=subprocess.PIPE,
+            # stdout/stderr inherit: the CLI's stream-json goes straight to the
+            # platform's stdout reader; human-oriented noise stays on stderr.
+        )
+        try:
+            proc.stdin.write(prompt.encode("utf-8"))
+            proc.stdin.close()
+        except BrokenPipeError:
+            print(
+                "[tale-gemini-run] gemini exited before reading stdin", file=sys.stderr
+            )
+        return proc.wait()
+    except FileNotFoundError as exc:
+        return fail(f"gemini-cli not installed or file missing: {exc}")
+    except Exception as exc:  # noqa: BLE001 — surface anything as a run error
+        return fail(f"wrapper failure: {exc}")
+    finally:
+        if context_path is not None:
+            try:
+                os.unlink(context_path)
+            except OSError as exc:
+                print(
+                    f"[tale-gemini-run] context cleanup failed: {exc}", file=sys.stderr
+                )
+        if stage_dir is not None:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

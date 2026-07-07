@@ -17,7 +17,9 @@ import {
 vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
 
 describe('parseBrandingJson', () => {
-  it('parses valid branding JSON', () => {
+  it('parses valid branding JSON, retaining the legacy brandColor for reads', () => {
+    // `brandColor` was dropped from the form/save contract (#1960) but stays
+    // readable so unmigrated files can coalesce it into `accentColor`.
     const input = JSON.stringify({
       brandColor: '#FF0000',
       accentColor: '#00FF00',

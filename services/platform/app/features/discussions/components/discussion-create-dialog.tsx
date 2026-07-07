@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -21,8 +21,8 @@ import { cn } from '@/lib/utils/cn';
 import { ChatInput } from '../../chat/components/chat-input';
 import { useConvexFileUpload } from '../../chat/hooks/use-convex-file-upload';
 import type { FileAttachment } from '../../chat/types';
+import { useMentionActorOptions } from '../../tasks/lib/mention-actor-options';
 import { useCreateDiscussion } from '../hooks/mutations';
-import { createActorMentionSource } from './actor-mention-source';
 
 interface DiscussionCreateDialogProps {
   open: boolean;
@@ -58,10 +58,7 @@ export function DiscussionCreateDialog({
   } = useConvexFileUpload({ organizationId });
 
   const { mutateAsync: createDiscussion } = useCreateDiscussion();
-  const actorMentionSource = useMemo(
-    () => createActorMentionSource({ organizationId, projectId }),
-    [organizationId, projectId],
-  );
+  const actorMentionOptions = useMentionActorOptions(organizationId, projectId);
 
   const reset = () => {
     setTitle('');
@@ -152,7 +149,7 @@ export function DiscussionCreateDialog({
             isLoading={isCreating}
             organizationId={organizationId}
             projectId={String(projectId)}
-            actorMentionSource={actorMentionSource}
+            actorMentionOptions={actorMentionOptions}
             attachments={attachments}
             uploadingFiles={uploadingFiles}
             uploadFiles={uploadFiles}

@@ -11,24 +11,27 @@ import {
 import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
 
+import type { FlowEdgeLabelVariant } from '@/app/components/flow/edge-palette';
 import type { ElkPoint } from '@/app/components/flow/layout/elk-layout';
+import { cn } from '@/lib/utils/cn';
 
 const EMPTY_STYLE: CSSProperties = {};
+
+/** AA-contrast badge treatments per branch semantic (edge-palette.ts): colored
+ *  text + border on a solid background, so the badge masks the line behind it
+ *  and stays legible in both themes. */
+const LABEL_VARIANT_CLASSES: Record<FlowEdgeLabelVariant, string> = {
+  positive: 'border-success text-success',
+  negative: 'border-warning text-amber-700 dark:text-amber-300',
+  neutral: 'border-muted-foreground/50 text-muted-foreground',
+};
 
 interface AutomationEdgeProps extends EdgeProps {
   type?: 'smoothstep' | 'bezier' | 'straight' | 'default';
   data?: {
     label?: string;
-    labelStyle?: {
-      fill?: string;
-      fontSize?: string;
-      fontWeight?: number;
-    };
-    labelBgStyle?: {
-      fill?: string;
-      stroke?: string;
-      strokeWidth?: number;
-    };
+    /** Semantic treatment for the label badge (Yes / No / custom branch). */
+    labelVariant?: FlowEdgeLabelVariant;
     // Smart label positioning options
     labelPosition?: 'center' | 'source' | 'target'; // Position along edge
     labelOffset?: { x: number; y: number }; // Manual offset from calculated position
@@ -294,23 +297,13 @@ export function AutomationEdge({
             masks the line behind it. Hidden on short edges to avoid overlap. */}
         {data?.label && showLabel && (
           <div
+            className={cn(
+              'pointer-events-none absolute rounded-md border bg-background px-1.5 text-[11px] leading-normal font-semibold whitespace-nowrap',
+              LABEL_VARIANT_CLASSES[data.labelVariant ?? 'neutral'],
+            )}
             style={{
-              position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'none',
               zIndex: -1, // Below nodes (nodes are at z-index 0 or higher)
-              padding: '0px 6px',
-              lineHeight: 1.5,
-              borderRadius: '6px',
-              whiteSpace: 'nowrap',
-              backgroundColor:
-                data.labelBgStyle?.fill || 'hsl(var(--background))',
-              border: data.labelBgStyle?.stroke
-                ? `${data.labelBgStyle.strokeWidth || 1}px solid ${data.labelBgStyle.stroke}`
-                : 'none',
-              color: data.labelStyle?.fill || 'hsl(var(--foreground))',
-              fontSize: data.labelStyle?.fontSize || '11px',
-              fontWeight: data.labelStyle?.fontWeight || 600,
             }}
           >
             {data.label}

@@ -121,7 +121,9 @@ export const ModelSelector = memo(function ModelSelector({
     if (activeAgent?.primaryBehavior !== 'external-agent') return false;
     if (activeAgent.authMode === 'byo') return true;
     const kind = activeAgent.agentKind ?? 'claude-code';
-    if (kind !== 'claude-code' && kind !== 'cursor') return false;
+    if (kind !== 'claude-code' && kind !== 'cursor' && kind !== 'opencode') {
+      return false;
+    }
     return getCredentialPolicy(kind).managedSource === 'agent-env';
   }, [activeAgent]);
 

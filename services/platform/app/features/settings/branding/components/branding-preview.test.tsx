@@ -148,9 +148,11 @@ describe('BrandingPreview', () => {
     expect(avatars.length).toBe(4);
   });
 
-  it('applies brand color to the sidebar org-name wordmark', () => {
+  it('applies the accent color to the sidebar org-name wordmark', () => {
+    // The single accent drives the wordmark too (the brand color was dropped
+    // for the derived palette, #1960).
     const { container } = render(
-      <BrandingPreview data={{ appName: 'ACME', brandColor: '#FF0000' }} />,
+      <BrandingPreview data={{ appName: 'ACME', accentColor: '#FF0000' }} />,
     );
 
     // #FF0000 already clears contrast on the light theme, so it's applied as-is.

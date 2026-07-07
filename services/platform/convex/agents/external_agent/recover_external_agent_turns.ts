@@ -19,8 +19,10 @@
 
 import { v } from 'convex/values';
 
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
-import { isProductAgentSlug } from '../../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../../lib/agent-adapters/events';
 import { getAgentAdapter } from '../../../lib/agent-adapters/registry';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
@@ -52,8 +54,7 @@ const RECOVERY_SWEEP_LIMIT = 50;
  * re-attach with the op's OWN adapter — coercing an unlisted kind (Hermes,
  * Codex) to claude-code would resume the turn under the wrong runtime. */
 function storedProductAgentKind(kind: string | undefined): ProductAgentSlug {
-  if (isProductAgentSlug(kind)) return kind;
-  return 'claude-code';
+  return resolveProductAgentKind(kind);
 }
 
 export const recoverStuckExternalAgentTurns = internalAction({

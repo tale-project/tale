@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CodexAdapter } from './codex/adapter';
 import { CursorAdapter } from './cursor/adapter';
+import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
+import { OpenCodeAdapter } from './opencode/adapter';
 import type { AgentRunSpec } from './types';
 
 const base = {
@@ -35,6 +37,29 @@ describe('HermesAdapter.buildExec', () => {
     );
     expect(env.OPENAI_API_KEY).toBe('sk-bf-test');
     expect(env.HERMES_HOME).toBe('/user/.runtime/home/.hermes');
+  });
+});
+
+describe('GeminiCliAdapter.buildExec', () => {
+  it('builds tale-gemini-run with GenAI-route gateway env', () => {
+    const geminiBase = {
+      prompt: 'Fix issue #1',
+      model: 'openrouter/google/gemini-3.1-pro-preview',
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
+      workdir: '/user/workspace',
+    } satisfies AgentRunSpec;
+    const { argv, env, stdin } = new GeminiCliAdapter().buildExec(geminiBase);
+    expect(argv[0]).toBe('tale-gemini-run');
+    expect(env.GOOGLE_GEMINI_BASE_URL).toBe(
+      'http://sandbox-llm-gateway:8080/genai',
+    );
+    expect(env.GEMINI_API_KEY).toBe('sk-bf-test');
+    // The prompt rides stdin (JSON payload), never argv.
+    expect(argv).not.toContain('Fix issue #1');
+    expect(JSON.parse(stdin ?? '{}')).toMatchObject({ prompt: 'Fix issue #1' });
   });
 });
 
@@ -419,6 +444,164 @@ describe('ClaudeCodeAdapter.buildExec — BYO mode', () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-bf-test');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8');
     expect(argv).toContain('--disallowedTools');
+  });
+});
+
+describe('OpenCodeAdapter.buildExec', () => {
+  const opencodeBase = {
+    prompt: 'Fix issue #1 and open a PR',
+    model: 'claude-sonnet-4-6',
+    gateway: {
+      baseUrl: 'http://sandbox-llm-gateway:8080',
+      token: 'sk-bf-test',
+    },
+    workdir: '/user/workspace',
+  } satisfies AgentRunSpec;
+
+  it('builds headless json invocation with gateway env and session resume', () => {
+    const { argv, env, cwd, stdinMode } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      agentSessionId: 'sess-oc-1',
+    });
+    expect(argv.slice(0, 10)).toEqual([
+      'opencode',
+      'run',
+      '--format',
+      'json',
+      '--dir',
+      '/user/workspace',
+      '-s',
+      'sess-oc-1',
+      '-m',
+      'tale/claude-sonnet-4-6',
+    ]);
+    expect(argv[argv.length - 1]).toBe(opencodeBase.prompt);
+    expect(stdinMode).toBe('close');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.provider.tale.options.baseURL).toBe(
+      'http://sandbox-llm-gateway:8080/openai/v1',
+    );
+    expect(config.mcp.playwright.command).toEqual([
+      'tale-playwright-mcp',
+      '--headless',
+      '--browser',
+      'chromium',
+      '--isolated',
+      '--no-sandbox',
+      '--ignore-https-errors',
+    ]);
+    expect(cwd).toBe('/user/workspace');
+  });
+
+  it('adds the integration MCP bridge when integrationsBaseUrl is set', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      integrationsBaseUrl: 'http://proxy/api/integrations',
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.mcp.integrations.command).toEqual(['tale-integrations-mcp']);
+    // `environment`, not `env` — OpenCode's McpLocalConfig only knows
+    // `environment` (additionalProperties: false), so an `env` key never
+    // reaches the bridge process (the dead-bridge regression).
+    expect(config.mcp.integrations.env).toBeUndefined();
+    expect(config.mcp.integrations.environment.TALE_INTEGRATIONS_URL).toBe(
+      'http://proxy/api/integrations',
+    );
+    // The session key rides {env:…} (the exec env carries the raw token), so
+    // it never appears in the config JSON, which may get logged — same
+    // treatment as the provider apiKey.
+    expect(config.mcp.integrations.environment.TALE_INTEGRATIONS_TOKEN).toBe(
+      '{env:TALE_GATEWAY_TOKEN}',
+    );
+    expect(env.OPENCODE_CONFIG_CONTENT).not.toContain('sk-bf-test');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+  });
+
+  it('stages systemPromptAppend as a per-exec instructions file referenced by the config', () => {
+    const { env, stagedFiles } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      execId: 'exec-123',
+      systemPromptAppend: 'Org instructions.\n\nTrust the container.',
+    });
+    // OpenCode has no --append-system-prompt: the composed append is staged as
+    // a file (path relative to /user — the sessionStageFiles contract) and the
+    // config `instructions` entry points at its absolute path, whose content
+    // OpenCode appends to the system prompt.
+    expect(stagedFiles).toEqual([
+      {
+        path: '.runtime/tale/instructions/exec-123.md',
+        content: 'Org instructions.\n\nTrust the container.',
+      },
+    ]);
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.instructions).toEqual([
+      '/user/.runtime/tale/instructions/exec-123.md',
+    ]);
+  });
+
+  it('omits instructions + staged files when no systemPromptAppend is composed', () => {
+    const { env, stagedFiles } = new OpenCodeAdapter().buildExec(opencodeBase);
+    expect(stagedFiles).toBeUndefined();
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.instructions).toBeUndefined();
+  });
+
+  it('denies native web tools + question on managed runs (governed default)', () => {
+    const { env } = new OpenCodeAdapter().buildExec(opencodeBase);
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    // Wildcard-allow first (the container is the boundary; no SSE prompts),
+    // then the denies — OpenCode's evaluator takes the LAST matching key, so
+    // order matters. question has no answer path in chat (mirrors Claude Code
+    // denying AskUserQuestion); webfetch/websearch are ungoverned native web
+    // tools — managed runs route web access through the integration bridge.
+    expect(config.permission).toEqual({
+      '*': 'allow',
+      question: 'deny',
+      webfetch: 'deny',
+      websearch: 'deny',
+    });
+    expect(Object.keys(config.permission)[0]).toBe('*');
+  });
+
+  it('lifts the web-tool denial (but not question) when nativeWebTools is true', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      nativeWebTools: true,
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.permission).toEqual({ '*': 'allow', question: 'deny' });
+  });
+
+  it('keeps the web-tool denial when nativeWebTools is explicitly false (only === true lifts it)', () => {
+    const { env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      nativeWebTools: false,
+    });
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.permission.webfetch).toBe('deny');
+    expect(config.permission.websearch).toBe('deny');
+  });
+
+  it('omits -m when no model resolves (config.model stays the tale/default)', () => {
+    const { argv, env } = new OpenCodeAdapter().buildExec({
+      ...opencodeBase,
+      model: undefined,
+    });
+    expect(argv).not.toContain('-m');
+    expect(argv).not.toContain('tale/default');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '{}');
+    expect(config.model).toBe('tale/default');
+  });
+
+  it('throws for BYO (managed-only runtime)', () => {
+    expect(() =>
+      new OpenCodeAdapter().buildExec({
+        prompt: 'hi',
+        authMode: 'byo',
+        workdir: '/user/workspace',
+      }),
+    ).toThrow(/managed gateway/);
   });
 });
 

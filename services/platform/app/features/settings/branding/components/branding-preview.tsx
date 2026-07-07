@@ -15,13 +15,12 @@ import { memo } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { useT } from '@/lib/i18n/client';
-import { adjustColorForTheme } from '@/lib/utils/color';
+import { deriveAccentPalette } from '@/lib/utils/color';
 
 export interface BrandingPreviewData {
   appName?: string;
   logoUrl?: string | null;
   faviconUrl?: string | null;
-  brandColor?: string;
   accentColor?: string;
 }
 
@@ -81,12 +80,10 @@ export const BrandingPreview = memo(function BrandingPreview({
   const { t: tConversations } = useT('conversations');
   const { resolvedTheme } = useTheme();
   const { appName, logoUrl, faviconUrl } = data;
-  // Mirror the live app: a picked color is adapted per theme for legibility.
-  const brandColor = data.brandColor
-    ? adjustColorForTheme(data.brandColor, resolvedTheme)
-    : undefined;
+  // Mirror the live app: the one picked accent is normalized into the same
+  // theme-legible palette the BrandingProvider injects.
   const accentColor = data.accentColor
-    ? adjustColorForTheme(data.accentColor, resolvedTheme)
+    ? deriveAccentPalette(data.accentColor, resolvedTheme).base
     : undefined;
 
   return (
@@ -122,7 +119,7 @@ export const BrandingPreview = memo(function BrandingPreview({
               ) : appName ? (
                 <span
                   className="truncate text-[9px] font-bold"
-                  style={brandColor ? { color: brandColor } : undefined}
+                  style={accentColor ? { color: accentColor } : undefined}
                 >
                   {appName}
                 </span>
@@ -130,7 +127,7 @@ export const BrandingPreview = memo(function BrandingPreview({
                 <div
                   className="bg-foreground size-5 rounded"
                   style={
-                    brandColor ? { backgroundColor: brandColor } : undefined
+                    accentColor ? { backgroundColor: accentColor } : undefined
                   }
                 />
               )}

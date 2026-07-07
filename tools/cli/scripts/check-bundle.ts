@@ -15,18 +15,22 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Distinctive substrings that must be embedded in the compiled binary.
-// Pair each substring with the action whose script contains it so
-// the failure message points the operator at the right place.
+// Unique sentinels that must be embedded in the compiled binary. Each
+// sentinel is a bash comment that exists ONLY inside the embedded template
+// literal it pins — never in a TS comment or another string. Convex
+// function references (`migrations:runAll`, …) are deliberately NOT used
+// as markers: they also appear in error-message strings that survive
+// bundling, so a script that regressed to a runtime fs read would still
+// pass the check (false negative). Pair each sentinel with the action
+// whose script contains it so the failure message points the operator at
+// the right place.
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
-  // run-migrations.ts inlines its bash via MIGRATE_SCRIPT; pin both convex
-  // function references so a refactor that splits it back out fails here.
-  ['provisioning:provisionAll', 'run-migrations.ts (MIGRATE_SCRIPT)'],
-  ['migrations:runAll', 'run-migrations.ts (MIGRATE_SCRIPT)'],
-  // reseed-all-orgs.ts already inlines its bash via RESEED_SCRIPT; pin it
-  // so a future refactor that splits it back out also fails this check.
   [
-    'reseed_all_orgs:reseedAllOrgsFromBuiltin',
+    '# tale-bundle-sentinel:migrate-script-v1',
+    'run-migrations.ts (MIGRATE_SCRIPT)',
+  ],
+  [
+    '# tale-bundle-sentinel:reseed-script-v1',
     'reseed-all-orgs.ts (RESEED_SCRIPT)',
   ],
 ];

@@ -53,12 +53,32 @@ interface SseClient {
   // `orgSlug` falls outside this set are dropped before the payload
   // hits the wire — closes the cross-org metadata leak that
   // unauthenticated / cross-org clients otherwise saw via the SSE
-  // stream. `null` means "platform-wide / org-agnostic event" (rare;
-  // currently only the `{type:"connected"}` ping).
+  // stream. The only org-agnostic message is the `{type:"connected"}`
+  // ping, which is enqueued directly at stream start and never passes
+  // through the watcher fan-out.
   allowedOrgSlugs: Set<string>;
 }
 
 const sseClients = new Set<SseClient>();
+
+/**
+ * Fan-out predicate for config-watcher SSE events. Default-deny: an event
+ * is delivered only when it carries a string `orgSlug` the client is a
+ * member of. Every config-watcher event carries an `orgSlug` (see
+ * lib/config-watcher.ts: parseConfigChange always sets it for valid
+ * paths); if a future event type appears without one, it reaches no
+ * client — the legacy fan-out-to-everyone behavior is what this closes.
+ */
+export function shouldDeliverSseEvent(
+  event: unknown,
+  allowedOrgSlugs: ReadonlySet<string>,
+): boolean {
+  const eventOrg =
+    typeof event === 'object' && event !== null && 'orgSlug' in event
+      ? (event as { orgSlug?: unknown }).orgSlug
+      : undefined;
+  return typeof eventOrg === 'string' && allowedOrgSlugs.has(eventOrg);
+}
 
 const fileEventsEnabled = process.env.TALE_FILE_EVENTS === 'true';
 const configDir = process.env.TALE_CONFIG_DIR;
@@ -69,17 +89,10 @@ if (fileEventsEnabled && configDir && existsSync(configDir)) {
   const watcher = createConfigWatcher(configDir);
   watcher.onChange((event) => {
     const payload = `data: ${JSON.stringify(event)}\n\n`;
-    // Per-event org filter. Every config-watcher event carries an
-    // `orgSlug` (see lib/config-watcher.ts: parseConfigChange always
-    // sets it for valid paths). If a future event type appears without
-    // a slug, default-deny — the legacy fan-out-to-everyone behavior is
-    // what this fix is closing.
-    const eventOrg =
-      typeof event === 'object' && event !== null && 'orgSlug' in event
-        ? (event as { orgSlug?: string }).orgSlug
-        : undefined;
     for (const client of sseClients) {
-      if (eventOrg && !client.allowedOrgSlugs.has(eventOrg)) continue;
+      // Per-event org filter — see shouldDeliverSseEvent for the
+      // default-deny contract.
+      if (!shouldDeliverSseEvent(event, client.allowedOrgSlugs)) continue;
       try {
         client.controller.enqueue(payload);
       } catch (err) {
@@ -651,7 +664,9 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       });
     }
 
-    let client: SseClient;
+    // `undefined` until start() runs — a cancel that fires before then
+    // must not call `sseClients.delete(undefined)`, so cancel() guards.
+    let client: SseClient | undefined;
     const stream = new ReadableStream({
       start(controller) {
         client = { controller, allowedOrgSlugs };
@@ -659,7 +674,7 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
         controller.enqueue('data: {"type":"connected"}\n\n');
       },
       cancel() {
-        sseClients.delete(client);
+        if (client) sseClients.delete(client);
       },
     });
     return new Response(stream, {

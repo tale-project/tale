@@ -24,8 +24,10 @@
 import { v } from 'convex/values';
 
 import { getAgentCapabilities } from '../../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
-import { isProductAgentSlug } from '../../../lib/agent-adapters/events';
+import {
+  resolveProductAgentKind,
+  type ProductAgentSlug,
+} from '../../../lib/agent-adapters/events';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { sessionStageFiles } from './helpers/session_client';
@@ -43,9 +45,9 @@ export const deliverSteerMessages = internalAction({
     // check, not a per-slug ternary: coercing an unknown kind to claude-code
     // (supportsMidTurnSteering) would stage steer files no hook ever consumes
     // for one-shot runtimes like Hermes or Codex.
-    const agentKind: ProductAgentSlug = isProductAgentSlug(target?.agentKind)
-      ? target.agentKind
-      : 'claude-code';
+    const agentKind: ProductAgentSlug = resolveProductAgentKind(
+      target?.agentKind,
+    );
     if (!target || !getAgentCapabilities(agentKind).supportsMidTurnSteering) {
       return null;
     }

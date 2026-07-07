@@ -33,6 +33,7 @@ import {
   usesGateway,
 } from '../../../lib/agent-adapters/credential-policy';
 import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
+import { resolveProductAgentKind } from '../../../lib/agent-adapters/events';
 import {
   formatModelRef,
   parseModelRef,
@@ -361,7 +362,9 @@ export const runExternalAgentTurn = internalAction({
     agentKind: v.union(
       v.literal('claude-code'),
       v.literal('cursor'),
+      v.literal('opencode'),
       v.literal('hermes'),
+      v.literal('gemini'),
       v.literal('codex'),
     ),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
@@ -451,7 +454,9 @@ export const runExternalAgentTurn = internalAction({
       // control — no separate org-level enable gate (configuring an agent is
       // already a privileged action). Managed (default) is unchanged.
       const byo = args.authMode === 'byo';
-      const productKind: ProductAgentSlug = args.agentKind ?? 'claude-code';
+      const productKind: ProductAgentSlug = resolveProductAgentKind(
+        args.agentKind,
+      );
       const gatewayRun = usesGateway(productKind, args.authMode);
       const capabilities = getAgentCapabilities(productKind);
 
