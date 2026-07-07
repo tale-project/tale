@@ -1,5 +1,6 @@
 'use client';
 
+import { Slot } from '@radix-ui/react-slot';
 import { Card, CardGrid, CardMedia } from '@tale/ui/card';
 import { type ReactNode } from 'react';
 
@@ -54,6 +55,14 @@ interface CatalogCardProps {
    * buttons own the clicks; `onClick` is then ignored (no nested buttons).
    */
   actions?: ReactNode;
+  /**
+   * Makes the whole card navigate: a single link element (e.g. a router
+   * `<Link>` carrying an `aria-label` for its accessible name) stretched over
+   * the card as an overlay. Unlike `onClick`, this composes with `actions` —
+   * the footer stays operable above the overlay (a link can't nest buttons,
+   * so the overlay sits underneath them). Ignored on the `onClick` button card.
+   */
+  link?: ReactNode;
   /** Makes the whole card a button (only when there are no `actions`). */
   onClick?: () => void;
   disabled?: boolean;
@@ -70,6 +79,7 @@ export function CatalogCard({
   badge,
   meta,
   actions,
+  link,
   onClick,
   disabled,
   active,
@@ -100,7 +110,10 @@ export function CatalogCard({
         <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>
       ) : null}
       {actions ? (
-        <div className="mt-auto flex items-center justify-end gap-2 pt-3">
+        // `relative` lifts the footer above the stretched `link` overlay
+        // (positioned siblings paint in DOM order), keeping every action
+        // clickable on a linked card.
+        <div className="relative mt-auto flex items-center justify-end gap-2 pt-3">
           {actions}
         </div>
       ) : null}
@@ -136,13 +149,24 @@ export function CatalogCard({
   return (
     <Card
       padding="md"
+      interactive={Boolean(link)}
       className={cn(
         'flex h-full flex-col',
+        link && 'relative',
         catalogCardSurfaceClass,
         active && 'ring-2 ring-primary',
         className,
       )}
     >
+      {link ? (
+        // Stretched-overlay link (same pattern as the conversations list): the
+        // whole card is one click/tab target while the footer actions — later
+        // positioned siblings — stay operable above it. The overlay carries
+        // its own focus ring since focus lands on the anchor, not the card.
+        <Slot className="focus-visible:ring-ring absolute inset-0 rounded-[inherit] focus-visible:ring-2 focus-visible:outline-none">
+          {link}
+        </Slot>
+      ) : null}
       {inner}
     </Card>
   );

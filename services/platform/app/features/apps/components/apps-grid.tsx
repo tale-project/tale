@@ -2,9 +2,10 @@
 
 /** The Apps hub landing: a config-driven grid of apps in the shared catalog
  * style (the same `CatalogCard` grid the agents, automations, and integrations
- * catalogs use). Each app is a first-class apps/<slug>/app.json bundle. A card
- * shows the app's install state badge and carries the lifecycle in its footer:
- * Install (not installed) or Open + the ⋯ menu (installed). */
+ * catalogs use). Each app is a first-class apps/<slug>/app.json bundle. Every
+ * card is a link to the app's detail page (accessible name = the app name),
+ * shows the app's install state badge, and carries the lifecycle in its
+ * footer: Install (not installed) or Open + the ⋯ menu (installed). */
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card, CardGrid } from '@tale/ui/card';
@@ -206,6 +207,17 @@ export function AppsGrid({
                 }
                 title={app.name}
                 description={app.description}
+                // Every card — installed or still available — is a link to the
+                // app's detail page (accessible name = the app name), so the
+                // detail page is reachable by mouse and keyboard from the hub
+                // before deciding to install (#2554).
+                link={
+                  <Link
+                    to="/dashboard/$id/apps/$appSlug"
+                    params={{ id: organizationId, appSlug: app.slug }}
+                    aria-label={app.name}
+                  />
+                }
                 badge={
                   <>
                     {isPrivate && <Badge variant="slate">{t('private')}</Badge>}
