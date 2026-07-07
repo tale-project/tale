@@ -275,6 +275,7 @@ def main() -> int:
             "0",
         ]
         proc = subprocess.run(
+            # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- fixed openclaw argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
             cmd,
             cwd=args.workdir,
             env=env,
