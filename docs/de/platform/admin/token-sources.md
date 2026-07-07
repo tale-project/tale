@@ -15,13 +15,14 @@ Eine Quelle ist reine Konfiguration — sie speichert, _wie_ der Broker erreicht
 
 ## Eine Quelle hinzufügen
 
-Klick auf **Neue Token-Quelle** und füll das Seitenpanel aus. Die Felder fallen in drei Gruppen:
+Klick auf **Neue Token-Quelle** und füll das Seitenpanel aus. Das Formular ist in vier Abschnitte gegliedert:
 
-- **Identität** — ein `slug` (kleingeschrieben, stabil; er benennt die Konfigurationsdatei und das Geheimnis), ein **Anzeigename** und die **Endpunkt-URL** des Brokers mit ihrer **HTTP-Methode**.
-- **Broker-Authentifizierung** — wie Tale sich _gegenüber dem Broker_ authentifiziert: **Keine**, ein **Bearer-Token** oder ein **Eigener Header**. Für Bearer oder Header gibst du das **Broker-Geheimnis** ein. Das Geheimnis ist write-only — es wird nie an den Browser zurückgegeben, daher zeigt das Feld beim Bearbeiten leer und es leer zu lassen behält den gespeicherten Wert.
+- **Identität** — ein `slug` (kleingeschrieben, stabil; er benennt die Konfigurationsdatei und das Geheimnis) und ein **Anzeigename**.
+- **Verbindung** — die **Endpunkt-URL** des Brokers mit ihrer **HTTP-Methode** und wie Tale sich _gegenüber dem Broker_ authentifiziert: **Keine**, ein **Bearer-Token** oder ein **Eigener Header**. Für Bearer oder Header gibst du das **Broker-Geheimnis** ein. Das Geheimnis ist write-only — es wird nie an den Browser zurückgegeben, daher zeigt das Feld beim Bearbeiten leer und es leer zu lassen behält den gespeicherten Wert.
 - **Antwort-Zuordnung** — wie die JSON-Antwort des Brokers gelesen wird. **Tokens-Pfad** ist ein JSONPath zum Array der Tokens (z. B. `$.tokens`); **Token-Feld** benennt die Eigenschaft, die jedes Token hält. Das optionale **Statusfeld (optional)** / **Aktiver Statuswert (optional)** filtert inaktive Tokens heraus, und **Ablauffeld (optional)** (ein ISO-Zeitstempel oder Epoch-Sekunden/-ms) verwirft bereits abgelaufene, bevor der Pool genutzt wird.
+- **Einbindung** — die **Ziel-Umgebungsvariable**, unter der das Token injiziert wird, und die **Auswahlstrategie**: **Zufällig** (der Default, wählt pro Lauf gleichverteilt) oder **Erste** (deterministisch).
 
-Wähl zuletzt die **Ziel-Umgebungsvariable**, unter der das Token injiziert wird, und die **Auswahlstrategie** — **Zufällig** (der Default, wählt pro Lauf gleichverteilt) oder **Erste** (deterministisch). Das Speichern validiert die Konfiguration, schreibt sie und macht die Quelle sofort im Umgebungs-Tab des Agenten auswählbar.
+Drück vor dem Speichern auf **Broker testen** im Abschnitt Antwort-Zuordnung: Tale ruft den Broker serverseitig mit der Entwurfskonfiguration ab und zeigt eine Vorschau der Zuordnung — wie viele nutzbare Tokens die Pfade liefern, wie viele Einträge als inaktiv, abgelaufen oder ohne Token-Feld aussortiert wurden und wann das nächste Token abläuft. So fällt ein falscher JSONPath schon im Formular auf statt erst zur Laufzeit des Agenten. Das Speichern validiert die Konfiguration, schreibt sie und macht die Quelle sofort im Umgebungs-Tab des Agenten auswählbar.
 
 ## Eine Quelle an einen Agenten binden
 

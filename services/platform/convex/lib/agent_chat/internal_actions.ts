@@ -105,7 +105,9 @@ const serializableAgentConfigValidator = v.object({
   /** External agent runtime when primaryBehavior is 'external-agent'.
    * Informational here (external-agent forks out before runAgentGeneration);
    * declared so the strict validator accepts external-agent configs. */
-  agentKind: v.optional(v.union(v.literal('claude-code'), v.literal('cursor'))),
+  agentKind: v.optional(
+    v.union(v.literal('claude-code'), v.literal('cursor'), v.literal('hermes')),
+  ),
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),
   integrationBindings: v.optional(v.array(v.string())),

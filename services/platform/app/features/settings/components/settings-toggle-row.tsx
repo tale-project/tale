@@ -60,7 +60,10 @@ export const SettingsToggleRow = forwardRef<
     return (
       <div
         className={cn(
-          'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6',
+          // Always a single row — the switch never drops below the text, so a
+          // long label or description can't push the control out of the shared
+          // "controls live on the right" rhythm, even on small screens.
+          'flex items-center justify-between gap-4 sm:gap-6',
           className,
         )}
       >
@@ -71,12 +74,15 @@ export const SettingsToggleRow = forwardRef<
         <div className="flex max-w-2xl min-w-0 flex-col gap-1">
           <span
             id={labelId}
-            className="text-foreground text-sm leading-none font-medium"
+            // Single-line label: truncate instead of wrapping — the detail
+            // belongs in `description`, which wraps (and clamps on small
+            // screens) below the label.
+            className="text-foreground truncate text-sm leading-none font-medium"
           >
             {label}
           </span>
           {description && (
-            <Description id={descId}>
+            <Description id={descId} className="max-sm:line-clamp-2">
               {/* Masked while loading so a skeletonized settings page shows a
                   pulse here instead of raw (possibly stale) description text. */}
               <SkeletonBox fullWidth>{description}</SkeletonBox>

@@ -5,6 +5,7 @@ import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { platformRoleValidator } from '../enterprise_sso/validators';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import {
   deleteMemberMirrorByMemberId,
   deleteTeamMemberMirrorByTeamMemberId,
@@ -224,8 +225,9 @@ export const provisionUser = internalMutation({
   },
   returns: userRecordValidator,
   handler: async (ctx, args): Promise<ScimUserRecord> => {
+    const email = normalizeAuthEmail(args.email);
     const now = Date.now();
-    const existingUser = await findUserByEmail(ctx, args.email);
+    const existingUser = await findUserByEmail(ctx, email);
 
     let userId: string;
     let memberHere: BetterAuthMember | undefined;
@@ -267,7 +269,7 @@ export const provisionUser = internalMutation({
           input: {
             model: 'user',
             data: {
-              email: args.email,
+              email,
               name: args.name,
               emailVerified: true,
               createdAt: now,
@@ -335,13 +337,13 @@ export const provisionUser = internalMutation({
       'scim_provision_user',
       'member',
       userId,
-      args.email,
+      email,
       { next: { role: plan.role, active: args.active } },
     );
 
     return {
       userId,
-      email: args.email,
+      email,
       name: args.name,
       active: args.active,
       externalId: args.externalId,
@@ -384,7 +386,8 @@ export const patchUser = internalMutation({
     // Name / email attribute updates on the user row.
     const userUpdate: Record<string, unknown> = {};
     if (args.name !== undefined) userUpdate.name = args.name;
-    if (args.email !== undefined) userUpdate.email = args.email;
+    if (args.email !== undefined)
+      userUpdate.email = normalizeAuthEmail(args.email);
     if (Object.keys(userUpdate).length > 0) {
       userUpdate.updatedAt = now;
       await ctx.runMutation(components.betterAuth.adapter.updateMany, {

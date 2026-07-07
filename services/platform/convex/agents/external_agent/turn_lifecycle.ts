@@ -43,7 +43,7 @@ export interface TurnContext {
   sessionId: string;
   execId: string;
   threadId: string;
-  agentKind: 'claude-code' | 'cursor';
+  agentKind: 'claude-code' | 'cursor' | 'hermes';
   agentSlug?: string;
   modelRef: string;
   userId?: string;

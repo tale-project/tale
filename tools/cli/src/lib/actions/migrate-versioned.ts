@@ -11,6 +11,10 @@
  */
 
 import * as logger from '../../utils/logger';
+import {
+  CONVEX_RUN_BANNER_GREP_V,
+  parseConvexRunJson,
+} from '../docker/convex-run';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
 import { redactAdminKey } from './reseed-all-orgs';
@@ -70,32 +74,8 @@ HOME=/home/app timeout ${TIMEOUT_S} bunx convex run \\
   --url "\${CONVEX_URL:-http://convex:3210}" \\
   --admin-key "$ADMIN_KEY" \\
   --no-push 2>&1 \\
-  | { grep -v "^Admin key\\|^📋\\|^✅ Admin\\|^━\\|^🌐\\|^$\\|Steps:\\|Open\\|Enter\\|Paste" || true; }
+  | { grep -v "${CONVEX_RUN_BANNER_GREP_V}" || true; }
 `;
-}
-
-/**
- * Extract the trailing JSON value (object OR array) from mixed stdout. Walks
- * backwards trying to parse a slice that starts at each `{`/`[` line — robust
- * against banner lines and `{`-containing error strings earlier in the stream.
- */
-function parseTrailingJson<T>(stdout: string): T | null {
-  const trimmed = stdout.trim();
-  if (!trimmed) return null;
-  const lines = trimmed.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const head = lines[i].trimStart();
-    if (!head.startsWith('{') && !head.startsWith('[')) continue;
-    try {
-      // The entrypoints return validated JSON shapes; the generic T is the
-      // caller's declared contract for that entrypoint.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- parsed convex entrypoint JSON
-      return JSON.parse(lines.slice(i).join('\n')) as T;
-    } catch {
-      // Not a complete value starting here; try an earlier line.
-    }
-  }
-  return null;
 }
 
 async function runEntrypoint<T>(
@@ -124,7 +104,7 @@ async function runEntrypoint<T>(
     );
   }
 
-  const parsed = parseTrailingJson<T>(result.stdout);
+  const parsed = parseConvexRunJson<T>(result.stdout);
   if (parsed === null) {
     throw new Error(
       `tale migrate: could not parse ${fn} output:\n` +

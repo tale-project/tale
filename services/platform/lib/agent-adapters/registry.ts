@@ -5,11 +5,13 @@
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CursorAdapter } from './cursor/adapter';
 import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
+import { HermesAdapter } from './hermes/adapter';
 import type { AgentAdapter } from './types';
 
 const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   'claude-code': new ClaudeCodeAdapter(),
   cursor: new CursorAdapter(),
+  hermes: new HermesAdapter(),
 };
 
 export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {

@@ -1,3 +1,4 @@
+import { Card } from '@tale/ui/card';
 import { PageSection } from '@tale/ui/page-section';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Link, createFileRoute } from '@tanstack/react-router';
@@ -62,7 +63,9 @@ function ToolsTab() {
   );
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    // Wider than the sibling "narrow" tabs (same cap as environment.tsx): the
+    // picker lays its category cards out in two columns, so give it the room.
+    <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <SectionHeader
         title={t('agents.form.sectionTools')}
         description={
@@ -91,15 +94,19 @@ function ToolsTab() {
             </>
           }
         >
-          <RadioGroup
-            value={webSearchMode}
-            onValueChange={(value) => {
-              if (isRetrievalMode(value)) {
-                updateConfig({ webSearchMode: value });
-              }
-            }}
-            options={webModeOptions}
-          />
+          {/* Same Card frame as the tool-category cards below so the built-in
+              web-search capability reads as part of the picker. */}
+          <Card padding="md">
+            <RadioGroup
+              value={webSearchMode}
+              onValueChange={(value) => {
+                if (isRetrievalMode(value)) {
+                  updateConfig({ webSearchMode: value });
+                }
+              }}
+              options={webModeOptions}
+            />
+          </Card>
         </PageSection>
       )}
 

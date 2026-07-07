@@ -155,6 +155,29 @@ export function getStepTypeColor(stepType: string): string {
   }
 }
 
+/** Minimap stroke color per step type — the same theme-token hue as the card's
+ *  accent border (`getStepAccentBorder` keeps each `--color-*` variable alive),
+ *  so the overview and the canvas tell one story. Token vars, never hex. */
+export function getStepMinimapStroke(stepType: string): string {
+  switch (stepType) {
+    case 'start':
+    case 'trigger':
+      return 'var(--color-blue-500)';
+    case 'llm':
+      return 'var(--color-violet-500)';
+    case 'condition':
+      return 'var(--color-amber-500)';
+    case 'loop':
+      return 'var(--color-cyan-500)';
+    case 'action':
+      return 'var(--color-indigo-500)';
+    case 'output':
+      return 'var(--color-slate-400)';
+    default:
+      return 'hsl(var(--muted-foreground))';
+  }
+}
+
 /** Left-accent border color per step type — lets the reader recognize a step's
  *  kind at a glance (blue = start, amber = decision, cyan = loop, …). */
 export function getStepAccentBorder(stepType: string): string {
