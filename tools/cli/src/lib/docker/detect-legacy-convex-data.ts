@@ -27,7 +27,7 @@ import { volumeExists } from './ensure-volumes';
 /** Pre-0.2.33 fixed compose project name (`docker compose -p tale`). */
 const LEGACY_PROJECT_NAME = 'tale';
 
-export interface OrphanedDataVolume {
+interface OrphanedDataVolume {
   /** The pre-0.3.2 volume that still holds the Convex data. */
   legacy: string;
   /** The volume the current compose files mount instead. */
