@@ -13,14 +13,13 @@ import {
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useActiveOrganizationId } from '@/app/lib/active-organization';
 import { setTitleSuffix } from '@/app/lib/title-suffix';
-import { adjustColorForTheme, hexToHsl, isLightColor } from '@/lib/utils/color';
+import { deriveAccentPalette } from '@/lib/utils/color';
 
 interface BrandingState {
   appName?: string;
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
-  brandColor?: string;
   accentColor?: string;
   isLoaded: boolean;
 }
@@ -44,15 +43,17 @@ interface BrandingProviderProps {
   children: ReactNode;
 }
 
-// The brand color drives the "primary action" surface in BOTH shipped token
-// vocabularies (see packages/ui/src/globals.css header): the legacy HSL
-// `--primary` (badges, chat cards via `bg-primary`) AND the canonical `@tale/ui`
-// `--color-accent-base` that the primary `Button` variant actually consumes
-// (`bg-accent-base text-accent-fg`). Injecting only `--primary` left the primary
-// button — the most visible primary UI — unchanged (#2394).
+// The single accent color (#1960 — it superseded the old two-field
+// brand/accent contract) drives the whole "primary action" palette in BOTH
+// shipped token vocabularies (see packages/ui/src/globals.css header): the
+// legacy HSL `--primary*` / `--ring` (badges, chat cards, focus rings) AND the
+// canonical `@tale/ui` `--color-accent-base`/`--color-accent-fg` that the
+// primary `Button` variant actually consumes (`bg-accent-base text-accent-fg`).
 const CSS_OVERRIDES = [
   'primary',
   'primary-foreground',
+  'primary-muted',
+  'ring',
   'color-accent-base',
   'color-accent-fg',
 ] as const;
@@ -72,25 +73,20 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
       logoUrl: data.logoUrl,
       faviconLightUrl: data.faviconLightUrl,
       faviconDarkUrl: data.faviconDarkUrl,
-      brandColor: data.brandColor,
       accentColor: data.accentColor,
       isLoaded: true,
     };
   }, [data]);
 
-  // A color is picked once but applied to both themes; adapt each for the
-  // active theme so a brand/accent that's illegible against this theme's
-  // background is nudged into contrast (the other theme keeps the original).
-  const adjustedColors = useMemo(
-    () => ({
-      brandColor: branding?.brandColor
-        ? adjustColorForTheme(branding.brandColor, resolvedTheme)
+  // One color is picked once but applied to both themes; derive the full
+  // legible palette (base, ink, muted shade) for the active theme so even a
+  // "bad" pick is normalized into contrast (the other theme derives its own).
+  const palette = useMemo(
+    () =>
+      branding?.accentColor
+        ? deriveAccentPalette(branding.accentColor, resolvedTheme)
         : undefined,
-      accentColor: branding?.accentColor
-        ? adjustColorForTheme(branding.accentColor, resolvedTheme)
-        : undefined,
-    }),
-    [branding?.brandColor, branding?.accentColor, resolvedTheme],
+    [branding?.accentColor, resolvedTheme],
   );
 
   const originalFaviconHrefRef = useRef<string | null>(null);
@@ -157,29 +153,21 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     };
   }, [branding?.faviconLightUrl, branding?.faviconDarkUrl]);
 
-  // CSS variable injection for the brand color (theme-adjusted)
+  // CSS variable injection for the derived accent palette (theme-adjusted).
   useEffect(() => {
     const root = document.documentElement;
-    const brandColor = adjustedColors.brandColor;
 
-    if (brandColor) {
-      // A light brand needs dark ink on top, a dark brand needs light ink —
-      // matched across both foreground tokens so the primary button/badge text
-      // stays legible in either theme.
-      const isLight = isLightColor(brandColor);
-      root.style.setProperty('--primary', hexToHsl(brandColor));
-      root.style.setProperty(
-        '--primary-foreground',
-        isLight ? '0 0% 3.9%' : '0 0% 98%',
-      );
-      // The `@tale/ui` accent token is a raw hex (not HSL); the primary `Button`
-      // reads it via `bg-accent-base` / `text-accent-fg`. Its fg tokens are
-      // `#030712` (light) / `#ffffff` (dark) in globals.css — reuse those.
-      root.style.setProperty('--color-accent-base', brandColor);
-      root.style.setProperty(
-        '--color-accent-fg',
-        isLight ? '#030712' : '#ffffff',
-      );
+    if (palette) {
+      // Legacy HSL vocabulary: primary surface + matched ink + a muted shade,
+      // and the focus ring, which globals.css keys to the same intent color.
+      root.style.setProperty('--primary', palette.baseHsl);
+      root.style.setProperty('--primary-foreground', palette.fgHsl);
+      root.style.setProperty('--primary-muted', palette.mutedHsl);
+      root.style.setProperty('--ring', palette.baseHsl);
+      // Canonical `@tale/ui` vocabulary (raw hex): what the primary `Button`
+      // reads via `bg-accent-base` / `text-accent-fg`.
+      root.style.setProperty('--color-accent-base', palette.base);
+      root.style.setProperty('--color-accent-fg', palette.fg);
     }
 
     return () => {
@@ -187,20 +175,19 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
         root.style.removeProperty(`--${prop}`);
       }
     };
-  }, [adjustedColors.brandColor]);
+  }, [palette]);
 
-  // Expose the theme-adjusted colors as the context `brandColor`/`accentColor`
-  // so every consumer (sidebar, tabs, mobile nav) gets the legible variant.
+  // Expose the theme-adjusted accent as the context `accentColor` so every
+  // consumer (sidebar, tabs, mobile nav) gets the legible variant.
   const value = useMemo<BrandingContextValue>(
     () => ({
       ...(branding ?? { isLoaded: false }),
-      brandColor: adjustedColors.brandColor,
-      accentColor: adjustedColors.accentColor,
+      accentColor: palette?.base,
       refetch: async () => {
         await refetch();
       },
     }),
-    [branding, adjustedColors, refetch],
+    [branding, palette, refetch],
   );
 
   return (

@@ -2,7 +2,7 @@
 import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { adjustColorForTheme } from '@/lib/utils/color';
+import { deriveAccentPalette } from '@/lib/utils/color';
 
 import { BrandingProvider } from './branding-provider';
 
@@ -40,24 +40,44 @@ afterEach(() => {
 });
 
 describe('BrandingProvider CSS injection', () => {
-  it('maps the brand colour onto the design-system primary-action token', () => {
-    // Regression for #2394: the brand colour was injected only as `--primary`,
-    // which the primary Button (`bg-accent-base`) does not consume — so setting
-    // it had no visible effect on primary UI. It must also drive the canonical
-    // `@tale/ui` accent token the Button actually reads.
-    brandingData.current = { brandColor: '#FF0055' };
+  it('derives the whole palette from the single accent color', () => {
+    // #1960: one accent color drives BOTH token vocabularies. The canonical
+    // `--color-accent-base` is what the primary Button consumes (regression
+    // for #2394 — injecting only `--primary` had no visible primary effect).
+    brandingData.current = { accentColor: '#FF0055' };
 
     render(<BrandingProvider>content</BrandingProvider>);
 
-    const expected = adjustColorForTheme('#FF0055', 'light').toLowerCase();
-    expect(readVar('--color-accent-base').toLowerCase()).toBe(expected);
-    expect(readVar('--color-accent-fg')).not.toBe('');
-    // The legacy token stays wired too (badges / chat cards consume it).
-    expect(readVar('--primary')).not.toBe('');
+    const palette = deriveAccentPalette('#FF0055', 'light');
+    expect(readVar('--color-accent-base').toLowerCase()).toBe(
+      palette.base.toLowerCase(),
+    );
+    expect(readVar('--color-accent-fg').toLowerCase()).toBe(
+      palette.fg.toLowerCase(),
+    );
+    // The legacy HSL tokens stay wired too (badges, chat cards, focus ring).
+    expect(readVar('--primary')).toBe(palette.baseHsl);
+    expect(readVar('--primary-foreground')).toBe(palette.fgHsl);
+    expect(readVar('--primary-muted')).toBe(palette.mutedHsl);
+    expect(readVar('--ring')).toBe(palette.baseHsl);
   });
 
-  it('does not touch the accent token when no brand colour is set', () => {
+  it('does not touch any palette token when no accent color is set', () => {
     brandingData.current = {};
+
+    render(<BrandingProvider>content</BrandingProvider>);
+
+    expect(readVar('--color-accent-base')).toBe('');
+    expect(readVar('--primary')).toBe('');
+    expect(readVar('--primary-muted')).toBe('');
+    expect(readVar('--ring')).toBe('');
+  });
+
+  it('ignores the dropped legacy brandColor field', () => {
+    // The server no longer returns `brandColor` (it coalesces legacy files
+    // into `accentColor`); a stale payload carrying only the old field must
+    // not restyle anything.
+    brandingData.current = { brandColor: '#FF0055' };
 
     render(<BrandingProvider>content</BrandingProvider>);
 

@@ -95,7 +95,6 @@ async function readBrandingFile(orgSlug: string): Promise<BrandingReadResult> {
 
 interface BrandingResult {
   appName?: string;
-  brandColor?: string;
   accentColor?: string;
   logoUrl: string | null;
   faviconLightUrl: string | null;
@@ -114,7 +113,6 @@ export const readBranding = action({
   args: { organizationId: v.optional(v.string()) },
   returns: v.object({
     appName: v.optional(v.string()),
-    brandColor: v.optional(v.string()),
     accentColor: v.optional(v.string()),
     logoUrl: v.union(v.string(), v.null()),
     faviconLightUrl: v.union(v.string(), v.null()),
@@ -138,8 +136,11 @@ export const readBranding = action({
       const config = fileResult.config;
       return {
         appName: identity?.name,
-        brandColor: config.brandColor,
-        accentColor: config.accentColor,
+        // The single accent color drives the derived palette (#1960). A file
+        // the 0.3.4/01 migration hasn't rewritten yet may still carry only the
+        // legacy `brandColor` — coalesce so the saved color keeps its effect
+        // (`''` means unset for both fields).
+        accentColor: config.accentColor || config.brandColor || undefined,
         logoUrl: buildBrandingImageUrl(orgSlug, config.logoFilename),
         faviconLightUrl: buildBrandingImageUrl(
           orgSlug,
@@ -177,7 +178,6 @@ export const saveBranding = action({
   args: {
     organizationId: v.string(),
     config: v.object({
-      brandColor: v.optional(v.string()),
       accentColor: v.optional(v.string()),
       logoFilename: v.optional(v.string()),
       faviconLightFilename: v.optional(v.string()),

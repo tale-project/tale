@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ACCENT_INK_DARK,
+  ACCENT_INK_LIGHT,
   adjustColorForTheme,
   contrastRatio,
+  deriveAccentPalette,
   hexToHsl,
   hexToHslParts,
   hslToHex,
@@ -128,5 +131,61 @@ describe('adjustColorForTheme', () => {
     // #3B82F6 clears 3:1 against both white and the dark background.
     expect(adjustColorForTheme('#3B82F6', 'light')).toBe('#3B82F6');
     expect(adjustColorForTheme('#3B82F6', 'dark')).toBe('#3B82F6');
+  });
+});
+
+describe('deriveAccentPalette', () => {
+  const THEMES = ['light', 'dark'] as const;
+  const BACKGROUNDS = { light: WHITE, dark: DARK_BG } as const;
+  // Deliberately hostile picks: near-invisible on one theme, mid-tone
+  // saturated (the worst zone for text ink), and both extremes.
+  const BAD_PICKS = [
+    '#000000',
+    '#FFFFFF',
+    '#1A1A1A',
+    '#EFEFEF',
+    '#FF0000',
+    '#808080',
+    '#FF0055',
+    '#3B82F6',
+  ];
+
+  it.each(THEMES)(
+    'normalizes any pick into a legible %s-theme palette',
+    (theme) => {
+      for (const pick of BAD_PICKS) {
+        const palette = deriveAccentPalette(pick, theme);
+        // Surface visible against the page (WCAG 1.4.11 non-text floor).
+        expect(
+          contrastRatio(palette.base, BACKGROUNDS[theme]),
+        ).toBeGreaterThanOrEqual(3);
+        // Ink legible on the surface (WCAG AA normal text).
+        expect(contrastRatio(palette.base, palette.fg)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    },
+  );
+
+  it('picks the ink by real contrast, not a lightness guess', () => {
+    expect(deriveAccentPalette('#FFEB3B', 'light').fg).toBe(ACCENT_INK_DARK);
+    expect(deriveAccentPalette('#1B5E20', 'light').fg).toBe(ACCENT_INK_LIGHT);
+  });
+
+  it('keeps a color that already satisfies both constraints untouched', () => {
+    const palette = deriveAccentPalette('#3B82F6', 'light');
+    expect(palette.base).toBe('#3B82F6');
+    expect(palette.baseHsl).toBe(hexToHsl('#3B82F6'));
+    expect(palette.fgHsl).toBe(hexToHsl(palette.fg));
+  });
+
+  it('derives a muted shade that keeps the accent hue', () => {
+    const { h } = hexToHslParts('#FF0055');
+    expect(deriveAccentPalette('#FF0055', 'light').mutedHsl).toMatch(
+      new RegExp(`^${h} \\d+% 60%$`),
+    );
+    expect(deriveAccentPalette('#FF0055', 'dark').mutedHsl).toMatch(
+      new RegExp(`^${h} \\d+% 75%$`),
+    );
   });
 });
