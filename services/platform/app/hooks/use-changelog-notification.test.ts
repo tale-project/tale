@@ -125,6 +125,42 @@ describe('useChangelogNotification', () => {
     expect(result.needsBaseline).toBe(false);
   });
 
+  it('stays quiet on a non-semver build once its version is recorded (#2552)', () => {
+    // docker:dev runs with TALE_VERSION=dev. Comparing 'dev' vs 'dev' cannot
+    // be parsed as semver, but identical strings are never "newer": no toast,
+    // no dot, and no compare-failed warning on every render.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockVersion = 'dev';
+    mockUseQuery.mockReturnValue(
+      row({ lastSeenChangelogVersion: 'dev', lastToastedVersion: 'dev' }),
+    );
+
+    const result = useChangelogNotification();
+
+    expect(result.hasUnseenVersion).toBe(false);
+    expect(result.shouldShowToast).toBe(false);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('still treats differing unparseable versions as newer', () => {
+    // The parse-failure fallback stays: a malformed *stored* value must not
+    // lock the notification dot off.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockUseQuery.mockReturnValue(
+      row({
+        lastSeenChangelogVersion: 'garbage',
+        lastToastedVersion: 'garbage',
+      }),
+    );
+
+    const result = useChangelogNotification();
+
+    expect(result.hasUnseenVersion).toBe(true);
+    expect(result.shouldShowToast).toBe(true);
+    warnSpy.mockRestore();
+  });
+
   it('records the current version when markSeen is called', () => {
     mockUseQuery.mockReturnValue(null);
 
