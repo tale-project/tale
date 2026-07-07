@@ -4,6 +4,12 @@ import type { Edge, Node } from '@xyflow/react';
 import { MarkerType } from '@xyflow/react';
 import React, { useMemo } from 'react';
 
+import type { FlowEdgeLabelVariant } from '@/app/components/flow/edge-palette';
+import {
+  FLOW_EDGE_COLORS,
+  FLOW_EDGE_MARKER_SIZE,
+  FLOW_EDGE_STROKE_WIDTH,
+} from '@/app/components/flow/edge-palette';
 import type { ElkLayoutOptions } from '@/app/components/flow/layout/elk-layout';
 import { useElkLayout } from '@/app/components/flow/layout/use-elk-layout';
 import { useT } from '@/lib/i18n/client';
@@ -26,7 +32,6 @@ const AUTOMATION_ELK_OPTIONS: ElkLayoutOptions = {
   compoundPadding: { top: 84, right: 24, bottom: 32, left: 24 },
 };
 
-const LOOP_EXIT_KEYS = new Set(['done', 'complete', 'finished', 'exit']);
 const NEGATIVE_BRANCH_KEYS = new Set([
   'reject',
   'false',
@@ -41,28 +46,38 @@ const POSITIVE_BRANCH_KEYS = new Set([
   'success',
   'default',
 ]);
-// Calm, theme-aware gray for the main "spine" (non-branching) connections, so
-// the eye follows the happy path and only decisions/outcomes draw color.
-const NEUTRAL_EDGE_COLOR = 'hsl(var(--muted-foreground))';
+// Next-step keys on an action/llm step that mean "the step itself failed" —
+// the only routes drawn in the error red (see edge-palette.ts).
+const ERROR_PATH_KEYS = new Set(['failure', 'error']);
 
 /**
  * Resolve the color + label for a condition step's branch edge. Standard
- * positive/negative outcomes map to green/"true" and red/"false"; any other
- * (custom) branch key keeps a neutral color but is labeled with its own key,
- * so the path is identifiable rather than an unlabeled gray line (#1486).
+ * positive/negative outcomes map to green/"true" and amber/"false" — never red,
+ * a "No" is a designed branch, not an error (#2370); any other (custom) branch
+ * key keeps a neutral color but is labeled with its own key, so the path is
+ * identifiable rather than an unlabeled gray line (#1486).
  */
 export function resolveConditionBranchEdge(key: string): {
   color: string;
   label: string;
+  variant: FlowEdgeLabelVariant;
 } {
   const keyLower = key.toLowerCase();
   if (NEGATIVE_BRANCH_KEYS.has(keyLower)) {
-    return { color: 'hsl(var(--destructive))', label: 'false' };
+    return {
+      color: FLOW_EDGE_COLORS.negative,
+      label: 'false',
+      variant: 'negative',
+    };
   }
   if (POSITIVE_BRANCH_KEYS.has(keyLower)) {
-    return { color: 'hsl(var(--chart-2))', label: 'true' };
+    return {
+      color: FLOW_EDGE_COLORS.positive,
+      label: 'true',
+      variant: 'positive',
+    };
   }
-  return { color: NEUTRAL_EDGE_COLOR, label: key };
+  return { color: FLOW_EDGE_COLORS.flow, label: key, variant: 'neutral' };
 }
 
 export function useAutomationLayout(steps: StepDef[]) {
@@ -233,25 +248,20 @@ export function useAutomationLayout(steps: StepDef[]) {
               return;
             }
 
-            const isLoopExit = LOOP_EXIT_KEYS.has(keyLower);
             const isNegativePath = NEGATIVE_BRANCH_KEYS.has(keyLower);
             const isPositivePath = POSITIVE_BRANCH_KEYS.has(keyLower);
 
-            let edgeColor = NEUTRAL_EDGE_COLOR;
+            // One documented meaning per color (edge-palette.ts): the spine —
+            // including a loop's exit toward the next step — stays neutral;
+            // only decision outcomes and genuine error routes draw color.
+            let edgeColor: string = FLOW_EDGE_COLORS.flow;
             let edgeLabel: string | undefined = undefined;
-            let edgeStyle: React.CSSProperties = {
-              strokeWidth: 2,
-              stroke: edgeColor,
-            };
+            let labelVariant: FlowEdgeLabelVariant = 'neutral';
 
-            if (step.stepType === 'loop') {
-              if (isLoopExit) {
-                edgeColor = 'hsl(var(--chart-2))';
-                edgeStyle = { strokeWidth: 2, stroke: edgeColor };
-              }
-            } else if (step.stepType === 'condition') {
+            if (step.stepType === 'condition') {
               const branch = resolveConditionBranchEdge(key);
               edgeColor = branch.color;
+              labelVariant = branch.variant;
               // Show plain-language Yes/No at decisions; keep any custom branch
               // key (e.g. a named outcome) as-is so it stays identifiable.
               edgeLabel =
@@ -260,15 +270,20 @@ export function useAutomationLayout(steps: StepDef[]) {
                   : branch.label === 'false'
                     ? t('edges.no')
                     : branch.label;
-              edgeStyle = { strokeWidth: 2, stroke: edgeColor };
             } else if (step.stepType === 'action' || step.stepType === 'llm') {
-              if (isNegativePath) {
-                edgeColor = 'hsl(var(--destructive))';
+              if (ERROR_PATH_KEYS.has(keyLower)) {
+                edgeColor = FLOW_EDGE_COLORS.error;
+              } else if (isNegativePath) {
+                edgeColor = FLOW_EDGE_COLORS.negative;
               } else if (isPositivePath) {
-                edgeColor = 'hsl(var(--chart-2))';
+                edgeColor = FLOW_EDGE_COLORS.positive;
               }
-              edgeStyle = { strokeWidth: 2, stroke: edgeColor };
             }
+
+            const edgeStyle: React.CSSProperties = {
+              strokeWidth: FLOW_EDGE_STROKE_WIDTH,
+              stroke: edgeColor,
+            };
 
             const targetStepData = sortedSteps.find(
               (s) => s.stepSlug === targetStepSlug,
@@ -322,17 +337,19 @@ export function useAutomationLayout(steps: StepDef[]) {
                     : -2,
               markerEnd: {
                 type: MarkerType.ArrowClosed,
-                width: 18,
-                height: 18,
+                width: FLOW_EDGE_MARKER_SIZE,
+                height: FLOW_EDGE_MARKER_SIZE,
                 color: edgeColor,
               },
               style: {
                 ...edgeStyle,
+                // Loop-back edges: same neutral color, dashed — the shape
+                // encodes the cycle so color keeps its one meaning.
                 ...(isBackwardConnection
                   ? {
                       strokeDasharray: '5,5',
                       opacity: 0.7,
-                      strokeWidth: 2,
+                      strokeWidth: FLOW_EDGE_STROKE_WIDTH,
                     }
                   : {}),
               },
@@ -342,22 +359,9 @@ export function useAutomationLayout(steps: StepDef[]) {
               data: {
                 isBackward: isBackwardConnection,
                 label: edgeLabel,
-                // Outline badge in the branch color (colored text + border on a
-                // solid background), matching its arrow without a heavy fill.
-                labelStyle: edgeLabel
-                  ? {
-                      fill: edgeColor,
-                      fontSize: '11px',
-                      fontWeight: 600,
-                    }
-                  : undefined,
-                labelBgStyle: edgeLabel
-                  ? {
-                      fill: 'hsl(var(--background))',
-                      stroke: edgeColor,
-                      strokeWidth: 1.5,
-                    }
-                  : undefined,
+                // Semantic badge treatment; the edge renderer resolves it to
+                // AA-contrast token classes per theme (edge-palette.ts).
+                labelVariant: edgeLabel ? labelVariant : undefined,
                 isBackwardConnection,
               },
             });
