@@ -93,7 +93,7 @@ bun run docker:dev:down   # tear down when finished
   cert — run `docker exec tale-proxy caddy trust`, or ignore HTTPS errors in
   the driving browser; `save-auth-state.ts` below already does).
 - **Readiness**: `curl -skf https://localhost/api/health` returns
-  `{"status":"ok"}` once the platform is up.
+  `{"status":"ok","version":"…"}` once the platform is up.
 - **Seeded login**: the entrypoint creates **`dev@tale.test` /
   `TaleDev!Passw0rd`** owning a "Dev Workspace" org on every boot (idempotent;
   default-on via `TALE_DEV_SEED_USER=1` in `compose.dev.yml`, loopback-only by
