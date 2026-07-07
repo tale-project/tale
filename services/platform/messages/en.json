@@ -5649,6 +5649,7 @@
       "nameRequired": "Organization name is required",
       "localeDescription": "Primary language for your organization.",
       "organizationId": "Organization ID",
+      "organizationIdDescription": "The unique identifier for your organization.",
       "membersSectionTitle": "Members",
       "membersDescription": "People who have access to this organization.",
       "membersEntityLabel": "members",
