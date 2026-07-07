@@ -77,7 +77,11 @@ export async function executeSandboxNode(
         internal.sandbox.session_queries.getSessionBySessionId,
         { sessionId },
       );
-      sharedSessionLive = live !== null;
+      // A `stopped` (hibernated) row freed its per-org slot, so it must pass
+      // the admission poll below like a fresh session — the resume mutation
+      // then claims the parked ticket when it re-takes the slot. Only a row
+      // that still HOLDS a slot (creating|active|degraded) skips admission.
+      sharedSessionLive = live !== null && live.status !== 'stopped';
     }
   }
   if (canPark && !resuming && !sharedSessionLive) {

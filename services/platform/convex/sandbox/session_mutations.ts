@@ -27,6 +27,7 @@ import {
   sessionBudgetForOwnerType,
   sessionCapFor,
 } from './quota_policy';
+import { workflowExecutionOwnerId } from './session_naming';
 import {
   isLiveSessionStatus,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -448,6 +449,71 @@ export const resumeStoppedSession = internalMutation({
   },
 });
 
+/**
+ * Reuse-path resume for a WORKFLOW-SCOPED sandbox row. An `active`/`creating`
+ * row already holds a per-org slot — this is just an idempotent refresh. A
+ * `stopped` (hibernated) row freed its slot when it stopped, so flipping it
+ * back RE-ADMITS through the same FIFO ticket queue as
+ * `reserveSessionSlotAndInsert`: claim the ticket the `executeSandboxNode`
+ * poll parked (throws WAIT_FIFO when not at the head of an open slot — the
+ * caller parks as `awaiting_capacity`), so a paused run resuming under org
+ * pressure queues fairly instead of jumping to cap+1. Atomic with the status
+ * read — the caller needs no pre-check of the row's current status.
+ */
+export const resumeWorkflowSessionSlot = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    ticket: reserveTicketArg,
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status === 'stopped' && row.pinned !== true) {
+        const ticketArgs: AdmissionTicketArgs = {
+          organizationId: args.organizationId,
+          kind: 'session',
+          ownerType: row.ownerType,
+          ownerId: row.ownerId,
+          source: args.ticket.source,
+          ...(args.ticket.threadId !== undefined && {
+            threadId: args.ticket.threadId,
+          }),
+          ...(args.ticket.wfExecutionId !== undefined && {
+            wfExecutionId: args.ticket.wfExecutionId,
+          }),
+          ...(args.ticket.stepSlug !== undefined && {
+            stepSlug: args.ticket.stepSlug,
+          }),
+        };
+        const ticketCreatedAt = await upsertWaitingTicket(ctx, ticketArgs, now);
+        await assertFifoEligible(
+          ctx,
+          args.organizationId,
+          'session',
+          ticketCreatedAt,
+          sessionBudgetForOwnerType(row.ownerType),
+        );
+        await claimTicket(ctx, row.ownerType, row.ownerId, now);
+      }
+      await ctx.db.patch(row._id, {
+        status: 'active',
+        lastActivityAt: now,
+        ...(row.pinned === true
+          ? {}
+          : { expiresAt: now + SANDBOX_SESSION_MAX_LIFETIME_MS }),
+      });
+      return true;
+    }
+    return false;
+  },
+});
+
 // --- session virtual-key bookkeeping ---------------------------------------
 
 /** Persist a minted session token's sha256 hash + scope (never the plaintext). */
@@ -633,21 +699,75 @@ export const deleteAgentCheckpoint = internalMutation({
 
 /** Drop every checkpoint row for a spawner session — the step-scoped row (when
  * scope is `step`) and all `${spawnerSessionId}::${stepSlug}` rows (when scope
- * is `workflow`). Used at workflow-scoped session teardown. */
+ * is `workflow`). Used at workflow-scoped session teardown. Two indexed passes
+ * on `by_sessionId`: an exact match plus the `::` prefix range (`:` `;` bounds
+ * — `;` is `:` + 1, so the range covers exactly the `::`-prefixed keys). */
 export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
   args: { spawnerSessionId: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const prefix = `${args.spawnerSessionId}::`;
-    for await (const row of ctx.db.query('sandboxAgentCheckpoints')) {
-      if (
-        row.sessionId === args.spawnerSessionId ||
-        row.sessionId.startsWith(prefix)
-      ) {
-        await ctx.db.delete(row._id);
-      }
+    for await (const row of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) =>
+        q.eq('sessionId', args.spawnerSessionId),
+      )) {
+      await ctx.db.delete(row._id);
+    }
+    for await (const row of ctx.db
+      .query('sandboxAgentCheckpoints')
+      .withIndex('by_sessionId', (q) =>
+        q
+          .gte('sessionId', `${args.spawnerSessionId}::`)
+          .lt('sessionId', `${args.spawnerSessionId}:;`),
+      )) {
+      await ctx.db.delete(row._id);
     }
     return null;
+  },
+});
+
+/**
+ * Hibernate a workflow execution's WORKFLOW-SCOPED sandbox at a human-gate
+ * pause: flip its row to `stopped` so the (creating|active) in-flight count —
+ * and with it a per-org workflow session slot — is freed for the whole time
+ * the run waits on a human, instead of pinning capacity for up to the row
+ * TTL. The container itself is left to the spawner's idle sweep (workspace
+ * preserved either way); the resume path re-creates against the preserved
+ * workspace and flips the row back via `resumeStoppedSession`. Skips pinned
+ * rows and (defensively) a session that still has a RUNNING agent-run op.
+ * Idempotent; returns whether a row flipped.
+ */
+export const hibernateWorkflowScopedSession = internalMutation({
+  args: { executionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    let stopped = false;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q
+          .eq('ownerType', 'workflow_run')
+          .eq('ownerId', workflowExecutionOwnerId(args.executionId)),
+      )) {
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status === 'stopped' || row.pinned === true) continue;
+      let hasRunningAgentRun = false;
+      for await (const op of ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
+        if (op.kind === 'agent-run' && op.status === 'running') {
+          hasRunningAgentRun = true;
+          break;
+        }
+      }
+      if (hasRunningAgentRun) continue;
+      await ctx.db.patch(row._id, { status: 'stopped' });
+      stopped = true;
+      if (row.organizationId) {
+        await scheduleSessionCapacityWake(ctx, row.organizationId);
+      }
+    }
+    return stopped;
   },
 });
 

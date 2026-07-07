@@ -1,6 +1,6 @@
 {
   "name": "Issue resolution desk",
-  "description": "A config-driven, repo-agnostic issue-resolution desk with a shared workflow sandbox across four phases — Advise (planner explores the issue and writes .desk/plan.md), Execute (implementer follows the plan, dedupes open PRs, fixes the issue, and waits for CI), Grade (reviewer grades the change, posts PR comments, and writes structured .desk/grade.json), and Dream (retrospective appends durable lessons to .desk/memory.md for the next round). A GitHub issue (bound to a task by the github sync) flows through pre-checks, then the advisor plans; if the plan flags NEEDS_HUMAN the desk pauses in the same run for a human plan review (TaskReviewCard) before Execute — the shared sandbox stays alive. Otherwise the implementer resolves the issue on a persistent workspace — adopting an existing open PR when one already resolves the issue, or opening tale/<id> — then the reviewer grades and a toolless LLM judge reads the structured grade to decide merge-readiness. Wrong approach sends the run back to Advise for a replan; approval parks at In review; otherwise Dream captures lessons and the desk loops Execute → Grade → Judge until the judge approves or the configurable rework cap (config.variables.maxReworkLoops, default 3) is reached. Cross-phase state lives in .desk/ on the shared workspace plus reworkCount in workflow variables. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
+  "description": "A config-driven, repo-agnostic issue-resolution desk with a shared workflow sandbox across four phases — Advise (planner explores the issue and writes .desk/plan.md), Execute (implementer follows the plan, dedupes open PRs, fixes the issue, and waits for CI), Grade (reviewer grades the change, posts PR comments, and writes structured .desk/grade.json), and Dream (retrospective appends durable lessons to .desk/memory.md for the next round). A GitHub issue (bound to a task by the github sync) flows through pre-checks, then the advisor plans; if the plan flags NEEDS_HUMAN the desk pauses in the same run for a human plan review (TaskReviewCard) before Execute — the shared sandbox stays alive. Otherwise the implementer resolves the issue on a persistent workspace — adopting an existing open PR when one already resolves the issue, or opening tale/<id> — then the reviewer grades and a toolless LLM judge reads the structured grade to decide merge-readiness. Wrong approach sends the run back to Advise for a replan (bounded by the same rework cap); approval parks at In review; otherwise Dream captures lessons and the desk loops Execute → Grade → Judge until the judge approves or the configurable rework cap (config.variables.maxReworkLoops, default 3) is reached. Cross-phase state lives in .desk/ on the shared workspace plus reworkCount in workflow variables. Every step carries ui/role annotations so the generic operator workspace renders it with no per-vertical UI code.",
   "version": "2.0.0",
   "metadata": {
     "pack": "issue-desk",
@@ -11,8 +11,6 @@
     "variables": {
       "workflowId": "issue_desk_process",
       "maxReworkLoops": 3,
-      "planReviewRound": 0,
-      "planReviewFeedback": "",
       "roles": {
         "advisor": "issue-desk/desk-advisor",
         "implementer": "issue-desk/desk-implementer",
@@ -176,7 +174,36 @@
         }
       },
       "nextSteps": {
-        "success": "advise_gate"
+        "success": "advise_check"
+      }
+    },
+    {
+      "stepSlug": "advise_check",
+      "name": "Did the advisor produce a plan?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.advise.output.data.ok == true",
+        "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. A failed advisor run (timeout, crash) must not flow into Execute with a synthesized summary and no plan — return the task to To do instead."
+      },
+      "nextSteps": {
+        "true": "advise_gate",
+        "false": "advise_failed_comment"
+      }
+    },
+    {
+      "stepSlug": "advise_failed_comment",
+      "name": "Explain the advisor failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The advisor could not produce a plan for this issue: {{steps.advise.output.data.error || steps.advise.output.data.summary || 'no output'}} — returned to To do."
+        }
+      },
+      "nextSteps": {
+        "success": "rollback"
       }
     },
     {
@@ -213,8 +240,8 @@
       "name": "First plan review round?",
       "stepType": "condition",
       "config": {
-        "expression": "variables.planReviewRound == 0",
-        "description": "Plan-review gate round 0 uses request_plan_review; round 1 uses request_plan_re_review; round 2+ escalates to manual takeover."
+        "expression": "(variables.planReviewRound || 0) == 0",
+        "description": "Plan-review gate round 0 uses request_plan_review; round 1 uses request_plan_re_review; round 2+ escalates to manual takeover. The `|| 0` guard is load-bearing: `variables.*` entries exist only after a set_variables step wrote them (config.variables seeds the `config.*` namespace, NOT `variables.*`), so the first NEEDS_HUMAN reads undefined here."
       },
       "nextSteps": {
         "true": "request_plan_review",
@@ -226,8 +253,8 @@
       "name": "Second plan review round?",
       "stepType": "condition",
       "config": {
-        "expression": "variables.planReviewRound == 1",
-        "description": "After one Request changes cycle, a still-ambiguous plan gets a fresh approval gate. If both rounds are exhausted, park at In review for manual takeover."
+        "expression": "(variables.planReviewRound || 0) == 1",
+        "description": "After one Request changes cycle, a still-ambiguous plan gets a fresh approval gate. If both rounds are exhausted, park at In review for manual takeover. Guarded like plan_review_pick — `variables.planReviewRound` is unset until a bump step writes it."
       },
       "nextSteps": {
         "true": "request_plan_re_review",
@@ -289,8 +316,8 @@
       "name": "Plan approved?",
       "stepType": "condition",
       "config": {
-        "expression": "steps.request_plan_review.output.data.decision == 'approve' || steps.request_plan_re_review.output.data.decision == 'approve'",
-        "description": "After the human responds, the engine re-executes the review step, which returns the recorded decision instead of creating a duplicate request."
+        "expression": "((variables.planReviewRound || 0) == 0 ? steps.request_plan_review.output.data.decision : steps.request_plan_re_review.output.data.decision) == 'approve'",
+        "description": "After the human responds, the engine re-executes the review step, which returns the recorded decision instead of creating a duplicate request. Round-aware: only THIS round's gate decides — an approve recorded on an earlier round must never leak into a later NEEDS_HUMAN cycle."
       },
       "nextSteps": {
         "true": "plan_approved_comment",
@@ -326,6 +353,25 @@
           "operation": "comment",
           "taskId": "{{input.task._id}}",
           "body": "[automated] Plan approved — the desk continues with implementation on the shared workspace."
+        }
+      },
+      "nextSteps": {
+        "success": "bump_plan_round_approved"
+      }
+    },
+    {
+      "stepSlug": "bump_plan_round_approved",
+      "name": "Count the approved plan review round",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "planReviewRound",
+              "value": "{{(variables.planReviewRound || 0) + 1}}"
+            }
+          ]
         }
       },
       "nextSteps": {
@@ -500,7 +546,36 @@
         }
       },
       "nextSteps": {
-        "success": "judge"
+        "success": "grade_check"
+      }
+    },
+    {
+      "stepSlug": "grade_check",
+      "name": "Did the reviewer produce a grade?",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.grade.output.data.ok == true",
+        "description": "A sandbox step always returns the success port; the real verdict is in output.data.ok. A failed grade run (timeout, crash) must not reach the judge — it would decide from an empty grade and could burn a full replan loop on a guess. The implementation and PR exist, so park for a human instead."
+      },
+      "nextSteps": {
+        "true": "judge",
+        "false": "grade_failed_comment"
+      }
+    },
+    {
+      "stepSlug": "grade_failed_comment",
+      "name": "Explain the reviewer failure",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The reviewer could not grade the change: {{steps.grade.output.data.error || steps.grade.output.data.summary || 'no output'}} — the pull request is left open with the latest implementation; a human should review it. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
       }
     },
     {
@@ -549,7 +624,7 @@
       "stepType": "condition",
       "config": {
         "expression": "'yes' in steps.judge.output.data",
-        "description": "The judge replies with a bare yes/no verdict line (trimmed); jexl `in` does substring, and a 'no' can never contain 'yes', so this never false-approves. If yes, park for human merge; otherwise route through Dream and the rework counter."
+        "description": "The judge replies with two lines (severity + a yes/no verdict); jexl `in` does substring, and neither a 'no' verdict nor any severity word (merge_ready, minor_fix, major_rework, wrong_approach) contains 'yes', so this never false-approves. If yes, park for human merge; otherwise route through Dream and the rework counter."
       },
       "nextSteps": {
         "true": "dream_pass",
@@ -573,7 +648,7 @@
         "run": {
           "agent": "issue-desk/desk-dreamer",
           "sessionScope": "workflow",
-          "instructions": "The judge ruled wrong_approach for issue #{{input.issueNumber}} ('{{input.task.title}}'). Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}.\n\nRead all files under `/user/workspace/.desk/`. Append durable lessons to `.desk/memory.md` about why the approach failed and what to avoid next round. Write `/user/output/summary.md` listing what you appended.",
+          "instructions": "The judge ruled wrong_approach for issue #{{input.issueNumber}} ('{{input.task.title}}'). Rework loops so far: {{variables.reworkCount || 0}}/{{config.maxReworkLoops}}; replans so far: {{variables.replanCount || 0}}/{{config.maxReworkLoops}}.\n\nRead all files under `/user/workspace/.desk/`. Append durable lessons to `.desk/memory.md` about why the approach failed and what to avoid next round. Write `/user/output/summary.md` listing what you appended.",
           "budget": {
             "maxCents": 50,
             "maxWallClockMs": 600000,
@@ -582,7 +657,55 @@
         }
       },
       "nextSteps": {
-        "success": "assign_advisor"
+        "success": "bump_replan"
+      }
+    },
+    {
+      "stepSlug": "bump_replan",
+      "name": "Count this replan loop",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "replanCount",
+              "value": "{{(variables.replanCount || 0) + 1}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "replan_gate"
+      }
+    },
+    {
+      "stepSlug": "replan_gate",
+      "name": "Replan attempts remaining?",
+      "stepType": "condition",
+      "config": {
+        "expression": "variables.replanCount <= config.maxReworkLoops",
+        "description": "Bounds the judge's wrong_approach → Advise replan loop the same way rework_gate bounds Execute rework — without it a judge that keeps ruling wrong_approach would loop Advise+Execute+Grade (burning their budgets each round) until the workflow timeout. Within budget, replan; once exhausted, escalate to a human."
+      },
+      "nextSteps": {
+        "true": "assign_advisor",
+        "false": "replan_exhausted_comment"
+      }
+    },
+    {
+      "stepSlug": "replan_exhausted_comment",
+      "name": "Replan limit reached — escalate to a human",
+      "stepType": "action",
+      "config": {
+        "type": "task",
+        "parameters": {
+          "operation": "comment",
+          "taskId": "{{input.task._id}}",
+          "body": "[automated] The desk reached its replan limit ({{config.maxReworkLoops}} replans; used {{variables.replanCount}}) — the judge keeps ruling the approach unsound. The latest attempt and review feedback are on the pull request — a human should take it over from here. Moving to In review."
+        }
+      },
+      "nextSteps": {
+        "success": "to_review"
       }
     },
     {

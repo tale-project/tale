@@ -64,7 +64,6 @@ import { resolveLanguageModel } from '../../providers/resolve_model';
 import { isWaitFifoError } from '../../sandbox/admission';
 import {
   resolveWorkflowSandboxSession,
-  sessionIdForWorkflowExecution,
   sessionIdForWorkflowRun,
   workflowRunOwnerId,
   type SandboxSessionScope,
@@ -81,8 +80,10 @@ import {
   SessionNotFoundError,
   SpawnerBusyError,
   sessionCreate,
+  sessionDeleteFiles,
   sessionDestroy,
   sessionEnvPatch,
+  sessionIsAlive,
   sessionListFiles,
   sessionReadFile,
   sessionStageFiles,
@@ -1016,7 +1017,11 @@ export const runSandboxAgent = internalAction({
     };
 
     // A re-entry that already exceeded the total budget / backstop → force a
-    // terminal teardown (harvest whatever exists, return a timeout).
+    // terminal teardown (harvest whatever exists, return a timeout). A
+    // workflow-scoped session must SURVIVE this step's timeout — later steps
+    // (and the human-pause resume) still need the shared workspace — so only
+    // this step's checkpoint is dropped; the session itself is torn down at
+    // workflow completion.
     if (
       resuming &&
       (Date.now() >= hardDeadlineMs ||
@@ -1028,7 +1033,21 @@ export const runSandboxAgent = internalAction({
         collectDir,
         undefined,
       );
-      await teardownAgentSession(ctx, args.organizationId, sessionId);
+      if (preserveSessionAfterStep) {
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.deleteAgentCheckpoint,
+            { sessionId: checkpointKey },
+          );
+        } catch (cleanupErr) {
+          console.warn(
+            '[runSandboxAgent] budget-exhausted checkpoint cleanup failed:',
+            cleanupErr,
+          );
+        }
+      } else {
+        await teardownAgentSession(ctx, args.organizationId, sessionId);
+      }
       await finalizeRunMetric(
         'timed_out',
         'error',
@@ -1181,10 +1200,81 @@ export const runSandboxAgent = internalAction({
             { rowId, status: 'active', lastActivityAt: Date.now() },
           );
         } else {
+          // Re-take the slot FIRST (before building any compute): a stopped
+          // (hibernated) row freed its per-org slot, so the mutation re-admits
+          // through the FIFO ticket queue (throws WAIT_FIFO → the catch below
+          // parks this step as awaiting_capacity); an active row is just an
+          // idempotent refresh.
           await ctx.runMutation(
-            internal.sandbox.session_mutations.resumeStoppedSession,
-            { organizationId: args.organizationId, sessionId },
+            internal.sandbox.session_mutations.resumeWorkflowSessionSlot,
+            {
+              organizationId: args.organizationId,
+              sessionId,
+              ticket: {
+                source: 'workflow',
+                wfExecutionId: args.executionId,
+                stepSlug: args.stepSlug,
+              },
+            },
           );
+          // The row is live but the CONTAINER may be gone: the spawner's
+          // idle/TTL sweep STOPS a quiet session (workspace preserved, registry
+          // entry dropped) — guaranteed during a human-review pause longer than
+          // the idle window. Only sessionCreate resurrects a stopped session
+          // (re-attaching the preserved workspace), so probe and re-create —
+          // same pattern as ensureThreadSession.
+          if (!(await sessionIsAlive(sessionId))) {
+            try {
+              await sessionCreate({
+                sessionId,
+                organizationId: args.organizationId,
+                profile: 'agent',
+                ttlMs,
+                idleTimeoutMs: ttlMs,
+              });
+            } catch (createErr) {
+              // A duplicate means the aliveness probe raced a live container —
+              // the session exists after all. Anything else: hand the slot
+              // back (flip the row to stopped) before surfacing, so a parked
+              // peer isn't starved by a slot-holding row with no container.
+              if (!(createErr instanceof SessionDuplicateError)) {
+                try {
+                  await ctx.runMutation(
+                    internal.sandbox.session_mutations.markSessionRowStopped,
+                    { organizationId: args.organizationId, sessionId },
+                  );
+                } catch (stopErr) {
+                  console.warn(
+                    '[runSandboxAgent] slot give-back after failed re-create failed:',
+                    stopErr,
+                  );
+                }
+                throw createErr;
+              }
+            }
+          }
+        }
+
+        // 1b. The shared workspace carries the PREVIOUS run's collect dir —
+        // clear it before this step executes so the harvest below only ever
+        // sees files THIS run wrote. A stale summary.md would set
+        // summaryWritten and mask a laundered API error as a genuine handoff;
+        // a stale grade.json would feed the judge the previous round's grade.
+        if (preserveSessionAfterStep) {
+          try {
+            const staleEntries = await sessionListFiles(sessionId, collectDir);
+            const stalePaths = (staleEntries ?? [])
+              .filter((entry) => entry.type === 'file')
+              .map((entry) => `${collectDir}/${entry.name}`);
+            if (stalePaths.length > 0) {
+              await sessionDeleteFiles(sessionId, stalePaths);
+            }
+          } catch (precleanErr) {
+            console.warn(
+              '[runSandboxAgent] collect-dir pre-clean failed:',
+              precleanErr,
+            );
+          }
         }
 
         // 2. Provider provisioning + gateway auth-hardening (managed only) so the
@@ -1903,7 +1993,7 @@ export const runSandboxAgent = internalAction({
             ),
             timeoutMs: Math.max(0, hardDeadlineMs - Date.now()),
           });
-          ({ outputFileIds, outputFiles, summary, summaryWritten } =
+          ({ outputFileIds, outputFiles, summary, summaryWritten, gradeJson } =
             await harvestSandboxOutput(
               ctx,
               sessionId,
@@ -2001,6 +2091,22 @@ export const runSandboxAgent = internalAction({
       // re-creates) — re-cloning + continuing from the already-pushed branch —
       // instead of giving up with ok:false on a checkpoint it can never resume.
       if (resuming && e instanceof SessionNotFoundError) {
+        // Workflow scope skips the finally-teardown, so drop the dead
+        // checkpoint HERE — otherwise every retry would re-load it, re-attach
+        // the dead exec, and loop until the engine's retry budget exhausts.
+        if (preserveSessionAfterStep) {
+          try {
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.deleteAgentCheckpoint,
+              { sessionId: checkpointKey },
+            );
+          } catch (checkpointErr) {
+            console.warn(
+              '[runSandboxAgent] dead-checkpoint cleanup failed:',
+              checkpointErr,
+            );
+          }
+        }
         throw e;
       }
       // An infrastructure/execution error: propagate to the workflow step's
@@ -2065,6 +2171,24 @@ export const runSandboxAgent = internalAction({
         'error',
         e instanceof Error ? e.message : String(e),
       );
+      // A workflow-scoped step's terminal FAILURE must still drop its own
+      // checkpoint (the finally skips teardown): the desk re-executes the same
+      // slug on its rework/replan loops, and a surviving row would make that
+      // fresh run "resume" a dead exec — or trip the budget-exhausted early
+      // exit with the failed attempt's stale continuation state.
+      if (preserveSessionAfterStep) {
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.deleteAgentCheckpoint,
+            { sessionId: checkpointKey },
+          );
+        } catch (checkpointErr) {
+          console.warn(
+            '[runSandboxAgent] failed-step checkpoint cleanup failed:',
+            checkpointErr,
+          );
+        }
+      }
       return fail(e instanceof Error ? e.message : String(e));
     } finally {
       // Teardown UNLESS we handed off mid-run (then the session + VK + exec must

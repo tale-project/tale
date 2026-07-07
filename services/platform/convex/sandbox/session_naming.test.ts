@@ -71,13 +71,23 @@ describe('workflow-scoped sandbox sessions', () => {
     );
   });
 
+  it('never collides with a step literally named "workflow"', () => {
+    const resolved = resolveWorkflowSandboxSession({
+      executionId: EXEC,
+      stepSlug: 'workflow',
+      sessionScope: 'step',
+    });
+    expect(resolved.sessionId).not.toBe(sessionIdForWorkflowExecution(EXEC));
+    expect(resolved.ownerId).not.toBe(`${EXEC}:@workflow`);
+  });
+
   it('resolveWorkflowSandboxSession maps workflow scope to shared owner', () => {
     const resolved = resolveWorkflowSandboxSession({
       executionId: EXEC,
       stepSlug: 'grade',
       sessionScope: 'workflow',
     });
-    expect(resolved.ownerId).toBe(`${EXEC}:workflow`);
+    expect(resolved.ownerId).toBe(`${EXEC}:@workflow`);
     expect(resolved.checkpointKey).toContain('::grade');
     expect(resolved.sessionScope).toBe('workflow');
   });

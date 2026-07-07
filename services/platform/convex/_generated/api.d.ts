@@ -988,6 +988,8 @@ import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_co
 import type * as migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta from "../migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta.js";
 import type * as migrations_versions_v0_3_3_01_normalize_auth_user_emails_index from "../migrations/versions/v0_3_3/01_normalize_auth_user_emails/index.js";
 import type * as migrations_versions_v0_3_3_01_normalize_auth_user_emails_meta from "../migrations/versions/v0_3_3/01_normalize_auth_user_emails/meta.js";
+import type * as migrations_versions_v0_3_4_01_branding_single_accent_color_index from "../migrations/versions/v0_3_4/01_branding_single_accent_color/index.js";
+import type * as migrations_versions_v0_3_4_01_branding_single_accent_color_meta from "../migrations/versions/v0_3_4/01_branding_single_accent_color/meta.js";
 import type * as model_catalog_mutations from "../model_catalog/mutations.js";
 import type * as model_catalog_queries from "../model_catalog/queries.js";
 import type * as model_catalog_sync from "../model_catalog/sync.js";
@@ -2672,6 +2674,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_2_90/01_agent_kind_opencode_to_claude_code/meta": typeof migrations_versions_v0_2_90_01_agent_kind_opencode_to_claude_code_meta;
   "migrations/versions/v0_3_3/01_normalize_auth_user_emails/index": typeof migrations_versions_v0_3_3_01_normalize_auth_user_emails_index;
   "migrations/versions/v0_3_3/01_normalize_auth_user_emails/meta": typeof migrations_versions_v0_3_3_01_normalize_auth_user_emails_meta;
+  "migrations/versions/v0_3_4/01_branding_single_accent_color/index": typeof migrations_versions_v0_3_4_01_branding_single_accent_color_index;
+  "migrations/versions/v0_3_4/01_branding_single_accent_color/meta": typeof migrations_versions_v0_3_4_01_branding_single_accent_color_meta;
   "model_catalog/mutations": typeof model_catalog_mutations;
   "model_catalog/queries": typeof model_catalog_queries;
   "model_catalog/sync": typeof model_catalog_sync;

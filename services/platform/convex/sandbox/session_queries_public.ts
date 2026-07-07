@@ -155,13 +155,29 @@ export const getWorkflowSandboxOp = query({
       args.stepSlug,
     );
     const workflowSessionId = sessionIdForWorkflowExecution(args.executionId);
+    // A WORKFLOW-SCOPED session carries every step's ops under one sessionId,
+    // so match this step's execs by execId — the canonical `execId` plus its
+    // derived incarnations (`-t<n>` failover, `-summary` re-entry) — or a
+    // sibling step's newer op would shadow the one this card is about.
+    const stepExecId = `${args.executionId}-${args.stepSlug}`;
+    const isThisStepsExec = (execId: string) =>
+      execId === stepExecId || execId.startsWith(`${stepExecId}-`);
     for (const sessionId of [workflowSessionId, stepSessionId]) {
-      const op = await ctx.db
+      let op = null;
+      for await (const candidate of ctx.db
         .query('sandboxSessionOps')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
-        .order('desc')
-        .filter((q) => q.eq(q.field('kind'), 'agent-run'))
-        .first();
+        .order('desc')) {
+        if (candidate.kind !== 'agent-run') continue;
+        if (
+          sessionId === workflowSessionId &&
+          !isThisStepsExec(candidate.execId)
+        ) {
+          continue;
+        }
+        op = candidate;
+        break;
+      }
       if (!op) continue;
       if (op.organizationId !== args.organizationId) continue;
       return {

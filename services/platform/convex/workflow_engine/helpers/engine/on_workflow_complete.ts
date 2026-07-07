@@ -114,17 +114,20 @@ export async function handleWorkflowComplete(
     if (kind !== 'canceled') {
       await postCompletionMessageToThread(ctx, exec, kind, result);
     }
-    // Tear down any workflow-scoped sandbox sessions held by this execution.
-    await ctx.scheduler.runAfter(
-      0,
-      internal.node_only.sandbox.workflow_sandbox_exec
-        .cancelSandboxForExecution,
-      {
-        organizationId: exec.organizationId,
-        executionId: String(exec._id),
-      },
-    );
   }
+  // Tear down any workflow-scoped sandbox sessions held by this execution.
+  // OUTSIDE the wasTerminal gate: an execution that was already marked failed
+  // before this hook fires (e.g. failExecution-then-throw on a bad step ref)
+  // must still release its shared session instead of leaking it to the 24h
+  // reaper. Idempotent — no live sessions → no-op.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.node_only.sandbox.workflow_sandbox_exec.cancelSandboxForExecution,
+    {
+      organizationId: exec.organizationId,
+      executionId: String(exec._id),
+    },
+  );
 }
 
 async function updateTriggeringApprovalStatus(
