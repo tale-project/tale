@@ -129,6 +129,19 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
     expect(
       agentJsonSchema.safeParse({
         ...externalBase,
+        agentKind: 'pi',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'pi',
+        authMode: 'byo',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
         agentKind: 'openclaw',
       }).success,
     ).toBe(true);

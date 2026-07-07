@@ -10,6 +10,7 @@ import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import { OpenClawAdapter } from './openclaw/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
+import { PiAdapter } from './pi/adapter';
 import type { AgentAdapter } from './types';
 
 const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
@@ -19,6 +20,7 @@ const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   hermes: new HermesAdapter(),
   gemini: new GeminiCliAdapter(),
   codex: new CodexAdapter(),
+  pi: new PiAdapter(),
   openclaw: new OpenClawAdapter(),
 };
 

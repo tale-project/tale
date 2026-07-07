@@ -373,6 +373,7 @@ export const runExternalAgentTurn = internalAction({
       v.literal('hermes'),
       v.literal('gemini'),
       v.literal('codex'),
+      v.literal('pi'),
       v.literal('openclaw'),
     ),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and

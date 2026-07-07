@@ -1,8 +1,8 @@
 # @tale/agent-adapters
 
 Entry-agnostic adapters for driving coding agents (Claude Code, Cursor,
-OpenCode, Hermes Agent, Gemini CLI, Codex, OpenClaw) inside a Tale sandbox
-session.
+OpenCode, Hermes Agent, Gemini CLI, Codex, Pi, OpenClaw) inside a Tale
+sandbox session.
 
 Two responsibilities, both pure logic with **zero runtime dependencies**:
 

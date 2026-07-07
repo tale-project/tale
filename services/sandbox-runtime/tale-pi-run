@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Tale sandbox wrapper for Pi — stages per-exec config, then runs
+`pi --mode json` (NDJSON on stdout, passed through).
+
+The platform adapter (pi/adapter.ts) sends ONE JSON object on stdin:
+  {"prompt": ..., "system_prompt"?: ..., "models"?: {...}, "settings"?: {...}}
+and pi/parse.ts normalizes the CLI's JSON event stream into AgentEvent[]. The
+wrapper exists because three inputs have no safe CLI flag and must be ON DISK
+before the CLI starts (verified @earendil-works/pi-coding-agent 0.80.3):
+
+  - models.json (managed gateway provider: baseUrl <gateway>/openai/v1 +
+    apiKey "$TALE_GATEWAY_TOKEN" env interpolation, so the file never holds
+    the key) — staged into a PRIVATE per-exec config dir pointed at via
+    PI_CODING_AGENT_DIR, so concurrent execs sharing this HOME never read
+    each other's provider config.
+  - settings.json (enableInstallTelemetry off) — same per-exec dir.
+  - the system-prompt APPEND — staged as <config dir>/APPEND_SYSTEM.md,
+    which Pi auto-discovers and APPENDS to its default system prompt
+    (SYSTEM.md would replace it and drop the defaults).
+
+Sessions stay OUT of the per-exec dir: PI_CODING_AGENT_SESSION_DIR pins them
+to a stable HOME path so `--resume <id>` (Pi `--session <id>`) finds prior
+turns. Global skills keep working because Pi also loads ~/.agents/skills, a
+homedir path independent of the config-dir override.
+
+The prompt itself rides the child's stdin — Pi's native headless prompt
+source — never argv (process lists leak argv, and a leading-dash prompt would
+parse as a flag). `--approve` trusts the workspace's project-local files for
+the run: the container is the safety boundary (parity with Claude Code
+bypassPermissions / Gemini yolo).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def emit(event: dict) -> None:
+    """One NDJSON line on stdout. `wrapper_error` is the wrapper's own
+    dialect (documented in pi/parse.ts) — Pi has no generic error event."""
+    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def fail(message: str, code: int = 1) -> int:
+    emit({"type": "wrapper_error", "message": message})
+    return code
+
+
+def read_stdin_payload() -> dict | None:
+    try:
+        payload = json.loads(sys.stdin.read())
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Pi for Tale sandbox")
+    parser.add_argument("--workdir", default="/user/workspace")
+    parser.add_argument("--model")
+    parser.add_argument("--provider")
+    parser.add_argument("--resume")
+    args = parser.parse_args()
+
+    payload = read_stdin_payload()
+    if payload is None:
+        return fail(
+            'stdin must carry {"prompt": ..., "system_prompt"?: ..., '
+            '"models"?: ..., "settings"?: ...} as JSON'
+        )
+    prompt = payload["prompt"]
+    system_prompt = payload.get("system_prompt")
+    if not isinstance(system_prompt, str) or not system_prompt.strip():
+        system_prompt = None
+    models = payload.get("models")
+    if not isinstance(models, dict):
+        models = None
+    settings = payload.get("settings")
+    if not isinstance(settings, dict):
+        settings = {}
+
+    home = os.environ.get("HOME") or os.path.expanduser("~")
+    stage_dir = None
+    try:
+        stage_dir = tempfile.mkdtemp(prefix="tale-pi-")
+        agent_dir = os.path.join(stage_dir, "agent")
+        os.makedirs(agent_dir, exist_ok=True)
+        with open(os.path.join(agent_dir, "settings.json"), "w", encoding="utf-8") as f:
+            json.dump(settings, f)
+        if models is not None:
+            with open(
+                os.path.join(agent_dir, "models.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(models, f)
+        if system_prompt is not None:
+            with open(
+                os.path.join(agent_dir, "APPEND_SYSTEM.md"), "w", encoding="utf-8"
+            ) as f:
+                f.write(system_prompt)
+
+        env = dict(os.environ)
+        env["PI_CODING_AGENT_DIR"] = agent_dir
+        # Stable across turns — resume must find the prior session files.
+        env["PI_CODING_AGENT_SESSION_DIR"] = os.path.join(
+            home, ".pi", "agent", "sessions"
+        )
+        # No startup update-check network round-trip inside the sandbox.
+        env["PI_SKIP_VERSION_CHECK"] = "1"
+
+        cmd = [
+            "pi",
+            "--mode",
+            "json",
+            "--approve",
+        ]
+        if args.provider:
+            cmd += ["--provider", args.provider]
+        if args.model:
+            cmd += ["--model", args.model]
+        if args.resume:
+            cmd += ["--session", args.resume]
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=args.workdir,
+            env=env,
+            stdin=subprocess.PIPE,
+            # stdout/stderr inherit: the CLI's JSON event stream goes straight
+            # to the platform's stdout reader; human noise stays on stderr.
+        )
+        try:
+            proc.stdin.write(prompt.encode("utf-8"))
+            proc.stdin.close()
+        except BrokenPipeError:
+            print("[tale-pi-run] pi exited before reading stdin", file=sys.stderr)
+        return proc.wait()
+    except FileNotFoundError as exc:
+        return fail(f"pi not installed or file missing: {exc}")
+    except Exception as exc:  # noqa: BLE001 — surface anything as a run error
+        return fail(f"wrapper failure: {exc}")
+    finally:
+        if stage_dir is not None:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

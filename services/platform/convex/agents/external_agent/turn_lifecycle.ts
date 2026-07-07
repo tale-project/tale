@@ -50,6 +50,7 @@ export interface TurnContext {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   agentSlug?: string;
   modelRef: string;

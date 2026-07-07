@@ -162,6 +162,7 @@ export function detectCredentialRuntimeMismatch(args: {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   setKeys: ReadonlySet<string>;
   needsEnv: boolean;
@@ -213,6 +214,7 @@ export function resolveEffectiveRequiredEnv(args: {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   needs: Pick<AgentReadinessNeeds, 'needsEnv' | 'mode' | 'requiredEnv'>;
 }): RequiredEnvKey[] {

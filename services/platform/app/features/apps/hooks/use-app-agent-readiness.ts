@@ -45,6 +45,7 @@ export interface AgentReadiness {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   /** Saved runtime vs Environment credentials disagree — see pack `readiness.mismatch.*`. */
   credentialMismatch?: CredentialRuntimeMismatchDetail;

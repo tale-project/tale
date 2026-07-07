@@ -160,6 +160,7 @@ export interface RunAgentInSessionArgs {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   prompt: string;
   model?: string;
@@ -1563,6 +1564,7 @@ export const runAgentInSession = internalAction({
       v.literal('hermes'),
       v.literal('gemini'),
       v.literal('codex'),
+      v.literal('pi'),
       v.literal('openclaw'),
     ),
     prompt: v.string(),

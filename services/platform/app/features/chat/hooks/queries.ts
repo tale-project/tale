@@ -192,6 +192,7 @@ export interface ChatAgent {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   /** Credential mode for an 'external-agent'. 'byo' bypasses the platform
    * gateway/catalog (raw model, user-supplied credentials) — the model picker

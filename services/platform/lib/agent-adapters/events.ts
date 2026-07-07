@@ -14,6 +14,7 @@ export const PRODUCT_AGENT_SLUGS = [
   'hermes',
   'gemini',
   'codex',
+  'pi',
   'openclaw',
 ] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];

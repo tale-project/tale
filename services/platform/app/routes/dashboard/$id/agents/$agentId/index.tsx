@@ -343,9 +343,11 @@ function GeneralTab() {
                   ? t('agents.form.agentKind.gemini')
                   : slug === 'codex'
                     ? t('agents.form.agentKind.codex')
-                    : slug === 'openclaw'
-                      ? t('agents.form.agentKind.openclaw')
-                      : t('agents.form.agentKind.claudeCode'),
+                    : slug === 'pi'
+                      ? t('agents.form.agentKind.pi')
+                      : slug === 'openclaw'
+                        ? t('agents.form.agentKind.openclaw')
+                        : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -382,6 +384,7 @@ function GeneralTab() {
         value !== 'hermes' &&
         value !== 'gemini' &&
         value !== 'codex' &&
+        value !== 'pi' &&
         value !== 'openclaw'
       ) {
         return;

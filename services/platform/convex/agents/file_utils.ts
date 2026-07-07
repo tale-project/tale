@@ -76,6 +76,7 @@ export interface AgentJsonConfig {
     | 'hermes'
     | 'gemini'
     | 'codex'
+    | 'pi'
     | 'openclaw';
   /**
    * Credential / auth mode for `primaryBehavior: 'external-agent'`. 'managed'
