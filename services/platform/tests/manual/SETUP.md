@@ -11,9 +11,12 @@ through a browser. They are distinct from the automated Playwright suite
 
 ## 1. Start the stack
 
-Three modes. Pick by what you're testing.
+Three modes. Pick by who's running and what's under test.
 
-### A. Deterministic, offline (recommended for chat / AI-driven runs)
+### A. Deterministic, offline (mock gateway)
+
+**For:** any run — human or AI — that needs deterministic, offline assertions:
+canned replies are byte-stable, no keys, no cost.
 
 Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
@@ -57,6 +60,10 @@ in the fixtures is a symlink to the real `builtin-configs/integrations`.)
 
 ### B. Full local dev (real provider, full feature set)
 
+**For:** developers manually verifying in-progress working-tree code — host hot
+reload (Vite HMR + the Convex watcher) against the real stack. Guides mark
+cases that need live credentials as "mode B" rows.
+
 ```bash
 bun run dev          # repo root: turbo dev for platform + backing services (excludes web/docs)
 # or, platform only, skipping the Docker backing services:
@@ -73,9 +80,9 @@ if needed.
 
 ### C. Containerized stack with a seeded login (`docker:dev`)
 
-The path for **unattended / AI-tester sessions**: one command, a deterministic
-login, and a versioned build as the system under test — nothing to click
-through before testing starts.
+**For:** unattended AI-tester sessions — one command, a deterministic login,
+and a versioned build as the system under test; nothing to click through
+before testing starts.
 
 ```bash
 bun run docker:dev        # repo root; requires Docker; first run builds images
