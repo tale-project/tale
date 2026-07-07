@@ -44,7 +44,8 @@ export interface AgentReadiness {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'pi';
   /** Saved runtime vs Environment credentials disagree — see pack `readiness.mismatch.*`. */
   credentialMismatch?: CredentialRuntimeMismatchDetail;
   /** Ready under the agent's CURRENT effective mode. */

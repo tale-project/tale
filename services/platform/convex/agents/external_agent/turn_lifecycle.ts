@@ -49,7 +49,8 @@ export interface TurnContext {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'pi';
   agentSlug?: string;
   modelRef: string;
   userId?: string;

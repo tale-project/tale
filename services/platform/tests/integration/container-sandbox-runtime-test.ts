@@ -130,6 +130,12 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-gemini-run',
 );
+await assertOk('pi on PATH', 10001, 'command -v pi');
+await assertOk(
+  'tale-pi-run wrapper present',
+  10001,
+  'test -x /usr/local/bin/tale-pi-run',
+);
 await assertOk('gh on PATH', 10001, 'command -v gh');
 await assertOk(
   'git/ripgrep/fd present',
@@ -253,6 +259,51 @@ print("GEMINI_WRAPPER_FLAGS_OK")
     'tale-gemini-run flags match the pinned gemini-cli --help',
     10001,
     'GEMINI_WRAPPER_FLAGS_OK',
+    `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
+  );
+}
+await assertOk('pi --version runs', 10001, 'pi --version');
+// Same wrapper/CLI drift guard for tale-pi-run: every long flag the wrapper
+// passes on the `pi` command line must exist in the pinned CLI's --help.
+{
+  const flagCheck = `
+import ast, subprocess
+
+src = open("/usr/local/bin/tale-pi-run").read()
+tree = ast.parse(src)  # SyntaxError here = broken wrapper
+
+flags = {
+    el.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.List)
+    for el in node.elts
+    if isinstance(el, ast.Constant)
+    and isinstance(el.value, str)
+    and el.value.startswith("--")
+}
+flags |= {
+    el.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.AugAssign)
+    for el in ast.walk(node.value)
+    if isinstance(el, ast.Constant)
+    and isinstance(el.value, str)
+    and el.value.startswith("--")
+}
+assert "--mode" in flags, f"wrapper pi flags not found: {flags}"
+
+help_text = subprocess.run(
+    ["pi", "--help"], capture_output=True, text=True, check=True
+).stdout
+missing = sorted(f for f in flags if f not in help_text)
+assert not missing, f"pinned pi --help lacks wrapper flags: {missing}"
+
+print("PI_WRAPPER_FLAGS_OK")
+`;
+  await assertContains(
+    'tale-pi-run flags match the pinned pi --help',
+    10001,
+    'PI_WRAPPER_FLAGS_OK',
     `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }

@@ -126,6 +126,19 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         authMode: 'byo',
       }).success,
     ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'pi',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'pi',
+        authMode: 'byo',
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts external-agent with agentKind opencode (managed-only)', () => {
