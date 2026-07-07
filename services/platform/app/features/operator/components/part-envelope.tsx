@@ -15,7 +15,7 @@ import { Card } from '@tale/ui/card';
 import { HStack, VStack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
-import { ChevronDown } from 'lucide-react';
+import { Bot, ChevronDown } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
 import { usePackLabel } from '@/app/features/apps/runtime/app-runtime';
@@ -103,12 +103,15 @@ export function PartEnvelope({
           {t('gate', { defaultValue: 'Decision' })}
         </Badge>
       )}
-      {part.stage && (
-        <Badge variant="slate">
-          {t(`stage.${part.stage}`, { defaultValue: part.stage })}
+      {/* The step's STAGE deliberately renders no chip here: the StageTimeline
+          header owns that dimension, and a per-step "work" chip next to the
+          role chip read as two same-looking badges of unclear meaning. */}
+      {part.role && (
+        <Badge variant="outline">
+          <Bot className="size-3" aria-hidden />
+          {part.role}
         </Badge>
       )}
-      {part.role && <Badge variant="outline">{part.role}</Badge>}
     </>
   );
 
