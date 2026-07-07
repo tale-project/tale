@@ -191,7 +191,8 @@ export interface ChatAgent {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'openclaw';
   /** Credential mode for an 'external-agent'. 'byo' bypasses the platform
    * gateway/catalog (raw model, user-supplied credentials) — the model picker
    * shows a calm BYO indicator instead of the catalog/no-models warning. */

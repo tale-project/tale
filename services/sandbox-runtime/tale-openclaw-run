@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""Tale sandbox wrapper for OpenClaw — stages per-exec config, runs
+`openclaw agent --local --json`, and emits NDJSON lifecycle events on stdout.
+
+The platform adapter (openclaw/adapter.ts) sends ONE JSON object on stdin:
+  {"prompt": ..., "system_prompt"?: ..., "config"?: {...}}
+and openclaw/parse.ts normalizes the stdout lines into AgentEvent[]. All
+human-oriented OpenClaw output stays on stderr; stdout is JSONL only.
+
+The wrapper exists because (verified openclaw 2026.6.11):
+
+  - the CLI has NO streaming output headlessly: `--json` reserves stdout for
+    ONE final envelope ({payloads, meta:{durationMs, agentMeta:{sessionId,
+    model, usage}}, ...}) printed when the run ends — so the wrapper owns the
+    translation into Tale's NDJSON lifecycle dialect (run_start /
+    assistant_message / usage / run_end).
+  - three inputs have no CLI flag and must be ON DISK before the CLI starts:
+    the generated config (models.providers.tale gateway provider, tool denies,
+    MCP servers) — staged to a private per-exec file via OPENCLAW_CONFIG_PATH;
+    the prompt — staged to a per-exec file for `--message-file` (never argv:
+    process lists leak argv, and a leading-dash prompt would parse as a flag);
+    and the system-prompt APPEND — staged as the workspace AGENTS.md bootstrap
+    file, which OpenClaw appends to its system prompt every turn without
+    replacing its core prompt (any pre-existing AGENTS.md is backed up and
+    restored afterwards).
+  - session continuity is an explicit-id contract: `--session-id <handle>`
+    maps to the persisted session key `agent:main:explicit:<handle>` in the
+    OPENCLAW_STATE_DIR session store, so the SAME handle resumes the SAME
+    conversation. The wrapper mints a fresh handle when the platform passes no
+    --resume and reports it via run_start/run_end.
+
+MCP stdio child processes get ONLY the config-declared env (not the parent's),
+and OpenClaw does not env-resolve those values — so the wrapper substitutes
+`${VAR}` placeholders in mcp server env values from its own environment before
+staging (the payload crossing the exec API carries the placeholder, never the
+key). The provider apiKey stays `${TALE_GATEWAY_TOKEN}`: OpenClaw's SecretInput
+resolves that env template natively.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
+ENV_TEMPLATE_RE = re.compile(r"^\$\{([A-Z][A-Z0-9_]*)\}$")
+
+
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def emit(event: dict[str, Any]) -> None:
+    event.setdefault("schema_version", 1)
+    event.setdefault("ts", _ts())
+    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def fail(message: str, session_id: str | None = None, code: int = 1) -> int:
+    emit(
+        {
+            "type": "run_end",
+            "status": "error",
+            "error": message,
+            **({"session_id": session_id} if session_id else {}),
+        }
+    )
+    return code
+
+
+def read_stdin_payload() -> dict[str, Any] | None:
+    try:
+        payload = json.loads(sys.stdin.read())
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    return payload
+
+
+def resolve_mcp_env_templates(config: dict[str, Any]) -> None:
+    """Substitute `${VAR}` placeholders in mcp.servers.*.env values in place.
+
+    OpenClaw spawns stdio MCP servers with ONLY the declared env (no parent
+    inheritance, no template resolution), so the secret must be materialized
+    here — and only here; the config's provider apiKey keeps its `${...}`
+    template, which OpenClaw resolves natively.
+    """
+    servers = config.get("mcp", {}).get("servers", {})
+    if not isinstance(servers, dict):
+        return
+    for server in servers.values():
+        env = server.get("env") if isinstance(server, dict) else None
+        if not isinstance(env, dict):
+            continue
+        for key, value in list(env.items()):
+            if not isinstance(value, str):
+                continue
+            match = ENV_TEMPLATE_RE.match(value)
+            if match is None:
+                continue
+            resolved = os.environ.get(match.group(1))
+            if resolved is None:
+                print(
+                    f"[tale-openclaw-run] mcp env {key}: ${{{match.group(1)}}} is unset",
+                    file=sys.stderr,
+                )
+                continue
+            env[key] = resolved
+
+
+def config_primary_model(config: dict[str, Any]) -> str | None:
+    model = config.get("agents", {}).get("defaults", {}).get("model", {})
+    primary = model.get("primary") if isinstance(model, dict) else None
+    return primary if isinstance(primary, str) and primary else None
+
+
+def emit_envelope_events(
+    envelope: dict[str, Any], session_id: str, exit_code: int
+) -> int:
+    """Translate the CLI's final JSON envelope into Tale NDJSON events."""
+    meta = envelope.get("meta")
+    meta = meta if isinstance(meta, dict) else {}
+    agent_meta = meta.get("agentMeta")
+    agent_meta = agent_meta if isinstance(agent_meta, dict) else {}
+
+    texts: list[str] = []
+    payloads = envelope.get("payloads")
+    for payload in payloads if isinstance(payloads, list) else []:
+        if not isinstance(payload, dict) or payload.get("isReasoning") is True:
+            continue
+        text = payload.get("text")
+        if isinstance(text, str) and text.strip():
+            texts.append(text)
+            emit({"type": "assistant_message", "text": text})
+
+    usage = agent_meta.get("usage")
+    if isinstance(usage, dict):
+        usage_event: dict[str, Any] = {
+            "type": "usage",
+            "input": usage.get("input") or 0,
+            "output": usage.get("output") or 0,
+        }
+        if usage.get("cacheRead"):
+            usage_event["cache_read"] = usage["cacheRead"]
+        if usage.get("cacheWrite"):
+            usage_event["cache_write"] = usage["cacheWrite"]
+        model = agent_meta.get("model")
+        if isinstance(model, str) and model:
+            usage_event["model"] = model
+        emit(usage_event)
+
+    error_obj = meta.get("error")
+    error_message = (
+        error_obj.get("message")
+        if isinstance(error_obj, dict) and isinstance(error_obj.get("message"), str)
+        else None
+    )
+    if error_message is None and exit_code != 0:
+        error_message = f"openclaw exited with code {exit_code}"
+
+    final_text = meta.get("finalAssistantVisibleText")
+    if not isinstance(final_text, str) or not final_text.strip():
+        final_text = "\n\n".join(texts) if texts else None
+
+    run_end: dict[str, Any] = {
+        "type": "run_end",
+        "status": "error" if error_message else "ok",
+        "session_id": session_id,
+    }
+    if final_text:
+        run_end["final_text"] = final_text
+    duration_ms = meta.get("durationMs")
+    if isinstance(duration_ms, (int, float)):
+        run_end["duration_ms"] = duration_ms
+    if error_message:
+        run_end["error"] = error_message
+    emit(run_end)
+    return exit_code if error_message else 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run OpenClaw for Tale sandbox")
+    parser.add_argument("--workdir", default="/user/workspace")
+    parser.add_argument("--resume")
+    args = parser.parse_args()
+
+    payload = read_stdin_payload()
+    if payload is None:
+        return fail(
+            'stdin must carry {"prompt": ..., "system_prompt"?: ..., "config"?: ...} as JSON'
+        )
+    prompt = payload["prompt"]
+    system_prompt = payload.get("system_prompt")
+    if not isinstance(system_prompt, str) or not system_prompt.strip():
+        system_prompt = None
+    config = payload.get("config")
+    if not isinstance(config, dict):
+        config = {}
+
+    # The Tale resume handle IS OpenClaw's explicit session id: the same handle
+    # resumes the same stored conversation across execs.
+    session_id = args.resume or uuid.uuid4().hex
+    emit(
+        {
+            "type": "run_start",
+            "session_id": session_id,
+            "model": config_primary_model(config),
+        }
+    )
+
+    workspace = config.get("agents", {}).get("defaults", {}).get("workspace")
+    if not isinstance(workspace, str) or not workspace:
+        workspace = args.workdir
+
+    stage_dir = None
+    agents_md_path = os.path.join(workspace, "AGENTS.md")
+    agents_md_backup: str | None = None
+    agents_md_written = False
+    try:
+        resolve_mcp_env_templates(config)
+
+        stage_dir = tempfile.mkdtemp(prefix="tale-openclaw-")
+        config_path = os.path.join(stage_dir, "openclaw.json")
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f)
+        message_path = os.path.join(stage_dir, "message.md")
+        with open(message_path, "w", encoding="utf-8") as f:
+            f.write(prompt)
+
+        if system_prompt is not None:
+            # System-prompt append rides the workspace AGENTS.md bootstrap
+            # file. Back up whatever is there (a repo's own AGENTS.md must
+            # survive the turn) and restore it in the finally below.
+            os.makedirs(workspace, exist_ok=True)
+            if os.path.exists(agents_md_path):
+                agents_md_backup = os.path.join(stage_dir, "AGENTS.md.orig")
+                shutil.copy2(agents_md_path, agents_md_backup)
+            with open(agents_md_path, "w", encoding="utf-8") as f:
+                f.write(system_prompt)
+            agents_md_written = True
+
+        env = dict(os.environ)
+        env["OPENCLAW_CONFIG_PATH"] = config_path
+        state_dir = env.get("OPENCLAW_STATE_DIR")
+        if state_dir:
+            os.makedirs(state_dir, exist_ok=True)
+
+        # --local: embedded one-shot run, no gateway daemon. --timeout 0
+        # disables the CLI's own 600s cap — the platform exec deadline is the
+        # runaway backstop. stdout is captured (the CLI prints ONE final JSON
+        # envelope there under --json); human noise stays on stderr.
+        cmd = [
+            "openclaw",
+            "agent",
+            "--local",
+            "--session-id",
+            session_id,
+            "--message-file",
+            message_path,
+            "--json",
+            "--timeout",
+            "0",
+        ]
+        proc = subprocess.run(
+            cmd,
+            cwd=args.workdir,
+            env=env,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        try:
+            envelope = json.loads(proc.stdout or "")
+        except ValueError:
+            envelope = None
+        if not isinstance(envelope, dict):
+            head = (proc.stdout or "").strip()[:200]
+            return fail(
+                f"openclaw exited with code {proc.returncode}"
+                + (f" — non-JSON output: {head}" if head else ""),
+                session_id,
+                proc.returncode or 1,
+            )
+        return emit_envelope_events(envelope, session_id, proc.returncode)
+    except FileNotFoundError as exc:
+        return fail(f"openclaw not installed or file missing: {exc}", session_id)
+    except Exception as exc:  # noqa: BLE001 — surface anything as a run error
+        return fail(f"wrapper failure: {exc}", session_id)
+    finally:
+        if agents_md_written:
+            try:
+                if agents_md_backup is not None:
+                    shutil.copy2(agents_md_backup, agents_md_path)
+                else:
+                    os.unlink(agents_md_path)
+            except OSError as exc:
+                print(
+                    f"[tale-openclaw-run] AGENTS.md restore failed: {exc}",
+                    file=sys.stderr,
+                )
+        if stage_dir is not None:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

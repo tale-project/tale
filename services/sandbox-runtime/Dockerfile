@@ -30,6 +30,7 @@ ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
 ARG GEMINI_CLI_VERSION=0.49.0
 ARG CODEX_VERSION=0.142.5
+ARG OPENCLAW_VERSION=2026.6.11
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -309,6 +310,15 @@ RUN chmod +x /usr/local/bin/tale-gemini-run
 RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
     && codex --version
+
+# OpenClaw (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
+# that stages per-exec config/prompt/AGENTS.md and translates the CLI's
+# single --json envelope into Tale NDJSON lifecycle events.
+RUN npm install -g --prefix /opt/agents "openclaw@${OPENCLAW_VERSION}" \
+    && npm cache clean --force \
+    && openclaw --version
+COPY services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-openclaw-run
+RUN chmod +x /usr/local/bin/tale-openclaw-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in

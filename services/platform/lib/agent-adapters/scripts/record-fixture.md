@@ -64,3 +64,19 @@ GEMINI_CLI_SYSTEM_SETTINGS_PATH=/tmp/gemini-settings.json \
 `fixtures/gemini/shell-turn.jsonl` was captured this way from the pinned
 0.49.0 CLI against a local mock GenAI gateway (the shell tool call ran for
 real).
+
+## OpenClaw
+
+The pinned CLI has no streaming output headlessly (`--json` prints one final
+envelope), so the fixture is the WRAPPER's NDJSON stdout: pipe the adapter's
+stdin payload (prompt + generated config, gateway baseUrl pointed at a real
+gateway or a local OpenAI-compatible mock) through `tale-openclaw-run`:
+
+```bash
+OPENCLAW_STATE_DIR=/tmp/openclaw-state TALE_GATEWAY_TOKEN=… \
+  tale-openclaw-run --workdir /user/workspace \
+  < payload.json > /tmp/openclaw-run.jsonl
+```
+
+`fixtures/openclaw/hello-turn.jsonl` was captured this way from the pinned
+2026.6.11 CLI against a local mock OpenAI-compatible gateway.

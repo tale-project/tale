@@ -34,7 +34,8 @@ export interface SerializableAgentConfig {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'openclaw';
   /**
    * Credential/auth mode for `primaryBehavior: 'external-agent'`. 'managed'
    * (default) routes through the platform gateway with a minted virtual key;

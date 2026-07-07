@@ -130,6 +130,12 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-gemini-run',
 );
+await assertOk('openclaw on PATH', 10001, 'command -v openclaw');
+await assertOk(
+  'tale-openclaw-run wrapper present',
+  10001,
+  'test -x /usr/local/bin/tale-openclaw-run',
+);
 await assertOk('gh on PATH', 10001, 'command -v gh');
 await assertOk(
   'git/ripgrep/fd present',
@@ -253,6 +259,45 @@ print("GEMINI_WRAPPER_FLAGS_OK")
     'tale-gemini-run flags match the pinned gemini-cli --help',
     10001,
     'GEMINI_WRAPPER_FLAGS_OK',
+    `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
+  );
+}
+await assertOk('openclaw --version runs', 10001, 'openclaw --version');
+// The wrapper's openclaw integration: ast-parse tale-openclaw-run (also
+// proves it is valid Python), collect every long flag it passes on the
+// `openclaw agent` command line, and assert the PINNED CLI's real
+// `agent --help` lists each one — a version bump that renames/removes a flag
+// fails here instead of at the first real run. No model call, no key needed.
+{
+  const flagCheck = `
+import ast, subprocess
+
+src = open("/usr/local/bin/tale-openclaw-run").read()
+tree = ast.parse(src)  # SyntaxError here = broken wrapper
+
+flags = {
+    el.value
+    for node in ast.walk(tree)
+    if isinstance(node, ast.List)
+    for el in node.elts
+    if isinstance(el, ast.Constant)
+    and isinstance(el.value, str)
+    and el.value.startswith("--")
+}
+assert "--session-id" in flags, f"wrapper openclaw flags not found: {flags}"
+
+help_text = subprocess.run(
+    ["openclaw", "agent", "--help"], capture_output=True, text=True, check=True
+).stdout
+missing = sorted(f for f in flags if f not in help_text)
+assert not missing, f"pinned openclaw agent --help lacks wrapper flags: {missing}"
+
+print("OPENCLAW_WRAPPER_FLAGS_OK")
+`;
+  await assertContains(
+    'tale-openclaw-run flags match the pinned openclaw agent --help',
+    10001,
+    'OPENCLAW_WRAPPER_FLAGS_OK',
     `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }

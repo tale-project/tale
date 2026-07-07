@@ -47,7 +47,8 @@ interface AppAgentRow {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'openclaw';
   authMode?: 'managed' | 'byo';
   supportedModels?: string[];
   metadata?: {

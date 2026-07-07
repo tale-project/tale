@@ -493,7 +493,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Externe Agenten",
-      "description": "Integrierte Coding-Agenten (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex), die in einer isolierten Sandbox laufen; du chattest direkt mit ihnen, während sie Dateien bearbeiten, Befehle ausführen und die Arbeit über mehrere Runden fortsetzen."
+      "description": "Integrierte Coding-Agenten (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex, OpenClaw), die in einer isolierten Sandbox laufen; du chattest direkt mit ihnen, während sie Dateien bearbeiten, Befehle ausführen und die Arbeit über mehrere Runden fortsetzen."
     }
   },
   "de:platform/agents/image-generation": {
@@ -1629,7 +1629,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents externes",
-      "description": "Agents de code intégrés (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex) qui s'exécutent dans un bac à sable isolé ; tu discutes directement avec eux pendant qu'ils modifient des fichiers, lancent des commandes et poursuivent le travail sur plusieurs tours."
+      "description": "Agents de code intégrés (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex, OpenClaw) qui s'exécutent dans un bac à sable isolé ; tu discutes directement avec eux pendant qu'ils modifient des fichiers, lancent des commandes et poursuivent le travail sur plusieurs tours."
     }
   },
   "fr:platform/agents/image-generation": {
@@ -2765,7 +2765,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "External agents",
-      "description": "Built-in coding agents (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex) that run inside an isolated sandbox; you chat with them directly as they edit files, run commands, and continue the work across turns."
+      "description": "Built-in coding agents (Claude Code, Cursor, OpenCode, Hermes Agent, Gemini CLI, Codex, OpenClaw) that run inside an isolated sandbox; you chat with them directly as they edit files, run commands, and continue the work across turns."
     }
   },
   "en:platform/agents/image-generation": {

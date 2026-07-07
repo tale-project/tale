@@ -132,4 +132,21 @@ describe('resolveExternalAgentExecModel', () => {
       }),
     ).toBe('gemini-3.1-pro-preview');
   });
+
+  it("BYO openclaw ('catalog' dialect) requests the catalog id for a catalog-shaped ref", () => {
+    // OpenClaw's own refs are `vendor/model` — the catalog id's exact grammar
+    // — so a catalog-shaped BYO ref maps to the catalog id; a raw user-typed
+    // ref (the normal BYO case) passes through unchanged.
+    expect(
+      resolveExternalAgentExecModel({
+        byo: true,
+        gatewayRun: false,
+        modelRef: 'openrouter:anthropic/claude-sonnet-4.6',
+        byoModelIdSource: 'catalog',
+        byoNativeModel: 'claude-sonnet-4-6',
+        byoCatalogModel: 'anthropic/claude-sonnet-4.6',
+        toGatewayModel,
+      }),
+    ).toBe('anthropic/claude-sonnet-4.6');
+  });
 });

@@ -8,6 +8,7 @@ import { CursorAdapter } from './cursor/adapter';
 import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
 import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
+import { OpenClawAdapter } from './openclaw/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
 import type { AgentAdapter } from './types';
 
@@ -18,6 +19,7 @@ const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   hermes: new HermesAdapter(),
   gemini: new GeminiCliAdapter(),
   codex: new CodexAdapter(),
+  openclaw: new OpenClawAdapter(),
 };
 
 export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {

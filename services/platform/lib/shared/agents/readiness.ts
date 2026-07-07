@@ -161,7 +161,8 @@ export function detectCredentialRuntimeMismatch(args: {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'openclaw';
   setKeys: ReadonlySet<string>;
   needsEnv: boolean;
   /** Keys the saved runtime expects (from `resolveEffectiveRequiredEnv`). */
@@ -211,7 +212,8 @@ export function resolveEffectiveRequiredEnv(args: {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'openclaw';
   needs: Pick<AgentReadinessNeeds, 'needsEnv' | 'mode' | 'requiredEnv'>;
 }): RequiredEnvKey[] {
   if (!args.needs.needsEnv) return [];
