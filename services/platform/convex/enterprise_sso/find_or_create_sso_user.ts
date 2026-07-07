@@ -3,6 +3,7 @@ import type { GenericMutationCtx } from 'convex/server';
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { DataModel } from '../_generated/dataModel';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import { upsertMemberMirror } from '../members/mirror_sync';
 import type { PlatformRole } from './types';
 
@@ -60,12 +61,13 @@ export async function findOrCreateSsoUser(
   ctx: GenericMutationCtx<DataModel>,
   args: FindOrCreateSsoUserArgs,
 ): Promise<FindOrCreateSsoUserResult> {
+  const email = normalizeAuthEmail(args.email);
   const existingUserRes = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
     {
       model: 'user',
       paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: 'email', value: args.email, operator: 'eq' }],
+      where: [{ field: 'email', value: email, operator: 'eq' }],
     },
   );
 
@@ -218,7 +220,7 @@ export async function findOrCreateSsoUser(
       input: {
         model: 'user',
         data: {
-          email: args.email,
+          email,
           name: args.name,
           emailVerified: true,
           createdAt: now,

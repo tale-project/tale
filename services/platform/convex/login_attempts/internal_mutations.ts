@@ -4,6 +4,8 @@ import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 import { splitEmailForAudit, splitIpForAudit } from '../lib/helpers/pii_hash';
 import { writeNotificationForOrgs } from '../notifications/helpers';
@@ -22,15 +24,8 @@ async function findUserByEmail(
   ctx: MutationCtx,
   email: string,
 ): Promise<{ userId: string } | null> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'user',
-    paginationOpts: { cursor: null, numItems: 1 },
-    where: [{ field: 'email', value: email, operator: 'eq' }],
-  });
-  const raw = res?.page?.[0];
-  if (!isRecord(raw)) return null;
-  const id = getString(raw, '_id') ?? getString(raw, 'id');
-  return id ? { userId: id } : null;
+  const user = await findUserByNormalizedEmail(ctx, email);
+  return user?._id ? { userId: user._id } : null;
 }
 
 async function findMemberOrgs(

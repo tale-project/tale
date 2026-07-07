@@ -9,6 +9,7 @@
  */
 
 import { isRecord } from '../../lib/utils/type-utils';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import {
   SCIM_GROUP_SCHEMA,
   SCIM_USER_SCHEMA,
@@ -189,7 +190,7 @@ export function parseUserResource(body: unknown): ScimUserInput | null {
   const displayName = asString(body.displayName);
   const externalId = asString(body.externalId);
   const active = 'active' in body ? coerceBoolean(body.active) : true;
-  const email = extractEmailValue(body.emails) ?? userName;
+  const email = normalizeAuthEmail(extractEmailValue(body.emails) ?? userName);
   return {
     email,
     displayName,

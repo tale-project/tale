@@ -10,8 +10,9 @@
 
 import { v } from 'convex/values';
 
+import { components } from '../../_generated/api';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
-import { DB_MIGRATIONS } from './registry';
+import { COMPONENT_MIGRATIONS, DB_MIGRATIONS } from './registry';
 import type { MigrationDoc } from './types';
 
 /** Default rows processed per batch transaction. */
@@ -20,6 +21,15 @@ const DEFAULT_BATCH_SIZE = 100;
 const batchResultValidator = v.object({
   isDone: v.boolean(),
   processed: v.number(),
+});
+
+const componentBatchResultValidator = v.object({
+  isDone: v.boolean(),
+  processed: v.number(),
+  renamed: v.number(),
+  merged: v.number(),
+  skipped: v.number(),
+  noop: v.number(),
 });
 
 function ledgerRowQuery(ctx: MutationCtx, migrationId: string) {
@@ -65,6 +75,95 @@ export const applyDbBatch = internalMutation({
     for (const doc of page.page as MigrationDoc[]) {
       if (args.direction === 'up') await migration.up(ctx, doc);
       else await migration.down(ctx, doc);
+    }
+
+    await ctx.db.patch(row._id, {
+      cursor: page.isDone ? null : page.continueCursor,
+    });
+    return { isDone: page.isDone, processed: page.page.length };
+  },
+});
+
+/** Apply one batch of a `component` migration over Better Auth user rows. */
+export const applyComponentBatch = internalMutation({
+  args: {
+    migrationId: v.string(),
+    direction: v.union(v.literal('up'), v.literal('down')),
+  },
+  returns: componentBatchResultValidator,
+  handler: async (ctx, args) => {
+    const migration = COMPONENT_MIGRATIONS[args.migrationId];
+    if (!migration) {
+      throw new Error(`Unknown component migration: ${args.migrationId}`);
+    }
+    const row = await ledgerRowQuery(ctx, args.migrationId);
+    if (!row) {
+      throw new Error(
+        `No ledger row for running migration ${args.migrationId}`,
+      );
+    }
+
+    const batchSize = migration.batchSize ?? 50;
+    const result =
+      args.direction === 'up'
+        ? await migration.up(ctx, row.cursor ?? null, batchSize)
+        : await migration.down(ctx, row.cursor ?? null);
+
+    if (result.merged > 0 || result.renamed > 0 || result.skipped > 0) {
+      console.log(
+        `[migrations] ${args.migrationId} batch: renamed=${result.renamed} merged=${result.merged} skipped=${result.skipped} noop=${result.noop}`,
+      );
+    }
+
+    await ctx.db.patch(row._id, {
+      cursor: result.isDone ? null : result.continueCursor,
+    });
+
+    return {
+      isDone: result.isDone,
+      processed: result.processed,
+      renamed: result.renamed,
+      merged: result.merged,
+      skipped: result.skipped,
+      noop: result.noop,
+    };
+  },
+});
+
+/** Restore snapshotted Better Auth rows for a component migration `down`. */
+export const restoreComponentSnapshotBatch = internalMutation({
+  args: { migrationId: v.string() },
+  returns: batchResultValidator,
+  handler: async (ctx, args) => {
+    const row = await ledgerRowQuery(ctx, args.migrationId);
+    if (!row) {
+      throw new Error(
+        `No ledger row for running migration ${args.migrationId}`,
+      );
+    }
+
+    const page = await ctx.db
+      .query('migrationSnapshots')
+      .withIndex('by_migration', (q) => q.eq('migrationId', args.migrationId))
+      .paginate({ cursor: row.cursor ?? null, numItems: 50 });
+
+    for (const snap of page.page) {
+      if (!snap.scope.startsWith('component:betterAuth:')) continue;
+      const payload = snap.payload as Record<string, unknown> | undefined;
+      const model = snap.scope.split(':')[2];
+      if (
+        payload &&
+        (model === 'user' || model === 'member' || model === 'account')
+      ) {
+        const { _id, _creationTime, ...data } = payload;
+        void _id;
+        void _creationTime;
+        await ctx.runMutation(components.betterAuth.adapter.create, {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- restored legacy payloads
+          input: { model, data: data as never },
+        });
+      }
+      await ctx.db.delete(snap._id);
     }
 
     await ctx.db.patch(row._id, {

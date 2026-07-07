@@ -15,6 +15,7 @@ import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { type ActionCtx, httpAction } from '../_generated/server';
 import type { PlatformRole } from '../enterprise_sso/types';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import { getPublicHttpApiUrl } from '../lib/helpers/public_storage_url';
 import { extractPathParts, parseIntParam } from '../lib/rest/helpers';
 import { serviceProviderConfig, resourceTypes, schemas } from './discovery';
@@ -170,7 +171,10 @@ async function listUsers(rc: ScimRc, url: URL): Promise<Response> {
     }
     const rec = await rc.ctx.runQuery(
       internal.scim.internal_queries.findUserRecordByUserName,
-      { organizationId: rc.organizationId, userName },
+      {
+        organizationId: rc.organizationId,
+        userName: normalizeAuthEmail(userName),
+      },
     );
     const resources = rec ? [toScimUser(rec, baseUrl)] : [];
     return scimListResponse(resources, resources.length, 1, resources.length);

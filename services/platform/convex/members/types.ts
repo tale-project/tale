@@ -18,6 +18,8 @@ export interface BetterAuthUser {
   updatedAt: number;
   userId?: string | null;
   twoFactorEnabled?: boolean | null;
+  twoFactorGraceUntil?: number | null;
+  lastActiveOrganizationId?: string | null;
 }
 
 /**

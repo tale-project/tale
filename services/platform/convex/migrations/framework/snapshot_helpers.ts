@@ -35,3 +35,15 @@ export async function snapshotRow(
     createdAt: Date.now(),
   });
 }
+
+export async function snapshotBetterAuthRow(
+  ctx: MutationCtx,
+  migrationId: string,
+  model: string,
+  doc: Record<string, unknown>,
+): Promise<void> {
+  const id = typeof doc._id === 'string' ? doc._id : 'unknown';
+  await snapshotRow(ctx, migrationId, `component:betterAuth:${model}:${id}`, {
+    ...doc,
+  } as import('./types').MigrationDoc);
+}
