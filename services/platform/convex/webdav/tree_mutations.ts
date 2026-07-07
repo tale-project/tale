@@ -6,6 +6,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
+import { isProjectScopedDocument } from '../documents/access';
 import { createDocument } from '../documents/create_document';
 import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
@@ -21,6 +22,7 @@ import {
   assertWebdavDocNotHeld,
   assertWebdavFolderTreeNotHeld,
 } from './hold_guard';
+import { isWebdavVisibleDocument } from './visibility';
 
 const WEBDAV_SOURCE_PROVIDER = 'webdav';
 
@@ -136,6 +138,9 @@ export const ingestPutBlob = internalMutation({
     // composite index bounds the scan to same-name docs in THIS folder
     // (0-1 active in practice) instead of every same-name doc in the org —
     // a name repeated across a synced tree would otherwise collect O(all).
+    // Project-scoped docs are invisible to WebDAV (#2545): a PUT whose name
+    // collides with one must create an independent hub document, never bind
+    // to (and replace the blob of) the project row.
     const titleMatches = await ctx.db
       .query('documents')
       .withIndex('by_org_title_folder', (q) =>
@@ -145,9 +150,7 @@ export const ingestPutBlob = internalMutation({
           .eq('folderId', folderId),
       )
       .collect();
-    const existing = titleMatches.find(
-      (d) => (d.lifecycleStatus ?? 'active') === 'active',
-    );
+    const existing = titleMatches.find((d) => isWebdavVisibleDocument(d));
 
     // Legal-hold gate on overwrite: a held document must not be content-
     // replaced. Assert BEFORE saveFileMetadata so a held overwrite never
@@ -378,7 +381,10 @@ export const moveResource = internalMutation({
 
     if (args.src.kind === 'document') {
       const existing = await ctx.db.get(args.src.id);
-      if (!existing) throw new ConvexError({ code: 'NOT_FOUND' });
+      // Project-scoped docs are not WebDAV resources (#2545).
+      if (!existing || isProjectScopedDocument(existing)) {
+        throw new ConvexError({ code: 'NOT_FOUND' });
+      }
       const newFolderPath = destFolderId
         ? await buildFolderPath(ctx, destFolderId)
         : undefined;
@@ -529,7 +535,10 @@ export const copyResource = internalMutation({
 
     if (args.src.kind === 'document') {
       const src = await ctx.db.get(args.src.id);
-      if (!src) throw new ConvexError({ code: 'NOT_FOUND' });
+      // Project-scoped docs are not WebDAV resources (#2545).
+      if (!src || isProjectScopedDocument(src)) {
+        throw new ConvexError({ code: 'NOT_FOUND' });
+      }
       // Same storageId — Convex _storage is content-hashed, so the
       // destination is just another reference to the same bytes.
       await createDocument(ctx, {
@@ -571,7 +580,13 @@ async function softDeleteDocumentInner(
   documentId: Id<'documents'>,
 ): Promise<void> {
   const doc = await ctx.db.get(documentId);
-  if (!doc || doc.organizationId !== organizationId) {
+  // A project-scoped doc is not a WebDAV resource (#2545) — behave exactly
+  // as if the path never resolved, mirroring the REST 404s.
+  if (
+    !doc ||
+    doc.organizationId !== organizationId ||
+    isProjectScopedDocument(doc)
+  ) {
     throw new ConvexError({ code: 'NOT_FOUND' });
   }
   if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
@@ -613,6 +628,8 @@ async function findCollision(
   // Exact (org, title, folder) lookup — the composite index bounds the scan
   // to same-name docs in THIS folder rather than every same-name doc in the
   // org (a name repeated across a synced tree would blow the read ceiling).
+  // Project-scoped docs don't collide (#2545): they are invisible to WebDAV,
+  // so MKCOL/MOVE/COPY must neither be blocked by nor overwrite-trash them.
   const titleMatches = await ctx.db
     .query('documents')
     .withIndex('by_org_title_folder', (q) =>
@@ -622,9 +639,7 @@ async function findCollision(
         .eq('folderId', parentFolderId ?? undefined),
     )
     .collect();
-  const doc = titleMatches.find(
-    (d) => (d.lifecycleStatus ?? 'active') === 'active',
-  );
+  const doc = titleMatches.find((d) => isWebdavVisibleDocument(d));
   if (doc) return { kind: 'document', id: doc._id };
   return null;
 }
@@ -670,7 +685,9 @@ async function cascadeDeleteFolderRecursive(
     .take(budgetTake(budget));
   chargeReadBudget(budget, docs.length);
   for (const d of docs) {
-    if ((d.lifecycleStatus ?? 'active') === 'active') {
+    // Skip invisible project docs (#2545) — a WebDAV folder delete must
+    // never trash a project file, even if one ever gains a folderId.
+    if (isWebdavVisibleDocument(d)) {
       await ctx.db.patch(d._id, {
         lifecycleStatus: 'trashed',
         statusChangedAt: Date.now(),
@@ -734,7 +751,8 @@ async function copyFolderRecursive(
     .take(budgetTake(budget));
   chargeReadBudget(budget, childDocs.length);
   for (const d of childDocs) {
-    if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
+    // Invisible project docs (#2545) are never duplicated by a folder COPY.
+    if (!isWebdavVisibleDocument(d)) continue;
     await createDocument(ctx, {
       organizationId,
       title: nfc(d.title ?? '(untitled)'),
@@ -848,7 +866,8 @@ async function fixupMovedFolderDescendants(
     .take(budgetTake(budget));
   chargeReadBudget(budget, docs.length);
   for (const d of docs) {
-    if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
+    // Project docs are not WebDAV resources (#2545) — leave their rows alone.
+    if (!isWebdavVisibleDocument(d)) continue;
     const patch: Record<string, unknown> = { folderPath };
     if (d.sourceProvider && SYNC_SOURCE_PROVIDERS.has(d.sourceProvider)) {
       patch.sourceProvider = undefined;
