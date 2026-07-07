@@ -418,6 +418,46 @@ describe('EnterpriseSsoForm validation + save', () => {
     expect(warned).toBe(false);
   });
 
+  it('drives the provisioning payload from the shared toggle rows (#2383)', async () => {
+    upsertOidcMock.mockClear();
+    revealClientIdMock.mockResolvedValueOnce('client-xyz');
+    const { user } = renderForm(connectedOidc);
+
+    // Wait for the stored client id to be revealed so the OIDC form is valid.
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^client id$/i)).toHaveValue('client-xyz'),
+    );
+
+    // The toggles are `SettingsToggleRow`s now — the switch's accessible name
+    // is the row label. Flip team sync off (the fixture stores it on).
+    const teamSync = screen.getByRole('switch', {
+      name: /sync groups to teams/i,
+    });
+    expect(teamSync).toBeChecked();
+    await user.click(teamSync);
+
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    // Same payload shape as before the primitives rebuild.
+    await waitFor(() => expect(upsertOidcMock).toHaveBeenCalledTimes(1));
+    expect(upsertOidcMock.mock.calls[0][0]).toMatchObject({
+      organizationId: 'org-1',
+      autoProvisionRole: true,
+      defaultRole: 'member',
+      autoProvisionTeam: false,
+    });
+  });
+
+  it('renders the setup guide as a collapsible, closed by default (#2383)', () => {
+    const { container } = renderForm(connectedOidc);
+    const details = container.querySelector('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent(/setup guide/i);
+  });
+
   it('adds a role-mapping rule and saves it (#2085[12])', async () => {
     upsertOidcMock.mockClear();
     revealClientIdMock.mockResolvedValueOnce('client-xyz');

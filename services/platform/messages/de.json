@@ -6058,6 +6058,7 @@
         "clientSecretKeep": "Leer lassen, um das aktuelle Secret beizubehalten.",
         "scopesLabel": "Scopes",
         "pkceLabel": "PKCE verwenden",
+        "pkceDescription": "Sendet bei jeder Autorisierungsanfrage eine PKCE-Challenge — empfohlen, wenn der IdP sie unterstützt.",
         "idpEntityIdLabel": "IdP-Entity-ID",
         "idpSsoUrlLabel": "IdP-Anmelde-URL",
         "idpCertLabel": "IdP-Signaturzertifikat (PEM)",
@@ -6072,8 +6073,10 @@
           "editor": "Bearbeiter",
           "member": "Mitglied"
         },
-        "autoRoleLabel": "Rollen automatisch vom IdP zuweisen",
-        "autoTeamLabel": "IdP-Gruppen mit Teams synchronisieren",
+        "autoRoleLabel": "Rollen automatisch zuweisen",
+        "autoRoleDescription": "Weist Plattformrollen bei der Anmeldung anhand der Gruppen, App-Rollen oder Claims des IdP zu.",
+        "autoTeamLabel": "Gruppen mit Teams synchronisieren",
+        "autoTeamDescription": "Erstellt und aktualisiert Teams aus den Gruppenmitgliedschaften des IdP bei der Anmeldung.",
         "excludeGroupsLabel": "Gruppen ausschließen",
         "excludeGroupsHelp": "Kommagetrennte Gruppennamen, die bei der Team-Synchronisierung übersprungen werden.",
         "scim": {

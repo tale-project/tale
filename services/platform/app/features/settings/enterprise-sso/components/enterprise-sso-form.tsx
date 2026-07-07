@@ -3,18 +3,12 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Controller,
   type Control,
@@ -29,8 +23,9 @@ import {
 } from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -59,19 +54,12 @@ export type EnterpriseSsoConfig = SsoConnectionView;
 
 const FORM_ID = 'enterprise-sso-form';
 
-/** Titled group of form fields (replaces the old FormSection's title prop). */
-function Section({ title, children }: { title?: string; children: ReactNode }) {
-  return (
-    <Stack gap={3}>
-      {title && (
-        <Text variant="label" className="text-sm font-semibold">
-          {title}
-        </Text>
-      )}
-      <Stack gap={4}>{children}</Stack>
-    </Stack>
-  );
-}
+/**
+ * Field-column width inside a `SettingsSection` — matches the max-w-2xl cap the
+ * shared settings primitives put on their text columns, so inputs don't stretch
+ * to the full content width on wide screens.
+ */
+const FIELD_COLUMN = 'max-w-2xl';
 
 /** UI-level protocol/provider choice (maps to backend protocol + providerId). */
 type UiProtocol = 'entra-id' | 'generic-oidc' | 'oauth2' | 'saml';
@@ -194,6 +182,7 @@ function useCopy() {
 
 export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
   const { toast } = useToast();
   const copy = useCopy();
   const ability = useAbility();
@@ -610,22 +599,16 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   return (
     <form id={FORM_ID} onSubmit={editor.submit}>
       <fieldset disabled={!canEdit || editor.isLoading} className="contents">
-        <Stack gap={5}>
-          {connected && (
-            <StatusIndicator variant="success">
-              {t('integrations.enterpriseSso.connected')}
-            </StatusIndicator>
-          )}
-
-          <Text variant="muted" className="text-sm">
-            {t('integrations.enterpriseSso.formHint')}
-          </Text>
-
+        {/* Same section rhythm as the other settings pages (`SettingsPage`'s
+            gap-8 + border-t separators on the follow-up sections). */}
+        <Stack gap={8}>
           {/* Deployment prerequisites — a missing SITE_URL/secret yields an
               empty callback URL and a raw 500 at sign-in (the exact hard-to-
               debug failure this addresses). `deployment` is server-read (the
               client cannot see BETTER_AUTH_SECRET); the empty-callback signal
-              also holds when the flag is absent. */}
+              also holds when the flag is absent. Rendered above the sections:
+              it concerns the whole deployment, and the Alert's own heading
+              must not sit under a section heading (axe heading-order). */}
           {(() => {
             const dep = config?.deployment;
             const callbackMissing =
@@ -660,334 +643,386 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             );
           })()}
 
-          <Section>
-            <Controller
-              control={control}
-              name="protocol"
-              render={({ field }) => (
-                <Select
-                  id="sso-protocol"
-                  label={t('integrations.enterpriseSso.protocolLabel')}
-                  description={t('integrations.enterpriseSso.protocolHelp')}
-                  // Default to a defined value so the Select is controlled from
-                  // the first render — `field.value` is undefined while `data`
-                  // is still loading (avoids the uncontrolled→controlled warning).
-                  value={field.value ?? 'entra-id'}
-                  onValueChange={(value) => {
-                    const next = narrowStringUnion<UiProtocol>(
-                      value,
-                      UI_PROTOCOLS,
-                    );
-                    if (next) {
-                      field.onChange(next);
-                      setValue('scopes', DEFAULT_SCOPES[next], {
-                        shouldDirty: true,
-                      });
-                    }
-                  }}
-                  options={[
-                    {
-                      value: 'entra-id',
-                      label: t('integrations.enterpriseSso.protocol.entra'),
-                    },
-                    {
-                      value: 'generic-oidc',
-                      label: t('integrations.enterpriseSso.protocol.oidc'),
-                    },
-                    {
-                      value: 'oauth2',
-                      label: t('integrations.enterpriseSso.protocol.oauth2'),
-                    },
-                    {
-                      value: 'saml',
-                      label: t('integrations.enterpriseSso.protocol.saml'),
-                    },
-                  ]}
-                />
+          <SettingsSection
+            title={tNav('enterpriseSso')}
+            description={t('integrations.enterpriseSso.description')}
+          >
+            <Stack gap={4} className={FIELD_COLUMN}>
+              {connected && (
+                <StatusIndicator variant="success">
+                  {t('integrations.enterpriseSso.connected')}
+                </StatusIndicator>
               )}
-            />
-            <Input
-              id="sso-display-name"
-              label={t('integrations.enterpriseSso.displayNameLabel')}
-              errorMessage={errors.displayName?.message}
-              {...register('displayName')}
-            />
-          </Section>
 
-          {isOidcLike ? (
-            <Section title={t('integrations.enterpriseSso.signInSection')}>
-              {/* The redirect URL to register in the IdP, shown up-front (not
-                  buried in the guide) — a mismatch here is the top cause of a
-                  failed sign-in (AADSTS50011). */}
-              <ReadOnlyCopy
-                label={t('integrations.enterpriseSso.redirectUrlLabel')}
-                value={config?.oidcCallbackUrl ?? ''}
-                helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
-                onCopy={copy}
+              <Text variant="muted" className="text-sm">
+                {t('integrations.enterpriseSso.formHint')}
+              </Text>
+
+              <Controller
+                control={control}
+                name="protocol"
+                render={({ field }) => (
+                  <Select
+                    id="sso-protocol"
+                    label={t('integrations.enterpriseSso.protocolLabel')}
+                    description={t('integrations.enterpriseSso.protocolHelp')}
+                    // Default to a defined value so the Select is controlled from
+                    // the first render — `field.value` is undefined while `data`
+                    // is still loading (avoids the uncontrolled→controlled warning).
+                    value={field.value ?? 'entra-id'}
+                    onValueChange={(value) => {
+                      const next = narrowStringUnion<UiProtocol>(
+                        value,
+                        UI_PROTOCOLS,
+                      );
+                      if (next) {
+                        field.onChange(next);
+                        setValue('scopes', DEFAULT_SCOPES[next], {
+                          shouldDirty: true,
+                        });
+                      }
+                    }}
+                    options={[
+                      {
+                        value: 'entra-id',
+                        label: t('integrations.enterpriseSso.protocol.entra'),
+                      },
+                      {
+                        value: 'generic-oidc',
+                        label: t('integrations.enterpriseSso.protocol.oidc'),
+                      },
+                      {
+                        value: 'oauth2',
+                        label: t('integrations.enterpriseSso.protocol.oauth2'),
+                      },
+                      {
+                        value: 'saml',
+                        label: t('integrations.enterpriseSso.protocol.saml'),
+                      },
+                    ]}
+                  />
+                )}
               />
               <Input
-                id="sso-issuer"
-                label={t('integrations.enterpriseSso.issuerLabel')}
-                placeholder="https://idp.example.com"
-                errorMessage={errors.issuer?.message}
-                {...register('issuer')}
+                id="sso-display-name"
+                label={t('integrations.enterpriseSso.displayNameLabel')}
+                errorMessage={errors.displayName?.message}
+                {...register('displayName')}
               />
-              {protocol === 'oauth2' && (
+            </Stack>
+          </SettingsSection>
+
+          <SettingsSection
+            className="border-border border-t pt-8"
+            title={t('integrations.enterpriseSso.signInSection')}
+          >
+            <Stack gap={4} className={FIELD_COLUMN}>
+              {isOidcLike ? (
+                <>
+                  {/* The redirect URL to register in the IdP, shown up-front (not
+                  buried in the guide) — a mismatch here is the top cause of a
+                  failed sign-in (AADSTS50011). */}
+                  <ReadOnlyCopy
+                    label={t('integrations.enterpriseSso.redirectUrlLabel')}
+                    value={config?.oidcCallbackUrl ?? ''}
+                    helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
+                    onCopy={copy}
+                  />
+                  <Input
+                    id="sso-issuer"
+                    label={t('integrations.enterpriseSso.issuerLabel')}
+                    placeholder="https://idp.example.com"
+                    errorMessage={errors.issuer?.message}
+                    {...register('issuer')}
+                  />
+                  {protocol === 'oauth2' && (
+                    <>
+                      <Input
+                        id="sso-authz"
+                        label={t(
+                          'integrations.enterpriseSso.authzEndpointLabel',
+                        )}
+                        errorMessage={errors.authzEndpoint?.message}
+                        {...register('authzEndpoint')}
+                      />
+                      <Input
+                        id="sso-token-ep"
+                        label={t(
+                          'integrations.enterpriseSso.tokenEndpointLabel',
+                        )}
+                        errorMessage={errors.tokenEndpoint?.message}
+                        {...register('tokenEndpoint')}
+                      />
+                      <Input
+                        id="sso-userinfo"
+                        label={t(
+                          'integrations.enterpriseSso.userinfoEndpointLabel',
+                        )}
+                        errorMessage={errors.userinfoEndpoint?.message}
+                        {...register('userinfoEndpoint')}
+                      />
+                    </>
+                  )}
+                  <Input
+                    id="sso-client-id"
+                    label={t('integrations.enterpriseSso.clientIdLabel')}
+                    errorMessage={errors.clientId?.message}
+                    {...register('clientId')}
+                  />
+                  <Input
+                    id="sso-client-secret"
+                    type="password"
+                    label={t('integrations.enterpriseSso.clientSecretLabel')}
+                    description={
+                      connected
+                        ? t('integrations.enterpriseSso.clientSecretKeep')
+                        : undefined
+                    }
+                    placeholder={connected ? '••••••••' : undefined}
+                    errorMessage={errors.clientSecret?.message}
+                    {...register('clientSecret')}
+                  />
+                  <Input
+                    id="sso-scopes"
+                    label={t('integrations.enterpriseSso.scopesLabel')}
+                    {...register('scopes')}
+                  />
+                  <Controller
+                    control={control}
+                    name="pkce"
+                    render={({ field }) => (
+                      <SettingsToggleRow
+                        label={t('integrations.enterpriseSso.pkceLabel')}
+                        description={t(
+                          'integrations.enterpriseSso.pkceDescription',
+                        )}
+                        // `false` until `data` loads so the Switch stays controlled
+                        // from the first render (no uncontrolled→controlled warning).
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                </>
+              ) : (
                 <>
                   <Input
-                    id="sso-authz"
-                    label={t('integrations.enterpriseSso.authzEndpointLabel')}
-                    errorMessage={errors.authzEndpoint?.message}
-                    {...register('authzEndpoint')}
+                    id="saml-entity"
+                    label={t('integrations.enterpriseSso.idpEntityIdLabel')}
+                    errorMessage={errors.idpEntityId?.message}
+                    {...register('idpEntityId')}
                   />
                   <Input
-                    id="sso-token-ep"
-                    label={t('integrations.enterpriseSso.tokenEndpointLabel')}
-                    errorMessage={errors.tokenEndpoint?.message}
-                    {...register('tokenEndpoint')}
+                    id="saml-sso-url"
+                    label={t('integrations.enterpriseSso.idpSsoUrlLabel')}
+                    errorMessage={errors.idpSsoUrl?.message}
+                    {...register('idpSsoUrl')}
                   />
-                  <Input
-                    id="sso-userinfo"
-                    label={t(
-                      'integrations.enterpriseSso.userinfoEndpointLabel',
-                    )}
-                    errorMessage={errors.userinfoEndpoint?.message}
-                    {...register('userinfoEndpoint')}
+                  <Textarea
+                    id="saml-cert"
+                    label={t('integrations.enterpriseSso.idpCertLabel')}
+                    description={t('integrations.enterpriseSso.idpCertHelp')}
+                    rows={4}
+                    errorMessage={errors.idpCertificate?.message}
+                    {...register('idpCertificate')}
+                  />
+                  <ReadOnlyCopy
+                    label={t('integrations.enterpriseSso.spMetadataLabel')}
+                    value={config?.samlSpMetadataUrl ?? ''}
+                    onCopy={copy}
+                  />
+                  <ReadOnlyCopy
+                    label={t('integrations.enterpriseSso.acsUrlLabel')}
+                    value={config?.samlAcsUrl ?? ''}
+                    onCopy={copy}
                   />
                 </>
               )}
-              <Input
-                id="sso-client-id"
-                label={t('integrations.enterpriseSso.clientIdLabel')}
-                errorMessage={errors.clientId?.message}
-                {...register('clientId')}
-              />
-              <Input
-                id="sso-client-secret"
-                type="password"
-                label={t('integrations.enterpriseSso.clientSecretLabel')}
-                description={
-                  connected
-                    ? t('integrations.enterpriseSso.clientSecretKeep')
-                    : undefined
-                }
-                placeholder={connected ? '••••••••' : undefined}
-                errorMessage={errors.clientSecret?.message}
-                {...register('clientSecret')}
-              />
-              <Input
-                id="sso-scopes"
-                label={t('integrations.enterpriseSso.scopesLabel')}
-                {...register('scopes')}
+
+              {/* Per-provider setup guide — collapsed by default so the walkthrough
+              prose doesn't dominate the section (the redirect/metadata URLs it
+              references are shown up-front above). */}
+              <CollapsibleDetails
+                summary={t('integrations.enterpriseSso.guide.title')}
+              >
+                <Stack gap={3} className="pt-3 pl-5">
+                  {!isOidcLike ? (
+                    <Text variant="muted" className="text-sm">
+                      {t('integrations.enterpriseSso.guide.samlIntro')}
+                    </Text>
+                  ) : (
+                    <ReadOnlyCopy
+                      label={t(
+                        'integrations.enterpriseSso.guide.redirectLabel',
+                      )}
+                      value={config?.oidcCallbackUrl ?? ''}
+                      onCopy={copy}
+                    />
+                  )}
+                  <Text variant="muted" className="text-sm">
+                    {t(`integrations.enterpriseSso.guide.${guideKey}.intro`)}
+                  </Text>
+                  <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
+                    {guideSteps.map((s) => (
+                      <li key={s}>
+                        {t(`integrations.enterpriseSso.guide.${guideKey}.${s}`)}
+                      </li>
+                    ))}
+                  </ol>
+                  {protocol === 'generic-oidc' && (
+                    <Text variant="muted" className="text-sm">
+                      {t('integrations.enterpriseSso.guide.google.groupsNote')}
+                    </Text>
+                  )}
+                </Stack>
+              </CollapsibleDetails>
+            </Stack>
+          </SettingsSection>
+
+          <SettingsSection
+            className="border-border border-t pt-8"
+            title={t('integrations.enterpriseSso.provisioningSection')}
+          >
+            <Stack gap={4} className={FIELD_COLUMN}>
+              <Controller
+                control={control}
+                name="defaultRole"
+                render={({ field }) => (
+                  <Select
+                    id="sso-default-role"
+                    label={t('integrations.enterpriseSso.defaultRoleLabel')}
+                    // Default to a defined value so the Select is controlled from
+                    // the first render — `field.value` is undefined while `data`
+                    // is still loading (avoids the uncontrolled→controlled warning).
+                    value={field.value ?? 'member'}
+                    onValueChange={(value) => {
+                      const r = narrowStringUnion<PlatformRole>(value, [
+                        'admin',
+                        'developer',
+                        'editor',
+                        'member',
+                      ] as const);
+                      if (r) field.onChange(r);
+                    }}
+                    options={roleOptions}
+                  />
+                )}
               />
               <Controller
                 control={control}
-                name="pkce"
+                name="autoRole"
                 render={({ field }) => (
-                  <Switch
+                  <SettingsToggleRow
+                    label={t('integrations.enterpriseSso.autoRoleLabel')}
+                    description={t(
+                      'integrations.enterpriseSso.autoRoleDescription',
+                    )}
                     // `false` until `data` loads so the Switch stays controlled
                     // from the first render (no uncontrolled→controlled warning).
                     checked={field.value ?? false}
                     onCheckedChange={field.onChange}
-                    label={t('integrations.enterpriseSso.pkceLabel')}
                   />
                 )}
               />
-            </Section>
-          ) : (
-            <Section title={t('integrations.enterpriseSso.signInSection')}>
-              <Input
-                id="saml-entity"
-                label={t('integrations.enterpriseSso.idpEntityIdLabel')}
-                errorMessage={errors.idpEntityId?.message}
-                {...register('idpEntityId')}
+              {autoRole && <RoleMappingRulesEditor control={control} />}
+              <Controller
+                control={control}
+                name="autoTeam"
+                render={({ field }) => (
+                  <SettingsToggleRow
+                    label={t('integrations.enterpriseSso.autoTeamLabel')}
+                    description={t(
+                      'integrations.enterpriseSso.autoTeamDescription',
+                    )}
+                    // `false` until `data` loads so the Switch stays controlled
+                    // from the first render (no uncontrolled→controlled warning).
+                    checked={field.value ?? false}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
               />
               <Input
-                id="saml-sso-url"
-                label={t('integrations.enterpriseSso.idpSsoUrlLabel')}
-                errorMessage={errors.idpSsoUrl?.message}
-                {...register('idpSsoUrl')}
+                id="sso-exclude-groups"
+                label={t('integrations.enterpriseSso.excludeGroupsLabel')}
+                description={t('integrations.enterpriseSso.excludeGroupsHelp')}
+                {...register('excludeGroups')}
               />
-              <Textarea
-                id="saml-cert"
-                label={t('integrations.enterpriseSso.idpCertLabel')}
-                description={t('integrations.enterpriseSso.idpCertHelp')}
-                rows={4}
-                errorMessage={errors.idpCertificate?.message}
-                {...register('idpCertificate')}
-              />
-              <ReadOnlyCopy
-                label={t('integrations.enterpriseSso.spMetadataLabel')}
-                value={config?.samlSpMetadataUrl ?? ''}
-                onCopy={copy}
-              />
-              <ReadOnlyCopy
-                label={t('integrations.enterpriseSso.acsUrlLabel')}
-                value={config?.samlAcsUrl ?? ''}
-                onCopy={copy}
-              />
-            </Section>
-          )}
-
-          <Section title={t('integrations.enterpriseSso.guide.title')}>
-            {!isOidcLike ? (
-              <Text variant="muted" className="text-sm">
-                {t('integrations.enterpriseSso.guide.samlIntro')}
-              </Text>
-            ) : (
-              <ReadOnlyCopy
-                label={t('integrations.enterpriseSso.guide.redirectLabel')}
-                value={config?.oidcCallbackUrl ?? ''}
-                onCopy={copy}
-              />
-            )}
-            <Text variant="muted" className="text-sm">
-              {t(`integrations.enterpriseSso.guide.${guideKey}.intro`)}
-            </Text>
-            <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
-              {guideSteps.map((s) => (
-                <li key={s}>
-                  {t(`integrations.enterpriseSso.guide.${guideKey}.${s}`)}
-                </li>
-              ))}
-            </ol>
-            {protocol === 'generic-oidc' && (
-              <Text variant="muted" className="text-sm">
-                {t('integrations.enterpriseSso.guide.google.groupsNote')}
-              </Text>
-            )}
-          </Section>
-
-          <Section title={t('integrations.enterpriseSso.provisioningSection')}>
-            <Controller
-              control={control}
-              name="defaultRole"
-              render={({ field }) => (
-                <Select
-                  id="sso-default-role"
-                  label={t('integrations.enterpriseSso.defaultRoleLabel')}
-                  // Default to a defined value so the Select is controlled from
-                  // the first render — `field.value` is undefined while `data`
-                  // is still loading (avoids the uncontrolled→controlled warning).
-                  value={field.value ?? 'member'}
-                  onValueChange={(value) => {
-                    const r = narrowStringUnion<PlatformRole>(value, [
-                      'admin',
-                      'developer',
-                      'editor',
-                      'member',
-                    ] as const);
-                    if (r) field.onChange(r);
-                  }}
-                  options={roleOptions}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="autoRole"
-              render={({ field }) => (
-                <Switch
-                  // `false` until `data` loads so the Switch stays controlled
-                  // from the first render (no uncontrolled→controlled warning).
-                  checked={field.value ?? false}
-                  onCheckedChange={field.onChange}
-                  label={t('integrations.enterpriseSso.autoRoleLabel')}
-                />
-              )}
-            />
-            {autoRole && <RoleMappingRulesEditor control={control} />}
-            <Controller
-              control={control}
-              name="autoTeam"
-              render={({ field }) => (
-                <Switch
-                  // `false` until `data` loads so the Switch stays controlled
-                  // from the first render (no uncontrolled→controlled warning).
-                  checked={field.value ?? false}
-                  onCheckedChange={field.onChange}
-                  label={t('integrations.enterpriseSso.autoTeamLabel')}
-                />
-              )}
-            />
-            <Input
-              id="sso-exclude-groups"
-              label={t('integrations.enterpriseSso.excludeGroupsLabel')}
-              description={t('integrations.enterpriseSso.excludeGroupsHelp')}
-              {...register('excludeGroups')}
-            />
-          </Section>
+            </Stack>
+          </SettingsSection>
 
           {/* SCIM stays inline (its own generate/regenerate/disable lifecycle,
               independent of the SSO config Save). */}
-          <Section title={t('integrations.enterpriseSso.scim.section')}>
-            <Text variant="muted" className="text-sm">
-              {t('integrations.enterpriseSso.scim.help')}
-            </Text>
-            {config?.scim.enabled ? (
-              <Badge variant="green" dot>
-                {t('integrations.enterpriseSso.scim.enabled')}
-              </Badge>
-            ) : (
-              <Badge variant="outline">
-                {t('integrations.enterpriseSso.scim.disabled')}
-              </Badge>
-            )}
-            {scimToken ? (
-              <Stack gap={2}>
-                <Text variant="muted" className="text-sm">
-                  {t('integrations.enterpriseSso.scim.tokenCreatedHelp')}
-                </Text>
-                <code className="bg-muted block w-full rounded-md p-3 font-mono text-xs break-all">
-                  {scimToken}
-                </code>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => copy(scimToken)}
-                >
-                  <Copy className="size-4" />
-                  {t('integrations.enterpriseSso.copy')}
-                </Button>
-              </Stack>
-            ) : (
-              <HStack gap={2}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleGenerateScimToken}
-                  disabled={!canEdit || regenScim.isPending}
-                >
-                  {regenScim.isPending && (
-                    <Loader2 className="size-4 animate-spin" />
-                  )}
-                  {config?.scim.enabled
-                    ? t('integrations.enterpriseSso.scim.regenerate')
-                    : t('integrations.enterpriseSso.scim.generate')}
-                </Button>
-                {config?.scim.enabled && (
+          <SettingsSection
+            className="border-border border-t pt-8"
+            title={t('integrations.enterpriseSso.scim.section')}
+            description={t('integrations.enterpriseSso.scim.help')}
+          >
+            <Stack gap={4} className={FIELD_COLUMN}>
+              {config?.scim.enabled ? (
+                <Badge variant="green" dot>
+                  {t('integrations.enterpriseSso.scim.enabled')}
+                </Badge>
+              ) : (
+                <Badge variant="outline">
+                  {t('integrations.enterpriseSso.scim.disabled')}
+                </Badge>
+              )}
+              {scimToken ? (
+                <Stack gap={2}>
+                  <Text variant="muted" className="text-sm">
+                    {t('integrations.enterpriseSso.scim.tokenCreatedHelp')}
+                  </Text>
+                  <code className="bg-muted block w-full rounded-md p-3 font-mono text-xs break-all">
+                    {scimToken}
+                  </code>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
-                    disabled={!canEdit}
-                    onClick={() => disableScim.mutate({ organizationId })}
+                    onClick={() => copy(scimToken)}
                   >
-                    {t('integrations.enterpriseSso.scim.disable')}
+                    <Copy className="size-4" />
+                    {t('integrations.enterpriseSso.copy')}
                   </Button>
-                )}
-              </HStack>
-            )}
-            {config?.scim.baseUrl && (
-              <ReadOnlyCopy
-                label={t('integrations.enterpriseSso.scim.baseUrlLabel')}
-                value={config.scim.baseUrl}
-                onCopy={copy}
-              />
-            )}
-          </Section>
+                </Stack>
+              ) : (
+                <HStack gap={2}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleGenerateScimToken}
+                    disabled={!canEdit || regenScim.isPending}
+                  >
+                    {regenScim.isPending && (
+                      <Loader2 className="size-4 animate-spin" />
+                    )}
+                    {config?.scim.enabled
+                      ? t('integrations.enterpriseSso.scim.regenerate')
+                      : t('integrations.enterpriseSso.scim.generate')}
+                  </Button>
+                  {config?.scim.enabled && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canEdit}
+                      onClick={() => disableScim.mutate({ organizationId })}
+                    >
+                      {t('integrations.enterpriseSso.scim.disable')}
+                    </Button>
+                  )}
+                </HStack>
+              )}
+              {config?.scim.baseUrl && (
+                <ReadOnlyCopy
+                  label={t('integrations.enterpriseSso.scim.baseUrlLabel')}
+                  value={config.scim.baseUrl}
+                  onCopy={copy}
+                />
+              )}
+            </Stack>
+          </SettingsSection>
 
           {/* Inline actions: Disable / Remove (left) + Test (right). Save and
               Discard live in the settings page header (via the active editor). */}

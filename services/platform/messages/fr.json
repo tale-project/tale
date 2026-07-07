@@ -6059,6 +6059,7 @@
         "clientSecretKeep": "Laisser vide pour conserver le secret actuel.",
         "scopesLabel": "Scopes",
         "pkceLabel": "Utiliser PKCE",
+        "pkceDescription": "Envoie un code challenge PKCE à chaque requête d'autorisation — recommandé dès que l'IdP le prend en charge.",
         "idpEntityIdLabel": "ID d'entité de l'IdP",
         "idpSsoUrlLabel": "URL de connexion de l'IdP",
         "idpCertLabel": "Certificat de signature de l'IdP (PEM)",
@@ -6073,8 +6074,10 @@
           "editor": "Éditeur",
           "member": "Membre"
         },
-        "autoRoleLabel": "Attribuer automatiquement les rôles depuis l'IdP",
-        "autoTeamLabel": "Synchroniser les groupes de l'IdP avec les équipes",
+        "autoRoleLabel": "Attribution automatique des rôles",
+        "autoRoleDescription": "Attribue les rôles de la plateforme à la connexion, d'après les groupes, rôles d'application ou claims de l'IdP.",
+        "autoTeamLabel": "Synchroniser les groupes en équipes",
+        "autoTeamDescription": "Crée et met à jour les équipes à partir des groupes de l'IdP à la connexion.",
         "excludeGroupsLabel": "Exclure des groupes",
         "excludeGroupsHelp": "Noms de groupes séparés par des virgules à ignorer lors de la synchronisation.",
         "scim": {
