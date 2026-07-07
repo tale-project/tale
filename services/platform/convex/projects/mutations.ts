@@ -8,8 +8,10 @@
  *
  * Mutual exclusivity rule for documents:
  *   A document carries `teamId` OR `projectId`, never both.
- *   `attachDocumentToProject` clears `teamId`. `detachDocumentFromProject`
- *   leaves both null (doc becomes a library doc).
+ *   `attachDocumentToProject` requires `teamId` empty.
+ *   `detachDocumentFromProject` leaves both null (doc becomes an org-wide
+ *   library doc) — which is why it demands an explicit `destination` and
+ *   audits the scope transition (issue #2546).
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -951,6 +953,14 @@ export const attachDocumentToProject = mutation({
 export const detachDocumentFromProject = mutation({
   args: {
     documentId: v.id('documents'),
+    /**
+     * Where the file lands once the project gate is removed. Detach cannot
+     * restore a team scope (attach requires `teamId` empty), so the document
+     * becomes org-wide — the caller must say so explicitly instead of the
+     * doc being published silently (issue #2546). Widen to a union if team
+     * destinations or delete-on-detach are added.
+     */
+    destination: v.literal('organization'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -981,7 +991,12 @@ export const detachDocumentFromProject = mutation({
       resourceType: PROJECT_RESOURCE_TYPE,
       resourceId: String(project._id),
       resourceName: project.name,
-      metadata: { documentId: String(args.documentId) },
+      // Record the scope transition: the resource is the project the file
+      // left; `destination` names where it became visible.
+      metadata: {
+        documentId: String(args.documentId),
+        destination: args.destination,
+      },
       status: 'success',
     });
 

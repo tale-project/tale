@@ -28,10 +28,7 @@ import {
   resolveFileType,
 } from '@/lib/shared/file-types';
 
-import {
-  useAttachDocumentToProject,
-  useDetachDocumentFromProject,
-} from '../hooks/mutations';
+import { useDetachDocumentFromProject } from '../hooks/mutations';
 import { useProject, useProjectDocuments } from '../hooks/queries';
 
 interface ProjectFilesTabProps {
@@ -47,7 +44,6 @@ export function ProjectFilesTab({
   const { project } = useProject(projectId);
   const { documents, isLoading } = useProjectDocuments(projectId);
   const { mutateAsync: detachDocument } = useDetachDocumentFromProject();
-  const { mutateAsync: attachDocument } = useAttachDocumentToProject();
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -90,7 +86,10 @@ export function ProjectFilesTab({
         throw new Error('upload response missing storageId');
       }
       const { storageId } = uploadJson;
-      const { documentId } = await createDocumentFromUpload({
+      // One mutation, scoped at insert: the former create-then-attach pair
+      // left the file org-wide in the Knowledge Hub whenever the attach half
+      // failed (issue #2546).
+      await createDocumentFromUpload({
         organizationId,
         fileId: toId<'_storage'>(storageId),
         fileName: file.name,
@@ -104,16 +103,10 @@ export function ProjectFilesTab({
         teamId: undefined,
         folderId: undefined,
         fileSize: file.size,
+        projectId,
       });
-      await attachDocument({ documentId, projectId });
     },
-    [
-      generateUploadUrl,
-      createDocumentFromUpload,
-      attachDocument,
-      organizationId,
-      projectId,
-    ],
+    [generateUploadUrl, createDocumentFromUpload, organizationId, projectId],
   );
 
   const handleFilesSelected = useCallback(
@@ -187,7 +180,7 @@ export function ProjectFilesTab({
   const handleDetach = useCallback(
     async (documentId: Id<'documents'>) => {
       try {
-        await detachDocument({ documentId });
+        await detachDocument({ documentId, destination: 'organization' });
         toast({ title: t('files.detachSuccess'), variant: 'success' });
       } catch (error) {
         if (error instanceof ConvexError) {
@@ -377,7 +370,8 @@ export function ProjectFilesTab({
         }}
         title={t('files.detachAction')}
         description={t('files.detachConfirm', {
-          defaultValue: 'Remove this file from the project?',
+          defaultValue:
+            'Remove this file from the project? It moves to Knowledge and becomes visible to everyone in the organization.',
         })}
         variant="destructive"
         confirmText={t('files.detachAction')}

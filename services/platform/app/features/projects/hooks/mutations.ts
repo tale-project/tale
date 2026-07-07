@@ -35,10 +35,6 @@ export function useUpdateProjectIntegrationSettings() {
   );
 }
 
-export function useAttachDocumentToProject() {
-  return useConvexMutation(api.projects.mutations.attachDocumentToProject);
-}
-
 export function useDetachDocumentFromProject() {
   return useConvexMutation(api.projects.mutations.detachDocumentFromProject);
 }

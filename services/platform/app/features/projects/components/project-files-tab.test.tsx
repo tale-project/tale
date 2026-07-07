@@ -38,12 +38,10 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
+const detachMutateAsync = vi.fn().mockResolvedValue(undefined);
 vi.mock('../hooks/mutations', () => ({
-  useAttachDocumentToProject: () => ({
-    mutateAsync: vi.fn().mockResolvedValue({ documentId: 'doc-x' }),
-  }),
   useDetachDocumentFromProject: () => ({
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    mutateAsync: detachMutateAsync,
   }),
 }));
 
@@ -161,5 +159,36 @@ describe('ProjectFilesTab', () => {
     expect(screen.getByText('Pending.pdf')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pending.pdf' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Preview file' })).toBeNull();
+  });
+
+  // Regression coverage for issue #2546 — "Remove from project" silently
+  // published the file to the org-wide Knowledge Hub. The confirmation must
+  // name that consequence and the mutation must carry the explicit
+  // destination.
+  it('names the org-wide consequence in the detach confirmation and detaches with an explicit destination', async () => {
+    documentsFixture = [makeDoc()];
+    const { user } = renderTab();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove from project' }),
+    );
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Remove from project',
+    });
+    expect(
+      within(dialog).getByText(/visible to everyone in the organization/i),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove from project' }),
+    );
+
+    await waitFor(() => {
+      expect(detachMutateAsync).toHaveBeenCalledWith({
+        documentId: 'doc-1',
+        destination: 'organization',
+      });
+    });
   });
 });
