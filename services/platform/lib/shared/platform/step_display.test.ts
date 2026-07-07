@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dedupeSpineLanes,
   isStepVisible,
+  pruneBypassedLanes,
   stepTreatment,
   type SpineLaneInput,
   type StepTreatment,
@@ -186,5 +187,49 @@ describe('dedupeSpineLanes', () => {
       lane(undefined, true),
     ]);
     expect(kept).toEqual([0, 1, 2]);
+  });
+});
+
+describe('pruneBypassedLanes', () => {
+  const lanes = (entries: Array<[hasRun: boolean, defIndex: number]>) =>
+    entries.map(([hasRun, defIndex]) => ({ hasRun, defIndex }));
+
+  it('drops a skipped gate the run already moved past', () => {
+    // advise(2) ran, review gate(4) skipped, execute(6) running →
+    // lastTouched = 6; the gate is neither run nor ahead.
+    const kept = pruneBypassedLanes(
+      lanes([
+        [true, 2],
+        [false, 4],
+        [true, 6],
+        [false, 9],
+      ]),
+      6,
+    );
+    expect(kept).toEqual([0, 2, 3]);
+  });
+
+  it('keeps the full preview before anything ran', () => {
+    const kept = pruneBypassedLanes(
+      lanes([
+        [false, 2],
+        [false, 4],
+        [false, 6],
+      ]),
+      -1,
+    );
+    expect(kept).toEqual([0, 1, 2]);
+  });
+
+  it('always keeps steps that ran, wherever progress sits', () => {
+    const kept = pruneBypassedLanes(
+      lanes([
+        [true, 2],
+        [true, 4],
+        [false, 3],
+      ]),
+      8,
+    );
+    expect(kept).toEqual([0, 1]);
   });
 });

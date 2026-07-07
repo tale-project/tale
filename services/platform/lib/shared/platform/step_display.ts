@@ -52,6 +52,29 @@ export function isStepVisible(input: StepDisplayInput): boolean {
   return stepTreatment(input) !== 'hidden';
 }
 
+/**
+ * Drop un-run steps the run has already moved PAST. A conditional lane the
+ * gate skipped (e.g. a plan review the advisor never flagged) would otherwise
+ * sit at "Up next" forever while LATER steps run — a lie about what's coming.
+ * A step is "passed" when it has no node but some later-ordered definition
+ * step does; it reappears the moment a loop actually runs it (it then has a
+ * node). `lastTouchedIndex` is the max DEFINITION index with a node, computed
+ * over ALL steps (hidden plumbing included) so branch progress counts.
+ * Returns the kept indexes, in original order.
+ */
+export function pruneBypassedLanes(
+  steps: readonly { hasRun: boolean; defIndex: number }[],
+  lastTouchedIndex: number,
+): number[] {
+  return steps
+    .map((_, i) => i)
+    .filter((i) => {
+      const step = steps[i];
+      if (step === undefined) return false;
+      return step.hasRun || step.defIndex > lastTouchedIndex;
+    });
+}
+
 export interface SpineLaneInput {
   /** The step's `ui.labelKey` — the grouping key. Absent ⇒ never grouped. */
   labelKey?: string;

@@ -19,6 +19,7 @@ import {
 import {
   dedupeSpineLanes,
   isStepVisible,
+  pruneBypassedLanes,
   stepTreatment,
 } from '@/lib/shared/platform/step_display';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -311,12 +312,34 @@ export function useExecutionProjection(args: {
           stepType: live.nodes[stepSlug]?.stepType ?? 'action',
         }));
 
+    // A skipped conditional lane (no node, but a LATER definition step has
+    // one) must not sit at "Up next" while the run demonstrably moved past it
+    // — prune it; a loop that later runs it gives it a node and it reappears.
+    // Progress counts hidden plumbing too, so use the FULL definition order.
+    let lastTouchedIndex = -1;
+    defSteps.forEach((step, i) => {
+      if (live.nodes[step.stepSlug] !== undefined) lastTouchedIndex = i;
+    });
+    const defIndexBySlug = new Map(defSteps.map((s, i) => [s.stepSlug, i]));
+    const reachableIndexes = new Set(
+      pruneBypassedLanes(
+        visibleSteps.map((step) => ({
+          hasRun: live.nodes[step.stepSlug] !== undefined,
+          defIndex: defIndexBySlug.get(step.stepSlug) ?? Number.MAX_VALUE,
+        })),
+        lastTouchedIndex,
+      ),
+    );
+    const reachableSteps = visibleSteps.filter((_, i) =>
+      reachableIndexes.has(i),
+    );
+
     // Branch variants of one concept (same `ui.labelKey`) collapse into a
     // single lane: only the variants this run actually touched show, or one
     // upcoming placeholder while none has — never a parade of "Up next" twins.
     const keptIndexes = new Set(
       dedupeSpineLanes(
-        visibleSteps.map((step) => ({
+        reachableSteps.map((step) => ({
           ...(step.ui?.labelKey !== undefined && {
             labelKey: step.ui.labelKey,
           }),
@@ -324,7 +347,7 @@ export function useExecutionProjection(args: {
         })),
       ),
     );
-    const sourceSteps = visibleSteps.filter((_, i) => keptIndexes.has(i));
+    const sourceSteps = reachableSteps.filter((_, i) => keptIndexes.has(i));
 
     const steps = sourceSteps.map((step) => {
       const node = live.nodes[step.stepSlug];
