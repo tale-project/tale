@@ -147,6 +147,16 @@
 		reverse_proxy convex:6791
 	}
 
+	# HTTP: Platform health endpoint (/api/health -> platform:3000)
+	# The platform owns this route (see services/platform/server.ts); without
+	# this handle the generic /api/* catch-all below sends it to Convex, which
+	# answers 404 "No matching routes found". README.md and the manual-test
+	# SETUP.md document {SITE_URL}/api/health as the external readiness probe,
+	# so it must route through the proxy (#2553).
+	handle /api/health {
+		reverse_proxy platform:3000
+	}
+
 	# HTTP: Convex internal action callbacks (/api/actions/* -> convex:3210)
 	handle /api/actions/* {
 		reverse_proxy convex:3210

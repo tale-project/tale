@@ -216,6 +216,26 @@ async function main(): Promise<number> {
     r.fail('Proxy /health (internal :2020)');
   }
 
+  // Through-proxy platform health: the documented external readiness probe
+  // ({SITE_URL}/api/health — README.md, tests/manual/SETUP.md §1C). Guards the
+  // Caddyfile route: without an explicit /api/health handle the generic /api/*
+  // catch-all sends it to Convex, which 404s (#2553). Self-signed cert, so
+  // skip verification; busybox wget --spider fails on any non-2xx status.
+  if (
+    await dockerExecOk(proxyContainer, [
+      'wget',
+      '--no-check-certificate',
+      '--no-verbose',
+      '--tries=1',
+      '--spider',
+      'https://localhost/api/health',
+    ])
+  ) {
+    r.pass('Proxy routes /api/health to platform');
+  } else {
+    r.fail('Proxy routes /api/health to platform');
+  }
+
   // DB: use pg_isready via docker exec
   const dbContainer = await compose.containerName('db');
   if (
