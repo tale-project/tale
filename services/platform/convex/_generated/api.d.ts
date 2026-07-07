@@ -1259,6 +1259,7 @@ import type * as tasks_issue_ref from "../tasks/issue_ref.js";
 import type * as tasks_list_tasks_paginated from "../tasks/list_tasks_paginated.js";
 import type * as tasks_mentions from "../tasks/mentions.js";
 import type * as tasks_mutations from "../tasks/mutations.js";
+import type * as tasks_pending_reviews from "../tasks/pending_reviews.js";
 import type * as tasks_public_actions from "../tasks/public_actions.js";
 import type * as tasks_queries from "../tasks/queries.js";
 import type * as tasks_rank from "../tasks/rank.js";
@@ -2945,6 +2946,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/list_tasks_paginated": typeof tasks_list_tasks_paginated;
   "tasks/mentions": typeof tasks_mentions;
   "tasks/mutations": typeof tasks_mutations;
+  "tasks/pending_reviews": typeof tasks_pending_reviews;
   "tasks/public_actions": typeof tasks_public_actions;
   "tasks/queries": typeof tasks_queries;
   "tasks/rank": typeof tasks_rank;
