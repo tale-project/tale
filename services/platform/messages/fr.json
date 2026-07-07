@@ -5296,7 +5296,26 @@
       "deleteTitle": "Supprimer la source de jetons",
       "deleteConfirm": "Supprimer la source de jetons « {name} » ? Les agents qui y sont liés perdront leur pool d'identifiants.",
       "secretConfigured": "Secret configuré",
-      "secretReplace": "Remplacer le secret"
+      "secretReplace": "Remplacer le secret",
+      "sectionIdentity": "Identité",
+      "sectionConnection": "Connexion",
+      "sectionMapping": "Correspondance de la réponse",
+      "sectionBinding": "Liaison",
+      "test": "Tester le courtier",
+      "testing": "Test en cours…",
+      "testFailed": "Impossible de tester le courtier",
+      "testSummary": "{usable} jetons utilisables sur {total} (HTTP {status}).",
+      "testNoUsable": "Aucun jeton utilisable parmi {total} éléments (HTTP {status}) — vérifie les champs de correspondance.",
+      "testMissingTokenField": "{count} éléments n'ont pas de valeur dans le champ du jeton.",
+      "testInactive": "{count} jetons écartés par le filtre de statut.",
+      "testExpired": "{count} jetons sont expirés ou sur le point d'expirer.",
+      "testNextExpiry": "Prochaine expiration de jeton : {date}",
+      "testErrorSecretMissing": "Saisis le secret du courtier pour lancer le test.",
+      "testErrorRequestFailed": "La requête vers le courtier a échoué ({kind}).",
+      "testErrorHttp": "Le courtier a renvoyé HTTP {status}.",
+      "testErrorNonJson": "Le courtier a renvoyé une réponse qui n'est pas du JSON.",
+      "testErrorPathInvalid": "Le chemin des jetons n'est pas un JSONPath valide — il doit commencer par $.",
+      "testErrorPathMiss": "Le chemin des jetons ne correspond à aucun tableau dans la réponse du courtier."
     },
     "account": {
       "profile": {

@@ -17,12 +17,23 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { Ellipsis, Pencil, Plus, Trash2, Variable, X } from 'lucide-react';
+import {
+  Check,
+  CircleAlert,
+  Ellipsis,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Variable,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
@@ -30,6 +41,7 @@ import { readConvexErrorData } from '@/app/features/settings/providers/utils/err
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -130,6 +142,63 @@ function readTokenSourceFieldErrors(
     if (msg) out[key] = msg;
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Server outcome of the test-broker probe (mirrors `testTokenSource`). */
+type TestBrokerResult =
+  | {
+      ok: true;
+      httpStatus: number;
+      itemCount: number;
+      usableCount: number;
+      missingTokenField: number;
+      inactiveCount: number;
+      expiredCount: number;
+      nextExpiryMs?: number;
+    }
+  | {
+      ok: false;
+      error:
+        | 'secret_missing'
+        | 'request_failed'
+        | 'http_error'
+        | 'non_json'
+        | 'tokens_path_invalid'
+        | 'tokens_path_miss';
+      httpStatus?: number;
+      detail?: string;
+    };
+
+/**
+ * The config payload `saveTokenSource` / `testTokenSource` expect, built from
+ * the form state — one builder so the probe tests exactly what save writes.
+ */
+function buildConfigPayload(form: FormState) {
+  const auth =
+    form.authMethod === 'none'
+      ? { method: 'none' as const }
+      : form.authMethod === 'bearer'
+        ? { method: 'bearer' as const }
+        : { method: 'header' as const, headerName: form.headerName.trim() };
+  const responseMapping = {
+    tokensPath: form.tokensPath.trim(),
+    tokenField: form.tokenField.trim(),
+    ...(form.statusField.trim() && { statusField: form.statusField.trim() }),
+    ...(form.statusActiveValue.trim() && {
+      statusActiveValue: form.statusActiveValue.trim(),
+    }),
+    ...(form.expiryField.trim() && { expiryField: form.expiryField.trim() }),
+  };
+  return {
+    slug: form.slug.trim(),
+    displayName: form.displayName.trim(),
+    endpoint: form.endpoint.trim(),
+    method: form.method,
+    auth,
+    responseMapping,
+    targetEnvVar: form.targetEnvVar.trim(),
+    selection: form.selection,
+  };
 }
 
 function fromConfig(res: LoadedTokenSource): FormState {
@@ -389,13 +458,23 @@ function TokenSourceFormSheet({
   const { mutateAsync: saveSource, isPending: saving } = useConvexAction(
     api.token_sources.file_actions.saveTokenSource,
   );
+  const { mutateAsync: testSource, isPending: testing } = useConvexAction(
+    api.token_sources.file_actions.testTokenSource,
+  );
 
   const [form, setForm] = useState(editSlug ? null : emptyForm());
   // Server-side per-field validation errors, keyed by config field name. Each
   // edited field clears its own error so the inline message can't go stale.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Last test-broker outcome; `'system-error'` = the probe action itself
+  // failed unexpectedly. Any field edit clears it — a result must always
+  // describe the values currently on screen.
+  const [testResult, setTestResult] = useState<
+    TestBrokerResult | 'system-error' | null
+  >(null);
   const set = (p: Partial<FormState>): void => {
     setForm((f) => (f ? { ...f, ...p } : f));
+    setTestResult(null);
     setFieldErrors((prev) => {
       const keys = Object.keys(p);
       if (!keys.some((k) => k in prev)) return prev;
@@ -416,38 +495,43 @@ function TokenSourceFormSheet({
     );
   }, [editSlug, detail]);
 
+  const onTest = async (): Promise<void> => {
+    if (!form) return;
+    setTestResult(null);
+    try {
+      // The draft secret rides along so the probe uses what the user typed;
+      // blank falls back server-side to the stored secret / env-ref.
+      const result = await testSource({
+        organizationId,
+        config: buildConfigPayload(form),
+        ...(form.secret.length > 0 && { secret: form.secret }),
+      });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- testTokenSource's return validator matches TestBrokerResult
+      setTestResult(result as TestBrokerResult);
+    } catch (err) {
+      // A VALIDATION_ERROR means the draft config itself is invalid — mark
+      // the offending fields inline, same as save (#2350).
+      const mapped = readTokenSourceFieldErrors(err);
+      if (mapped) {
+        setFieldErrors(mapped);
+        toast({
+          title: t('tokenSources.testFailed'),
+          description: tCommon('editor.fixHighlightedFields'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      setTestResult('system-error');
+    }
+  };
+
   const onSave = async (): Promise<void> => {
     if (!form) return;
     setFieldErrors({});
-    const auth =
-      form.authMethod === 'none'
-        ? { method: 'none' as const }
-        : form.authMethod === 'bearer'
-          ? { method: 'bearer' as const }
-          : { method: 'header' as const, headerName: form.headerName.trim() };
-    const responseMapping = {
-      tokensPath: form.tokensPath.trim(),
-      tokenField: form.tokenField.trim(),
-      ...(form.statusField.trim() && { statusField: form.statusField.trim() }),
-      ...(form.statusActiveValue.trim() && {
-        statusActiveValue: form.statusActiveValue.trim(),
-      }),
-      ...(form.expiryField.trim() && { expiryField: form.expiryField.trim() }),
-    };
-    const config = {
-      slug: form.slug.trim(),
-      displayName: form.displayName.trim(),
-      endpoint: form.endpoint.trim(),
-      method: form.method,
-      auth,
-      responseMapping,
-      targetEnvVar: form.targetEnvVar.trim(),
-      selection: form.selection,
-    };
     try {
       await saveSource({
         organizationId,
-        config,
+        config: buildConfigPayload(form),
         // Only send the secret when the user entered one (blank on edit keeps
         // the stored secret untouched).
         ...(form.secret.length > 0 && { secret: form.secret }),
@@ -509,178 +593,207 @@ function TokenSourceFormSheet({
 
       <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         {form ? (
-          <Stack gap={4}>
-            <Input
-              label={t('tokenSources.slug')}
-              value={form.slug}
-              disabled={form.existingSlug !== null || saving}
-              placeholder="coolai"
-              className="font-mono"
-              errorMessage={fieldErrors.slug}
-              onChange={(e) => set({ slug: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.displayName')}
-              value={form.displayName}
-              disabled={saving}
-              errorMessage={fieldErrors.displayName}
-              onChange={(e) => set({ displayName: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.endpoint')}
-              value={form.endpoint}
-              disabled={saving}
-              placeholder="https://broker.example.com/api/tokens"
-              className="font-mono"
-              errorMessage={fieldErrors.endpoint}
-              onChange={(e) => set({ endpoint: e.target.value })}
-            />
-
-            <Select
-              label={t('tokenSources.method')}
-              value={form.method}
-              disabled={saving}
-              options={[
-                { value: 'GET', label: 'GET' },
-                { value: 'POST', label: 'POST' },
-              ]}
-              onValueChange={(v) => {
-                const m = narrowStringUnion<'GET' | 'POST'>(v, ['GET', 'POST']);
-                if (m) set({ method: m });
-              }}
-            />
-
-            <Select
-              label={t('tokenSources.authMethod')}
-              value={form.authMethod}
-              disabled={saving}
-              options={[
-                { value: 'none', label: t('tokenSources.authNone') },
-                { value: 'bearer', label: t('tokenSources.authBearer') },
-                { value: 'header', label: t('tokenSources.authHeader') },
-              ]}
-              onValueChange={(v) => {
-                const m = narrowStringUnion<AuthMethod>(v, [
-                  'none',
-                  'bearer',
-                  'header',
-                ]);
-                if (m) set({ authMethod: m });
-              }}
-            />
-            {form.authMethod === 'header' && (
+          <Stack gap={6}>
+            <FormSection label={t('tokenSources.sectionIdentity')}>
               <Input
-                label={t('tokenSources.headerName')}
-                value={form.headerName}
-                disabled={saving}
-                placeholder="X-Api-Key"
+                label={t('tokenSources.slug')}
+                value={form.slug}
+                disabled={form.existingSlug !== null || saving}
+                placeholder="coolai"
                 className="font-mono"
-                errorMessage={fieldErrors.auth}
-                onChange={(e) => set({ headerName: e.target.value })}
+                errorMessage={fieldErrors.slug}
+                onChange={(e) => set({ slug: e.target.value })}
               />
-            )}
-            {needsSecret && (
-              <Stack gap={2}>
-                {form.hasSecret && (
-                  <HStack gap={3} align="center" className="flex-wrap">
-                    <Badge variant="green" dot>
-                      {t('tokenSources.secretConfigured')}
-                    </Badge>
-                    <Text className="text-muted-foreground font-mono text-sm">
-                      ••••••••••
-                    </Text>
-                  </HStack>
-                )}
+              <Input
+                label={t('tokenSources.displayName')}
+                value={form.displayName}
+                disabled={saving}
+                errorMessage={fieldErrors.displayName}
+                onChange={(e) => set({ displayName: e.target.value })}
+              />
+            </FormSection>
+
+            <FormSection label={t('tokenSources.sectionConnection')}>
+              <Input
+                label={t('tokenSources.endpoint')}
+                value={form.endpoint}
+                disabled={saving}
+                placeholder="https://broker.example.com/api/tokens"
+                className="font-mono"
+                errorMessage={fieldErrors.endpoint}
+                onChange={(e) => set({ endpoint: e.target.value })}
+              />
+              <Select
+                label={t('tokenSources.method')}
+                value={form.method}
+                disabled={saving}
+                options={[
+                  { value: 'GET', label: 'GET' },
+                  { value: 'POST', label: 'POST' },
+                ]}
+                onValueChange={(v) => {
+                  const m = narrowStringUnion<'GET' | 'POST'>(v, [
+                    'GET',
+                    'POST',
+                  ]);
+                  if (m) set({ method: m });
+                }}
+              />
+              <Select
+                label={t('tokenSources.authMethod')}
+                value={form.authMethod}
+                disabled={saving}
+                options={[
+                  { value: 'none', label: t('tokenSources.authNone') },
+                  { value: 'bearer', label: t('tokenSources.authBearer') },
+                  { value: 'header', label: t('tokenSources.authHeader') },
+                ]}
+                onValueChange={(v) => {
+                  const m = narrowStringUnion<AuthMethod>(v, [
+                    'none',
+                    'bearer',
+                    'header',
+                  ]);
+                  if (m) set({ authMethod: m });
+                }}
+              />
+              {form.authMethod === 'header' && (
                 <Input
-                  label={
-                    form.hasSecret
-                      ? t('tokenSources.secretReplace')
-                      : t('tokenSources.secret')
-                  }
-                  type="password"
-                  value={form.secret}
+                  label={t('tokenSources.headerName')}
+                  value={form.headerName}
                   disabled={saving}
-                  placeholder={
-                    form.hasSecret
-                      ? t('tokenSources.secretSetPlaceholder')
-                      : t('tokenSources.secretPlaceholder')
-                  }
+                  placeholder="X-Api-Key"
                   className="font-mono"
-                  onChange={(e) => set({ secret: e.target.value })}
+                  errorMessage={fieldErrors.auth}
+                  onChange={(e) => set({ headerName: e.target.value })}
                 />
-              </Stack>
-            )}
+              )}
+              {needsSecret && (
+                <Stack gap={2}>
+                  {form.hasSecret && (
+                    <HStack gap={3} align="center" className="flex-wrap">
+                      <Badge variant="green" dot>
+                        {t('tokenSources.secretConfigured')}
+                      </Badge>
+                      <Text className="text-muted-foreground font-mono text-sm">
+                        ••••••••••
+                      </Text>
+                    </HStack>
+                  )}
+                  <Input
+                    label={
+                      form.hasSecret
+                        ? t('tokenSources.secretReplace')
+                        : t('tokenSources.secret')
+                    }
+                    type="password"
+                    value={form.secret}
+                    disabled={saving}
+                    placeholder={
+                      form.hasSecret
+                        ? t('tokenSources.secretSetPlaceholder')
+                        : t('tokenSources.secretPlaceholder')
+                    }
+                    className="font-mono"
+                    onChange={(e) => set({ secret: e.target.value })}
+                  />
+                </Stack>
+              )}
+            </FormSection>
 
-            <Text variant="muted" className="text-xs">
-              {t('tokenSources.mappingHint')}
-            </Text>
-            <Input
-              label={t('tokenSources.tokensPath')}
-              value={form.tokensPath}
-              disabled={saving}
-              placeholder="$.tokens"
-              className="font-mono"
-              onChange={(e) => set({ tokensPath: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.tokenField')}
-              value={form.tokenField}
-              disabled={saving}
-              placeholder="access_token"
-              className="font-mono"
-              onChange={(e) => set({ tokenField: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.statusField')}
-              value={form.statusField}
-              disabled={saving}
-              placeholder="status"
-              className="font-mono"
-              onChange={(e) => set({ statusField: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.statusActiveValue')}
-              value={form.statusActiveValue}
-              disabled={saving}
-              placeholder="active"
-              className="font-mono"
-              onChange={(e) => set({ statusActiveValue: e.target.value })}
-            />
-            <Input
-              label={t('tokenSources.expiryField')}
-              value={form.expiryField}
-              disabled={saving}
-              placeholder="expires_at"
-              className="font-mono"
-              onChange={(e) => set({ expiryField: e.target.value })}
-            />
+            <FormSection
+              label={t('tokenSources.sectionMapping')}
+              description={t('tokenSources.mappingHint')}
+            >
+              <Input
+                label={t('tokenSources.tokensPath')}
+                value={form.tokensPath}
+                disabled={saving}
+                placeholder="$.tokens"
+                className="font-mono"
+                errorMessage={fieldErrors.responseMapping}
+                onChange={(e) => set({ tokensPath: e.target.value })}
+              />
+              <Input
+                label={t('tokenSources.tokenField')}
+                value={form.tokenField}
+                disabled={saving}
+                placeholder="access_token"
+                className="font-mono"
+                onChange={(e) => set({ tokenField: e.target.value })}
+              />
+              <Input
+                label={t('tokenSources.statusField')}
+                value={form.statusField}
+                disabled={saving}
+                placeholder="status"
+                className="font-mono"
+                onChange={(e) => set({ statusField: e.target.value })}
+              />
+              <Input
+                label={t('tokenSources.statusActiveValue')}
+                value={form.statusActiveValue}
+                disabled={saving}
+                placeholder="active"
+                className="font-mono"
+                onChange={(e) => set({ statusActiveValue: e.target.value })}
+              />
+              <Input
+                label={t('tokenSources.expiryField')}
+                value={form.expiryField}
+                disabled={saving}
+                placeholder="expires_at"
+                className="font-mono"
+                onChange={(e) => set({ expiryField: e.target.value })}
+              />
+              <div>
+                <Button
+                  variant="secondary"
+                  type="button"
+                  disabled={testing || saving}
+                  onClick={() => void onTest()}
+                >
+                  {testing ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      {t('tokenSources.testing')}
+                    </>
+                  ) : (
+                    t('tokenSources.test')
+                  )}
+                </Button>
+              </div>
+              {testResult && <TestBrokerOutcome result={testResult} />}
+            </FormSection>
 
-            <Input
-              label={t('tokenSources.targetEnvVar')}
-              value={form.targetEnvVar}
-              disabled={saving}
-              placeholder="CLAUDE_CODE_OAUTH_TOKEN"
-              className="font-mono"
-              errorMessage={fieldErrors.targetEnvVar}
-              onChange={(e) => set({ targetEnvVar: e.target.value })}
-            />
-            <Select
-              label={t('tokenSources.selection')}
-              value={form.selection}
-              disabled={saving}
-              options={[
-                { value: 'random', label: t('tokenSources.selectionRandom') },
-                { value: 'first', label: t('tokenSources.selectionFirst') },
-              ]}
-              onValueChange={(v) => {
-                const s = narrowStringUnion<Selection>(v, [
-                  'random',
-                  'round-robin',
-                  'first',
-                ]);
-                if (s) set({ selection: s });
-              }}
-            />
+            <FormSection label={t('tokenSources.sectionBinding')}>
+              <Input
+                label={t('tokenSources.targetEnvVar')}
+                value={form.targetEnvVar}
+                disabled={saving}
+                placeholder="CLAUDE_CODE_OAUTH_TOKEN"
+                className="font-mono"
+                errorMessage={fieldErrors.targetEnvVar}
+                onChange={(e) => set({ targetEnvVar: e.target.value })}
+              />
+              <Select
+                label={t('tokenSources.selection')}
+                value={form.selection}
+                disabled={saving}
+                options={[
+                  { value: 'random', label: t('tokenSources.selectionRandom') },
+                  { value: 'first', label: t('tokenSources.selectionFirst') },
+                ]}
+                onValueChange={(v) => {
+                  const s = narrowStringUnion<Selection>(v, [
+                    'random',
+                    'round-robin',
+                    'first',
+                  ]);
+                  if (s) set({ selection: s });
+                }}
+              />
+            </FormSection>
           </Stack>
         ) : (
           <Text variant="muted" className="text-sm">
@@ -706,5 +819,94 @@ function TokenSourceFormSheet({
         </Button>
       </HStack>
     </Sheet>
+  );
+}
+
+/**
+ * Inline result of the test-broker probe: a pass/fail headline plus, on
+ * success, per-filter drop counts so a mapping miss (wrong token field, all
+ * tokens inactive/expired) is visible before save — the whole point of #2395.
+ */
+function TestBrokerOutcome({
+  result,
+}: {
+  result: TestBrokerResult | 'system-error';
+}) {
+  const { t } = useT('settings');
+  const { formatDate } = useFormatDate();
+
+  if (result === 'system-error' || !result.ok) {
+    const message =
+      result === 'system-error'
+        ? t('tokenSources.testFailed')
+        : {
+            secret_missing: t('tokenSources.testErrorSecretMissing'),
+            request_failed: t('tokenSources.testErrorRequestFailed', {
+              kind: result.detail ?? 'network_error',
+            }),
+            http_error: t('tokenSources.testErrorHttp', {
+              status: result.httpStatus ?? 0,
+            }),
+            non_json: t('tokenSources.testErrorNonJson'),
+            tokens_path_invalid: t('tokenSources.testErrorPathInvalid'),
+            tokens_path_miss: t('tokenSources.testErrorPathMiss'),
+          }[result.error];
+    return (
+      <HStack gap={2} align="start" role="status">
+        <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" />
+        <Text className="text-destructive text-sm">{message}</Text>
+      </HStack>
+    );
+  }
+
+  const usable = result.usableCount > 0;
+  return (
+    <Stack gap={1} role="status">
+      <HStack gap={2} align="start">
+        {usable ? (
+          <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
+        ) : (
+          <CircleAlert className="text-destructive mt-0.5 size-4 shrink-0" />
+        )}
+        <Text className={usable ? 'text-sm' : 'text-destructive text-sm'}>
+          {usable
+            ? t('tokenSources.testSummary', {
+                usable: result.usableCount,
+                total: result.itemCount,
+                status: result.httpStatus,
+              })
+            : t('tokenSources.testNoUsable', {
+                total: result.itemCount,
+                status: result.httpStatus,
+              })}
+        </Text>
+      </HStack>
+      <Stack gap={1} className="pl-6">
+        {result.missingTokenField > 0 && (
+          <Text className="text-muted-foreground text-xs">
+            {t('tokenSources.testMissingTokenField', {
+              count: result.missingTokenField,
+            })}
+          </Text>
+        )}
+        {result.inactiveCount > 0 && (
+          <Text className="text-muted-foreground text-xs">
+            {t('tokenSources.testInactive', { count: result.inactiveCount })}
+          </Text>
+        )}
+        {result.expiredCount > 0 && (
+          <Text className="text-muted-foreground text-xs">
+            {t('tokenSources.testExpired', { count: result.expiredCount })}
+          </Text>
+        )}
+        {result.nextExpiryMs !== undefined && (
+          <Text className="text-muted-foreground text-xs">
+            {t('tokenSources.testNextExpiry', {
+              date: formatDate(new Date(result.nextExpiryMs), 'long'),
+            })}
+          </Text>
+        )}
+      </Stack>
+    </Stack>
   );
 }
