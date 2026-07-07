@@ -15,6 +15,7 @@ import {
 } from '@tale/ui/server';
 
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
+import { webHealthStatus } from './lib/forms/health';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
 
@@ -23,8 +24,20 @@ import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
 // ---------------------------------------------------------------------------
 
 const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
+const FORMS_REQUIRED = process.env.WEB_FORMS_REQUIRED === 'true';
 const MAX_BODY_BYTES = 4 * 1024;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
+
+if (!DISCORD_WEBHOOK_URL) {
+  console.error(
+    '[forms] WEB_DISCORD_WEBHOOK_URL is not set — /api/forms/submit returns 503',
+  );
+  if (FORMS_REQUIRED) {
+    console.error(
+      '[forms] WEB_FORMS_REQUIRED=true — /api/health returns 503 until the webhook is configured',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Precompiled artifact server
@@ -152,6 +165,14 @@ startReactServer({
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
   artifacts: artifactsServer,
+  buildHealthResponse: () => {
+    const { status, body } = webHealthStatus({
+      webhookUrl: DISCORD_WEBHOOK_URL,
+      formsRequired: FORMS_REQUIRED,
+      version: process.env.TALE_VERSION ?? 'dev',
+    });
+    return Response.json(body, { status });
+  },
   extraRoutes: (request, url) => {
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);
