@@ -17,6 +17,7 @@ import {
   isRenderKind,
 } from '@/lib/shared/platform/render_kinds';
 import {
+  dedupeSpineLanes,
   isStepVisible,
   stepTreatment,
 } from '@/lib/shared/platform/step_display';
@@ -302,13 +303,28 @@ export function useExecutionProjection(args: {
     // with pure plumbing (routing conditions, status-bumps) collapsed out via the
     // shared predicate so map and run view agree. Until it loads, fall back to
     // the live node keys UNFILTERED (transient) so something renders.
-    const sourceSteps: DefinitionStep[] = usingDef
+    const visibleSteps: DefinitionStep[] = usingDef
       ? defSteps.filter((step) => isStepVisible(displayInput(step)))
       : Object.keys(live.nodes).map((stepSlug) => ({
           stepSlug,
           name: live.nodes[stepSlug]?.stepName ?? stepSlug,
           stepType: live.nodes[stepSlug]?.stepType ?? 'action',
         }));
+
+    // Branch variants of one concept (same `ui.labelKey`) collapse into a
+    // single lane: only the variants this run actually touched show, or one
+    // upcoming placeholder while none has — never a parade of "Up next" twins.
+    const keptIndexes = new Set(
+      dedupeSpineLanes(
+        visibleSteps.map((step) => ({
+          ...(step.ui?.labelKey !== undefined && {
+            labelKey: step.ui.labelKey,
+          }),
+          hasRun: live.nodes[step.stepSlug] !== undefined,
+        })),
+      ),
+    );
+    const sourceSteps = visibleSteps.filter((_, i) => keptIndexes.has(i));
 
     const steps = sourceSteps.map((step) => {
       const node = live.nodes[step.stepSlug];

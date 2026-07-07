@@ -51,3 +51,40 @@ export function stepTreatment({
 export function isStepVisible(input: StepDisplayInput): boolean {
   return stepTreatment(input) !== 'hidden';
 }
+
+export interface SpineLaneInput {
+  /** The step's `ui.labelKey` — the grouping key. Absent ⇒ never grouped. */
+  labelKey?: string;
+  /** Whether the run has touched this step (a live node state exists). */
+  hasRun: boolean;
+}
+
+/**
+ * Collapse mutually-exclusive BRANCH VARIANTS of one concept into a single
+ * spine lane. Steps that share a `ui.labelKey` are alternatives of the same
+ * user-facing step (a round-0/round-1 review gate, one dream step per judge
+ * verdict): rendering each un-run variant as its own "Up next" lane reads as
+ * pending work that will never happen. Keep every variant the run actually
+ * touched (real history), and — only when none has run yet — the FIRST as the
+ * lane's single upcoming placeholder. Steps without a `labelKey` always keep
+ * their own lane. Returns the kept indexes, in original order.
+ */
+export function dedupeSpineLanes(steps: readonly SpineLaneInput[]): number[] {
+  const groups = new Map<string, number[]>();
+  steps.forEach((step, i) => {
+    if (step.labelKey === undefined) return;
+    const members = groups.get(step.labelKey) ?? [];
+    members.push(i);
+    groups.set(step.labelKey, members);
+  });
+  const dropped = new Set<number>();
+  for (const members of groups.values()) {
+    if (members.length < 2) continue;
+    const ran = members.filter((i) => steps[i]?.hasRun);
+    const kept = ran.length > 0 ? new Set(ran) : new Set([members[0]]);
+    for (const i of members) {
+      if (!kept.has(i)) dropped.add(i);
+    }
+  }
+  return steps.map((_, i) => i).filter((i) => !dropped.has(i));
+}
