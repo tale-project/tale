@@ -122,15 +122,13 @@ function lifecycleMenuTrigger(scope: Locator | Page, name: string): Locator {
 }
 
 /**
- * The hub card (the bordered Card surface) titled `name`. Hub cards are
- * static containers — the title is plain text and the controls (Install /
- * Open / the ⋯ menu) are DESCENDANTS in the card footer — so scope by the one
- * bordered card that contains the exact title.
+ * The hub card titled `name`. The whole card IS a button (Card `asChild`
+ * hoists the bordered surface onto it, `aria-label` = the automation name);
+ * the ⋯ menu is a positioned SIBLING outside it — locate that via
+ * {@link lifecycleMenuTrigger} on the page, never as a card descendant.
  */
 function automationCard(page: Page, name: string): Locator {
-  return page
-    .locator('div.rounded-lg.border')
-    .filter({ has: page.getByText(name, { exact: true }) });
+  return page.getByRole('button', { name, exact: true });
 }
 
 /**
@@ -164,21 +162,44 @@ export async function uninstallOrgAutomationIfInstalled(
   await gotoAutomationsHubAllTab(page, organizationId);
   const card = automationCard(page, name);
   await expect(card).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  const menu = lifecycleMenuTrigger(card, name);
-  if (!(await menu.isVisible())) return; // not installed — nothing to do
+  // Installed and not-installed cards BOTH carry a "Manage {name}" ⋯ menu
+  // (lifecycle vs quick-install) — which menu item renders is the install
+  // signal, so open it to find out. `exact` matters: "Install" is a
+  // substring of "Uninstall".
+  const menu = lifecycleMenuTrigger(page, name);
   await menu.click();
-  await page
-    .getByRole('menuitem', { name: t('automations.install.uninstall') })
-    .click();
+  const uninstallItem = page.getByRole('menuitem', {
+    name: t('automations.install.uninstall'),
+    exact: true,
+  });
+  const installItem = page.getByRole('menuitem', {
+    name: t('automations.install.install'),
+    exact: true,
+  });
+  await expect(uninstallItem.or(installItem).first()).toBeVisible({
+    timeout: TIMEOUT.VISIBLE,
+  });
+  if (!(await uninstallItem.isVisible())) {
+    await page.keyboard.press('Escape'); // not installed — nothing to do
+    return;
+  }
+  await uninstallItem.click();
   const confirm = page.getByRole('dialog', {
     name: t('automations.install.uninstallTitle'),
   });
   await confirm
     .getByRole('button', { name: t('automations.install.uninstall') })
     .click();
-  // Uninstall tears down files + the install row; wait for the card to flip
-  // back to installable before moving on.
-  await expect(
-    card.getByRole('button', { name: t('automations.install.install') }),
-  ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+  // Uninstall tears down files + the install row; the card's install-state
+  // badge unmounting is the flip back to installable (a not-installed card
+  // reserves its badge slot empty — the ⋯ Install action is the affordance).
+  for (const badgeText of [
+    t('automations.install.installed'),
+    t('automations.install.setup'),
+    t('automations.install.reinstall'),
+  ]) {
+    await expect(card.getByText(badgeText, { exact: true })).toBeHidden({
+      timeout: TIMEOUT.EXECUTION,
+    });
+  }
 }

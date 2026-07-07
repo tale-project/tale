@@ -203,8 +203,10 @@ test.describe('email inbox apps: install, inbox', () => {
     await page.reload();
     const row = page.getByRole('button', { name: subject });
     await expect(row).toBeVisible({ timeout: TIMEOUT.PERSIST });
-    // The row surfaces the seeded body as its preview line…
-    await expect(row).toContainText('Hello from the e2e seed');
+    // The row button is a stretched overlay carrying only the aria-label; the
+    // visible content (sender heading + preview line) renders in its parent
+    // container — assert the seeded body's preview there.
+    await expect(row.locator('..')).toContainText('Hello from the e2e seed');
     await row.click();
     // …so once selected the body renders in the thread pane AND as row
     // previews (retried runs seed several rows with the same body, so the
