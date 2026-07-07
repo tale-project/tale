@@ -129,6 +129,17 @@
                   }
                 },
                 {
+                  "labelKey": "list.review",
+                  "variant": "primary",
+                  "when": "pendingReview",
+                  "effect": {
+                    "kind": "openDetail",
+                    "subjectType": "task",
+                    "id": "$selected._id",
+                    "title": "$selected.title"
+                  }
+                },
+                {
                   "labelKey": "list.merge",
                   "path": "tasks/public_actions:mergeTaskPullRequest",
                   "mode": "action",

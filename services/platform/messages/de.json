@@ -178,7 +178,8 @@
       "start": "Starten",
       "markDone": "Als erledigt markieren",
       "merge": "Pull Request mergen",
-      "all": "Alle"
+      "all": "Alle",
+      "review": "Prüfen"
     },
     "agents": {
       "none": "Keine Agenten konfiguriert.",

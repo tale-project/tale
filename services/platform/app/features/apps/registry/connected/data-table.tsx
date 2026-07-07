@@ -24,7 +24,12 @@ import { Fragment, useState } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-import { BoundButton, type BoundActionSpec } from './bound-button';
+import {
+  BoundButton,
+  EffectButton,
+  isEffectAction,
+  type RowActionSpec,
+} from './bound-button';
 
 /** Columns never worth showing as data (ids / framework fields). */
 const HIDDEN = new Set([
@@ -101,8 +106,9 @@ export interface DataTableProps {
   /** Header text per column key (already locale-resolved by the caller); a column
    *  with no entry falls back to its capitalized key. */
   columnLabels?: Record<string, string>;
-  /** Per-row actions, rendered as `BoundButton`s bound to the row. */
-  actions?: BoundActionSpec[];
+  /** Per-row actions, bound to the row: function-calling `BoundButton`s or
+   *  effect-only `EffectButton`s (e.g. open the row's detail overlay). */
+  actions?: RowActionSpec[];
   /** When set, each row expands to render detail in-context (the `idField` value
    *  is passed to `render`). */
   expansion?: {
@@ -225,9 +231,13 @@ export function DataTable({
                   // Stop row-click expansion when interacting with actions.
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Row gap={2} align="stretch" wrap>
-                      {acts.map((a, ai) => (
-                        <BoundButton key={ai} action={a} item={row} />
-                      ))}
+                      {acts.map((a, ai) =>
+                        isEffectAction(a) ? (
+                          <EffectButton key={ai} action={a} item={row} />
+                        ) : (
+                          <BoundButton key={ai} action={a} item={row} />
+                        ),
+                      )}
                       {rowActions &&
                         rowActionId !== undefined &&
                         rowActions.render(rowActionId)}
