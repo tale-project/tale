@@ -22,6 +22,7 @@ import {
 } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
 import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
+import { folderLabel } from '@/app/features/agents/utils/folder-label';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -69,6 +70,7 @@ function AgentDetailLayout() {
   const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const { t: tCatalog } = useT('agentCatalog');
 
   const { data, isLoading, error, refetch } = useReadAgent(
     organizationId,
@@ -132,7 +134,11 @@ function AgentDetailLayout() {
         aria-label={tCommon('aria.breadcrumb')}
         className="flex min-w-0 items-center"
       >
-        <ol className="flex min-w-0 items-center">
+        {/* The whole trail carries the page-title typography (`text-base
+            font-semibold`, matching `Heading size="base"` and the list view's
+            `AdaptiveHeaderTitle`) so parent crumbs and the leaf share one size
+            and weight — parents are dimmed via colour only (#2543). */}
+        <ol className="flex min-w-0 items-center text-base font-semibold">
           <li className="hidden items-center md:flex">
             <Link
               to="/dashboard/$id/agents"
@@ -160,7 +166,10 @@ function AgentDetailLayout() {
                   search={{ folder: path }}
                   className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                 >
-                  {segment}
+                  {/* Localized folder display name, matching the list view's
+                      folder breadcrumb and the catalog sections — never the
+                      raw path segment (#2348). */}
+                  {folderLabel(tCatalog, segment)}
                 </Link>
               </li>
             );
