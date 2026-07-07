@@ -66,7 +66,11 @@ const RESEED_TIMEOUT_EXIT = 124;
 // derive ADMIN_KEY inline from env.sh's helpers (`ensure_instance_secret`
 // is exported by env.sh; `generate_key` is the binary on $PATH that the
 // official Convex Docker image uses).
-const RESEED_SCRIPT = `set -eo pipefail
+// The first line is a bash comment that acts as the bundle sentinel for
+// scripts/check-bundle.ts. It exists ONLY inside this template literal —
+// never repeat it in a comment or another string (see run-migrations.ts).
+const RESEED_SCRIPT = `# tale-bundle-sentinel:reseed-script-v1
+set -eo pipefail
 source /app/env.sh
 env_normalize_common
 ensure_instance_secret

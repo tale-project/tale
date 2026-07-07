@@ -3,7 +3,12 @@ import * as vm from 'node:vm';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { wrapCanvasPreviewHtml } from './lib/canvas-preview-shell';
-import { authorizeScreencast, createApp, SCREENCAST_ROUTE_RE } from './server';
+import {
+  authorizeScreencast,
+  createApp,
+  SCREENCAST_ROUTE_RE,
+  shouldDeliverSseEvent,
+} from './server';
 
 const baseEnv = {
   SITE_URL: 'https://tale.example.com',
@@ -496,6 +501,37 @@ describe('SSE /events/file', () => {
     const app = createApp({ ...baseEnv, FILE_EVENTS_ENABLED: false });
     const res = await app.fetch(new Request('http://localhost/events/file'));
     expect(res.status).toBe(404);
+  });
+});
+
+describe('shouldDeliverSseEvent — fan-out predicate', () => {
+  const allowed = new Set(['acme']);
+
+  test('delivers an event whose orgSlug the client is a member of', () => {
+    expect(
+      shouldDeliverSseEvent({ type: 'config', orgSlug: 'acme' }, allowed),
+    ).toBe(true);
+  });
+
+  test('drops an event for an org the client is not a member of', () => {
+    expect(
+      shouldDeliverSseEvent({ type: 'config', orgSlug: 'globex' }, allowed),
+    ).toBe(false);
+  });
+
+  // Default-deny: an event without an orgSlug must reach no client — the
+  // legacy behavior fanned it out to everyone, which is the cross-org
+  // metadata leak this predicate closes (R18-P2-a).
+  test('drops an event that carries no orgSlug', () => {
+    expect(shouldDeliverSseEvent({ type: 'config' }, allowed)).toBe(false);
+  });
+
+  test('drops a non-string orgSlug and non-object events', () => {
+    expect(
+      shouldDeliverSseEvent({ type: 'config', orgSlug: 42 }, allowed),
+    ).toBe(false);
+    expect(shouldDeliverSseEvent(null, allowed)).toBe(false);
+    expect(shouldDeliverSseEvent('acme', allowed)).toBe(false);
   });
 });
 
