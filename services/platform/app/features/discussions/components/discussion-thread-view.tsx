@@ -14,7 +14,7 @@ import {
   Lock,
   RotateCcw,
 } from 'lucide-react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -32,6 +32,7 @@ import {
 } from '../../chat/hooks/use-message-processing';
 import type { FileAttachment } from '../../chat/types';
 import { useActorDirectory } from '../../tasks/hooks/use-actor-directory';
+import { useMentionActorOptions } from '../../tasks/lib/mention-actor-options';
 import {
   useCreateTaskFromDiscussion,
   usePostReply,
@@ -45,7 +46,6 @@ import {
   toDiscussionStatus,
 } from '../lib';
 import { describeDiscussionAuthor } from '../lib/resolve-author';
-import { createActorMentionSource } from './actor-mention-source';
 
 interface DiscussionThreadViewProps {
   organizationId: string;
@@ -86,11 +86,9 @@ export function DiscussionThreadView({
     String(projectId),
   );
   // Teammate + agent `@`-mention picker for the reply composer (the discussion
-  // backend re-parses the inserted `@handle`s to trigger agents).
-  const actorMentionSource = useMemo(
-    () => createActorMentionSource({ organizationId, projectId }),
-    [organizationId, projectId],
-  );
+  // backend re-parses the inserted `@handle`s to trigger agents). Shared,
+  // server-aligned options — ChatInput filters and sections them.
+  const actorMentionOptions = useMentionActorOptions(organizationId, projectId);
 
   const {
     attachments,
@@ -334,7 +332,7 @@ export function DiscussionThreadView({
               organizationId={organizationId}
               threadId={threadId}
               projectId={String(projectId)}
-              actorMentionSource={actorMentionSource}
+              actorMentionOptions={actorMentionOptions}
               attachments={attachments}
               uploadingFiles={uploadingFiles}
               uploadFiles={uploadFiles}
