@@ -2,9 +2,9 @@
 
 import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
-import { type SearchSource } from '@tale/ui/search';
 import { Text } from '@tale/ui/text';
 import type { ToastActionElement } from '@tale/ui/toast';
+import { useNavigate } from '@tanstack/react-router';
 import { ArrowUp, CircleStop } from 'lucide-react';
 import type { ComponentPropsWithoutRef } from 'react';
 import { useCallback, useId, useRef, useMemo, useState } from 'react';
@@ -23,6 +23,10 @@ import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
+import {
+  filterMentionActorOptions,
+  type MentionActorOption,
+} from '../../tasks/lib/mention-actor-options';
 import { useChatLayout } from '../context/chat-layout-context';
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
@@ -33,11 +37,11 @@ import {
   type MentionTrigger,
 } from '../hooks/use-kb-mentions';
 import { useVideoUrlIngest } from '../hooks/use-video-url-ingest';
-import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import {
-  ActorMentionPopover,
-  type ActorMentionData,
-} from './actor-mention-popover';
+  findMentionedActors,
+  stripActorMention,
+} from '../utils/actor-mention-text';
+import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModelSelector } from './arena/arena-model-selector';
@@ -62,7 +66,12 @@ import {
 } from './dictation-button';
 import { createDocumentsMentionSource } from './documents-mention-source';
 import { ExternalAgentModeToggle } from './external-agent-mode-toggle';
-import { KbMentionPopover } from './kb-mention-popover';
+import {
+  flattenMentionSections,
+  MentionPopover,
+  type MentionRow,
+  type MentionSection,
+} from './mention-popover';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { QuotedReferenceChip } from './quoted-reference-chip';
@@ -70,14 +79,6 @@ import { SandboxStateIndicator } from './sandbox-state-indicator';
 import { SavePromptMenu } from './save-prompt-menu';
 import { VideoLinkChip } from './video-link-chip';
 import { VoiceModeToggle } from './voice-mode-toggle';
-
-/** Stable no-op fallback so ChatInput can call the actor-mention source
- *  unconditionally (keeping hook order fixed) when no source is provided — i.e.
- *  in 1:1 chat, which uses the knowledge-base picker instead. */
-const EMPTY_ACTOR_MENTION_SOURCE: SearchSource<ActorMentionData> = () => ({
-  results: [],
-  status: 'idle',
-});
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -203,13 +204,16 @@ interface ChatInputProps extends Omit<
   removeKbMention?: (documentId: Id<'documents'>) => void;
   clearKbMentions?: () => KbMention[];
   /**
-   * Optional `@`-mention source for plain-text actor handles (teammates +
-   * agents), used by multi-party surfaces (Discussions). When provided it
-   * REPLACES the knowledge-base picker: selecting inserts `@handle ` prose (no
-   * chip, no id) — the discussion backend re-parses the body. 1:1 chat omits it
-   * and keeps the KB-document picker. Hidden in arena mode.
+   * Mentionable actors (teammates + agents) for the `@`-mention picker's
+   * Agents/Teammates sections, wired by multi-party surfaces (Discussions)
+   * from the shared, server-aligned `useMentionActorOptions`. Selecting
+   * inserts `@handle ` prose (the discussion backend re-parses the body); the
+   * composer derives confirmation chips from that text, so removing a chip
+   * strips the handle again. Composes with the knowledge-base contract above
+   * — each surface enables the entity types valid for it. Hidden in arena
+   * mode.
    */
-  actorMentionSource?: SearchSource<ActorMentionData>;
+  actorMentionOptions?: MentionActorOption[];
   /**
    * Which composer controls to render. `'full'` (default) is the main chat.
    * `'assistant'` is the editor AI panels (the automations editor), where
@@ -281,7 +285,7 @@ export function ChatInput({
   addKbMention,
   removeKbMention,
   clearKbMentions,
-  actorMentionSource,
+  actorMentionOptions,
   variant = 'full',
   ...restProps
 }: ChatInputProps) {
@@ -359,30 +363,29 @@ export function ChatInput({
 
   const { quotedText, setQuotedText } = useChatLayout();
 
-  // ---- `@` knowledge-base mention picker -------------------------------
-  // Enabled only when the caller wires the full mention contract (chips are
-  // the source of truth and live with the caller for send-failure rollback).
-  // Hidden in arena mode — referencedDocumentIds is not wired through
-  // arena_chat in v1.
+  // ---- unified `@` mention picker ---------------------------------------
+  // One picker, typed sections — each surface enables the entity types valid
+  // for it. Documents: only when the caller wires the full KB contract (chips
+  // are the source of truth and live with the caller for send-failure
+  // rollback). Agents/Teammates: only when the caller passes the mentionable
+  // actors. Hidden in arena mode — referencedDocumentIds is not wired through
+  // arena_chat in v1, and arena threads have no actor directory.
   const kbMentionsEnabled =
     !isArenaMode &&
     !!kbMentions &&
     !!addKbMention &&
     !!removeKbMention &&
     !!clearKbMentions;
-  // Multi-party surfaces (Discussions) wire an actor source instead of the KB
-  // contract. The two are mutually exclusive by construction: `mentionsEnabled`
-  // gates the SHARED trigger/keyboard/aria machinery, while each source
-  // self-gates on its own flag so the inactive one never fires.
-  const actorMentionsEnabled = !isArenaMode && !!actorMentionSource;
+  const actorMentionsEnabled = !isArenaMode && !!actorMentionOptions;
   const mentionsEnabled = kbMentionsEnabled || actorMentionsEnabled;
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(
     null,
   );
   const [mentionHighlight, setMentionHighlight] = useState(0);
-  const mentionListboxId = `${textareaId}-kb-mentions`;
+  const mentionListboxId = `${textareaId}-mentions`;
   const mentionPickerOpen =
     mentionsEnabled && mentionTrigger !== null && !attachDisabled;
+  const mentionQuery = mentionTrigger?.query ?? '';
 
   // SearchSource contract: stable identity, called unconditionally every
   // render (it is a hook); inactive renders pass 'skip' to Convex.
@@ -390,33 +393,168 @@ export function ChatInput({
     () => createDocumentsMentionSource({ organizationId }),
     [organizationId],
   );
-  const kbMentionState = mentionSource(mentionTrigger?.query ?? '', {
+  const kbMentionState = mentionSource(mentionQuery, {
     active: mentionPickerOpen && kbMentionsEnabled,
     open: mentionPickerOpen && kbMentionsEnabled,
   });
-  // Called unconditionally via a stable no-op fallback so hook order is fixed
-  // per instance (the real source runs hooks; the fallback runs none).
-  const actorMentionState = (actorMentionSource ?? EMPTY_ACTOR_MENTION_SOURCE)(
-    mentionTrigger?.query ?? '',
-    {
-      active: mentionPickerOpen && actorMentionsEnabled,
-      open: mentionPickerOpen && actorMentionsEnabled,
-    },
-  );
   const kbMentionResults = useMemo(
     () => kbMentionState.results.slice(0, 8),
     [kbMentionState.results],
   );
-  const actorMentionResults = useMemo(
-    () => actorMentionState.results.slice(0, 8),
-    [actorMentionState.results],
+  // Same server-aligned filter the Tasks composer uses, so every picker ranks
+  // actors identically.
+  const filteredActorOptions = useMemo(
+    () =>
+      actorMentionsEnabled && actorMentionOptions
+        ? filterMentionActorOptions(actorMentionOptions, mentionQuery)
+        : [],
+    [actorMentionsEnabled, actorMentionOptions, mentionQuery],
   );
-  const mentionResults = actorMentionsEnabled
-    ? actorMentionResults
-    : kbMentionResults;
+
+  // Actor mentions live in the text itself (`@handle` — the discussion
+  // backend re-parses the body), so their confirmation chips derive from the
+  // text: they appear on select and disappear when the handle is edited out.
+  const actorMentionChips = useMemo(
+    () =>
+      actorMentionsEnabled && actorMentionOptions
+        ? findMentionedActors(value, actorMentionOptions)
+        : [],
+    [actorMentionsEnabled, actorMentionOptions, value],
+  );
+  const removeActorMention = useCallback(
+    (option: MentionActorOption) => {
+      onChange?.(stripActorMention(value, option));
+    },
+    [onChange, value],
+  );
+
+  const navigate = useNavigate();
+  // Typed sections in fixed order (Agents, Teammates, Documents). A section
+  // that is empty WITHOUT a query shows its actionable next step as a real
+  // option row (keyboard-reachable through the same combobox navigation); a
+  // section the query filtered to nothing is omitted, and when every section
+  // is empty the picker shows a single "No matches" state (Enter is swallowed
+  // — see handleKeyDown).
+  const mentionSections = useMemo<MentionSection[]>(() => {
+    const sections: MentionSection[] = [];
+    const hasQuery = mentionQuery.trim().length > 0;
+    if (actorMentionsEnabled) {
+      const actorRows = (type: MentionActorOption['type']): MentionRow[] =>
+        filteredActorOptions
+          .filter((option) => option.type === type)
+          .map((option) => ({
+            kind: 'actor',
+            id: `${option.type}:${option.id}`,
+            data: option,
+          }));
+      const agentRows = actorRows('agent');
+      const teammateRows = actorRows('user');
+      sections.push(
+        {
+          id: 'agents',
+          label: tComposer('mention.sectionAgents'),
+          rows:
+            agentRows.length === 0 && !hasQuery
+              ? [
+                  {
+                    kind: 'action',
+                    id: 'agents-empty-action',
+                    label: tComposer('mention.actionBrowseAgents'),
+                    run: () =>
+                      void navigate({
+                        to: '/dashboard/$id/agents',
+                        params: { id: organizationId },
+                      }),
+                  },
+                ]
+              : agentRows,
+          emptyMessage:
+            agentRows.length === 0 && !hasQuery
+              ? tComposer('mention.emptyAgents')
+              : undefined,
+        },
+        {
+          id: 'teammates',
+          label: tComposer('mention.sectionTeammates'),
+          rows:
+            teammateRows.length === 0 && !hasQuery
+              ? [
+                  {
+                    kind: 'action',
+                    id: 'teammates-empty-action',
+                    label: tComposer('mention.actionInviteTeammates'),
+                    run: () =>
+                      void navigate({
+                        to: '/dashboard/$id/settings/people',
+                        params: { id: organizationId },
+                      }),
+                  },
+                ]
+              : teammateRows,
+          emptyMessage:
+            teammateRows.length === 0 && !hasQuery
+              ? tComposer('mention.emptyTeammates')
+              : undefined,
+        },
+      );
+    }
+    if (kbMentionsEnabled) {
+      const documentRows: MentionRow[] = kbMentionResults.flatMap((result) =>
+        result.data
+          ? [
+              {
+                kind: 'document' as const,
+                id: result.id,
+                data: result.data,
+                subtitle: result.subtitle,
+              },
+            ]
+          : [],
+      );
+      const loading = kbMentionState.status === 'loading';
+      const showEmptyState = documentRows.length === 0 && !hasQuery && !loading;
+      sections.push({
+        id: 'documents',
+        label: tComposer('mention.sectionDocuments'),
+        loading,
+        rows: showEmptyState
+          ? [
+              {
+                kind: 'action',
+                id: 'documents-empty-action',
+                label: tComposer('mention.actionUploadDocuments'),
+                run: () =>
+                  void navigate({
+                    to: '/dashboard/$id/documents',
+                    params: { id: organizationId },
+                  }),
+              },
+            ]
+          : documentRows,
+        emptyMessage: showEmptyState
+          ? tComposer('mention.emptyDocuments')
+          : undefined,
+      });
+    }
+    return sections;
+  }, [
+    actorMentionsEnabled,
+    kbMentionsEnabled,
+    filteredActorOptions,
+    kbMentionResults,
+    kbMentionState.status,
+    mentionQuery,
+    navigate,
+    organizationId,
+    tComposer,
+  ]);
+  const mentionRows = useMemo(
+    () => flattenMentionSections(mentionSections),
+    [mentionSections],
+  );
   const clampedMentionHighlight = Math.min(
     mentionHighlight,
-    Math.max(mentionResults.length - 1, 0),
+    Math.max(mentionRows.length - 1, 0),
   );
 
   /**
@@ -455,9 +593,19 @@ export function ChatInput({
   );
 
   const handleSelectMention = useCallback(
-    (selected: KbMention | ActorMentionData) => {
+    (selected: MentionRow) => {
       const trigger = mentionTrigger;
       if (!trigger) return;
+
+      // Empty-state action row ("Upload documents", "Invite teammates"):
+      // dismiss the picker and run the navigation — nothing is inserted.
+      if (selected.kind === 'action') {
+        setMentionTrigger(null);
+        setMentionHighlight(0);
+        selected.run();
+        return;
+      }
+
       const textarea = textareaRef.current;
       // Replace the typed `@query` with `@text ` prose. `setRangeText` on the
       // DOM node keeps the caret + undo stack intact (same rationale as the
@@ -478,19 +626,20 @@ export function ChatInput({
         setMentionHighlight(0);
       };
 
-      // Actor mention (Discussions): insert plain `@handle ` — no chip; the
-      // discussion backend re-parses the body server-side.
-      if ('handle' in selected) {
-        if (actorMentionsEnabled) insertAtTrigger(`@${selected.handle} `);
+      // Actor mention: insert plain `@handle ` — the discussion backend
+      // re-parses the body server-side; the confirmation chip derives from
+      // this text (actorMentionChips above).
+      if (selected.kind === 'actor') {
+        insertAtTrigger(`@${selected.data.handle} `);
         return;
       }
 
-      // Knowledge-base mention (1:1 chat): owns a chip via addKbMention.
+      // Knowledge-base mention: owns a chip via addKbMention.
       if (!kbMentionsEnabled) return;
-      const added = addKbMention?.(selected) ?? false;
+      const added = addKbMention?.(selected.data) ?? false;
       if (!added) {
         toast({
-          title: tComposer('kbMention.limitReached', {
+          title: tComposer('mention.limitReached', {
             max: MAX_KB_MENTIONS,
           }),
           variant: 'destructive',
@@ -498,11 +647,10 @@ export function ChatInput({
         setMentionTrigger(null);
         return;
       }
-      insertAtTrigger(`@${selected.title} `);
+      insertAtTrigger(`@${selected.data.title} `);
     },
     [
       mentionTrigger,
-      actorMentionsEnabled,
       kbMentionsEnabled,
       addKbMention,
       onChange,
@@ -766,7 +914,7 @@ export function ChatInput({
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setMentionHighlight((i) =>
-          Math.min(i + 1, Math.max(mentionResults.length - 1, 0)),
+          Math.min(i + 1, Math.max(mentionRows.length - 1, 0)),
         );
         return;
       }
@@ -782,7 +930,7 @@ export function ChatInput({
       }
       if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
         e.preventDefault();
-        const selected = mentionResults[clampedMentionHighlight]?.data;
+        const selected = mentionRows[clampedMentionHighlight];
         if (selected) {
           handleSelectMention(selected);
           return;
@@ -995,11 +1143,14 @@ export function ChatInput({
           )}
           {(attachments.length > 0 ||
             uploadingFiles.length > 0 ||
+            actorMentionChips.length > 0 ||
             (kbMentionsEnabled && (kbMentions?.length ?? 0) > 0)) && (
             <AttachmentTray
               kbMentionsEnabled={kbMentionsEnabled}
               kbMentions={kbMentions}
               removeKbMention={removeKbMention}
+              actorMentions={actorMentionChips}
+              removeActorMention={removeActorMention}
               imageAttachments={imageAttachments}
               fileAttachments={fileAttachments}
               uploadingFiles={uploadingFiles}
@@ -1016,24 +1167,11 @@ export function ChatInput({
           <QuotedReferenceChip />
 
           <div className="relative" ref={mentionAnchorRef}>
-            {mentionPickerOpen && mentionTrigger && actorMentionsEnabled && (
-              <ActorMentionPopover
+            {mentionPickerOpen && mentionTrigger && (
+              <MentionPopover
                 anchorRef={mentionAnchorRef}
                 open={mentionPickerOpen}
-                results={actorMentionResults}
-                highlightedIndex={clampedMentionHighlight}
-                onHighlight={setMentionHighlight}
-                onSelect={handleSelectMention}
-                listboxId={mentionListboxId}
-                optionId={(index) => `${mentionListboxId}-option-${index}`}
-              />
-            )}
-            {mentionPickerOpen && mentionTrigger && !actorMentionsEnabled && (
-              <KbMentionPopover
-                anchorRef={mentionAnchorRef}
-                open={mentionPickerOpen}
-                results={kbMentionResults}
-                status={kbMentionState.status}
+                sections={mentionSections}
                 query={mentionTrigger.query}
                 highlightedIndex={clampedMentionHighlight}
                 onHighlight={setMentionHighlight}
@@ -1091,7 +1229,7 @@ export function ChatInput({
               aria-expanded={mentionsEnabled ? mentionPickerOpen : undefined}
               aria-controls={mentionPickerOpen ? mentionListboxId : undefined}
               aria-activedescendant={
-                mentionPickerOpen && mentionResults.length > 0
+                mentionPickerOpen && mentionRows.length > 0
                   ? `${mentionListboxId}-option-${clampedMentionHighlight}`
                   : undefined
               }

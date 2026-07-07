@@ -28,10 +28,16 @@ vi.mock('../hooks/mutations', () => ({
   useCreateDiscussion: () => ({ mutateAsync: vi.fn() }),
 }));
 
+// Convex-backed (actor directory + project) — the dialog only forwards the
+// options to ChatInput, so an empty roster is enough here.
+vi.mock('../../tasks/lib/mention-actor-options', () => ({
+  useMentionActorOptions: () => [],
+}));
+
 const chatInputSpy = vi.fn();
 vi.mock('../../chat/components/chat-input', () => ({
   ChatInput: (props: {
-    actorMentionSource?: unknown;
+    actorMentionOptions?: unknown;
     onSendMessage?: (message: string) => void;
     sendBlocked?: boolean;
   }) => {
@@ -40,7 +46,7 @@ vi.mock('../../chat/components/chat-input', () => ({
       <div data-testid="chat-input-wrapper">
         <div
           data-testid="chat-input"
-          data-has-actor-mention={props.actorMentionSource ? 'yes' : 'no'}
+          data-has-actor-mention={props.actorMentionOptions ? 'yes' : 'no'}
         />
         <button
           type="button"
@@ -57,7 +63,7 @@ vi.mock('../../chat/components/chat-input', () => ({
 import { DiscussionCreateDialog } from './discussion-create-dialog';
 
 describe('DiscussionCreateDialog', () => {
-  it('wires actorMentionSource so @-mentions work in the opening post composer', () => {
+  it('wires actorMentionOptions so @-mentions work in the opening post composer', () => {
     render(
       <DiscussionCreateDialog
         open
@@ -74,7 +80,7 @@ describe('DiscussionCreateDialog', () => {
     );
     expect(chatInputSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorMentionSource: expect.any(Function),
+        actorMentionOptions: expect.any(Array),
       }),
     );
     expect(chatInputSpy.mock.calls[0]?.[0]).not.toHaveProperty('sendBlocked');

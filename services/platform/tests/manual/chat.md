@@ -39,21 +39,21 @@ seeded knowledge), so they're best run in **mode B**.
 
 ## Automated coverage
 
-| Case(s)                          | Status         | e2e spec                                                                                    |
-| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| F1, F2, F3, F12                  | ✅ automated   | `chat-threads.spec.ts`                                                                      |
-| F7, F8, F9                       | ✅ automated   | `chat-advanced.spec.ts`                                                                     |
-| F11, F14                         | ✅ automated   | `chat-features.spec.ts`                                                                     |
-| F5, F6, F16, AT1                 | ✅ automated   | `chat-depth.spec.ts`                                                                        |
-| F18–F22                          | ✅ automated   | `chat-scenarios.spec.ts`                                                                    |
-| F17                              | ✅ automated   | `search.spec.ts`                                                                            |
-| F10, F13, F15                    | 🔶 component   | — (no e2e)                                                                                  |
-| F24                              | 🔶 component   | — (no e2e; image display only: `message-bubble/file-displays.test.tsx`)                     |
-| F25                              | 🔶 component   | — (no e2e; `kb-mention-popover.test.tsx`, `hooks/use-kb-mentions.test.ts`)                  |
-| F33                              | 🔶 component   | — (no e2e; `citation-link.test.tsx`)                                                        |
-| B3                               | 🔶 component   | — (no e2e; `chat-input/paste-image-overlay.browser.test.tsx`, `paste-image-tokens.test.ts`) |
-| F4, F23, TL1–TL6, AT2–AT6, V1–V2 | ⛔ manual-only | —                                                                                           |
-| F26–F32, F34, B1–B2, B4–B6       | ⛔ manual-only | —                                                                                           |
+| Case(s)                          | Status         | e2e spec                                                                                       |
+| -------------------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| F1, F2, F3, F12                  | ✅ automated   | `chat-threads.spec.ts`                                                                         |
+| F7, F8, F9                       | ✅ automated   | `chat-advanced.spec.ts`                                                                        |
+| F11, F14                         | ✅ automated   | `chat-features.spec.ts`                                                                        |
+| F5, F6, F16, AT1                 | ✅ automated   | `chat-depth.spec.ts`                                                                           |
+| F18–F22                          | ✅ automated   | `chat-scenarios.spec.ts`                                                                       |
+| F17                              | ✅ automated   | `search.spec.ts`                                                                               |
+| F10, F13, F15                    | 🔶 component   | — (no e2e)                                                                                     |
+| F24                              | 🔶 component   | — (no e2e; image display only: `message-bubble/file-displays.test.tsx`)                        |
+| F25                              | 🔶 component   | — (no e2e; `mention-popover.test.tsx`, `chat-input.test.tsx`, `hooks/use-kb-mentions.test.ts`) |
+| F33                              | 🔶 component   | — (no e2e; `citation-link.test.tsx`)                                                           |
+| B3                               | 🔶 component   | — (no e2e; `chat-input/paste-image-overlay.browser.test.tsx`, `paste-image-tokens.test.ts`)    |
+| F4, F23, TL1–TL6, AT2–AT6, V1–V2 | ⛔ manual-only | —                                                                                              |
+| F26–F32, F34, B1–B2, B4–B6       | ⛔ manual-only | —                                                                                              |
 
 Legend: ✅ fully automated · 🔶 covered by a component test only (no e2e spec) ·
 ⛔ manual-only (no spec).

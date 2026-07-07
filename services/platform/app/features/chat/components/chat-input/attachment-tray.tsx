@@ -2,7 +2,7 @@
 
 import { HStack, Row, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Eye, Loader, RotateCcw, X } from 'lucide-react';
+import { Bot, Eye, Loader, RotateCcw, User, X } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { middleEllipsis } from '@/lib/utils/format/file';
 
+import type { MentionActorOption } from '../../../tasks/lib/mention-actor-options';
 import type { FileAttachment } from '../../hooks/use-convex-file-upload';
 import type { KbMention } from '../../hooks/use-kb-mentions';
 import {
@@ -29,6 +30,11 @@ interface AttachmentTrayProps {
   kbMentionsEnabled: boolean;
   kbMentions?: KbMention[];
   removeKbMention?: (documentId: Id<'documents'>) => void;
+  /** Actor `@`-mention chips, derived from the composer text (the text is the
+   *  source of truth — see chat-input's actorMentionChips). */
+  actorMentions?: MentionActorOption[];
+  /** Strips the actor's `@handle` from the composer text. */
+  removeActorMention?: (option: MentionActorOption) => void;
   imageAttachments: FileAttachment[];
   fileAttachments: FileAttachment[];
   uploadingFiles: string[];
@@ -51,6 +57,8 @@ export function AttachmentTray({
   kbMentionsEnabled,
   kbMentions,
   removeKbMention,
+  actorMentions,
+  removeActorMention,
   imageAttachments,
   fileAttachments,
   uploadingFiles,
@@ -67,6 +75,42 @@ export function AttachmentTray({
 
   return (
     <HStack gap={1} wrap className="mb-2">
+      {actorMentions?.map((actor) => {
+        const ActorIcon = actor.type === 'agent' ? Bot : User;
+        return (
+          <Row
+            key={`${actor.type}:${actor.id}`}
+            gap={3}
+            className="bg-muted group relative max-w-[280px] rounded-lg px-3 py-2"
+          >
+            <ActorIcon className="text-muted-foreground size-4" aria-hidden />
+            <VStack className="min-w-0 flex-1 gap-1">
+              <Text as="div" variant="label" title={actor.name}>
+                {middleEllipsis(actor.name, 28)}
+              </Text>
+              <Text
+                as="span"
+                variant="caption"
+                className="text-muted-foreground/50"
+              >
+                {actor.type === 'agent'
+                  ? tComposer('mention.agentChipLabel')
+                  : tComposer('mention.teammateChipLabel')}
+              </Text>
+            </VStack>
+            <button
+              type="button"
+              aria-label={tComposer('mention.removeActorMention', {
+                name: actor.name,
+              })}
+              onClick={() => removeActorMention?.(actor)}
+              className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            >
+              <X className="text-muted-foreground size-3" />
+            </button>
+          </Row>
+        );
+      })}
       {kbMentionsEnabled &&
         kbMentions?.map((mention) => (
           <Row
@@ -91,12 +135,12 @@ export function AttachmentTray({
                 variant="caption"
                 className="text-muted-foreground/50"
               >
-                {tComposer('kbMention.chipLabel')}
+                {tComposer('mention.documentChipLabel')}
               </Text>
             </VStack>
             <button
               type="button"
-              aria-label={tComposer('kbMention.removeMention', {
+              aria-label={tComposer('mention.removeDocumentMention', {
                 title: mention.title,
               })}
               onClick={() => removeKbMention?.(mention.documentId)}
