@@ -7219,7 +7219,6 @@
       "faviconDescription": "Generated from your logo if left empty. 64 x 64 pixels.",
       "light": "Light",
       "dark": "Dark",
-      "brandColor": "Brand color",
       "accentColor": "Accent color",
       "uploadLogo": "Upload logo",
       "uploadFavicon": "Upload favicon",

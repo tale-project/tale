@@ -14,7 +14,15 @@ const imageFilenameSchema = z.string().max(100).optional();
 // the wordmark falls back to the org name, so there is no `textLogo`. Both were
 // dropped; legacy `branding.json` files that still carry them are tolerated
 // because `z.object` strips unknown keys.
+//
+// `brandColor` is a READ-ONLY legacy field (#1960): the single `accentColor`
+// now drives the whole derived palette. It stays in the JSON schema so
+// unmigrated files still surface their saved color (readers coalesce
+// `accentColor || brandColor`); the 0.3.4/01 node migration merges it into
+// `accentColor` on disk, and saves never write it (it's absent from the form
+// schema and the save action's args).
 export const brandingJsonSchema = z.object({
+  /** @deprecated Legacy pre-#1960 field — read-only; merged into `accentColor`. */
   brandColor: hexColorSchema,
   accentColor: hexColorSchema,
   logoFilename: imageFilenameSchema,
@@ -24,7 +32,6 @@ export const brandingJsonSchema = z.object({
 export type BrandingJsonConfig = z.infer<typeof brandingJsonSchema>;
 
 export const brandingFormSchema = z.object({
-  brandColor: hexColorSchema,
   accentColor: hexColorSchema,
   logoFilename: imageFilenameSchema,
   faviconLightFilename: imageFilenameSchema,

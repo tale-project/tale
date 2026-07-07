@@ -20,7 +20,6 @@ interface BrandingData {
   logoUrl?: string | null;
   faviconLightUrl?: string | null;
   faviconDarkUrl?: string | null;
-  brandColor?: string;
   accentColor?: string;
 }
 
@@ -49,7 +48,6 @@ function BrandingSettingsView({
   const [previewData, setPreviewData] = useState<BrandingPreviewData>({
     appName: branding?.appName,
     logoUrl: branding?.logoUrl,
-    brandColor: branding?.brandColor,
     accentColor: branding?.accentColor,
   });
 

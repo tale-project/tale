@@ -99,13 +99,14 @@ describe('BrandingForm', () => {
 
     expect(screen.getByText('branding.logo')).toBeInTheDocument();
     expect(screen.getByText('branding.favicon')).toBeInTheDocument();
-    expect(screen.getByText('branding.brandColor')).toBeInTheDocument();
     expect(screen.getByText('branding.accentColor')).toBeInTheDocument();
 
     // App name and text logo are no longer editable — the chrome follows the
-    // organization's name.
+    // organization's name. The brand color was dropped for the single accent
+    // color (#1960).
     expect(screen.queryByText('branding.appName')).not.toBeInTheDocument();
     expect(screen.queryByText('branding.textLogo')).not.toBeInTheDocument();
+    expect(screen.queryByText('branding.brandColor')).not.toBeInTheDocument();
   });
 
   it('feeds the organization name into the preview', () => {
@@ -158,7 +159,7 @@ describe('BrandingForm', () => {
     expect(screen.getByText('branding.faviconDescription')).toBeInTheDocument();
   });
 
-  // Regression: the brand-color control is not a `register`ed RHF field — it
+  // Regression: the accent-color control is not a `register`ed RHF field — it
   // drives the form purely through `setValue(..., { shouldDirty: true })`. The
   // Save/Discard cluster lives in the parent settings nav and reads the form
   // via the active-editor registry, so this asserts the WHOLE path (custom
@@ -170,17 +171,17 @@ describe('BrandingForm', () => {
     );
   }
 
-  it('marks the active editor dirty when the brand color changes', () => {
+  it('marks the active editor dirty when the accent color changes', () => {
     render(
       <ActiveEditorProvider>
-        <BrandingForm {...defaultProps} branding={{ brandColor: '#FF0000' }} />
+        <BrandingForm {...defaultProps} branding={{ accentColor: '#FF0000' }} />
         <DirtyProbe />
       </ActiveEditorProvider>,
     );
 
     expect(screen.getByTestId('dirty')).toHaveTextContent('no');
 
-    const hexInput = screen.getByLabelText('branding.brandColor hex value');
+    const hexInput = screen.getByLabelText('branding.accentColor hex value');
     fireEvent.change(hexInput, { target: { value: '00FF00' } });
 
     expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
@@ -189,12 +190,12 @@ describe('BrandingForm', () => {
   it('returns the active editor to clean when the color reverts to baseline', () => {
     render(
       <ActiveEditorProvider>
-        <BrandingForm {...defaultProps} branding={{ brandColor: '#FF0000' }} />
+        <BrandingForm {...defaultProps} branding={{ accentColor: '#FF0000' }} />
         <DirtyProbe />
       </ActiveEditorProvider>,
     );
 
-    const hexInput = screen.getByLabelText('branding.brandColor hex value');
+    const hexInput = screen.getByLabelText('branding.accentColor hex value');
     fireEvent.change(hexInput, { target: { value: '00FF00' } });
     expect(screen.getByTestId('dirty')).toHaveTextContent('yes');
 

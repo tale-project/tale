@@ -37,30 +37,31 @@ describe('buildBrandingPromptSection', () => {
     expect(buildBrandingPromptSection('acme', config)).toBe('');
   });
 
-  it('includes brand and accent colors when set', () => {
+  it('emits one accent line — a set accentColor wins over a legacy brandColor', () => {
     const config: BrandingJsonConfig = {
       brandColor: '#123456',
       accentColor: '#abcdef',
     };
     const section = buildBrandingPromptSection('acme', config);
     expect(section).toContain('Corporate Identity (Presentation Branding)');
-    expect(section).toContain('#123456');
     expect(section).toContain('#abcdef');
+    // The single accent drives the palette (#1960); the legacy value is not
+    // emitted as a second color.
+    expect(section).not.toContain('#123456');
     // Frames the values as overridable defaults.
     expect(section).toContain('override');
     // No logo filename -> no logo line.
     expect(section).not.toContain('Logo');
   });
 
-  it('omits the brand-color line but keeps the accent line', () => {
+  it('falls back to a legacy brandColor when accentColor is blank', () => {
     const config: BrandingJsonConfig = {
-      brandColor: '',
-      accentColor: '#00ff00',
+      brandColor: '#00ff00',
+      accentColor: '',
     };
     const section = buildBrandingPromptSection('acme', config);
     expect(section).toContain('#00ff00');
-    expect(section).not.toContain('Brand color');
-    expect(section).toContain('Accent color');
+    expect(section).toContain('Brand accent color');
   });
 
   it('includes a same-origin logo URL when a logo filename and SITE_URL are set', () => {

@@ -6,7 +6,7 @@
  * The platform can generate presentations (PPTX) from a prompt, a website, or
  * an uploaded document via the `assistant` agent + bundled `pptx` skill. By
  * default those decks are styled generically — the org's configured branding
- * (brand color, accent color, logo) has no effect on the output.
+ * (accent color, logo) has no effect on the output.
  *
  * This module bridges that gap: when an agent has the `pptx` skill bound and
  * the org has branding configured, it builds a system-prompt section that
@@ -108,8 +108,11 @@ export function buildBrandingPromptSection(
 ): string {
   if (!config) return '';
 
-  const brandColor = presentColor(config.brandColor);
-  const accentColor = presentColor(config.accentColor);
+  // One accent color drives the whole brand palette (#1960); a file the
+  // 0.3.4/01 migration hasn't rewritten yet may still carry only the legacy
+  // `brandColor` — coalesce so the saved color keeps its effect.
+  const accentColor =
+    presentColor(config.accentColor) ?? presentColor(config.brandColor);
   // `logoFilename` is persisted org config that is only length-validated on
   // write, so re-check its format before it reaches the prompt. A filename
   // carrying a newline or markdown (a prompt-injection vector) fails this and
@@ -120,7 +123,7 @@ export function buildBrandingPromptSection(
       : undefined;
   const logoUrl = buildBrandingImageUrl(orgSlug, safeLogoFilename);
 
-  if (!brandColor && !accentColor && !logoUrl) return '';
+  if (!accentColor && !logoUrl) return '';
 
   const lines: string[] = [
     '',
@@ -130,14 +133,9 @@ export function buildBrandingPromptSection(
     '',
   ];
 
-  if (brandColor) {
-    lines.push(
-      `- **Brand color**: \`${brandColor}\` — the dominant color (60–70% visual weight): titles, section headers, key accents, and dark title/closing slide backgrounds.`,
-    );
-  }
   if (accentColor) {
     lines.push(
-      `- **Accent color**: \`${accentColor}\` — the supporting/highlight color: callouts, stat numbers, icons, and small emphasis elements.`,
+      `- **Brand accent color**: \`${accentColor}\` — the organization's single brand color. Build the deck's palette around it: use it (and shades/tints of it) for titles, section headers, key accents, callouts, stat numbers, icons, and dark title/closing slide backgrounds.`,
     );
   }
   if (logoUrl) {

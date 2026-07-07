@@ -6956,7 +6956,6 @@
       "faviconDescription": "Généré à partir de ton logo si laissé vide. 64 x 64 pixels.",
       "light": "Clair",
       "dark": "Sombre",
-      "brandColor": "Couleur de marque",
       "accentColor": "Couleur d'accentuation",
       "uploadLogo": "Téléverser le logo",
       "uploadFavicon": "Téléverser le favicon",

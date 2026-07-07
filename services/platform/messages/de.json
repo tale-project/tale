@@ -6955,7 +6955,6 @@
       "faviconDescription": "Wird aus deinem Logo erzeugt, wenn leer. 64 x 64 Pixel.",
       "light": "Hell",
       "dark": "Dunkel",
-      "brandColor": "Markenfarbe",
       "accentColor": "Akzentfarbe",
       "uploadLogo": "Logo hochladen",
       "uploadFavicon": "Favicon hochladen",
