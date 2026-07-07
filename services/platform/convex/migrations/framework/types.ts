@@ -29,11 +29,11 @@ import type { MutationCtx } from '../../_generated/server';
  * transform under round-trip test so the documented history is provably
  * correct. See `isRunnableKind`.
  */
-export type MigrationKind = 'db' | 'node' | 'reference';
+export type MigrationKind = 'db' | 'node' | 'component' | 'reference';
 
 /** True for kinds the runner is allowed to execute. */
 export function isRunnableKind(kind: MigrationKind): boolean {
-  return kind === 'db' || kind === 'node';
+  return kind === 'db' || kind === 'node' || kind === 'component';
 }
 
 /**
@@ -173,4 +173,33 @@ export interface NodeMigrationHelpers {
     orgSlug: string,
     dir: string,
   ): Promise<void>;
+}
+
+/** Result of one component-migration batch (Better Auth adapter pagination). */
+export interface ComponentBatchResult {
+  isDone: boolean;
+  processed: number;
+  renamed: number;
+  merged: number;
+  skipped: number;
+  noop: number;
+}
+
+/**
+ * A `component` migration: batched transforms over Better Auth component
+ * tables via `components.betterAuth.adapter`. Cursor is stored on the ledger
+ * row like `db` migrations.
+ */
+export interface ComponentMigration {
+  readonly meta: MigrationMeta;
+  readonly batchSize?: number;
+  up(
+    ctx: MutationCtx,
+    cursor: string | null,
+    batchSize: number,
+  ): Promise<ComponentBatchResult & { continueCursor: string | null }>;
+  down(
+    ctx: MutationCtx,
+    cursor: string | null,
+  ): Promise<ComponentBatchResult & { continueCursor: string | null }>;
 }

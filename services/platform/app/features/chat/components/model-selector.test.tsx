@@ -27,7 +27,7 @@ let mockLockedAgent: {
   supportedModels: string[];
   primaryBehavior: 'external-agent';
   authMode?: 'managed' | 'byo';
-  agentKind?: 'claude-code' | 'cursor';
+  agentKind?: 'claude-code' | 'cursor' | 'hermes';
 } | null = null;
 let mockAgents: MockChatAgent[] = [
   {

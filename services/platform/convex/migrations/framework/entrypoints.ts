@@ -54,7 +54,12 @@ const metaValidator = v.object({
   slug: v.string(),
   title: v.string(),
   description: v.string(),
-  kind: v.union(v.literal('db'), v.literal('node'), v.literal('reference')),
+  kind: v.union(
+    v.literal('db'),
+    v.literal('node'),
+    v.literal('component'),
+    v.literal('reference'),
+  ),
   reversible: v.boolean(),
   destructive: v.boolean(),
   snapshot: v.union(
@@ -255,6 +260,8 @@ async function runOne(
   try {
     if (meta.kind === 'db') {
       await runDbMigration(ctx, meta, direction);
+    } else if (meta.kind === 'component') {
+      await runComponentMigration(ctx, meta, direction);
     } else {
       await runNodeMigration(ctx, meta, direction, resume);
     }
@@ -286,6 +293,27 @@ async function runDbMigration(
         )
       : await ctx.runMutation(
           internal.migrations.framework.runner.applyDbBatch,
+          { migrationId: meta.id, direction },
+        );
+    if (result.isDone) return;
+  }
+  throw new Error(`Migration ${meta.id} exceeded ${MAX_BATCHES} batches`);
+}
+
+async function runComponentMigration(
+  ctx: ApplyCtx,
+  meta: MigrationMeta,
+  direction: MigrationDirection,
+): Promise<void> {
+  const useRestore = direction === 'down' && meta.snapshot === 'table-rows';
+  for (let i = 0; i < MAX_BATCHES; i++) {
+    const result = useRestore
+      ? await ctx.runMutation(
+          internal.migrations.framework.runner.restoreComponentSnapshotBatch,
+          { migrationId: meta.id },
+        )
+      : await ctx.runMutation(
+          internal.migrations.framework.runner.applyComponentBatch,
           { migrationId: meta.id, direction },
         );
     if (result.isDone) return;

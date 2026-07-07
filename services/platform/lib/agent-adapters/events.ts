@@ -7,7 +7,7 @@
 // is documented in the implementation plan.
 
 /** Product external runtimes exposed in schema, UI, and registry. */
-export const PRODUCT_AGENT_SLUGS = ['claude-code', 'cursor'] as const;
+export const PRODUCT_AGENT_SLUGS = ['claude-code', 'cursor', 'hermes'] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
 
 /** Archived runtime — parser fixtures only; not in product registry. */

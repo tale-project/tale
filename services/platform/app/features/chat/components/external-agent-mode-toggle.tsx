@@ -79,9 +79,7 @@ export function ExternalAgentModeToggle({
   if (
     active?.primaryBehavior !== 'external-agent' ||
     !getAgentCapabilities(
-      (active.agentKind === 'cursor'
-        ? 'cursor'
-        : 'claude-code') satisfies ProductAgentSlug,
+      (active.agentKind ?? 'claude-code') satisfies ProductAgentSlug,
     ).supportsPlanMode
   ) {
     return null;

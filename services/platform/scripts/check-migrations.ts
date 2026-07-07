@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   ALL_META,
+  COMPONENT_MIGRATIONS,
   DB_MIGRATIONS,
 } from '../convex/migrations/framework/registry';
 import { isRunnableKind } from '../convex/migrations/framework/types';
@@ -109,6 +110,11 @@ async function main(): Promise<void> {
     if (meta.kind === 'db' && !(meta.id in DB_MIGRATIONS)) {
       errors.push(
         `${rel} is a runnable db migration but is missing from DB_MIGRATIONS.`,
+      );
+    }
+    if (meta.kind === 'component' && !(meta.id in COMPONENT_MIGRATIONS)) {
+      errors.push(
+        `${rel} is a runnable component migration but is missing from COMPONENT_MIGRATIONS.`,
       );
     }
   }

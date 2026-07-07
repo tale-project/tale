@@ -2,8 +2,8 @@
  * Get user by email - Business logic
  */
 
-import { components } from '../_generated/api';
 import type { QueryCtx } from '../_generated/server';
+import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
 
 /**
  * Get user ID by email from Better Auth.
@@ -17,26 +17,6 @@ export async function getUserIdByEmail(
   ctx: QueryCtx,
   email: string,
 ): Promise<string | null> {
-  // Query Better Auth's user table to find user by email
-  const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'user',
-    paginationOpts: {
-      cursor: null,
-      numItems: 1,
-    },
-    where: [
-      {
-        field: 'email',
-        value: email,
-        operator: 'eq',
-      },
-    ],
-  });
-
-  if (result && result.page.length > 0) {
-    // Return Better Auth's internal user ID (_id)
-    return result.page[0]._id;
-  }
-
-  return null;
+  const user = await findUserByNormalizedEmail(ctx, email);
+  return user?._id ?? null;
 }

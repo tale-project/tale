@@ -1,15 +1,15 @@
 ---
 title: Externe Agenten
-description: Integrierte Coding-Agenten (Claude Code, Cursor), die in einer isolierten Sandbox laufen; du chattest direkt mit ihnen, während sie Dateien bearbeiten, Befehle ausführen und die Arbeit über mehrere Runden fortsetzen.
+description: Integrierte Coding-Agenten (Claude Code, Cursor, Hermes Agent), die in einer isolierten Sandbox laufen; du chattest direkt mit ihnen, während sie Dateien bearbeiten, Befehle ausführen und die Arbeit über mehrere Runden fortsetzen.
 ---
 
-Tale liefert integrierte **externe Agenten** — **Claude Code** und **Cursor** —, deren gesamte Runde in einer isolierten Sandbox läuft. Statt der normalen Chat-Schleife wird deine Nachricht an diesen Coding-Agenten übergeben, der in einem frischen Container lebt, Dateien bearbeitet, Befehle ausführt und zurückmeldet. Du sprichst im Chat direkt mit ihm, und er behält dasselbe Arbeitsverzeichnis und denselben Gesprächsverlauf über mehrere Runden, sodass eine Folgeanweisung wie „füge jetzt einen Test dafür hinzu" dort weitermacht, wo er aufgehört hat.
+Tale liefert integrierte **externe Agenten** — **Claude Code**, **Cursor** und **Hermes Agent** —, deren gesamte Runde in einer isolierten Sandbox läuft. Statt der normalen Chat-Schleife wird deine Nachricht an diesen Coding-Agenten übergeben, der in einem frischen Container lebt, Dateien bearbeitet, Befehle ausführt und zurückmeldet. Du sprichst im Chat direkt mit ihm, und er behält dasselbe Arbeitsverzeichnis und denselben Gesprächsverlauf über mehrere Runden, sodass eine Folgeanweisung wie „füge jetzt einen Test dafür hinzu" dort weitermacht, wo er aufgehört hat.
 
 Es ist dieselbe Idee, als würde man ein solches Werkzeug auf einer entfernten Maschine ausführen — nur ist die Maschine eine verwaltete Sandbox, die der Workspace kontrolliert. Diese Seite behandelt, wie du sie nutzt, was die Sandbox erreichen kann und was nicht, und wie abgerechnet wird.
 
 ## Mit einem Coding-Agenten sprechen
 
-Wähle im Chat-Auswahlmenü **Claude Code** oder **Cursor** und beschreibe eine Aufgabe in normaler Sprache — „schreibe ein kleines Python-CLI und teste es", „klone dieses Repo und behebe den Fehler in Issue #42". Der Agent arbeitet in seiner Sandbox: Er plant, schreibt Dateien, führt Shell-Befehle aus und installiert bei Bedarf Pakete, dann antwortet er mit dem, was er getan hat. Während er arbeitet, siehst du eine Denkanzeige; die Antwort erscheint, wenn die Runde abgeschlossen ist.
+Wähle im Chat-Auswahlmenü **Claude Code**, **Cursor** oder **Hermes Agent** und beschreibe eine Aufgabe in normaler Sprache — „schreibe ein kleines Python-CLI und teste es", „klone dieses Repo und behebe den Fehler in Issue #42". Der Agent arbeitet in seiner Sandbox: Er plant, schreibt Dateien, führt Shell-Befehle aus und installiert bei Bedarf Pakete, dann antwortet er mit dem, was er getan hat. Während er arbeitet, siehst du eine Denkanzeige; die Antwort erscheint, wenn die Runde abgeschlossen ist.
 
 Du musst nicht warten, bis eine Runde fertig ist. Das Eingabefeld bleibt offen, während der Agent arbeitet: Alles, was du sendest, wartet im Bereich **Wartende Nachrichten** über dem Eingabefeld und wird dem laufenden Agenten bei nächster Gelegenheit übergeben. **Claude Code** übernimmt das mitten in der Runde an der nächsten Werkzeuggrenze — eine Korrektur wie „nimm pnpm statt npm" landet also, während die Arbeit noch läuft. **Cursor** und andere env-gestützte Laufzeiten leeren die Warteschlange dagegen an Rundengrenzen. In den Thread selbst gelangt die Nachricht erst bei dieser Übernahme, genau an der Stelle, an der sie gewirkt hat; bis dahin lässt sie sich entfernen (das × in ihrer Zeile). Mit **Stopp** beendest du die aktuelle Runde; noch wartende Nachrichten werden wenige Sekunden später automatisch als nächste Runde gesendet, mit unverändertem Kontext des Agenten.
 
@@ -27,7 +27,7 @@ GitHub ist die Ausnahme, bei der auch ein Token in die Sandbox gelangt, weil `gi
 
 Wie der Agent sein Modell erreicht, ist eine Entscheidung pro Agent, die du im **Anweisungen**-Tab des Agenten unter **Anmeldedaten** triffst. Drei Anmeldedaten-Backends existieren; die UI benennt sie nach der Laufzeit des Agenten.
 
-**Gateway-verwaltet (Claude Code, verwaltet)** ist die Voreinstellung für Claude Code. Die Plattform prägt für die Runde einen kurzlebigen virtuellen Schlüssel, leitet den Agenten über ihr Gateway, erzwingt die erlaubten Modelle des Agenten aus dem **Providers**-Katalog, erfasst die Nutzung und wendet die Ausgabengrenzen der Organisation an. Die Sandbox hält nie einen echten Provider-Schlüssel.
+**Gateway-verwaltet (Claude Code und Hermes Agent, verwaltet)** ist die Voreinstellung für diese Laufzeiten. Die Plattform prägt für die Runde einen kurzlebigen virtuellen Schlüssel, leitet den Agenten über ihr Gateway, erzwingt die erlaubten Modelle des Agenten aus dem **Providers**-Katalog, erfasst die Nutzung und wendet die Ausgabengrenzen der Organisation an. Die Sandbox hält nie einen echten Provider-Schlüssel. Verwaltete Hermes-Runden laufen über eine OpenAI-kompatible Gateway-Route (`OPENAI_BASE_URL` plus virtueller Sitzungsschlüssel in der Sandbox).
 
 **Env-verwaltet (Cursor, verwaltet)** gilt für Laufzeiten, die sich mit einem API-Schlüssel authentifizieren, den du am Agenten hinterlegst, nicht über das Gateway. Öffne die **Umgebung**-Seite des Agenten und setze `CURSOR_API_KEY` (oder den Schlüssel, den die Laufzeit deklariert). Das Modell ist eine **Runtime-ID**, die du in der **Modelle**-Liste unter Anweisungen eintippst — `composer-2.5` etwa —, kein Katalogeintrag. Diese Runden fließen **nicht** in die Nutzungsanalyse ein; die Abrechnung liegt bei deinem Cursor-Konto.
 
@@ -37,11 +37,13 @@ Das verschiebt auch die Vertrauensgrenze. Im gateway-verwalteten Modus hält die
 
 ## Engines und Modelle
 
-**Claude Code** und **Cursor** sind getrennte Einträge im Chat-Auswahlmenü (oder Agenten, die du mit entsprechend gesetztem `agentKind` konfigurierst).
+**Claude Code**, **Cursor** und **Hermes Agent** sind getrennte Einträge im Chat-Auswahlmenü (oder Agenten, die du mit entsprechend gesetztem `agentKind` konfigurierst).
 
-Für **gateway-verwaltetes Claude Code** kommt das Modell aus der Liste der unterstützten Modelle des Agenten im **Providers**-Katalog — wähle es im Modellauswahlmenü. Ausgeliefert wird standardmäßig Claude Fable 5, und Fable-Kapazität ist rationiert: Markieren die Sicherheitsklassifikatoren eine Anfrage, ist das Modell überlastet oder das Fable-Kontingent erschöpft, schlägt der Zug nicht fehl — die Sitzung fällt automatisch auf das im Katalogeintrag hinterlegte Fallback-Modell zurück, Claude Opus 4.8.
+Für **gateway-verwaltetes Claude Code oder Hermes Agent** kommt das Modell aus der Liste der unterstützten Modelle des Agenten im **Providers**-Katalog — wähle es im Modellauswahlmenü. Claude Code wird standardmäßig mit Claude Fable 5 ausgeliefert, und Fable-Kapazität ist rationiert: Markieren die Sicherheitsklassifikatoren eine Anfrage, ist das Modell überlastet oder das Fable-Kontingent erschöpft, schlägt der Zug nicht fehl — die Sitzung fällt automatisch auf das im Katalogeintrag hinterlegte Fallback-Modell zurück, Claude Opus 4.8. Hermes Agent wird mit Claude Sonnet 4.6 und Claude Opus 4.8 ausgeliefert und bestreitet die ganze Runde auf dem gewählten Modell — ein automatisches Fallback gibt es dort nicht.
 
 Für **env-verwaltetes Cursor** (und BYO auf jeder Laufzeit) akzeptiert der **Modelle**-Editor unter Anweisungen **Runtime-IDs** aus deinem Konto — führe `agent models` in einer Sandbox-Sitzung aus, um zu sehen, was dein Abo freigibt. Lass die Liste leer, damit die Laufzeit ihr Standardmodell wählt (Auto). Das Chat-Modellauswahlmenü zeigt einen schreibgeschützten Indikator — den Kurznamen der konfigurierten ID oder **Standardmodell**, wenn die Liste leer ist — statt des Katalog-Dropdowns.
+
+Ein **BYO-Hermes-Agent** nutzt Anmeldedaten, die du unter [Umgebungsvariablen & Geheimnisse](/de/platform/member/environment) hinterlegst — je nach Provider üblicherweise `OPENROUTER_API_KEY`, `OPENAI_API_KEY` oder `ANTHROPIC_API_KEY`. Setze das Modell auf eine Hermes-/OpenRouter-übliche ID (zum Beispiel `openrouter:anthropic/claude-sonnet-4.6`).
 
 Ein **BYO-Claude-Code**-Agent tippt rohe Anthropic-IDs — `claude-opus-4-20250514` etwa — in Prioritätsreihenfolge. Mitgelieferte Pack-Agenten mit katalogförmigen Verweisen werden zur Laufzeit über `nativeModelId` des Katalogeintrags übersetzt; selbst eingegebene IDs bleiben unverändert.
 
@@ -49,7 +51,7 @@ Ein **BYO-Claude-Code**-Agent tippt rohe Anthropic-IDs — `claude-opus-4-202505
 
 Runden externer Agenten können lang sein und das Modell viele Male aufrufen, daher kosten sie mehr als eine einzelne Chat-Antwort. Jede verwaltete Runde läuft gegen ein Pro-Runde-Budget, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation begrenzen die Ausgaben pro Nutzer, pro Team oder pro Agent. Die Nutzung wird wie bei jedem anderen Agenten in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) erfasst und dem externen Agenten zugeordnet, sodass du siehst, was diese Läufe kosten.
 
-Diese Abrechnung gilt nur für den **gateway-verwalteten** Pfad — also verwaltete Claude-Code-Runden. Env-verwaltete und BYO-Agenten laufen auf Anmeldedaten außerhalb des Gateways: Ihre Runden fließen nicht in die Nutzungsanalyse ein und die Ausgabengrenzen der Organisation greifen nicht; Kosten und Ratenlimits liegen bei deinem Provider-Konto.
+Diese Abrechnung gilt nur für den **gateway-verwalteten** Pfad — also verwaltete Claude-Code- und Hermes-Agent-Runden. Env-verwaltete und BYO-Agenten laufen auf Anmeldedaten außerhalb des Gateways: Ihre Runden fließen nicht in die Nutzungsanalyse ein und die Ausgabengrenzen der Organisation greifen nicht; Kosten und Ratenlimits liegen bei deinem Provider-Konto.
 
 ## Wo das hineinpasst
 

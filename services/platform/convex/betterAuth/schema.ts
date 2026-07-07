@@ -36,6 +36,7 @@ export const tables = {
       suffix: v.optional(v.union(v.null(), v.string())),
     }),
   ).index('key', ['key']),
+  user: generatedTables.user.index('email', ['email']),
   // Add custom index for [organizationId, userId] queries on member table
   member: generatedTables.member.index('organizationId_userId', [
     'organizationId',

@@ -20,6 +20,8 @@ import {
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
+import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import { recordPasswordChange } from './password_metadata';
 
 export interface ResetOwnerArgs {
@@ -77,23 +79,10 @@ export async function resetOwner(
 
   // Update email if requested
   if (args.newEmail) {
-    // Check email uniqueness
-    const existingRes = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
-        model: 'user',
-        paginationOpts: { cursor: null, numItems: 1 },
-        where: [{ field: 'email', value: args.newEmail, operator: 'eq' }],
-      },
-    );
-    const existingUser = existingRes?.page?.[0];
-    if (
-      isRecord(existingUser) &&
-      getString(existingUser, '_id') !== ownerUserId
-    ) {
-      throw new Error(
-        `Email "${args.newEmail}" is already in use by another user`,
-      );
+    const newEmail = normalizeAuthEmail(args.newEmail);
+    const existingUser = await findUserByNormalizedEmail(ctx, newEmail);
+    if (existingUser && existingUser._id !== ownerUserId) {
+      throw new Error(`Email "${newEmail}" is already in use by another user`);
     }
 
     const ownerId = getString(ownerUser, '_id');
@@ -104,13 +93,13 @@ export async function resetOwner(
         model: 'user',
         where: [{ field: '_id', value: ownerId, operator: 'eq' }],
         update: {
-          email: args.newEmail,
+          email: newEmail,
           updatedAt: Date.now(),
         },
       },
       paginationOpts: { cursor: null, numItems: 1 },
     });
-    currentEmail = args.newEmail;
+    currentEmail = newEmail;
     updatedEmail = true;
   }
 
