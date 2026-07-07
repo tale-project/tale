@@ -69,9 +69,6 @@
       "requiresTitle": "What you'll need",
       "requiresHint": "You'll connect these during setup."
     },
-    "addMenu": {
-      "label": "Add app"
-    },
     "install": {
       "install": "Install",
       "installed": "Installed",
@@ -235,7 +232,6 @@
       "colStatus": "Status",
       "colStarted": "Started",
       "watchLive": "Watch live",
-      "backToApp": "Back to app",
       "queuedForCapacity": "Queued for capacity",
       "queuedForCapacityHint": "Waiting for a free sandbox slot. Starts automatically once capacity frees up.",
       "failed": "Failed",
@@ -979,7 +975,7 @@
     "uploadDialog": {
       "menuItem": "Upload file",
       "title": "Upload automations",
-      "description": "Import workflow JSON files, folders, or .zip archives. Each .json file installs as a separate automation.",
+      "description": "Drop workflow JSON files or a .zip archive. Each .json installs as a separate automation. To import a folder, use the link below the drop zone.",
       "toastSuccess": "Automations imported"
     },
     "templates": {
@@ -2026,10 +2022,10 @@
       "supportedFormats": ".xlsx, .xls or .csv",
       "pickADate": "Pick a date",
       "dropFilesHere": "Drop files here to upload",
-      "acceptHint": "JSON files, folders, or .zip archives",
-      "pickFiles": "Choose files",
-      "pickFolder": "Choose folder",
-      "pickZip": "Choose zip",
+      "dropOrClick": "Drop JSON files or .zip here",
+      "acceptHint": "JSON files or .zip archives",
+      "uploadFolderInstead": "Upload a folder instead",
+      "importBlocked": "Nothing ready to import. Fix invalid files above, or adjust overwrite settings for conflicts.",
       "summary": "{total} entries · {saved} saved · {queued} pending",
       "conflictHeading": "{count, plural, one {# entry already exists} other {# entries already exist}}",
       "conflictHint": "Existing entries will be overwritten. The previous version is saved to history. Uncheck below to skip them instead.",
@@ -5757,7 +5753,7 @@
       "uploadDialog": {
         "menuItem": "Upload file",
         "title": "Upload agents",
-        "description": "Import agent JSON files, folders, or .zip archives. Each .json file installs as a separate agent.",
+        "description": "Drop agent JSON files or a .zip archive. Each .json installs as a separate agent. To import a folder, use the link below the drop zone.",
         "toastSuccess": "Agents imported"
       },
       "general": {
@@ -5893,7 +5889,8 @@
           "label": "External runtime",
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
-          "cursor": "Cursor"
+          "cursor": "Cursor",
+          "hermes": "Hermes Agent"
         },
         "webTools": {
           "sectionTitle": "Web tools",
@@ -5951,6 +5948,9 @@
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
         "webSearchHint": "Web search only searches content from websites added to your organization.",
         "webSearchHintLink": "Manage websites",
+        "searchPlaceholder": "Search tools…",
+        "enabledCount": "{enabled}/{total}",
+        "enabledCountLabel": "{enabled} of {total} tools enabled",
         "categories": {
           "customers": "Customers",
           "products": "Products",
@@ -5967,6 +5967,56 @@
           "web": "Web",
           "files": "Files",
           "system": "System"
+        },
+        "descriptions": {
+          "file_write": "Create new files in the agent's workspace",
+          "file_edit": "Modify the contents of existing files",
+          "file_read": "Read file contents from the workspace",
+          "file_list": "Browse the files in the workspace",
+          "file_delete": "Remove files from the workspace",
+          "run_code": "Execute code in a sandbox for calculations and data work",
+          "customer_read": "Look up and list customer records",
+          "product_read": "Browse the product catalog",
+          "rag_search": "Search the organization's knowledge base",
+          "knowledge_write": "Add new entries to the knowledge base",
+          "web": "Fetch and search content from the web",
+          "image": "Analyze and process images",
+          "generate_image": "Create images from text prompts",
+          "workflow_read": "Inspect existing workflows and their runs",
+          "workflow_syntax": "Look up the workflow definition syntax",
+          "update_workflow_step": "Modify a single step of a workflow",
+          "save_workflow_definition": "Save a complete workflow definition",
+          "create_workflow": "Create a new workflow",
+          "run_workflow": "Start a workflow run",
+          "integration": "Call a connected integration",
+          "integration_batch": "Run multiple integration calls at once",
+          "integration_introspect": "Inspect a connected integration's capabilities",
+          "database_schema": "Read the schema of connected databases",
+          "request_human_input": "Pause and ask a person for input",
+          "document_find": "Find documents by name or content",
+          "document_retrieve": "Fetch a document's full content",
+          "document_write": "Create or update documents",
+          "request_user_location": "Ask for the current location in the chat",
+          "conversation_read": "Read customer conversations",
+          "conversation_write": "Draft and send replies in conversations",
+          "customer_write": "Create and update customer records",
+          "product_write": "Create and update products",
+          "website_read": "Read the organization's websites",
+          "website_write": "Add and update websites",
+          "vendor_read": "Look up vendor records",
+          "vendor_write": "Create and update vendor records",
+          "discussion_read": "Read internal discussions",
+          "discussion_write": "Post to internal discussions",
+          "agent_read": "View other agents' configurations",
+          "agent_write": "Create and configure agents",
+          "metrics_read": "Read organization metrics and analytics",
+          "update_todos": "Maintain its to-do list for the current task",
+          "propose_memory": "Suggest facts to remember across chats",
+          "task_read": "View tasks and their status",
+          "task_write": "Create and update tasks",
+          "project_read": "View projects and their contents",
+          "project_write": "Create and update projects",
+          "secret_read": "Use stored secrets when calling external services"
         }
       },
       "webhook": {
@@ -6034,8 +6084,22 @@
       },
       "columns": {
         "name": "Skill",
-        "description": "Description",
-        "loadError": "Failed to read SKILL.md"
+        "description": "Description"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Replace the bundle with a valid zip, or delete this skill.",
+        "technicalDetails": "Technical details",
+        "title": {
+          "yamlSyntax": "Frontmatter couldn't be parsed",
+          "missingFrontmatter": "Frontmatter is missing",
+          "unclosedFrontmatter": "Frontmatter isn't closed",
+          "frontmatterTooLarge": "Frontmatter is too large",
+          "invalidFrontmatter": "Frontmatter is invalid",
+          "emptyFrontmatter": "Frontmatter is empty",
+          "symlink": "SKILL.md is a symlink",
+          "inaccessible": "Couldn't read this skill",
+          "generic": "This skill couldn't be loaded"
+        }
       },
       "form": {
         "slug": "Slug",

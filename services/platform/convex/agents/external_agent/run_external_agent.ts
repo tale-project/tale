@@ -28,6 +28,7 @@ import {
 import {
   getAgentCapabilities,
   getCredentialEnvKeys,
+  getCredentialPolicy,
   getSkillsStageDir,
   usesGateway,
 } from '../../../lib/agent-adapters/credential-policy';
@@ -103,6 +104,10 @@ import {
   composePromptWithAttachments,
 } from './attachment_files';
 import { resolveExternalAgentExecModel } from './exec_model';
+import {
+  externalAgentVkAllowlist,
+  pickExternalAgentExecFallback,
+} from './resolve_external_agent_model';
 import { buildSystemPromptAppend } from './system_prompt';
 import {
   finalizeTurnSideEffects,
@@ -353,7 +358,11 @@ export const runExternalAgentTurn = internalAction({
     modelRef: v.string(),
     rawPrompt: v.string(),
     systemInstructions: v.optional(v.string()),
-    agentKind: v.union(v.literal('claude-code'), v.literal('cursor')),
+    agentKind: v.union(
+      v.literal('claude-code'),
+      v.literal('cursor'),
+      v.literal('hermes'),
+    ),
     /** Credential mode (default 'managed'). 'byo' bypasses the gateway / VK and
      * uses the user-injected sandbox credentials. The per-agent authMode is the
      * sole control; there is no separate org-level gate. */
@@ -386,6 +395,10 @@ export const runExternalAgentTurn = internalAction({
      * polyfill hook when the agent's own model is text-only. Preferred over the
      * provider registry's `vision`-tagged default; ignored for BYO. */
     visionModel: v.optional(v.string()),
+    /** Agent-configured fallback model refs (`supportedModels[1:]`), resolved
+     * dynamically in chat_turn_generate. Layered with the catalog entry's
+     * `fallbackModelId` on the primary for managed gateway runs. */
+    fallbackModelRefs: v.optional(v.array(v.string())),
     /** Chat attachments uploaded with this turn. Staged into the sandbox under
      * /user/uploads/<promptMessageId>/ and referenced by absolute path in the
      * prompt so the agent can read them (the in-process path instead inlines
@@ -460,14 +473,20 @@ export const runExternalAgentTurn = internalAction({
       // unavailability retries AND the content-based Fable classifier
       // fallback. The VK below is scoped to also allow it, else the gateway
       // 403s the fallback request and the turn fails anyway.
-      let fallbackModelRef: string | undefined; // tale ref added to the VK allowlist
+      const agentFallbackRefs = args.fallbackModelRefs ?? [];
+      let fallbackModelRef: string | undefined; // catalog tale ref for the VK allowlist
       let fallbackModel: string | undefined; // gateway model id the chain requests
-      // BYO native id (config-driven): a catalog-shaped modelRef (the shipped
-      // defaults) names the model by its GATEWAY id, which the vendor's own
-      // API does not know — the catalog entry's `nativeModelId` is what a
-      // direct-to-vendor session must request instead. A raw id the user typed
-      // matches no catalog entry and passes through unchanged (no override).
+      // BYO ids (config-driven): a catalog-shaped modelRef (the shipped
+      // defaults) names the model by its GATEWAY id, which the runtime's own
+      // backend does not know. Which translation the backend needs is
+      // per-adapter (`credentialPolicy.byoModelIdSource`): the vendor-native
+      // `nativeModelId` for a direct-to-vendor runtime (Claude Code →
+      // Anthropic), the catalog id itself for an OpenRouter-style backend
+      // (Hermes → OpenRouter). Both ride to exec_model, which picks by
+      // dialect. A raw id the user typed matches no catalog entry and passes
+      // through unchanged (no override).
       let byoNativeModel: string | undefined;
+      let byoCatalogModel: string | undefined;
       if (args.modelRef && args.modelRef !== 'default') {
         try {
           const parsed = parseModelRef(args.modelRef);
@@ -483,6 +502,7 @@ export const runExternalAgentTurn = internalAction({
           );
           if (byo) {
             byoNativeModel = agentEntry?.nativeModelId;
+            byoCatalogModel = agentEntry?.id;
           }
           if (
             gatewayRun &&
@@ -493,8 +513,6 @@ export const runExternalAgentTurn = internalAction({
               providerName: agentEntry.providerName,
               modelId: agentEntry.fallbackModelId,
             });
-            fallbackModel =
-              resolveGatewayRoutingFromRef(fallbackModelRef).gatewayModel;
           }
           if (gatewayRun && !(agentEntry?.tags.includes('vision') ?? false)) {
             const vision = await resolveVisionModel(ctx, {
@@ -526,11 +544,28 @@ export const runExternalAgentTurn = internalAction({
       // The session VK allows the agent's model plus (when polyfilling) the
       // vision model the bridge calls and (when configured) the fallback model
       // — else the gateway 403s those requests.
-      const allowedModels = [
-        args.modelRef,
-        visionModelRef,
+      const execFallbackRef = pickExternalAgentExecFallback(
+        agentFallbackRefs,
         fallbackModelRef,
-      ].filter((ref): ref is string => ref !== undefined);
+      );
+      if (gatewayRun && execFallbackRef && execFallbackRef !== 'default') {
+        try {
+          fallbackModel =
+            resolveGatewayRoutingFromRef(execFallbackRef).gatewayModel;
+        } catch {
+          // Raw gateway id (env-managed tail) — pass through.
+          fallbackModel = execFallbackRef;
+        }
+      } else if (!gatewayRun && agentFallbackRefs.length > 0) {
+        fallbackModel = agentFallbackRefs[0];
+      }
+
+      const allowedModels = externalAgentVkAllowlist(
+        args.modelRef,
+        agentFallbackRefs,
+        fallbackModelRef,
+        visionModelRef,
+      );
 
       // 1. Reuse the user's persistent sandbox, or create one. One sandbox per
       // user PER ORG serves all their threads in that org — shared /workspace,
@@ -1128,17 +1163,20 @@ export const runExternalAgentTurn = internalAction({
           ...(BROWSER_VIEW_ENABLED && { browserCdp: true }),
           // GATEWAY-managed: the canonical gateway routing so the request hits
           // the SAME gateway record the VK is bound to — must match
-          // mintVirtualKey's resolver. BYO: the catalog's vendor-native id
-          // (gateway ids don't exist on the vendor's API), else the raw ref.
-          // ENV-managed (e.g. Cursor): the raw ref — its backend only knows
-          // native ids. 'default'/empty → omit so the runtime uses its own
-          // default (routing 'default' through the gateway mapper mints the
-          // invalid `default__default/default`). Matrix in exec_model.ts.
+          // mintVirtualKey's resolver. BYO: the id the runtime's backend
+          // speaks (gateway ids don't exist there) — vendor-native or catalog
+          // per the adapter's dialect — else the raw ref. ENV-managed (e.g.
+          // Cursor): the raw ref — its backend only knows native ids.
+          // 'default'/empty → omit so the runtime uses its own default
+          // (routing 'default' through the gateway mapper mints the invalid
+          // `default__default/default`). Matrix in exec_model.ts.
           model: resolveExternalAgentExecModel({
             byo,
             gatewayRun,
             modelRef: args.modelRef,
+            byoModelIdSource: getCredentialPolicy(productKind).byoModelIdSource,
             byoNativeModel,
+            byoCatalogModel,
             toGatewayModel: (ref) =>
               resolveGatewayRoutingFromRef(ref).gatewayModel,
           }),

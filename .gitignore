@@ -109,6 +109,10 @@ trivy-reports/
 .agents/*
 !.agents/skills/
 
+# Agent scratch notes belong in the global notes directory (see the
+# write-notes skill), never in the clone — ignore repo-root drift.
+/notes/
+
 # ---------------------------------------------------------------------------
 # Built-in configs — the seed catalog (TALE_CONFIG_BUILTIN_DIR), fully tracked
 # ---------------------------------------------------------------------------

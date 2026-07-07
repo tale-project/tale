@@ -137,6 +137,17 @@ export type SandboxSessionProfile =
 export interface SessionExecResponse {
   status: 'completed' | 'failed' | 'cancelled';
   exitCode: number | null;
+  /**
+   * Execution wall-clock, forwarded VERBATIM from runnerd's terminal `exit`
+   * line: measured inside the session container from immediately before
+   * `spawn()` to the child's exit with all stdio drained. It excludes every
+   * out-of-process phase — container/Pod scheduling, image pull, session
+   * startup, endpoint resolution, input staging, output harvest — and is
+   * therefore identical on the docker and kubernetes backends (the same
+   * daemon measures on both). Exactly 0 when there is no measurement to
+   * forward: a pre-spawn `fail` (the process never ran) or a lost terminal
+   * line (`SESSION_LOST`) — 0 means "not measured", never "ran for 0ms".
+   */
   durationMs: number;
   stdoutBase64: string;
   stderrBase64: string;

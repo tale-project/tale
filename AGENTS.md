@@ -9,7 +9,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through `bun r
 The biggest quality lever is deciding well, not typing fast. Work in this order — each step is a skill; load it:
 
 1. **Classify the task** and follow its discipline end-to-end: a defect → [`fix-bug`](.agents/skills/fix-bug/SKILL.md); structure-not-behaviour → [`make-improvement`](.agents/skills/make-improvement/SKILL.md); new behaviour → [`implement-feature`](.agents/skills/implement-feature/SKILL.md); a review → [`review-code`](.agents/skills/review-code/SKILL.md) / [`review-pr`](.agents/skills/review-pr/SKILL.md). Exploring is read-only and returns the conclusion; a migration is phased and reversible, each phase green.
-2. **Write the note first** ([`write-notes`](.agents/skills/write-notes/SKILL.md)) — answer the active skill's form before any edit.
+2. **Write the note first** ([`write-notes`](.agents/skills/write-notes/SKILL.md)) — answer the active skill's form before any edit; scratch files go in the global notes directory the skill defines, never in the clone.
 3. **Unknowns outside the repo?** Research before deciding ([`deep-research`](.agents/skills/deep-research/SKILL.md)) — questions first, sources in order, evidence in the note.
 4. **Search before you write** ([`search-codebase`](.agents/skills/search-codebase/SKILL.md)) — orient, find the concept to reuse, enumerate the blast radius. The request names one site; the task is the concept.
 5. **UI in scope?** Learn the design system ([`design-ui`](.agents/skills/design-ui/SKILL.md)), then build to it ([`implement-ui`](.agents/skills/implement-ui/SKILL.md)).
@@ -85,6 +85,7 @@ skills (`pptx`, …) and the workspace skills under [`skills/`](skills/) are pro
 | [`review-code`](.agents/skills/review-code/SKILL.md)               | reviewing a working diff — yours or a colleague's — before it merges                              |
 | [`review-pr`](.agents/skills/review-pr/SKILL.md)                   | reviewing a GitHub pull request end-to-end                                                        |
 | [`create-pr`](.agents/skills/create-pr/SKILL.md)                   | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                        |
+| [`create-issue`](.agents/skills/create-issue/SKILL.md)             | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels        |
 | [`test-code`](.agents/skills/test-code/SKILL.md)                   | writing tests, or proving behaviour by observing the real outcome                                 |
 | [`write-skill`](.agents/skills/write-skill/SKILL.md)               | adding, editing, or moving a skill                                                                |
 | [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing a docs page, or running the docs test suite                                       |

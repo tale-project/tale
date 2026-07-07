@@ -153,7 +153,7 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'cursor';
+  agentSlug: 'claude-code' | 'cursor' | 'hermes';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
@@ -1530,7 +1530,11 @@ export const runAgentInSession = internalAction({
     organizationId: v.string(),
     sessionId: v.string(),
     execId: v.string(),
-    agentSlug: v.union(v.literal('claude-code'), v.literal('cursor')),
+    agentSlug: v.union(
+      v.literal('claude-code'),
+      v.literal('cursor'),
+      v.literal('hermes'),
+    ),
     prompt: v.string(),
     model: v.optional(v.string()),
     /** Resume handle from a prior run (Claude session_id / Cursor chat id). */

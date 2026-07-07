@@ -38,7 +38,7 @@ interface AppAgentRow {
   displayName?: string;
   status?: string;
   primaryBehavior?: 'chat' | 'image-generation' | 'external-agent';
-  agentKind?: 'claude-code' | 'cursor';
+  agentKind?: 'claude-code' | 'cursor' | 'hermes';
   authMode?: 'managed' | 'byo';
   supportedModels?: string[];
   metadata?: {

@@ -976,7 +976,7 @@
     "uploadDialog": {
       "menuItem": "Téléverser un fichier",
       "title": "Téléverser des automatisations",
-      "description": "Importe des fichiers JSON de workflow, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme une automatisation distincte.",
+      "description": "Dépose des fichiers JSON de workflow ou une archive .zip. Chaque .json installe une automatisation distincte. Pour un dossier, utilise le lien sous la zone de dépôt.",
       "toastSuccess": "Automatisations importées"
     },
     "templates": {
@@ -2023,10 +2023,10 @@
       "supportedFormats": ".xlsx, .xls ou .csv",
       "pickADate": "Choisir une date",
       "dropFilesHere": "Dépose les fichiers ici pour téléverser",
-      "acceptHint": "Fichiers JSON, dossiers ou archives .zip",
-      "pickFiles": "Choisir des fichiers",
-      "pickFolder": "Choisir un dossier",
-      "pickZip": "Choisir un zip",
+      "dropOrClick": "Dépose des fichiers JSON ou .zip ici",
+      "acceptHint": "Fichiers JSON ou archives .zip",
+      "uploadFolderInstead": "Téléverser un dossier à la place",
+      "importBlocked": "Rien à importer. Corrige les fichiers invalides ci-dessus, ou modifie l'option d'écrasement en cas de conflit.",
       "summary": "{total} entrées · {saved} enregistrées · {queued} en attente",
       "conflictHeading": "{count, plural, one {# entrée existe déjà} other {# entrées existent déjà}}",
       "conflictHint": "Les entrées existantes seront écrasées. La version précédente est enregistrée dans l'historique. Décoche ci-dessous pour les ignorer à la place.",
@@ -5490,7 +5490,7 @@
       "uploadDialog": {
         "menuItem": "Téléverser un fichier",
         "title": "Téléverser des agents",
-        "description": "Importe des fichiers JSON d'agent, des dossiers ou des archives .zip. Chaque fichier .json s'installe comme un agent distinct.",
+        "description": "Dépose des fichiers JSON d'agent ou une archive .zip. Chaque .json installe un agent distinct. Pour un dossier, utilise le lien sous la zone de dépôt.",
         "toastSuccess": "Agents importés"
       },
       "general": {
@@ -5626,7 +5626,8 @@
           "label": "Exécution externe",
           "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
           "claudeCode": "Claude Code",
-          "cursor": "Cursor"
+          "cursor": "Cursor",
+          "hermes": "Hermes Agent"
         },
         "webTools": {
           "sectionTitle": "Outils web",
@@ -5684,6 +5685,9 @@
         "webModeBothDescription": "Injection automatique des résultats web et recherche à la demande",
         "webSearchHint": "La recherche web ne recherche que le contenu des sites web ajoutés à ton organisation.",
         "webSearchHintLink": "Gérer les sites web",
+        "searchPlaceholder": "Rechercher des outils…",
+        "enabledCount": "{enabled}/{total}",
+        "enabledCountLabel": "Outils activés : {enabled} sur {total}",
         "categories": {
           "customers": "Clients",
           "products": "Produits",
@@ -5700,6 +5704,56 @@
           "web": "Web",
           "files": "Fichiers",
           "system": "Système"
+        },
+        "descriptions": {
+          "file_write": "Créer de nouveaux fichiers dans l'espace de travail de l'agent",
+          "file_edit": "Modifier le contenu de fichiers existants",
+          "file_read": "Lire le contenu des fichiers de l'espace de travail",
+          "file_list": "Parcourir les fichiers de l'espace de travail",
+          "file_delete": "Supprimer des fichiers de l'espace de travail",
+          "run_code": "Exécuter du code dans une sandbox pour les calculs et le traitement de données",
+          "customer_read": "Consulter et lister les fiches clients",
+          "product_read": "Parcourir le catalogue produits",
+          "rag_search": "Rechercher dans la base de connaissances de l'organisation",
+          "knowledge_write": "Ajouter de nouvelles entrées à la base de connaissances",
+          "web": "Récupérer et rechercher du contenu sur le web",
+          "image": "Analyser et traiter des images",
+          "generate_image": "Créer des images à partir de descriptions textuelles",
+          "workflow_read": "Consulter les workflows existants et leurs exécutions",
+          "workflow_syntax": "Consulter la syntaxe des définitions de workflow",
+          "update_workflow_step": "Modifier une étape précise d'un workflow",
+          "save_workflow_definition": "Enregistrer une définition de workflow complète",
+          "create_workflow": "Créer un nouveau workflow",
+          "run_workflow": "Lancer l'exécution d'un workflow",
+          "integration": "Appeler une intégration connectée",
+          "integration_batch": "Exécuter plusieurs appels d'intégration à la fois",
+          "integration_introspect": "Consulter les capacités d'une intégration connectée",
+          "database_schema": "Lire le schéma des bases de données connectées",
+          "request_human_input": "Faire une pause et demander l'avis d'une personne",
+          "document_find": "Trouver des documents par nom ou par contenu",
+          "document_retrieve": "Récupérer le contenu complet d'un document",
+          "document_write": "Créer ou mettre à jour des documents",
+          "request_user_location": "Demander la localisation actuelle dans le chat",
+          "conversation_read": "Lire les conversations clients",
+          "conversation_write": "Rédiger et envoyer des réponses dans les conversations",
+          "customer_write": "Créer et mettre à jour les fiches clients",
+          "product_write": "Créer et mettre à jour les produits",
+          "website_read": "Lire les sites web de l'organisation",
+          "website_write": "Ajouter et mettre à jour les sites web",
+          "vendor_read": "Consulter les fiches fournisseurs",
+          "vendor_write": "Créer et mettre à jour les fiches fournisseurs",
+          "discussion_read": "Lire les discussions internes",
+          "discussion_write": "Publier dans les discussions internes",
+          "agent_read": "Consulter la configuration des autres agents",
+          "agent_write": "Créer et configurer des agents",
+          "metrics_read": "Lire les métriques et analyses de l'organisation",
+          "update_todos": "Tenir à jour sa liste de tâches pendant le travail",
+          "propose_memory": "Proposer des faits à retenir d'une conversation à l'autre",
+          "task_read": "Consulter les tâches et leur statut",
+          "task_write": "Créer et mettre à jour les tâches",
+          "project_read": "Consulter les projets et leur contenu",
+          "project_write": "Créer et mettre à jour les projets",
+          "secret_read": "Utiliser les secrets stockés pour appeler des services externes"
         }
       },
       "webhook": {
@@ -5767,8 +5821,22 @@
       },
       "columns": {
         "name": "Skill",
-        "description": "Description",
-        "loadError": "Impossible de lire SKILL.md"
+        "description": "Description"
+      },
+      "loadErrorDetail": {
+        "fixHint": "Remplace le bundle par un zip valide, ou supprime ce skill.",
+        "technicalDetails": "Détails techniques",
+        "title": {
+          "yamlSyntax": "Le frontmatter n'a pas pu être analysé",
+          "missingFrontmatter": "Frontmatter manquant",
+          "unclosedFrontmatter": "Frontmatter non fermé",
+          "invalidFrontmatter": "Frontmatter invalide",
+          "emptyFrontmatter": "Frontmatter vide",
+          "frontmatterTooLarge": "Frontmatter trop volumineux",
+          "symlink": "SKILL.md est un lien symbolique",
+          "inaccessible": "Impossible de lire ce skill",
+          "generic": "Ce skill n'a pas pu être chargé"
+        }
       },
       "form": {
         "slug": "Slug",

@@ -29,7 +29,7 @@ const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
 // Which external agent runtime handles an `external-agent` turn. The turn runs
 // in a sandbox session driven by @/lib/agent-adapters; the platform never runs
 // its own tool loop for these.
-const agentKindLiterals = ['claude-code', 'cursor'] as const;
+const agentKindLiterals = ['claude-code', 'cursor', 'hermes'] as const;
 const agentKindSchema = z.enum(agentKindLiterals);
 
 const composerModeSchema = z.object({
@@ -519,10 +519,17 @@ export const agentJsonSchema = z
     }
 
     // Every agent needs at least one model — EXCEPT a BYO external agent (optional
-    // raw passthrough) or Cursor (env-managed runtime; models are optional hints).
+    // raw passthrough), Cursor (env-managed runtime; models are optional hints),
+    // or gateway-managed Claude Code (dynamic governance/platform defaults).
+    const isGatewayManagedClaudeCode =
+      data.primaryBehavior === 'external-agent' &&
+      data.authMode === 'managed' &&
+      (data.agentKind === undefined || data.agentKind === 'claude-code');
     const isOptionalModelExternal =
       data.primaryBehavior === 'external-agent' &&
-      (data.authMode === 'byo' || data.agentKind === 'cursor');
+      (data.authMode === 'byo' ||
+        data.agentKind === 'cursor' ||
+        isGatewayManagedClaudeCode);
     if (!isOptionalModelExternal && data.supportedModels.length < 1) {
       ctx.addIssue({
         code: 'custom',

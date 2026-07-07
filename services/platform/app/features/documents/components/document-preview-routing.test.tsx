@@ -37,6 +37,12 @@ vi.mock('./document-preview-docx', () => ({
   ),
 }));
 
+vi.mock('./document-preview-odt', () => ({
+  DocumentPreviewOdt: ({ url }: { url: string }) => (
+    <div data-testid="odt-preview" data-url={url} />
+  ),
+}));
+
 vi.mock('./document-preview-xlsx', () => ({
   DocumentPreviewXlsx: ({ url }: { url: string }) => (
     <div data-testid="xlsx-preview" data-url={url} />
@@ -118,6 +124,29 @@ describe('DocumentPreview routing', () => {
     );
 
     expect(screen.getByTestId('docx-preview')).toBeInTheDocument();
+  });
+
+  it('routes .odt files to ODT preview', () => {
+    render(
+      <DocumentPreview
+        url="https://example.com/doc.odt"
+        fileName="report.odt"
+      />,
+    );
+
+    expect(screen.getByTestId('odt-preview')).toBeInTheDocument();
+  });
+
+  it('routes an extension-less title to ODT preview via mimeType', () => {
+    render(
+      <DocumentPreview
+        url="https://example.com/blob"
+        fileName="Meeting notes"
+        mimeType="application/vnd.oasis.opendocument.text"
+      />,
+    );
+
+    expect(screen.getByTestId('odt-preview')).toBeInTheDocument();
   });
 
   it('routes uppercase image extensions correctly', () => {

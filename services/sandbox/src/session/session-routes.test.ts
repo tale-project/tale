@@ -114,6 +114,16 @@ beforeAll(() => {
         // Sentinel: simulate a process that raced the deadline but still exited
         // cleanly (exitCode 0 + timedOut) — the H8 wire-coherence case.
         const cleanTimeout = text.includes('__timeout_clean__');
+        // Sentinel: simulate a pre-spawn `fail` line (the process never ran,
+        // so runnerd reports no measurement).
+        if (text.includes('__fail__')) {
+          return new Response(
+            ndjson([
+              { t: 'fail', code: 'INVALID_CWD', message: 'cwd rejected' },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         return new Response(
           ndjson([
             { t: 'start', execId: 'e1', startedAtMs: 1 },
@@ -335,6 +345,43 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(destroyed.has('sess1')).toBe(true);
     // gone from registry
     expect((await routes.handleGet('sess1')).status).toBe(404);
+  });
+
+  test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_dur', organizationId: 'org_d' }),
+    );
+    const execRes = routes.handleExec(
+      new Request('http://x/v1/sessions/sess_dur/exec', { method: 'POST' }),
+      'sess_dur',
+      JSON.stringify({ execId: 'e1', command: ['echo', 'hi'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    // The fake runnerd's exit line carries durationMs: 5 — the spawner must
+    // forward it untouched, never re-measure around its own stream handling.
+    expect(payload.durationMs).toBe(5);
+  });
+
+  test('a pre-spawn fail synthesizes durationMs 0 (never ran ⇒ not measured)', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_fail', organizationId: 'org_f' }),
+    );
+    const execRes = routes.handleExec(
+      new Request('http://x/v1/sessions/sess_fail/exec', { method: 'POST' }),
+      'sess_fail',
+      JSON.stringify({ execId: 'e1', command: ['echo', '__fail__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload.status).toBe('failed');
+    expect(payload.exitCode).toBeNull();
+    expect(payload.errorCode).toBe('INVALID_CWD');
+    // 0 is the "not measured" sentinel (wire.ts contract) — the process never
+    // spawned, so no runner wall-clock exists to forward.
+    expect(payload.durationMs).toBe(0);
   });
 
   test('a clean exit (0) that raced the deadline reports completed WITHOUT a TIMEOUT marker', async () => {

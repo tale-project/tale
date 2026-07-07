@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""Tale sandbox wrapper for Hermes Agent — emits NDJSON lifecycle events on stdout.
+
+The platform adapter (hermes/adapter.ts) sends the prompt and optional system
+prompt as one JSON object on stdin ({"prompt": ..., "system_prompt"?: ...});
+hermes/parse.ts normalizes the stdout lines into AgentEvent[]. All
+human-oriented Hermes CLI output stays on stderr; stdout is JSONL only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+import traceback
+from datetime import datetime, timezone
+from typing import Any
+
+
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def emit(event: dict[str, Any]) -> None:
+    event.setdefault("schema_version", 1)
+    event.setdefault("ts", _ts())
+    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def _sanitize(value: Any, *, max_len: int = 240) -> str:
+    text = str(value) if value is not None else ""
+    if len(text) > max_len:
+        return text[: max_len - 1] + "…"
+    return text
+
+
+def read_stdin_payload() -> tuple[str, str | None] | None:
+    """Prompt + optional system prompt arrive as ONE JSON object on stdin —
+    never argv: process lists leak argv, and a prompt starting with "-" would
+    parse as a flag. Returns (prompt, system_prompt) or None when invalid."""
+    try:
+        payload = json.loads(sys.stdin.read())
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    prompt = payload.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    system_prompt = payload.get("system_prompt")
+    if not isinstance(system_prompt, str) or not system_prompt.strip():
+        system_prompt = None
+    return prompt, system_prompt
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Hermes Agent for Tale sandbox")
+    parser.add_argument("--model")
+    parser.add_argument("--resume")
+    parser.add_argument("--max-turns", type=int, default=90)
+    parser.add_argument("--workdir", default="/user/workspace")
+    args = parser.parse_args()
+
+    payload = read_stdin_payload()
+    if payload is None:
+        emit(
+            {
+                "type": "run_end",
+                "status": "error",
+                "error": 'stdin must carry {"prompt": ..., "system_prompt"?: ...} as JSON',
+            }
+        )
+        return 1
+    prompt, system_prompt = payload
+
+    os.chdir(args.workdir)
+
+    try:
+        from run_agent import AIAgent
+    except ImportError:
+        emit(
+            {
+                "type": "run_end",
+                "status": "error",
+                "error": "hermes-agent not installed",
+            }
+        )
+        return 1
+
+    session_id = args.resume
+    run_started = False
+    tool_starts: dict[str, float] = {}
+
+    def ensure_run_start() -> None:
+        nonlocal run_started
+        if run_started:
+            return
+        run_started = True
+        emit(
+            {
+                "type": "run_start",
+                "model": args.model,
+                "session_id": session_id,
+            }
+        )
+
+    def on_tool_start(call_id: str, tool_name: str, display_args: Any = None) -> None:
+        ensure_run_start()
+        tool_starts[call_id] = time.monotonic()
+        emit(
+            {
+                "type": "tool_call_start",
+                "call_id": call_id,
+                "tool": tool_name,
+                "summary": _sanitize(display_args),
+            }
+        )
+
+    def on_tool_complete(
+        call_id: str,
+        tool_name: str,
+        display_args: Any = None,
+        function_result: Any = None,
+    ) -> None:
+        ensure_run_start()
+        started = tool_starts.pop(call_id, None)
+        duration_ms = int((time.monotonic() - started) * 1000) if started else 0
+        is_error = isinstance(function_result, dict) and (
+            function_result.get("is_error") is True
+            or function_result.get("error") is not None
+        )
+        emit(
+            {
+                "type": "tool_call_end",
+                "call_id": call_id,
+                "tool": tool_name,
+                "status": "error" if is_error else "ok",
+                "duration_ms": duration_ms,
+            }
+        )
+
+    def on_stream_delta(text: str | None) -> None:
+        if not text:
+            return
+        ensure_run_start()
+        emit({"type": "text_delta", "text": text})
+
+    try:
+        agent = AIAgent(
+            model=args.model or "",
+            quiet_mode=True,
+            max_iterations=args.max_turns,
+            session_id=session_id,
+            ephemeral_system_prompt=system_prompt,
+            skip_memory=True,
+            skip_context_files=False,
+            tool_start_callback=on_tool_start,
+            tool_complete_callback=on_tool_complete,
+            stream_delta_callback=on_stream_delta,
+            base_url=os.environ.get("OPENAI_BASE_URL") or None,
+            api_key=os.environ.get("OPENAI_API_KEY") or None,
+        )
+    except Exception as exc:
+        emit({"type": "run_end", "status": "error", "error": str(exc)})
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+    ensure_run_start()
+
+    try:
+        result = agent.run_conversation(user_message=prompt)
+    except Exception as exc:
+        emit({"type": "run_end", "status": "error", "error": str(exc)})
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+    final_text = (result.get("final_response") or "").strip()
+    sid = getattr(agent, "session_id", None) or session_id
+
+    if final_text:
+        emit({"type": "assistant_message", "text": final_text})
+    if sid:
+        emit({"type": "session_id", "session_id": sid})
+
+    emit(
+        {
+            "type": "run_end",
+            "status": "ok",
+            "session_id": sid,
+            "final_text": final_text,
+        }
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

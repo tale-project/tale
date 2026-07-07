@@ -277,7 +277,30 @@ describe('DataTable loading states', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders action menu during loading', () => {
+    it('renders action menu during loading when toolbar chrome is present', () => {
+      render(
+        <DataTable
+          columns={columns}
+          data={[]}
+          approxRowCount={undefined}
+          isLoading
+          search={{
+            value: '',
+            onChange: vi.fn(),
+            placeholder: 'Search items...',
+          }}
+          actionMenu={<button>Add Item</button>}
+        />,
+      );
+
+      expect(
+        screen.getByRole('button', { name: 'Add Item' }),
+      ).toBeInTheDocument();
+    });
+
+    it('keeps the primary action reachable on action-only headers', () => {
+      // Regression: hiding the toolbar for action-only tables removed the only
+      // create affordance from token sources / API keys / teams / triggers.
       render(
         <DataTable
           columns={columns}
@@ -317,6 +340,11 @@ describe('DataTable addAction contract', () => {
         columns={columns}
         data={sampleRows}
         approxRowCount={3}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,
     );
@@ -329,13 +357,18 @@ describe('DataTable addAction contract', () => {
     expect(btn).not.toHaveClass('text-xs');
   });
 
-  it('keeps the empty state button-less — only the header create button renders', () => {
+  it('keeps the empty state button-less when toolbar chrome carries the create action', () => {
     render(
       <DataTable
         columns={columns}
         data={[]}
         approxRowCount={0}
         emptyState={{ title: 'No customers' }}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,
     );
@@ -397,6 +430,11 @@ describe('DataTable addAction contract', () => {
         columns={columns}
         data={sampleRows}
         approxRowCount={3}
+        search={{
+          value: '',
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
         actionMenu={<button>Bespoke</button>}
         addAction={{ label: 'New customer', onClick: vi.fn() }}
       />,
@@ -406,5 +444,58 @@ describe('DataTable addAction contract', () => {
     expect(
       screen.queryByRole('button', { name: 'New customer' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('DataTable non-sticky wheel scroll', () => {
+  it('chains vertical wheel scroll from the table frame to a scrollable ancestor', () => {
+    const scrollParent = document.createElement('div');
+    scrollParent.style.height = '200px';
+    scrollParent.style.overflow = 'auto';
+    Object.defineProperty(scrollParent, 'scrollHeight', {
+      value: 800,
+      configurable: true,
+    });
+    Object.defineProperty(scrollParent, 'clientHeight', {
+      value: 200,
+      configurable: true,
+    });
+    let top = 0;
+    Object.defineProperty(scrollParent, 'scrollTop', {
+      get: () => top,
+      set: (value: number) => {
+        top = value;
+      },
+      configurable: true,
+    });
+
+    const inner = document.createElement('div');
+    inner.style.height = '800px';
+
+    scrollParent.appendChild(inner);
+    document.body.appendChild(scrollParent);
+
+    render(
+      <DataTable columns={columns} data={sampleRows} approxRowCount={3} />,
+      { container: inner },
+    );
+
+    const trap = inner.querySelector('.overflow-x-auto');
+    expect(trap).toBeInstanceOf(HTMLElement);
+    if (!(trap instanceof HTMLElement)) return;
+    Object.defineProperty(trap, 'scrollHeight', {
+      value: 400,
+      configurable: true,
+    });
+    Object.defineProperty(trap, 'clientHeight', {
+      value: 400,
+      configurable: true,
+    });
+
+    trap.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 48, bubbles: true, cancelable: true }),
+    );
+
+    expect(scrollParent.scrollTop).toBe(48);
   });
 });

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
@@ -95,19 +94,17 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-import { ProviderDetailDrawer } from './provider-detail-drawer';
-import { ProvidersTable } from './providers-table';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 
-// Mirror the route chrome: the level-2 section heading ("AI providers") that the
-// E2E asserts comes from the SettingsSection the route wraps the table in.
+import { ProviderDetailDrawer } from './provider-detail-drawer';
+import { ProvidersSettingsSection } from './providers-settings-section';
+
 function renderList(initialDetailProvider?: string) {
   return render(
-    <SettingsSection title="AI providers">
-      <ProvidersTable
-        organizationId="org-1"
-        initialDetailProvider={initialDetailProvider}
-      />
-    </SettingsSection>,
+    <ProvidersSettingsSection
+      organizationId="org-1"
+      initialDetailProvider={initialDetailProvider}
+    />,
   );
 }
 

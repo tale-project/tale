@@ -25,11 +25,9 @@ import { useTranslation } from 'react-i18next';
 
 import {
   CatalogCard,
-  CatalogCardIcon,
   CatalogGrid,
 } from '@/app/components/catalog/catalog-grid';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { LabelBadges } from '@/app/components/ui/label-badges';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
@@ -45,6 +43,8 @@ import {
   agentRequiredIntegrations,
   toConfigurableAgent,
 } from '../utils/agent-list-item';
+import { folderLabel } from '../utils/folder-label';
+import { AgentCatalogIcon } from './agent-catalog-icon';
 
 interface AgentCatalogProps {
   organizationId: string;
@@ -56,8 +56,11 @@ interface CatalogEntry {
   description?: string;
   /** Top-level folder (chat/workforce/github) — the catalog's visual section. */
   folder: string;
-  /** Flat, equal catalog tags; rendered first + overflow, matched by search. */
+  /** Flat, equal catalog tags; matched by search, used for icon heuristics. */
   labels: string[];
+  agentKind?: string;
+  composerModeIcon?: string;
+  primaryBehavior?: string;
   requiresIntegrations: string[];
   installed: boolean;
   enabled: boolean;
@@ -76,21 +79,6 @@ type InstallStateRow = NonNullable<
 
 /** Number of placeholder cards rendered while the catalog roster loads. */
 const PLACEHOLDER_CARD_COUNT = 6;
-
-/**
- * Localized title for a folder section. Known folders have dedicated keys
- * (`agentCatalog.folders.workforce` …); unknown folders fall back to a
- * capitalized form of the raw value so a new department still renders a sane
- * label even before a translation exists. `defaultValue` keeps i18next from
- * surfacing a raw key while the localized string lands.
- */
-function folderLabel(t: TFunction, folder: string): string {
-  const fallback = folder
-    ? folder.charAt(0).toUpperCase() + folder.slice(1)
-    : t('folders.general', { defaultValue: 'General' });
-  if (!folder) return fallback;
-  return t(`folders.${folder}`, { defaultValue: fallback });
-}
 
 export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   const { t } = useT('agentCatalog');
@@ -153,6 +141,9 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
         description: resolved.description,
         folder: agent.folder ?? '',
         labels: agentLabels(agent),
+        agentKind: agent.agentKind,
+        composerModeIcon: agent.composerMode?.icon,
+        primaryBehavior: agent.primaryBehavior,
         requiresIntegrations: agentRequiredIntegrations(agent),
         installed: !!state,
         enabled: state?.enabled ?? false,
@@ -328,7 +319,7 @@ export function AgentCatalog({ organizationId }: AgentCatalogProps) {
   );
 }
 
-/** One catalog card: icon, status badge, description, footer tags + roster actions. */
+/** One catalog card: icon, optional provenance chip, compact roster actions. */
 function AgentCatalogCard({
   entry,
   t,
@@ -361,117 +352,90 @@ function AgentCatalogCard({
     </Badge>
   ) : null;
 
-  const hasMeta = entry.labels.length > 0 || provenanceBadge !== null;
-
-  const rosterActions = !entry.installed ? (
-    <Button isLoading={pending} onClick={onInstall}>
-      {t('install')}
-    </Button>
-  ) : (
-    <>
-      <Button
-        isLoading={pending}
-        variant={entry.enabled ? 'secondary' : 'primary'}
-        onClick={onToggleEnabled}
-      >
-        {entry.enabled ? t('disable') : t('enable')}
-      </Button>
-      <Button variant="ghost" disabled={pending} onClick={onUninstall}>
-        {t('uninstall')}
-      </Button>
-    </>
-  );
-
   return (
     <CatalogCard
       media={
-        <CatalogCardIcon>
-          <Bot className="text-muted-foreground size-5" />
-        </CatalogCardIcon>
+        <AgentCatalogIcon
+          slug={entry.slug}
+          agentKind={entry.agentKind}
+          composerModeIcon={entry.composerModeIcon}
+          primaryBehavior={entry.primaryBehavior}
+          labels={entry.labels}
+          installed={entry.installed}
+          enabled={entry.enabled}
+          t={t}
+        />
       }
       title={entry.displayName}
       description={entry.description}
-      badge={<CatalogStatusBadge entry={entry} t={t} />}
+      meta={provenanceBadge ?? undefined}
       actions={
-        <Row justify="between" align="center" gap={3} className="w-full">
-          <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-hidden">
-            {hasMeta ? (
-              <>
-                <LabelBadges labels={entry.labels} />
-                {provenanceBadge ? (
-                  <span className="shrink-0">{provenanceBadge}</span>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-          <Row gap={2} className="shrink-0">
-            {rosterActions}
-          </Row>
-        </Row>
+        !entry.installed ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            isLoading={pending}
+            onClick={onInstall}
+          >
+            {t('install')}
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="sm"
+              isLoading={pending}
+              variant={entry.enabled ? 'secondary' : 'primary'}
+              onClick={onToggleEnabled}
+            >
+              {entry.enabled ? t('disable') : t('enable')}
+            </Button>
+            <Button
+              size="sm"
+              variant="link"
+              disabled={pending}
+              onClick={onUninstall}
+            >
+              {t('uninstall')}
+            </Button>
+          </>
+        )
       }
     />
   );
 }
 
 /**
- * Placeholder card matching the catalog card footprint (icon tile, title,
- * two-line description, footer tag + action row) so the loading grid occupies
- * the same height as the loaded grid. Decorative; the enclosing `<Skeletonize>`
- * owns the single status announcement.
+ * Placeholder card matching `CatalogCard`'s footprint (title, two description
+ * lines, a compact action button) so the loading grid occupies the same height
+ * as the loaded grid. Decorative; the enclosing `<Skeletonize>` owns the single
+ * status announcement.
  */
 function CatalogCardSkeleton() {
   return (
-    <Card padding="md" className="flex h-full flex-col">
+    <Card padding="md" className="dark:bg-card flex h-full flex-col">
       <Row gap={3} align="start">
         <SkeletonBox>
-          <div className="size-10 rounded-lg" />
+          <div className="relative size-10 rounded-lg">
+            <div className="border-border-base bg-bg-base size-10 rounded-lg border" />
+            <div className="border-bg-base bg-muted-foreground/50 absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2" />
+          </div>
         </SkeletonBox>
         <Stack gap={1} className="min-w-0 flex-1">
-          <Row gap={2} align="start" justify="between">
-            <div className="w-28 text-sm leading-none">
-              <SkeletonText />
-            </div>
-            <SkeletonBox>
-              <div className="h-5 w-16 rounded-full" />
-            </SkeletonBox>
-          </Row>
+          <div className="w-28 text-sm leading-none">
+            <SkeletonText />
+          </div>
           <div className="text-sm leading-snug">
             <SkeletonText lines={2} />
           </div>
         </Stack>
       </Row>
-      <Row
-        justify="between"
-        align="center"
-        className="mt-auto w-full gap-3 pt-4"
-      >
-        <SkeletonBox>
-          <div className="h-5 w-20 rounded-full" />
-        </SkeletonBox>
+      <div className="mt-auto flex justify-end pt-3">
         <span className="shrink-0">
           <SkeletonBox>
             <div className="h-8 w-20 rounded-md" />
           </SkeletonBox>
         </span>
-      </Row>
+      </div>
     </Card>
   );
-}
-
-function CatalogStatusBadge({
-  entry,
-  t,
-}: {
-  entry: CatalogEntry;
-  t: TFunction;
-}) {
-  // Not installed: no status badge — the Install action is the signal. Badging
-  // "Available" collided visually with department label chips in the meta row.
-  if (!entry.installed) {
-    return null;
-  }
-  if (!entry.enabled) {
-    return <Badge variant="destructive">{t('status.disabled')}</Badge>;
-  }
-  return <Badge variant="green">{t('status.enabled')}</Badge>;
 }
