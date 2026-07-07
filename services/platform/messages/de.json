@@ -282,7 +282,9 @@
     "review": {
       "gate": "Warten auf Freigabe",
       "form": "Eingabe erforderlich",
-      "choice": "Option wählen"
+      "choice": "Option wählen",
+      "approved": "Genehmigt",
+      "changesRequested": "Änderungen angefordert"
     },
     "action": {
       "open": "Öffnen",
