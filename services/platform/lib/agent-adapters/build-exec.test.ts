@@ -10,6 +10,7 @@ import { CursorAdapter } from './cursor/adapter';
 import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
+import { PiAdapter } from './pi/adapter';
 import type { AgentRunSpec } from './types';
 
 const base = {
@@ -90,6 +91,36 @@ describe('CodexAdapter.buildExec', () => {
     expect(env.CODEX_HOME).toBe('/user/.runtime/home/.codex');
     expect(argv[argv.length - 1]).toBe('-');
     expect(stdin).toBe('Fix issue #1');
+  });
+});
+
+describe('PiAdapter.buildExec', () => {
+  it('builds tale-pi-run with a staged OpenAI-route gateway provider', () => {
+    const piBase = {
+      prompt: 'Fix issue #1',
+      model: 'openrouter/anthropic/claude-sonnet-4.6',
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
+      workdir: '/user/workspace',
+    } satisfies AgentRunSpec;
+    const { argv, env, stdin } = new PiAdapter().buildExec(piBase);
+    expect(argv[0]).toBe('tale-pi-run');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+    // The gateway route + session key ride a staged models.json (env-key
+    // interpolated), not the process env — assert the staged provider.
+    const payload = JSON.parse(stdin ?? '{}') as {
+      prompt?: string;
+      models?: { providers?: Record<string, { baseUrl?: string }> };
+    };
+    expect(payload.models?.providers?.['tale-gateway']?.baseUrl).toBe(
+      'http://sandbox-llm-gateway:8080/openai/v1',
+    );
+    expect(stdin).not.toContain('sk-bf-test');
+    // The prompt rides stdin (JSON payload), never argv.
+    expect(argv).not.toContain('Fix issue #1');
+    expect(payload.prompt).toBe('Fix issue #1');
   });
 });
 

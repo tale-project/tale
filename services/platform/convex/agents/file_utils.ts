@@ -75,7 +75,8 @@ export interface AgentJsonConfig {
     | 'opencode'
     | 'hermes'
     | 'gemini'
-    | 'codex';
+    | 'codex'
+    | 'pi';
   /**
    * Credential / auth mode for `primaryBehavior: 'external-agent'`. 'managed'
    * (default) routes through the platform gateway with a minted virtual key;

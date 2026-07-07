@@ -30,6 +30,7 @@ ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
 ARG GEMINI_CLI_VERSION=0.49.0
 ARG CODEX_VERSION=0.142.5
+ARG PI_CODING_AGENT_VERSION=0.80.3
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -309,6 +310,15 @@ RUN chmod +x /usr/local/bin/tale-gemini-run
 RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
     && codex --version
+
+# Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
+# stages the per-exec config dir (models.json/settings/APPEND_SYSTEM.md)
+# before the headless run.
+RUN npm install -g --prefix /opt/agents "@earendil-works/pi-coding-agent@${PI_CODING_AGENT_VERSION}" \
+    && npm cache clean --force \
+    && pi --version
+COPY services/sandbox-runtime/tale-pi-run /usr/local/bin/tale-pi-run
+RUN chmod +x /usr/local/bin/tale-pi-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in

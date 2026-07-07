@@ -5678,7 +5678,8 @@
           "opencode": "OpenCode",
           "hermes": "Hermes Agent",
           "gemini": "Gemini CLI",
-          "codex": "Codex"
+          "codex": "Codex",
+          "pi": "Pi"
         },
         "webTools": {
           "sectionTitle": "Web-Tools",

@@ -9,6 +9,7 @@ import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
 import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
+import { PiAdapter } from './pi/adapter';
 import type { AgentAdapter } from './types';
 
 const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
@@ -18,6 +19,7 @@ const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   hermes: new HermesAdapter(),
   gemini: new GeminiCliAdapter(),
   codex: new CodexAdapter(),
+  pi: new PiAdapter(),
 };
 
 export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {

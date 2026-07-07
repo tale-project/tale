@@ -64,3 +64,35 @@ GEMINI_CLI_SYSTEM_SETTINGS_PATH=/tmp/gemini-settings.json \
 `fixtures/gemini/shell-turn.jsonl` was captured this way from the pinned
 0.49.0 CLI against a local mock GenAI gateway (the shell tool call ran for
 real).
+
+## Pi
+
+Headless prompt rides stdin; the gateway route is a Pi custom provider staged
+as `models.json` inside a private config dir (`PI_CODING_AGENT_DIR`), with the
+session key env-interpolated so the file never holds it. Point the base URL at
+a real gateway or a local OpenAI-completions mock:
+
+```bash
+mkdir -p /tmp/pi-agent-dir
+cat > /tmp/pi-agent-dir/models.json <<'JSON'
+{
+  "providers": {
+    "tale-gateway": {
+      "baseUrl": "http://…/openai/v1",
+      "api": "openai-completions",
+      "apiKey": "$TALE_GATEWAY_TOKEN",
+      "models": [{ "id": "openrouter/anthropic/claude-sonnet-4.6" }]
+    }
+  }
+}
+JSON
+PI_CODING_AGENT_DIR=/tmp/pi-agent-dir TALE_GATEWAY_TOKEN=… \
+PI_SKIP_VERSION_CHECK=1 \
+  pi --mode json --approve --provider tale-gateway \
+  --model "openrouter/anthropic/claude-sonnet-4.6" \
+  <<<"Run echo hello" > /tmp/pi-run.jsonl
+```
+
+`fixtures/pi/shell-turn.jsonl` was captured this way from the pinned 0.80.3
+CLI against a local mock OpenAI-completions gateway (the bash tool call ran
+for real).
