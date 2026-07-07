@@ -12,6 +12,7 @@ export const PRODUCT_AGENT_SLUGS = [
   'cursor',
   'opencode',
   'hermes',
+  'gemini',
 ] as const;
 export type ProductAgentSlug = (typeof PRODUCT_AGENT_SLUGS)[number];
 
@@ -24,6 +25,7 @@ export function resolveProductAgentKind(
   if (agentKind === 'cursor') return 'cursor';
   if (agentKind === 'opencode') return 'opencode';
   if (agentKind === 'hermes') return 'hermes';
+  if (agentKind === 'gemini') return 'gemini';
   return 'claude-code';
 }
 

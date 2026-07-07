@@ -153,7 +153,7 @@ export interface RunAgentInSessionArgs {
    * newer turn's window open). */
   streamId?: string;
   execId: string;
-  agentSlug: 'claude-code' | 'cursor' | 'opencode' | 'hermes';
+  agentSlug: 'claude-code' | 'cursor' | 'opencode' | 'hermes' | 'gemini';
   prompt: string;
   model?: string;
   /** Managed only: gateway model id of the model-level fallback (catalog
@@ -1554,6 +1554,7 @@ export const runAgentInSession = internalAction({
       v.literal('cursor'),
       v.literal('opencode'),
       v.literal('hermes'),
+      v.literal('gemini'),
     ),
     prompt: v.string(),
     model: v.optional(v.string()),

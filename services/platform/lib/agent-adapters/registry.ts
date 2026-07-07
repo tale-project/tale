@@ -5,6 +5,7 @@
 import { ClaudeCodeAdapter } from './claude-code/adapter';
 import { CursorAdapter } from './cursor/adapter';
 import { PRODUCT_AGENT_SLUGS, type ProductAgentSlug } from './events';
+import { GeminiCliAdapter } from './gemini-cli/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import { OpenCodeAdapter } from './opencode/adapter';
 import type { AgentAdapter } from './types';
@@ -14,6 +15,7 @@ const ADAPTERS: Record<ProductAgentSlug, AgentAdapter> = {
   cursor: new CursorAdapter(),
   opencode: new OpenCodeAdapter(),
   hermes: new HermesAdapter(),
+  gemini: new GeminiCliAdapter(),
 };
 
 export function getAgentAdapter(slug: ProductAgentSlug): AgentAdapter {

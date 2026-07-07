@@ -28,6 +28,7 @@ ARG CLAUDE_CODE_VERSION=2.1.173
 ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
+ARG GEMINI_CLI_VERSION=0.49.0
 ARG PLAYWRIGHT_MCP_VERSION=0.0.41
 ARG GH_VERSION=2.62.0
 ARG TARGETARCH
@@ -292,6 +293,14 @@ RUN pip install --no-cache-dir "hermes-agent==${HERMES_AGENT_VERSION}" \
     && hermes --version
 COPY services/sandbox-runtime/tale-hermes-run /usr/local/bin/tale-hermes-run
 RUN chmod +x /usr/local/bin/tale-hermes-run
+
+# Gemini CLI (pinned npm, into /opt/agents like Claude Code) + Tale wrapper
+# that stages per-exec settings/context before the headless run.
+RUN npm install -g --prefix /opt/agents "@google/gemini-cli@${GEMINI_CLI_VERSION}" \
+    && npm cache clean --force \
+    && gemini --version
+COPY services/sandbox-runtime/tale-gemini-run /usr/local/bin/tale-gemini-run
+RUN chmod +x /usr/local/bin/tale-gemini-run
 
 # --- docker-in-container tooling (sysbox/kata tiers) ------------------------
 # Native `docker` / `docker compose` INSIDE a session container. Present in

@@ -99,6 +99,19 @@ describe('agentJsonSchema — external-agent primaryBehavior', () => {
         agentKind: 'hermes',
       }).success,
     ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'gemini',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJsonSchema.safeParse({
+        ...externalBase,
+        agentKind: 'gemini',
+        authMode: 'byo',
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts external-agent with agentKind opencode (managed-only)', () => {

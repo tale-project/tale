@@ -25,6 +25,14 @@ const HERMES_GATEWAY_SESSION_KEYS = [
   'OPENROUTER_API_KEY',
 ] as const;
 
+/** Gemini gateway keys that may linger after a runtime/auth-mode switch — a
+ * BYO Gemini run must not inherit a prior managed run's gateway base URL or
+ * stale session virtual key. */
+const GEMINI_GATEWAY_SESSION_KEYS = [
+  'GOOGLE_GEMINI_BASE_URL',
+  'GEMINI_API_KEY',
+] as const;
+
 /** Keys to unset before a turn so a prior runtime's credentials do not win. */
 export function collectScrubCredentialEnvKeys(
   slug: ProductAgentSlug,
@@ -39,6 +47,7 @@ export function collectScrubCredentialEnvKeys(
   if (!gatewayRun || byo) {
     for (const k of ANTHROPIC_GATEWAY_SESSION_KEYS) keys.add(k);
     for (const k of HERMES_GATEWAY_SESSION_KEYS) keys.add(k);
+    for (const k of GEMINI_GATEWAY_SESSION_KEYS) keys.add(k);
   }
   return [...keys];
 }

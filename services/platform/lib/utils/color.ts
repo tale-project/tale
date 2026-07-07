@@ -185,7 +185,7 @@ const MIN_BG_CONTRAST = 3;
  * values feed the canonical `@tale/ui` tokens (`--color-accent-*`); the
  * space-separated HSL strings feed the legacy tokens (`--primary*`, `--ring`).
  */
-export interface AccentPalette {
+interface AccentPalette {
   /** The theme-adjusted accent surface (hex). */
   base: string;
   /** Ink on top of `base` — `ACCENT_INK_DARK` or `ACCENT_INK_LIGHT` (hex). */

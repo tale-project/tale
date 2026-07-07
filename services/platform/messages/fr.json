@@ -5658,7 +5658,8 @@
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
           "opencode": "OpenCode",
-          "hermes": "Hermes Agent"
+          "hermes": "Hermes Agent",
+          "gemini": "Gemini CLI"
         },
         "webTools": {
           "sectionTitle": "Outils web",

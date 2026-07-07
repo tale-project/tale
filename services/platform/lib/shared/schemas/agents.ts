@@ -34,6 +34,7 @@ const agentKindLiterals = [
   'cursor',
   'opencode',
   'hermes',
+  'gemini',
 ] as const;
 const agentKindSchema = z.enum(agentKindLiterals);
 

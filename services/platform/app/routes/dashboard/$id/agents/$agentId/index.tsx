@@ -339,7 +339,9 @@ function GeneralTab() {
               ? t('agents.form.agentKind.opencode')
               : slug === 'hermes'
                 ? t('agents.form.agentKind.hermes')
-                : t('agents.form.agentKind.claudeCode'),
+                : slug === 'gemini'
+                  ? t('agents.form.agentKind.gemini')
+                  : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -373,7 +375,8 @@ function GeneralTab() {
         value !== 'claude-code' &&
         value !== 'cursor' &&
         value !== 'opencode' &&
-        value !== 'hermes'
+        value !== 'hermes' &&
+        value !== 'gemini'
       ) {
         return;
       }
