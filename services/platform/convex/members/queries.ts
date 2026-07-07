@@ -5,7 +5,6 @@ import { components } from '../_generated/api';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
 import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
-import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import {
   getAuthUserIdentity,
   getOrganizationMember,

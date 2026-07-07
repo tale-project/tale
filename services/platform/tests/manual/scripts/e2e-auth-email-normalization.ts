@@ -21,9 +21,7 @@ const PLATFORM_ROOT = path.resolve(
   '../../..',
 );
 const CONVEX_URL = process.env.CONVEX_URL ?? 'http://127.0.0.1:3210';
-const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
 const SCIM_BASE = process.env.VITE_CONVEX_SITE_URL ?? 'http://127.0.0.1:3211';
-const E2E_PASSWORD = 'TaleE2E!Passw0rd';
 const ORG_ID = process.env.E2E_ORG_ID ?? 'jn76fq3jc2s6wzpkwhjjf898c189svkf';
 
 function run(
@@ -83,50 +81,6 @@ function assert(condition: boolean, message: string): asserts condition {
 
 function randomHex(bytes: number): string {
   return randomBytes(bytes).toString('hex');
-}
-
-async function signUpLowercase(
-  email: string,
-): Promise<{ userId: string; email: string }> {
-  const res = await fetch(`${SITE_URL}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      origin: SITE_URL,
-    },
-    body: JSON.stringify({
-      name: 'E2E Email Norm',
-      email,
-      password: E2E_PASSWORD,
-    }),
-  });
-  const body = (await res.json().catch(() => null)) as {
-    user?: { id?: string; email?: string };
-  } | null;
-  if (!res.ok) {
-    throw new Error(`Sign-up failed (${res.status}): ${JSON.stringify(body)}`);
-  }
-  const userId = body?.user?.id;
-  if (!userId) {
-    throw new Error(`Sign-up returned no user id: ${JSON.stringify(body)}`);
-  }
-  return { userId, email: body?.user?.email ?? email };
-}
-
-async function waitForUserCount(
-  email: string,
-  expected: number,
-  attempts = 20,
-): Promise<{ count: number; userIds: string[]; emails: string[] }> {
-  let last = { count: 0, userIds: [] as string[], emails: [] as string[] };
-  for (let i = 0; i < attempts; i++) {
-    last = convexRun('lib/auth/e2e_harness:countAuthUsersByNormalizedEmail', {
-      email,
-    }) as typeof last;
-    if (last.count === expected) return last;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  return last;
 }
 
 async function scimPostUser(

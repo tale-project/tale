@@ -6,7 +6,10 @@ import {
   upsertTeamMemberMirror,
   deleteTeamMemberMirrorByTeamMemberId,
 } from '../../members/mirror_sync';
-import type { BetterAuthMember } from '../../members/types';
+import type {
+  BetterAuthMember,
+  BetterAuthFindManyResult,
+} from '../../members/types';
 import {
   findAuthUserById,
   type AuthReadCtx,
@@ -23,7 +26,14 @@ type AdapterWhere = {
   operator: 'eq';
 };
 
-async function gatherByUserId<T>(
+type BetterAuthTeamMemberRow = {
+  _id: string;
+  teamId: string;
+  userId: string;
+  createdAt?: number;
+};
+
+async function gatherByUserId<T extends { _id?: string }>(
   ctx: AuthReadCtx,
   model: 'member' | 'account' | 'teamMember' | 'session',
   userId: string,
@@ -31,17 +41,16 @@ async function gatherByUserId<T>(
   const rows: T[] = [];
   let cursor: string | null = null;
   for (;;) {
-    const res: {
-      page?: T[];
-      isDone?: boolean;
-      continueCursor?: string | null;
-    } = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model,
-      paginationOpts: { cursor, numItems: 200 },
-      where: [{ field: 'userId', value: userId, operator: 'eq' }],
-    });
-    rows.push(...((res?.page ?? []) as T[]));
-    if (res?.isDone || !res?.continueCursor) break;
+    const res: BetterAuthFindManyResult<T> = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model,
+        paginationOpts: { cursor, numItems: 200 },
+        where: [{ field: 'userId', value: userId, operator: 'eq' }],
+      },
+    );
+    rows.push(...(res.page ?? []));
+    if (res.isDone || !res.continueCursor) break;
     cursor = res.continueCursor;
   }
   return rows;
@@ -76,36 +85,35 @@ async function findMember(
   organizationId: string,
   userId: string,
 ): Promise<BetterAuthMember | undefined> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: { cursor: null, numItems: 1 },
-    where: [
-      { field: 'organizationId', value: organizationId, operator: 'eq' },
-      { field: 'userId', value: userId, operator: 'eq' },
-    ],
-  });
-  return res?.page?.[0] as BetterAuthMember | undefined;
+  const res: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
+    components.betterAuth.adapter.findMany,
+    {
+      model: 'member',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [
+        { field: 'organizationId', value: organizationId, operator: 'eq' },
+        { field: 'userId', value: userId, operator: 'eq' },
+      ],
+    },
+  );
+  return res.page[0];
 }
 
 async function findTeamMember(
   ctx: AuthReadCtx,
   teamId: string,
   userId: string,
-): Promise<
-  | { _id: string; teamId: string; userId: string; createdAt?: number }
-  | undefined
-> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'teamMember',
-    paginationOpts: { cursor: null, numItems: 1 },
-    where: [
-      { field: 'teamId', value: teamId, operator: 'eq' },
-      { field: 'userId', value: userId, operator: 'eq' },
-    ],
-  });
-  return res?.page?.[0] as
-    | { _id: string; teamId: string; userId: string; createdAt?: number }
-    | undefined;
+): Promise<BetterAuthTeamMemberRow | undefined> {
+  const res: BetterAuthFindManyResult<BetterAuthTeamMemberRow> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'teamMember',
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [
+        { field: 'teamId', value: teamId, operator: 'eq' },
+        { field: 'userId', value: userId, operator: 'eq' },
+      ],
+    });
+  return res.page[0];
 }
 
 async function repointTeamMember(
@@ -307,12 +315,11 @@ export async function mergeDuplicateAuthUserIntoCanonical(
     duplicateUserId,
     canonicalUserId,
   );
-  const duplicateTeamMembers = await gatherByUserId<{
-    _id: string;
-    teamId: string;
-    userId: string;
-    createdAt?: number;
-  }>(ctx, 'teamMember', duplicateUserId);
+  const duplicateTeamMembers = await gatherByUserId<BetterAuthTeamMemberRow>(
+    ctx,
+    'teamMember',
+    duplicateUserId,
+  );
   for (const teamMember of duplicateTeamMembers) {
     if (!teamMember?._id || !teamMember.teamId) continue;
     await repointTeamMember(ctx, teamMember, canonicalUserId);

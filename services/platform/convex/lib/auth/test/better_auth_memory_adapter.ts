@@ -31,12 +31,14 @@ type DeleteOneArgs = {
   input: { model: Model; where: WhereClause[] };
 };
 
+type MemoryRow = Record<string, unknown> & { _id: string };
+
 export type BetterAuthMemoryStore = {
-  users: Map<string, BetterAuthUser>;
-  members: Map<string, BetterAuthMember & { _id: string }>;
-  accounts: Map<string, Record<string, unknown> & { _id: string }>;
-  teamMembers: Map<string, Record<string, unknown> & { _id: string }>;
-  sessions: Map<string, Record<string, unknown> & { _id: string }>;
+  users: Map<string, MemoryRow>;
+  members: Map<string, MemoryRow>;
+  accounts: Map<string, MemoryRow>;
+  teamMembers: Map<string, MemoryRow>;
+  sessions: Map<string, MemoryRow>;
   nextId: number;
 };
 
@@ -54,26 +56,36 @@ export function createBetterAuthMemoryStore(): BetterAuthMemoryStore {
 function tableForModel(
   store: BetterAuthMemoryStore,
   model: Model,
-): Map<string, Record<string, unknown>> {
+): Map<string, MemoryRow> {
   switch (model) {
     case 'user':
-      return store.users as unknown as Map<string, Record<string, unknown>>;
+      return store.users;
     case 'member':
-      return store.members as unknown as Map<string, Record<string, unknown>>;
+      return store.members;
     case 'account':
       return store.accounts;
     case 'teamMember':
       return store.teamMembers;
     case 'session':
       return store.sessions;
+    default: {
+      const _exhaustive: never = model;
+      throw new Error(`Unknown model: ${String(_exhaustive)}`);
+    }
   }
 }
 
-function matchesWhere(
-  row: Record<string, unknown>,
-  where: WhereClause[],
-): boolean {
-  return where.every((w) => String(row[w.field] ?? '') === w.value);
+function stringField(row: MemoryRow, field: string): string {
+  const value = row[field];
+  return typeof value === 'string' ? value : '';
+}
+
+function rowSortKey(row: MemoryRow): string {
+  return stringField(row, '_id');
+}
+
+function matchesWhere(row: MemoryRow, where: WhereClause[]): boolean {
+  return where.every((w) => stringField(row, w.field) === w.value);
 }
 
 function paginate<T>(
@@ -121,14 +133,14 @@ export function seedTeamMember(
   store.teamMembers.set(teamMember._id, { ...teamMember });
 }
 
-export function listTeamMembers(
-  store: BetterAuthMemoryStore,
-): Array<Record<string, unknown> & { _id: string }> {
+export function listTeamMembers(store: BetterAuthMemoryStore): MemoryRow[] {
   return [...store.teamMembers.values()];
 }
 
 export function listUsers(store: BetterAuthMemoryStore): BetterAuthUser[] {
-  return [...store.users.values()];
+  // Test seeds always write full Better Auth user rows.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- memory store rows are seeded as BetterAuthUser
+  return [...store.users.values()] as BetterAuthUser[];
 }
 
 export function handleBetterAuthFindMany(
@@ -144,7 +156,7 @@ export function handleBetterAuthFindMany(
   if (args.where.length > 0) {
     rows = rows.filter((row) => matchesWhere(row, args.where));
   }
-  rows.sort((a, b) => String(a._id ?? '').localeCompare(String(b._id ?? '')));
+  rows.sort((a, b) => rowSortKey(a).localeCompare(rowSortKey(b)));
   return paginate(
     rows,
     args.paginationOpts.cursor,
@@ -193,6 +205,7 @@ const ADAPTER = {
   updateMany: 'betterAuth.adapter.updateMany',
   deleteOne: 'betterAuth.adapter.deleteOne',
 } as const;
+
 export function createBetterAuthTestCtx(
   store: BetterAuthMemoryStore,
   db?: {
@@ -236,14 +249,14 @@ export function createBetterAuthTestCtx(
     },
     runMutation: async (ref, args) => {
       if (ref === ADAPTER.create) {
-        return handleBetterAuthCreate(store, args as CreateArgs);
+        return handleBetterAuthCreate(store, args);
       }
       if (ref === ADAPTER.updateMany) {
-        handleBetterAuthUpdateMany(store, args as UpdateManyArgs);
+        handleBetterAuthUpdateMany(store, args);
         return null;
       }
       if (ref === ADAPTER.deleteOne) {
-        handleBetterAuthDeleteOne(store, args as DeleteOneArgs);
+        handleBetterAuthDeleteOne(store, args);
         return null;
       }
       throw new Error(`Unexpected runMutation ref: ${String(ref)}`);

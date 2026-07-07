@@ -5,6 +5,7 @@
 
 import { v } from 'convex/values';
 
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import { internalMutation, internalQuery } from '../../_generated/server';
 import { hashScimToken, scimTokenPrefix } from '../../scim/helpers/crypto';
@@ -105,8 +106,9 @@ export const seedAuthUserForE2E = internalMutation({
         },
       },
     );
-    const row = created as { _id?: string; id?: string };
-    const userId = row._id ?? row.id;
+    const userId = isRecord(created)
+      ? (getString(created, '_id') ?? getString(created, 'id'))
+      : undefined;
     if (!userId) throw new Error('Failed to create e2e user');
     return { userId, email };
   },

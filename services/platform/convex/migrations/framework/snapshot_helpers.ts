@@ -43,7 +43,9 @@ export async function snapshotBetterAuthRow(
   doc: Record<string, unknown>,
 ): Promise<void> {
   const id = typeof doc._id === 'string' ? doc._id : 'unknown';
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth component rows use string ids; MigrationDoc expects GenericId
   await snapshotRow(ctx, migrationId, `component:betterAuth:${model}:${id}`, {
     ...doc,
-  } as import('./types').MigrationDoc);
+    _id: id,
+  } as MigrationDoc);
 }

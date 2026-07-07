@@ -1,6 +1,11 @@
+import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
-import type { BetterAuthMember } from '../../members/types';
+import type {
+  BetterAuthMember,
+  BetterAuthFindManyResult,
+  BetterAuthUser,
+} from '../../members/types';
 import { snapshotBetterAuthRow } from '../../migrations/framework/snapshot_helpers';
 import {
   findAuthUserById,
@@ -31,12 +36,15 @@ async function listMembersForUser(
   ctx: MutationCtx,
   userId: string,
 ): Promise<BetterAuthMember[]> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
-    paginationOpts: { cursor: null, numItems: 500 },
-    where: [{ field: 'userId', value: userId, operator: 'eq' }],
-  });
-  return (res?.page ?? []) as BetterAuthMember[];
+  const res: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
+    components.betterAuth.adapter.findMany,
+    {
+      model: 'member',
+      paginationOpts: { cursor: null, numItems: 500 },
+      where: [{ field: 'userId', value: userId, operator: 'eq' }],
+    },
+  );
+  return res.page ?? [];
 }
 
 async function buildMembershipMap(
@@ -108,12 +116,9 @@ export async function resolveAuthUserEmailGroup(
     const stillThere = await findAuthUserById(ctx, duplicate._id);
     if (!stillThere) continue;
     if (migrationId) {
-      await snapshotBetterAuthRow(
-        ctx,
-        migrationId,
-        'user',
-        stillThere as unknown as Record<string, unknown>,
-      );
+      await snapshotBetterAuthRow(ctx, migrationId, 'user', {
+        ...stillThere,
+      });
     }
     await mergeDuplicateAuthUserIntoCanonical(
       ctx,
@@ -154,17 +159,21 @@ export async function applyAuthEmailNormalizationBatch(
   processed: number;
   stats: EmailNormalizationStats;
 }> {
-  const res = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'user',
-    paginationOpts: { cursor, numItems: batchSize },
-    where: [],
-  });
+  const res: BetterAuthFindManyResult<BetterAuthUser> = await ctx.runQuery(
+    components.betterAuth.adapter.findMany,
+    {
+      model: 'user',
+      paginationOpts: { cursor, numItems: batchSize },
+      where: [],
+    },
+  );
 
   const stats = emptyStats();
-  for (const raw of res?.page ?? []) {
-    const user = raw as { _id?: string; email?: string };
-    if (!user?._id) continue;
-    const result = await resolveAuthUserEmailGroup(ctx, user._id, migrationId);
+  for (const raw of res.page ?? []) {
+    if (!isRecord(raw)) continue;
+    const userId = getString(raw, '_id');
+    if (!userId) continue;
+    const result = await resolveAuthUserEmailGroup(ctx, userId, migrationId);
     if (result.action === 'renamed') stats.renamed++;
     else if (result.action === 'merged') stats.merged++;
     else if (result.action === 'skipped') stats.skipped++;
@@ -172,9 +181,9 @@ export async function applyAuthEmailNormalizationBatch(
   }
 
   return {
-    isDone: Boolean(res?.isDone),
-    continueCursor: res?.isDone ? null : (res?.continueCursor ?? null),
-    processed: res?.page?.length ?? 0,
+    isDone: Boolean(res.isDone),
+    continueCursor: res.isDone ? null : (res.continueCursor ?? null),
+    processed: res.page?.length ?? 0,
     stats,
   };
 }

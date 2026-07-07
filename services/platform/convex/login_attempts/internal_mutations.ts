@@ -5,7 +5,6 @@ import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { findUserByNormalizedEmail } from '../lib/auth/find_user_by_normalized_email';
-import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 import { splitEmailForAudit, splitIpForAudit } from '../lib/helpers/pii_hash';
 import { writeNotificationForOrgs } from '../notifications/helpers';
