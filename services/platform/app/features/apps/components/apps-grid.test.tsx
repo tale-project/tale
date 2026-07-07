@@ -15,10 +15,13 @@ import { AppsGrid } from './apps-grid';
  * union/precedence/sort is asserted directly.
  */
 
-const { useAppsMock, useAppCatalogMock } = vi.hoisted(() => ({
-  useAppsMock: vi.fn(),
-  useAppCatalogMock: vi.fn(),
-}));
+const { useAppsMock, useAppCatalogMock, useAppInstallStatesMock } = vi.hoisted(
+  () => ({
+    useAppsMock: vi.fn(),
+    useAppCatalogMock: vi.fn(),
+    useAppInstallStatesMock: vi.fn(),
+  }),
+);
 
 vi.mock('../hooks/use-apps', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/use-apps')>()),
@@ -27,10 +30,12 @@ vi.mock('../hooks/use-apps', async (importOriginal) => ({
 }));
 
 vi.mock('../hooks/use-install-state', () => ({
-  // Keep the install-state map empty so every card renders the catalog
-  // (not-installed) Install branch; the union we are testing comes from
-  // useApps (installed list) vs useAppCatalog, independent of install state.
-  useAppInstallStates: () => ({ bySlug: new Map(), isLoading: false }),
+  // Defaults to an empty install-state map (see beforeEach) so every card
+  // renders the catalog (not-installed) Install branch; the union tests come
+  // from useApps (installed list) vs useAppCatalog, independent of install
+  // state. The #2554 navigation tests override it to reach the installed
+  // (Open) branch.
+  useAppInstallStates: useAppInstallStatesMock,
   useAppInstallActions: () => ({ install: vi.fn(), isPending: false }),
 }));
 
@@ -76,6 +81,10 @@ function app(overrides: Partial<AppSummary> = {}): AppSummary {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAppInstallStatesMock.mockReturnValue({
+    bySlug: new Map(),
+    isLoading: false,
+  });
 });
 
 describe('AppsGrid catalog/installed union (#1979)', () => {
@@ -101,9 +110,9 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
 
   // The card title is the union's identity: CatalogCard renders the app name
   // as the card's title text, in DOM order = the sorted union. Assert against
-  // those titles rather than card-level links — the refactor moved navigation
-  // into the footer action (Open/Install), so install-state-empty cards no
-  // longer carry a link, but the union/precedence/sort invariant is unchanged.
+  // those titles rather than card-level links (covered separately by the
+  // #2554 navigation tests below) so the union/precedence/sort invariant
+  // stays independent of the card's link markup.
   it('renders the union of installed and catalog apps, keyed by slug', () => {
     useAppsMock.mockReturnValue({
       apps: [app({ slug: 'installed-only', name: 'Installed Only' })],
@@ -205,5 +214,69 @@ describe('AppsGrid catalog/installed union (#1979)', () => {
     expect(
       screen.getAllByText(/Apple|Mango|Zebra/).map((el) => el.textContent),
     ).toStrictEqual(['Apple', 'Mango', 'Zebra']);
+  });
+});
+
+/**
+ * Regression net for #2554: every hub card — including an AVAILABLE
+ * (uninstalled) one, whose only footer action is the Install button — must be
+ * a real link to the app's detail page with accessible name = the app name
+ * (apps.md A1), so the detail page is reachable by mouse and keyboard from
+ * the hub. The card link is a stretched overlay; the footer actions must stay
+ * operable above it.
+ */
+describe('AppsGrid card navigation (#2554)', () => {
+  it('renders an available (uninstalled) app card as a link named after the app', () => {
+    useAppsMock.mockReturnValue({ apps: [], isLoading: false, error: null });
+    useAppCatalogMock.mockReturnValue({
+      apps: [app({ slug: 'issue-desk', name: 'Issue resolution desk' })],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<AppsGrid organizationId="org_1" />);
+
+    // A real anchor (keyboard reachable by role) with a11y name = app name.
+    expect(
+      screen.getByRole('link', { name: 'Issue resolution desk' }),
+    ).toBeInTheDocument();
+    // The Install action still renders alongside the card link.
+    expect(screen.getByRole('button', { name: 'Install' })).toBeEnabled();
+  });
+
+  it('renders an installed app card as a link named after the app, next to Open', () => {
+    useAppsMock.mockReturnValue({
+      apps: [app({ slug: 'installed-app', name: 'Installed App' })],
+      isLoading: false,
+      error: null,
+    });
+    useAppCatalogMock.mockReturnValue({
+      apps: [app({ slug: 'installed-app', name: 'Installed App' })],
+      isLoading: false,
+      error: null,
+    });
+    useAppInstallStatesMock.mockReturnValue({
+      bySlug: new Map([
+        [
+          'installed-app',
+          {
+            appSlug: 'installed-app',
+            status: 'active' as const,
+            installedAt: 1,
+            blockedIntegrations: [],
+          },
+        ],
+      ]),
+      isLoading: false,
+    });
+
+    render(<AppsGrid organizationId="org_1" />);
+
+    expect(
+      screen.getByRole('link', { name: 'Installed App' }),
+    ).toBeInTheDocument();
+    // The footer Open link stays a distinct, operable control above the
+    // card's overlay link.
+    expect(screen.getByRole('link', { name: 'Open' })).toBeInTheDocument();
   });
 });
