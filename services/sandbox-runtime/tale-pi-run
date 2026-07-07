@@ -133,6 +133,7 @@ def main() -> int:
             cmd += ["--session", args.resume]
 
         proc = subprocess.Popen(
+            # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- fixed pi argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
             cmd,
             cwd=args.workdir,
             env=env,
