@@ -29,7 +29,7 @@ vi.mock('../../members/mirror_sync', () => ({
   deleteTeamMemberMirrorByTeamMemberId: vi.fn(async () => undefined),
 }));
 
-const MIGRATION_ID = '0.2.91/01_normalize_auth_user_emails';
+const MIGRATION_ID = '0.3.3/01_normalize_auth_user_emails';
 const ORG = 'org_test';
 
 function signupUser(
@@ -217,7 +217,7 @@ describe('migration.up batch wrapper', () => {
     vi.resetModules();
   });
 
-  it('runs the v0.2.91 component migration batch over the memory store', async () => {
+  it('runs the v0.3.3 component migration batch over the memory store', async () => {
     const store = createBetterAuthMemoryStore();
     seedUser(
       store,
@@ -233,7 +233,7 @@ describe('migration.up batch wrapper', () => {
     );
 
     const { migration } =
-      await import('../../migrations/versions/v0_2_91/01_normalize_auth_user_emails/index');
+      await import('../../migrations/versions/v0_3_3/01_normalize_auth_user_emails/index');
     const ctx = createBetterAuthTestCtx(store);
     const result = await migration.up(ctx as never, null, 50);
 

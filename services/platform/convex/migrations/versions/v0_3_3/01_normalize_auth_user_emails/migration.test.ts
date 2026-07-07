@@ -14,10 +14,10 @@ vi.mock('../../../../_generated/server', async (importOriginal) => {
   };
 });
 
-const DIR = 'migrations/versions/v0_2_91/01_normalize_auth_user_emails';
+const DIR = 'migrations/versions/v0_3_3/01_normalize_auth_user_emails';
 const modules = buildModules(import.meta.glob('../../../../**/*.*s'), DIR);
 
-describe('0.2.91/01_normalize_auth_user_emails', () => {
+describe('0.3.3/01_normalize_auth_user_emails', () => {
   it('is registered as a destructive component migration', () => {
     expect(meta.kind).toBe('component');
     expect(meta.destructive).toBe(true);
