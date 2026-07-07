@@ -77,6 +77,8 @@ describe('parseConvexRunJson', () => {
 ]`;
     const corrupted = legacyGrepStrip(stdout);
     expect(() => JSON.parse(corrupted)).toThrow();
-    expect(parseConvexRunJson(stdout)?.[0]?.title).toContain('Enterprise SSO');
+    expect(
+      parseConvexRunJson<{ title: string }[]>(stdout)?.[0]?.title,
+    ).toContain('Enterprise SSO');
   });
 });
