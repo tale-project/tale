@@ -447,7 +447,9 @@ function InstructionsTab() {
       ? 'cursor'
       : config.agentKind === 'hermes'
         ? 'hermes'
-        : 'claude-code';
+        : config.agentKind === 'gemini'
+          ? 'gemini'
+          : 'claude-code';
   const credentialPolicy = getCredentialPolicy(productAgentKind);
   // Runtimes that can't reach the platform gateway (e.g. Cursor) are BYO only —
   // there is no managed choice, so force byo and hide the selector.
