@@ -5890,7 +5890,8 @@
           "description": "Which coding agent runs this agent's turns in the sandbox.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
-          "hermes": "Hermes Agent"
+          "hermes": "Hermes Agent",
+          "codex": "Codex"
         },
         "webTools": {
           "sectionTitle": "Web tools",

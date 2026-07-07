@@ -337,7 +337,9 @@ function GeneralTab() {
             ? t('agents.form.agentKind.cursor')
             : slug === 'hermes'
               ? t('agents.form.agentKind.hermes')
-              : t('agents.form.agentKind.claudeCode'),
+              : slug === 'codex'
+                ? t('agents.form.agentKind.codex')
+                : t('agents.form.agentKind.claudeCode'),
       })),
     [t],
   );
@@ -367,7 +369,12 @@ function GeneralTab() {
 
   const handleAgentKindChange = useCallback(
     (value: string) => {
-      if (value !== 'claude-code' && value !== 'cursor' && value !== 'hermes') {
+      if (
+        value !== 'claude-code' &&
+        value !== 'cursor' &&
+        value !== 'hermes' &&
+        value !== 'codex'
+      ) {
         return;
       }
       // Cursor is BYO only (its CLI can't route through the platform gateway):

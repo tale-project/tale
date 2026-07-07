@@ -12,6 +12,12 @@ import {
  * arrives on the `turn.completed` event (tokens only, no dollars). Resume:
  * `codex exec resume <id>`. The sandbox flag maps 1:1 onto the permission
  * ceiling: read-only / workspace-write / danger-full-access.
+ *
+ * ARGV/PARSE QUIRKS SOURCE OF TRUTH: the platform sandbox adapter
+ * (services/platform/lib/agent-adapters/codex/) — its adapter.ts/parse.ts
+ * document the verified CLI contract per pinned version (stdin `-` prompt
+ * sentinel, resume subcommand flag surface, `-c` override keys, --json event
+ * schema). Keep any invocation/parse change here in sync with it.
  */
 export const codexAdapter: RuntimeAdapter = {
   adapterType: 'codex',

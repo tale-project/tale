@@ -143,7 +143,7 @@ export const CLAUDE_COMPAT_SKILLS_STAGE_DIR =
 
 export interface AgentCapabilities {
   processLifecycle: 'stdin-hold' | 'one-shot';
-  promptTransport: 'stdin-ndjson' | 'argv-positional';
+  promptTransport: 'stdin-ndjson' | 'stdin-text' | 'argv-positional';
   mcpDelivery: 'inline-argv' | 'inline-env' | 'staged-file';
   supportsPlanMode: boolean;
   supportsMidTurnSteering: boolean;

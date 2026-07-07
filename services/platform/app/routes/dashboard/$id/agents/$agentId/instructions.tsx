@@ -442,12 +442,7 @@ function InstructionsTab() {
   // passthrough.
   const isExternalAgent = config.primaryBehavior === 'external-agent';
   const isChat = (config.primaryBehavior ?? 'chat') === 'chat';
-  const productAgentKind: ProductAgentSlug =
-    config.agentKind === 'cursor'
-      ? 'cursor'
-      : config.agentKind === 'hermes'
-        ? 'hermes'
-        : 'claude-code';
+  const productAgentKind: ProductAgentSlug = config.agentKind ?? 'claude-code';
   const credentialPolicy = getCredentialPolicy(productAgentKind);
   // Runtimes that can't reach the platform gateway (e.g. Cursor) are BYO only —
   // there is no managed choice, so force byo and hide the selector.

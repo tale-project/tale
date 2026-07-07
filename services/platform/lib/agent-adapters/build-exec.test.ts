@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ClaudeCodeAdapter } from './claude-code/adapter';
+import { CodexAdapter } from './codex/adapter';
 import { CursorAdapter } from './cursor/adapter';
 import { HermesAdapter } from './hermes/adapter';
 import type { AgentRunSpec } from './types';
@@ -34,6 +35,36 @@ describe('HermesAdapter.buildExec', () => {
     );
     expect(env.OPENAI_API_KEY).toBe('sk-bf-test');
     expect(env.HERMES_HOME).toBe('/user/.runtime/home/.hermes');
+  });
+});
+
+describe('CodexAdapter.buildExec', () => {
+  it('builds codex exec --json with the gateway provider via -c and key in env', () => {
+    const codexBase = {
+      prompt: 'Fix issue #1',
+      model: 'openrouter/openai/gpt-5.5',
+      gateway: {
+        baseUrl: 'http://sandbox-llm-gateway:8080',
+        token: 'sk-bf-test',
+      },
+      workdir: '/user/workspace',
+    } satisfies AgentRunSpec;
+    const { argv, env, stdin } = new CodexAdapter().buildExec(codexBase);
+    expect(argv.slice(0, 4)).toEqual([
+      'codex',
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+    ]);
+    expect(argv).toContain(
+      'model_providers.tale.base_url="http://sandbox-llm-gateway:8080/openai/v1"',
+    );
+    expect(argv).toContain('model_providers.tale.env_key="TALE_GATEWAY_TOKEN"');
+    expect(argv.join(' ')).not.toContain('sk-bf-test');
+    expect(env.TALE_GATEWAY_TOKEN).toBe('sk-bf-test');
+    expect(env.CODEX_HOME).toBe('/user/.runtime/home/.codex');
+    expect(argv[argv.length - 1]).toBe('-');
+    expect(stdin).toBe('Fix issue #1');
   });
 });
 

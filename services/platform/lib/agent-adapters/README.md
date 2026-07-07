@@ -1,6 +1,6 @@
 # @tale/agent-adapters
 
-Entry-agnostic adapters for driving coding agents (Claude Code, Cursor, Hermes Agent) inside
+Entry-agnostic adapters for driving coding agents (Claude Code, Cursor, Hermes Agent, Codex) inside
 a Tale sandbox session.
 
 Two responsibilities, both pure logic with **zero runtime dependencies**:

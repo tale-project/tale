@@ -5627,7 +5627,8 @@
           "description": "Quel agent de code exécute les tours de cet agent dans le bac à sable.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
-          "hermes": "Hermes Agent"
+          "hermes": "Hermes Agent",
+          "codex": "Codex"
         },
         "webTools": {
           "sectionTitle": "Outils web",

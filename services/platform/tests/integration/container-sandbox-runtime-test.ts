@@ -118,6 +118,7 @@ await assertContains(
 await assertOk('claude on PATH', 10001, 'command -v claude');
 await assertOk('opencode on PATH', 10001, 'command -v opencode');
 await assertOk('hermes on PATH', 10001, 'command -v hermes');
+await assertOk('codex on PATH', 10001, 'command -v codex');
 await assertOk(
   'tale-hermes-run wrapper present',
   10001,
@@ -150,6 +151,7 @@ await assertOk(
 await assertOk('claude --version runs', 10001, 'claude --version');
 await assertOk('opencode --version runs', 10001, 'opencode --version');
 await assertOk('hermes --version runs', 10001, 'hermes --version');
+await assertOk('codex --version runs', 10001, 'codex --version');
 // The wrapper's hermes-agent integration: ast-parse tale-hermes-run (also
 // proves it is valid Python), collect every kwarg it passes to AIAgent(...)
 // and agent.run_conversation(...), and assert the PINNED hermes-agent's real

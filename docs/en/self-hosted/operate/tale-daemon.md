@@ -3,7 +3,7 @@ title: tale-daemon
 description: Run task work on your own machines with local coding-agent CLIs (Claude Code, Codex) — setup, pacing, isolation, permissions, and failure handling.
 ---
 
-`tale-daemon` executes Tale board tasks on a machine you control, using the coding-agent CLIs you already have: **Claude Code** (`claude`) and **Codex** (`codex`). Bind an agent to a runtime in its configuration and its assigned tasks are dispatched to the daemon instead of Tale's internal model loop; the result lands back on the task as a comment (with a diff stat) and the task parks at _In review_ like any other agent work.
+`tale-daemon` executes Tale board tasks on a machine you control, using the coding-agent CLIs you already have: **Claude Code** (`claude`) and **Codex** (`codex`). Bind an agent to a runtime in its configuration and its assigned tasks are dispatched to the daemon instead of Tale's internal model loop; the result lands back on the task as a comment (with a diff stat) and the task parks at _In review_ like any other agent work. For chat-driven runs of the same CLIs inside a managed sandbox, see [External agents](/platform/agents/external-agent).
 
 ## Setup
 

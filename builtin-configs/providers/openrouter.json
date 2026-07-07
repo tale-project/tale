@@ -638,6 +638,7 @@
     },
     {
       "id": "openai/gpt-5.5-pro",
+      "nativeModelId": "gpt-5.5-pro",
       "displayName": "GPT-5.5 Pro",
       "description": "OpenAI's most advanced model for the hardest reasoning tasks",
       "tags": ["chat", "vision"],
@@ -656,6 +657,7 @@
     },
     {
       "id": "openai/gpt-5.5",
+      "nativeModelId": "gpt-5.5",
       "displayName": "GPT-5.5",
       "description": "OpenAI's flagship general-purpose model",
       "tags": ["chat", "vision"],

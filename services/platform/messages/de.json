@@ -5626,7 +5626,8 @@
           "description": "Welcher Coding-Agent die Turns dieses Agenten in der Sandbox ausführt.",
           "claudeCode": "Claude Code",
           "cursor": "Cursor",
-          "hermes": "Hermes Agent"
+          "hermes": "Hermes Agent",
+          "codex": "Codex"
         },
         "webTools": {
           "sectionTitle": "Web-Tools",
