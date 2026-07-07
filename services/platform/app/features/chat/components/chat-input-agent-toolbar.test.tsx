@@ -52,6 +52,9 @@ vi.mock('./external-agent-mode-toggle', () => ({
 vi.mock('./sandbox-state-indicator', () => ({
   SandboxStateIndicator: () => <div data-testid="sandbox-stub" />,
 }));
+vi.mock('./sandbox-workdir-chip', () => ({
+  SandboxWorkdirChip: () => null,
+}));
 vi.mock('./composer-capability-pills', () => ({
   ComposerCapabilityPills: () => null,
 }));
