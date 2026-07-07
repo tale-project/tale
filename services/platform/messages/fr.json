@@ -1466,6 +1466,22 @@
       "actTooltip": "Mode exécution : l'agent applique directement tes instructions",
       "toggleFailed": "Impossible de changer de mode"
     },
+    "workdir": {
+      "label": "Répertoire de travail",
+      "chipTooltip": "Là où l'agent démarre à chaque message. Pointe-le vers le dossier d'un dépôt dans l'espace de travail : l'agent y retrouve les instructions et les skills propres à ce dépôt.",
+      "rootLabel": "workspace",
+      "placeholder": "ex. tale",
+      "helper": "Relatif à la racine de l'espace de travail. S'applique dès ton prochain message ; tant que le dossier n'existe pas encore, l'agent reste à la racine.",
+      "save": "Enregistrer",
+      "reset": "Revenir à la racine",
+      "missingWarning": "Ce dossier n'existe pas encore dans l'espace de travail — l'agent restera à la racine tant qu'il n'aura pas été créé.",
+      "saveFailed": "Impossible de changer le répertoire de travail",
+      "errors": {
+        "absolute": "Indique un chemin relatif à l'espace de travail, pas un chemin absolu",
+        "tooLong": "Ce chemin est trop long",
+        "badSegment": "Uniquement des lettres, chiffres, points, tirets et tirets bas — les segments .. ne sont pas autorisés"
+      }
+    },
     "sandbox": {
       "label": "Sandbox",
       "tooltip": "S'exécute dans une VM sandbox isolée avec son propre espace de travail persistant — elle peut exécuter de vraies commandes et installer des paquets, à l'écart de ton ordinateur.",

@@ -252,6 +252,17 @@ export const threadMetadataTable = defineTable({
    */
   externalAgentMode: v.optional(v.union(v.literal('plan'), v.literal('act'))),
   /**
+   * External-agent working directory for this thread, RELATIVE to the sandbox
+   * workspace root (`/user/workspace`); unset = the root itself. Every turn's
+   * CLI process starts here (and the repo-skill precedence scan follows), so a
+   * repo checked out in a subdir exposes its own CLAUDE.md / project skills.
+   * Set by the composer workdir chip; validated by lib/shared/sandbox-workdir
+   * — the platform is the only workspace-confinement guard (runnerd allows any
+   * existing dir under /user). A missing dir falls back to the root at turn
+   * time (fail-open; the chip probes existence at save time).
+   */
+  sandboxWorkdir: v.optional(v.string()),
+  /**
    * Discussions reuse this thread/message store. `kind` distinguishes a normal
    * chat (absent or 'chat') from a GitHub-Discussions-style project discussion
    * or a task discussion. Project/task discussions are accessible to project
