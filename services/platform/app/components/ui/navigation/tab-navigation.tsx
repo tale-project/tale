@@ -309,7 +309,7 @@ export function TabNavigation({
       if (settled) settled.style.transition = '';
       resizeRestoreTimerRef.current = null;
     }, 150);
-  }, [updateIndicator]);
+  }, [updateIndicator, measureScrollable]);
   useEffect(
     () => () => {
       if (resizeRestoreTimerRef.current) {
