@@ -89,7 +89,7 @@ export function AutomationAIChatPanel({
       </div>
 
       <PanelHeader variant="compact" className="gap-3">
-        <div className="rounded-lg bg-purple-600 p-2 text-white dark:bg-purple-700">
+        <div className="text-foreground bg-muted rounded-lg border p-2">
           <Sparkles className="size-4" />
         </div>
         <div className="flex-1">
