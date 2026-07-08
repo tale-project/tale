@@ -28,7 +28,10 @@ import {
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { notifyChatMentions } from '../collab/notify';
-import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
+import {
+  excludeKbReferenceTokens,
+  resolveSurfaceMentions,
+} from '../collab/resolve_surface_mentions';
 import { isDrainingNow } from '../control/drain';
 import { userContextValidator } from '../lib/agent_response/validators';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -305,13 +308,21 @@ export const chatWithAgentTurn = mutation({
     }
 
     const projectIdForMentions = args.projectId ?? meta.projectId;
-    const { mentions, unresolvedMentionTokens } = await resolveSurfaceMentions(
-      ctx,
-      {
+    const { mentions, unresolvedMentionTokens: rawUnresolvedTokens } =
+      await resolveSurfaceMentions(ctx, {
         organizationId: args.organizationId,
         body: args.message.trim(),
         projectId: projectIdForMentions,
-      },
+      });
+    // `@file.pdf` / `@Folder` pins already resolved as KB references above —
+    // without this exclusion every successful file mention toasts a spurious
+    // "did not match anyone in your organization".
+    const unresolvedMentionTokens = excludeKbReferenceTokens(
+      rawUnresolvedTokens,
+      [
+        ...mergedFiles.map((file) => file.fileName),
+        ...(referencedFolders ?? []).map((folder) => folder.name),
+      ],
     );
     await notifyChatMentions(ctx, {
       organizationId: args.organizationId,
