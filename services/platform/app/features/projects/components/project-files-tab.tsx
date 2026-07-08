@@ -546,6 +546,7 @@ export function ProjectFilesTab({
             <Button
               variant="secondary"
               size="sm"
+              className="gap-2"
               onClick={() => setCreateFolderParent({})}
             >
               <FolderPlus className="size-4" aria-hidden="true" />
