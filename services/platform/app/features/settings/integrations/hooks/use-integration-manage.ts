@@ -19,6 +19,7 @@ import {
   useTestIntegration,
 } from './actions';
 import { useGenerateUploadUrl, useUpdateCredentials } from './mutations';
+import { buildSmtpAuthPatch } from './smtp-auth-payload';
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -148,6 +149,9 @@ export function useIntegrationManage(
     message: string;
   } | null>(null);
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  // imap_smtp: whether sending uses a separate SMTP provider (its own login)
+  // rather than the mailbox login. Synced to stored state below.
+  const [smtpSeparate, setSmtpSeparate] = useState(false);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [sqlConfig, setSqlConfig] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -185,6 +189,16 @@ export function useIntegrationManage(
 
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
+
+  // Whether a separate SMTP login is currently stored (imap_smtp only).
+  const hasStoredSmtpAuth = !!integration.smtpAuth;
+  // Reset the "separate SMTP provider" toggle to stored state whenever the
+  // dialog (re)opens or the stored smtpAuth presence changes after a save.
+  // Keyed on the presence boolean (not the object) so a refetch returning an
+  // equivalent smtpAuth can't clobber the user's in-progress toggle.
+  useEffect(() => {
+    setSmtpSeparate(hasStoredSmtpAuth);
+  }, [integration._id, hasStoredSmtpAuth, open]);
 
   const { mutateAsync: updateCredentials } = useUpdateCredentials();
   const { mutateAsync: testConnection, isPending: isTesting } =
@@ -301,8 +315,30 @@ export function useIntegrationManage(
   const hasSqlConfigChanges = Object.values(sqlConfig).some(
     (v) => v.trim().length > 0,
   );
+  // Turning the "separate SMTP provider" toggle off while creds are stored is a
+  // real change (drops them) even when no field was typed — Save/Test must fire.
+  const smtpWillClear =
+    integration.type === 'imap_smtp' && !smtpSeparate && hasStoredSmtpAuth;
   const hasChanges =
-    hasCredentialChanges || hasConfigChanges || hasSqlConfigChanges;
+    hasCredentialChanges ||
+    hasConfigChanges ||
+    hasSqlConfigChanges ||
+    smtpWillClear;
+
+  // Toggle the "separate SMTP provider" fields. Turning it off reverts to the
+  // mailbox login, so drop any typed SMTP credentials to keep state clean and
+  // avoid stale values re-enabling Save.
+  const handleSmtpSeparateChange = useCallback((value: boolean) => {
+    setSmtpSeparate(value);
+    if (!value) {
+      setCredentials((prev) => {
+        const next = { ...prev };
+        delete next['smtpUsername'];
+        delete next['smtpPassword'];
+        return next;
+      });
+    }
+  }, []);
 
   const busy = isSubmitting || isTesting || isSavingOAuth2 || isApplyingUpdate;
 
@@ -556,17 +592,20 @@ export function useIntegrationManage(
       }
     }
 
-    // imap_smtp: optional separate SMTP credentials (e.g. Resend). When either
-    // field is set, send a distinct smtpAuth; blank means SMTP reuses basicAuth.
+    // imap_smtp: the "Use a separate SMTP provider" toggle decides whether to
+    // set a distinct smtpAuth (e.g. Resend), clear a stored one (revert to the
+    // mailbox login), or leave it untouched. See buildSmtpAuthPatch.
     if (integration.type === 'imap_smtp') {
-      const smtpUsername = credentials['smtpUsername']?.trim();
-      const smtpPassword = credentials['smtpPassword']?.trim();
-      if (smtpUsername || smtpPassword) {
-        payload.smtpAuth = {
-          username: smtpUsername || integration.smtpAuth?.username || '',
-          password: smtpPassword || '',
-        };
-      }
+      Object.assign(
+        payload,
+        buildSmtpAuthPatch({
+          smtpSeparate,
+          smtpUsername: credentials['smtpUsername'],
+          smtpPassword: credentials['smtpPassword'],
+          storedUsername: integration.smtpAuth?.username,
+          hasStoredSmtpAuth,
+        }),
+      );
     }
 
     const connectionUpdates: Record<string, unknown> = {};
@@ -604,6 +643,8 @@ export function useIntegrationManage(
     integration,
     secretBindings,
     editableConfigFields,
+    smtpSeparate,
+    hasStoredSmtpAuth,
   ]);
 
   const buildSqlConnectionPayload = useCallback(() => {
@@ -955,6 +996,8 @@ export function useIntegrationManage(
     setConfigValues,
     credentials,
     setCredentials,
+    smtpSeparate,
+    handleSmtpSeparateChange,
     hasChanges,
 
     sqlConfig,

@@ -48,6 +48,9 @@ export const saveCredentials = action({
     basicAuth: v.optional(basicAuthValidator),
     oauth2Auth: v.optional(oauth2AuthValidator),
     smtpAuth: v.optional(smtpAuthValidator),
+    // Revert sending to the mailbox login by dropping any stored smtpAuth
+    // (imap_smtp "Use a separate SMTP provider" toggle turned off).
+    clearSmtpAuth: v.optional(v.boolean()),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
@@ -104,6 +107,9 @@ export const testConnection = action({
     basicAuth: v.optional(basicAuthValidator),
     oauth2Auth: v.optional(oauth2AuthValidator),
     smtpAuth: v.optional(smtpAuthValidator),
+    // Dry-run the mailbox login for sending, ignoring stored smtpAuth (the
+    // "separate SMTP provider" toggle is being turned off).
+    clearSmtpAuth: v.optional(v.boolean()),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   },

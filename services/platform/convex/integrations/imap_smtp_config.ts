@@ -29,6 +29,8 @@ interface Overrides {
   basicAuth?: { username: string; password: string };
   /** Plaintext SMTP credentials for pre-save testing (e.g. Resend). */
   smtpAuth?: { username: string; password: string };
+  /** Ignore any stored smtpAuth and send through the mailbox login instead. */
+  clearSmtpAuth?: boolean;
   /** Inline connection config for pre-save testing. */
   connectionConfig?: Record<string, unknown>;
 }
@@ -125,16 +127,20 @@ export async function resolveImapSmtpConnection(
   );
 
   // SMTP (sending) uses a distinct smtpAuth when configured (e.g. Resend:
-  // `resend` + API key), otherwise it reuses the IMAP login.
-  const smtpCreds =
-    overrides?.smtpAuth || integration.smtpAuth
-      ? await resolveCredPair(
-          ctx,
-          overrides?.smtpAuth,
-          integration.smtpAuth,
-          'SMTP',
-        )
-      : imapCreds;
+  // `resend` + API key), otherwise it reuses the IMAP login. `clearSmtpAuth`
+  // (the form's "separate SMTP provider" toggle turned off) forces the reuse
+  // even when a separate smtpAuth is still stored.
+  const useSeparateSmtp =
+    !overrides?.clearSmtpAuth &&
+    Boolean(overrides?.smtpAuth || integration.smtpAuth);
+  const smtpCreds = useSeparateSmtp
+    ? await resolveCredPair(
+        ctx,
+        overrides?.smtpAuth,
+        integration.smtpAuth,
+        'SMTP',
+      )
+    : imapCreds;
 
   const imapPort = parsePort(config.imapPort) ?? 993;
   const smtpPort = parsePort(config.smtpPort) ?? 587;
